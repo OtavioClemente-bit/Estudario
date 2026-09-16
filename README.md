@@ -7,13 +7,14 @@
 Capturas reais do aplicativo rodando em emulador Android a partir do APK do
 projeto.
 
-![Tela inicial do Meu Concurso](docs/media/meu-concurso-home.png)
+![Tela inicial do Meu Concurso com dados demonstrativos](docs/media/meu-concurso-demo-home.png)
 
-| Recursos de estudo | Configurações e personalização |
+| Treino inteligente | Recursos e configurações |
 | --- | --- |
-| ![Recursos de estudo](docs/media/meu-concurso-mais.png) | ![Configurações e personalização](docs/media/meu-concurso-mais-3.png) |
+| ![Treino inteligente](docs/media/meu-concurso-demo-treinar.png) | ![Recursos e configurações](docs/media/meu-concurso-demo-resources.png) |
 
-![Ferramentas avançadas do Meu Concurso](docs/media/meu-concurso-mais-2.png)
+As capturas usam exclusivamente o conjunto de dados demonstrativos do próprio
+aplicativo: concurso, plano, matérias e questões fictícias, sem dados pessoais.
 
 O Meu Concurso reúne edital, teoria, questões, revisões espaçadas, caderno de
 erros e planejamento adaptativo em uma experiência local-first. O objetivo é

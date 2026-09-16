@@ -59,6 +59,7 @@ fun MoreScreen(viewModel: AppViewModel, onSearch: () -> Unit, onReviews: () -> U
         item { MoreItem(Icons.Outlined.CalendarMonth, "Planos de estudo", "Criar, importar, exportar e gerenciar planos", onPlan) }
         item { MoreItem(Icons.Outlined.NotificationsActive, "Notificações de estudo", "Horário, pendências, revisões e teste de aviso", onNotifications) }
         item { SectionTitle("Conteúdo e segurança") }
+        item { MoreItem(Icons.Outlined.PlayCircle, "Carregar dados demonstrativos", "Concurso, plano e questões fictícias para explorar o app", viewModel::loadDemo) }
         item { MoreItem(Icons.Outlined.AutoAwesome, "Gerar estudo com IA", "Use GPT, Claude, Gemini ou outra IA com prompt pronto", onImportGuide) }
         item { MoreItem(Icons.Outlined.FileOpen, "Importar pacote .estudo", "Edital, livros, resumos e questões") { importLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) } }
         item { MoreItem(Icons.Outlined.CloudDownload, "Exportar backup completo", "Salve uma cópia versionada no local que escolher") {
