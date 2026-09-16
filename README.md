@@ -2,7 +2,18 @@
 
 > Plataforma Android offline-first para transformar editais em planos de estudo executáveis.
 
-![Capa do Meu Concurso](docs/media/meu-concurso-cover.png)
+## Produto em execução
+
+Capturas reais do aplicativo rodando em emulador Android a partir do APK do
+projeto.
+
+![Tela inicial do Meu Concurso](docs/media/meu-concurso-home.png)
+
+| Recursos de estudo | Configurações e personalização |
+| --- | --- |
+| ![Recursos de estudo](docs/media/meu-concurso-mais.png) | ![Configurações e personalização](docs/media/meu-concurso-mais-3.png) |
+
+![Ferramentas avançadas do Meu Concurso](docs/media/meu-concurso-mais-2.png)
 
 O Meu Concurso reúne edital, teoria, questões, revisões espaçadas, caderno de
 erros e planejamento adaptativo em uma experiência local-first. O objetivo é
@@ -61,12 +72,6 @@ dispositivo ou emulador Android 8.0+.
 ```
 
 O APK de desenvolvimento é gerado em `app/build/outputs/apk/debug/app-debug.apk`.
-
-## Demonstração em vídeo
-
-A gravação de uso do aplicativo será adicionada quando houver uma captura real
-do fluxo em um dispositivo ou emulador Android. A capa acima é uma arte
-institucional do projeto, não uma captura de tela do produto.
 
 ## Documentação
 
