@@ -30,7 +30,16 @@ adapta ao histórico real.
 - Banco de questões, tentativas imutáveis e caderno de erros.
 - Revisões espaçadas com ciclos configuráveis, incluindo D+1, D+7 e D+30.
 - Importação e exportação dos formatos `.estudo` e `.plano`.
+- Abertura e compartilhamento de arquivos pelo Android com detecção pelo conteúdo.
 - Backup local validado, sem login obrigatório, anúncios ou backend em tempo de execução.
+
+## Abrir arquivos no Android
+
+- Toque em um `.plano` em Downloads ou Files e escolha **Meu Concurso** para importar o plano.
+- Compartilhe um `.estudo` de Drive, navegador, e-mail ou mensageiro para **Meu Concurso**.
+- Abra um backup para revisar a restauração; os dados só são substituídos depois da confirmação explícita.
+
+O app valida nome, MIME e conteúdo JSON em runtime. IDs oficiais criados pelo Meu Concurso são aceitos, mas a importação não fabrica IDs para contornar vínculos ausentes ou divergentes.
 
 ## Fluxo do produto
 

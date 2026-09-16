@@ -22,8 +22,8 @@ android {
         applicationId = "br.com.meuconcurso"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "2.1.1"
+        versionCode = 11
+        versionName = "2.1.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

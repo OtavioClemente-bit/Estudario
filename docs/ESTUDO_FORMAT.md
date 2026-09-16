@@ -14,6 +14,10 @@ O `.estudo` v2 é um JSON UTF-8 capaz de transportar, em um único arquivo:
 
 A versão 1 continua aceita para pacotes antigos de um único tópico. Para novos arquivos, use sempre a versão 2.
 
+O arquivo pode ser escolhido dentro do app ou aberto/compartilhado por Downloads, Files, Drive, navegador, e-mail ou mensageiro. A identificação definitiva combina o nome exibido, o MIME fornecido e a assinatura do conteúdo JSON, inclusive para URIs `content://` sem extensão confiável. Conteúdo incompatível é recusado antes da prévia.
+
+Backups usam o mesmo leitor e detector, mas seguem para um fluxo separado. Abrir ou compartilhar um backup nunca restaura dados automaticamente: o app mostra o impacto e exige o botão **Restaurar**.
+
 ## Estratégia recomendada
 
 Para editais grandes, não peça tudo à IA em uma única resposta. O fluxo mais confiável é:

@@ -21,7 +21,9 @@ O `.plano` é um JSON UTF-8 separado do conteúdo `.estudo`. Ele descreve estrat
 
 ## Referências ao edital
 
-Matérias e tópicos usam `externalId`, nunca o ID numérico local do Room. Uma referência ausente aparece na prévia e não é ligada silenciosamente por nome.
+Matérias e tópicos usam `externalId`, nunca o ID numérico local do Room. IDs criados pelo mecanismo oficial do Meu Concurso são válidos. A importação nunca deriva ou fabrica um ID a partir do nome apenas para aceitar o arquivo.
+
+Quando o `externalId` está ausente, o app pode resolver pelo nome normalizado se houver exatamente um registro compatível no contexto correto. Quando o arquivo informa um ID que não existe, uma correspondência por nome é tratada como divergência e exige revisão explícita. Ambiguidades, vínculos fora do concurso ou da matéria correta e registros locais sem ID oficial impedem a importação até serem resolvidos.
 
 ## Tarefas
 
@@ -36,6 +38,8 @@ Origens: `ENGINE`, `MANUAL`, `IMPORTED`, `REVIEW_SCHEDULE`, `MASTER_PLAN`.
 Cada tarefa possui UUID, data ISO-8601, minutos, questões, bloqueio e dependências por UUID. Dependências ausentes, autorreferentes ou cíclicas invalidam o arquivo.
 
 ## Importação
+
+O arquivo pode ser escolhido dentro do app ou aberto/compartilhado por Downloads, Files, Drive, navegador, e-mail ou mensageiro. A identificação final ocorre em runtime usando nome exibido, MIME e assinatura JSON; extensão e MIME isolados não são considerados prova do formato.
 
 - **Criar:** cria outro plano e nunca importa histórico de execução.
 - **Mesclar:** recomendado; preserva concluídas, execuções, parcial e bloqueios locais.

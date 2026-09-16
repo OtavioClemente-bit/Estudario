@@ -1,7 +1,5 @@
 package br.com.meuconcurso.ui.screens
 
-import android.content.Context
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -15,11 +13,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import br.com.meuconcurso.ui.AppViewModel
-import br.com.meuconcurso.ui.components.ConfirmDialog
+import br.com.meuconcurso.MeuConcursoApplication
+import br.com.meuconcurso.data.transfer.MeuConcursoFileFormat
 import br.com.meuconcurso.ui.components.ScreenTitle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
 @Composable
@@ -32,21 +30,17 @@ fun MoreScreen(viewModel: AppViewModel, onSearch: () -> Unit, onReviews: () -> U
     val showExplanation by viewModel.showExplanation.collectAsState()
     val reviewIntervals by viewModel.reviewIntervals.collectAsState()
     var pendingBackup by remember { mutableStateOf<String?>(null) }
-    var restoreRaw by remember { mutableStateOf<String?>(null) }
+    val incomingFiles = (context.applicationContext as MeuConcursoApplication).incomingFiles
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { scope.launch { readText(context, it)?.let(viewModel::inspectEstudo) } }
+        uri?.let { scope.launch { incomingFiles.open(context.contentResolver, it, expected = MeuConcursoFileFormat.ESTUDO) } }
     }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { scope.launch { restoreRaw = readText(context, it) } }
+        uri?.let { scope.launch { incomingFiles.open(context.contentResolver, it, expected = MeuConcursoFileFormat.BACKUP) } }
     }
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         val data = pendingBackup
         if (uri != null && data != null) scope.launch(Dispatchers.IO) { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(data) } }
     }
-    if (restoreRaw != null) ConfirmDialog("Restaurar backup?", "Os dados locais atuais serão substituídos pelo conteúdo deste backup. Essa ação não pode ser desfeita.", "Restaurar", onDismiss = { restoreRaw = null }) {
-        viewModel.restoreBackup(restoreRaw!!); restoreRaw = null
-    }
-
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { ScreenTitle("Mais", "Ferramentas e configurações") }
         item { SectionTitle("Estudo") }
@@ -96,8 +90,4 @@ fun MoreScreen(viewModel: AppViewModel, onSearch: () -> Unit, onReviews: () -> U
     ElevatedCard(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         ListItem(headlineContent = { Text(title, fontWeight = FontWeight.SemiBold) }, supportingContent = { Text(subtitle) }, leadingContent = { Icon(icon, null) }, trailingContent = { Icon(Icons.Outlined.ChevronRight, null) })
     }
-}
-
-private suspend fun readText(context: Context, uri: Uri): String? = withContext(Dispatchers.IO) {
-    context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
 }

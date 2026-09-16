@@ -16,6 +16,7 @@ sealed interface TransferState {
     data class Preview(val value: EstudoPreview, val raw: String) : TransferState
     data class Success(val message: String) : TransferState
     data class Error(val message: String) : TransferState
+    data class BackupPreview(val raw: String) : TransferState
 }
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -127,8 +128,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun inspectEstudo(text: String) = viewModelScope.launch {
         _transfer.value = TransferState.Loading
-        _transfer.value = try { TransferState.Preview(estudoService.preview(text), text) } catch (e: Exception) { TransferState.Error(e.message ?: "Não foi possível analisar o arquivo.") }
+        _transfer.value = try {
+            val preview = estudoService.preview(text)
+            if (!preview.packageAlreadyImported && preview.duplicateCount == 0) {
+                val result = estudoService.import(text, ImportMode.SKIP)
+                TransferState.Success("Estudo importado com sucesso: ${result.topicsCreated} tópico(s), ${result.theories} teoria(s) e ${result.questions} questão(ões).")
+            } else TransferState.Preview(preview, text)
+        } catch (e: Exception) { TransferState.Error(e.message ?: "Não foi possível analisar o arquivo.") }
     }
+    fun inspectBackup(text: String) { _transfer.value = TransferState.BackupPreview(text) }
 
     fun confirmImport(raw: String, mode: ImportMode = ImportMode.SKIP, markAsStudied: Boolean = false) = viewModelScope.launch {
         _transfer.value = TransferState.Loading

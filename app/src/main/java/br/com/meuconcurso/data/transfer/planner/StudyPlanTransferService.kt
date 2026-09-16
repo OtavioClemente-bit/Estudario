@@ -18,6 +18,7 @@ data class StudyPlanImportPreview(
     val protectedLocalTaskCount: Int,
     val requestsActive: Boolean,
     val requestsMaster: Boolean,
+    val linkIssues: List<ImportLinkIssue> = emptyList(),
 )
 
 data class StudyPlanImportResult(
@@ -35,8 +36,14 @@ class StudyPlanTransferService(
     private val planner = db.plannerDao()
     private val resolver = StudyPlanImportResolver(db)
 
-    suspend fun preview(text: String): StudyPlanImportPreview {
-        val resolved = resolver.resolve(codec.decode(text))
+    suspend fun preview(text: String, selections: Map<String, Long> = emptyMap()): StudyPlanImportPreview {
+        val prepared = resolver.prepare(text, selections)
+        if (prepared.resolved == null) {
+            val root = org.json.JSONObject(prepared.normalizedText)
+            val planId = root.optString("planId")
+            return StudyPlanImportPreview(planId, root.optString("nome", "Plano de estudos"), planner.plan(planId) != null, prepared.issues.map { it.message }, root.optJSONArray("tarefas")?.length() ?: 0, 0, root.optBoolean("active"), root.optBoolean("masterPlan"), prepared.issues)
+        }
+        val resolved = prepared.resolved
         val existing = planner.plan(resolved.file.planId)
         val protected = existing?.let { plan ->
             val executed = planner.executionsForOnce(plan.id).mapNotNullTo(hashSetOf()) { it.taskId }
@@ -60,8 +67,11 @@ class StudyPlanTransferService(
         confirmActive: Boolean = false,
         confirmMaster: Boolean = false,
         today: LocalDate = LocalDate.now(),
+        selections: Map<String, Long> = emptyMap(),
     ): StudyPlanImportResult = db.withTransaction {
-        val resolved = resolver.resolve(codec.decode(text))
+        val prepared = resolver.prepare(text, selections)
+        require(prepared.issues.isEmpty()) { prepared.issues.joinToString(" ") { it.message } }
+        val resolved = prepared.resolved ?: error("Os vínculos do plano ainda não foram resolvidos.")
         require(resolved.unresolvedReferences.isEmpty()) { "Referências não resolvidas: ${resolved.unresolvedReferences.joinToString()}." }
         val competition = resolved.competition ?: error("Concurso não encontrado.")
         val existing = planner.plan(resolved.file.planId)

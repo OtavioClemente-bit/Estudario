@@ -20,6 +20,7 @@ import br.com.meuconcurso.MeuConcursoApplication
 import br.com.meuconcurso.ui.planner.PlanScreen
 import br.com.meuconcurso.ui.planner.StudyPlanViewModel
 import br.com.meuconcurso.ui.planner.StudyPlanViewModelFactory
+import br.com.meuconcurso.data.transfer.MeuConcursoFileFormat
 
 private data class Destination(val route: String, val label: String, val selected: androidx.compose.ui.graphics.vector.ImageVector, val unselected: androidx.compose.ui.graphics.vector.ImageVector)
 
@@ -31,14 +32,19 @@ fun MeuConcursoApp(viewModel: AppViewModel) {
         val navController = rememberNavController()
         val application = LocalContext.current.applicationContext as MeuConcursoApplication
         val planViewModel: StudyPlanViewModel = viewModel(factory = StudyPlanViewModelFactory(application))
-        val incomingPlan by application.incomingFiles.pendingPlan.collectAsState()
-        LaunchedEffect(incomingPlan?.token) {
-            incomingPlan?.let { incoming ->
-                navController.navigate("plan") { launchSingleTop = true }
-                planViewModel.inspectPlan(incoming.raw)
-                application.incomingFiles.consumePlan(incoming.token)
+        val incomingFile by application.incomingFiles.pending.collectAsState()
+        val incomingError by application.incomingFiles.error.collectAsState()
+        LaunchedEffect(incomingFile?.token) {
+            incomingFile?.let { incoming ->
+                when (incoming.format) {
+                    MeuConcursoFileFormat.PLANO -> { navController.navigate("plan") { launchSingleTop = true }; planViewModel.inspectPlan(incoming.payload.text) }
+                    MeuConcursoFileFormat.ESTUDO -> viewModel.inspectEstudo(incoming.payload.text)
+                    MeuConcursoFileFormat.BACKUP -> viewModel.inspectBackup(incoming.payload.text)
+                }
+                application.incomingFiles.consume(incoming.token)
             }
         }
+        LaunchedEffect(incomingError) { incomingError?.let { viewModel.reportIncomingFileError(it); application.incomingFiles.consumeError() } }
         val notificationDestination by viewModel.notificationDestination.collectAsState()
         LaunchedEffect(notificationDestination) {
             notificationDestination?.let { destination -> navController.navigate(destination) { launchSingleTop = true }; viewModel.consumeNotificationDestination() }
@@ -141,5 +147,6 @@ private fun TransferDialog(viewModel: AppViewModel) {
         )
         is TransferState.Success -> AlertDialog(onDismissRequest = viewModel::clearTransfer, title = { Text("Concluído") }, text = { Text(current.message) }, confirmButton = { TextButton(onClick = viewModel::clearTransfer) { Text("OK") } })
         is TransferState.Error -> AlertDialog(onDismissRequest = viewModel::clearTransfer, title = { Text("Não foi possível concluir") }, text = { Text(current.message) }, confirmButton = { TextButton(onClick = viewModel::clearTransfer) { Text("Entendi") } })
+        is TransferState.BackupPreview -> AlertDialog(onDismissRequest = viewModel::clearTransfer, title = { Text("Restaurar backup?") }, text = { Text("Os dados locais atuais serão substituídos. A restauração só começa após sua confirmação.") }, confirmButton = { TextButton(onClick = { viewModel.restoreBackup(current.raw) }) { Text("Restaurar") } }, dismissButton = { TextButton(onClick = viewModel::clearTransfer) { Text("Cancelar") } })
     }
 }

@@ -42,6 +42,30 @@ class StudyPlanTransferServiceTest {
         assertTrue(db.plannerDao().executionsForOnce(result.planId).isEmpty())
     }
 
+    @Test fun missingIdsResolveByUniqueNamesInsideContext() = runBlocking {
+        val raw = planJson()
+            .replace("\"externalId\":\"competition-1\"", "\"externalId\":\"\"")
+            .replace("\"externalId\":\"subject-1\"", "\"externalId\":null")
+            .replace("\"materiaExternalId\":\"subject-1\"", "\"materiaExternalId\":null")
+            .replace("\"topicoExternalId\":\"topic-1\"", "\"topicoExternalId\":null")
+        val preview = service.preview(raw)
+        assertTrue(preview.linkIssues.isEmpty())
+        val result = service.import(raw, PlanImportMode.CREATE)
+        val task = db.plannerDao().tasksForOnce(result.planId).single()
+        assertTrue(task.subjectId != null && task.topicId != null)
+    }
+
+    @Test fun unknownSuppliedCompetitionIdRequiresExplicitDivergenceChoice() = runBlocking {
+        val preview = service.preview(planJson().replace("competition-1", "missing-id"))
+        assertEquals(LinkResolutionKind.DIVERGENT_ID, preview.linkIssues.single().kind)
+    }
+
+    @Test fun localCompetitionWithoutOfficialIdCannotResolveRequiredLink() = runBlocking {
+        db.dao().insertCompetition(CompetitionEntity(name = "Sem ID"))
+        val raw = planJson().replace("\"externalId\":\"competition-1\",\"nome\":\"Concurso\"", "\"externalId\":null,\"nome\":\"Sem ID\"")
+        assertEquals(LinkResolutionKind.WITHOUT_OFFICIAL_ID, service.preview(raw).linkIssues.single().kind)
+    }
+
     @Test fun mergePreservesCompletedLocalTask() = runBlocking {
         val result = service.import(planJson(), PlanImportMode.CREATE)
         val task = db.plannerDao().tasksForOnce(result.planId).single()

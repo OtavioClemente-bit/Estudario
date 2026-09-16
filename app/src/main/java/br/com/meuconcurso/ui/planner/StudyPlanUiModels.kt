@@ -44,7 +44,7 @@ data class ActivePlanUiState(
 sealed interface PlanTransferUiState {
     data object Idle : PlanTransferUiState
     data object Loading : PlanTransferUiState
-    data class Preview(val raw: String, val value: br.com.meuconcurso.data.transfer.planner.StudyPlanImportPreview) : PlanTransferUiState
+    data class Preview(val raw: String, val value: br.com.meuconcurso.data.transfer.planner.StudyPlanImportPreview, val selections: Map<String, Long> = emptyMap()) : PlanTransferUiState
     data class Success(val message: String) : PlanTransferUiState
     data class Error(val message: String) : PlanTransferUiState
 }

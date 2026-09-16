@@ -1,7 +1,5 @@
 package br.com.meuconcurso.ui.planner
 
-import android.content.Context
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -20,8 +18,9 @@ import br.com.meuconcurso.ui.components.EmptyState
 import br.com.meuconcurso.ui.components.ScreenTitle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import br.com.meuconcurso.MeuConcursoApplication
+import br.com.meuconcurso.data.transfer.MeuConcursoFileFormat
 
 @Composable
 fun PlanScreen(viewModel: StudyPlanViewModel, onOpenTopic: (Long) -> Unit, onOpenErrors: () -> Unit = {}) {
@@ -39,7 +38,8 @@ fun PlanScreen(viewModel: StudyPlanViewModel, onOpenTopic: (Long) -> Unit, onOpe
     var pendingExport by remember { mutableStateOf<String?>(null) }
     var pendingContext by remember { mutableStateOf<String?>(null) }
     var editAvailability by remember { mutableStateOf(false) }
-    val openPlan = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { scope.launch { readPlanText(context, it)?.let(viewModel::inspectPlan) } } }
+    val incomingFiles = (context.applicationContext as MeuConcursoApplication).incomingFiles
+    val openPlan = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { scope.launch { incomingFiles.open(context.contentResolver, it, expected = MeuConcursoFileFormat.PLANO) } } }
     val savePlan = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> val raw = pendingExport; if (uri != null && raw != null) scope.launch(Dispatchers.IO) { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(raw) } } }
     val saveContext = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri -> val raw = pendingContext; if (uri != null && raw != null) scope.launch(Dispatchers.IO) { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(raw) } } }
     LaunchedEffect(Unit) { viewModel.selectSection(PlanSection.TODAY) }
@@ -84,13 +84,11 @@ fun PlanScreen(viewModel: StudyPlanViewModel, onOpenTopic: (Long) -> Unit, onOpe
     PlanTransferUiState.Loading -> AlertDialog(onDismissRequest = {}, title = { Text("Lendo plano") }, text = { LinearProgressIndicator() }, confirmButton = {})
     is PlanTransferUiState.Error -> AlertDialog(onDismissRequest = viewModel::clearTransfer, title = { Text("Arquivo inválido") }, text = { Text(state.message) }, confirmButton = { TextButton(onClick = viewModel::clearTransfer) { Text("OK") } })
     is PlanTransferUiState.Success -> AlertDialog(onDismissRequest = viewModel::clearTransfer, title = { Text("Importação concluída") }, text = { Text(state.message) }, confirmButton = { TextButton(onClick = viewModel::clearTransfer) { Text("OK") } })
-    is PlanTransferUiState.Preview -> AlertDialog(onDismissRequest = viewModel::clearTransfer, title = { Text(state.value.planName) }, text = { Column { Text("${state.value.importedTaskCount} tarefa(s) • ${state.value.protectedLocalTaskCount} registro(s) protegido(s)"); if (state.value.unresolvedReferences.isNotEmpty()) Text("Não resolvido: ${state.value.unresolvedReferences.joinToString()}", color = MaterialTheme.colorScheme.error); Text("Ativo/Mestre só serão alterados com confirmação explícita.") } }, confirmButton = { Row { if (state.value.existingPlan) { TextButton(enabled = state.value.unresolvedReferences.isEmpty(), onClick = { viewModel.importPlan(state.raw, PlanImportMode.MERGE, false, false) }) { Text("Mesclar") }; TextButton(enabled = state.value.unresolvedReferences.isEmpty(), onClick = { viewModel.importPlan(state.raw, PlanImportMode.REPLACE_FUTURE, false, false) }) { Text("Substituir futuro") } } else TextButton(enabled = state.value.unresolvedReferences.isEmpty(), onClick = { viewModel.importPlan(state.raw, PlanImportMode.CREATE, state.value.requestsActive, state.value.requestsMaster) }) { Text("Criar") } } }, dismissButton = { TextButton(onClick = viewModel::clearTransfer) { Text("Cancelar") } })
+    is PlanTransferUiState.Preview -> AlertDialog(onDismissRequest = viewModel::clearTransfer, title = { Text(state.value.planName) }, text = { Column(Modifier.verticalScroll(rememberScrollState())) { Text("${state.value.importedTaskCount} tarefa(s) • ${state.value.protectedLocalTaskCount} registro(s) protegido(s)"); state.value.linkIssues.forEach { issue -> Text(issue.message, color = MaterialTheme.colorScheme.error); issue.candidates.forEach { candidate -> OutlinedButton(onClick = { viewModel.chooseImportLink(issue.key, candidate.localId) }) { Text("Vincular a ${candidate.name}") } } }; if (state.value.linkIssues.isEmpty()) Text("Ativo/Mestre só serão alterados com confirmação explícita.") } }, confirmButton = { Column { if (state.value.existingPlan) { Row { TextButton(enabled = state.value.linkIssues.isEmpty(), onClick = { viewModel.importPlan(state.raw, PlanImportMode.MERGE, false, false) }) { Text("Mesclar") }; TextButton(enabled = state.value.linkIssues.isEmpty(), onClick = { viewModel.importPlan(state.raw, PlanImportMode.REPLACE_FUTURE, false, false) }) { Text("Substituir futuro") } }; TextButton(enabled = state.value.linkIssues.isEmpty(), onClick = { viewModel.importPlan(state.raw, PlanImportMode.CREATE, false, false) }) { Text("Criar cópia") } } else TextButton(enabled = state.value.linkIssues.isEmpty(), onClick = { viewModel.importPlan(state.raw, PlanImportMode.CREATE, state.value.requestsActive, state.value.requestsMaster) }) { Text("Importar") } } }, dismissButton = { TextButton(onClick = viewModel::clearTransfer) { Text(if (state.value.existingPlan) "Abrir existente" else "Cancelar") } })
 } }
 
 @Composable private fun DateOrAutomaticDialog(onDismiss: () -> Unit, onConfirm: (LocalDate?) -> Unit) { AlertDialog(onDismissRequest = onDismiss, title = { Text("Reprogramar") }, text = { Text("Escolha redistribuição automática ou amanhã. O histórico realizado não será alterado.") }, confirmButton = { Row { TextButton(onClick = { onConfirm(null); onDismiss() }) { Text("Automática") }; TextButton(onClick = { onConfirm(LocalDate.now().plusDays(1)); onDismiss() }) { Text("Amanhã") } } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }) }
 @Composable private fun ReasonDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) { var reason by remember { mutableStateOf("") }; AlertDialog(onDismissRequest = onDismiss, title = { Text("Pular atividade") }, text = { OutlinedTextField(reason, { reason = it }, label = { Text("Motivo obrigatório") }) }, confirmButton = { TextButton(enabled = reason.isNotBlank(), onClick = { onConfirm(reason); onDismiss() }) { Text("Pular") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }) }
-private suspend fun readPlanText(context: Context, uri: Uri): String? = withContext(Dispatchers.IO) { context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } }
-
 @Composable private fun AvailabilityDialog(current: List<StudyAvailabilityEntity>, onDismiss: () -> Unit, onConfirm: (List<StudyAvailabilityEntity>) -> Unit) {
     val initial = (1..7).map { day -> current.firstOrNull { it.dayOfWeek == day }?.availableMinutes ?: 0 }
     val minutes = remember(current) { mutableStateListOf(*initial.toTypedArray()) }

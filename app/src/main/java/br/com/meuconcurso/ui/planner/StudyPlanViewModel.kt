@@ -105,10 +105,21 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun inspectPlan(raw: String) = launch {
         _transfer.value = PlanTransferUiState.Loading
-        _transfer.value = PlanTransferUiState.Preview(raw, transferService.preview(raw))
+        val preview = transferService.preview(raw)
+        if (!preview.existingPlan && preview.linkIssues.isEmpty() && !preview.requestsActive && !preview.requestsMaster) {
+            val result = transferService.import(raw, PlanImportMode.CREATE, confirmActive = false, confirmMaster = false)
+            _transfer.value = PlanTransferUiState.Success("Plano importado com sucesso. ${result.tasksInserted} tarefa(s) adicionada(s).")
+        } else _transfer.value = PlanTransferUiState.Preview(raw, preview)
+    }
+    fun chooseImportLink(key: String, localId: Long) = launch {
+        val current = _transfer.value as? PlanTransferUiState.Preview ?: return@launch
+        val selections = current.selections + (key to localId)
+        _transfer.value = PlanTransferUiState.Loading
+        _transfer.value = PlanTransferUiState.Preview(current.raw, transferService.preview(current.raw, selections), selections)
     }
     fun importPlan(raw: String, mode: PlanImportMode, active: Boolean, master: Boolean) = launch {
-        val result = transferService.import(raw, mode, active, master)
+        val selections = (_transfer.value as? PlanTransferUiState.Preview)?.selections.orEmpty()
+        val result = transferService.import(raw, mode, active, master, selections = selections)
         _transfer.value = PlanTransferUiState.Success("Plano importado: ${result.tasksInserted} tarefa(s) nova(s), ${result.tasksProtected} protegida(s).")
     }
     fun clearTransfer() { _transfer.value = PlanTransferUiState.Idle }

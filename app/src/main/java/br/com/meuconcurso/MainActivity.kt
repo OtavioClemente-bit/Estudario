@@ -8,10 +8,9 @@ import androidx.activity.viewModels
 import androidx.lifecycle.lifecycleScope
 import br.com.meuconcurso.ui.AppViewModel
 import br.com.meuconcurso.ui.MeuConcursoApp
-import br.com.meuconcurso.data.transfer.IncomingFileFormat
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import androidx.core.content.IntentCompat
+import android.net.Uri
 
 class MainActivity : ComponentActivity() {
     private val viewModel: AppViewModel by viewModels()
@@ -30,17 +29,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIncomingFile(intent: Intent?) {
-        val uri = intent?.data?.takeIf { intent.action == Intent.ACTION_VIEW } ?: return
+        val uri: Uri = when (intent?.action) {
+            Intent.ACTION_VIEW -> intent.data
+            Intent.ACTION_SEND -> IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+            else -> null
+        } ?: return
         lifecycleScope.launch {
-            runCatching { withContext(Dispatchers.IO) { contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: error("Não foi possível abrir o arquivo.") } }
-                .onSuccess { raw ->
-                    when (IncomingFileFormat.detect(raw)) {
-                        IncomingFileFormat.ESTUDO -> viewModel.inspectEstudo(raw)
-                        IncomingFileFormat.PLANO -> (application as MeuConcursoApplication).incomingFiles.publishPlan(raw)
-                        IncomingFileFormat.BACKUP -> viewModel.reportIncomingFileError("Use Mais > Restaurar backup para confirmar a substituição dos dados locais.")
-                        null -> viewModel.reportIncomingFileError("Arquivo não reconhecido. Use um .estudo, .plano ou backup válido.")
-                    }
-                }
+            (application as MeuConcursoApplication).incomingFiles.open(contentResolver, uri, intent?.type)
         }
     }
 
