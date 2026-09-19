@@ -115,6 +115,8 @@ REGRAS OBRIGATÓRIAS:
 - Represente subdivisões recursivamente em subtopicos.
 - Mantenha os mesmos IDs em todos os pacotes futuros. O ID é a identidade permanente do item no Plano Mestre.
 - Use contentOriginType: EDITAL para texto literal do edital, DIDACTIC_SUBDIVISION para divisão didática e AUXILIARY_CONTENT para fundamento complementar.
+- Em priorityAssessment, avalie a importância para a prova com base, nesta ordem, em quantidade oficial de questões, peso oficial, pontuação oficial, critério eliminatório, distribuição oficial, histórico fornecido de banca/cargo, recorrência demonstrável e relevância estrutural. Use inferência somente na falta de evidência superior.
+- priorityAssessment exige score inteiro de 0 a 100, source permitido, confidence de 0.0 a 1.0, rationale curto e evidence verificável. Sem evidência, use score 50, source DEFAULT, confidence 0.0 e não invente estatísticas, percentuais ou frequências.
 
 ESTRUTURA DE CADA TÓPICO:
 {
@@ -161,6 +163,7 @@ DADOS:
 - Banca/órgão/ano: [PREENCHA]
 - Quantidade de questões: [10]
 - Fontes ou texto-base: [COLE OU ANEXE AQUI]
+- O priorityAssessment já salvo é contexto do tópico. preserve esse bloco quando ele aparecer no modelo e não recalcule a importância genérica; o app mantém a avaliação local quando o pacote não o trouxer.
 
 TEORIA COMPLETA — TRATE COMO UM LIVRO:
 - Escreva material longo, didático e autossuficiente, não um resumo ampliado.

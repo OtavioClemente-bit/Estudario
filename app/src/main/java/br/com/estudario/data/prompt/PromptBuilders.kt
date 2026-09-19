@@ -1,6 +1,7 @@
 package br.com.estudario.data.prompt
 
 import br.com.estudario.data.local.CompetitionEntity
+import br.com.estudario.data.local.PriorityEvidenceCodec
 import br.com.estudario.data.local.SubjectEntity
 import br.com.estudario.data.local.TopicEntity
 import br.com.estudario.domain.planner.PlanPriority
@@ -110,6 +111,11 @@ object EditalPromptBuilder {
             },
         )
         appendLine(if (o.includeDescriptions) "- Em descricao, escreva uma frase curta com o escopo do tópico." else "- Deixe descricao como string vazia.")
+        appendLine("PRIORIDADE DE ESTUDO — IMPORTÂNCIA PARA A PROVA, NÃO DESEMPENHO PESSOAL:")
+        appendLine("- Preencha priorityAssessment usando esta ordem de evidência: quantidade oficial de questões; peso oficial; pontuação oficial; critério eliminatório; distribuição oficial; histórico fornecido de provas da banca; histórico fornecido do cargo/órgão/área; recorrência demonstrável do tópico; relevância estrutural; inferência contextual somente por último.")
+        appendLine("- Use score inteiro de 0 a 100, confidence entre 0.0 e 1.0, source permitido, rationale curto e evidence com descrições verificáveis. O nível é derivado pelo aplicativo e não deve ser inventado separadamente.")
+        appendLine("- Sem evidência suficiente, use score 50, source DEFAULT, confidence 0.0, nível MEDIUM e registre a ausência de evidência. Não invente estatísticas, percentuais, frequências ou rankings.")
+        appendLine("- Diferencie fato oficial, histórico realmente fornecido e inferência. Não use a prioridade para representar o desempenho pessoal do estudante.")
         appendLine(
             if (o.priorityByWeight) "- prioridade: use \"ALTA\" para matérias/tópicos com mais peso ou mais questões na prova (se o edital informar), \"NORMAL\" para os demais e \"BAIXA\" só se o edital indicar peso menor."
             else "- prioridade: use sempre \"NORMAL\".",
@@ -129,15 +135,15 @@ object EditalPromptBuilder {
         appendLine("{")
         appendLine("  \"version\": 2,")
         appendLine("  \"packageId\": \"edital-${competitionId.removePrefix("concurso-")}-v1\",")
-        appendLine("  \"concurso\": { \"id\": ${json(competitionId)}, \"nome\": ${json(if (o.competitionName.isBlank()) "NOME DO CONCURSO — CARGO" else listOf(o.competitionName.trim(), o.role.trim()).filter { it.isNotBlank() }.joinToString(" — "))}, \"principal\": ${o.makePrimary} },")
+        appendLine("  \"concurso\": { \"id\": ${json(competitionId)}, \"nome\": ${json(if (o.competitionName.isBlank()) "NOME DO CONCURSO — CARGO" else listOf(o.competitionName.trim(), o.role.trim()).filter { it.isNotBlank() }.joinToString(" — "))}, \"principal\": ${o.makePrimary}, \"priorityAssessment\": { \"score\": 50, \"source\": \"DEFAULT\", \"confidence\": 0.0, \"rationale\": \"Sem evidência suficiente\", \"evidence\": [{ \"type\": \"ABSENCE_OF_EVIDENCE\", \"description\": \"Nenhuma evidência informada\" }] } },")
         appendLine("  \"padroesQuestao\": { \"banca\": ${if (o.board.isBlank()) "null" else json(o.board.trim())}, \"orgao\": null, \"ano\": ${year ?: "null"}, \"origem\": \"Material de estudo gerado\" },")
         appendLine("  \"materias\": [")
         appendLine("    {")
-        appendLine("      \"id\": \"materia\", \"nome\": \"Nome da matéria\", \"ordem\": 0,")
+        appendLine("      \"id\": \"materia\", \"nome\": \"Nome da matéria\", \"ordem\": 0, \"priorityAssessment\": { \"score\": 50, \"source\": \"DEFAULT\", \"confidence\": 0.0, \"rationale\": \"Sem evidência suficiente\", \"evidence\": [] },")
         appendLine("      \"topicos\": [")
         appendLine("        {")
         appendLine("          \"id\": \"materia-topico\", \"titulo\": \"Título exatamente como no edital\", \"descricao\": \"\", \"ordem\": 0,")
-        appendLine("          \"prioridade\": \"NORMAL\", \"contentOriginType\": \"EDITAL\", \"observacoes\": \"\",")
+        appendLine("          \"prioridade\": \"NORMAL\", \"priorityAssessment\": { \"score\": 50, \"source\": \"DEFAULT\", \"confidence\": 0.0, \"rationale\": \"Sem evidência suficiente\", \"evidence\": [] }, \"contentOriginType\": \"EDITAL\", \"observacoes\": \"\",")
         appendLine("          \"teorias\": [], \"resumos\": [], \"questoes\": [],")
         appendLine("          \"subtopicos\": []")
         appendLine("        }")
@@ -375,7 +381,8 @@ object ContentPromptBuilder {
             appendLine()
             appendLine("REGRAS DO ARQUIVO:")
             appendLine("- O conteúdo do arquivo é JSON válido puro, sem Markdown em volta e sem ```. Entregue como arquivo, conforme o bloco COMO ENTREGAR no topo.")
-            appendLine("- Copie EXATAMENTE os campos já preenchidos abaixo (ids, títulos, ordem, prioridade, contentOriginType): eles ligam o conteúdo aos tópicos que já existem no app.")
+            appendLine("- Copie EXATAMENTE os campos já preenchidos abaixo (ids, títulos, ordem, prioridade, priorityAssessment, contentOriginType): eles ligam o conteúdo aos tópicos que já existem no app.")
+            appendLine("- preserve priorityAssessment quando ele aparecer no skeleton; não recalcule a importância genérica do tópico. O app mantém a avaliação local quando o pacote não trouxer esse bloco.")
             appendLine("- Preencha apenas os campos de conteúdo dos tópicos marcados. Novos IDs (teorias, capítulos, questões, conceitos) devem ser únicos no arquivo e começar pelo id do tópico.")
             appendLine("- Dentro das strings, use \\n para quebra de linha e escape aspas.")
             if (targets.size > 3 || (ContentBlock.THEORY in blocks && o.depth == TheoryDepth.BOOK && targets.size > 1)) {
@@ -415,8 +422,9 @@ object ContentPromptBuilder {
         fun topicNode(topic: TopicEntity, indent: Int, last: Boolean) {
             val id = PromptIds.topic(topic)
             val children = topics.filter { it.parentTopicId == topic.id && it.id in relevant }.sortedBy { it.position }
+            val assessment = topic.priorityAssessmentJson()
             line(indent, "{")
-            line(indent + 1, "\"id\": ${json(id)}, \"titulo\": ${json(topic.title)}, \"ordem\": ${topic.position}, \"prioridade\": \"${topic.priority.name}\", \"contentOriginType\": \"${topic.contentOriginType.name}\",")
+            line(indent + 1, "\"id\": ${json(id)}, \"titulo\": ${json(topic.title)}, \"ordem\": ${topic.position}, \"prioridade\": \"${topic.priority.name}\"${assessment?.let { ", \"priorityAssessment\": $it" }.orEmpty()}, \"contentOriginType\": \"${topic.contentOriginType.name}\",")
             if (topic.id in targets) {
                 if (ContentBlock.THEORY in blocks) {
                     line(indent + 1, "\"teorias\": [")
@@ -489,6 +497,12 @@ object ContentPromptBuilder {
         line(1, "]")
         out.append("}")
         return out.toString()
+    }
+
+    private fun TopicEntity.priorityAssessmentJson(): String? {
+        if (!hasAssessedPriority) return null
+        val evidence = PriorityEvidenceCodec.encode(PriorityEvidenceCodec.decode(assessedPriorityEvidenceJson))
+        return "{\"score\":$assessedPriorityScore,\"source\":\"${assessedPrioritySource.name}\",\"confidence\":$assessedPriorityConfidence,\"rationale\":${json(assessedPriorityRationale.orEmpty())},\"evidence\":$evidence}"
     }
 }
 

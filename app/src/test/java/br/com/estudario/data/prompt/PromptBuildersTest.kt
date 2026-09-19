@@ -23,6 +23,39 @@ class PromptBuildersTest {
     private val child = TopicEntity(id = 101, subjectId = 10, parentTopicId = 100, title = "Hash \"SHA\" e MAC", position = 0, contentOriginType = ContentOriginType.DIDACTIC_SUBDIVISION)
     private val other = TopicEntity(id = 102, subjectId = 10, title = "Controle de acesso", position = 2)
 
+    @Test fun editalPromptRequestsEvidenceBasedPriorityAssessment() {
+        val prompt = EditalPromptBuilder.build(EditalPromptOptions(competitionName = "TRT-3"))
+        val officialQuestions = prompt.indexOf("quantidade oficial de questões")
+        val officialWeight = prompt.indexOf("peso oficial")
+        val officialScore = prompt.indexOf("pontuação oficial")
+        val elimination = prompt.indexOf("critério eliminatório")
+        val distribution = prompt.indexOf("distribuição oficial")
+        val history = prompt.indexOf("histórico fornecido")
+        assertTrue(officialQuestions >= 0)
+        assertTrue(officialQuestions < officialWeight)
+        assertTrue(officialWeight < officialScore)
+        assertTrue(officialScore < elimination)
+        assertTrue(elimination < distribution)
+        assertTrue(distribution < history)
+        assertTrue(prompt.contains("priorityAssessment"))
+        assertTrue(prompt.contains("score inteiro de 0 a 100"))
+        assertTrue(prompt.contains("confidence entre 0.0 e 1.0"))
+        assertTrue(prompt.contains("Não invente estatísticas"))
+    }
+
+    @Test fun contentPromptPreservesPriorityContextWithoutRecalculatingIt() {
+        val prompt = ContentPromptBuilder.build(
+            competition,
+            subject,
+            listOf(parent.copy(assessedPriorityScore = 75, hasAssessedPriority = true)),
+            setOf(parent.id),
+            ContentPromptOptions(),
+        )
+        assertTrue(prompt.contains("priorityAssessment"))
+        assertTrue(prompt.contains("preserve"))
+        assertTrue(prompt.contains("não recalcul"))
+    }
+
     @Test fun `content skeleton is a valid estudo package that points to existing topics`() {
         val prompt = ContentPromptBuilder.build(competition, subject, listOf(parent, child, other), setOf(child.id), ContentPromptOptions(style = QuestionStyle.TRUE_FALSE, board = "FCC"))
         val json = IncomingText.clean(prompt.substringAfter("ESTRUTURA:"))
