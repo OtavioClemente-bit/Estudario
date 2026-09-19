@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.PlayCircleOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -81,21 +82,21 @@ enum class TourKey {
 }
 
 /** [key] nulo = cartão de explicação centralizado, sem destaque. [route] = aba onde o passo acontece. */
-data class TourStep(val route: String, val key: TourKey?, val title: String, val description: String)
+data class TourStep(val route: String, val key: TourKey?, val title: String, val description: String, val video: TutorialVideo? = null)
 
 fun tourSteps(id: TourId): List<TourStep> = when (id) {
     TourId.EDITAL -> listOf(
         TourStep("home", null, "Bem-vindo ao Estudário", "Vou te mostrar o caminho em três etapas: montar o edital, criar o plano e treinar. Use as setas para avançar — não precisa tocar em nada na tela."),
         TourStep("home", TourKey.NAV_EDITAL, "1. Tudo começa pelo Edital", "Aqui ficam as matérias e os tópicos do seu concurso. Plano, revisões e questões partem dele."),
         TourStep("syllabus", TourKey.EDITAL_CREATE, "Criar manualmente", "No + você cria o concurso e depois adiciona as matérias e os tópicos, se preferir digitar."),
-        TourStep("syllabus", TourKey.EDITAL_AI, "Ou peça para a IA montar", "No botão ✨ você escolhe as opções (cargo, banca, o que incluir), anexa o PDF do edital e compartilha direto com o ChatGPT, Gemini ou outro app de IA. Você não precisa escrever nem editar prompt."),
+        TourStep("syllabus", TourKey.EDITAL_AI, "Ou peça para a IA montar", "No botão ✨ você escolhe as opções (cargo, banca, o que incluir), anexa o PDF do edital e compartilha direto com o ChatGPT, Gemini ou outro app de IA. Você não precisa escrever nem editar prompt.", TutorialVideo.EDITAL),
         TourStep("syllabus", TourKey.EDITAL_IMPORT, "Traga a resposta de volta", "Quando a IA gerar o arquivo .estudo: abra o arquivo com o Estudário, compartilhe a resposta com o app ou toque aqui para escolher o arquivo. Também dá para copiar o texto e usar “Colar resposta da IA”."),
         TourStep("syllabus", null, "A IA é para o conteúdo, não para o plano", "Edital, teoria e questões valem a pena pedir para a IA — é texto que alguém precisa escrever. O plano de estudos o app monta sozinho, offline, com regras que você confere na tela. Tudo aqui também pode ser digitado à mão pelo +."),
         TourStep("syllabus", null, "Depois do edital", "Assim que o edital for importado, eu mostro como gerar o conteúdo do tópico que você vai estudar. Plano e Treinar têm seus próprios guias na primeira vez que você abrir essas abas."),
     )
     TourId.CONTENT -> listOf(
-        TourStep("syllabus", null, "Edital importado!", "Recomendamos gerar teoria, resumos e questões de um tópico por vez, quando ele entrar no seu estudo. Assim a IA tem espaço para aprofundar o assunto e você gera só o que vai usar agora."),
-        TourStep("syllabus", TourKey.SUBJECT_AI, "Gere o tópico de hoje", "Toque em ✨ na matéria e deixe marcado apenas o tópico que vai estudar agora. Escolha o que quer receber (teoria, resumo, questões…) e envie para a IA. Também dá para selecionar mais tópicos, mas gerar tudo de uma vez pode deixar a resposta curta ou incompleta."),
+        TourStep("syllabus", null, "Edital importado!", "Recomendamos gerar teoria, resumos e questões de um tópico por vez. Pedidos com vários tópicos podem reduzir o detalhamento e trazer informações imprecisas ou sem fonte verificável. Confira o material antes de estudar."),
+        TourStep("syllabus", TourKey.SUBJECT_AI, "Gere o tópico de hoje", "Toque em ✨ na matéria e selecione o tópico que vai estudar. Escolha o que quer receber (teoria, resumo, questões…) e envie para a IA. Gerar um tópico por vez facilita a conferência das fontes e a revisão do resultado.", TutorialVideo.CONTENT),
         TourStep("syllabus", TourKey.EDITAL_IMPORT, "Importe o conteúdo", "A IA devolve um .estudo: abra com o app, compartilhe o texto ou use este botão. Cada teoria e questão cai no tópico certo, sem duplicar."),
         TourStep("syllabus", null, "Atalho no próprio tópico", "Dentro do tópico, o botão ✨ já abre o gerador com só aquele assunto selecionado. Use quando chegar a hora de estudá-lo; depois repita no próximo tópico."),
         TourStep("syllabus", null, "Revisões espaçadas", "Ao marcar um tópico como estudado, o app agenda revisões (D+1, D+7 e D+30, ou o ciclo intensivo). Depois do D+30 a agenda não acaba: o tópico volta com intervalo maior a cada rodada, e mais cedo quando você sente dificuldade. Revisar no dia certo é o que fixa o conteúdo — elas aparecem no Início e em Mais › Revisões espaçadas."),
@@ -165,6 +166,7 @@ fun TourOverlay(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onSkip: () -> Unit,
+    onWatchVideo: (TutorialVideo) -> Unit,
 ) {
     if (tour == null || step == null) return
     val density = LocalDensity.current
@@ -232,6 +234,12 @@ fun TourOverlay(
                 }
                 Text(step.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(step.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                step.video?.let { video ->
+                    OutlinedButton(onClick = { onWatchVideo(video) }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Outlined.PlayCircleOutline, null)
+                        Text("Ver demonstração curta", Modifier.padding(start = 8.dp))
+                    }
+                }
                 Spacer(Modifier.size(2.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                     repeat(stepCount) { index ->

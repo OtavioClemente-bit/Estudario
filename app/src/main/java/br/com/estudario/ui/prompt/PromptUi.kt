@@ -36,7 +36,9 @@ import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FileOpen
+import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
@@ -63,6 +65,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import br.com.estudario.ui.tour.TutorialVideo
+import br.com.estudario.ui.tour.TutorialVideoDialog
+
+private enum class PromptAction { COPY, SHARE }
 
 /** Anexo escolhido para ir junto do prompt (PDF do edital, lei, apostila...). */
 data class PromptAttachment(val uri: Uri, val name: String, val mimeType: String)
@@ -126,10 +132,19 @@ fun PromptBuilderDialog(
     attachment: PromptAttachment? = null,
     shareEnabled: Boolean = true,
     disabledReason: String? = null,
+    tutorial: TutorialVideo? = null,
+    shareWarning: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val context = LocalContext.current
     var showPreview by remember { mutableStateOf(false) }
+    var showTutorial by remember { mutableStateOf(false) }
+    var pendingAction by remember { mutableStateOf<PromptAction?>(null) }
+    fun runAction(action: PromptAction) {
+        if (shareWarning != null) pendingAction = action
+        else if (action == PromptAction.COPY) copyPrompt(context, prompt)
+        else sharePromptWithAi(context, prompt, attachment)
+    }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
@@ -138,6 +153,7 @@ fun PromptBuilderDialog(
                         Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                    if (tutorial != null) IconButton(onClick = { showTutorial = true }) { Icon(Icons.Outlined.HelpOutline, "Ver vídeo de ajuda") }
                     IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "Fechar") }
                 }
                 Column(
@@ -180,10 +196,10 @@ fun PromptBuilderDialog(
                     if (!shareEnabled && disabledReason != null) Text(disabledReason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                     if (attachment != null) Text("O anexo “${attachment.name}” vai junto no compartilhamento.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedButton(onClick = { copyPrompt(context, prompt) }, enabled = shareEnabled, modifier = Modifier.weight(1f)) {
+                        OutlinedButton(onClick = { runAction(PromptAction.COPY) }, enabled = shareEnabled, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Outlined.ContentCopy, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Copiar")
                         }
-                        Button(onClick = { sharePromptWithAi(context, prompt, attachment) }, enabled = shareEnabled, modifier = Modifier.weight(1.6f)) {
+                        Button(onClick = { runAction(PromptAction.SHARE) }, enabled = shareEnabled, modifier = Modifier.weight(1.6f)) {
                             Icon(Icons.Outlined.Share, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Enviar para a IA")
                         }
                     }
@@ -191,6 +207,21 @@ fun PromptBuilderDialog(
             }
         }
     }
+    if (pendingAction != null && shareWarning != null) AlertDialog(
+        onDismissRequest = { pendingAction = null },
+        title = { Text("Gerar vários tópicos?") },
+        text = { Text(shareWarning) },
+        confirmButton = {
+            TextButton(onClick = {
+                val action = pendingAction
+                pendingAction = null
+                if (action == PromptAction.COPY) copyPrompt(context, prompt)
+                if (action == PromptAction.SHARE) sharePromptWithAi(context, prompt, attachment)
+            }) { Text("Continuar com vários") }
+        },
+        dismissButton = { TextButton(onClick = { pendingAction = null }) { Text("Rever seleção") } },
+    )
+    if (showTutorial && tutorial != null) TutorialVideoDialog(tutorial) { showTutorial = false }
 }
 
 @Composable

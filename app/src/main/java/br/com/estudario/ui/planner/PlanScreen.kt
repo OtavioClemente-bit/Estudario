@@ -25,6 +25,7 @@ import androidx.compose.ui.window.Dialog
 import br.com.estudario.ui.prompt.PlanPromptBuilderDialog
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.FileOpen
+import androidx.compose.material.icons.outlined.HelpOutline
 import br.com.estudario.data.transfer.planner.PlanImportMode
 import br.com.estudario.data.local.planner.StudyAvailabilityEntity
 import br.com.estudario.domain.planner.PlanTaskStatus
@@ -41,7 +42,7 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
 @Composable
-fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpenTopic: (Long) -> Unit, onOpenErrors: () -> Unit = {}, onFocus: () -> Unit = {}) {
+fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpenTopic: (Long) -> Unit, onOpenErrors: () -> Unit = {}, onFocus: () -> Unit = {}, onHelp: () -> Unit = {}) {
     val state by viewModel.state.collectAsState()
     val transfer by viewModel.transfer.collectAsState()
     val busy by viewModel.busy.collectAsState()
@@ -111,6 +112,7 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
         Row(Modifier.padding(20.dp, 16.dp, 20.dp, 0.dp)) {
             ScreenTitle("Plano", state.activePlan?.name ?: "Planejamento adaptativo") {
                 Row {
+                    IconButton(onClick = onHelp) { Icon(Icons.Outlined.HelpOutline, "Como usar o plano") }
                     IconButton(
                         onClick = { promptGenerator = true },
                         modifier = Modifier.tourTarget(TourKey.PLAN_AI, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_AI, it) },

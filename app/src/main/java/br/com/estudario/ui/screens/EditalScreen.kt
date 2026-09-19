@@ -41,7 +41,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit) {
+fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () -> Unit = {}) {
     val competitions by viewModel.competitions.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
     val topics by viewModel.topics.collectAsState()
@@ -92,6 +92,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit) {
         item {
             ScreenTitle("Edital", "Organize matérias e acompanhe seu domínio") {
                 Row {
+                    IconButton(onClick = onHelp) { Icon(Icons.Outlined.HelpOutline, "Como montar o edital") }
                     IconButton(
                         onClick = { showEditalPrompt = true },
                         modifier = Modifier.tourTarget(TourKey.EDITAL_AI, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.EDITAL_AI, it) },

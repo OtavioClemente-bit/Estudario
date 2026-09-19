@@ -15,6 +15,7 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.EventRepeat
 import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -65,6 +66,7 @@ fun HomeScreen(
     onPlan: () -> Unit = {},
     onBadges: () -> Unit = {},
     onErrors: () -> Unit = {},
+    onHelp: () -> Unit = {},
 ) {
     val competitions by viewModel.competitions.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
@@ -109,6 +111,7 @@ fun HomeScreen(
                 xpToday = progress?.xpToday ?: 0,
                 onProfile = onProfile,
                 onSearch = onSearch,
+                onHelp = onHelp,
                 profileModifier = Modifier.tourTarget(TourKey.HOME_PROFILE, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.HOME_PROFILE, it) },
             )
         }
@@ -179,6 +182,7 @@ private fun Hero(
     xpToday: Int,
     onProfile: () -> Unit,
     onSearch: () -> Unit,
+    onHelp: () -> Unit,
     profileModifier: Modifier = Modifier,
 ) {
     Box(
@@ -199,6 +203,7 @@ private fun Hero(
                     Text(profile.firstName, color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1)
                     Text(subtitle, color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.bodySmall, maxLines = 1)
                 }
+                IconButton(onClick = onHelp) { Icon(Icons.Outlined.HelpOutline, "Como usar o app", tint = Color.White) }
                 IconButton(onClick = onSearch) { Icon(Icons.Outlined.Search, "Pesquisar em todo o conteúdo", tint = Color.White) }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {

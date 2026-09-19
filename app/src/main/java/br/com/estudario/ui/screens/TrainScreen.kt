@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -21,7 +22,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 data class QuizConfig(val count: Int, val topicId: Long? = null, val subjectId: Long? = null, val mode: String = "random", val board: String? = null, val difficulty: String? = null)
 
 @Composable
-fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit) {
+fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: () -> Unit = {}) {
     val competitions by viewModel.competitions.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
     val topics by viewModel.topics.collectAsState()
@@ -51,7 +52,7 @@ fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit) {
     fun target(key: TourKey) = Modifier.tourTarget(key, tourStep?.key) { viewModel.reportTourTargetBounds(key, it) }
 
     LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        item { ScreenTitle("Treinar", "Escolha o foco da sua sessão") }
+        item { ScreenTitle("Treinar", "Escolha o foco da sua sessão") { IconButton(onClick = onHelp) { Icon(Icons.Outlined.HelpOutline, "Como treinar") } } }
         if (questions.isEmpty()) {
             item { EmptyState("Sem questões ainda", "No Edital, toque em ✨ numa matéria ou tópico para pedir questões à IA e importe o .estudo gerado.") }
         } else {

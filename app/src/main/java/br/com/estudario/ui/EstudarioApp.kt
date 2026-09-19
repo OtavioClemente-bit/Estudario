@@ -1,6 +1,8 @@
 package br.com.estudario.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
@@ -32,6 +34,8 @@ import br.com.estudario.ui.profile.ProfileScreen
 import br.com.estudario.ui.profile.StreakCelebrationScreen
 import br.com.estudario.ui.tour.TourId
 import br.com.estudario.ui.tour.TourOverlay
+import br.com.estudario.ui.tour.TutorialVideo
+import br.com.estudario.ui.tour.TutorialVideoDialog
 import br.com.estudario.ui.tour.tourForRoute
 import br.com.estudario.ui.tour.tourKeyForRoute
 import br.com.estudario.ui.tour.tourSteps
@@ -86,7 +90,8 @@ private fun MainNavigation(viewModel: AppViewModel) {
     val tourStepIndex by viewModel.tourStepIndex.collectAsState()
     val tourBounds by viewModel.tourTargetBounds.collectAsState()
     var showTourPicker by remember { mutableStateOf(false) }
-    BackHandler(enabled = tourStep != null) { viewModel.stopTour() }
+    var tutorialToShow by remember { mutableStateOf<TutorialVideo?>(null) }
+    BackHandler(enabled = tourStep != null && tutorialToShow == null) { viewModel.stopTour() }
     val entry by navController.currentBackStackEntryAsState()
     val currentRoute = entry?.destination?.route
     LaunchedEffect(seenTours != null) { if (seenTours?.contains(TourId.EDITAL.name) == false) viewModel.maybeStartTour(TourId.EDITAL) }
@@ -159,13 +164,14 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         onPlan = { navController.navigate("plan") { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true } },
                         onBadges = { navController.navigate("badges") },
                         onErrors = { navController.navigate("errors") },
+                        onHelp = { viewModel.startTour(TourId.PROFILE) },
                     )
                 }
-                composable("syllabus") { EditalScreen(viewModel) { navController.navigate("topic/$it") } }
-                composable("plan") { PlanScreen(planViewModel, viewModel, onOpenTopic = { navController.navigate("topic/$it") }, onOpenErrors = { navController.navigate("errors") }, onFocus = { navController.navigate("focus") }) }
-                composable("train") { TrainScreen(viewModel) { config -> navController.navigate("quiz/${config.count}/${config.topicId ?: 0}/${config.subjectId ?: 0}/${config.mode}/${Uri.encode(config.board ?: "_")}/${config.difficulty ?: "_"}") } }
+                composable("syllabus") { EditalScreen(viewModel, onTopic = { navController.navigate("topic/$it") }, onHelp = { tutorialToShow = TutorialVideo.EDITAL }) }
+                composable("plan") { PlanScreen(planViewModel, viewModel, onOpenTopic = { navController.navigate("topic/$it") }, onOpenErrors = { navController.navigate("errors") }, onFocus = { navController.navigate("focus") }, onHelp = { viewModel.startTour(TourId.PLAN) }) }
+                composable("train") { TrainScreen(viewModel, onStart = { config -> navController.navigate("quiz/${config.count}/${config.topicId ?: 0}/${config.subjectId ?: 0}/${config.mode}/${Uri.encode(config.board ?: "_")}/${config.difficulty ?: "_"}") }, onHelp = { viewModel.startTour(TourId.TRAIN) }) }
                 composable("errors") { ErrorsScreen(viewModel, onTrainErrors = { navController.navigate("quiz/20/0/0/errors/_/_") }, onOpenTopic = { navController.navigate("topic/$it") }) }
-                composable("more") { MoreScreen(viewModel, onReviews = { navController.navigate("reviews") }, onQueue = { navController.navigate("queue") }, onStatistics = { navController.navigate("statistics") }, onQuestionBank = { navController.navigate("question-bank") }, onNotifications = { navController.navigate("notifications") }, onErrors = { navController.navigate("errors") }, onPlan = { navController.navigate("plan") }, onGuide = { showTourPicker = true }, onProfile = { navController.navigate("profile") }, onSources = { navController.navigate("sources") }, onFocus = { navController.navigate("focus") }) }
+                composable("more") { MoreScreen(viewModel, onReviews = { navController.navigate("reviews") }, onQueue = { navController.navigate("queue") }, onStatistics = { navController.navigate("statistics") }, onQuestionBank = { navController.navigate("question-bank") }, onNotifications = { navController.navigate("notifications") }, onErrors = { navController.navigate("errors") }, onPlan = { navController.navigate("plan") }, onGuide = { showTourPicker = true }, onProfile = { navController.navigate("profile") }, onSources = { navController.navigate("sources") }, onFocus = { navController.navigate("focus") }, onHelp = { viewModel.startTour(TourId.MORE) }) }
                 composable("topic/{id}") { backStack ->
                     val id = backStack.arguments?.getString("id")?.toLongOrNull() ?: 0
                     TopicDetailScreen(viewModel, id, onBack = { navController.popBackStack() }, onQuiz = { navController.navigate("quiz/15/$id/0/random/_/_") }, onTheory = { navController.navigate("theory/$it") }, onFocus = { navController.navigate("focus") })
@@ -205,7 +211,12 @@ private fun MainNavigation(viewModel: AppViewModel) {
         // Emblema novo entra depois da comemoração do dia, para as duas não brigarem pela tela.
         val badgeUnlock by viewModel.badgeUnlock.collectAsState()
         if (celebration == null && tourStep == null) BadgeCelebrationScreen(badgeUnlock, viewModel::consumeBadgeUnlock)
-        if (showTourPicker) TourPickerDialog(seenTours.orEmpty(), onDismiss = { showTourPicker = false }) { tour -> showTourPicker = false; viewModel.startTour(tour) }
+        if (showTourPicker) TourPickerDialog(
+            seen = seenTours.orEmpty(),
+            onDismiss = { showTourPicker = false },
+            onStart = { tour -> showTourPicker = false; viewModel.startTour(tour) },
+            onWatchVideo = { video -> showTourPicker = false; tutorialToShow = video },
+        )
         TourOverlay(
             tour = activeTour,
             step = tourStep,
@@ -215,18 +226,28 @@ private fun MainNavigation(viewModel: AppViewModel) {
             onPrevious = viewModel::previousTourStep,
             onNext = viewModel::advanceTour,
             onSkip = viewModel::stopTour,
+            onWatchVideo = { tutorialToShow = it },
         )
+        tutorialToShow?.let { video -> TutorialVideoDialog(video) { tutorialToShow = null } }
     }
 }
 
 @Composable
-private fun TourPickerDialog(seen: Set<String>, onDismiss: () -> Unit, onStart: (TourId) -> Unit) {
+private fun TourPickerDialog(seen: Set<String>, onDismiss: () -> Unit, onStart: (TourId) -> Unit, onWatchVideo: (TutorialVideo) -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Como usar o app") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Escolha um guia para ver passo a passo.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TutorialVideo.entries.forEach { video ->
+                    ListItem(
+                        headlineContent = { Text("Vídeo: ${video.title}") },
+                        supportingContent = { Text(video.description) },
+                        leadingContent = { Icon(Icons.Outlined.PlayCircleOutline, null) },
+                        modifier = Modifier.clickable { onWatchVideo(video) },
+                    )
+                }
                 TourId.entries.forEach { tour ->
                     ListItem(
                         headlineContent = { Text(tour.title) },

@@ -32,6 +32,7 @@ fun MoreScreen(
     onProfile: () -> Unit,
     onSources: () -> Unit,
     onFocus: () -> Unit,
+    onHelp: () -> Unit = {},
 ) {
     val themeMode by viewModel.themeMode.collectAsState()
     val timer by viewModel.questionTimer.collectAsState()
@@ -59,7 +60,7 @@ fun MoreScreen(
     fun target(key: TourKey) = Modifier.tourTarget(key, tourStep?.key) { viewModel.reportTourTargetBounds(key, it) }
 
     LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        item { ScreenTitle("Mais", "Ferramentas e configurações") }
+        item { ScreenTitle("Mais", "Ferramentas e configurações") { IconButton(onClick = onHelp) { Icon(Icons.Outlined.HelpOutline, "Ajuda desta seção") } } }
         item {
             // Perfil no topo: nome, foto, sequência e, dentro dele, backup e conta.
             ElevatedCard(Modifier.fillMaxWidth().clickable(onClick = onProfile)) {

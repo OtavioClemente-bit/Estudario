@@ -66,6 +66,7 @@ import br.com.estudario.data.prompt.QuestionStyle
 import br.com.estudario.data.prompt.TheoryDepth
 import br.com.estudario.domain.planner.PlanPriority
 import br.com.estudario.ui.AppViewModel
+import br.com.estudario.ui.tour.TutorialVideo
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -73,6 +74,7 @@ import java.time.format.DateTimeFormatter
 
 private val attachmentTypes = arrayOf("application/pdf", "image/*", "text/plain")
 private val dateFormat = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+private const val MULTI_TOPIC_WARNING = "Para preservar a profundidade e facilitar a conferência das fontes, recomendamos gerar um tópico por vez. Solicitações com vários tópicos podem produzir respostas incompletas ou afirmações sem respaldo. Revise o conteúdo antes de estudar."
 
 // ---------------------------------------------------------------------------------------------
 // Edital
@@ -104,6 +106,7 @@ fun EditalPromptBuilderDialog(viewModel: AppViewModel, selectedCompetitionId: Lo
         onImportText = { onDismiss(); viewModel.openIncomingText(it) },
         onPickFile = { onDismiss(); onPickFile() },
         attachment = attachment.takeIf { options.source == EditalSource.ATTACH_PDF },
+        tutorial = TutorialVideo.EDITAL,
     ) {
         OptionSection("Concurso", "Crie um novo ou complete um concurso que já existe no app. Banca e ano são opcionais.") {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -197,8 +200,10 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         attachment = attachment.takeIf { options.source == MaterialSource.ATTACHED },
         shareEnabled = selectedIds.isNotEmpty(),
         disabledReason = "Marque pelo menos um tópico.",
+        tutorial = TutorialVideo.CONTENT,
+        shareWarning = MULTI_TOPIC_WARNING.takeIf { selectedIds.size > 1 },
     ) {
-        if (!singleTopicMode) OptionSection("Tópicos", "Recomendado: gere um por vez, quando for estudar. Você pode juntar tópicos, mas a resposta pode perder profundidade, especialmente acima de 3. Tópicos com ✓ já têm conteúdo.") {
+        if (!singleTopicMode) OptionSection("Tópicos", "Selecione o tópico que vai estudar agora. Para obter uma resposta mais completa e verificar as fontes, recomendamos gerar um tópico por vez. Tópicos com ✓ já têm conteúdo.") {
             if (ordered.isEmpty()) Text("Esta matéria ainda não tem tópicos. Adicione tópicos ou importe o edital primeiro.", color = MaterialTheme.colorScheme.error)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AssistChip(onClick = { selected.clear(); selected.addAll(ordered.map { it.first }.filter { it.id !in withContent }.take(1).map { it.id }) }, label = { Text("Próximo sem conteúdo") })
@@ -219,7 +224,7 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
                     }
                 }
             }
-            if (selectedIds.size > 3) Text("${selectedIds.size} tópicos marcados: a IA pode cortar a resposta. Gere um tópico por vez para ter mais profundidade.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            if (selectedIds.size > 1) Text("${selectedIds.size} tópicos selecionados. $MULTI_TOPIC_WARNING", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
         OptionSection("O que gerar") {
             MultiChoiceChips(ContentBlock.entries, options.blocks, { it.label }) { options = options.copy(blocks = it) }
