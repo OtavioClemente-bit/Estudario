@@ -227,6 +227,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
                     onGenerateContent = { topicIds -> contentPromptFor = subject.id to topicIds },
                     onPriority = { priorityTarget = PriorityTarget.Subject(subject, subject.priorityState(selectedCompetition?.priorityState()?.effectivePriority)) },
                     onTopicPriority = { topic, parent -> priorityTarget = PriorityTarget.Topic(topic, topic.priorityState(parent)) },
+                    parentPriority = selectedCompetition?.priorityState()?.effectivePriority,
                     aiButtonModifier = if (isFirst) Modifier.tourTarget(TourKey.SUBJECT_AI, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.SUBJECT_AI, it) } else Modifier,
                 )
             }
@@ -235,7 +236,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
 }
 
 @Composable
-private fun SubjectCard(subject: SubjectEntity, topics: List<TopicEntity>, expanded: Boolean, onExpandedChange: (Boolean) -> Unit, viewModel: AppViewModel, onTopic: (Long) -> Unit, onAddTopic: () -> Unit, onGenerateContent: (Set<Long>?) -> Unit, onPriority: () -> Unit, onTopicPriority: (TopicEntity, PriorityLevel) -> Unit, aiButtonModifier: Modifier = Modifier) {
+private fun SubjectCard(subject: SubjectEntity, topics: List<TopicEntity>, expanded: Boolean, onExpandedChange: (Boolean) -> Unit, viewModel: AppViewModel, onTopic: (Long) -> Unit, onAddTopic: () -> Unit, onGenerateContent: (Set<Long>?) -> Unit, onPriority: () -> Unit, onTopicPriority: (TopicEntity, PriorityLevel) -> Unit, parentPriority: PriorityLevel?, aiButtonModifier: Modifier = Modifier) {
     var menu by remember { mutableStateOf(false) }
     ElevatedCard {
         Column {
@@ -244,7 +245,7 @@ private fun SubjectCard(subject: SubjectEntity, topics: List<TopicEntity>, expan
                 Column(Modifier.weight(1f)) {
                     Text(subject.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     val done = topics.count { it.status != TopicStatus.NAO_ESTUDADO }
-                    Text("$done de ${topics.size} tópicos iniciados • prioridade ${PriorityPresentation.label(subject.priorityState().effectivePriority)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("$done de ${topics.size} tópicos iniciados • prioridade ${PriorityPresentation.label(subject.priorityState(parentPriority).effectivePriority)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 IconButton(onClick = { onGenerateContent(null) }, modifier = aiButtonModifier) { Icon(Icons.Outlined.AutoAwesome, "Gerar conteúdo da matéria com IA", tint = MaterialTheme.colorScheme.primary) }
                 Box {
@@ -260,7 +261,7 @@ private fun SubjectCard(subject: SubjectEntity, topics: List<TopicEntity>, expan
             if (expanded) {
                 if (topics.isEmpty()) TextButton(onClick = onAddTopic, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) { Text("+ Adicionar tópico") }
                 topics.filter { it.parentTopicId == null }.sortedBy { it.position }.forEach { topic ->
-                    TopicTreeRows(topic, topics, 0, subject.priorityState().effectivePriority, viewModel, onTopic, onTopicPriority, onGenerateContent = { onGenerateContent(setOf(it)) })
+                    TopicTreeRows(topic, topics, 0, subject.priorityState(parentPriority).effectivePriority, viewModel, onTopic, onTopicPriority, onGenerateContent = { onGenerateContent(setOf(it)) })
                 }
             }
         }
