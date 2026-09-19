@@ -84,6 +84,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit
     val queueItem = queue.firstOrNull { it.item.topicId == topicId }
     val sessionAttempts = attempts.filter { it.questionId in questionIds && it.answeredAt >= studyStartedAt }
     var showContentPrompt by remember { mutableStateOf(false) }
+    var showPriority by remember { mutableStateOf(false) }
     val competitions by viewModel.competitions.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -101,6 +102,15 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit
         ContentPromptBuilderDialog(viewModel, subject.id, setOf(topic.id), onDismiss = { showContentPrompt = false }, onPickFile = { importLauncher.launch(arrayOf("*/*")) })
     }
     if (creating) SummaryEditorDialog(null, onDismiss = { creating = false }) { title, markdown -> viewModel.addSummary(topicId, title, markdown) }
+    if (showPriority) {
+        PriorityEditorDialog(
+            title = "Prioridade • ${topic.title}",
+            state = topicPriorityState(topic, topics),
+            onDismiss = { showPriority = false },
+            onSetOverride = { level -> viewModel.setTopicPriorityOverride(topic.id, level); showPriority = false },
+            onClearOverride = { viewModel.setTopicPriorityOverride(topic.id, null); showPriority = false },
+        )
+    }
     editor?.let { value -> SummaryEditorDialog(value, onDismiss = { editor = null }) { title, markdown -> viewModel.updateSummary(value.copy(title = title, markdown = markdown)) } }
     expandedSummary?.let { summary ->
         AlertDialog(
@@ -152,6 +162,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit
                     Text(topic.contentOriginType.displayName(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 }
                 IconButton(onClick = { showContentPrompt = true }) { Icon(Icons.Outlined.AutoAwesome, "Gerar conteúdo com IA", tint = MaterialTheme.colorScheme.primary) }
+                IconButton(onClick = { showPriority = true }) { Icon(Icons.Outlined.Flag, "Definir prioridade", tint = MaterialTheme.colorScheme.primary) }
                 IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) { Icon(Icons.Outlined.FileOpen, "Importar arquivo .estudo") }
             }
         }
@@ -165,6 +176,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit
                     LinearProgressIndicator({ mastery / 100f }, Modifier.fillMaxWidth())
                     val coverage = listOf(topic.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO, theories.any { it.topicId == topicId && it.lastReadBlock >= 0 }, answered > 0, completedReviews > 0).count { it } * 25
                     Text("Cobertura $coverage% • Questões: ${if (answered == 0) "amostra insuficiente" else "${correct * 100 / answered}% ($answered)"} • Revisões: $completedReviews", style = MaterialTheme.typography.bodySmall)
+                    Text("Prioridade: ${PriorityPresentation.label(topicPriorityState(topic, topics).effectivePriority)}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                     // Estudar de verdade este tópico: cronômetro rodando e Não Perturbe ligado.
                     FilledTonalButton(
                         onClick = { viewModel.startFocus(topic.title, topicId = topicId); onFocus() },
@@ -374,6 +386,23 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit
         }
         }
     }
+}
+
+private fun topicPriorityState(topic: br.com.estudario.data.local.TopicEntity, allTopics: List<br.com.estudario.data.local.TopicEntity>, visited: Set<Long> = emptySet()): PriorityEditorState {
+    val parentPriority = topic.parentTopicId
+        ?.takeUnless { it in visited }
+        ?.let { parentId -> allTopics.firstOrNull { it.id == parentId } }
+        ?.let { parent -> topicPriorityState(parent, allTopics, visited + topic.id).effectivePriority }
+    return PriorityPresentation.state(
+        topic.assessedPriorityScore,
+        topic.assessedPrioritySource,
+        topic.assessedPriorityConfidence,
+        topic.assessedPriorityRationale,
+        topic.assessedPriorityEvidenceJson,
+        topic.hasAssessedPriority,
+        topic.userPriorityOverride,
+        parentPriority,
+    )
 }
 
 private suspend fun readContentFile(context: Context, uri: Uri): String? = withContext(Dispatchers.IO) {

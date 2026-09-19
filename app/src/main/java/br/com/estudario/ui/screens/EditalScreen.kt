@@ -34,8 +34,12 @@ import br.com.estudario.ui.components.EmptyState
 import br.com.estudario.ui.components.ScreenTitle
 import br.com.estudario.ui.components.TextInputDialog
 import br.com.estudario.ui.components.ConfirmDialog
+import br.com.estudario.ui.components.PriorityEditorDialog
+import br.com.estudario.ui.components.PriorityEditorState
+import br.com.estudario.ui.components.PriorityPresentation
 import br.com.estudario.ui.tour.TourKey
 import br.com.estudario.ui.tour.tourTarget
+import br.com.estudario.domain.PriorityLevel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -59,6 +63,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
     var onlyWithContent by rememberSaveable { mutableStateOf(false) }
     var showEditalPrompt by remember { mutableStateOf(false) }
     var contentPromptFor by remember { mutableStateOf<Pair<Long, Set<Long>?>?>(null) }
+    var priorityTarget by remember { mutableStateOf<PriorityTarget?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -73,6 +78,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
     val pickFile = { importLauncher.launch(arrayOf("*/*")) }
     val tourStep by viewModel.tourStep.collectAsState()
     val listState = rememberLazyListState()
+    val selectedCompetition = competitions.firstOrNull { it.id == selectedCompetitionId }
     LaunchedEffect(tourStep?.key) {
         when (tourStep?.key) {
             TourKey.EDITAL_CREATE, TourKey.EDITAL_AI, TourKey.EDITAL_IMPORT -> listState.animateScrollToItem(0)
@@ -87,6 +93,29 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
     if (addSubject && selectedCompetitionId != 0L) TextInputDialog("Nova matéria", label = "Nome da matéria", onDismiss = { addSubject = false }) { viewModel.addSubject(selectedCompetitionId, it) }
     addTopicFor?.let { subject -> TextInputDialog("Novo tópico", label = "Título do tópico", onDismiss = { addTopicFor = null }) { viewModel.addTopic(subject.id, it) } }
     deleteCompetition?.let { competition -> ConfirmDialog("Excluir concurso?", "“${competition.name}” e todo o conteúdo relacionado serão removidos deste aparelho.", "Excluir", onDismiss = { deleteCompetition = null }) { viewModel.deleteCompetition(competition) } }
+    priorityTarget?.let { target ->
+        PriorityEditorDialog(
+            title = "Prioridade • ${target.title}",
+            state = target.state,
+            onDismiss = { priorityTarget = null },
+            onSetOverride = { level ->
+                when (target) {
+                    is PriorityTarget.Competition -> viewModel.setCompetitionPriorityOverride(target.value.id, level)
+                    is PriorityTarget.Subject -> viewModel.setSubjectPriorityOverride(target.value.id, level)
+                    is PriorityTarget.Topic -> viewModel.setTopicPriorityOverride(target.value.id, level)
+                }
+                priorityTarget = null
+            },
+            onClearOverride = {
+                when (target) {
+                    is PriorityTarget.Competition -> viewModel.setCompetitionPriorityOverride(target.value.id, null)
+                    is PriorityTarget.Subject -> viewModel.setSubjectPriorityOverride(target.value.id, null)
+                    is PriorityTarget.Topic -> viewModel.setTopicPriorityOverride(target.value.id, null)
+                }
+                priorityTarget = null
+            },
+        )
+    }
 
     LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
@@ -97,6 +126,9 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
                         onClick = { showEditalPrompt = true },
                         modifier = Modifier.tourTarget(TourKey.EDITAL_AI, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.EDITAL_AI, it) },
                     ) { Icon(Icons.Outlined.AutoAwesome, "Montar edital com IA") }
+                    IconButton(onClick = { selectedCompetition?.let { priorityTarget = PriorityTarget.Competition(it, it.priorityState()) } }, enabled = selectedCompetition != null) {
+                        Icon(Icons.Outlined.Flag, "Definir prioridade do concurso")
+                    }
                     IconButton(
                         onClick = pickFile,
                         modifier = Modifier.tourTarget(TourKey.EDITAL_IMPORT, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.EDITAL_IMPORT, it) },
@@ -135,6 +167,13 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
             }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    selectedCompetition?.let { competition ->
+                        AssistChip(
+                            onClick = { priorityTarget = PriorityTarget.Competition(competition, competition.priorityState()) },
+                            label = { Text("Prioridade: ${PriorityPresentation.label(competition.priorityState().effectivePriority)}") },
+                            leadingIcon = { Icon(Icons.Outlined.Flag, null, Modifier.size(18.dp)) },
+                        )
+                    }
                     OutlinedButton(onClick = { viewModel.setPrimary(selectedCompetitionId) }) { Icon(Icons.Outlined.Star, null); Spacer(Modifier.width(6.dp)); Text("Tornar principal") }
                     Button(onClick = { addSubject = true }) { Icon(Icons.Outlined.Add, null); Spacer(Modifier.width(6.dp)); Text("Matéria") }
                     IconButton(onClick = { deleteCompetition = competitions.firstOrNull { it.id == selectedCompetitionId } }) { Icon(Icons.Outlined.Delete, "Excluir concurso") }
@@ -186,6 +225,8 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
                     onTopic = onTopic,
                     onAddTopic = { addTopicFor = subject },
                     onGenerateContent = { topicIds -> contentPromptFor = subject.id to topicIds },
+                    onPriority = { priorityTarget = PriorityTarget.Subject(subject, subject.priorityState(selectedCompetition?.priorityState()?.effectivePriority)) },
+                    onTopicPriority = { topic, parent -> priorityTarget = PriorityTarget.Topic(topic, topic.priorityState(parent)) },
                     aiButtonModifier = if (isFirst) Modifier.tourTarget(TourKey.SUBJECT_AI, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.SUBJECT_AI, it) } else Modifier,
                 )
             }
@@ -194,7 +235,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
 }
 
 @Composable
-private fun SubjectCard(subject: SubjectEntity, topics: List<TopicEntity>, expanded: Boolean, onExpandedChange: (Boolean) -> Unit, viewModel: AppViewModel, onTopic: (Long) -> Unit, onAddTopic: () -> Unit, onGenerateContent: (Set<Long>?) -> Unit, aiButtonModifier: Modifier = Modifier) {
+private fun SubjectCard(subject: SubjectEntity, topics: List<TopicEntity>, expanded: Boolean, onExpandedChange: (Boolean) -> Unit, viewModel: AppViewModel, onTopic: (Long) -> Unit, onAddTopic: () -> Unit, onGenerateContent: (Set<Long>?) -> Unit, onPriority: () -> Unit, onTopicPriority: (TopicEntity, PriorityLevel) -> Unit, aiButtonModifier: Modifier = Modifier) {
     var menu by remember { mutableStateOf(false) }
     ElevatedCard {
         Column {
@@ -203,13 +244,14 @@ private fun SubjectCard(subject: SubjectEntity, topics: List<TopicEntity>, expan
                 Column(Modifier.weight(1f)) {
                     Text(subject.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     val done = topics.count { it.status != TopicStatus.NAO_ESTUDADO }
-                    Text("$done de ${topics.size} tópicos iniciados", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("$done de ${topics.size} tópicos iniciados • prioridade ${PriorityPresentation.label(subject.priorityState().effectivePriority)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 IconButton(onClick = { onGenerateContent(null) }, modifier = aiButtonModifier) { Icon(Icons.Outlined.AutoAwesome, "Gerar conteúdo da matéria com IA", tint = MaterialTheme.colorScheme.primary) }
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Opções") }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(text = { Text("Gerar conteúdo com IA") }, leadingIcon = { Icon(Icons.Outlined.AutoAwesome, null) }, onClick = { menu = false; onGenerateContent(null) })
+                        DropdownMenuItem(text = { Text("Prioridade") }, leadingIcon = { Icon(Icons.Outlined.Flag, null) }, onClick = { menu = false; onPriority() })
                         DropdownMenuItem(text = { Text("Adicionar tópico") }, leadingIcon = { Icon(Icons.Outlined.Add, null) }, onClick = { menu = false; onAddTopic() })
                         DropdownMenuItem(text = { Text("Excluir matéria") }, leadingIcon = { Icon(Icons.Outlined.Delete, null) }, onClick = { menu = false; viewModel.deleteSubject(subject) })
                     }
@@ -218,7 +260,7 @@ private fun SubjectCard(subject: SubjectEntity, topics: List<TopicEntity>, expan
             if (expanded) {
                 if (topics.isEmpty()) TextButton(onClick = onAddTopic, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) { Text("+ Adicionar tópico") }
                 topics.filter { it.parentTopicId == null }.sortedBy { it.position }.forEach { topic ->
-                    TopicTreeRows(topic, topics, 0, viewModel, onTopic) { onGenerateContent(setOf(it)) }
+                    TopicTreeRows(topic, topics, 0, subject.priorityState().effectivePriority, viewModel, onTopic, onTopicPriority, onGenerateContent = { onGenerateContent(setOf(it)) })
                 }
             }
         }
@@ -226,21 +268,21 @@ private fun SubjectCard(subject: SubjectEntity, topics: List<TopicEntity>, expan
 }
 
 @Composable
-private fun TopicTreeRows(topic: TopicEntity, allTopics: List<TopicEntity>, depth: Int, viewModel: AppViewModel, onTopic: (Long) -> Unit, onGenerateContent: (Long) -> Unit) {
-    TopicRow(topic, depth, viewModel, onClick = { onTopic(topic.id) }, onGenerateContent = { onGenerateContent(topic.id) })
+private fun TopicTreeRows(topic: TopicEntity, allTopics: List<TopicEntity>, depth: Int, parentPriority: PriorityLevel, viewModel: AppViewModel, onTopic: (Long) -> Unit, onPriority: (TopicEntity, PriorityLevel) -> Unit, onGenerateContent: (Long) -> Unit) {
+    TopicRow(topic, depth, parentPriority, viewModel, onClick = { onTopic(topic.id) }, onPriority = { onPriority(topic, parentPriority) }, onGenerateContent = { onGenerateContent(topic.id) })
     HorizontalDivider(Modifier.padding(start = (16 + depth * 20).dp, end = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
     allTopics.filter { it.parentTopicId == topic.id }.sortedBy { it.position }.forEach { child ->
-        TopicTreeRows(child, allTopics, depth + 1, viewModel, onTopic, onGenerateContent)
+        TopicTreeRows(child, allTopics, depth + 1, topic.priorityState(parentPriority).effectivePriority, viewModel, onTopic, onPriority, onGenerateContent)
     }
 }
 
 @Composable
-private fun TopicRow(topic: TopicEntity, depth: Int, viewModel: AppViewModel, onClick: () -> Unit, onGenerateContent: () -> Unit) {
+private fun TopicRow(topic: TopicEntity, depth: Int, parentPriority: PriorityLevel, viewModel: AppViewModel, onClick: () -> Unit, onPriority: () -> Unit, onGenerateContent: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     ListItem(
         headlineContent = { Text(topic.title, fontWeight = FontWeight.Medium) },
         supportingContent = {
-            Text("${topic.status.displayName()} • ${topic.contentOriginType.displayName()}")
+            Text("${topic.status.displayName()} • ${topic.contentOriginType.displayName()} • prioridade ${PriorityPresentation.label(topic.priorityState(parentPriority).effectivePriority)}")
         },
         leadingContent = {
             if (depth > 0) Icon(Icons.Outlined.SubdirectoryArrowRight, "Subtópico", tint = MaterialTheme.colorScheme.primary)
@@ -252,6 +294,7 @@ private fun TopicRow(topic: TopicEntity, depth: Int, viewModel: AppViewModel, on
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text("Abrir") }, onClick = { menu = false; onClick() })
                     DropdownMenuItem(text = { Text("Gerar conteúdo com IA") }, onClick = { menu = false; onGenerateContent() })
+                    DropdownMenuItem(text = { Text("Prioridade") }, leadingIcon = { Icon(Icons.Outlined.Flag, null) }, onClick = { menu = false; onPriority() })
                     if (topic.status == br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO) {
                         DropdownMenuItem(text = { Text("Marcar estudado") }, onClick = { menu = false; viewModel.markStudied(topic) })
                     } else {
@@ -267,6 +310,36 @@ private fun TopicRow(topic: TopicEntity, depth: Int, viewModel: AppViewModel, on
         modifier = Modifier.fillMaxWidth().padding(start = (depth * 20).dp).clickable(onClick = onClick),
     )
 }
+
+private sealed interface PriorityTarget {
+    val title: String
+    val state: PriorityEditorState
+
+    data class Competition(val value: CompetitionEntity, override val state: PriorityEditorState) : PriorityTarget {
+        override val title get() = value.name
+    }
+    data class Subject(val value: SubjectEntity, override val state: PriorityEditorState) : PriorityTarget {
+        override val title get() = value.name
+    }
+    data class Topic(val value: TopicEntity, override val state: PriorityEditorState) : PriorityTarget {
+        override val title get() = value.title
+    }
+}
+
+private fun CompetitionEntity.priorityState() = PriorityPresentation.state(
+    assessedPriorityScore, assessedPrioritySource, assessedPriorityConfidence, assessedPriorityRationale,
+    assessedPriorityEvidenceJson, hasAssessedPriority, userPriorityOverride, null,
+)
+
+private fun SubjectEntity.priorityState(parent: PriorityLevel? = null) = PriorityPresentation.state(
+    assessedPriorityScore, assessedPrioritySource, assessedPriorityConfidence, assessedPriorityRationale,
+    assessedPriorityEvidenceJson, hasAssessedPriority, userPriorityOverride, parent,
+)
+
+private fun TopicEntity.priorityState(parent: PriorityLevel) = PriorityPresentation.state(
+    assessedPriorityScore, assessedPrioritySource, assessedPriorityConfidence, assessedPriorityRationale,
+    assessedPriorityEvidenceJson, hasAssessedPriority, userPriorityOverride, parent,
+)
 
 private suspend fun readEditalFile(context: Context, uri: Uri): String? = withContext(Dispatchers.IO) {
     runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } }.getOrNull()
