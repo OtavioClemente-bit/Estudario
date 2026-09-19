@@ -25,7 +25,7 @@ import br.com.estudario.data.local.planner.*
         MonthlyPlanSubjectEntity::class, MonthlyPlanTopicEntity::class, WeeklyPlanEntity::class,
         PlanTaskEntity::class, PlanTaskDependencyEntity::class, StudyTaskExecutionEntity::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -142,6 +142,25 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE `error_notebook` ADD COLUMN `nextRetryAt` INTEGER")
                 // Quem já tinha erro em aberto entra na escada na hora: a questão volta a partir de hoje.
                 db.execSQL("UPDATE `error_notebook` SET `nextRetryAt` = `lastErrorAt` + 259200000 WHERE `pending` = 1")
+            }
+        }
+
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                listOf("competitions", "subjects", "topics").forEach { table ->
+                    db.execSQL("ALTER TABLE `$table` ADD COLUMN `assessedPriorityScore` INTEGER NOT NULL DEFAULT 50")
+                    db.execSQL("ALTER TABLE `$table` ADD COLUMN `assessedPrioritySource` TEXT NOT NULL DEFAULT 'DEFAULT'")
+                    db.execSQL("ALTER TABLE `$table` ADD COLUMN `assessedPriorityConfidence` REAL NOT NULL DEFAULT 0")
+                    db.execSQL("ALTER TABLE `$table` ADD COLUMN `assessedPriorityRationale` TEXT")
+                    db.execSQL("ALTER TABLE `$table` ADD COLUMN `assessedPriorityEvidenceJson` TEXT NOT NULL DEFAULT '[]'")
+                    db.execSQL("ALTER TABLE `$table` ADD COLUMN `hasAssessedPriority` INTEGER NOT NULL DEFAULT 0")
+                    db.execSQL("ALTER TABLE `$table` ADD COLUMN `userPriorityOverride` TEXT")
+                }
+                db.execSQL(
+                    "UPDATE `topics` SET `assessedPriorityScore` = CASE `priority` " +
+                        "WHEN 'ALTA' THEN 70 WHEN 'BAIXA' THEN 30 ELSE 50 END, " +
+                        "`hasAssessedPriority` = 1 WHERE `priority` IS NOT NULL",
+                )
             }
         }
 
@@ -270,6 +289,6 @@ abstract class AppDatabase : RoomDatabase() {
             context.applicationContext,
             AppDatabase::class.java,
             "estudario.db",
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12).build()
     }
 }

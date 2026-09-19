@@ -7,12 +7,18 @@ import br.com.estudario.domain.planner.PlanOrigin
 import br.com.estudario.domain.planner.PlanPriority
 import br.com.estudario.domain.planner.PlanTaskStatus
 import br.com.estudario.domain.planner.PlanTaskType
+import br.com.estudario.domain.PriorityLevel
+import br.com.estudario.domain.PrioritySource
 
 class Converters {
     @TypeConverter fun topicStatus(value: TopicStatus): String = value.name
     @TypeConverter fun topicStatus(value: String): TopicStatus = TopicStatus.valueOf(value)
     @TypeConverter fun priority(value: Priority): String = value.name
     @TypeConverter fun priority(value: String): Priority = Priority.valueOf(value)
+    @TypeConverter fun assessedPrioritySource(value: PrioritySource): String = value.name
+    @TypeConverter fun assessedPrioritySource(value: String): PrioritySource = PrioritySource.valueOf(value)
+    @TypeConverter fun userPriorityOverride(value: PriorityLevel?): String? = value?.name
+    @TypeConverter fun userPriorityOverride(value: String?): PriorityLevel? = value?.let(PriorityLevel::valueOf)
     @TypeConverter fun difficulty(value: Difficulty?): String? = value?.name
     @TypeConverter fun difficulty(value: String?): Difficulty? = value?.let(Difficulty::valueOf)
     @TypeConverter fun summaryKind(value: SummaryKind): String = value.name

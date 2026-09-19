@@ -158,4 +158,37 @@ class AppDatabaseMigrationTest {
             close()
         }
     }
+
+    @Test
+    fun migrateElevenToTwelvePreservesStudyDataAndMapsLegacyPriority() {
+        val name = "migration-v11-v12-priority-test"
+        helper.createDatabase(name, 11).apply {
+            execSQL("INSERT INTO competitions (id, name, isPrimary, createdAt, externalId) VALUES (1, 'Concurso', 1, 10, 'competition-1')")
+            execSQL("INSERT INTO subjects (id, competitionId, name, position, externalId) VALUES (1, 1, 'TI', 0, 'subject-1')")
+            execSQL(
+                "INSERT INTO topics (id, subjectId, parentTopicId, title, description, position, status, firstStudiedAt, lastStudiedAt, lastReviewedAt, notes, priority, externalId, contentOriginType, scopeCovers, scopeExcludes) " +
+                    "VALUES (1, 1, NULL, 'Tópico', '', 0, 'ESTUDADO', 11, 12, NULL, 'nota', 'ALTA', 'topic-1', 'EDITAL', NULL, NULL)",
+            )
+            close()
+        }
+
+        helper.runMigrationsAndValidate(name, 12, true, AppDatabase.MIGRATION_11_12).apply {
+            query("SELECT name, externalId FROM competitions WHERE id = 1").use { cursor ->
+                cursor.moveToFirst()
+                assertEquals("Concurso", cursor.getString(0))
+                assertEquals("competition-1", cursor.getString(1))
+            }
+            query("SELECT title, status, lastStudiedAt, notes, assessedPriorityScore, hasAssessedPriority, userPriorityOverride FROM topics WHERE id = 1").use { cursor ->
+                cursor.moveToFirst()
+                assertEquals("Tópico", cursor.getString(0))
+                assertEquals("ESTUDADO", cursor.getString(1))
+                assertEquals(12, cursor.getLong(2))
+                assertEquals("nota", cursor.getString(3))
+                assertEquals(70, cursor.getInt(4))
+                assertEquals(1, cursor.getInt(5))
+                assertEquals(null, cursor.getString(6))
+            }
+            close()
+        }
+    }
 }

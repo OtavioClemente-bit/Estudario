@@ -1,6 +1,8 @@
 package br.com.estudario.data.local
 
 import androidx.room.*
+import br.com.estudario.domain.PriorityLevel
+import br.com.estudario.domain.PrioritySource
 
 enum class TopicStatus { NAO_ESTUDADO, EM_ESTUDO, ESTUDADO, REVISANDO, DOMINADO }
 enum class Priority { BAIXA, NORMAL, ALTA }
@@ -22,6 +24,13 @@ data class CompetitionEntity(
     val isPrimary: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
     val externalId: String? = null,
+    @ColumnInfo(defaultValue = "50") val assessedPriorityScore: Int = 50,
+    @ColumnInfo(defaultValue = "DEFAULT") val assessedPrioritySource: PrioritySource = PrioritySource.DEFAULT,
+    @ColumnInfo(defaultValue = "0") val assessedPriorityConfidence: Float = 0f,
+    val assessedPriorityRationale: String? = null,
+    @ColumnInfo(defaultValue = "[]") val assessedPriorityEvidenceJson: String = "[]",
+    @ColumnInfo(defaultValue = "0") val hasAssessedPriority: Boolean = false,
+    val userPriorityOverride: PriorityLevel? = null,
 )
 
 @Entity(
@@ -35,6 +44,13 @@ data class SubjectEntity(
     val name: String,
     val position: Int = 0,
     val externalId: String? = null,
+    @ColumnInfo(defaultValue = "50") val assessedPriorityScore: Int = 50,
+    @ColumnInfo(defaultValue = "DEFAULT") val assessedPrioritySource: PrioritySource = PrioritySource.DEFAULT,
+    @ColumnInfo(defaultValue = "0") val assessedPriorityConfidence: Float = 0f,
+    val assessedPriorityRationale: String? = null,
+    @ColumnInfo(defaultValue = "[]") val assessedPriorityEvidenceJson: String = "[]",
+    @ColumnInfo(defaultValue = "0") val hasAssessedPriority: Boolean = false,
+    val userPriorityOverride: PriorityLevel? = null,
 )
 
 @Entity(
@@ -67,6 +83,13 @@ data class TopicEntity(
      */
     val scopeCovers: String? = null,
     val scopeExcludes: String? = null,
+    @ColumnInfo(defaultValue = "50") val assessedPriorityScore: Int = 50,
+    @ColumnInfo(defaultValue = "DEFAULT") val assessedPrioritySource: PrioritySource = PrioritySource.DEFAULT,
+    @ColumnInfo(defaultValue = "0") val assessedPriorityConfidence: Float = 0f,
+    val assessedPriorityRationale: String? = null,
+    @ColumnInfo(defaultValue = "[]") val assessedPriorityEvidenceJson: String = "[]",
+    @ColumnInfo(defaultValue = "0") val hasAssessedPriority: Boolean = false,
+    val userPriorityOverride: PriorityLevel? = null,
 )
 
 @Entity(
