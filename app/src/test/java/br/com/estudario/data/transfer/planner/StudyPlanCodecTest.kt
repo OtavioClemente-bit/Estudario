@@ -21,7 +21,7 @@ class StudyPlanCodecTest {
     @Test
     fun `future version is rejected explicitly`() {
         val error = runCatching {
-            codec.decode("""{"format":"meu-concurso-plano","version":2}""")
+            codec.decode("""{"format":"estudario-plano","version":2}""")
         }.exceptionOrNull()
 
         assertEquals("Versão .plano não suportada: 2. Este aplicativo aceita a versão 1.", error?.message)
@@ -58,7 +58,7 @@ class StudyPlanCodecTest {
 
     private fun validPlan() = """
         {
-          "format":"meu-concurso-plano",
+          "format":"estudario-plano",
           "version":1,
           "planId":"11111111-1111-1111-1111-111111111111",
           "concurso":{"externalId":"competition-1","nome":"Concurso"},

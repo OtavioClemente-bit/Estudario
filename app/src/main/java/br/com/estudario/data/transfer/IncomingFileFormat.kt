@@ -15,11 +15,11 @@ enum class IncomingFileFormat {
         fun detect(text: String): IncomingFileFormat? = runCatching {
             val root = JSONObject(IncomingText.clean(text))
             when (root.optString("format")) {
-                // "meu-concurso-*" é o nome antigo do app: arquivos gerados antes da troca
+                // "estudario-*" é o nome antigo do app: arquivos gerados antes da troca
                 // continuam sendo reconhecidos.
-                "estudario-estudo", "meu-concurso-estudo", "estudo" -> ESTUDO
-                "estudario-plano", "meu-concurso-plano", "plano" -> PLANO
-                "estudario-backup", "meu-concurso-backup", "backup" -> BACKUP
+                "estudario-estudo", "estudario-estudo", "estudo" -> ESTUDO
+                "estudario-plano", "estudario-plano", "plano" -> PLANO
+                "estudario-backup", "estudario-backup", "backup" -> BACKUP
                 "" -> when {
                     root.has("planId") && (root.has("tarefas") || root.has("configuracao")) -> PLANO
                     root.has("materias") || root.has("packageId") -> ESTUDO

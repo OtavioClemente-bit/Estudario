@@ -134,7 +134,7 @@ class StudyPlanCodec {
 
     companion object {
         const val FORMAT = "estudario-plano"
-        const val LEGACY_FORMAT = "meu-concurso-plano"
+        const val LEGACY_FORMAT = "estudario-plano"
         const val VERSION = 1
         val ACCEPTED = setOf(FORMAT, LEGACY_FORMAT, "plano")
     }

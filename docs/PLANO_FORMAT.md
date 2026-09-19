@@ -4,7 +4,7 @@ O `.plano` é um JSON UTF-8 separado do conteúdo `.estudo`. Ele descreve estrat
 
 ## Raiz
 
-- `format`: `estudario-plano`. O app também aceita `meu-concurso-plano` (nome antigo) e `plano`, para não invalidar arquivos gerados antes da troca de nome.
+- `format`: `estudario-plano`. O app também aceita `estudario-plano` (nome antigo) e `plano`, para não invalidar arquivos gerados antes da troca de nome.
 - `version`: sempre `1`.
 - `planId`: UUID estável do plano.
 - `concurso`: `externalId` estável e nome de exibição.

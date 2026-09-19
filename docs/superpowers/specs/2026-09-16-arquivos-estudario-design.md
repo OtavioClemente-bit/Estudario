@@ -36,15 +36,15 @@ Já existe suporte parcial a abertura externa, mas ele não cobre `ACTION_SEND`,
 ### Plano de estudos
 
 - extensão: `.plano`;
-- formato: `meu-concurso-plano`;
+- formato: `estudario-plano`;
 - versão aceita: 1;
 - identidade: `planId` UUID;
 - importação: transacional, com modos existentes `CREATE`, `MERGE` e `REPLACE_FUTURE`.
 
 ### Backup completo
 
-- arquivo JSON exportado atualmente com nome `meu-concurso-backup-<data>.json`;
-- formato: `meu-concurso-backup`;
+- arquivo JSON exportado atualmente com nome `estudario-backup-<data>.json`;
+- formato: `estudario-backup`;
 - versões aceitas: 1 a 5;
 - restauração: substitui o banco local dentro de transação.
 
@@ -108,8 +108,8 @@ O leitor imporá um limite de tamanho coerente com os formatos locais para evita
 
 O detector produzirá uma classificação ou um erro tipado. A extensão e o MIME servem como sinais; a assinatura JSON é a autoridade final.
 
-- `.plano` exige `format: "meu-concurso-plano"` e uma versão reconhecível;
-- backup exige `format: "meu-concurso-backup"`;
+- `.plano` exige `format: "estudario-plano"` e uma versão reconhecível;
+- backup exige `format: "estudario-backup"`;
 - `.estudo` usa exatamente as raízes aceitas pelo parser atual, incluindo compatibilidade legada;
 - JSON sintaticamente inválido é rejeitado antes do handler;
 - extensão própria com conteúdo de outro formato é rejeitada como divergência;

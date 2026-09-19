@@ -8,7 +8,7 @@
 
 **Tech Stack:** Kotlin 2.2.20, Android SDK 36, Jetpack Compose, Navigation Compose, ViewModel, StateFlow, coroutines, Room 2.7.2, `ContentResolver`, JUnit 4 e AndroidX Test.
 
-**Spec:** `docs/superpowers/specs/2026-09-16-arquivos-meu-concurso-design.md`
+**Spec:** `docs/superpowers/specs/2026-09-16-arquivos-estudario-design.md`
 
 ## Global Constraints
 
@@ -62,12 +62,12 @@ class EstudarioFileDetectorTest {
     private val detector = EstudarioFileDetector()
 
     @Test fun planoRequiresMatchingSignature() {
-        val payload = IncomingFilePayload("Plano.plano", "application/octet-stream", """{"format":"meu-concurso-plano","version":1}""")
+        val payload = IncomingFilePayload("Plano.plano", "application/octet-stream", """{"format":"estudario-plano","version":1}""")
         assertEquals(FileDetectionResult.Match(EstudarioFileFormat.PLANO), detector.detect(payload))
     }
 
     @Test fun extensionAndContentDivergenceIsRejected() {
-        val payload = IncomingFilePayload("Plano.plano", "application/json", """{"format":"meu-concurso-backup","version":5}""")
+        val payload = IncomingFilePayload("Plano.plano", "application/json", """{"format":"estudario-backup","version":5}""")
         assertTrue(detector.detect(payload) is FileDetectionResult.ExtensionMismatch)
     }
 

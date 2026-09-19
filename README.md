@@ -9,9 +9,17 @@ projeto.
 
 ![Estudario — capa da Play Store](docs/media/estudario-store/estudario-play-store-feature-1024x500.png)
 
-| Treino inteligente | Recursos e configurações |
+| Tela 1 | Tela 2 |
 | --- | --- |
-| ![Painel do Estudario](docs/media/estudario-store/01-estudario-play-store.png) | ![Treino inteligente](docs/media/estudario-store/03-estudario-play-store.png) |
+| ![Tela 1](docs/media/estudario-store/01-estudario-play-store.png) | ![Tela 2](docs/media/estudario-store/02-estudario-play-store.png) |
+
+| Tela 3 | Tela 4 |
+| --- | --- |
+| ![Tela 3](docs/media/estudario-store/03-estudario-play-store.png) | ![Tela 4](docs/media/estudario-store/04-estudario-play-store.png) |
+
+| Tela 5 | Tela 6 |
+| --- | --- |
+| ![Tela 5](docs/media/estudario-store/05-estudario-play-store.png) | ![Tela 6](docs/media/estudario-store/06-estudario-play-store.png) |
 
 As capturas usam exclusivamente o conjunto de dados demonstrativos do próprio
 aplicativo: concurso, plano, matérias e questões fictícias, sem dados pessoais.

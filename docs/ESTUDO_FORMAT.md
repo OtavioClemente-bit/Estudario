@@ -236,7 +236,7 @@ O formato hierárquico V2 existente (`concurso`, `materias`, `topicos`, `subtopi
 
 ## Nome do formato
 
-O campo `format` aceita `estudario-estudo` (atual), `meu-concurso-estudo` (nome antigo do app) e `estudo`. Arquivos sem o campo `format` continuam sendo reconhecidos pela presença de `materias` ou `packageId`.
+O campo `format` aceita `estudario-estudo` (atual), `estudario-estudo` (nome antigo do app) e `estudo`. Arquivos sem o campo `format` continuam sendo reconhecidos pela presença de `materias` ou `packageId`.
 
 ## Vínculo da questão com o material (`secao`)
 

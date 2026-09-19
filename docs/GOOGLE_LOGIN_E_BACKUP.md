@@ -36,7 +36,7 @@ numa mensagem clara na tela.
 
 ### SHA-1 a cadastrar
 
-**Release (`work/meu-concurso-upload.keystore`, alias `meu-concurso-upload`):**
+**Release (`work/estudario-upload.keystore`, alias `estudario-upload`):**
 
 ```
 E0:73:CB:BD:BB:83:38:DE:9F:5B:BA:40:D4:E7:BC:9C:E1:AB:98:1A

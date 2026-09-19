@@ -7,7 +7,7 @@ import org.json.JSONObject
 
 /** Nome antigo do app; backups gerados antes da troca continuam sendo aceitos na restauração. */
 private const val BACKUP_FORMAT = "estudario-backup"
-private val ACCEPTED_BACKUP_FORMATS = setOf(BACKUP_FORMAT, "meu-concurso-backup", "backup")
+private val ACCEPTED_BACKUP_FORMATS = setOf(BACKUP_FORMAT, "estudario-backup", "backup")
 
 class BackupService(private val db: AppDatabase) {
     private val dao = db.dao()

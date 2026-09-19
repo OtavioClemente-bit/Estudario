@@ -311,7 +311,7 @@ O formato será JSON UTF-8:
 
 ```json
 {
-  "format": "meu-concurso-plano",
+  "format": "estudario-plano",
   "version": 1,
   "planId": "uuid",
   "concurso": {

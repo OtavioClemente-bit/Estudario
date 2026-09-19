@@ -68,7 +68,7 @@ class StudyPlanTransferServiceTest {
     }
 
     private fun planJson(minutes: Int = 60, planId: String = "11111111-1111-1111-1111-111111111111") = """
-        {"format":"meu-concurso-plano","version":1,"planId":"$planId",
+        {"format":"estudario-plano","version":1,"planId":"$planId",
         "concurso":{"externalId":"competition-1","nome":"Concurso"},"nome":"Plano","objetivo":"Aprovação",
         "active":false,"masterPlan":false,"dataInicio":"2026-09-15","dataProva":null,
         "configuracao":{"modo":"ADVANCED","dias":[{"dia":1,"minutos":120,"indisponivel":false}],"questoesSemanais":10,"discursivasMensais":0},
