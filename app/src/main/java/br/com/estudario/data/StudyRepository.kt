@@ -36,6 +36,9 @@ class StudyRepository(private val db: AppDatabase) {
 
     suspend fun addCompetition(name: String) = dao.insertCompetition(CompetitionEntity(name = name.trim(), isPrimary = dao.competitionsOnce().isEmpty()))
     suspend fun setPrimary(id: Long) = dao.setPrimaryCompetition(id)
+    suspend fun setCompetitionPriorityOverride(id: Long, override: PriorityLevel?) {
+        dao.competitionsOnce().firstOrNull { it.id == id }?.let { dao.updateCompetition(it.copy(userPriorityOverride = override)) }
+    }
     suspend fun deleteCompetition(value: CompetitionEntity) = db.withTransaction {
         val subjectIds = dao.subjectsFor(value.id).map { it.id }.toSet()
         val topicIds = dao.topicsOnce().filter { it.subjectId in subjectIds }.map { it.id }
@@ -47,6 +50,9 @@ class StudyRepository(private val db: AppDatabase) {
         }
     }
     suspend fun addSubject(competitionId: Long, name: String) = dao.insertSubject(SubjectEntity(competitionId = competitionId, name = name.trim(), position = dao.subjectsFor(competitionId).size))
+    suspend fun setSubjectPriorityOverride(id: Long, override: PriorityLevel?) {
+        dao.subjectsOnce().firstOrNull { it.id == id }?.let { dao.updateSubject(it.copy(userPriorityOverride = override)) }
+    }
     suspend fun deleteSubject(value: SubjectEntity) = db.withTransaction {
         val topicIds = dao.topicsFor(value.id).map { it.id }
         cleanupTopicReferences(topicIds)
@@ -54,6 +60,9 @@ class StudyRepository(private val db: AppDatabase) {
     }
     suspend fun addTopic(subjectId: Long, title: String, parentId: Long? = null) = dao.insertTopic(TopicEntity(subjectId = subjectId, title = title.trim(), parentTopicId = parentId, position = dao.topicsFor(subjectId).size))
     suspend fun updateTopic(value: TopicEntity) = dao.updateTopic(value)
+    suspend fun setTopicPriorityOverride(id: Long, override: PriorityLevel?) {
+        dao.topicsOnce().firstOrNull { it.id == id }?.let { dao.updateTopic(it.copy(userPriorityOverride = override)) }
+    }
     suspend fun deleteTopic(value: TopicEntity) = db.withTransaction {
         val allTopics = dao.topicsOnce()
         val ids = mutableSetOf(value.id)

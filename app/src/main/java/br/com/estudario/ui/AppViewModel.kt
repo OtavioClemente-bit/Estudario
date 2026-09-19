@@ -28,6 +28,7 @@ import br.com.estudario.domain.StreakEngine
 import br.com.estudario.domain.StreakSummary
 import br.com.estudario.domain.Badge
 import br.com.estudario.domain.ProgressEngine
+import br.com.estudario.domain.PriorityLevel
 import br.com.estudario.data.account.GoogleDriveBackupService
 import br.com.estudario.ui.profile.GoogleAction
 import br.com.estudario.ui.profile.StreakCelebration
@@ -364,11 +365,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Liga o loading assim que a pessoa escolhe um arquivo, antes da leitura começar. */
     fun beginIncomingFile() { _transfer.value = TransferState.Loading }
     fun setPrimary(id: Long) = launchCatching { repository.setPrimary(id) }
+    fun setCompetitionPriorityOverride(id: Long, override: PriorityLevel?) = launchCatching { repository.setCompetitionPriorityOverride(id, override) }
     fun deleteCompetition(value: CompetitionEntity) = launchCatching { repository.deleteCompetition(value) }
     fun addSubject(competitionId: Long, name: String) = launchCatching { if (name.isNotBlank()) repository.addSubject(competitionId, name) }
+    fun setSubjectPriorityOverride(id: Long, override: PriorityLevel?) = launchCatching { repository.setSubjectPriorityOverride(id, override) }
     fun deleteSubject(value: SubjectEntity) = launchCatching { repository.deleteSubject(value) }
     fun addTopic(subjectId: Long, title: String) = launchCatching { if (title.isNotBlank()) repository.addTopic(subjectId, title) }
     fun updateTopic(value: TopicEntity) = launchCatching { repository.updateTopic(value) }
+    fun setTopicPriorityOverride(id: Long, override: PriorityLevel?) = launchCatching { repository.setTopicPriorityOverride(id, override) }
     fun deleteTopic(value: TopicEntity) = launchCatching { repository.deleteTopic(value) }
     fun markStudied(value: TopicEntity) = launchCatching { repository.markStudied(value, reviewIntervals.value) }
     fun unmarkStudied(value: TopicEntity) = launchCatching { repository.unmarkStudied(value) }
