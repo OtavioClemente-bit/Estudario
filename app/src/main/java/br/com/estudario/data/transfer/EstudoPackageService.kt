@@ -2,6 +2,7 @@ package br.com.estudario.data.transfer
 
 import androidx.room.withTransaction
 import br.com.estudario.data.local.*
+import br.com.estudario.domain.*
 import org.json.JSONArray
 import org.json.JSONObject
 import java.security.MessageDigest
@@ -55,6 +56,7 @@ data class ImportResult(
     /** Questões que diziam ser de prova real sem apontar origem e foram tratadas como autorais. */
     val downgradedQuestions: Int = 0,
     val sources: Int = 0,
+    val normalizedPriorityAssessments: Int = 0,
 )
 
 class EstudoPackageException(message: String) : IllegalArgumentException(message)
@@ -100,6 +102,8 @@ internal data class TopicPlan(
     val notes: String,
     val position: Int,
     val priority: Priority,
+    val priorityAssessment: PriorityAssessment? = null,
+    val legacyPriorityProvided: Boolean = false,
     val originType: ContentOriginType,
     val theories: List<TheoryPlan>,
     val summaries: List<SummaryPlan>,
@@ -111,7 +115,13 @@ internal data class TopicPlan(
     val scopeCovers: String? = null,
     val scopeExcludes: String? = null,
 )
-internal data class SubjectPlan(val id: String, val name: String, val position: Int, val topics: List<TopicPlan>)
+internal data class SubjectPlan(
+    val id: String,
+    val name: String,
+    val position: Int,
+    val topics: List<TopicPlan>,
+    val priorityAssessment: PriorityAssessment? = null,
+)
 internal data class PackagePlan(
     val version: Int,
     val packageId: String,
@@ -119,6 +129,8 @@ internal data class PackagePlan(
     val competitionName: String,
     val primary: Boolean,
     val subjects: List<SubjectPlan>,
+    val priorityAssessment: PriorityAssessment? = null,
+    val normalizedPriorityCount: Int = 0,
     /** Fontes declaradas no nível do pacote, quando não são de um tópico específico. */
     val sources: List<SourcePlan> = emptyList(),
 )
@@ -150,7 +162,7 @@ internal object EstudoPackageParser {
         if (root.optJSONArray("questions") != null && root.optJSONArray("questoes") == null) topicJson.put("questoes", root.optJSONArray("questions"))
         if (root.optJSONArray("theories") != null && root.optJSONArray("teorias") == null) topicJson.put("teorias", root.optJSONArray("theories"))
         val plan = parseTopic(topicJson, topic, 0, QuestionDefaults(tags = root.optJSONArray("tags")?.strings().orEmpty()), ids, false)
-        return PackagePlan(version, packageId, firstText(root, "competitionId", "concursoId") ?: "competition-${slug(competition)}", competition, root.optBoolean("primary", false), listOf(SubjectPlan("subject-${slug(subject)}", subject, 0, listOf(plan))), parseSources(root, packageId))
+        return PackagePlan(version, packageId, firstText(root, "competitionId", "concursoId") ?: "competition-${slug(competition)}", competition, root.optBoolean("primary", false), listOf(SubjectPlan("subject-${slug(subject)}", subject, 0, listOf(plan))), priorityAssessment = parsePriorityAssessment(root, "pacote", ids), sources = parseSources(root, packageId), normalizedPriorityCount = ids.normalizedPriorityCount)
     }
 
     private fun parseHierarchical(root: JSONObject): PackagePlan {
@@ -176,16 +188,27 @@ internal object EstudoPackageParser {
             val topics = item.optJSONArray("topicos") ?: throw EstudoPackageException("$path: topicos deve ser uma lista.")
             SubjectPlan(id, name, item.optInt("ordem", index), topics.objects().mapIndexed { i, topic ->
                 parseTopic(topic, "$name › tópico ${i + 1}", i, defaults, ids, true)
-            })
+            }, parsePriorityAssessment(item, path, ids))
         }
         val competitionName = requireText(competition, "nome", "concurso")
-        return PackagePlan(2, packageId, firstText(competition, "id") ?: "competition-${slug(competitionName)}", competitionName, competition.optBoolean("principal"), subjects, parseSources(root, packageId))
+        return PackagePlan(
+            version = 2,
+            packageId = packageId,
+            competitionId = firstText(competition, "id") ?: "competition-${slug(competitionName)}",
+            competitionName = competitionName,
+            primary = competition.optBoolean("principal"),
+            subjects = subjects,
+            priorityAssessment = parsePriorityAssessment(competition, "concurso", ids),
+            normalizedPriorityCount = ids.normalizedPriorityCount,
+            sources = parseSources(root, packageId),
+        )
     }
 
     private fun parseTopic(item: JSONObject, path: String, defaultPosition: Int, defaults: QuestionDefaults, ids: IdSets, requireIds: Boolean): TopicPlan {
         val id = if (requireIds) requireText(item, "id", path) else item.optString("id", "topic-${slug(path)}")
         if (!ids.topics.add(id)) throw EstudoPackageException("$path: id de tópico duplicado: $id.")
         val title = firstText(item, "titulo", "title", "topic", "topico") ?: throw EstudoPackageException("$path: título ausente.")
+        val legacyPriorityProvided = item.has("prioridade")
         val priority = Priority.entries.firstOrNull { it.name == item.optString("prioridade", "NORMAL").uppercase() }
             ?: throw EstudoPackageException("$path: prioridade deve ser BAIXA, NORMAL ou ALTA.")
         val snippets = buildList {
@@ -203,6 +226,8 @@ internal object EstudoPackageParser {
             notes = firstText(item, "observacoes", "notes").orEmpty(),
             position = item.optInt("ordem", defaultPosition),
             priority = priority,
+            priorityAssessment = parsePriorityAssessment(item, path, ids),
+            legacyPriorityProvided = legacyPriorityProvided,
             originType = parseOriginType(firstText(item, "contentOriginType", "tipoOrigem")),
             theories = parseTheories(item.optJSONArray("teorias") ?: JSONArray(), path, ids.theories, requireIds),
             summaries = parseSummaries(item, path, ids.summaries, requireIds),
@@ -343,6 +368,30 @@ internal object EstudoPackageParser {
     }
 
     private fun firstText(json: JSONObject, vararg keys: String): String? = keys.firstNotNullOfOrNull { key -> json.optString(key).trim().takeIf { it.isNotBlank() && it != "null" } }
+    private fun parsePriorityAssessment(item: JSONObject, path: String, ids: IdSets): PriorityAssessment? {
+        val json = item.optJSONObject("priorityAssessment") ?: return null
+        var normalized = false
+        val scoreValue = json.opt("score")
+        val rawScore = (scoreValue as? Number)?.toInt() ?: 50.also { if (scoreValue != null) normalized = true }
+        val score = rawScore.coerceIn(0, 100).also { if (it != rawScore) normalized = true }
+        val rawSource = json.optString("source", "DEFAULT").uppercase()
+        val source = PrioritySource.entries.firstOrNull { it.name == rawSource } ?: PrioritySource.DEFAULT.also { normalized = true }
+        val confidenceValue = json.opt("confidence")
+        val rawConfidence = (confidenceValue as? Number)?.toDouble() ?: 0.0.also { if (confidenceValue != null) normalized = true }
+        val confidence = if (rawConfidence.isFinite()) rawConfidence.toFloat().coerceIn(0f, 1f) else 0f.also { normalized = true }
+        if (rawConfidence != confidence.toDouble()) normalized = true
+        val evidenceArray = json.optJSONArray("evidence") ?: json.optJSONArray("evidencias")
+        val evidence = evidenceArray?.let { PriorityEvidenceCodec.decode(it.toString()) }.orEmpty()
+        if (evidenceArray != null && evidence.size != evidenceArray.length()) normalized = true
+        if (normalized) ids.normalizedPriorityCount++
+        return PriorityAssessment(
+            score = score,
+            source = source,
+            confidence = confidence,
+            rationale = firstText(json, "rationale", "justificativa"),
+            evidence = evidence,
+        )
+    }
     private fun parseDifficulty(value: String?, path: String): Difficulty? = value?.let { v -> Difficulty.entries.firstOrNull { it.name == v.uppercase() } ?: throw EstudoPackageException("$path: dificuldade deve ser FACIL, MEDIA ou DIFICIL.") }
     private fun parseOriginType(value: String?): ContentOriginType = when (value?.uppercase()) {
         "DIDACTIC_SUBDIVISION", "SUBDIVISAO_DIDATICA" -> ContentOriginType.DIDACTIC_SUBDIVISION
@@ -364,6 +413,7 @@ internal object EstudoPackageParser {
         val snippets: MutableSet<String> = mutableSetOf(),
         val questions: MutableSet<String> = mutableSetOf(),
         val errorConcepts: MutableSet<String> = mutableSetOf(),
+        var normalizedPriorityCount: Int = 0,
     )
 }
 
@@ -401,8 +451,33 @@ class EstudoPackageService(private val db: AppDatabase) {
         val prefix = if (mode == ImportMode.COPY) "${plan.packageId}:copy:${contentHash.take(8)}" else plan.packageId
         val competitions = dao.competitionsOnce()
         val currentCompetition = dao.competitionByExternalId(plan.competitionId) ?: competitions.firstOrNull { it.name.equals(plan.competitionName, true) }
-        val competitionId = currentCompetition?.id ?: dao.insertCompetition(CompetitionEntity(name = plan.competitionName, isPrimary = plan.primary || competitions.isEmpty(), externalId = plan.competitionId))
-        if (currentCompetition != null && currentCompetition.externalId == null) dao.updateCompetition(currentCompetition.copy(externalId = plan.competitionId))
+        val competitionId = currentCompetition?.id ?: dao.insertCompetition(
+            CompetitionEntity(
+                name = plan.competitionName,
+                isPrimary = plan.primary || competitions.isEmpty(),
+                externalId = plan.competitionId,
+                assessedPriorityScore = plan.priorityAssessment?.score ?: 50,
+                assessedPrioritySource = plan.priorityAssessment?.source ?: PrioritySource.DEFAULT,
+                assessedPriorityConfidence = plan.priorityAssessment?.confidence ?: 0f,
+                assessedPriorityRationale = plan.priorityAssessment?.rationale,
+                assessedPriorityEvidenceJson = plan.priorityAssessment?.evidenceJson() ?: "[]",
+                hasAssessedPriority = plan.priorityAssessment != null,
+            ),
+        )
+        currentCompetition?.let { current ->
+            val assessment = plan.priorityAssessment
+            dao.updateCompetition(
+                current.copy(
+                    externalId = current.externalId ?: plan.competitionId,
+                    assessedPriorityScore = assessment?.score ?: current.assessedPriorityScore,
+                    assessedPrioritySource = assessment?.source ?: current.assessedPrioritySource,
+                    assessedPriorityConfidence = assessment?.confidence ?: current.assessedPriorityConfidence,
+                    assessedPriorityRationale = assessment?.rationale ?: current.assessedPriorityRationale,
+                    assessedPriorityEvidenceJson = assessment?.evidenceJson() ?: current.assessedPriorityEvidenceJson,
+                    hasAssessedPriority = if (assessment != null) true else current.hasAssessedPriority,
+                ),
+            )
+        }
         if (plan.primary) dao.setPrimaryCompetition(competitionId)
         var subjectsCreated = 0; var topicsCreated = 0; var topicsUpdated = 0
         var theories = 0; var summaries = 0; var snippets = 0; var questions = 0; var concepts = 0; var skipped = 0; var updated = 0
@@ -411,19 +486,67 @@ class EstudoPackageService(private val db: AppDatabase) {
         plan.subjects.sortedBy { it.position }.forEach { subjectPlan ->
             val currentSubject = dao.subjectByExternalId(subjectPlan.id)?.takeIf { it.competitionId == competitionId }
                 ?: dao.subjectsFor(competitionId).firstOrNull { it.name.equals(subjectPlan.name, true) }
-            val subjectId = currentSubject?.id ?: dao.insertSubject(SubjectEntity(competitionId = competitionId, name = subjectPlan.name, position = subjectPlan.position, externalId = subjectPlan.id)).also { subjectsCreated++ }
-            currentSubject?.let { dao.updateSubject(it.copy(name = subjectPlan.name, position = subjectPlan.position, externalId = it.externalId ?: subjectPlan.id)) }
+            val subjectId = currentSubject?.id ?: dao.insertSubject(
+                SubjectEntity(
+                    competitionId = competitionId,
+                    name = subjectPlan.name,
+                    position = subjectPlan.position,
+                    externalId = subjectPlan.id,
+                    assessedPriorityScore = subjectPlan.priorityAssessment?.score ?: 50,
+                    assessedPrioritySource = subjectPlan.priorityAssessment?.source ?: PrioritySource.DEFAULT,
+                    assessedPriorityConfidence = subjectPlan.priorityAssessment?.confidence ?: 0f,
+                    assessedPriorityRationale = subjectPlan.priorityAssessment?.rationale,
+                    assessedPriorityEvidenceJson = subjectPlan.priorityAssessment?.evidenceJson() ?: "[]",
+                    hasAssessedPriority = subjectPlan.priorityAssessment != null,
+                ),
+            ).also { subjectsCreated++ }
+            currentSubject?.let { current ->
+                val assessment = subjectPlan.priorityAssessment
+                dao.updateSubject(
+                    current.copy(
+                        name = subjectPlan.name,
+                        position = subjectPlan.position,
+                        externalId = current.externalId ?: subjectPlan.id,
+                        assessedPriorityScore = assessment?.score ?: current.assessedPriorityScore,
+                        assessedPrioritySource = assessment?.source ?: current.assessedPrioritySource,
+                        assessedPriorityConfidence = assessment?.confidence ?: current.assessedPriorityConfidence,
+                        assessedPriorityRationale = assessment?.rationale ?: current.assessedPriorityRationale,
+                        assessedPriorityEvidenceJson = assessment?.evidenceJson() ?: current.assessedPriorityEvidenceJson,
+                        hasAssessedPriority = if (assessment != null) true else current.hasAssessedPriority,
+                    ),
+                )
+            }
             val knownTopics = dao.topicsFor(subjectId).toMutableList()
 
             suspend fun importTopic(p: TopicPlan, parentId: Long?) {
                 val oldTopic = dao.topicByExternalId(p.id)?.takeIf { it.subjectId == subjectId }
                     ?: knownTopics.firstOrNull { it.parentTopicId == parentId && it.title.equals(p.title, true) }
-                val topicId = oldTopic?.id ?: dao.insertTopic(TopicEntity(subjectId = subjectId, parentTopicId = parentId, title = p.title, description = p.description, position = p.position, notes = p.notes, priority = p.priority, externalId = p.id, contentOriginType = p.originType, scopeCovers = p.scopeCovers, scopeExcludes = p.scopeExcludes)).also { id ->
+                val legacyAssessment = p.priorityAssessment ?: p.priority.takeIf { p.legacyPriorityProvided }?.asAssessment()
+                val topicId = oldTopic?.id ?: dao.insertTopic(TopicEntity(subjectId = subjectId, parentTopicId = parentId, title = p.title, description = p.description, position = p.position, notes = p.notes, priority = p.priority, externalId = p.id, contentOriginType = p.originType, scopeCovers = p.scopeCovers, scopeExcludes = p.scopeExcludes, assessedPriorityScore = legacyAssessment?.score ?: 50, assessedPrioritySource = legacyAssessment?.source ?: PrioritySource.DEFAULT, assessedPriorityConfidence = legacyAssessment?.confidence ?: 0f, assessedPriorityRationale = legacyAssessment?.rationale, assessedPriorityEvidenceJson = legacyAssessment?.evidenceJson() ?: "[]", hasAssessedPriority = legacyAssessment != null)).also { id ->
                     topicsCreated++
-                    knownTopics += TopicEntity(id, subjectId, parentId, p.title, p.description, p.position, notes = p.notes, priority = p.priority, externalId = p.id, contentOriginType = p.originType)
+                    knownTopics += TopicEntity(id = id, subjectId = subjectId, parentTopicId = parentId, title = p.title, description = p.description, position = p.position, notes = p.notes, priority = p.priority, externalId = p.id, contentOriginType = p.originType, assessedPriorityScore = legacyAssessment?.score ?: 50, assessedPrioritySource = legacyAssessment?.source ?: PrioritySource.DEFAULT, assessedPriorityConfidence = legacyAssessment?.confidence ?: 0f, assessedPriorityRationale = legacyAssessment?.rationale, assessedPriorityEvidenceJson = legacyAssessment?.evidenceJson() ?: "[]", hasAssessedPriority = legacyAssessment != null)
                 }
                 oldTopic?.let {
-                    dao.updateTopic(it.copy(parentTopicId = parentId, title = p.title, description = p.description.ifBlank { it.description }, position = p.position, notes = p.notes.ifBlank { it.notes }, priority = p.priority, externalId = it.externalId ?: p.id, contentOriginType = p.originType, scopeCovers = p.scopeCovers ?: it.scopeCovers, scopeExcludes = p.scopeExcludes ?: it.scopeExcludes))
+                    dao.updateTopic(
+                        it.copy(
+                            parentTopicId = parentId,
+                            title = p.title,
+                            description = p.description.ifBlank { it.description },
+                            position = p.position,
+                            notes = p.notes.ifBlank { it.notes },
+                            priority = if (p.legacyPriorityProvided) p.priority else it.priority,
+                            externalId = it.externalId ?: p.id,
+                            contentOriginType = p.originType,
+                            scopeCovers = p.scopeCovers ?: it.scopeCovers,
+                            scopeExcludes = p.scopeExcludes ?: it.scopeExcludes,
+                            assessedPriorityScore = p.priorityAssessment?.score ?: it.assessedPriorityScore,
+                            assessedPrioritySource = p.priorityAssessment?.source ?: it.assessedPrioritySource,
+                            assessedPriorityConfidence = p.priorityAssessment?.confidence ?: it.assessedPriorityConfidence,
+                            assessedPriorityRationale = p.priorityAssessment?.rationale ?: it.assessedPriorityRationale,
+                            assessedPriorityEvidenceJson = p.priorityAssessment?.evidenceJson() ?: it.assessedPriorityEvidenceJson,
+                            hasAssessedPriority = if (p.priorityAssessment != null) true else it.hasAssessedPriority,
+                        ),
+                    )
                     topicsUpdated++
                 }
                 if (p.theories.isNotEmpty() || p.summaries.isNotEmpty() || p.snippets.isNotEmpty() || p.questions.isNotEmpty() || p.errorConcepts.isNotEmpty()) importedTopicIds += topicId
@@ -509,11 +632,23 @@ class EstudoPackageService(private val db: AppDatabase) {
             )
         }
         dao.insertImportPackage(ImportPackageEntity(packageId = prefix, schemaVersion = plan.version, contentHash = contentHash, createdCount = theories + summaries + snippets + questions + concepts, updatedCount = updated, ignoredCount = skipped))
-        ImportResult(subjectsCreated, topicsCreated, topicsUpdated, theories, summaries, questions, skipped, snippets, concepts, updated, importedTopicIds.toList(), plan.allTopics().sumOf { topico -> topico.questions.count { it.downgraded } }, plan.sourceCount())
+        ImportResult(subjectsCreated, topicsCreated, topicsUpdated, theories, summaries, questions, skipped, snippets, concepts, updated, importedTopicIds.toList(), plan.allTopics().sumOf { topico -> topico.questions.count { it.downgraded } }, plan.sourceCount(), plan.normalizedPriorityCount)
     }
 }
 
 private fun QuestionPlan.entity(topicId: Long, externalId: String) = QuestionEntity(topicId = topicId, externalId = externalId, board = board, agency = agency, year = year, difficulty = difficulty, source = source, statement = statement, explanation = explanation, notes = notes, tagsText = tags.joinToString(", "), questionSourceType = sourceType, sourceId = sourceId, sourceUrl = sourceUrl, normalizedHash = normalizedQuestionHash(statement), reviewAnchor = reviewAnchor, errorConceptExternalId = errorConceptId)
+private fun Priority.asAssessment() = PriorityAssessment(
+    score = when (this) {
+        Priority.ALTA -> 70
+        Priority.NORMAL -> 50
+        Priority.BAIXA -> 30
+    },
+    source = PrioritySource.DEFAULT,
+    confidence = 0f,
+    rationale = "Prioridade legada do arquivo .estudo.",
+    evidence = emptyList(),
+)
+private fun PriorityAssessment.evidenceJson(): String = PriorityEvidenceCodec.encode(evidence)
 private fun normalizedQuestionHash(statement: String): String {
     val normalized = java.text.Normalizer.normalize(statement.lowercase(), java.text.Normalizer.Form.NFD)
         .replace(Regex("\\p{M}+"), "").replace(Regex("[^a-z0-9]+"), " ").trim()

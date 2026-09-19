@@ -6,6 +6,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import br.com.estudario.data.local.QuestionSourceType
 import br.com.estudario.data.local.ContentOriginType
+import br.com.estudario.domain.PriorityLevel
+import br.com.estudario.domain.PrioritySource
 
 class EstudoPackageParserTest {
     @Test fun versionTwoPreservesHierarchyWithoutAttributingDefaultsToAuthorialQuestions() {
@@ -73,6 +75,32 @@ class EstudoPackageParserTest {
         assertEquals(ContentOriginType.DIDACTIC_SUBDIVISION, child.originType)
         assertEquals(QuestionSourceType.REAL_ADAPTED, child.questions.single().sourceType)
         assertEquals("Q919874", child.questions.single().sourceId)
+    }
+
+    @Test fun readsPriorityAssessmentAtEverySyllabusLevel() {
+        val changed = validV2
+            .replace("\"nome\":\"Concurso Teste\"", "\"nome\":\"Concurso Teste\",\"priorityAssessment\":{\"score\":88,\"source\":\"OFFICIAL_EXAM_STRUCTURE\",\"confidence\":0.87,\"rationale\":\"Peso oficial\",\"evidence\":[{\"type\":\"OFFICIAL_WEIGHT\",\"description\":\"Peso 2\",\"value\":2}]}")
+            .replace("\"id\":\"materia\",\"nome\":\"Matéria\"", "\"id\":\"materia\",\"nome\":\"Matéria\",\"priorityAssessment\":{\"score\":70,\"source\":\"HISTORICAL_EVIDENCE\",\"confidence\":0.6,\"rationale\":\"Histórico\",\"evidence\":[]}")
+            .replace("\"id\":\"topico\",\"titulo\":\"Tópico\"", "\"id\":\"topico\",\"titulo\":\"Tópico\",\"priorityAssessment\":{\"score\":30,\"source\":\"AI_INFERENCE\",\"confidence\":0.2,\"rationale\":\"Inferência\",\"evidence\":[]}")
+            .replace("\"id\":\"subtopico\",\"titulo\":\"Subtópico\"", "\"id\":\"subtopico\",\"titulo\":\"Subtópico\",\"priorityAssessment\":{\"score\":50,\"source\":\"DEFAULT\",\"confidence\":0.0,\"rationale\":\"Sem evidência\",\"evidence\":[{\"type\":\"ABSENCE_OF_EVIDENCE\",\"description\":\"Não informado\"}]}")
+        val plan = EstudoPackageParser.parse(changed)
+        assertEquals(PriorityLevel.VERY_HIGH, plan.priorityAssessment?.level)
+        assertEquals(PrioritySource.HISTORICAL_EVIDENCE, plan.subjects.single().priorityAssessment?.source)
+        assertEquals(PriorityLevel.LOW, plan.subjects.single().topics.single().priorityAssessment?.level)
+        assertEquals(PriorityLevel.MEDIUM, plan.subjects.single().topics.single().children.single().priorityAssessment?.level)
+    }
+
+    @Test fun invalidPriorityAssessmentIsNormalizedWithoutBreakingPackage() {
+        val changed = validV2.replace(
+            "\"nome\":\"Concurso Teste\"",
+            "\"nome\":\"Concurso Teste\",\"priorityAssessment\":{\"score\":140,\"source\":\"UNKNOWN\",\"confidence\":-2,\"rationale\":\"\",\"evidence\":[{\"type\":\"UNKNOWN\",\"description\":\"\"}]}",
+        )
+        val plan = EstudoPackageParser.parse(changed)
+        val assessment = plan.priorityAssessment ?: error("assessment missing")
+        assertEquals(100, assessment.score)
+        assertEquals(PrioritySource.DEFAULT, assessment.source)
+        assertEquals(0f, assessment.confidence)
+        assertTrue(plan.normalizedPriorityCount > 0)
     }
 
     private val validV2 = """
