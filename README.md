@@ -7,11 +7,11 @@
 Capturas reais do aplicativo rodando em emulador Android a partir do APK do
 projeto.
 
-![Tela inicial do Estudário com dados demonstrativos](docs/media/estudario-demo-home.png)
+![Estudario — capa da Play Store](docs/media/estudario-store/estudario-play-store-feature-1024x500.png)
 
 | Treino inteligente | Recursos e configurações |
 | --- | --- |
-| ![Treino inteligente](docs/media/estudario-demo-treinar.png) | ![Recursos e configurações](docs/media/estudario-demo-resources.png) |
+| ![Painel do Estudario](docs/media/estudario-store/01-estudario-play-store.png) | ![Treino inteligente](docs/media/estudario-store/03-estudario-play-store.png) |
 
 As capturas usam exclusivamente o conjunto de dados demonstrativos do próprio
 aplicativo: concurso, plano, matérias e questões fictícias, sem dados pessoais.
