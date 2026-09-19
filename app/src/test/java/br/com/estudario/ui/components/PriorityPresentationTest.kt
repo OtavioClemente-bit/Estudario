@@ -26,4 +26,13 @@ class PriorityPresentationTest {
         val overridden = PriorityPresentation.state(50, PrioritySource.DEFAULT, 0f, null, "[]", false, PriorityLevel.LOW, PriorityLevel.HIGH)
         assertEquals(PriorityLevel.LOW, overridden.effectivePriority)
     }
+
+    @Test fun recursiveTreeKeepsInheritedChildAndExplicitGrandchildIndependent() {
+        val parent = PriorityPresentation.state(70, PrioritySource.OFFICIAL_EXAM_STRUCTURE, .8f, "Peso oficial", "[]", true, null, null)
+        val child = PriorityPresentation.state(50, PrioritySource.DEFAULT, 0f, null, "[]", false, null, parent.effectivePriority)
+        val grandchild = PriorityPresentation.state(30, PrioritySource.AI_INFERENCE, .4f, "Recorte", "[]", true, null, child.effectivePriority)
+
+        assertEquals(PriorityLevel.HIGH, child.effectivePriority)
+        assertEquals(PriorityLevel.LOW, grandchild.effectivePriority)
+    }
 }
