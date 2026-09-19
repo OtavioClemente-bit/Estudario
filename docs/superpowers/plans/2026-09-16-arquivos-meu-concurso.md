@@ -1,4 +1,4 @@
-# Arquivos do Meu Concurso Implementation Plan
+# Arquivos do Estudario Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -15,7 +15,7 @@
 - Kotlin 2.2.20, Java 17, `minSdk` 26, `targetSdk` 36 e banco Room versão 5.
 - Não adicionar `MANAGE_EXTERNAL_STORAGE` nem resolver caminho físico de `content://`.
 - Não derivar, fabricar ou gerar `externalId` durante a importação.
-- IDs emitidos por mecanismos oficiais do Meu Concurso são válidos.
+- IDs emitidos por mecanismos oficiais do Estudario são válidos.
 - Comparar nomes por igualdade após trim, caixa, diacríticos e espaços; nunca usar similaridade aproximada.
 - Limitar matéria ao concurso resolvido e tópico à matéria resolvida.
 - Não sobrescrever, mesclar, copiar ou restaurar silenciosamente.
@@ -27,10 +27,10 @@
 
 ## Estrutura de arquivos planejada
 
-- `data/transfer/MeuConcursoFileSource.kt`: metadados de URI e leitura limitada por `ContentResolver`.
-- `data/transfer/MeuConcursoFileDetector.kt`: classificação por nome, MIME e assinatura JSON.
-- `data/transfer/MeuConcursoFileModels.kt`: formatos, erros, decisões e estados públicos da pipeline.
-- `data/transfer/MeuConcursoFileCoordinator.kt`: máquina de estados e delegação aos formatos.
+- `data/transfer/EstudarioFileSource.kt`: metadados de URI e leitura limitada por `ContentResolver`.
+- `data/transfer/EstudarioFileDetector.kt`: classificação por nome, MIME e assinatura JSON.
+- `data/transfer/EstudarioFileModels.kt`: formatos, erros, decisões e estados públicos da pipeline.
+- `data/transfer/EstudarioFileCoordinator.kt`: máquina de estados e delegação aos formatos.
 - `data/transfer/EstudoFileHandler.kt`: ponte entre coordenador e `EstudoPackageService`.
 - `data/transfer/BackupFileHandler.kt`: encaminhamento obrigatório à confirmação de restauração.
 - `data/transfer/planner/StudyPlanImportDraft.kt`: representação estrutural com referências opcionais.
@@ -45,25 +45,25 @@
 ### Task 1: Fonte de URI e detector definitivo de formato
 
 **Files:**
-- Create: `app/src/main/java/br/com/meuconcurso/data/transfer/MeuConcursoFileSource.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/data/transfer/MeuConcursoFileModels.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/data/transfer/MeuConcursoFileDetector.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/data/transfer/IncomingFileFormat.kt`
-- Test: `app/src/test/java/br/com/meuconcurso/data/transfer/MeuConcursoFileDetectorTest.kt`
+- Create: `app/src/main/java/br/com/estudario/data/transfer/EstudarioFileSource.kt`
+- Create: `app/src/main/java/br/com/estudario/data/transfer/EstudarioFileModels.kt`
+- Create: `app/src/main/java/br/com/estudario/data/transfer/EstudarioFileDetector.kt`
+- Modify: `app/src/main/java/br/com/estudario/data/transfer/IncomingFileFormat.kt`
+- Test: `app/src/test/java/br/com/estudario/data/transfer/EstudarioFileDetectorTest.kt`
 
 **Interfaces:**
-- Produces: `IncomingFilePayload`, `MeuConcursoFileFormat`, `FileDetectionResult` e `MeuConcursoFileDetector.detect(payload)`.
+- Produces: `IncomingFilePayload`, `EstudarioFileFormat`, `FileDetectionResult` e `EstudarioFileDetector.detect(payload)`.
 - Consumes: assinaturas reais já reconhecidas por `IncomingFileFormat` e `EstudoPackageParser`.
 
 - [ ] **Step 1: Escrever testes falhando para classificação e divergência**
 
 ```kotlin
-class MeuConcursoFileDetectorTest {
-    private val detector = MeuConcursoFileDetector()
+class EstudarioFileDetectorTest {
+    private val detector = EstudarioFileDetector()
 
     @Test fun planoRequiresMatchingSignature() {
         val payload = IncomingFilePayload("Plano.plano", "application/octet-stream", """{"format":"meu-concurso-plano","version":1}""")
-        assertEquals(FileDetectionResult.Match(MeuConcursoFileFormat.PLANO), detector.detect(payload))
+        assertEquals(FileDetectionResult.Match(EstudarioFileFormat.PLANO), detector.detect(payload))
     }
 
     @Test fun extensionAndContentDivergenceIsRejected() {
@@ -73,7 +73,7 @@ class MeuConcursoFileDetectorTest {
 
     @Test fun genericMimeAcceptsValidEstudoSignature() {
         val payload = IncomingFilePayload("conteudo.estudo", "text/plain", """{"version":2,"packageId":"p","competition":"C","subject":"S","topic":"T"}""")
-        assertEquals(FileDetectionResult.Match(MeuConcursoFileFormat.ESTUDO), detector.detect(payload))
+        assertEquals(FileDetectionResult.Match(EstudarioFileFormat.ESTUDO), detector.detect(payload))
     }
 
     @Test fun invalidJsonHasFriendlyFailure() {
@@ -84,7 +84,7 @@ class MeuConcursoFileDetectorTest {
 
 - [ ] **Step 2: Executar o teste e confirmar falha por tipos ausentes**
 
-Run: `./gradlew.bat :app:testDebugUnitTest --tests "br.com.meuconcurso.data.transfer.MeuConcursoFileDetectorTest"`
+Run: `./gradlew.bat :app:testDebugUnitTest --tests "br.com.estudario.data.transfer.EstudarioFileDetectorTest"`
 
 Expected: FAIL por `Unresolved reference` nos novos modelos.
 
@@ -92,15 +92,15 @@ Expected: FAIL por `Unresolved reference` nos novos modelos.
 
 ```kotlin
 data class IncomingFilePayload(val displayName: String?, val mimeType: String?, val text: String)
-enum class MeuConcursoFileFormat { ESTUDO, PLANO, BACKUP }
+enum class EstudarioFileFormat { ESTUDO, PLANO, BACKUP }
 sealed interface FileDetectionResult {
-    data class Match(val format: MeuConcursoFileFormat) : FileDetectionResult
-    data class ExtensionMismatch(val extension: String, val detected: MeuConcursoFileFormat) : FileDetectionResult
+    data class Match(val format: EstudarioFileFormat) : FileDetectionResult
+    data class ExtensionMismatch(val extension: String, val detected: EstudarioFileFormat) : FileDetectionResult
     data object InvalidJson : FileDetectionResult
     data object Unknown : FileDetectionResult
 }
 
-class MeuConcursoFileDetector {
+class EstudarioFileDetector {
     fun detect(payload: IncomingFilePayload): FileDetectionResult
 }
 ```
@@ -109,15 +109,15 @@ class MeuConcursoFileDetector {
 
 - [ ] **Step 4: Executar testes do detector e regressão atual**
 
-Run: `./gradlew.bat :app:testDebugUnitTest --tests "br.com.meuconcurso.data.transfer.*File*Test"`
+Run: `./gradlew.bat :app:testDebugUnitTest --tests "br.com.estudario.data.transfer.*File*Test"`
 
 Expected: PASS.
 
 - [ ] **Step 5: Commitar a unidade**
 
 ```powershell
-git add app/src/main/java/br/com/meuconcurso/data/transfer app/src/test/java/br/com/meuconcurso/data/transfer
-git commit -m "feat: add safe Meu Concurso file detection"
+git add app/src/main/java/br/com/estudario/data/transfer app/src/test/java/br/com/estudario/data/transfer
+git commit -m "feat: add safe Estudario file detection"
 ```
 
 ---
@@ -125,10 +125,10 @@ git commit -m "feat: add safe Meu Concurso file detection"
 ### Task 2: Parse estrutural de plano antes da resolução
 
 **Files:**
-- Create: `app/src/main/java/br/com/meuconcurso/data/transfer/planner/StudyPlanImportDraft.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/data/transfer/planner/StudyPlanImportDraftCodec.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/data/transfer/planner/StudyPlanCodec.kt`
-- Test: `app/src/test/java/br/com/meuconcurso/data/transfer/planner/StudyPlanImportDraftCodecTest.kt`
+- Create: `app/src/main/java/br/com/estudario/data/transfer/planner/StudyPlanImportDraft.kt`
+- Create: `app/src/main/java/br/com/estudario/data/transfer/planner/StudyPlanImportDraftCodec.kt`
+- Modify: `app/src/main/java/br/com/estudario/data/transfer/planner/StudyPlanCodec.kt`
+- Test: `app/src/test/java/br/com/estudario/data/transfer/planner/StudyPlanImportDraftCodecTest.kt`
 
 **Interfaces:**
 - Produces: `StudyPlanImportDraftCodec.decode(text): StudyPlanImportDraft` e `StudyPlanImportDraft.toResolvedFile(bindings): StudyPlanFileV1`.
@@ -189,14 +189,14 @@ Extrair do codec existente o parse de datas, enums, configuração, fases e tare
 
 - [ ] **Step 4: Executar os testes novos e os testes existentes do codec**
 
-Run: `./gradlew.bat :app:testDebugUnitTest --tests "br.com.meuconcurso.data.transfer.planner.*CodecTest"`
+Run: `./gradlew.bat :app:testDebugUnitTest --tests "br.com.estudario.data.transfer.planner.*CodecTest"`
 
 Expected: PASS, incluindo round-trip existente.
 
 - [ ] **Step 5: Commitar a unidade**
 
 ```powershell
-git add app/src/main/java/br/com/meuconcurso/data/transfer/planner app/src/test/java/br/com/meuconcurso/data/transfer/planner
+git add app/src/main/java/br/com/estudario/data/transfer/planner app/src/test/java/br/com/estudario/data/transfer/planner
 git commit -m "refactor: split plan structure parsing from link validation"
 ```
 
@@ -205,10 +205,10 @@ git commit -m "refactor: split plan structure parsing from link validation"
 ### Task 3: Resolvedor contextual de concurso, matéria e tópico
 
 **Files:**
-- Create: `app/src/main/java/br/com/meuconcurso/data/transfer/planner/ImportLinkResolver.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/data/transfer/planner/StudyPlanImportResolver.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/data/local/AppDao.kt`
-- Test: `app/src/androidTest/java/br/com/meuconcurso/data/transfer/planner/ImportLinkResolverTest.kt`
+- Create: `app/src/main/java/br/com/estudario/data/transfer/planner/ImportLinkResolver.kt`
+- Modify: `app/src/main/java/br/com/estudario/data/transfer/planner/StudyPlanImportResolver.kt`
+- Modify: `app/src/main/java/br/com/estudario/data/local/AppDao.kt`
+- Test: `app/src/androidTest/java/br/com/estudario/data/transfer/planner/ImportLinkResolverTest.kt`
 
 **Interfaces:**
 - Produces: `ImportLinkResolver.resolve(draft, overrides): LinkResolutionReport`.
@@ -245,7 +245,7 @@ git commit -m "refactor: split plan structure parsing from link validation"
 
 - [ ] **Step 2: Executar testes instrumentados e confirmar falha**
 
-Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.meuconcurso.data.transfer.planner.ImportLinkResolverTest`
+Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.transfer.planner.ImportLinkResolverTest`
 
 Expected: FAIL por `ImportLinkResolver` ausente.
 
@@ -279,14 +279,14 @@ Carregar concursos, matérias e tópicos uma vez por resolução. Validar contex
 
 - [ ] **Step 4: Executar testes instrumentados do resolvedor**
 
-Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.meuconcurso.data.transfer.planner.ImportLinkResolverTest`
+Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.transfer.planner.ImportLinkResolverTest`
 
 Expected: PASS.
 
 - [ ] **Step 5: Commitar a unidade**
 
 ```powershell
-git add app/src/main/java/br/com/meuconcurso/data/local/AppDao.kt app/src/main/java/br/com/meuconcurso/data/transfer/planner app/src/androidTest/java/br/com/meuconcurso/data/transfer/planner
+git add app/src/main/java/br/com/estudario/data/local/AppDao.kt app/src/main/java/br/com/estudario/data/transfer/planner app/src/androidTest/java/br/com/estudario/data/transfer/planner
 git commit -m "feat: resolve imported plan links in context"
 ```
 
@@ -295,11 +295,11 @@ git commit -m "feat: resolve imported plan links in context"
 ### Task 4: Integrar resolução, duplicidade e persistência de planos
 
 **Files:**
-- Create: `app/src/main/java/br/com/meuconcurso/data/transfer/planner/StudyPlanFileHandler.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/data/transfer/planner/StudyPlanTransferService.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/ui/planner/StudyPlanViewModel.kt`
-- Test: `app/src/androidTest/java/br/com/meuconcurso/data/transfer/planner/StudyPlanFileHandlerTest.kt`
-- Test: `app/src/androidTest/java/br/com/meuconcurso/data/transfer/planner/StudyPlanTransferServiceTest.kt`
+- Create: `app/src/main/java/br/com/estudario/data/transfer/planner/StudyPlanFileHandler.kt`
+- Modify: `app/src/main/java/br/com/estudario/data/transfer/planner/StudyPlanTransferService.kt`
+- Modify: `app/src/main/java/br/com/estudario/ui/planner/StudyPlanViewModel.kt`
+- Test: `app/src/androidTest/java/br/com/estudario/data/transfer/planner/StudyPlanFileHandlerTest.kt`
+- Test: `app/src/androidTest/java/br/com/estudario/data/transfer/planner/StudyPlanTransferServiceTest.kt`
 
 **Interfaces:**
 - Produces: `StudyPlanFileHandler.inspect(payload): PlanFileInspection`.
@@ -329,7 +329,7 @@ git commit -m "feat: resolve imported plan links in context"
 
 - [ ] **Step 2: Executar teste e confirmar falha**
 
-Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.meuconcurso.data.transfer.planner.StudyPlanFileHandlerTest`
+Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.transfer.planner.StudyPlanFileHandlerTest`
 
 Expected: FAIL por handler ausente.
 
@@ -355,14 +355,14 @@ Antes de persistir, resolver novamente as escolhas por IDs oficiais. Reutilizar 
 
 - [ ] **Step 4: Executar testes de handler e regressão do serviço**
 
-Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=br.com.meuconcurso.data.transfer.planner`
+Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=br.com.estudario.data.transfer.planner`
 
 Expected: PASS.
 
 - [ ] **Step 5: Commitar a unidade**
 
 ```powershell
-git add app/src/main/java/br/com/meuconcurso/data/transfer/planner app/src/main/java/br/com/meuconcurso/ui/planner app/src/androidTest/java/br/com/meuconcurso/data/transfer/planner
+git add app/src/main/java/br/com/estudario/data/transfer/planner app/src/main/java/br/com/estudario/ui/planner app/src/androidTest/java/br/com/estudario/data/transfer/planner
 git commit -m "feat: import resolved plan files safely"
 ```
 
@@ -371,11 +371,11 @@ git commit -m "feat: import resolved plan files safely"
 ### Task 5: Handlers de estudo e backup
 
 **Files:**
-- Create: `app/src/main/java/br/com/meuconcurso/data/transfer/EstudoFileHandler.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/data/transfer/BackupFileHandler.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/data/transfer/EstudoPackageService.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/data/transfer/BackupService.kt`
-- Test: `app/src/androidTest/java/br/com/meuconcurso/data/transfer/FormatFileHandlersTest.kt`
+- Create: `app/src/main/java/br/com/estudario/data/transfer/EstudoFileHandler.kt`
+- Create: `app/src/main/java/br/com/estudario/data/transfer/BackupFileHandler.kt`
+- Modify: `app/src/main/java/br/com/estudario/data/transfer/EstudoPackageService.kt`
+- Modify: `app/src/main/java/br/com/estudario/data/transfer/BackupService.kt`
+- Test: `app/src/androidTest/java/br/com/estudario/data/transfer/FormatFileHandlersTest.kt`
 
 **Interfaces:**
 - Produces: `EstudoFileHandler.inspect/import` e `BackupFileHandler.inspect/restore`.
@@ -402,7 +402,7 @@ git commit -m "feat: import resolved plan files safely"
 
 - [ ] **Step 2: Executar teste e confirmar falha por handlers ausentes**
 
-Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.meuconcurso.data.transfer.FormatFileHandlersTest`
+Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.transfer.FormatFileHandlersTest`
 
 Expected: FAIL.
 
@@ -423,14 +423,14 @@ Não mover persistência para os handlers. `EstudoPackageService.import` e `Back
 
 - [ ] **Step 4: Executar testes dos handlers e importadores existentes**
 
-Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=br.com.meuconcurso.data.transfer`
+Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=br.com.estudario.data.transfer`
 
 Expected: PASS.
 
 - [ ] **Step 5: Commitar a unidade**
 
 ```powershell
-git add app/src/main/java/br/com/meuconcurso/data/transfer app/src/androidTest/java/br/com/meuconcurso/data/transfer
+git add app/src/main/java/br/com/estudario/data/transfer app/src/androidTest/java/br/com/estudario/data/transfer
 git commit -m "feat: adapt study and backup imports to file pipeline"
 ```
 
@@ -439,10 +439,10 @@ git commit -m "feat: adapt study and backup imports to file pipeline"
 ### Task 6: Coordenador único e máquina de estados
 
 **Files:**
-- Create: `app/src/main/java/br/com/meuconcurso/data/transfer/MeuConcursoFileCoordinator.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/data/transfer/IncomingFileCoordinator.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/MeuConcursoApplication.kt`
-- Test: `app/src/test/java/br/com/meuconcurso/data/transfer/MeuConcursoFileCoordinatorTest.kt`
+- Create: `app/src/main/java/br/com/estudario/data/transfer/EstudarioFileCoordinator.kt`
+- Modify: `app/src/main/java/br/com/estudario/data/transfer/IncomingFileCoordinator.kt`
+- Modify: `app/src/main/java/br/com/estudario/EstudarioApplication.kt`
+- Test: `app/src/test/java/br/com/estudario/data/transfer/EstudarioFileCoordinatorTest.kt`
 
 **Interfaces:**
 - Produces: `state: StateFlow<FileImportState>`.
@@ -471,7 +471,7 @@ git commit -m "feat: adapt study and backup imports to file pipeline"
 
 - [ ] **Step 2: Executar teste e confirmar falha**
 
-Run: `./gradlew.bat :app:testDebugUnitTest --tests "*.MeuConcursoFileCoordinatorTest"`
+Run: `./gradlew.bat :app:testDebugUnitTest --tests "*.EstudarioFileCoordinatorTest"`
 
 Expected: FAIL por coordenador ausente.
 
@@ -494,15 +494,15 @@ Proteger cada operação por token da importação para que respostas de uma URI
 
 - [ ] **Step 4: Executar os testes da máquina de estados**
 
-Run: `./gradlew.bat :app:testDebugUnitTest --tests "*.MeuConcursoFileCoordinatorTest"`
+Run: `./gradlew.bat :app:testDebugUnitTest --tests "*.EstudarioFileCoordinatorTest"`
 
 Expected: PASS.
 
 - [ ] **Step 5: Commitar a unidade**
 
 ```powershell
-git add app/src/main/java/br/com/meuconcurso/data/transfer app/src/main/java/br/com/meuconcurso/MeuConcursoApplication.kt app/src/test/java/br/com/meuconcurso/data/transfer
-git commit -m "feat: coordinate all Meu Concurso file imports"
+git add app/src/main/java/br/com/estudario/data/transfer app/src/main/java/br/com/estudario/EstudarioApplication.kt app/src/test/java/br/com/estudario/data/transfer
+git commit -m "feat: coordinate all Estudario file imports"
 ```
 
 ---
@@ -510,11 +510,11 @@ git commit -m "feat: coordinate all Meu Concurso file imports"
 ### Task 7: Interface de conflitos, progresso e resultados
 
 **Files:**
-- Create: `app/src/main/java/br/com/meuconcurso/ui/screens/FileImportDialogs.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/ui/MeuConcursoApp.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/ui/AppViewModel.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/ui/planner/StudyPlanViewModel.kt`
-- Test: `app/src/androidTest/java/br/com/meuconcurso/ui/FileImportDialogsTest.kt`
+- Create: `app/src/main/java/br/com/estudario/ui/screens/FileImportDialogs.kt`
+- Modify: `app/src/main/java/br/com/estudario/ui/EstudarioApp.kt`
+- Modify: `app/src/main/java/br/com/estudario/ui/AppViewModel.kt`
+- Modify: `app/src/main/java/br/com/estudario/ui/planner/StudyPlanViewModel.kt`
+- Test: `app/src/androidTest/java/br/com/estudario/ui/FileImportDialogsTest.kt`
 
 **Interfaces:**
 - Consumes: `FileImportState` e comandos do coordenador.
@@ -543,7 +543,7 @@ git commit -m "feat: coordinate all Meu Concurso file imports"
 
 - [ ] **Step 2: Executar teste e confirmar falha**
 
-Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.meuconcurso.ui.FileImportDialogsTest`
+Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.ui.FileImportDialogsTest`
 
 Expected: FAIL por composable ausente.
 
@@ -565,14 +565,14 @@ LaunchedEffect(importState) {
 
 - [ ] **Step 4: Executar testes Compose**
 
-Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.meuconcurso.ui.FileImportDialogsTest`
+Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.ui.FileImportDialogsTest`
 
 Expected: PASS.
 
 - [ ] **Step 5: Commitar a unidade**
 
 ```powershell
-git add app/src/main/java/br/com/meuconcurso/ui app/src/androidTest/java/br/com/meuconcurso/ui
+git add app/src/main/java/br/com/estudario/ui app/src/androidTest/java/br/com/estudario/ui
 git commit -m "feat: add file import conflict and result UI"
 ```
 
@@ -582,11 +582,11 @@ git commit -m "feat: add file import conflict and result UI"
 
 **Files:**
 - Modify: `app/src/main/AndroidManifest.xml`
-- Modify: `app/src/main/java/br/com/meuconcurso/MainActivity.kt`
-- Test: `app/src/androidTest/java/br/com/meuconcurso/ExternalFileIntentTest.kt`
+- Modify: `app/src/main/java/br/com/estudario/MainActivity.kt`
+- Test: `app/src/androidTest/java/br/com/estudario/ExternalFileIntentTest.kt`
 
 **Interfaces:**
-- Consumes: `MeuConcursoFileCoordinator.open(UriFileSource)`.
+- Consumes: `EstudarioFileCoordinator.open(UriFileSource)`.
 - Produces: entrada Android única para URI de visualização ou compartilhamento.
 
 - [ ] **Step 1: Escrever testes instrumentados falhando para extração de URI**
@@ -608,7 +608,7 @@ git commit -m "feat: add file import conflict and result UI"
 
 - [ ] **Step 2: Executar teste e confirmar que `ACTION_SEND` falha**
 
-Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.meuconcurso.ExternalFileIntentTest`
+Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.ExternalFileIntentTest`
 
 Expected: `ACTION_VIEW` parcial e `ACTION_SEND` não encaminhado.
 
@@ -630,15 +630,15 @@ No Manifest, manter `ACTION_VIEW` e adicionar `ACTION_SEND` em filtros separados
 
 - [ ] **Step 4: Executar teste de Intents e inspecionar Manifest mesclado**
 
-Run: `./gradlew.bat :app:processDebugMainManifest :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.meuconcurso.ExternalFileIntentTest`
+Run: `./gradlew.bat :app:processDebugMainManifest :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.ExternalFileIntentTest`
 
 Expected: PASS e nenhum `MANAGE_EXTERNAL_STORAGE` no Manifest mesclado.
 
 - [ ] **Step 5: Commitar a unidade**
 
 ```powershell
-git add app/src/main/AndroidManifest.xml app/src/main/java/br/com/meuconcurso/MainActivity.kt app/src/androidTest/java/br/com/meuconcurso/ExternalFileIntentTest.kt
-git commit -m "feat: open Meu Concurso files from Android intents"
+git add app/src/main/AndroidManifest.xml app/src/main/java/br/com/estudario/MainActivity.kt app/src/androidTest/java/br/com/estudario/ExternalFileIntentTest.kt
+git commit -m "feat: open Estudario files from Android intents"
 ```
 
 ---
@@ -646,11 +646,11 @@ git commit -m "feat: open Meu Concurso files from Android intents"
 ### Task 9: Migrar seletores internos para a pipeline comum
 
 **Files:**
-- Modify: `app/src/main/java/br/com/meuconcurso/ui/screens/MoreScreen.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/ui/planner/PlanScreen.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/ui/AppViewModel.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/ui/planner/StudyPlanViewModel.kt`
-- Test: `app/src/androidTest/java/br/com/meuconcurso/ui/InternalFileImportTest.kt`
+- Modify: `app/src/main/java/br/com/estudario/ui/screens/MoreScreen.kt`
+- Modify: `app/src/main/java/br/com/estudario/ui/planner/PlanScreen.kt`
+- Modify: `app/src/main/java/br/com/estudario/ui/AppViewModel.kt`
+- Modify: `app/src/main/java/br/com/estudario/ui/planner/StudyPlanViewModel.kt`
+- Test: `app/src/androidTest/java/br/com/estudario/ui/InternalFileImportTest.kt`
 
 **Interfaces:**
 - Consumes: `fileCoordinator.open(UriFileSource(uri, expectedFormat))`.
@@ -661,18 +661,18 @@ git commit -m "feat: open Meu Concurso files from Android intents"
 ```kotlin
 @Test fun estudoPickerUsesSharedCoordinator() {
     openMoreAndChooseEstudo(provider.estudoUri)
-    assertEquals(MeuConcursoFileFormat.ESTUDO, fakeCoordinator.lastExpectedFormat)
+    assertEquals(EstudarioFileFormat.ESTUDO, fakeCoordinator.lastExpectedFormat)
 }
 
 @Test fun planPickerUsesSharedCoordinator() {
     openPlanAndChooseFile(provider.planUri)
-    assertEquals(MeuConcursoFileFormat.PLANO, fakeCoordinator.lastExpectedFormat)
+    assertEquals(EstudarioFileFormat.PLANO, fakeCoordinator.lastExpectedFormat)
 }
 ```
 
 - [ ] **Step 2: Executar teste e confirmar que as telas ainda chamam ViewModels antigos**
 
-Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.meuconcurso.ui.InternalFileImportTest`
+Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.ui.InternalFileImportTest`
 
 Expected: FAIL nas expectativas do coordenador.
 
@@ -680,7 +680,7 @@ Expected: FAIL nas expectativas do coordenador.
 
 ```kotlin
 val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-    uri?.let { fileCoordinator.open(UriFileSource(it, expectedFormat = MeuConcursoFileFormat.ESTUDO)) }
+    uri?.let { fileCoordinator.open(UriFileSource(it, expectedFormat = EstudarioFileFormat.ESTUDO)) }
 }
 ```
 
@@ -688,14 +688,14 @@ Aplicar o mesmo padrão a plano e backup. Preservar criação/exportação de do
 
 - [ ] **Step 4: Executar testes de UI e regressão dos fluxos manuais**
 
-Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.meuconcurso.ui.InternalFileImportTest`
+Run: `./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.ui.InternalFileImportTest`
 
 Expected: PASS.
 
 - [ ] **Step 5: Commitar a unidade**
 
 ```powershell
-git add app/src/main/java/br/com/meuconcurso/ui app/src/androidTest/java/br/com/meuconcurso/ui/InternalFileImportTest.kt
+git add app/src/main/java/br/com/estudario/ui app/src/androidTest/java/br/com/estudario/ui/InternalFileImportTest.kt
 git commit -m "refactor: use shared pipeline for manual imports"
 ```
 
@@ -719,9 +719,9 @@ git commit -m "refactor: use shared pipeline for manual imports"
 Documentar os seguintes fluxos com nomes reais:
 
 ```text
-Downloads → tocar em arquivo .plano → Meu Concurso → importação → Plano
-Compartilhar arquivo .estudo → Meu Concurso → importação → tópico ou Edital
-Abrir backup → Meu Concurso → confirmação explícita → restauração
+Downloads → tocar em arquivo .plano → Estudario → importação → Plano
+Compartilhar arquivo .estudo → Estudario → importação → tópico ou Edital
+Abrir backup → Estudario → confirmação explícita → restauração
 ```
 
 Incluir que registros sem `externalId` oficial não satisfazem vínculos obrigatórios de plano e que nenhuma identidade é derivada de nomes.

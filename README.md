@@ -1,4 +1,4 @@
-# Meu Concurso
+# Estudário
 
 > Plataforma Android offline-first para transformar editais em planos de estudo executáveis.
 
@@ -7,16 +7,16 @@
 Capturas reais do aplicativo rodando em emulador Android a partir do APK do
 projeto.
 
-![Tela inicial do Meu Concurso com dados demonstrativos](docs/media/meu-concurso-demo-home.png)
+![Tela inicial do Estudário com dados demonstrativos](docs/media/estudario-demo-home.png)
 
 | Treino inteligente | Recursos e configurações |
 | --- | --- |
-| ![Treino inteligente](docs/media/meu-concurso-demo-treinar.png) | ![Recursos e configurações](docs/media/meu-concurso-demo-resources.png) |
+| ![Treino inteligente](docs/media/estudario-demo-treinar.png) | ![Recursos e configurações](docs/media/estudario-demo-resources.png) |
 
 As capturas usam exclusivamente o conjunto de dados demonstrativos do próprio
 aplicativo: concurso, plano, matérias e questões fictícias, sem dados pessoais.
 
-O Meu Concurso reúne edital, teoria, questões, revisões espaçadas, caderno de
+O Estudário reúne edital, teoria, questões, revisões espaçadas, caderno de
 erros e planejamento adaptativo em uma experiência local-first. O objetivo é
 diminuir a distância entre saber o que estudar e executar uma rotina que se
 adapta ao histórico real.

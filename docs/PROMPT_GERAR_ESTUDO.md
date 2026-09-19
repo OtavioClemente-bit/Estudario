@@ -1,6 +1,6 @@
-# Caminho das pedras: gerar conteúdo para o Meu Concurso V2 com IA
+# Caminho das pedras: gerar conteúdo para o Estudário V2 com IA
 
-Os prompts abaixo podem ser usados no GPT, Claude, Gemini ou qualquer outra IA. Envie o prompt junto com o edital ou texto-base solicitado e peça somente o JSON puro, sem bloco de código ou explicações. Depois salve a resposta com extensão `.estudo` e importe no aplicativo.
+Os prompts abaixo podem ser usados no GPT, Claude, Gemini ou qualquer outra IA. Envie o prompt junto com o edital ou texto-base solicitado e peça somente o JSON puro, sem bloco de código ou explicações. Os prompts A e B geram arquivos `.estudo`. Para gerar um plano com disponibilidade, prioridades, metas e tarefas no formato `.plano`, use o terceiro modelo editável em **Mais › Gerar estudo com IA** e importe pela área **Mais › Planos de estudo**.
 
 ## Fluxo recomendado
 
@@ -13,7 +13,7 @@ Os prompts abaixo podem ser usados no GPT, Claude, Gemini ou qualquer outra IA. 
 ## Prompt A — transformar o edital em tópicos
 
 ```text
-Vou anexar ou colar o conteúdo programático de um edital. Gere um arquivo .estudo para o aplicativo Meu Concurso.
+Vou anexar ou colar o conteúdo programático de um edital. Gere um arquivo .estudo para o aplicativo Estudário.
 
 OBJETIVO: reproduzir integralmente matérias, tópicos, subtópicos e ordem. Não omita, resuma, una ou invente itens.
 
@@ -62,7 +62,7 @@ EDITAL:
 ## Prompt B — pacote completo de um tópico
 
 ```text
-Gere um arquivo .estudo version 2 para o aplicativo Meu Concurso.
+Gere um arquivo .estudo version 2 para o aplicativo Estudário.
 
 DADOS:
 - Concurso exato no app: [CONCURSO]

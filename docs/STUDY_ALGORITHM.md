@@ -10,6 +10,16 @@ O estado não é salvo como um rótulo redundante. Ele é derivado da data: futu
 
 Depois da avaliação, a próxima revisão é adaptada: **Difícil** retorna no dia seguinte; **Normal** mantém a agenda; **Fácil** amplia em 35% o intervalo restante. O evento e os resultados continuam registrados para estatísticas.
 
+### Revisão perpétua
+
+O ciclo não termina no último estágio. Ao concluir a última revisão agendada, o app cria a próxima com intervalo dobrado — 60, 120 e 240 dias, que é o teto. Esse intervalo também responde à dificuldade percebida (difícil pela metade, fácil 35% maior) e ao aproveitamento das questões da própria revisão: errar mais da metade vale como difícil mesmo que a pessoa marque normal. Sem isso, um tópico estudado saía do ciclo para sempre depois do D+30.
+
+As três questões da revisão guiada não são sorteadas às cegas: vêm primeiro as que a pessoa já errou naquele tópico (as com mais erros na frente), depois as que ela nunca respondeu e só então o resto.
+
+## Escada de reencontro com o erro
+
+Toda questão errada é agendada para voltar sozinha: 3 dias depois do erro, 10 dias no primeiro acerto, 30 no acerto seguinte. No terceiro acerto consecutivo a questão sai da escada; errar em qualquer ponto zera e volta para 3 dias. O caderno de erros mostra a data de retorno, o modo "Treinar meus erros" ordena pelas que já venceram e o Início troca o contador de erros pendentes pelo número de erros que voltam hoje.
+
 ## Rotação diária e fila
 
 A fila só avança quando um bloco é concluído. “Não consegui estudar” registra um adiamento e o motivo, mas preserva a posição. Pausas, retomadas, conclusões e adiamentos formam um histórico local.
@@ -17,3 +27,9 @@ A fila só avança quando um bloco é concluído. “Não consegui estudar” re
 ## Sequência
 
 Qualquer tentativa de questão, revisão concluída ou bloco concluído conta como atividade. A sequência atual aceita atividade hoje ou ontem, evitando zerar visualmente o progresso antes de o dia terminar.
+
+## Modo foco
+
+Sessão de estudo cronometrada com o Não Perturbe do sistema ligado, sem ciclo forçado e sem alarme.
+O tempo medido entra no histórico e na sequência; o XP continua vindo das atividades concluídas, não
+do relógio correndo. Detalhes e decisões de segurança em [MODO_FOCO.md](MODO_FOCO.md).

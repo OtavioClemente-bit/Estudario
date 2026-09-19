@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Adicionar ao aplicativo Meu Concurso um módulo local-first de planejamento hierárquico — Ano, Mês, Semana e Hoje — integrado ao edital, conteúdo `.estudo`, questões, revisões e progresso existentes. O sistema deve distribuir somente a capacidade líquida informada pelo usuário, replanejar apenas o futuro e preservar integralmente histórico e execução real.
+Adicionar ao aplicativo Estudario um módulo local-first de planejamento hierárquico — Ano, Mês, Semana e Hoje — integrado ao edital, conteúdo `.estudo`, questões, revisões e progresso existentes. O sistema deve distribuir somente a capacidade líquida informada pelo usuário, replanejar apenas o futuro e preservar integralmente histórico e execução real.
 
 ## Escopo
 

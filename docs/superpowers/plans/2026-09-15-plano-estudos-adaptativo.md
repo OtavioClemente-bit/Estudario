@@ -118,10 +118,10 @@ Expected in the current environment: checkpoint skipped.
 ### Task 2: Criar os tipos puros e cálculos fundamentais do planejador
 
 **Files:**
-- Create: `app/src/main/java/br/com/meuconcurso/domain/planner/PlannerModels.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/domain/planner/StudyPlanProgressCalculator.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/domain/planner/StudyPlanForecastCalculator.kt`
-- Create: `app/src/test/java/br/com/meuconcurso/domain/planner/PlannerCalculatorsTest.kt`
+- Create: `app/src/main/java/br/com/estudario/domain/planner/PlannerModels.kt`
+- Create: `app/src/main/java/br/com/estudario/domain/planner/StudyPlanProgressCalculator.kt`
+- Create: `app/src/main/java/br/com/estudario/domain/planner/StudyPlanForecastCalculator.kt`
+- Create: `app/src/test/java/br/com/estudario/domain/planner/PlannerCalculatorsTest.kt`
 
 **Interfaces:**
 - Consumes: `java.time.LocalDate`, `java.time.DayOfWeek`; no Android types.
@@ -179,7 +179,7 @@ Add tests with these assertions:
 Run:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest --tests "br.com.meuconcurso.domain.planner.PlannerCalculatorsTest"
+.\gradlew.bat testDebugUnitTest --tests "br.com.estudario.domain.planner.PlannerCalculatorsTest"
 ```
 
 Expected: FAIL because the planner types and calculators do not exist.
@@ -249,7 +249,7 @@ Add focused value types for subject demand, topic performance, review demand, da
 Run:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest --tests "br.com.meuconcurso.domain.planner.PlannerCalculatorsTest"
+.\gradlew.bat testDebugUnitTest --tests "br.com.estudario.domain.planner.PlannerCalculatorsTest"
 ```
 
 Expected: PASS.
@@ -269,9 +269,9 @@ Expected: PASS.
 ### Task 3: Implementar geração determinística, capacidade e limites por matéria
 
 **Files:**
-- Create: `app/src/main/java/br/com/meuconcurso/domain/planner/StudyPlannerEngine.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/domain/planner/PlannerScoringPolicy.kt`
-- Create: `app/src/test/java/br/com/meuconcurso/domain/planner/StudyPlannerEngineAllocationTest.kt`
+- Create: `app/src/main/java/br/com/estudario/domain/planner/StudyPlannerEngine.kt`
+- Create: `app/src/main/java/br/com/estudario/domain/planner/PlannerScoringPolicy.kt`
+- Create: `app/src/test/java/br/com/estudario/domain/planner/StudyPlannerEngineAllocationTest.kt`
 
 **Interfaces:**
 - Consumes: tipos da Task 2.
@@ -310,7 +310,7 @@ Cover these behaviors with fixed dates and IDs:
 Run:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest --tests "br.com.meuconcurso.domain.planner.StudyPlannerEngineAllocationTest"
+.\gradlew.bat testDebugUnitTest --tests "br.com.estudario.domain.planner.StudyPlannerEngineAllocationTest"
 ```
 
 Expected: FAIL because the engine is absent.
@@ -340,7 +340,7 @@ Return unallocated demand in `CapacityReport` and add explanations for deficit o
 Run:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest --tests "br.com.meuconcurso.domain.planner.StudyPlannerEngineAllocationTest"
+.\gradlew.bat testDebugUnitTest --tests "br.com.estudario.domain.planner.StudyPlannerEngineAllocationTest"
 ```
 
 Expected: PASS.
@@ -350,7 +350,7 @@ Expected: PASS.
 Run:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest --tests "br.com.meuconcurso.domain.*" --tests "br.com.meuconcurso.domain.planner.*"
+.\gradlew.bat testDebugUnitTest --tests "br.com.estudario.domain.*" --tests "br.com.estudario.domain.planner.*"
 ```
 
 Expected: PASS.
@@ -360,10 +360,10 @@ Expected: PASS.
 ### Task 4: Implementar replanejamento, parcial, bloqueios e alertas Mestre
 
 **Files:**
-- Modify: `app/src/main/java/br/com/meuconcurso/domain/planner/StudyPlannerEngine.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/domain/planner/MasterPlanMonitor.kt`
-- Create: `app/src/test/java/br/com/meuconcurso/domain/planner/StudyPlannerEngineReplanTest.kt`
-- Create: `app/src/test/java/br/com/meuconcurso/domain/planner/MasterPlanMonitorTest.kt`
+- Modify: `app/src/main/java/br/com/estudario/domain/planner/StudyPlannerEngine.kt`
+- Create: `app/src/main/java/br/com/estudario/domain/planner/MasterPlanMonitor.kt`
+- Create: `app/src/test/java/br/com/estudario/domain/planner/StudyPlannerEngineReplanTest.kt`
+- Create: `app/src/test/java/br/com/estudario/domain/planner/MasterPlanMonitorTest.kt`
 
 **Interfaces:**
 - Consumes: engine e modelos das Tasks 2–3.
@@ -397,7 +397,7 @@ assertEquals(25, snapshot.executions.single().minutes)
 Run:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest --tests "br.com.meuconcurso.domain.planner.StudyPlannerEngineReplanTest"
+.\gradlew.bat testDebugUnitTest --tests "br.com.estudario.domain.planner.StudyPlannerEngineReplanTest"
 ```
 
 Expected: FAIL on missing replan behavior.
@@ -413,7 +413,7 @@ Redistribute missed work across available future days using the same ranking and
 Run:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest --tests "br.com.meuconcurso.domain.planner.StudyPlannerEngineReplanTest"
+.\gradlew.bat testDebugUnitTest --tests "br.com.estudario.domain.planner.StudyPlannerEngineReplanTest"
 ```
 
 Expected: PASS.
@@ -442,7 +442,7 @@ Return non-blocking alerts only for essential subjects at or beyond the configur
 Run:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest --tests "br.com.meuconcurso.domain.planner.*"
+.\gradlew.bat testDebugUnitTest --tests "br.com.estudario.domain.planner.*"
 ```
 
 Expected: PASS.
@@ -452,13 +452,13 @@ Expected: PASS.
 ### Task 5: Adicionar schema Room v5 e migração aditiva
 
 **Files:**
-- Create: `app/src/main/java/br/com/meuconcurso/data/local/planner/PlannerEntities.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/data/local/planner/PlannerRelations.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/data/local/planner/PlannerDao.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/data/local/Converters.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/data/local/AppDatabase.kt`
-- Modify: `app/src/androidTest/java/br/com/meuconcurso/data/local/AppDatabaseMigrationTest.kt`
-- Generate: `app/schemas/br.com.meuconcurso.data.local.AppDatabase/5.json`
+- Create: `app/src/main/java/br/com/estudario/data/local/planner/PlannerEntities.kt`
+- Create: `app/src/main/java/br/com/estudario/data/local/planner/PlannerRelations.kt`
+- Create: `app/src/main/java/br/com/estudario/data/local/planner/PlannerDao.kt`
+- Modify: `app/src/main/java/br/com/estudario/data/local/Converters.kt`
+- Modify: `app/src/main/java/br/com/estudario/data/local/AppDatabase.kt`
+- Modify: `app/src/androidTest/java/br/com/estudario/data/local/AppDatabaseMigrationTest.kt`
+- Generate: `app/schemas/br.com.estudario.data.local.AppDatabase/5.json`
 
 **Interfaces:**
 - Consumes: domain enums from Task 2 and Room v4 schema.
@@ -475,7 +475,7 @@ Add persistence assertions that raw SQL cannot leave two active plans or two Mas
 Run with an emulator/device:
 
 ```powershell
-.\gradlew.bat connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.meuconcurso.data.local.AppDatabaseMigrationTest
+.\gradlew.bat connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.local.AppDatabaseMigrationTest
 ```
 
 Expected: FAIL because v5 and `MIGRATION_4_5` do not exist. If no device exists, run `assembleDebugAndroidTest` to verify compilation and mark runtime execution pending until Task 13.
@@ -542,12 +542,12 @@ Expected: PASS.
 ### Task 6: Implementar snapshot, revisão otimista e execução append-only
 
 **Files:**
-- Create: `app/src/main/java/br/com/meuconcurso/data/planner/StudyPlanMappers.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/data/planner/StudyPlanSnapshotFactory.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/data/planner/StudyPlanRepository.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/data/planner/StudyPlanApplicationService.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/data/planner/StudyExecutionService.kt`
-- Create: `app/src/androidTest/java/br/com/meuconcurso/data/planner/StudyPlanApplicationServiceTest.kt`
+- Create: `app/src/main/java/br/com/estudario/data/planner/StudyPlanMappers.kt`
+- Create: `app/src/main/java/br/com/estudario/data/planner/StudyPlanSnapshotFactory.kt`
+- Create: `app/src/main/java/br/com/estudario/data/planner/StudyPlanRepository.kt`
+- Create: `app/src/main/java/br/com/estudario/data/planner/StudyPlanApplicationService.kt`
+- Create: `app/src/main/java/br/com/estudario/data/planner/StudyExecutionService.kt`
+- Create: `app/src/androidTest/java/br/com/estudario/data/planner/StudyPlanApplicationServiceTest.kt`
 
 **Interfaces:**
 - Consumes: `PlannerDao`, `AppDao`, domain engine.
@@ -623,10 +623,10 @@ Expected: PASS/compile success, with connected tests recorded separately if no d
 ### Task 7: Implementar codec `.plano` v1 e validação pura
 
 **Files:**
-- Create: `app/src/main/java/br/com/meuconcurso/data/transfer/planner/StudyPlanDtos.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/data/transfer/planner/StudyPlanCodec.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/data/transfer/planner/StudyPlanValidation.kt`
-- Create: `app/src/test/java/br/com/meuconcurso/data/transfer/planner/StudyPlanCodecTest.kt`
+- Create: `app/src/main/java/br/com/estudario/data/transfer/planner/StudyPlanDtos.kt`
+- Create: `app/src/main/java/br/com/estudario/data/transfer/planner/StudyPlanCodec.kt`
+- Create: `app/src/main/java/br/com/estudario/data/transfer/planner/StudyPlanValidation.kt`
+- Create: `app/src/test/java/br/com/estudario/data/transfer/planner/StudyPlanCodecTest.kt`
 - Create: `docs/PLANO_FORMAT.md`
 - Create: `examples/trt-ti-trilha-mestra.plano`
 
@@ -659,7 +659,7 @@ assertEquals("Versão .plano não suportada: 2. Este aplicativo aceita a versão
 Run:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest --tests "br.com.meuconcurso.data.transfer.planner.StudyPlanCodecTest"
+.\gradlew.bat testDebugUnitTest --tests "br.com.estudario.data.transfer.planner.StudyPlanCodecTest"
 ```
 
 Expected: FAIL because codec types are missing.
@@ -685,7 +685,7 @@ Add the example to the test resources path lookup used by existing `.estudo` exa
 Run:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest --tests "br.com.meuconcurso.data.transfer.planner.*"
+.\gradlew.bat testDebugUnitTest --tests "br.com.estudario.data.transfer.planner.*"
 ```
 
 Expected: PASS.
@@ -695,11 +695,11 @@ Expected: PASS.
 ### Task 8: Implementar CREATE, MERGE, REPLACE_FUTURE e contexto compacto
 
 **Files:**
-- Create: `app/src/main/java/br/com/meuconcurso/data/transfer/planner/StudyPlanImportResolver.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/data/transfer/planner/StudyPlanTransferService.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/data/transfer/planner/PlanContextExporter.kt`
-- Create: `app/src/androidTest/java/br/com/meuconcurso/data/transfer/planner/StudyPlanTransferServiceTest.kt`
-- Create: `app/src/test/java/br/com/meuconcurso/data/transfer/planner/PlanContextExporterTest.kt`
+- Create: `app/src/main/java/br/com/estudario/data/transfer/planner/StudyPlanImportResolver.kt`
+- Create: `app/src/main/java/br/com/estudario/data/transfer/planner/StudyPlanTransferService.kt`
+- Create: `app/src/main/java/br/com/estudario/data/transfer/planner/PlanContextExporter.kt`
+- Create: `app/src/androidTest/java/br/com/estudario/data/transfer/planner/StudyPlanTransferServiceTest.kt`
+- Create: `app/src/test/java/br/com/estudario/data/transfer/planner/PlanContextExporterTest.kt`
 
 **Interfaces:**
 - Consumes: codec Task 7, DAO/services Task 6.
@@ -750,13 +750,13 @@ Run unit and connected transfer tests; expected PASS.
 ### Task 9: Atualizar backup e rotear formatos sem regressão
 
 **Files:**
-- Create: `app/src/main/java/br/com/meuconcurso/data/transfer/IncomingFileFormat.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/data/transfer/IncomingFileCoordinator.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/data/transfer/BackupService.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/MainActivity.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/ui/AppViewModel.kt`
-- Modify: `app/src/androidTest/java/br/com/meuconcurso/data/transfer/BackupV3InstrumentedTest.kt`
-- Create: `app/src/test/java/br/com/meuconcurso/data/transfer/IncomingFileFormatTest.kt`
+- Create: `app/src/main/java/br/com/estudario/data/transfer/IncomingFileFormat.kt`
+- Create: `app/src/main/java/br/com/estudario/data/transfer/IncomingFileCoordinator.kt`
+- Modify: `app/src/main/java/br/com/estudario/data/transfer/BackupService.kt`
+- Modify: `app/src/main/java/br/com/estudario/MainActivity.kt`
+- Modify: `app/src/main/java/br/com/estudario/ui/AppViewModel.kt`
+- Modify: `app/src/androidTest/java/br/com/estudario/data/transfer/BackupV3InstrumentedTest.kt`
+- Create: `app/src/test/java/br/com/estudario/data/transfer/IncomingFileFormatTest.kt`
 
 **Interfaces:**
 - Consumes: existing `.estudo` and backup services; planner transfer service.
@@ -772,7 +772,7 @@ Run the exact new test class; expected FAIL.
 
 - [ ] **Step 3: Implement the detector and MainActivity dispatch**
 
-Read incoming text once and detect format. Existing `.estudo` input continues to invoke its current preview. `.plano` input is published through `IncomingFileCoordinator`; `MeuConcursoApp` navigates to Plano and `StudyPlanViewModel` consumes it for preview. `AppViewModel` may transport the event but must not parse or apply planner data. Do not make `EstudoPackageService` understand `.plano`.
+Read incoming text once and detect format. Existing `.estudo` input continues to invoke its current preview. `.plano` input is published through `IncomingFileCoordinator`; `EstudarioApp` navigates to Plano and `StudyPlanViewModel` consumes it for preview. `AppViewModel` may transport the event but must not parse or apply planner data. Do not make `EstudoPackageService` understand `.plano`.
 
 - [ ] **Step 4: Extend backup to v5**
 
@@ -787,7 +787,7 @@ Add a v5 round trip with one complete plan graph and execution. Preserve existin
 Run:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest --tests "br.com.meuconcurso.data.transfer.*"
+.\gradlew.bat testDebugUnitTest --tests "br.com.estudario.data.transfer.*"
 .\gradlew.bat assembleDebugAndroidTest
 ```
 
@@ -798,12 +798,12 @@ Expected: PASS/compile success.
 ### Task 10: Criar `StudyPlanViewModel`, estado único e assistente inicial
 
 **Files:**
-- Modify: `app/src/main/java/br/com/meuconcurso/MeuConcursoApplication.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/ui/planner/StudyPlanUiModels.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/ui/planner/StudyPlanViewModel.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/ui/planner/StudyPlanViewModelFactory.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/ui/planner/PlanWizardScreen.kt`
-- Create: `app/src/test/java/br/com/meuconcurso/ui/planner/StudyPlanUiMapperTest.kt`
+- Modify: `app/src/main/java/br/com/estudario/EstudarioApplication.kt`
+- Create: `app/src/main/java/br/com/estudario/ui/planner/StudyPlanUiModels.kt`
+- Create: `app/src/main/java/br/com/estudario/ui/planner/StudyPlanViewModel.kt`
+- Create: `app/src/main/java/br/com/estudario/ui/planner/StudyPlanViewModelFactory.kt`
+- Create: `app/src/main/java/br/com/estudario/ui/planner/PlanWizardScreen.kt`
+- Create: `app/src/test/java/br/com/estudario/ui/planner/StudyPlanUiMapperTest.kt`
 
 **Interfaces:**
 - Consumes: repository/application/transfer services.
@@ -819,7 +819,7 @@ Run the UI mapper test class; expected FAIL because models are missing.
 
 - [ ] **Step 3: Register planner dependencies**
 
-Construct `StudyPlanRepository`, `StudyPlanApplicationService`, `StudyExecutionService` and `StudyPlanTransferService` in `MeuConcursoApplication`, reusing the existing database. Do not add planner logic to `AppViewModel`.
+Construct `StudyPlanRepository`, `StudyPlanApplicationService`, `StudyExecutionService` and `StudyPlanTransferService` in `EstudarioApplication`, reusing the existing database. Do not add planner logic to `AppViewModel`.
 
 - [ ] **Step 4: Implement a single active-plan state**
 
@@ -834,7 +834,7 @@ Persist nothing until final confirmation. Validate objective, contest, dates, at
 Run:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest --tests "br.com.meuconcurso.ui.planner.*"
+.\gradlew.bat testDebugUnitTest --tests "br.com.estudario.ui.planner.*"
 .\gradlew.bat assembleDebug
 ```
 
@@ -845,11 +845,11 @@ Expected: PASS.
 ### Task 11: Implementar a experiência Hoje e registro de execução
 
 **Files:**
-- Create: `app/src/main/java/br/com/meuconcurso/ui/planner/PlanScreen.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/ui/planner/TodayPlanScreen.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/ui/planner/TaskExecutionDialog.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/ui/planner/PlannerComponents.kt`
-- Create: `app/src/androidTest/java/br/com/meuconcurso/ui/planner/TodayPlanScreenTest.kt`
+- Create: `app/src/main/java/br/com/estudario/ui/planner/PlanScreen.kt`
+- Create: `app/src/main/java/br/com/estudario/ui/planner/TodayPlanScreen.kt`
+- Create: `app/src/main/java/br/com/estudario/ui/planner/TaskExecutionDialog.kt`
+- Create: `app/src/main/java/br/com/estudario/ui/planner/PlannerComponents.kt`
+- Create: `app/src/androidTest/java/br/com/estudario/ui/planner/TodayPlanScreenTest.kt`
 
 **Interfaces:**
 - Consumes: `ActivePlanUiState` and ViewModel intents from Task 10.
@@ -889,12 +889,12 @@ Run connected tests if available and always run `assembleDebug assembleDebugAndr
 ### Task 12: Implementar Semana, Mês, Ano e gerenciamento de planos
 
 **Files:**
-- Create: `app/src/main/java/br/com/meuconcurso/ui/planner/WeekPlanScreen.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/ui/planner/MonthPlanScreen.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/ui/planner/YearPlanScreen.kt`
-- Create: `app/src/main/java/br/com/meuconcurso/ui/planner/PlanManagementScreen.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/ui/planner/PlanScreen.kt`
-- Create: `app/src/androidTest/java/br/com/meuconcurso/ui/planner/PlanHierarchyScreensTest.kt`
+- Create: `app/src/main/java/br/com/estudario/ui/planner/WeekPlanScreen.kt`
+- Create: `app/src/main/java/br/com/estudario/ui/planner/MonthPlanScreen.kt`
+- Create: `app/src/main/java/br/com/estudario/ui/planner/YearPlanScreen.kt`
+- Create: `app/src/main/java/br/com/estudario/ui/planner/PlanManagementScreen.kt`
+- Modify: `app/src/main/java/br/com/estudario/ui/planner/PlanScreen.kt`
+- Create: `app/src/androidTest/java/br/com/estudario/ui/planner/PlanHierarchyScreensTest.kt`
 
 **Interfaces:**
 - Consumes: same `ActivePlanUiState`; no independent metric calculation.
@@ -929,10 +929,10 @@ Run connected Compose tests when available plus `assembleDebug`. Expected: succe
 ### Task 13: Integrar navegação, Mais e Storage Access Framework
 
 **Files:**
-- Modify: `app/src/main/java/br/com/meuconcurso/ui/MeuConcursoApp.kt`
-- Modify: `app/src/main/java/br/com/meuconcurso/ui/screens/MoreScreen.kt`
+- Modify: `app/src/main/java/br/com/estudario/ui/EstudarioApp.kt`
+- Modify: `app/src/main/java/br/com/estudario/ui/screens/MoreScreen.kt`
 - Modify: `app/src/main/AndroidManifest.xml`
-- Create: `app/src/androidTest/java/br/com/meuconcurso/ui/PlannerNavigationTest.kt`
+- Create: `app/src/androidTest/java/br/com/estudario/ui/PlannerNavigationTest.kt`
 
 **Interfaces:**
 - Consumes: screens Tasks 10–12 and transfer APIs Tasks 7–9.

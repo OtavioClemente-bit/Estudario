@@ -227,9 +227,46 @@ A importação ocorre em uma transação: um erro impede salvamento parcial.
 
 ## Prompts prontos
 
-Consulte `docs/PROMPT_GERAR_ESTUDO.md`. Os mesmos prompts estão no aplicativo em **Mais › Gerar estudo com IA**.
+Consulte `docs/PROMPT_GERAR_ESTUDO.md` para os prompts de edital e conteúdo. O aplicativo também oferece em **Mais › Gerar estudo com IA** um terceiro modelo editável para montar arquivos `.plano`, com fases, metas e tarefas no formato aceito pelo planejador.
 # Formato simples V2
 
 Para gerar um único tópico, use a raiz simples com `version`, `packageId`, `competition`, `subject`, `topic`, `summary`, `quickReview`, `tips`, `traps`, `activeRecall`, `questions`, `errorConcepts` e `tags`. Teorias podem ser enviadas em `teorias` ou `theories`.
 
 O formato hierárquico V2 existente (`concurso`, `materias`, `topicos`, `subtopicos`) e o V1 continuam aceitos. Em uma reimportação com o mesmo `packageId`, o app oferece atualizar o conteúdo preservando progresso/favoritos/histórico ou criar uma cópia com IDs independentes.
+
+## Nome do formato
+
+O campo `format` aceita `estudario-estudo` (atual), `meu-concurso-estudo` (nome antigo do app) e `estudo`. Arquivos sem o campo `format` continuam sendo reconhecidos pela presença de `materias` ou `packageId`.
+
+## Vínculo da questão com o material (`secao`)
+
+Cada questão aceita um campo opcional `secao` (também aceito como `reviewAnchor` ou `ancora`) com o
+título exato de um capítulo da teoria ou de uma seção do resumo do mesmo pacote.
+
+Quando a pessoa erra a questão no app, a revisão abre direto nesse trecho em vez de mostrar o
+material inteiro. Sem o campo, o app cai num plano B: compara as palavras do enunciado com os
+títulos e o corpo das seções e abre a mais próxima. O vínculo explícito é sempre melhor — o plano B
+existe para o material gerado antes deste campo.
+
+## Campos de rastreio da questão
+
+| Campo | O que é |
+|---|---|
+| `secao` | Título exato do capítulo/seção do mesmo pacote que responde a questão. Ao errar, a revisão abre nesse trecho. |
+| `conceitoErro` | Id de um item de `errorConcepts` do mesmo pacote. Ao errar, o caderno de erros liga o erro a esse conceito em vez de adivinhar pelo título do tópico. |
+| `questionSourceType` | `REAL`, `REAL_ADAPTED` ou `AUTHORIAL`. Questão marcada como real **sem `sourceId` nem `sourceUrl` é rebaixada para autoral na importação**, perdendo banca/órgão/ano — procedência que não dá para conferir não é exibida. |
+
+Questão `AUTHORIAL` **não herda** banca, órgão nem ano do bloco `padroesQuestao`: herdar faria uma
+questão inventada aparecer com a cara de uma prova que existiu.
+
+## Recorte do tópico (`escopo`)
+
+Cada tópico aceita um objeto opcional `escopo` com `cobre` e `naoCobre`, derivados do **texto do
+item do edital** — não do que é interessante sobre o assunto.
+
+```json
+"escopo": { "cobre": "conceitos, tipos e finalidade", "naoCobre": "implementação e algoritmos" }
+```
+
+O app mostra esse recorte dentro do tópico para a pessoa conferir contra o edital dela. É a defesa
+contra o caso mais caro: estudar quarenta páginas de um assunto que o edital pediu em uma linha.

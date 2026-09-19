@@ -1,10 +1,10 @@
-# Arquivos do Meu Concurso — Design da Pipeline Única de Importação
+# Arquivos do Estudario — Design da Pipeline Única de Importação
 
 ## Objetivo
 
 Transformar a importação em uma funcionalidade única do aplicativo, capaz de receber arquivos pelo seletor interno ou por Intents do Android, identificar o formato pelo conteúdo, resolver vínculos com dados locais, importar de forma transacional e navegar para o conteúdo resultante.
 
-O fluxo deve permitir tocar em um arquivo compatível em Downloads, Google Files, gerenciadores de fabricantes, mensageiros, e-mail, Drive ou navegador e abri-lo diretamente no Meu Concurso. Os botões internos atuais continuam existindo, mas passam a usar a mesma pipeline.
+O fluxo deve permitir tocar em um arquivo compatível em Downloads, Google Files, gerenciadores de fabricantes, mensageiros, e-mail, Drive ou navegador e abri-lo diretamente no Estudario. Os botões internos atuais continuam existindo, mas passam a usar a mesma pipeline.
 
 ## Arquitetura encontrada
 
@@ -19,7 +19,7 @@ As responsabilidades atuais estão distribuídas desta forma:
 - `StudyPlanCodec`, `StudyPlanValidation`, `StudyPlanImportResolver` e `StudyPlanTransferService` cuidam de `.plano`;
 - `BackupService` e `PlannerBackupCodec` exportam e restauram o backup completo em uma transação;
 - `MoreScreen` e `PlanScreen` possuem seletores internos que leem os arquivos separadamente;
-- `MeuConcursoApp` observa planos externos e navega para a área de planos.
+- `EstudarioApp` observa planos externos e navega para a área de planos.
 
 Já existe suporte parcial a abertura externa, mas ele não cobre `ACTION_SEND`, não considera nome/extensão do arquivo, não centraliza os seletores internos, não representa conflitos de resolução e não encaminha todos os resultados pela mesma máquina de estados.
 
@@ -63,11 +63,11 @@ Assim, uma referência vazia é rejeitada antes de qualquer tentativa de localiz
 ```text
 ACTION_VIEW / ACTION_SEND / seletor interno
                     ↓
-          MeuConcursoFileCoordinator
+          EstudarioFileCoordinator
                     ↓
        leitura segura via ContentResolver
                     ↓
-           MeuConcursoFileDetector
+           EstudarioFileDetector
        nome + extensão + MIME + JSON
                     ↓
      handler do formato detectado
@@ -215,7 +215,7 @@ Um ID informado que não corresponda ao banco é uma divergência registrada. A 
 
 ### Origem de IDs válidos
 
-IDs criados por mecanismos oficiais do Meu Concurso são válidos. Isso inclui IDs recebidos e persistidos por importadores oficiais, ou criados por uma função oficial que tenha uma política explícita de geração de identidade estável.
+IDs criados por mecanismos oficiais do Estudario são válidos. Isso inclui IDs recebidos e persistidos por importadores oficiais, ou criados por uma função oficial que tenha uma política explícita de geração de identidade estável.
 
 É proibido derivar um ID do nome, gerar um UUID ou fabricar qualquer identificador durante a resolução apenas para fazer o arquivo passar. A criação de uma entidade e a atribuição de sua identidade devem ocorrer somente por um mecanismo oficial separado, auditável e coerente com o modelo do app.
 
@@ -280,7 +280,7 @@ Exemplos:
 
 - ambiguidade: “Encontramos mais de um concurso compatível. Escolha a qual este plano pertence.”;
 - inexistente: “Não encontramos este concurso no aplicativo. Importe ou cadastre o concurso com um identificador oficial.”;
-- formato incorreto: “Este arquivo não parece ser um Plano do Meu Concurso.”;
+- formato incorreto: “Este arquivo não parece ser um Plano do Estudario.”;
 - versão futura: “Este plano foi criado em uma versão de formato ainda não suportada.”;
 - divergência: “O identificador informado não existe neste aparelho, mas encontramos um concurso com o mesmo nome. Revise o vínculo antes de continuar.”.
 
@@ -357,8 +357,8 @@ As alterações devem ficar concentradas em:
 - `MainActivity.kt`;
 - pacote `data.transfer` para fonte, detector, coordenador, handlers e estados;
 - pacote `data.transfer.planner` para parse estrutural, resolução e validação em fases;
-- `MeuConcursoApplication` para disponibilizar dependências compartilhadas;
-- `AppViewModel`, `StudyPlanViewModel` e `MeuConcursoApp` para observar estados e navegar;
+- `EstudarioApplication` para disponibilizar dependências compartilhadas;
+- `AppViewModel`, `StudyPlanViewModel` e `EstudarioApp` para observar estados e navegar;
 - `MoreScreen` e `PlanScreen` para usar a entrada comum;
 - testes unitários e instrumentados de transferência.
 
@@ -368,7 +368,7 @@ Não haverá refatoração de domínio, motor de planejamento ou telas sem rela�
 
 O trabalho estará concluído quando:
 
-1. tocar em `.plano` válido via `content://` abrir o Meu Concurso;
+1. tocar em `.plano` válido via `content://` abrir o Estudario;
 2. o app identificar o formato pelo JSON e recusar discrepâncias;
 3. um concurso sem ID no arquivo for resolvido pelo nome para um único registro com ID oficial;
 4. matéria e tópico forem resolvidos somente em seus contextos;

@@ -15,15 +15,15 @@ val signingProperties = Properties().apply {
 }
 
 android {
-    namespace = "br.com.meuconcurso"
+    namespace = "br.com.estudario"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "br.com.meuconcurso"
+        applicationId = "br.com.estudario"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "2.1.1"
+        versionCode = 20
+        versionName = "3.0.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
@@ -62,6 +62,7 @@ dependencies {
     androidTestImplementation(composeBom)
 
     implementation("androidx.core:core-ktx:1.17.0")
+    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.2")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.2")
@@ -78,6 +79,11 @@ dependencies {
     kapt("androidx.room:room-compiler:2.7.2")
     implementation("androidx.datastore:datastore-preferences:1.1.7")
     implementation("androidx.work:work-runtime-ktx:2.11.2")
+
+    // Conta Google + pasta privada do app no Drive (o backup fala com a API REST por HTTPS,
+    // sem a biblioteca cliente inteira do Drive).
+    implementation("com.google.android.gms:play-services-auth:21.3.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
