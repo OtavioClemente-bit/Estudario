@@ -73,6 +73,13 @@ enum class TourId(val title: String, val subtitle: String) {
     PROFILE("Perfil, XP e emblemas", "Seu nível, sua sequência e as conquistas"),
 }
 
+enum class HelpGuide(val title: String, val subtitle: String, val tour: TourId) {
+    EDITAL("Guia do edital", "Aprenda a criar o concurso e importar o edital", TourId.EDITAL),
+    MATERIAL("Guia do material", "Aprenda a gerar conteúdo tópico por tópico", TourId.CONTENT),
+}
+
+fun helpGuideOptions(): List<HelpGuide> = listOf(HelpGuide.EDITAL, HelpGuide.MATERIAL)
+
 enum class TourKey {
     HOME_PROFILE, HOME_MISSION,
     NAV_EDITAL, EDITAL_CREATE, EDITAL_AI, EDITAL_IMPORT, SUBJECT_AI,

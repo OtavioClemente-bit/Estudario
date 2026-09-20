@@ -3,6 +3,12 @@ package br.com.estudario.ui.planner
 import br.com.estudario.domain.planner.PlanPriority
 import br.com.estudario.domain.planner.PlanTaskStatus
 import br.com.estudario.domain.planner.PlanTaskType
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+private val portugueseFullDateFormatter =
+    DateTimeFormatter.ofPattern("dd 'de' MMMM 'de' yyyy", Locale("pt", "BR"))
 
 fun PlanTaskType.displayNamePtBr(): String = when (this) {
     PlanTaskType.THEORY -> "Teoria"
@@ -49,3 +55,5 @@ fun minutesLabelPtBr(value: Int): String {
         else -> "${hours}h ${remainder}min"
     }
 }
+
+fun forecastDateLabelPtBr(date: LocalDate): String = date.format(portugueseFullDateFormatter)

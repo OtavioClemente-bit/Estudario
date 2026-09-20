@@ -22,13 +22,9 @@ import br.com.estudario.ui.tour.tourTarget
 fun MoreScreen(
     viewModel: AppViewModel,
     onReviews: () -> Unit,
-    onQueue: () -> Unit,
     onStatistics: () -> Unit,
-    onQuestionBank: () -> Unit,
     onNotifications: () -> Unit,
     onErrors: () -> Unit,
-    onPlan: () -> Unit,
-    onGuide: () -> Unit,
     onProfile: () -> Unit,
     onSources: () -> Unit,
     onFocus: () -> Unit,
@@ -48,11 +44,9 @@ fun MoreScreen(
     // Índices dos itens abaixo, para rolar até o item que o guia está explicando.
     LaunchedEffect(tourStep?.key) {
         val index = when (tourStep?.key) {
-            TourKey.MORE_GUIDE -> 3
-            TourKey.MORE_REVIEWS -> 5
-            TourKey.MORE_QUEUE -> 6
-            TourKey.MORE_STATS -> 7
-            TourKey.MORE_ERRORS -> 8
+            TourKey.MORE_REVIEWS -> 3
+            TourKey.MORE_STATS -> 4
+            TourKey.MORE_ERRORS -> 5
             else -> null
         }
         if (index != null) listState.animateScrollToItem(index)
@@ -79,8 +73,6 @@ fun MoreScreen(
                 }
             }
         }
-        item { SectionTitle("Ajuda") }
-        item { MoreItem(Icons.Outlined.HelpOutline, "Como usar o app", "Guias passo a passo: edital, conteúdo, plano, treino e revisões", target(TourKey.MORE_GUIDE), onGuide) }
         item { SectionTitle("Estudo") }
         item {
             // Sessão livre: serve para estudar no livro, no caderno ou em videoaula com o
@@ -93,11 +85,8 @@ fun MoreScreen(
             )
         }
         item { MoreItem(Icons.Outlined.EventRepeat, "Revisões espaçadas", "D+1, D+7, D+30 e, depois disso, sempre", target(TourKey.MORE_REVIEWS), onReviews) }
-        item { MoreItem(Icons.Outlined.Reorder, "Fila de estudos", "A ordem dos próximos tópicos: reorganize, pause e conclua", target(TourKey.MORE_QUEUE), onQueue) }
         item { MoreItem(Icons.Outlined.QueryStats, "Desempenho", "Acertos por matéria, pontos fortes e o que pede revisão", target(TourKey.MORE_STATS), onStatistics) }
         item { MoreItem(Icons.Outlined.ErrorOutline, "Caderno de erros", "Questões erradas e os conceitos que causam o erro", target(TourKey.MORE_ERRORS), onErrors) }
-        item { MoreItem(Icons.Outlined.Quiz, "Banco de questões", "Busque, filtre, favorite e monte uma sessão", onClick = onQuestionBank) }
-        item { MoreItem(Icons.Outlined.CalendarMonth, "Planos de estudo", "Criar, importar, exportar e gerenciar planos", onClick = onPlan) }
         item { MoreItem(Icons.Outlined.FactCheck, "Histórico e fontes", "De onde veio cada conteúdo que a IA gerou, com o link para conferir", onClick = onSources) }
         item { MoreItem(Icons.Outlined.NotificationsActive, "Notificações de estudo", "Horário, pendências, revisões e teste de aviso", onClick = onNotifications) }
         item { SectionTitle("Preferências de estudo") }

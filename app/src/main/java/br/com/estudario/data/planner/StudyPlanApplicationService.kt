@@ -55,6 +55,7 @@ class StalePlanningProposalException : IllegalStateException("O plano mudou desd
 class StudyPlanApplicationService(
     private val db: AppDatabase,
     private val engine: StudyPlannerEngine,
+    private val calendarSync: CalendarSyncService? = null,
 ) {
     private val planner = db.plannerDao()
     private val snapshotFactory = StudyPlanSnapshotFactory(db)
@@ -239,6 +240,15 @@ class StudyPlanApplicationService(
     suspend fun replan(planId: String, reason: ReplanReason, today: LocalDate = LocalDate.now()): PlanningProposal {
         val proposal = withContext(Dispatchers.Default) { engine.plan(snapshotFactory.create(planId, today), reason) }
         applyProposal(proposal)
+        
+        // Sincroniza tarefas do plano em background se a permissão estiver concedida
+        calendarSync?.let { sync ->
+            val tasks = db.plannerDao().tasksForOnce(planId)
+            withContext(Dispatchers.IO) {
+                sync.syncTasks(tasks)
+            }
+        }
+        
         return proposal
     }
 

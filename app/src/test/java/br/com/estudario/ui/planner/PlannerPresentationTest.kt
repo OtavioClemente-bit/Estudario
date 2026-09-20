@@ -5,6 +5,7 @@ import br.com.estudario.domain.planner.PlanTaskStatus
 import br.com.estudario.domain.planner.PlanTaskType
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.time.LocalDate
 
 class PlannerPresentationTest {
     @Test
@@ -25,5 +26,11 @@ class PlannerPresentationTest {
     fun minutesAreReadableForShortAndLongSessions() {
         assertEquals("45 min", minutesLabelPtBr(45))
         assertEquals("1h 20min", minutesLabelPtBr(80))
+    }
+
+    @Test
+    fun forecastDatesUsePortugueseFullDate() {
+        assertEquals("20 de setembro de 2026", forecastDateLabelPtBr(LocalDate.of(2026, 9, 20)))
+        assertEquals("04 de janeiro de 2027", forecastDateLabelPtBr(LocalDate.of(2027, 1, 4)))
     }
 }

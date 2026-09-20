@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
@@ -23,10 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import br.com.estudario.domain.planner.PlanTaskStatus
-import java.time.format.DateTimeFormatter
-import java.util.Locale
-
-private val portugueseDateFormatter = DateTimeFormatter.ofPattern("dd 'de' MMMM 'de' yyyy", Locale("pt", "BR"))
 
 @Composable
 fun PlanProgressHeader(state: ActivePlanUiState, modifier: Modifier = Modifier) {
@@ -86,7 +83,7 @@ fun PlanProgressHeader(state: ActivePlanUiState, modifier: Modifier = Modifier) 
                 )
                 PlanMetric(
                     modifier = Modifier.weight(1f),
-                    icon = { Icon(Icons.Outlined.Timer, contentDescription = null) },
+                    icon = { Icon(Icons.Outlined.Schedule, contentDescription = null) },
                     value = minutesLabelPtBr(plannedMinutes),
                     label = "Tempo planejado",
                 )
@@ -104,7 +101,7 @@ fun PlanProgressHeader(state: ActivePlanUiState, modifier: Modifier = Modifier) 
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text("Previsão de conclusão", fontWeight = FontWeight.Bold)
                     Text(
-                        state.forecastDate?.format(portugueseDateFormatter) ?: "Ainda calculando com sua disponibilidade",
+                        state.forecastDate?.let(::forecastDateLabelPtBr) ?: "Ainda calculando com sua disponibilidade",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }

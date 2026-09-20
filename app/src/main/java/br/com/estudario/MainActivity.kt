@@ -29,6 +29,7 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) {
             handleIncomingFile(intent)
             handleNotification(intent)
+            handleWidgetAction(intent)
         }
     }
 
@@ -37,6 +38,17 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         handleIncomingFile(intent)
         handleNotification(intent)
+        handleWidgetAction(intent)
+    }
+
+    private fun handleWidgetAction(intent: Intent?) {
+        val taskId = intent?.getStringExtra("START_FOCUS_TASK_ID")
+        val topicId = intent?.getLongExtra("START_FOCUS_TOPIC_ID", 0L)
+        val title = intent?.getStringExtra("START_FOCUS_TITLE")
+        
+        if (!taskId.isNullOrBlank() && topicId != null && topicId > 0L && !title.isNullOrBlank()) {
+            viewModel.startFocus(title = title, topicId = topicId, taskId = taskId)
+        }
     }
 
     /**

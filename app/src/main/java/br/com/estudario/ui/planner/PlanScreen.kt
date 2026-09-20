@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
@@ -195,13 +196,12 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
 private fun PlanSectionSelector(selected: PlanSection, onSelected: (PlanSection) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Acompanhe seu plano", style = MaterialTheme.typography.titleSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PlanSection.entries.forEach { section ->
                 FilterChip(
                     selected = section == selected,
                     onClick = { onSelected(section) },
                     label = { Text(section.label) },
-                    modifier = Modifier.weight(1f),
                 )
             }
         }

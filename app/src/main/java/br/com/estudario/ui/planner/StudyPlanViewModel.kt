@@ -184,6 +184,8 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
             runCatching { block() }.onFailure { error ->
                 _state.update { it.copy(message = error.message ?: "Não foi possível concluir a ação.") }
                 if (_transfer.value is PlanTransferUiState.Loading) _transfer.value = PlanTransferUiState.Error(error.message ?: "Arquivo inválido.")
+            }.onSuccess {
+                br.com.estudario.ui.widget.WidgetUpdater.update(app)
             }
         } finally {
             if (busyTitle != null) _busy.value = null

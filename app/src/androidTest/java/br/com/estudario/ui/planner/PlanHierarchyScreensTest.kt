@@ -3,15 +3,60 @@ package br.com.estudario.ui.planner
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.*
 import br.com.estudario.ui.theme.EstudarioTheme
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
 
 class PlanHierarchyScreensTest {
     @get:Rule val compose = createComposeRule()
-    @Test fun weekExposesEveryDayAndLockControl() {
+    @Test fun calendarExposesSelectedDayAndMonthToggle() {
         val state = ActivePlanUiState(today = LocalDate.of(2026, 9, 15))
-        compose.setContent { EstudarioTheme(false) { WeekPlanScreen(state) { _, _ -> } } }
-        compose.onAllNodesWithText("Bloquear dia", substring = false).assertCountEquals(7)
+        compose.setContent {
+            EstudarioTheme(false) {
+                CalendarScreen(
+                    state = state,
+                    onOpenTopic = {},
+                    onStart = {},
+                    onFocus = {},
+                    onComplete = {},
+                    onReprogram = {},
+                    onSkip = {},
+                    onToggleLock = { _, _ -> },
+                    onToggleDayLock = { _, _ -> },
+                    onGenerate = {},
+                    onSyncCalendar = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Hoje").assertExists()
+        compose.onNodeWithText("Ver mês").assertExists()
+    }
+
+    @Test fun emptyDayKeepsPortugueseActionsAndCalendarCallbackSafe() {
+        var generateClicks = 0
+        var syncClicks = 0
+        compose.setContent {
+            EstudarioTheme(false) {
+                CalendarScreen(
+                    state = ActivePlanUiState(today = LocalDate.of(2026, 9, 15)),
+                    onOpenTopic = {},
+                    onStart = {},
+                    onFocus = {},
+                    onComplete = {},
+                    onReprogram = {},
+                    onSkip = {},
+                    onToggleLock = { _, _ -> },
+                    onToggleDayLock = { _, _ -> },
+                    onGenerate = { generateClicks++ },
+                    onSyncCalendar = { syncClicks++ },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Gerar planejamento").performClick()
+        compose.onNodeWithText("Ativar Sincronização").performClick()
+        assertEquals(1, generateClicks)
+        assertEquals(1, syncClicks)
     }
 }

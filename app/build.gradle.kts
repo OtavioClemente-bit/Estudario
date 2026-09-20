@@ -22,8 +22,8 @@ android {
         applicationId = "br.com.estudario"
         minSdk = 26
         targetSdk = 36
-        versionCode = 20
-        versionName = "3.0.2"
+        versionCode = 21
+        versionName = "3.0.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
@@ -79,6 +79,10 @@ dependencies {
     kapt("androidx.room:room-compiler:2.7.2")
     implementation("androidx.datastore:datastore-preferences:1.1.7")
     implementation("androidx.work:work-runtime-ktx:2.11.2")
+
+    // Jetpack Glance (Widgets)
+    implementation("androidx.glance:glance-appwidget:1.1.1")
+    implementation("androidx.glance:glance-material3:1.1.1")
 
     // Conta Google + pasta privada do app no Drive (o backup fala com a API REST por HTTPS,
     // sem a biblioteca cliente inteira do Drive).
