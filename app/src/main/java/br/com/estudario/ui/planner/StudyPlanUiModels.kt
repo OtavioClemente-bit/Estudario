@@ -8,7 +8,7 @@ import br.com.estudario.data.transfer.planner.ContextWeakTopic
 /** Loading bloqueante de uma ação do plano (criar, gerar, recalcular). */
 data class PlanBusyState(val title: String, val message: String? = null)
 
-enum class PlanSection(val label: String) { TODAY("Hoje"), WEEK("Semana"), MONTH("Mês"), YEAR("Ano") }
+enum class PlanSection(val label: String) { TODAY("Hoje"), WEEK("Semana"), MONTH("Mês"), YEAR("Visão geral") }
 
 data class PlannerTaskUi(
     val entity: PlanTaskEntity,
@@ -41,6 +41,8 @@ data class ActivePlanUiState(
     val message: String? = null,
 ) {
     val todayTasks get() = tasks.filter { it.entity.scheduledEpochDay == today.toEpochDay() }
+    val overdueTasks get() = tasks.filter { it.entity.scheduledEpochDay < today.toEpochDay() && it.entity.status in listOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO) }
+    val todayCompletionPercent: Int get() = if (todayTasks.isEmpty()) 0 else (todayTasks.count { it.entity.status == br.com.estudario.domain.planner.PlanTaskStatus.CONCLUIDA } * 100) / todayTasks.size
     val weekStart: LocalDate get() = today.minusDays((today.dayOfWeek.value - 1).toLong())
     val weekTasks get() = tasks.filter { LocalDate.ofEpochDay(it.entity.scheduledEpochDay) in weekStart..weekStart.plusDays(6) }
     val monthTasks get() = tasks.filter { LocalDate.ofEpochDay(it.entity.scheduledEpochDay).run { year == today.year && month == today.month } }

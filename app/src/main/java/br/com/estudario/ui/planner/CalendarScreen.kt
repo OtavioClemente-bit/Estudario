@@ -14,6 +14,8 @@ import androidx.compose.ui.unit.dp
 import br.com.estudario.ui.components.EmptyState
 import br.com.estudario.ui.components.MissionCard
 import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
 
 @Composable
 fun CalendarScreen(
@@ -65,7 +67,7 @@ fun CalendarScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = if (selectedDate == state.today) "Hoje" else "${selectedDate.dayOfMonth} de ${selectedDate.month.name.lowercase().take(3)}",
+                    text = if (selectedDate == state.today) "Hoje" else "${selectedDate.dayOfMonth} de ${selectedDate.month.getDisplayName(TextStyle.FULL, Locale("pt", "BR"))}",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -169,10 +171,12 @@ fun CalendarScreen(
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Icon(Icons.Outlined.EventAvailable, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Text("Previsão de Conclusão", fontWeight = FontWeight.Bold)
+                        Text("Previsão de conclusão", fontWeight = FontWeight.Bold)
                         }
                         Text(
-                            text = state.forecastDate?.let { "Com sua disponibilidade de tempo e o tamanho do edital atual, a demanda terminará aproximadamente em $it." } ?: "A previsão depende da análise do edital com a disponibilidade cadastrada.",
+                            text = state.forecastDate?.let {
+                                "Com sua disponibilidade de tempo e o tamanho do edital atual, a demanda terminará aproximadamente em ${forecastDateLabelPtBr(it)}."
+                            } ?: "A previsão depende da análise do edital com a disponibilidade cadastrada.",
                             style = MaterialTheme.typography.bodyMedium
                         )
                         
