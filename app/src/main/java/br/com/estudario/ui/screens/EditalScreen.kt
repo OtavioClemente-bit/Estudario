@@ -92,7 +92,15 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
     if (addCompetition) TextInputDialog("Novo concurso", label = "Nome do concurso", onDismiss = { addCompetition = false }) { viewModel.addCompetition(it) }
     if (addSubject && selectedCompetitionId != 0L) TextInputDialog("Nova matéria", label = "Nome da matéria", onDismiss = { addSubject = false }) { viewModel.addSubject(selectedCompetitionId, it) }
     addTopicFor?.let { subject -> TextInputDialog("Novo tópico", label = "Título do tópico", onDismiss = { addTopicFor = null }) { viewModel.addTopic(subject.id, it) } }
-    deleteCompetition?.let { competition -> ConfirmDialog("Excluir concurso?", "“${competition.name}” e todo o conteúdo relacionado serão removidos deste aparelho.", "Excluir", onDismiss = { deleteCompetition = null }) { viewModel.deleteCompetition(competition) } }
+    deleteCompetition?.let { competition ->
+        ConfirmDialog(
+            title = "Excluir edital?",
+            message = "“${competition.name}” e todas as matérias, tópicos e conteúdos relacionados serão removidos deste aparelho. Essa ação não pode ser desfeita.",
+            confirmLabel = "Excluir edital",
+            confirmDelayMillis = 3_000L,
+            onDismiss = { deleteCompetition = null },
+        ) { viewModel.deleteCompetition(competition) }
+    }
     priorityTarget?.let { target ->
         PriorityEditorDialog(
             title = "Prioridade • ${target.title}",

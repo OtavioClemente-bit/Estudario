@@ -1,5 +1,6 @@
 package br.com.estudario.ui.components
 
+import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -24,6 +25,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalUriHandler
+import kotlinx.coroutines.delay
 
 @Composable
 fun ScreenTitle(title: String, subtitle: String? = null, action: (@Composable () -> Unit)? = null) {
@@ -70,12 +72,36 @@ fun TextInputDialog(title: String, initial: String = "", label: String = "Nome",
 }
 
 @Composable
-fun ConfirmDialog(title: String, message: String, confirmLabel: String = "Confirmar", onDismiss: () -> Unit, onConfirm: () -> Unit) {
+fun ConfirmDialog(
+    title: String,
+    message: String,
+    confirmLabel: String = "Confirmar",
+    confirmDelayMillis: Long = 0L,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val openedAt = remember { SystemClock.elapsedRealtime() }
+    var now by remember { mutableLongStateOf(openedAt) }
+    LaunchedEffect(confirmDelayMillis) {
+        if (confirmDelayMillis > 0L) {
+            while (!ConfirmationDelay.isReady(now - openedAt, confirmDelayMillis)) {
+                now = SystemClock.elapsedRealtime()
+                delay(100L)
+            }
+            now = SystemClock.elapsedRealtime()
+        }
+    }
+    val ready = confirmDelayMillis <= 0L || ConfirmationDelay.isReady(now - openedAt, confirmDelayMillis)
+    val remainingSeconds = ConfirmationDelay.remainingSeconds(now - openedAt, confirmDelayMillis)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(message) },
-        confirmButton = { TextButton(onClick = { onConfirm(); onDismiss() }) { Text(confirmLabel) } },
+        confirmButton = {
+            TextButton(enabled = ready, onClick = { onConfirm(); onDismiss() }) {
+                Text(if (ready) confirmLabel else "$confirmLabel ($remainingSeconds)")
+            }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
 }
