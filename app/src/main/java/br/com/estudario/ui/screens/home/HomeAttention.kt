@@ -44,7 +44,7 @@ fun HomeAttention(
 
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight)) {
         Text(
-            "PEDINDO ATENÇÃO",
+            "Pedindo atenção",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

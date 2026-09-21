@@ -249,6 +249,11 @@ fun LevelRow(standing: StandingUi, onOpenProfile: () -> Unit, modifier: Modifier
                     .background(MaterialTheme.colorScheme.primary),
             )
         }
+        Text(
+            "XP por questões, revisões e missões concluídas.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

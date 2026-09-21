@@ -118,7 +118,9 @@ fun HomeScreen(
 
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = EstudarioSpacing.small, bottom = EstudarioSpacing.expansive),
+        // O espaço da barra inferior já chega aqui pelo padding do Scaffold; não duplicar com um
+        // valor fixo evita que a Home fique com um rodapé diferente em cada modo de navegação.
+        contentPadding = PaddingValues(top = EstudarioSpacing.small),
     ) {
         if (competition == null) {
             item {
