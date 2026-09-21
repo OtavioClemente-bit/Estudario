@@ -46,4 +46,18 @@ class HomeMetricsCalculatorTest {
         assertEquals(66, result.coverage)
         assertEquals(listOf(50, 100), result.subjects.map { it.percent })
     }
+
+    @Test
+    fun calculatorKeepsSubjectThatHasNoTopicsYet() {
+        val subjects = listOf(
+            SubjectEntity(id = 30L, competitionId = 3L, name = "Português", position = 0),
+            SubjectEntity(id = 31L, competitionId = 3L, name = "Legislação nova", position = 1),
+        )
+        val topics = listOf(TopicEntity(id = 300L, subjectId = 30L, title = "Gramática"))
+
+        val result = calculateHomeMetrics(3L, subjects, topics, emptyList(), emptyList(), emptyList(), emptyList())
+
+        assertEquals(listOf("Português", "Legislação nova"), result.subjects.map { it.name })
+        assertEquals(listOf(0, 0), result.subjects.map { it.percent })
+    }
 }

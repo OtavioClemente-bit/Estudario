@@ -85,9 +85,8 @@ internal fun calculateHomeMetrics(
     }
 
     val topicsBySubject = competitionTopics.groupBy { it.subjectId }
-    val subjectCoverage = competitionSubjects.mapNotNull { subject ->
+    val subjectCoverage = competitionSubjects.map { subject ->
         val subjectTopics = topicsBySubject[subject.id].orEmpty()
-        if (subjectTopics.isEmpty()) return@mapNotNull null
         SubjectCoverageUi(
             name = subject.name,
             studiedTopics = subjectTopics.count { it.status != TopicStatus.NAO_ESTUDADO },
