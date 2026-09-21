@@ -49,6 +49,9 @@ import br.com.estudario.ui.navigation.EstudarioDrawerContent
 import br.com.estudario.ui.navigation.EstudarioTopBar
 import br.com.estudario.ui.navigation.estudarioDrawerSections
 import br.com.estudario.ui.onboarding.OnboardingFlow
+import br.com.estudario.ui.setup.InitialSetupFlow
+import br.com.estudario.ui.setup.InitialSetupViewModel
+import br.com.estudario.domain.setup.InitialSetupStatus
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -61,11 +64,22 @@ fun EstudarioApp(viewModel: AppViewModel) {
     EstudarioTheme(dark) {
         val onboardingConcluido by viewModel.hasCompletedOnboarding.collectAsState()
         val seenTours by viewModel.seenTours.collectAsState()
+        val initialSetup by viewModel.initialSetup.collectAsState()
+        val hasExistingWorkspace by viewModel.hasExistingWorkspace.collectAsState()
+        val setupViewModel: InitialSetupViewModel = viewModel()
+        LaunchedEffect(initialSetup?.status, hasExistingWorkspace) {
+            if (initialSetup?.status == InitialSetupStatus.NOT_STARTED && hasExistingWorkspace == true) {
+                setupViewModel.bypassForExistingWorkspace()
+            }
+        }
         when {
             // null: a splash do sistema ainda cobre a tela enquanto a preferência carrega.
-            onboardingConcluido == null || seenTours == null -> Unit
+            onboardingConcluido == null || seenTours == null || initialSetup == null || hasExistingWorkspace == null -> Unit
             // Primeira instalação: apresentação e escolha de conta antes de qualquer tela do app.
             onboardingConcluido == false -> OnboardingFlow(viewModel) { viewModel.completeOnboarding() }
+            initialSetup?.status == InitialSetupStatus.IN_PROGRESS ||
+                (initialSetup?.status == InitialSetupStatus.NOT_STARTED && hasExistingWorkspace == false) ->
+                InitialSetupFlow(setupViewModel) { }
             // O tour guiado (replay em Ajustes > Como usar o app) roda dentro da própria navegação
             // principal, destacando os botões reais - ver MainNavigation.
             else -> MainNavigation(viewModel)
@@ -153,6 +167,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
     val drawerScope = rememberCoroutineScope()
     val profile by viewModel.profile.collectAsState()
     val progress by viewModel.progress.collectAsState()
+    val initialSetup by viewModel.initialSetup.collectAsState()
     val calendarPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { permissions ->
@@ -257,13 +272,15 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         onFocus = { navController.navigate("focus") },
                         onStatistics = { navController.navigate("statistics") },
                         onErrors = { navController.navigate("errors") },
+                        showSetupCta = initialSetup?.status == InitialSetupStatus.DEFERRED,
+                        onSetup = viewModel::reopenInitialSetup,
                     )
                 }
                 composable("syllabus") { EditalScreen(viewModel, onTopic = { navController.navigate("topic/$it") }, onHelp = { showHelpGuidePicker = true }) }
                 composable("plan") { PlanScreen(planViewModel, viewModel, onOpenTopic = { navController.navigate("topic/$it") }, onOpenTopicTask = { topicId, taskId -> navController.navigate("topic/$topicId/task/$taskId") }, onOpenErrors = { navController.navigate("errors") }, onFocus = { navController.navigate("focus") }, onHelp = { viewModel.startTour(TourId.PLAN) }) }
                 composable("train") { TrainScreen(viewModel, onStart = { config -> navController.navigate("quiz/${config.count}/${config.topicId ?: 0}/${config.subjectId ?: 0}/${config.mode}/${Uri.encode(config.board ?: "_")}/${config.difficulty ?: "_"}") }, onHelp = { viewModel.startTour(TourId.TRAIN) }) }
                 composable("errors") { ErrorsScreen(viewModel, onTrainErrors = { navController.navigate("quiz/20/0/0/errors/_/_") }, onOpenTopic = { navController.navigate("topic/$it") }) }
-                composable("more") { MoreScreen(viewModel) }
+                composable("more") { MoreScreen(viewModel, onOpenSetup = viewModel::reopenInitialSetup) }
                 composable("topic/{id}") { backStack ->
                     val id = backStack.arguments?.getString("id")?.toLongOrNull() ?: 0
                     TopicDetailScreen(viewModel, id, onBack = { navController.popBackStack() }, onQuiz = { navController.navigate("quiz/15/$id/0/random/_/_") }, onTheory = { navController.navigate("theory/$it") }, onFocus = { navController.navigate("focus") })

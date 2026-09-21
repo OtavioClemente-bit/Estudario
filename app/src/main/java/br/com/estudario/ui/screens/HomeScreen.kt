@@ -1,17 +1,29 @@
 package br.com.estudario.ui.screens
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material3.Button
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
 import br.com.estudario.data.local.*
 import br.com.estudario.domain.*
 import br.com.estudario.domain.planner.PlanTaskStatus
@@ -87,6 +99,8 @@ fun HomeScreen(
     onFocus: () -> Unit = {},
     onStatistics: () -> Unit = {},
     onErrors: () -> Unit = {},
+    showSetupCta: Boolean = false,
+    onSetup: () -> Unit = {},
 ) {
     val competitions by viewModel.competitions.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
@@ -122,6 +136,22 @@ fun HomeScreen(
         // valor fixo evita que a Home fique com um rodapé diferente em cada modo de navegação.
         contentPadding = PaddingValues(top = EstudarioSpacing.small),
     ) {
+        if (showSetupCta) {
+            item {
+                Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
+                    ElevatedCard {
+                        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Outlined.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary)
+                            Column(Modifier.weight(1f)) {
+                                Text("Seu plano ainda pode ficar mais completo", style = MaterialTheme.typography.titleSmall)
+                                Text("Retome a configuração quando quiser e deixe a Home trabalhar a seu favor.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Button(onClick = onSetup) { Text("Continuar") }
+                        }
+                    }
+                }
+            }
+        }
         if (competition == null) {
             item {
                 Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {

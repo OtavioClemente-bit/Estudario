@@ -13,9 +13,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -25,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import br.com.estudario.ui.AppViewModel
 import br.com.estudario.ui.components.ScreenTitle
@@ -36,6 +40,7 @@ import br.com.estudario.ui.components.ScreenTitle
 @Composable
 fun MoreScreen(
     viewModel: AppViewModel,
+    onOpenSetup: () -> Unit = {},
 ) {
     val themeMode by viewModel.themeMode.collectAsState()
     val timer by viewModel.questionTimer.collectAsState()
@@ -97,6 +102,17 @@ fun MoreScreen(
                             )
                         }
                     }
+                }
+            }
+        }
+        item {
+            ElevatedCard(onClick = onOpenSetup) {
+                Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Assistente de configuração", style = MaterialTheme.typography.titleMedium)
+                        Text("Revisar concurso, edital, rotina e plano", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 }
             }
         }

@@ -7,6 +7,8 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import br.com.estudario.domain.setup.InitialSetupSnapshot
+import br.com.estudario.domain.setup.InitialSetupSnapshotCodec
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -47,6 +49,7 @@ class AppPreferences(private val context: Context) {
     private val focusKeepScreenOnKey = booleanPreferencesKey("focus_keep_screen_on")
     private val lastFocusMinutesKey = intPreferencesKey("focus_last_minutes")
     private val lastFocusTaskKey = stringPreferencesKey("focus_last_task_id")
+    private val initialSetupKey = stringPreferencesKey("initial_setup_snapshot_v1")
     val darkTheme: Flow<Boolean> = context.dataStore.data.map { it[darkKey] ?: false }
     val editalPrompt: Flow<String> = context.dataStore.data.map { it[editalPromptKey] ?: PromptTemplates.EDITAL }
     val contentPrompt: Flow<String> = context.dataStore.data.map { it[contentPromptKey] ?: PromptTemplates.CONTEUDO }
@@ -98,6 +101,21 @@ class AppPreferences(private val context: Context) {
     /** Minutos da última sessão encerrada, para preencher a conclusão da tarefa do plano. */
     val lastFocusMinutes: Flow<Int> = context.dataStore.data.map { it[lastFocusMinutesKey] ?: 0 }
     val lastFocusTaskId: Flow<String> = context.dataStore.data.map { it[lastFocusTaskKey].orEmpty() }
+    /** Assistente de primeira configuração: um snapshot único para retomar sem perder contexto. */
+    val initialSetup: Flow<InitialSetupSnapshot> = context.dataStore.data.map { prefs ->
+        InitialSetupSnapshotCodec.decode(prefs[initialSetupKey])
+    }
+
+    suspend fun setInitialSetup(value: InitialSetupSnapshot) {
+        context.dataStore.edit { it[initialSetupKey] = InitialSetupSnapshotCodec.encode(value) }
+    }
+
+    suspend fun updateInitialSetup(transform: (InitialSetupSnapshot) -> InitialSetupSnapshot) {
+        context.dataStore.edit { prefs ->
+            val current = InitialSetupSnapshotCodec.decode(prefs[initialSetupKey])
+            prefs[initialSetupKey] = InitialSetupSnapshotCodec.encode(transform(current).normalized())
+        }
+    }
 
     suspend fun startFocusSession(startedAt: Long, title: String, topicId: Long?, taskId: String?, previousFilter: Int) {
         context.dataStore.edit { prefs ->

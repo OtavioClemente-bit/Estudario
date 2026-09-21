@@ -33,6 +33,8 @@ import br.com.estudario.data.account.GoogleDriveBackupService
 import br.com.estudario.ui.profile.GoogleAction
 import br.com.estudario.ui.profile.StreakCelebration
 import br.com.estudario.ui.profile.UserProfile
+import br.com.estudario.domain.setup.InitialSetupStatus
+import br.com.estudario.domain.setup.InitialSetupSnapshot
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate
@@ -90,6 +92,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val reviewIntervals = app.preferences.reviewIntervals.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), listOf(1L, 7L, 30L))
     val expandedEditalSubjects = app.preferences.expandedEditalSubjects.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
     val hasCompletedOnboarding: StateFlow<Boolean?> = app.preferences.hasCompletedOnboarding.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val initialSetup: StateFlow<InitialSetupSnapshot?> = app.preferences.initialSetup.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    private val studyPlans = app.planRepository.plans.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val hasExistingWorkspace: StateFlow<Boolean?> = combine(competitions, studyPlans) { contests, plans -> contests.isNotEmpty() || plans.isNotEmpty() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     /** Execuções de tarefas do plano, de todos os planos: entram na sequência junto com questões e revisões. */
     val planExecutions: StateFlow<List<StudyTaskExecutionEntity>> = app.database.plannerDao().executions().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -429,6 +435,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setFocusKeepScreenOn(value: Boolean) = launchCatching { app.preferences.setFocusKeepScreenOn(value) }
     fun setEditalSubjectExpanded(subjectId: Long, expanded: Boolean) = launchCatching { app.preferences.setEditalSubjectExpanded(subjectId, expanded) }
     fun completeOnboarding() = launchCatching { app.preferences.setOnboardingCompleted(true) }
+    fun reopenInitialSetup() = launchCatching {
+        app.preferences.updateInitialSetup { current ->
+            current.copy(status = InitialSetupStatus.IN_PROGRESS)
+        }
+    }
 
     /**
      * Garante IDs externos estáveis para concurso, matérias e tópicos criados à mão. O plano gerado
