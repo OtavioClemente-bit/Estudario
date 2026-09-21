@@ -94,9 +94,9 @@ private fun MainNavigation(viewModel: AppViewModel) {
     LaunchedEffect(notificationDestination) {
         notificationDestination?.let { destination -> navController.navigate(destination) { launchSingleTop = true }; viewModel.consumeNotificationDestination() }
     }
-    // Guias: o de primeiros passos abre sozinho na primeira abertura; os de Plano, Treinar e Mais
-    // abrem na primeira visita a cada aba; o de conteúdo abre depois do primeiro edital importado.
-    // Todos podem ser repetidos em Mais › Como usar o app.
+    // Guias: o de primeiros passos abre sozinho na primeira abertura; os de Plano e Treinar abrem
+    // na primeira visita a cada aba; o de conteúdo abre depois do primeiro edital importado.
+    // Eles podem ser repetidos pelo seletor de ajuda.
     val seenTours by viewModel.seenTours.collectAsState()
     val activeTour by viewModel.activeTour.collectAsState()
     val tourStep by viewModel.tourStep.collectAsState()
@@ -244,7 +244,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                 composable("plan") { PlanScreen(planViewModel, viewModel, onOpenTopic = { navController.navigate("topic/$it") }, onOpenTopicTask = { topicId, taskId -> navController.navigate("topic/$topicId/task/$taskId") }, onOpenErrors = { navController.navigate("errors") }, onFocus = { navController.navigate("focus") }, onHelp = { viewModel.startTour(TourId.PLAN) }) }
                 composable("train") { TrainScreen(viewModel, onStart = { config -> navController.navigate("quiz/${config.count}/${config.topicId ?: 0}/${config.subjectId ?: 0}/${config.mode}/${Uri.encode(config.board ?: "_")}/${config.difficulty ?: "_"}") }, onHelp = { viewModel.startTour(TourId.TRAIN) }) }
                 composable("errors") { ErrorsScreen(viewModel, onTrainErrors = { navController.navigate("quiz/20/0/0/errors/_/_") }, onOpenTopic = { navController.navigate("topic/$it") }) }
-                composable("more") { MoreScreen(viewModel, onReviews = { navController.navigate("reviews") }, onStatistics = { navController.navigate("statistics") }, onNotifications = { navController.navigate("notifications") }, onErrors = { navController.navigate("errors") }, onProfile = { navController.navigate("profile") }, onSources = { navController.navigate("sources") }, onFocus = { navController.navigate("focus") }, onHelp = { viewModel.startTour(TourId.MORE) }) }
+                composable("more") { MoreScreen(viewModel) }
                 composable("topic/{id}") { backStack ->
                     val id = backStack.arguments?.getString("id")?.toLongOrNull() ?: 0
                     TopicDetailScreen(viewModel, id, onBack = { navController.popBackStack() }, onQuiz = { navController.navigate("quiz/15/$id/0/random/_/_") }, onTheory = { navController.navigate("theory/$it") }, onFocus = { navController.navigate("focus") })

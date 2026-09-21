@@ -28,7 +28,6 @@ import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FactCheck
 import androidx.compose.material.icons.outlined.HelpOutline
-import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.QueryStats
 import androidx.compose.material.icons.outlined.School
@@ -237,9 +236,15 @@ fun EstudarioTopBar(
             .padding(horizontal = EstudarioSpacing.small, vertical = EstudarioSpacing.tight),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconAction(Icons.Outlined.Menu, "Abrir menu", onOpenMenu)
-        Spacer(Modifier.width(EstudarioSpacing.hairline))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight)) {
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(50))
+                .clickable(onClick = onOpenMenu)
+                .semantics { contentDescription = "Abrir menu" }
+                .padding(horizontal = EstudarioSpacing.tight, vertical = EstudarioSpacing.tight),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight),
+        ) {
             EstudarioGlyph(size = 20.dp)
             Text("ESTUDÁRIO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
         }

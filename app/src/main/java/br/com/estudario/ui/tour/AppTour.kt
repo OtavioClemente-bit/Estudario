@@ -59,8 +59,8 @@ import kotlinx.coroutines.delay
 
 /**
  * Guias passo a passo, separados por contexto. Cada guia aparece sozinho na primeira vez em que
- * faz sentido (abrir o app, importar o edital, abrir Plano/Treinar/Mais) e pode ser repetido em
- * Mais › Como usar o app. A pessoa avança pelas setas do cartão; não precisa tocar nos botões
+ * faz sentido (abrir o app, importar o edital, abrir Plano ou Treinar) e pode ser repetido pelo
+ * seletor de ajuda. A pessoa avança pelas setas do cartão; não precisa tocar nos botões
  * reais. Quando o passo aponta para um elemento ([TourStep.key]), esse elemento reporta a própria
  * posição via [tourTarget] e o [TourOverlay] recorta um destaque em volta dele.
  */
@@ -155,7 +155,6 @@ fun tourForRoute(route: String?): TourId? = when (route) {
     "home" -> TourId.PROFILE
     "plan" -> TourId.PLAN
     "train" -> TourId.TRAIN
-    "more" -> TourId.MORE
     else -> null
 }
 

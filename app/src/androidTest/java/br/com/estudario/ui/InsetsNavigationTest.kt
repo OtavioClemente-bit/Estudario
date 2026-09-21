@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import br.com.estudario.ui.navigation.EstudarioTopBar
@@ -38,11 +39,12 @@ class InsetsNavigationTest {
 
     @Test
     fun topBarKeepsIdentityActionsAvailable() {
+        var menuOpened = false
         compose.setContent {
             EstudarioTheme(false) {
                 EstudarioTopBar(
                     profile = UserProfile(name = "Otávio"),
-                    onOpenMenu = {},
+                    onOpenMenu = { menuOpened = true },
                     onSearch = {},
                     onProfile = {},
                 )
@@ -52,5 +54,7 @@ class InsetsNavigationTest {
         compose.onNodeWithText("ESTUDÁRIO").assertExists()
         compose.onNodeWithContentDescription("Abrir menu").assertExists()
         compose.onNodeWithContentDescription("Pesquisar").assertExists()
+        compose.onNodeWithContentDescription("Abrir menu").performClick()
+        assertTrue(menuOpened)
     }
 }
