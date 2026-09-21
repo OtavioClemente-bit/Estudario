@@ -144,6 +144,59 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
     fun chooseSyllabusMethod(value: SyllabusMethod) = update { it.copy(syllabusMethod = value) }
     fun saveManualSubjects(value: List<String>) = update { it.copy(manualSubjects = value) }
     fun saveManualTopics(value: Map<String, List<String>>) = update { it.copy(manualTopics = value) }
+    fun renameManualSubject(oldName: String, newName: String) = update { current ->
+        val old = oldName.trim()
+        val new = newName.trim()
+        if (old.isBlank() || new.isBlank() || old.equals(new, ignoreCase = true)) current
+        else {
+            val subjects = current.manualSubjects.map { if (it.equals(old, ignoreCase = true)) new else it }
+            val topics = current.manualTopics.toMutableMap().apply {
+                val oldEntry = entries.firstOrNull { it.key.equals(old, ignoreCase = true) }
+                val oldTopics = oldEntry?.value
+                oldEntry?.key?.let(::remove)
+                if (oldTopics != null) put(new, oldTopics)
+            }
+            current.copy(manualSubjects = subjects, manualTopics = topics)
+        }
+    }
+    fun deleteManualSubject(subjectName: String) = update { current ->
+        val subject = subjectName.trim()
+        current.copy(
+            manualSubjects = current.manualSubjects.filterNot { it.equals(subject, ignoreCase = true) },
+            manualTopics = current.manualTopics.filterKeys { !it.equals(subject, ignoreCase = true) },
+        )
+    }
+    fun addManualTopic(subjectName: String, topic: String) = update { current ->
+        val subject = subjectName.trim()
+        val title = topic.trim()
+        if (subject.isBlank() || title.isBlank()) current
+        else current.copy(manualTopics = current.manualTopics.toMutableMap().apply {
+            val existing = entries.firstOrNull { it.key.equals(subject, ignoreCase = true) }
+            val key = existing?.key ?: subject
+            val topics = existing?.value.orEmpty()
+            if (topics.none { it.equals(title, ignoreCase = true) }) put(key, topics + title)
+        })
+    }
+    fun renameManualTopic(subjectName: String, index: Int, newTitle: String) = update { current ->
+        val subject = subjectName.trim()
+        val title = newTitle.trim()
+        val entry = current.manualTopics.entries.firstOrNull { it.key.equals(subject, ignoreCase = true) }
+        if (entry == null || title.isBlank() || index !in entry.value.indices) current
+        else current.copy(manualTopics = current.manualTopics.toMutableMap().apply {
+            val topics = entry.value.toMutableList()
+            if (topics.withIndex().any { it.index != index && it.value.equals(title, ignoreCase = true) }) return@update current
+            topics[index] = title
+            put(entry.key, topics)
+        })
+    }
+    fun deleteManualTopic(subjectName: String, index: Int) = update { current ->
+        val entry = current.manualTopics.entries.firstOrNull { it.key.equals(subjectName.trim(), ignoreCase = true) }
+            ?: return@update current
+        if (index !in entry.value.indices) current
+        else current.copy(manualTopics = current.manualTopics.toMutableMap().apply {
+            put(entry.key, entry.value.toMutableList().apply { removeAt(index) })
+        })
+    }
     fun chooseProfile(value: br.com.estudario.domain.planner.StudyProfile) = update { it.copy(studyProfile = value) }
     fun chooseSessionMinutes(value: Int) = update { it.copy(sessionMinutes = value.coerceIn(15, 180)) }
     fun choosePlanMethod(value: PlanCreationMethod) = update { it.copy(planMethod = value) }
@@ -178,6 +231,10 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
         } catch (error: Exception) {
             SetupOperation.Error(error.message ?: "Não foi possível analisar este arquivo .estudo.")
         }
+    }
+
+    fun adoptEstudoPreview(raw: String, preview: EstudoPreview) {
+        _operation.value = SetupOperation.Preview(raw, preview)
     }
 
     fun inspectPlan(raw: String) = viewModelScope.launch {

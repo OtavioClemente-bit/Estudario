@@ -79,7 +79,7 @@ fun EstudarioApp(viewModel: AppViewModel) {
             onboardingConcluido == false -> OnboardingFlow(viewModel) { viewModel.completeOnboarding() }
             initialSetup?.status == InitialSetupStatus.IN_PROGRESS ||
                 (initialSetup?.status == InitialSetupStatus.NOT_STARTED && hasExistingWorkspace == false) ->
-                InitialSetupFlow(setupViewModel) { }
+                InitialSetupFlow(setupViewModel, viewModel) { }
             // O tour guiado (replay em Ajustes > Como usar o app) roda dentro da própria navegação
             // principal, destacando os botões reais - ver MainNavigation.
             else -> MainNavigation(viewModel)

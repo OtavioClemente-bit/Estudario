@@ -94,6 +94,8 @@ import br.com.estudario.domain.setup.InitialSetupStatus
 import br.com.estudario.domain.setup.InitialSetupStep
 import br.com.estudario.domain.setup.PlanCreationMethod
 import br.com.estudario.domain.setup.SyllabusMethod
+import br.com.estudario.ui.AppViewModel
+import br.com.estudario.ui.TransferState
 import br.com.estudario.ui.prompt.sharePromptWithAi
 import br.com.estudario.ui.components.LoadingDialog
 import kotlinx.coroutines.Dispatchers
@@ -116,11 +118,13 @@ private val visibleSteps = listOf(
 @Composable
 fun InitialSetupFlow(
     viewModel: InitialSetupViewModel,
+    appViewModel: AppViewModel,
     onFinished: () -> Unit,
 ) {
     val uiState by viewModel.state.collectAsState()
     val snapshot = uiState.snapshot
     val operation by viewModel.operation.collectAsState()
+    val incomingTransfer by appViewModel.transfer.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
@@ -133,6 +137,19 @@ fun InitialSetupFlow(
         snackbar.showSnackbar(message)
         viewModel.clearOperation()
     }
+    LaunchedEffect(incomingTransfer, snapshot.step) {
+        when (val incoming = incomingTransfer) {
+            is TransferState.Preview -> if (snapshot.step == InitialSetupStep.SYLLABUS_METHOD) {
+                viewModel.adoptEstudoPreview(incoming.raw, incoming.value)
+                appViewModel.clearTransfer()
+            }
+            is TransferState.Error -> {
+                viewModel.reportError(incoming.message)
+                appViewModel.clearTransfer()
+            }
+            else -> Unit
+        }
+    }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -142,7 +159,8 @@ fun InitialSetupFlow(
                     context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
                         ?: error("Não consegui ler esse arquivo.")
                 }
-                viewModel.inspectEstudo(raw)
+                if (snapshot.step == InitialSetupStep.PLAN_METHOD) viewModel.inspectPlan(raw)
+                else viewModel.inspectEstudo(raw)
             }.onFailure { viewModel.reportError(it.message ?: "Não consegui ler esse arquivo.") }
         }
     }
@@ -323,8 +341,8 @@ private fun SyllabusMethodStep(
 ) {
     var pastedText by rememberSaveable { mutableStateOf("") }
     val method = when (snapshot.syllabusMethod) {
-        // Configurações iniciadas em uma versão anterior seguem pelo fluxo unificado de IA.
-        SyllabusMethod.CHATGPT, SyllabusMethod.MANUAL -> SyllabusMethod.DIRECT_AI
+        // Configurações iniciadas em uma versão anterior que apontavam para o ChatGPT seguem pelo fluxo unificado de IA.
+        SyllabusMethod.CHATGPT -> SyllabusMethod.DIRECT_AI
         else -> snapshot.syllabusMethod
     }
     SetupPage(
@@ -342,6 +360,7 @@ private fun SyllabusMethodStep(
     ) {
         SyllabusChoice("Gerar com IA", "Copiar um prompt estruturado e importar o .estudo gerado.", Icons.Outlined.AutoAwesome, method == SyllabusMethod.DIRECT_AI) { viewModel.chooseSyllabusMethod(SyllabusMethod.DIRECT_AI) }
         SyllabusChoice("Importar arquivo .estudo", "Use um edital que você já tenha gerado ou recebido.", Icons.Outlined.UploadFile, method == SyllabusMethod.IMPORT_ESTUDO) { viewModel.chooseSyllabusMethod(SyllabusMethod.IMPORT_ESTUDO) }
+        SyllabusChoice("Montar manualmente", "Crie matérias e tópicos agora e edite tudo antes de continuar.", Icons.Outlined.School, method == SyllabusMethod.MANUAL) { viewModel.chooseSyllabusMethod(SyllabusMethod.MANUAL) }
 
         when (method) {
             SyllabusMethod.DIRECT_AI -> {
@@ -361,10 +380,164 @@ private fun SyllabusMethodStep(
                     onInspect = { viewModel.inspectEstudo(pastedText) },
                 )
             }
-            SyllabusMethod.MANUAL, SyllabusMethod.CHATGPT -> Unit
+            SyllabusMethod.MANUAL -> ManualSyllabusEditor(snapshot, viewModel)
+            SyllabusMethod.CHATGPT -> Unit
             null -> Text("Escolha um caminho para continuar.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (operation is SetupOperation.Success) Text((operation as SetupOperation.Success).message, color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+@Composable
+private fun ManualSyllabusEditor(snapshot: InitialSetupSnapshot, viewModel: InitialSetupViewModel) {
+    var selectedSubject by rememberSaveable { mutableStateOf("") }
+    var newSubject by rememberSaveable { mutableStateOf("") }
+    var editingSubject by rememberSaveable { mutableStateOf<String?>(null) }
+    var editingSubjectDraft by rememberSaveable { mutableStateOf("") }
+    var newTopic by rememberSaveable { mutableStateOf("") }
+    var editingTopicIndex by rememberSaveable { mutableStateOf(-1) }
+    var editingTopicDraft by rememberSaveable { mutableStateOf("") }
+    val subjects = snapshot.manualSubjects
+
+    LaunchedEffect(subjects) {
+        if (selectedSubject.isBlank() || subjects.none { it.equals(selectedSubject, ignoreCase = true) }) {
+            selectedSubject = subjects.firstOrNull().orEmpty()
+        }
+        if (editingSubject != null && subjects.none { it.equals(editingSubject, ignoreCase = true) }) {
+            editingSubject = null
+        }
+    }
+
+    val topics = snapshot.manualTopics.entries
+        .firstOrNull { it.key.equals(selectedSubject, ignoreCase = true) }
+        ?.value
+        .orEmpty()
+
+    SetupCard {
+        Text("Matérias", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text("Adicione, renomeie ou remova matérias. Depois escolha uma para organizar seus tópicos.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = newSubject,
+                onValueChange = { newSubject = it },
+                modifier = Modifier.weight(1f),
+                label = { Text("Nova matéria") },
+                singleLine = true,
+            )
+            Button(
+                onClick = {
+                    val clean = newSubject.trim()
+                    if (clean.isNotBlank() && subjects.none { it.equals(clean, ignoreCase = true) }) {
+                        viewModel.saveManualSubjects(subjects + clean)
+                        selectedSubject = clean
+                        newSubject = ""
+                    }
+                },
+                enabled = newSubject.trim().isNotBlank() && subjects.none { it.equals(newSubject.trim(), ignoreCase = true) },
+            ) { Text("Adicionar") }
+        }
+        if (subjects.isEmpty()) {
+            Text("Ainda não há matérias. Comece adicionando uma acima.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        subjects.forEach { subject ->
+            if (editingSubject?.equals(subject, ignoreCase = true) == true) {
+                OutlinedTextField(
+                    value = editingSubjectDraft,
+                    onValueChange = { editingSubjectDraft = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Nome da matéria") },
+                    singleLine = true,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            val clean = editingSubjectDraft.trim()
+                            if (clean.isNotBlank() && subjects.none { !it.equals(subject, ignoreCase = true) && it.equals(clean, ignoreCase = true) }) {
+                                viewModel.renameManualSubject(subject, clean)
+                                selectedSubject = clean
+                                editingSubject = null
+                            }
+                        },
+                        enabled = editingSubjectDraft.trim().isNotBlank(),
+                    ) { Text("Salvar") }
+                    TextButton(onClick = { editingSubject = null }) { Text("Cancelar") }
+                }
+            } else {
+                ElevatedCard(
+                    onClick = { selectedSubject = subject },
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = if (subject.equals(selectedSubject, ignoreCase = true)) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+                    ),
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(subject, fontWeight = FontWeight.SemiBold)
+                        Text(if (subject.equals(selectedSubject, ignoreCase = true)) "Matéria selecionada" else "Toque para editar os tópicos", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            TextButton(onClick = { editingSubject = subject; editingSubjectDraft = subject }) { Text("Editar") }
+                            TextButton(onClick = { viewModel.deleteManualSubject(subject) }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (selectedSubject.isNotBlank() && subjects.any { it.equals(selectedSubject, ignoreCase = true) }) {
+        SetupCard {
+            Text("Tópicos de $selectedSubject", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text("Inclua, edite ou exclua cada tópico individualmente.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = newTopic,
+                    onValueChange = { newTopic = it },
+                    modifier = Modifier.weight(1f),
+                    label = { Text("Novo tópico") },
+                    singleLine = true,
+                )
+                Button(
+                    onClick = {
+                        val clean = newTopic.trim()
+                        if (clean.isNotBlank() && topics.none { it.equals(clean, ignoreCase = true) }) {
+                            viewModel.addManualTopic(selectedSubject, clean)
+                            newTopic = ""
+                        }
+                    },
+                    enabled = newTopic.trim().isNotBlank() && topics.none { it.equals(newTopic.trim(), ignoreCase = true) },
+                ) { Text("Adicionar") }
+            }
+            if (topics.isEmpty()) {
+                Text("Ainda não há tópicos nesta matéria.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            topics.forEachIndexed { index, topic ->
+                if (editingTopicIndex == index) {
+                    OutlinedTextField(
+                        value = editingTopicDraft,
+                        onValueChange = { editingTopicDraft = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Nome do tópico") },
+                        singleLine = true,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                if (editingTopicDraft.trim().isNotBlank()) {
+                                    viewModel.renameManualTopic(selectedSubject, index, editingTopicDraft)
+                                    editingTopicIndex = -1
+                                }
+                            },
+                            enabled = editingTopicDraft.trim().isNotBlank(),
+                        ) { Text("Salvar") }
+                        TextButton(onClick = { editingTopicIndex = -1 }) { Text("Cancelar") }
+                    }
+                } else {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(topic, Modifier.weight(1f))
+                        TextButton(onClick = { editingTopicIndex = index; editingTopicDraft = topic }) { Text("Editar") }
+                        TextButton(onClick = { viewModel.deleteManualTopic(selectedSubject, index) }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
+                    }
+                }
+            }
+        }
     }
 }
 
