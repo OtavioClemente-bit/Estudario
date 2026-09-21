@@ -29,7 +29,32 @@ fun CalendarScreen(
     onToggleLock: (String, Boolean) -> Unit,
     onToggleDayLock: (LocalDate, Boolean) -> Unit,
     onGenerate: () -> Unit,
-    onSyncCalendar: () -> Unit
+) {
+    // Os chips "Acompanhe seu plano" (Hoje/Semana/Mês/Visão geral) escolhem qual destas visões
+    // aparece — antes eles só destacavam o próprio chip e a tela sempre mostrava o dia selecionado.
+    when (state.selectedSection) {
+        PlanSection.TODAY -> DayPlanView(
+            state = state,
+            onFocus = onFocus,
+            onReprogram = onReprogram,
+            onSkip = onSkip,
+            onToggleDayLock = onToggleDayLock,
+            onGenerate = onGenerate,
+        )
+        PlanSection.WEEK -> WeekPlanView(state = state, onFocus = onFocus, onGenerate = onGenerate)
+        PlanSection.MONTH -> MonthPlanView(state = state, onFocus = onFocus, onGenerate = onGenerate)
+        PlanSection.YEAR -> OverviewPlanView(state = state)
+    }
+}
+
+@Composable
+private fun DayPlanView(
+    state: ActivePlanUiState,
+    onFocus: (PlannerTaskUi) -> Unit,
+    onReprogram: (PlannerTaskUi) -> Unit,
+    onSkip: (PlannerTaskUi) -> Unit,
+    onToggleDayLock: (LocalDate, Boolean) -> Unit,
+    onGenerate: () -> Unit,
 ) {
     var selectedDate by remember { mutableStateOf(state.today) }
     
@@ -161,42 +186,169 @@ fun CalendarScreen(
             }
         }
 
-        // Integração e Previsão (só mostra no "Hoje")
-        if (selectedDate == state.today) {
+    }
+}
+
+// ---------------------------------------------------------------- semana
+
+@Composable
+private fun WeekPlanView(
+    state: ActivePlanUiState,
+    onFocus: (PlannerTaskUi) -> Unit,
+    onGenerate: () -> Unit,
+) {
+    val weekStart = state.weekStart
+    val weekEnd = weekStart.plusDays(6)
+    val weekTasks = state.weekTasks
+    val plannedMinutes = weekTasks.sumOf { it.entity.plannedMinutes }
+    val actualMinutes = weekTasks.sumOf { it.actualMinutes }
+    val completionPercent = if (weekTasks.isEmpty()) 0 else (weekTasks.count { it.entity.status == br.com.estudario.domain.planner.PlanTaskStatus.CONCLUIDA } * 100) / weekTasks.size
+    val byDay = weekTasks.groupBy { LocalDate.ofEpochDay(it.entity.scheduledEpochDay) }
+    val dayNames = listOf("Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo")
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        item {
+            Text(
+                "Semana de ${weekStart.dayOfMonth} a ${weekEnd.dayOfMonth} de ${weekEnd.month.getDisplayName(TextStyle.FULL, Locale("pt", "BR")).replaceFirstChar { it.uppercase() }}",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        item { PlannerSummary(plannedMinutes = plannedMinutes, actualMinutes = actualMinutes, completionPercent = completionPercent) }
+        if (weekTasks.isEmpty()) {
+            item { EmptyState("Semana livre", "Não há tarefas planejadas para esta semana.", "Gerar planejamento", onGenerate) }
+        } else {
+            (0..6).forEach { offset ->
+                val date = weekStart.plusDays(offset.toLong())
+                val tasks = byDay[date].orEmpty()
+                if (tasks.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = dayNames[offset] + " • ${date.dayOfMonth}/${date.monthValue}" + if (date == state.today) " (hoje)" else "",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (date == state.today) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                    items(tasks, key = { "week_${it.entity.id}" }) { taskUi ->
+                        MissionCard(taskUi = taskUi, onStart = { onFocus(taskUi) })
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- mês
+
+@Composable
+private fun MonthPlanView(
+    state: ActivePlanUiState,
+    onFocus: (PlannerTaskUi) -> Unit,
+    onGenerate: () -> Unit,
+) {
+    val monthTasks = state.monthTasks
+    val plannedMinutes = monthTasks.sumOf { it.entity.plannedMinutes }
+    val actualMinutes = monthTasks.sumOf { it.actualMinutes }
+    val completionPercent = if (monthTasks.isEmpty()) 0 else (monthTasks.count { it.entity.status == br.com.estudario.domain.planner.PlanTaskStatus.CONCLUIDA } * 100) / monthTasks.size
+    val monthLabel = state.today.month.getDisplayName(TextStyle.FULL, Locale("pt", "BR")).replaceFirstChar { it.uppercase() }
+    val upcoming = monthTasks
+        .filter { it.entity.scheduledEpochDay >= state.today.toEpochDay() && it.entity.status != br.com.estudario.domain.planner.PlanTaskStatus.CONCLUIDA }
+        .sortedBy { it.entity.scheduledEpochDay }
+    val bySubject = monthTasks
+        .groupBy { it.entity.subjectNameSnapshot }
+        .map { (name, tasks) -> name to tasks.sumOf { it.entity.plannedMinutes } }
+        .sortedByDescending { it.second }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        item { Text("$monthLabel de ${state.today.year}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+        item { PlannerSummary(plannedMinutes = plannedMinutes, actualMinutes = actualMinutes, completionPercent = completionPercent) }
+        if (bySubject.isNotEmpty()) {
+            item { Text("Distribuição por matéria", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
             item {
-                ElevatedCard(
-                    Modifier.fillMaxWidth().padding(top = 16.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Outlined.EventAvailable, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Text("Previsão de conclusão", fontWeight = FontWeight.Bold)
-                        }
-                        Text(
-                            text = state.forecastDate?.let {
-                                "Com sua disponibilidade de tempo e o tamanho do edital atual, a demanda terminará aproximadamente em ${forecastDateLabelPtBr(it)}."
-                            } ?: "A previsão depende da análise do edital com a disponibilidade cadastrada.",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        
-                        Divider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
-                        
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Outlined.Sync, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Text("Sincronizar com a Agenda", fontWeight = FontWeight.Bold)
-                        }
-                        Text(
-                            text = "Exporte e mantenha suas missões diárias sincronizadas com o Google Calendar / Agenda nativa do seu celular.",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Button(
-                            onClick = onSyncCalendar,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Ativar Sincronização")
+                ElevatedCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        bySubject.forEach { (name, minutes) ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                                Text(minutesLabel(minutes), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
+                }
+            }
+        }
+        if (upcoming.isEmpty()) {
+            item { EmptyState("Nada planejado à frente", "Não há tarefas futuras neste mês.", "Gerar planejamento", onGenerate) }
+        } else {
+            item { Text("Próximas missões do mês", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
+            items(upcoming, key = { "month_${it.entity.id}" }) { taskUi ->
+                MissionCard(taskUi = taskUi, onStart = { onFocus(taskUi) })
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- visão geral
+
+@Composable
+private fun OverviewPlanView(state: ActivePlanUiState) {
+    val totalTasks = state.tasks.size
+    val completedTasks = state.tasks.count { it.entity.status == br.com.estudario.domain.planner.PlanTaskStatus.CONCLUIDA }
+    val completionPercent = if (totalTasks == 0) 0 else (completedTasks * 100 / totalTasks)
+    val plannedMinutes = state.tasks.sumOf { it.entity.plannedMinutes }
+    val actualMinutes = state.tasks.sumOf { it.actualMinutes }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        item { Text("Visão geral do plano", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+        item {
+            Text(
+                "$completedTasks de $totalTasks missões concluídas desde o início do plano.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        item { PlannerSummary(plannedMinutes = plannedMinutes, actualMinutes = actualMinutes, completionPercent = completionPercent) }
+        item {
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Outlined.EventAvailable, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Text("Previsão de conclusão", fontWeight = FontWeight.Bold)
+                    }
+                    Text(
+                        state.forecastDate?.let { "Com o seu ritmo atual, a demanda termina aproximadamente em ${forecastDateLabelPtBr(it)}." }
+                            ?: "A previsão depende da análise do edital com a disponibilidade cadastrada.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+        }
+        if (state.masterAlerts.isNotEmpty()) {
+            item { Text("Alertas do plano mestre", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) }
+            items(state.masterAlerts, key = { "alert_${it.subjectName}" }) { alert ->
+                ElevatedCard(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                ) {
+                    Text(
+                        "${alert.subjectName} sem estudo há ${alert.inactiveDays} dias.",
+                        modifier = Modifier.padding(16.dp),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
                 }
             }
         }

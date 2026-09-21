@@ -14,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.*
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import br.com.estudario.ui.screens.*
 import br.com.estudario.ui.focus.FocusScreen
 import br.com.estudario.ui.theme.EstudarioTheme
@@ -151,6 +153,11 @@ private fun MainNavigation(viewModel: AppViewModel) {
     val drawerScope = rememberCoroutineScope()
     val profile by viewModel.profile.collectAsState()
     val progress by viewModel.progress.collectAsState()
+    val calendarPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { permissions ->
+        if (permissions.entries.all { it.value }) planViewModel.generate()
+    }
     fun abrirDoMenu(route: String) {
         drawerScope.launch { drawerState.close() }
         navController.navigate(route) { launchSingleTop = true }
@@ -158,6 +165,17 @@ private fun MainNavigation(viewModel: AppViewModel) {
     fun abrirAbaDoMenu(route: String) {
         drawerScope.launch { drawerState.close() }
         navController.navigate(route) { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true }
+    }
+    fun sincronizarAgenda() {
+        drawerScope.launch {
+            drawerState.close()
+            calendarPermissionLauncher.launch(
+                arrayOf(
+                    android.Manifest.permission.READ_CALENDAR,
+                    android.Manifest.permission.WRITE_CALENDAR,
+                ),
+            )
+        }
     }
     Box(Modifier.fillMaxSize()) {
         ModalNavigationDrawer(
@@ -183,6 +201,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         onSources = { abrirDoMenu("sources") },
                         onSettings = { abrirDoMenu("more") },
                         onNotifications = { abrirDoMenu("notifications") },
+                        onSyncCalendar = ::sincronizarAgenda,
                         onHelp = { drawerScope.launch { drawerState.close() }; showTourPicker = true },
                     ),
                     appVersion = "Estudário 2.2.0 · Local-first",

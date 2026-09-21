@@ -25,7 +25,6 @@ class PlanHierarchyScreensTest {
                     onToggleLock = { _, _ -> },
                     onToggleDayLock = { _, _ -> },
                     onGenerate = {},
-                    onSyncCalendar = {},
                 )
             }
         }
@@ -33,9 +32,8 @@ class PlanHierarchyScreensTest {
         compose.onNodeWithText("Ver mês").assertExists()
     }
 
-    @Test fun emptyDayKeepsPortugueseActionsAndCalendarCallbackSafe() {
+    @Test fun emptyDayKeepsPortugueseActionsWithoutAgendaActionOnPlan() {
         var generateClicks = 0
-        var syncClicks = 0
         compose.setContent {
             EstudarioTheme(false) {
                 CalendarScreen(
@@ -49,14 +47,12 @@ class PlanHierarchyScreensTest {
                     onToggleLock = { _, _ -> },
                     onToggleDayLock = { _, _ -> },
                     onGenerate = { generateClicks++ },
-                    onSyncCalendar = { syncClicks++ },
                 )
             }
         }
 
         compose.onNodeWithText("Gerar planejamento").performClick()
-        compose.onNodeWithText("Ativar Sincronização").performClick()
         assertEquals(1, generateClicks)
-        assertEquals(1, syncClicks)
+        compose.onNodeWithText("Sincronizar com a agenda").assertDoesNotExist()
     }
 }

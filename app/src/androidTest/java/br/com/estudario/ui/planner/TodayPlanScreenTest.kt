@@ -31,7 +31,6 @@ class TodayPlanScreenTest {
                     onToggleLock = { _, _ -> },
                     onToggleDayLock = { _, _ -> },
                     onGenerate = {},
-                    onSyncCalendar = {},
                 )
             }
         }

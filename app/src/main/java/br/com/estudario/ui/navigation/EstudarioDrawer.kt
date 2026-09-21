@@ -183,6 +183,7 @@ fun estudarioDrawerSections(
     onSources: () -> Unit,
     onSettings: () -> Unit,
     onNotifications: () -> Unit,
+    onSyncCalendar: () -> Unit,
     onHelp: () -> Unit,
 ): List<DrawerSection> = listOf(
     DrawerSection(
@@ -209,6 +210,7 @@ fun estudarioDrawerSections(
         listOf(
             DrawerEntry("Ajustes", Icons.Outlined.Tune, onSettings, "more"),
             DrawerEntry("Notificações", Icons.Outlined.NotificationsActive, onNotifications, "notifications"),
+            DrawerEntry("Sincronizar com a agenda", Icons.Outlined.Autorenew, onSyncCalendar),
             DrawerEntry("Como usar o app", Icons.Outlined.HelpOutline, onHelp),
         ),
     ),
@@ -275,7 +277,7 @@ private fun DrawerPreview() {
             level = 14,
             totalXp = 1840,
             currentRoute = "plan",
-            sections = estudarioDrawerSections({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}),
+            sections = estudarioDrawerSections({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}),
             appVersion = "Estudário 2.2.0 · Local-first",
             onOpenProfile = {},
         )
@@ -291,7 +293,7 @@ private fun DrawerLocalDarkPreview() {
             level = null,
             totalXp = null,
             currentRoute = "home",
-            sections = estudarioDrawerSections({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}),
+            sections = estudarioDrawerSections({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}),
             appVersion = "Estudário 2.2.0 · Local-first",
             onOpenProfile = {},
         )

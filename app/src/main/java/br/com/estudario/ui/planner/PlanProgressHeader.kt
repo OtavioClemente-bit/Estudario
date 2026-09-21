@@ -6,15 +6,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.EventAvailable
-import androidx.compose.material.icons.outlined.Flag
-import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -35,91 +28,83 @@ fun PlanProgressHeader(state: ActivePlanUiState, modifier: Modifier = Modifier) 
 
     ElevatedCard(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Progresso do plano", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("Progresso do plano", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     Text(
                         state.activePlan?.name ?: "Seu planejamento de estudos",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        maxLines = 2,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
                     )
                 }
                 Surface(
-                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    color = MaterialTheme.colorScheme.primaryContainer,
                     shape = MaterialTheme.shapes.small,
                 ) {
                     Text(
-                        state.selectedSection.label,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        "$completionPercent%",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Medium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
                 }
             }
 
             LinearProgressIndicator(
                 progress = { completionPercent / 100f },
-                modifier = Modifier.fillMaxWidth().height(8.dp),
+                modifier = Modifier.fillMaxWidth().height(6.dp),
             )
-            Text(
-                "$completedTasks de $totalTasks missões concluídas · $completionPercent% do plano",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-            )
-
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                PlanMetric(
-                    modifier = Modifier.weight(1f),
-                    icon = { Icon(Icons.Outlined.Flag, contentDescription = null) },
-                    value = "$completedTasks/$totalTasks",
-                    label = "Missões",
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Text(
+                    "$completedTasks de $totalTasks missões concluídas",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                PlanMetric(
-                    modifier = Modifier.weight(1f),
-                    icon = { Icon(Icons.Outlined.Schedule, contentDescription = null) },
-                    value = minutesLabelPtBr(plannedMinutes),
-                    label = "Tempo planejado",
-                )
-                PlanMetric(
-                    modifier = Modifier.weight(1f),
-                    icon = { Icon(Icons.Outlined.Timer, contentDescription = null) },
-                    value = minutesLabelPtBr(actualMinutes),
-                    label = "Tempo realizado",
-                )
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.16f))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Icon(Icons.Outlined.EventAvailable, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("Previsão de conclusão", fontWeight = FontWeight.Bold)
+                Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
                     Text(
-                        state.forecastDate?.let(::forecastDateLabelPtBr) ?: "Ainda calculando com sua disponibilidade",
-                        style = MaterialTheme.typography.bodyMedium,
+                        "Previsão de conclusão",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        state.forecastDate?.let(::forecastDateLabelPtBr) ?: "Calculando…",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                PlanMetric("Planejado", minutesLabelPtBr(plannedMinutes), Modifier.weight(1f))
+                PlanMetric("Realizado", minutesLabelPtBr(actualMinutes), Modifier.weight(1f))
+                PlanMetric("Visão", state.selectedSection.label, Modifier.weight(1f))
             }
         }
     }
 }
 
 @Composable
-private fun PlanMetric(
-    modifier: Modifier,
-    icon: @Composable () -> Unit,
-    value: String,
-    label: String,
-) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        icon()
-        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun PlanMetric(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(value, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

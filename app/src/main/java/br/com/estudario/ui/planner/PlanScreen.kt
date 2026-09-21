@@ -43,7 +43,7 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
 @Composable
-fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpenTopic: (Long) -> Unit, onOpenErrors: () -> Unit = {}, onFocus: () -> Unit = {}, onHelp: () -> Unit = {}) {
+fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpenTopic: (Long) -> Unit, onOpenTopicTask: (Long, String) -> Unit = { id, _ -> onOpenTopic(id) }, onOpenErrors: () -> Unit = {}, onFocus: () -> Unit = {}, onHelp: () -> Unit = {}) {
     val state by viewModel.state.collectAsState()
     val transfer by viewModel.transfer.collectAsState()
     val busy by viewModel.busy.collectAsState()
@@ -51,14 +51,6 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
     val subjects by viewModel.subjects.collectAsState()
     val topics by viewModel.topics.collectAsState()
     val tourStep by appViewModel.tourStep.collectAsState()
-    val calendarPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val granted = permissions.entries.all { it.value }
-        if (granted) {
-            viewModel.generate() // Dispara a sincronização
-        }
-    }
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var wizard by remember { mutableStateOf(false) }
@@ -153,7 +145,7 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
         } else {
             if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
             Column(Modifier.fillMaxSize()) {
-                PlanProgressHeader(state = state, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+                PlanProgressHeader(state = state, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                 PlanSectionSelector(
                     selected = state.selectedSection,
                     onSelected = viewModel::selectSection,
@@ -165,12 +157,19 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
                     onStart = viewModel::start,
                     onFocus = { row ->
                         if (row.entity.status == PlanTaskStatus.PLANEJADA) viewModel.start(row.entity.id)
-                        appViewModel.startFocus(
-                            title = listOfNotNull(row.entity.subjectNameSnapshot, row.entity.topicNameSnapshot).joinToString(" › ").ifBlank { "Tarefa do plano" },
-                            topicId = row.entity.topicId,
-                            taskId = row.entity.id,
-                        )
-                        onFocus()
+                        val topicId = row.entity.topicId
+                        if (topicId != null) {
+                            // Mesmo ajuste da tela inicial: começar leva para o tópico (onde está o
+                            // conteúdo), não direto para um cronômetro em branco.
+                            onOpenTopicTask(topicId, row.entity.id)
+                        } else {
+                            appViewModel.startFocus(
+                                title = listOfNotNull(row.entity.subjectNameSnapshot, row.entity.topicNameSnapshot).joinToString(" › ").ifBlank { "Tarefa do plano" },
+                                topicId = null,
+                                taskId = row.entity.id,
+                            )
+                            onFocus()
+                        }
                     },
                     onComplete = { completion = it },
                     onReprogram = { reprogram = it },
@@ -178,14 +177,6 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
                     onToggleLock = viewModel::toggleTaskLock,
                     onToggleDayLock = viewModel::toggleDayLock,
                     onGenerate = viewModel::generate,
-                    onSyncCalendar = {
-                        calendarPermissionLauncher.launch(
-                            arrayOf(
-                                android.Manifest.permission.READ_CALENDAR,
-                                android.Manifest.permission.WRITE_CALENDAR
-                            )
-                        )
-                    }
                 )
             }
         }
@@ -194,8 +185,11 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
 
 @Composable
 private fun PlanSectionSelector(selected: PlanSection, onSelected: (PlanSection) -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Acompanhe seu plano", style = MaterialTheme.typography.titleSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Visão do plano", style = MaterialTheme.typography.titleSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+            Text("Tudo organizado por período", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PlanSection.entries.forEach { section ->
                 FilterChip(
