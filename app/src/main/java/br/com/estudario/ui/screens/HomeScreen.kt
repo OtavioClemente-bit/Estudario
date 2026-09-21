@@ -33,6 +33,7 @@ import br.com.estudario.ui.screens.home.HomeMetrics
 import br.com.estudario.ui.screens.home.HomeNoContestState
 import br.com.estudario.ui.screens.home.calculateHomeMetrics
 import br.com.estudario.ui.screens.home.HomeSectionLink
+import br.com.estudario.ui.screens.home.JourneySnapshot
 import br.com.estudario.ui.screens.home.LevelRow
 import br.com.estudario.ui.screens.home.NextUpStrip
 import br.com.estudario.ui.screens.home.NextUpUi
@@ -63,13 +64,14 @@ import java.time.LocalDate
  * Composição, de cima para baixo:
  *
  * 1. [HomeHeader]              — saudação discreta e o concurso ativo.
- * 2. [CurrentStudySection]     — AGORA: a única coisa com peso máximo na tela.
- * 3. [NextUpStrip]             — a continuidade, em duas linhas. Nunca a agenda inteira.
- * 4. [SyllabusCoverage]        — o edital como barra segmentada por matéria, cobertura e domínio.
- * 5. [PaceForecast]            — quando o edital fecha, e o que isso significa perto da prova.
- * 6. [PerformanceAndStanding]  — acerto recente e constância, dois números escolhidos.
- * 7. [HomeAttention]           — revisões, erros e ponto frágil, no rodapé.
- * 8. [LevelRow]                — nível e XP, discretos, fechando a tela.
+ * 2. [JourneySnapshot]          — onde a pessoa está no edital e na própria evolução.
+ * 3. [CurrentStudySection]      — AGORA: a única coisa com peso máximo na tela.
+ * 4. [NextUpStrip]              — a continuidade, sem esconder atividades.
+ * 5. [SyllabusCoverage]         — o edital completo, matéria por matéria.
+ * 6. [PaceForecast]             — quando o edital fecha, e o que isso significa perto da prova.
+ * 7. [PerformanceAndStanding]   — acerto recente e constância, dois números escolhidos.
+ * 8. [LevelRow]                 — nível e XP, discretos, fechando a evolução.
+ * 9. [HomeAttention]            — revisões, erros e ponto frágil, no rodapé.
  */
 @Composable
 fun HomeScreen(
@@ -145,6 +147,17 @@ fun HomeScreen(
 
         item {
             Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
+                JourneySnapshot(
+                    coverage = coverageUi(metrics),
+                    standing = standingUi(streak, progress),
+                )
+            }
+        }
+
+        item { Spacer(Modifier.height(EstudarioSpacing.medium)) }
+
+        item {
+            Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
                 CurrentStudySection(
                     state = currentStudy,
                     onPrimaryAction = {
@@ -207,11 +220,15 @@ fun HomeScreen(
             }
         }
 
+        item { Spacer(Modifier.height(EstudarioSpacing.large)) }
+
         item {
             Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
-                HomeDivider(Modifier.padding(vertical = EstudarioSpacing.large))
+                LevelRow(standing = standingUi(streak, progress), onOpenProfile = onProfile)
             }
         }
+
+        item { Spacer(Modifier.height(EstudarioSpacing.large)) }
 
         item {
             val atual = metrics
@@ -225,14 +242,6 @@ fun HomeScreen(
                     onOpenErrors = onErrors,
                     onOpenWeakTopic = { atual?.weakTopicId?.let(onTopic) },
                 )
-            }
-        }
-
-        item { Spacer(Modifier.height(EstudarioSpacing.large)) }
-
-        item {
-            Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
-                LevelRow(standing = standingUi(streak, progress), onOpenProfile = onProfile)
             }
         }
 
@@ -277,13 +286,13 @@ private fun currentStudyState(planState: ActivePlanUiState, focusTask: PlannerTa
     return CurrentStudyUiState.Ready(task = focusTask.toStudyTaskUi(), progressFraction = progressFraction)
 }
 
-/** As próximas de hoje, sem a de agora — no máximo duas chegam à tela. */
+/** As próximas de hoje, sem a de agora — a aba Plano continua sendo o lugar do cronograma completo. */
 private fun nextUpToday(planState: ActivePlanUiState, focusTask: PlannerTaskUi?): NextUpUi {
     val pendentes = planState.todayTasks.filter {
         it.entity.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO) &&
             it.entity.id != focusTask?.entity?.id
     }
-    return NextUpUi(items = pendentes.take(2).map { it.toStudyTaskUi() }, remainingToday = pendentes.size)
+    return NextUpUi(items = pendentes.map { it.toStudyTaskUi() }, remainingToday = pendentes.size)
 }
 
 private fun PlannerTaskUi.toStudyTaskUi(): StudyTaskUi = StudyTaskUi(
