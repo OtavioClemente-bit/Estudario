@@ -175,7 +175,11 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
                 }
             }
             item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     selectedCompetition?.let { competition ->
                         AssistChip(
                             onClick = { priorityTarget = PriorityTarget.Competition(competition, competition.priorityState()) },
@@ -185,7 +189,14 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
                     }
                     OutlinedButton(onClick = { viewModel.setPrimary(selectedCompetitionId) }) { Icon(Icons.Outlined.Star, null); Spacer(Modifier.width(6.dp)); Text("Tornar principal") }
                     Button(onClick = { addSubject = true }) { Icon(Icons.Outlined.Add, null); Spacer(Modifier.width(6.dp)); Text("Matéria") }
-                    IconButton(onClick = { deleteCompetition = competitions.firstOrNull { it.id == selectedCompetitionId } }) { Icon(Icons.Outlined.Delete, "Excluir concurso") }
+                    OutlinedButton(
+                        onClick = { deleteCompetition = competitions.firstOrNull { it.id == selectedCompetitionId } },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    ) {
+                        Icon(Icons.Outlined.Delete, null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Excluir edital")
+                    }
                 }
             }
             item {
@@ -342,7 +353,11 @@ private fun TopicRow(topic: TopicEntity, depth: Int, parentPriority: PriorityLev
                         DropdownMenuItem(text = { Text("Desmarcar estudado") }, onClick = { menu = false; viewModel.unmarkStudied(topic) })
                     }
                     DropdownMenuItem(text = { Text("Adicionar à fila") }, onClick = { menu = false; viewModel.enqueue(topic.id) })
-                    DropdownMenuItem(text = { Text("Excluir") }, onClick = { menu = false; viewModel.deleteTopic(topic) })
+                    DropdownMenuItem(
+                        text = { Text("Excluir", color = MaterialTheme.colorScheme.error) },
+                        leadingIcon = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                        onClick = { menu = false; viewModel.deleteTopic(topic) },
+                    )
                 }
             }
         },
