@@ -94,9 +94,8 @@ import br.com.estudario.domain.setup.InitialSetupStatus
 import br.com.estudario.domain.setup.InitialSetupStep
 import br.com.estudario.domain.setup.PlanCreationMethod
 import br.com.estudario.domain.setup.SyllabusMethod
+import br.com.estudario.ui.prompt.sharePromptWithAi
 import br.com.estudario.ui.components.LoadingDialog
-import br.com.estudario.ui.tour.TutorialVideo
-import br.com.estudario.ui.tour.TutorialVideoDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -125,7 +124,6 @@ fun InitialSetupFlow(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
-    var showTutorial by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(snapshot.status) {
         if (snapshot.status == InitialSetupStatus.NOT_STARTED) viewModel.begin()
@@ -192,7 +190,7 @@ fun InitialSetupFlow(
                     InitialSetupStep.INTRO -> IntroStep(onContinue = { viewModel.advance(step, InitialSetupStep.COMPETITION) })
                     InitialSetupStep.COMPETITION -> CompetitionStep(snapshot, uiState.competition, uiState.competitions, viewModel)
                     InitialSetupStep.EXAM_DATE -> ExamDateStep(snapshot, viewModel)
-                    InitialSetupStep.SYLLABUS_METHOD -> SyllabusMethodStep(snapshot, operation, viewModel, picker, onShowTutorial = { showTutorial = true })
+                    InitialSetupStep.SYLLABUS_METHOD -> SyllabusMethodStep(snapshot, operation, viewModel, picker)
                     InitialSetupStep.SYLLABUS_REVIEW -> SyllabusReviewStep(uiState, viewModel)
                     InitialSetupStep.PROFILE -> ProfileStep(snapshot, viewModel)
                     InitialSetupStep.AVAILABILITY -> AvailabilityStep(snapshot, viewModel)
@@ -212,11 +210,7 @@ fun InitialSetupFlow(
             title = { Text("Não foi possível continuar") },
             text = { Text(message) },
             confirmButton = { TextButton(onClick = viewModel::clearOperation) { Text("Tentar novamente") } },
-            dismissButton = {
-                if (snapshot.step == InitialSetupStep.SYLLABUS_METHOD) {
-                    TextButton(onClick = { viewModel.clearOperation(); viewModel.chooseSyllabusMethod(SyllabusMethod.MANUAL) }) { Text("Usar entrada manual") }
-                } else TextButton(onClick = viewModel::clearOperation) { Text("Voltar") }
-            },
+            dismissButton = { TextButton(onClick = viewModel::clearOperation) { Text("Voltar") } },
         )
     }
     if (operation is SetupOperation.Preview) {
@@ -238,7 +232,6 @@ fun InitialSetupFlow(
             dismissButton = { TextButton(onClick = viewModel::clearOperation) { Text("Escolher outro") } },
         )
     }
-    if (showTutorial) TutorialVideoDialog(TutorialVideo.EDITAL) { showTutorial = false }
 }
 
 @Composable
@@ -327,15 +320,13 @@ private fun SyllabusMethodStep(
     operation: SetupOperation,
     viewModel: InitialSetupViewModel,
     picker: androidx.activity.result.ActivityResultLauncher<Array<String>>,
-    onShowTutorial: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var pastedText by rememberSaveable { mutableStateOf("") }
-    var subjectDraft by rememberSaveable { mutableStateOf("") }
-    var topicDraft by rememberSaveable { mutableStateOf("") }
-    var topicSubject by rememberSaveable { mutableStateOf("") }
-    val method = snapshot.syllabusMethod
+    val method = when (snapshot.syllabusMethod) {
+        // Configurações iniciadas em uma versão anterior seguem pelo fluxo unificado de IA.
+        SyllabusMethod.CHATGPT, SyllabusMethod.MANUAL -> SyllabusMethod.DIRECT_AI
+        else -> snapshot.syllabusMethod
+    }
     SetupPage(
         eyebrow = "Seu edital",
         title = "Como ele chega até aqui?",
@@ -351,45 +342,14 @@ private fun SyllabusMethodStep(
     ) {
         SyllabusChoice("Gerar com IA", "Copiar um prompt estruturado e importar o .estudo gerado.", Icons.Outlined.AutoAwesome, method == SyllabusMethod.DIRECT_AI) { viewModel.chooseSyllabusMethod(SyllabusMethod.DIRECT_AI) }
         SyllabusChoice("Importar arquivo .estudo", "Use um edital que você já tenha gerado ou recebido.", Icons.Outlined.UploadFile, method == SyllabusMethod.IMPORT_ESTUDO) { viewModel.chooseSyllabusMethod(SyllabusMethod.IMPORT_ESTUDO) }
-        SyllabusChoice("Montar manualmente", "Comece pelas matérias e refine os tópicos depois.", Icons.Outlined.Description, method == SyllabusMethod.MANUAL) { viewModel.chooseSyllabusMethod(SyllabusMethod.MANUAL) }
-        SyllabusChoice("Aprender com o ChatGPT", "Um tutorial curto, prompt copiável e importação conferível.", Icons.Outlined.OpenInNew, method == SyllabusMethod.CHATGPT) { viewModel.chooseSyllabusMethod(SyllabusMethod.CHATGPT) }
 
         when (method) {
-            SyllabusMethod.MANUAL -> {
-                Spacer(Modifier.height(10.dp))
-                Text("Matérias principais", style = MaterialTheme.typography.titleMedium)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(subjectDraft, { subjectDraft = it }, Modifier.weight(1f), label = { Text("Nova matéria") }, singleLine = true)
-                    TextButton(onClick = { if (subjectDraft.isNotBlank()) { val value = subjectDraft.trim(); viewModel.saveManualSubjects(snapshot.manualSubjects + value); if (topicSubject.isBlank()) topicSubject = value; subjectDraft = "" } }) { Text("Adicionar") }
-                }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    snapshot.manualSubjects.forEach { subject -> AssistChip(onClick = { topicSubject = subject }, label = { Text(subject) }) }
-                }
-                if (snapshot.manualSubjects.isNotEmpty()) {
-                    val activeSubject = topicSubject.takeIf { it in snapshot.manualSubjects } ?: snapshot.manualSubjects.first()
-                    Text("Tópicos de $activeSubject", style = MaterialTheme.typography.titleSmall)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(topicDraft, { topicDraft = it }, Modifier.weight(1f), label = { Text("Novo tópico") }, singleLine = true)
-                        TextButton(onClick = {
-                            if (topicDraft.isNotBlank()) {
-                                val next = snapshot.manualTopics.toMutableMap()
-                                next[activeSubject] = (next[activeSubject].orEmpty() + topicDraft.trim()).distinct()
-                                viewModel.saveManualTopics(next)
-                                topicDraft = ""
-                            }
-                        }) { Text("Adicionar") }
-                    }
-                    snapshot.manualTopics[activeSubject].orEmpty().forEach { topic -> Text("• $topic", style = MaterialTheme.typography.bodySmall) }
-                }
-            }
-            SyllabusMethod.DIRECT_AI, SyllabusMethod.CHATGPT -> {
+            SyllabusMethod.DIRECT_AI -> {
                 val prompt = remember(snapshot.competitionName, snapshot.role) {
                     EditalPromptBuilder.build(EditalPromptOptions(competitionName = snapshot.competitionName, role = snapshot.role))
                 }
                 PromptActionCard(
                     prompt = prompt,
-                    openChat = method == SyllabusMethod.CHATGPT,
-                    onTutorial = onShowTutorial,
                     onImport = { picker.launch(arrayOf("application/json", "text/plain", "*/*")) },
                 )
             }
@@ -401,6 +361,7 @@ private fun SyllabusMethodStep(
                     onInspect = { viewModel.inspectEstudo(pastedText) },
                 )
             }
+            SyllabusMethod.MANUAL, SyllabusMethod.CHATGPT -> Unit
             null -> Text("Escolha um caminho para continuar.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (operation is SetupOperation.Success) Text((operation as SetupOperation.Success).message, color = MaterialTheme.colorScheme.primary)
@@ -622,21 +583,18 @@ private fun ImportActionCard(pastedText: String, onPastedTextChange: (String) ->
 }
 
 @Composable
-private fun PromptActionCard(prompt: String, openChat: Boolean, onTutorial: () -> Unit, onImport: () -> Unit) {
+private fun PromptActionCard(prompt: String, onImport: () -> Unit) {
     val context = LocalContext.current
     SetupCard {
         Text("O prompt já vem com o nome do seu concurso e regras para não inventar matérias.", style = MaterialTheme.typography.bodyMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = {
+            Button(onClick = { sharePromptWithAi(context, prompt) }) { Icon(Icons.Outlined.OpenInNew, null); Spacer(Modifier.width(6.dp)); Text("Compartilhar com IA") }
+            OutlinedButton(onClick = {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("Prompt do Estudário", prompt))
-            }) { Icon(Icons.Outlined.ContentCopy, null); Spacer(Modifier.width(6.dp)); Text("Copiar prompt") }
-            OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://chatgpt.com/"))) }) { Icon(Icons.Outlined.OpenInNew, null); Spacer(Modifier.width(6.dp)); Text(if (openChat) "Abrir ChatGPT" else "Abrir IA") }
+            }) { Icon(Icons.Outlined.ContentCopy, null); Spacer(Modifier.width(6.dp)); Text("Copiar") }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = onTutorial) { Text("Ver tutorial") }
-            TextButton(onClick = onImport) { Icon(Icons.Outlined.UploadFile, null); Spacer(Modifier.width(4.dp)); Text("Importar resposta") }
-        }
+        TextButton(onClick = onImport) { Icon(Icons.Outlined.UploadFile, null); Spacer(Modifier.width(4.dp)); Text("Importar resposta") }
         Text("A resposta precisa ser um .estudo válido. O Estudário analisa e mostra o resumo antes de gravar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
