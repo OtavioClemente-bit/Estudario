@@ -33,6 +33,7 @@ import br.com.estudario.ui.profile.BadgesScreen
 import br.com.estudario.ui.profile.ProfileScreen
 import br.com.estudario.ui.profile.StreakCelebrationScreen
 import br.com.estudario.ui.tour.TourId
+import br.com.estudario.ui.tour.TourKey
 import br.com.estudario.ui.tour.TourOverlay
 import br.com.estudario.ui.tour.TutorialVideo
 import br.com.estudario.ui.tour.TutorialVideoDialog
@@ -42,7 +43,12 @@ import br.com.estudario.ui.tour.tourForRoute
 import br.com.estudario.ui.tour.tourKeyForRoute
 import br.com.estudario.ui.tour.tourSteps
 import br.com.estudario.ui.tour.tourTarget
+import br.com.estudario.ui.navigation.EstudarioDrawerContent
+import br.com.estudario.ui.navigation.EstudarioTopBar
+import br.com.estudario.ui.navigation.estudarioDrawerSections
+import br.com.estudario.ui.onboarding.OnboardingFlow
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private data class Destination(val route: String, val label: String, val selected: androidx.compose.ui.graphics.vector.ImageVector, val unselected: androidx.compose.ui.graphics.vector.ImageVector)
 
@@ -51,11 +57,16 @@ fun EstudarioApp(viewModel: AppViewModel) {
     val themeMode by viewModel.themeMode.collectAsState()
     val dark = when (themeMode) { "DARK" -> true; "LIGHT" -> false; else -> isSystemInDarkTheme() }
     EstudarioTheme(dark) {
-        // null: a splash do sistema ainda cobre a tela enquanto a preferência carrega.
-        // O tour guiado (primeira abertura ou replay via Mais > Como usar o app) roda dentro
-        // da própria navegação principal, destacando os botões reais - ver MainNavigation.
-        if (viewModel.hasCompletedOnboarding.collectAsState().value != null && viewModel.seenTours.collectAsState().value != null) {
-            MainNavigation(viewModel)
+        val onboardingConcluido by viewModel.hasCompletedOnboarding.collectAsState()
+        val seenTours by viewModel.seenTours.collectAsState()
+        when {
+            // null: a splash do sistema ainda cobre a tela enquanto a preferência carrega.
+            onboardingConcluido == null || seenTours == null -> Unit
+            // Primeira instalação: apresentação e escolha de conta antes de qualquer tela do app.
+            onboardingConcluido == false -> OnboardingFlow(viewModel) { viewModel.completeOnboarding() }
+            // O tour guiado (replay em Ajustes > Como usar o app) roda dentro da própria navegação
+            // principal, destacando os botões reais - ver MainNavigation.
+            else -> MainNavigation(viewModel)
         }
     }
 }
@@ -126,18 +137,72 @@ private fun MainNavigation(viewModel: AppViewModel) {
         val route = tourStep?.route ?: return@LaunchedEffect
         if (navController.currentDestination?.route != route) navController.navigate(route) { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true }
     }
+    // Só entra na navegação de baixo o que é destino diário. O resto — acompanhamento, ajustes,
+    // ferramentas — vive no menu lateral, que é onde dá para nomear as coisas sem inventar uma aba
+    // chamada "Mais" para guardar o que não coube.
     val destinations = listOf(
         Destination("home", "Início", Icons.Rounded.Home, Icons.Outlined.Home),
         Destination("syllabus", "Edital", Icons.Rounded.Checklist, Icons.Outlined.Checklist),
         Destination("plan", "Plano", Icons.Rounded.CalendarMonth, Icons.Outlined.CalendarMonth),
         Destination("train", "Treinar", Icons.Rounded.School, Icons.Outlined.School),
-        Destination("more", "Mais", Icons.Rounded.MoreHoriz, Icons.Outlined.MoreHoriz),
     )
     val showBottom = currentRoute in destinations.map { it.route }
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val drawerScope = rememberCoroutineScope()
+    val profile by viewModel.profile.collectAsState()
+    val progress by viewModel.progress.collectAsState()
+    fun abrirDoMenu(route: String) {
+        drawerScope.launch { drawerState.close() }
+        navController.navigate(route) { launchSingleTop = true }
+    }
+    fun abrirAbaDoMenu(route: String) {
+        drawerScope.launch { drawerState.close() }
+        navController.navigate(route) { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true }
+    }
     Box(Modifier.fillMaxSize()) {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            // Arrastar da borda só nas abas principais: dentro de um quiz ou da leitura de teoria o
+            // gesto pertence ao conteúdo.
+            gesturesEnabled = showBottom,
+            drawerContent = {
+                EstudarioDrawerContent(
+                    profile = profile,
+                    level = progress?.level,
+                    totalXp = progress?.totalXp,
+                    currentRoute = currentRoute,
+                    sections = estudarioDrawerSections(
+                        onSyllabus = { abrirAbaDoMenu("syllabus") },
+                        onPlan = { abrirAbaDoMenu("plan") },
+                        onTrain = { abrirAbaDoMenu("train") },
+                        onReviews = { abrirDoMenu("reviews") },
+                        onErrors = { abrirDoMenu("errors") },
+                        onFocus = { abrirDoMenu("focus") },
+                        onStatistics = { abrirDoMenu("statistics") },
+                        onBadges = { abrirDoMenu("badges") },
+                        onSources = { abrirDoMenu("sources") },
+                        onSettings = { abrirDoMenu("more") },
+                        onNotifications = { abrirDoMenu("notifications") },
+                        onHelp = { drawerScope.launch { drawerState.close() }; showTourPicker = true },
+                    ),
+                    appVersion = "Estudário 2.2.0 · Local-first",
+                    onOpenProfile = { abrirDoMenu("profile") },
+                )
+            },
+        ) {
         Scaffold(
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            topBar = {
+                if (showBottom) EstudarioTopBar(
+                    profile = profile,
+                    onOpenMenu = { drawerScope.launch { drawerState.open() } },
+                    onSearch = { navController.navigate("search") },
+                    onProfile = { navController.navigate("profile") },
+                    profileModifier = Modifier.tourTarget(TourKey.HOME_PROFILE, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.HOME_PROFILE, it) },
+                )
+            },
             bottomBar = {
-                if (showBottom) NavigationBar {
+                if (showBottom) NavigationBar(windowInsets = WindowInsets.navigationBars) {
                     destinations.forEach { destination ->
                         val selected = currentRoute == destination.route
                         val tourKey = tourKeyForRoute(destination.route)
@@ -154,31 +219,42 @@ private fun MainNavigation(viewModel: AppViewModel) {
                 }
             },
         ) { padding ->
-            NavHost(navController, startDestination = "home", modifier = Modifier.padding(padding)) {
+            NavHost(
+                navController,
+                startDestination = "home",
+                modifier = Modifier.padding(padding).consumeWindowInsets(padding),
+            ) {
                 composable("home") {
                     HomeScreen(
                         viewModel = viewModel,
                         planViewModel = planViewModel,
                         onQuiz = { count, mode -> navController.navigate("quiz/$count/0/0/$mode/_/_") },
                         onTopic = { navController.navigate("topic/$it") },
+                        onStudyTask = { topicId, taskId -> navController.navigate("topic/$topicId/task/$taskId") },
                         onReviews = { navController.navigate("reviews") },
                         onProfile = { navController.navigate("profile") },
-                        onSearch = { navController.navigate("search") },
+                        onSyllabus = { navController.navigate("syllabus") { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true } },
                         onPlan = { navController.navigate("plan") { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true } },
                         onFocus = { navController.navigate("focus") },
-                        onBadges = { navController.navigate("badges") },
+                        onStatistics = { navController.navigate("statistics") },
                         onErrors = { navController.navigate("errors") },
-                        onHelp = { viewModel.startTour(TourId.PROFILE) },
                     )
                 }
                 composable("syllabus") { EditalScreen(viewModel, onTopic = { navController.navigate("topic/$it") }, onHelp = { showHelpGuidePicker = true }) }
-                composable("plan") { PlanScreen(planViewModel, viewModel, onOpenTopic = { navController.navigate("topic/$it") }, onOpenErrors = { navController.navigate("errors") }, onFocus = { navController.navigate("focus") }, onHelp = { viewModel.startTour(TourId.PLAN) }) }
+                composable("plan") { PlanScreen(planViewModel, viewModel, onOpenTopic = { navController.navigate("topic/$it") }, onOpenTopicTask = { topicId, taskId -> navController.navigate("topic/$topicId/task/$taskId") }, onOpenErrors = { navController.navigate("errors") }, onFocus = { navController.navigate("focus") }, onHelp = { viewModel.startTour(TourId.PLAN) }) }
                 composable("train") { TrainScreen(viewModel, onStart = { config -> navController.navigate("quiz/${config.count}/${config.topicId ?: 0}/${config.subjectId ?: 0}/${config.mode}/${Uri.encode(config.board ?: "_")}/${config.difficulty ?: "_"}") }, onHelp = { viewModel.startTour(TourId.TRAIN) }) }
                 composable("errors") { ErrorsScreen(viewModel, onTrainErrors = { navController.navigate("quiz/20/0/0/errors/_/_") }, onOpenTopic = { navController.navigate("topic/$it") }) }
                 composable("more") { MoreScreen(viewModel, onReviews = { navController.navigate("reviews") }, onStatistics = { navController.navigate("statistics") }, onNotifications = { navController.navigate("notifications") }, onErrors = { navController.navigate("errors") }, onProfile = { navController.navigate("profile") }, onSources = { navController.navigate("sources") }, onFocus = { navController.navigate("focus") }, onHelp = { viewModel.startTour(TourId.MORE) }) }
                 composable("topic/{id}") { backStack ->
                     val id = backStack.arguments?.getString("id")?.toLongOrNull() ?: 0
                     TopicDetailScreen(viewModel, id, onBack = { navController.popBackStack() }, onQuiz = { navController.navigate("quiz/15/$id/0/random/_/_") }, onTheory = { navController.navigate("theory/$it") }, onFocus = { navController.navigate("focus") })
+                }
+                composable("topic/{id}/task/{taskId}") { backStack ->
+                    val id = backStack.arguments?.getString("id")?.toLongOrNull() ?: 0
+                    val taskId = backStack.arguments?.getString("taskId")
+                    // Mesma tela do tópico, só que sabendo de qual missão do plano ela veio: o modo
+                    // foco iniciado aqui, ao encerrar, volta e completa essa missão automaticamente.
+                    TopicDetailScreen(viewModel, id, taskId = taskId, onBack = { navController.popBackStack() }, onQuiz = { navController.navigate("quiz/15/$id/0/random/_/_") }, onTheory = { navController.navigate("theory/$it") }, onFocus = { navController.navigate("focus") })
                 }
                 composable("theory/{id}") { backStack -> TheoryReaderScreen(viewModel, backStack.arguments?.getString("id")?.toLongOrNull() ?: 0) { navController.popBackStack() } }
                 composable("quiz/{count}/{topic}/{subject}/{mode}/{board}/{difficulty}") { backStack ->
@@ -206,6 +282,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                 composable("profile") { ProfileScreen(viewModel, onBack = { navController.popBackStack() }, onBadges = { navController.navigate("badges") }) }
                 composable("badges") { BadgesScreen(viewModel) { navController.popBackStack() } }
             }
+        }
         }
         TransferDialog(viewModel)
         // Comemoração da sequência: só na primeira atividade que fecha a meta do dia, e nunca por

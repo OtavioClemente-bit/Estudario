@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.core.content.IntentCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -21,6 +22,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         // Mantém a splash na tela só até sabermos se é a primeira abertura (mostra o tour)
         // ou uma abertura normal (vai direto para a navegação principal).
         splashScreen.setKeepOnScreenCondition { viewModel.hasCompletedOnboarding.value == null || viewModel.seenTours.value == null }
