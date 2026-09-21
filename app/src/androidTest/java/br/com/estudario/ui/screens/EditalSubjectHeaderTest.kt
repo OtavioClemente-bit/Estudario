@@ -2,6 +2,7 @@ package br.com.estudario.ui.screens
 
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.core.app.ApplicationProvider
 import br.com.estudario.EstudarioApplication
@@ -42,6 +43,34 @@ class EditalSubjectHeaderTest {
         }
 
         compose.onNodeWithText("Direito Constitucional").performClick()
+        compose.runOnIdle { assertTrue(expanded) }
+    }
+
+    @Test
+    fun clickingTheSubjectHeaderBackgroundExpandsTheSubject() {
+        var expanded = false
+        val subject = SubjectEntity(id = 1L, competitionId = 1L, name = "Direito Constitucional")
+        val viewModel = AppViewModel(ApplicationProvider.getApplicationContext<EstudarioApplication>())
+
+        compose.setContent {
+            EstudarioTheme(darkTheme = false) {
+                SubjectCard(
+                    subject = subject,
+                    topics = emptyList(),
+                    expanded = expanded,
+                    onExpandedChange = { expanded = it },
+                    viewModel = viewModel,
+                    onTopic = {},
+                    onAddTopic = {},
+                    onGenerateContent = {},
+                    onPriority = {},
+                    onTopicPriority = { _, _ -> },
+                    parentPriority = PriorityLevel.MEDIUM,
+                )
+            }
+        }
+
+        compose.onNodeWithTag("edital_subject_header").performClick()
         compose.runOnIdle { assertTrue(expanded) }
     }
 }

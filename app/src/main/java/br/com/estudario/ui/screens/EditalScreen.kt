@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import br.com.estudario.data.local.*
@@ -257,19 +258,24 @@ internal fun SubjectCard(subject: SubjectEntity, topics: List<TopicEntity>, expa
     val visibleTopicIds: Set<Long>? = if (onlyWithContent) topics.filter { hasContentInSubtree(it.id) }.map { it.id }.toSet() else null
     ElevatedCard {
         Column {
-            Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { onExpandedChange(!expanded) }
+                    .testTag("edital_subject_header")
+                    .padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 IconButton(onClick = { onExpandedChange(!expanded) }) { Icon(if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, if (expanded) "Recolher matéria" else "Expandir matéria") }
                 Column(Modifier.weight(1f)) {
                     Text(
                         subject.name,
-                        modifier = Modifier.clickable { onExpandedChange(!expanded) },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                     )
                     val done = topics.count { it.status != TopicStatus.NAO_ESTUDADO }
                     Text(
                         "$done de ${topics.size} tópicos iniciados • prioridade ${PriorityPresentation.label(subject.priorityState(parentPriority).effectivePriority)}",
-                        modifier = Modifier.clickable { onExpandedChange(!expanded) },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
