@@ -13,10 +13,15 @@ class PlannerNavigationTest {
     @Test fun bottomNavigationContainsPlanAndErrorsLivesInMore() {
         val app = ApplicationProvider.getApplicationContext<EstudarioApplication>()
         compose.setContent { EstudarioApp(AppViewModel(app)) }
-        listOf("Início", "Edital", "Plano", "Treinar", "Mais").forEach { compose.onNodeWithText(it).assertExists() }
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText("Início").fetchSemanticsNodes().isNotEmpty()
+        }
+        listOf("Início", "Edital", "Plano", "Treinar").forEach { compose.onNodeWithText(it).assertExists() }
+        compose.onNodeWithText("Mais").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Abrir perfil").assertExists()
         compose.onNodeWithText("Plano").performClick()
         compose.onNodeWithText("Hoje").assertExists()
-        compose.onNodeWithText("Mais").performClick()
+        compose.onNodeWithContentDescription("Abrir menu").performClick()
         compose.onNodeWithText("Caderno de erros").assertExists()
     }
 }
