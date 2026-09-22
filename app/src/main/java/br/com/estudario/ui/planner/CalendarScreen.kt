@@ -59,7 +59,7 @@ private fun DayPlanView(
     var selectedDate by remember { mutableStateOf(state.today) }
     
     val tasksForSelectedDate = state.tasks.filter { it.entity.scheduledEpochDay == selectedDate.toEpochDay() }
-    val plannedMinutes = tasksForSelectedDate.sumOf { it.entity.plannedMinutes }
+    val plannedMinutes = tasksForSelectedDate.plannedLoadMinutes()
     val actualMinutes = tasksForSelectedDate.sumOf { it.actualMinutes }
     
     val capacity = state.availability.firstOrNull { it.dayOfWeek == selectedDate.dayOfWeek.value }?.let { if (it.unavailable) 0 else it.availableMinutes } ?: 0
@@ -110,12 +110,14 @@ private fun DayPlanView(
 
         // Summary do dia selecionado
         item {
-            val completionPercent = if (tasksForSelectedDate.isEmpty()) 0 else (tasksForSelectedDate.count { it.entity.status == br.com.estudario.domain.planner.PlanTaskStatus.CONCLUIDA } * 100) / tasksForSelectedDate.size
+            val completionPercent = tasksForSelectedDate.plannedLoadCompletionPercent()
             PlannerSummary(
                 plannedMinutes = plannedMinutes,
                 actualMinutes = actualMinutes,
                 deficitMinutes = if (plannedMinutes > capacity) plannedMinutes - capacity else 0,
-                completionPercent = completionPercent
+                completionPercent = completionPercent,
+                plannedLabel = "planejadas no dia",
+                periodTitle = "Progresso do dia",
             )
         }
 
@@ -200,9 +202,9 @@ private fun WeekPlanView(
     val weekStart = state.weekStart
     val weekEnd = weekStart.plusDays(6)
     val weekTasks = state.weekTasks
-    val plannedMinutes = weekTasks.sumOf { it.entity.plannedMinutes }
+    val plannedMinutes = weekTasks.plannedLoadMinutes()
     val actualMinutes = weekTasks.sumOf { it.actualMinutes }
-    val completionPercent = if (weekTasks.isEmpty()) 0 else (weekTasks.count { it.entity.status == br.com.estudario.domain.planner.PlanTaskStatus.CONCLUIDA } * 100) / weekTasks.size
+    val completionPercent = weekTasks.plannedLoadCompletionPercent()
     val byDay = weekTasks.groupBy { LocalDate.ofEpochDay(it.entity.scheduledEpochDay) }
     val dayNames = listOf("Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo")
 
@@ -218,7 +220,7 @@ private fun WeekPlanView(
                 fontWeight = FontWeight.Bold,
             )
         }
-        item { PlannerSummary(plannedMinutes = plannedMinutes, actualMinutes = actualMinutes, completionPercent = completionPercent) }
+        item { PlannerSummary(plannedMinutes = plannedMinutes, actualMinutes = actualMinutes, completionPercent = completionPercent, plannedLabel = "planejadas na semana", periodTitle = "Progresso da semana") }
         if (weekTasks.isEmpty()) {
             item { EmptyState("Semana livre", "Não há tarefas planejadas para esta semana.", "Gerar planejamento", onGenerate) }
         } else {
@@ -253,14 +255,21 @@ private fun MonthPlanView(
     onGenerate: () -> Unit,
 ) {
     val monthTasks = state.monthTasks
-    val plannedMinutes = monthTasks.sumOf { it.entity.plannedMinutes }
+    val plannedMinutes = monthTasks.plannedLoadMinutes()
     val actualMinutes = monthTasks.sumOf { it.actualMinutes }
-    val completionPercent = if (monthTasks.isEmpty()) 0 else (monthTasks.count { it.entity.status == br.com.estudario.domain.planner.PlanTaskStatus.CONCLUIDA } * 100) / monthTasks.size
+    val completionPercent = monthTasks.plannedLoadCompletionPercent()
     val monthLabel = state.today.month.getDisplayName(TextStyle.FULL, Locale("pt", "BR")).replaceFirstChar { it.uppercase() }
     val upcoming = monthTasks
-        .filter { it.entity.scheduledEpochDay >= state.today.toEpochDay() && it.entity.status != br.com.estudario.domain.planner.PlanTaskStatus.CONCLUIDA }
+        .filter {
+            it.entity.scheduledEpochDay >= state.today.toEpochDay() &&
+                it.entity.status in setOf(
+                    br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA,
+                    br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO,
+                )
+        }
         .sortedBy { it.entity.scheduledEpochDay }
     val bySubject = monthTasks
+        .filter { it.entity.status.countsAsPlannedLoad() }
         .groupBy { it.entity.subjectNameSnapshot }
         .map { (name, tasks) -> name to tasks.sumOf { it.entity.plannedMinutes } }
         .sortedByDescending { it.second }
@@ -271,7 +280,7 @@ private fun MonthPlanView(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item { Text("$monthLabel de ${state.today.year}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-        item { PlannerSummary(plannedMinutes = plannedMinutes, actualMinutes = actualMinutes, completionPercent = completionPercent) }
+        item { PlannerSummary(plannedMinutes = plannedMinutes, actualMinutes = actualMinutes, completionPercent = completionPercent, plannedLabel = "planejadas no mês", periodTitle = "Progresso do mês") }
         if (bySubject.isNotEmpty()) {
             item { Text("Distribuição por matéria", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
             item {
@@ -302,10 +311,11 @@ private fun MonthPlanView(
 
 @Composable
 private fun OverviewPlanView(state: ActivePlanUiState) {
-    val totalTasks = state.tasks.size
-    val completedTasks = state.tasks.count { it.entity.status == br.com.estudario.domain.planner.PlanTaskStatus.CONCLUIDA }
+    val currentTasks = state.tasks.plannedLoadTasks()
+    val totalTasks = currentTasks.size
+    val completedTasks = currentTasks.count { it.entity.status == br.com.estudario.domain.planner.PlanTaskStatus.CONCLUIDA }
     val completionPercent = if (totalTasks == 0) 0 else (completedTasks * 100 / totalTasks)
-    val plannedMinutes = state.tasks.sumOf { it.entity.plannedMinutes }
+    val plannedMinutes = state.totalPlannedMinutes
     val actualMinutes = state.tasks.sumOf { it.actualMinutes }
 
     LazyColumn(
@@ -321,7 +331,7 @@ private fun OverviewPlanView(state: ActivePlanUiState) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        item { PlannerSummary(plannedMinutes = plannedMinutes, actualMinutes = actualMinutes, completionPercent = completionPercent) }
+        item { PlannerSummary(plannedMinutes = plannedMinutes, actualMinutes = actualMinutes, completionPercent = completionPercent, plannedLabel = "planejadas no plano", periodTitle = "Progresso do plano") }
         item {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

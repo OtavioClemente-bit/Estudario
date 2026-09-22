@@ -44,12 +44,19 @@ internal fun PlannerTaskUi.reward(): ProgressEngine.XpReward =
     }
 
 @Composable
-fun PlannerSummary(plannedMinutes: Int, actualMinutes: Int, deficitMinutes: Int = 0, completionPercent: Int) {
+fun PlannerSummary(
+    plannedMinutes: Int,
+    actualMinutes: Int,
+    deficitMinutes: Int = 0,
+    completionPercent: Int,
+    plannedLabel: String = "planejadas",
+    periodTitle: String = "Progresso de Hoje",
+) {
     ElevatedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Text("Progresso de Hoje", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(periodTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
                 Text("$completionPercent%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
@@ -62,7 +69,7 @@ fun PlannerSummary(plannedMinutes: Int, actualMinutes: Int, deficitMinutes: Int 
             )
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                AssistChip(onClick = {}, label = { Text("${minutesLabel(plannedMinutes)} planejadas") })
+                AssistChip(onClick = {}, label = { Text("${minutesLabel(plannedMinutes)} $plannedLabel") })
                 AssistChip(onClick = {}, label = { Text("${minutesLabel(actualMinutes)} realizadas") })
             }
             if (deficitMinutes > 0) Text("Capacidade insuficiente: faltam ${minutesLabel(deficitMinutes)}.", color = MaterialTheme.colorScheme.error)

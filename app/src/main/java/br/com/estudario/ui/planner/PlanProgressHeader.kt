@@ -20,10 +20,11 @@ import br.com.estudario.domain.planner.PlanTaskStatus
 
 @Composable
 fun PlanProgressHeader(state: ActivePlanUiState, modifier: Modifier = Modifier) {
-    val totalTasks = state.tasks.size
-    val completedTasks = state.tasks.count { it.entity.status == PlanTaskStatus.CONCLUIDA }
+    val currentTasks = state.tasks.plannedLoadTasks()
+    val totalTasks = currentTasks.size
+    val completedTasks = currentTasks.count { it.entity.status == PlanTaskStatus.CONCLUIDA }
     val completionPercent = if (totalTasks == 0) 0 else (completedTasks * 100 / totalTasks).coerceIn(0, 100)
-    val plannedMinutes = state.tasks.sumOf { it.entity.plannedMinutes }
+    val plannedMinutes = state.totalPlannedMinutes
     val actualMinutes = state.tasks.sumOf { it.actualMinutes }
 
     ElevatedCard(
@@ -93,7 +94,7 @@ fun PlanProgressHeader(state: ActivePlanUiState, modifier: Modifier = Modifier) 
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                PlanMetric("Planejado", minutesLabelPtBr(plannedMinutes), Modifier.weight(1f))
+                PlanMetric("No plano", minutesLabelPtBr(plannedMinutes), Modifier.weight(1f))
                 PlanMetric("Realizado", minutesLabelPtBr(actualMinutes), Modifier.weight(1f))
                 PlanMetric("Visão", state.selectedSection.label, Modifier.weight(1f))
             }

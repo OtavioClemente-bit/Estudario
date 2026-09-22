@@ -26,4 +26,37 @@ class StudyPlanUiMapperTest {
         assertEquals(25, state.todayActualMinutes)
         assertEquals(35, state.deficitMinutes)
     }
+
+    @Test fun `reprogrammed and paused history does not inflate day week or plan totals`() {
+        val today = LocalDate.of(2026, 9, 22)
+        val plan = StudyPlanEntity("p", 1, "Reta final", "Aprovação", today.toEpochDay(), active = true)
+        fun task(id: String, date: LocalDate, minutes: Int, status: PlanTaskStatus) = PlanTaskEntity(
+            id = id,
+            planId = "p",
+            competitionId = 1,
+            subjectNameSnapshot = "Direito",
+            scheduledEpochDay = date.toEpochDay(),
+            type = PlanTaskType.THEORY,
+            plannedMinutes = minutes,
+            priority = PlanPriority.HIGH,
+            status = status,
+            createdRevision = 0,
+            updatedRevision = 0,
+        )
+        val tasks = listOf(
+            task("today", today, 80, PlanTaskStatus.PLANEJADA),
+            task("old-reprogrammed", today, 280, PlanTaskStatus.REPROGRAMADA),
+            task("paused", today, 45, PlanTaskStatus.PAUSADA),
+            task("missed", today, 30, PlanTaskStatus.NAO_REALIZADA),
+            task("completed", today, 20, PlanTaskStatus.CONCLUIDA),
+            task("tomorrow", today.plusDays(1), 60, PlanTaskStatus.EM_ANDAMENTO),
+            task("paused-next-week", today.plusDays(7), 500, PlanTaskStatus.PAUSADA),
+        )
+
+        val state = StudyPlanUiMapper.map(plan, tasks, emptyList(), today)
+
+        assertEquals(130, state.todayPlannedMinutes)
+        assertEquals(190, state.weekPlannedMinutes)
+        assertEquals(190, state.totalPlannedMinutes)
+    }
 }

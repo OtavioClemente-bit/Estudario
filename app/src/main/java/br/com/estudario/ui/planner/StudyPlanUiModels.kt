@@ -4,6 +4,7 @@ import br.com.estudario.data.local.planner.*
 import java.time.LocalDate
 import br.com.estudario.domain.planner.MasterPlanAlert
 import br.com.estudario.data.transfer.planner.ContextWeakTopic
+import br.com.estudario.domain.planner.PlanTaskStatus
 
 /** Loading bloqueante de uma ação do plano (criar, gerar, recalcular). */
 data class PlanBusyState(val title: String, val message: String? = null)
@@ -15,6 +16,27 @@ data class PlannerTaskUi(
     val actualMinutes: Int,
     val questionsDone: Int,
     val correctAnswers: Int,
+)
+
+/** Tarefas antigas continuam no histórico, mas não representam carga vigente após replanejamento. */
+fun PlanTaskStatus.countsAsPlannedLoad(): Boolean = this in plannedLoadStatuses
+
+fun Iterable<PlannerTaskUi>.plannedLoadTasks(): List<PlannerTaskUi> =
+    filter { it.entity.status.countsAsPlannedLoad() }
+
+fun Iterable<PlannerTaskUi>.plannedLoadMinutes(): Int =
+    plannedLoadTasks().sumOf { it.entity.plannedMinutes.coerceAtLeast(0) }
+
+fun Iterable<PlannerTaskUi>.plannedLoadCompletionPercent(): Int {
+    val current = plannedLoadTasks()
+    return if (current.isEmpty()) 0 else current.count { it.entity.status == PlanTaskStatus.CONCLUIDA } * 100 / current.size
+}
+
+private val plannedLoadStatuses = setOf(
+    PlanTaskStatus.PLANEJADA,
+    PlanTaskStatus.EM_ANDAMENTO,
+    PlanTaskStatus.CONCLUIDA,
+    PlanTaskStatus.NAO_REALIZADA,
 )
 
 data class ActivePlanUiState(
@@ -42,10 +64,13 @@ data class ActivePlanUiState(
 ) {
     val todayTasks get() = tasks.filter { it.entity.scheduledEpochDay == today.toEpochDay() }
     val overdueTasks get() = tasks.filter { it.entity.scheduledEpochDay < today.toEpochDay() && it.entity.status in listOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO) }
-    val todayCompletionPercent: Int get() = if (todayTasks.isEmpty()) 0 else (todayTasks.count { it.entity.status == br.com.estudario.domain.planner.PlanTaskStatus.CONCLUIDA } * 100) / todayTasks.size
+    val todayCompletionPercent: Int get() = todayTasks.plannedLoadCompletionPercent()
     val weekStart: LocalDate get() = today.minusDays((today.dayOfWeek.value - 1).toLong())
     val weekTasks get() = tasks.filter { LocalDate.ofEpochDay(it.entity.scheduledEpochDay) in weekStart..weekStart.plusDays(6) }
     val monthTasks get() = tasks.filter { LocalDate.ofEpochDay(it.entity.scheduledEpochDay).run { year == today.year && month == today.month } }
+    val weekPlannedMinutes: Int get() = weekTasks.plannedLoadMinutes()
+    val monthPlannedMinutes: Int get() = monthTasks.plannedLoadMinutes()
+    val totalPlannedMinutes: Int get() = tasks.plannedLoadMinutes()
 }
 
 sealed interface PlanTransferUiState {
@@ -90,7 +115,7 @@ object StudyPlanUiMapper {
             monthlyPlans = monthly,
             weeklyPlans = weekly,
             today = today,
-            todayPlannedMinutes = todayRows.sumOf { it.entity.plannedMinutes },
+            todayPlannedMinutes = todayRows.plannedLoadMinutes(),
             todayActualMinutes = todayRows.sumOf { it.actualMinutes },
             deficitMinutes = deficitMinutes,
         )

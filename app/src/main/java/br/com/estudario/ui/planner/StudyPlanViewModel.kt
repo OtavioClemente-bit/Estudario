@@ -148,11 +148,11 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         val current = _state.value
         val plan = current.activePlan ?: error("Nenhum plano ativo.")
         val rows = current.tasks
-        val bySubject = rows.groupBy { it.entity.subjectNameSnapshot }.map { (name, tasks) -> ContextSubject(name, tasks.first().entity.priority.name, tasks.sumOf { it.entity.plannedMinutes }, tasks.sumOf { it.actualMinutes }) }
-        val future = rows.filter { it.entity.scheduledEpochDay >= current.today.toEpochDay() }.take(30).map { ContextTask(it.entity.subjectNameSnapshot, it.entity.topicNameSnapshot, it.entity.type.name, it.entity.plannedMinutes, LocalDate.ofEpochDay(it.entity.scheduledEpochDay).toString()) }
+        val bySubject = rows.plannedLoadTasks().groupBy { it.entity.subjectNameSnapshot }.map { (name, tasks) -> ContextSubject(name, tasks.first().entity.priority.name, tasks.sumOf { it.entity.plannedMinutes }, tasks.sumOf { it.actualMinutes }) }
+        val future = rows.filter { it.entity.status in setOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO) && it.entity.scheduledEpochDay >= current.today.toEpochDay() }.take(30).map { ContextTask(it.entity.subjectNameSnapshot, it.entity.topicNameSnapshot, it.entity.type.name, it.entity.plannedMinutes, LocalDate.ofEpochDay(it.entity.scheduledEpochDay).toString()) }
         val missed = rows.filter { it.entity.status == br.com.estudario.domain.planner.PlanTaskStatus.NAO_REALIZADA }.map { ContextTask(it.entity.subjectNameSnapshot, it.entity.topicNameSnapshot, it.entity.type.name, it.entity.plannedMinutes, LocalDate.ofEpochDay(it.entity.scheduledEpochDay).toString()) }
         val weeklyCapacity = current.availability.sumOf { if (it.unavailable) 0 else it.availableMinutes }
-        val planned = current.weekTasks.sumOf { it.entity.plannedMinutes }; val actual = current.weekTasks.sumOf { it.actualMinutes }
+        val planned = current.weekPlannedMinutes; val actual = current.weekTasks.sumOf { it.actualMinutes }
         return PlanContext(
             competition = competitions.value.firstOrNull { it.id == plan.competitionId }?.name ?: "Concurso",
             objective = plan.objective,

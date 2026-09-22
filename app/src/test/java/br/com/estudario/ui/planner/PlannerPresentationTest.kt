@@ -4,6 +4,8 @@ import br.com.estudario.domain.planner.PlanPriority
 import br.com.estudario.domain.planner.PlanTaskStatus
 import br.com.estudario.domain.planner.PlanTaskType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 
@@ -32,5 +34,15 @@ class PlannerPresentationTest {
     fun forecastDatesUsePortugueseFullDate() {
         assertEquals("20 de setembro de 2026", forecastDateLabelPtBr(LocalDate.of(2026, 9, 20)))
         assertEquals("04 de janeiro de 2027", forecastDateLabelPtBr(LocalDate.of(2027, 1, 4)))
+    }
+
+    @Test
+    fun plannedLoadCountsCurrentAndHistoricalOutcomeOnceButNotSupersededWork() {
+        assertTrue(PlanTaskStatus.PLANEJADA.countsAsPlannedLoad())
+        assertTrue(PlanTaskStatus.EM_ANDAMENTO.countsAsPlannedLoad())
+        assertTrue(PlanTaskStatus.CONCLUIDA.countsAsPlannedLoad())
+        assertTrue(PlanTaskStatus.NAO_REALIZADA.countsAsPlannedLoad())
+        assertFalse(PlanTaskStatus.REPROGRAMADA.countsAsPlannedLoad())
+        assertFalse(PlanTaskStatus.PAUSADA.countsAsPlannedLoad())
     }
 }
