@@ -89,6 +89,7 @@ import br.com.estudario.data.prompt.PlanPromptOptions
 import br.com.estudario.data.prompt.PlanSubjectInfo
 import br.com.estudario.data.prompt.PromptIds
 import br.com.estudario.domain.planner.StudyProfile
+import br.com.estudario.domain.setup.SubjectDifficulty
 import br.com.estudario.domain.setup.InitialSetupSnapshot
 import br.com.estudario.domain.setup.InitialSetupStatus
 import br.com.estudario.domain.setup.InitialSetupStep
@@ -110,6 +111,7 @@ private val visibleSteps = listOf(
     InitialSetupStep.SYLLABUS_REVIEW,
     InitialSetupStep.PROFILE,
     InitialSetupStep.AVAILABILITY,
+    InitialSetupStep.SUBJECT_DIFFICULTY,
     InitialSetupStep.PLAN_METHOD,
     InitialSetupStep.PLAN_REVIEW,
 )
@@ -212,6 +214,7 @@ fun InitialSetupFlow(
                     InitialSetupStep.SYLLABUS_REVIEW -> SyllabusReviewStep(uiState, viewModel)
                     InitialSetupStep.PROFILE -> ProfileStep(snapshot, viewModel)
                     InitialSetupStep.AVAILABILITY -> AvailabilityStep(snapshot, viewModel)
+                    InitialSetupStep.SUBJECT_DIFFICULTY -> SubjectDifficultyStep(uiState, snapshot, viewModel)
                     InitialSetupStep.PLAN_METHOD -> PlanMethodStep(snapshot, uiState, operation, viewModel, picker)
                     InitialSetupStep.PLAN_REVIEW -> PlanReviewStep(snapshot, viewModel)
                     InitialSetupStep.READY -> ReadyStep(onFinish = { viewModel.finish(); onFinished() })
@@ -591,7 +594,7 @@ private fun AvailabilityStep(snapshot: InitialSetupSnapshot, viewModel: InitialS
         title = "Quanto tempo cabe na sua semana?",
         description = "Você pode mudar isso depois. O plano vai distribuir tarefas apenas nos dias disponíveis.",
         icon = Icons.Outlined.Schedule,
-        bottom = { SetupPrimaryButton("Continuar", { viewModel.advance(InitialSetupStep.AVAILABILITY, InitialSetupStep.PLAN_METHOD) }) },
+        bottom = { SetupPrimaryButton("Continuar", { viewModel.advance(InitialSetupStep.AVAILABILITY, InitialSetupStep.SUBJECT_DIFFICULTY) }) },
     ) {
         days.forEachIndexed { index, day ->
             val minutes = snapshot.availabilityMinutes.getOrElse(index) { 0 }
@@ -605,6 +608,37 @@ private fun AvailabilityStep(snapshot: InitialSetupSnapshot, viewModel: InitialS
         Text("Bloco preferido", style = MaterialTheme.typography.titleMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(25, 45, 50, 60, 90).forEach { option -> FilterChip(snapshot.sessionMinutes == option, { viewModel.chooseSessionMinutes(option) }, label = { Text("${option}m") }) }
+        }
+    }
+}
+
+@Composable
+private fun SubjectDifficultyStep(uiState: InitialSetupUiState, snapshot: InitialSetupSnapshot, viewModel: InitialSetupViewModel) {
+    val subjectIds = remember(uiState.subjects) { uiState.subjects.mapTo(linkedSetOf()) { it.id.toString() } }
+    LaunchedEffect(subjectIds) { if (subjectIds.isNotEmpty()) viewModel.reconcileSubjectDifficulties(subjectIds) }
+    SetupPage(
+        eyebrow = "Prioridades do plano",
+        title = "Quais matérias pedem mais atenção?",
+        description = "Sua percepção ajusta a distribuição do plano sem substituir o peso oficial do edital.",
+        icon = Icons.Outlined.School,
+        bottom = { SetupPrimaryButton("Continuar", { viewModel.advance(InitialSetupStep.SUBJECT_DIFFICULTY, InitialSetupStep.PLAN_METHOD) }) },
+    ) {
+        if (uiState.subjects.isEmpty()) {
+            SetupCard { Text("Não encontrei matérias neste edital. Você ainda pode continuar e ajustar o plano depois.") }
+        }
+        uiState.subjects.forEach { subject ->
+            SetupCard {
+                Text(subject.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                listOf(
+                    SubjectDifficulty.EASY to ("Tenho facilidade" to "Posso dedicar menos tempo por enquanto."),
+                    SubjectDifficulty.MEDIUM to ("Intermediária" to "Quero manter um ritmo equilibrado."),
+                    SubjectDifficulty.HARD to ("Tenho dificuldade" to "Dê mais espaço para esta matéria."),
+                ).forEach { (difficulty, copy) ->
+                    ChoiceCard(copy.first, copy.second, snapshot.subjectDifficulties[subject.id.toString()] == difficulty) {
+                        viewModel.setSubjectDifficulty(subject.id.toString(), difficulty)
+                    }
+                }
+            }
         }
     }
 }

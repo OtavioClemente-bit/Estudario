@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets
 
 /** Estado persistente do assistente de primeira configuração. Os nomes são dados de formato: não renomear sem migração. */
 enum class InitialSetupStatus { NOT_STARTED, IN_PROGRESS, DEFERRED, COMPLETED }
+enum class SubjectDifficulty { EASY, MEDIUM, HARD }
 
 enum class InitialSetupStep {
     INTRO,
@@ -16,6 +17,7 @@ enum class InitialSetupStep {
     SYLLABUS_REVIEW,
     PROFILE,
     AVAILABILITY,
+    SUBJECT_DIFFICULTY,
     PLAN_METHOD,
     PLAN_REVIEW,
     READY,
@@ -26,7 +28,7 @@ enum class SyllabusMethod { DIRECT_AI, IMPORT_ESTUDO, MANUAL, CHATGPT }
 enum class PlanCreationMethod { AUTOMATIC, EXTERNAL_AI }
 
 data class InitialSetupSnapshot(
-    val version: Int = 1,
+    val version: Int = InitialSetupSnapshotCodec.CURRENT_VERSION,
     val status: InitialSetupStatus = InitialSetupStatus.NOT_STARTED,
     val step: InitialSetupStep = InitialSetupStep.INTRO,
     val competitionId: Long? = null,
@@ -44,6 +46,7 @@ data class InitialSetupSnapshot(
     val planMethod: PlanCreationMethod = PlanCreationMethod.AUTOMATIC,
     val planPreference: String = "",
     val lastValidPlanId: String? = null,
+    val subjectDifficulties: Map<String, SubjectDifficulty> = emptyMap(),
 ) {
     fun normalized(): InitialSetupSnapshot = copy(
         competitionName = competitionName.trim(),
@@ -56,7 +59,11 @@ data class InitialSetupSnapshot(
         },
         sessionMinutes = sessionMinutes.coerceIn(15, 180),
         planPreference = planPreference.trim(),
+        subjectDifficulties = subjectDifficulties.mapKeys { it.key.trim() }.filterKeys(String::isNotBlank),
     )
+
+    fun subjectDifficultiesFor(subjectIds: Set<String>): Map<String, SubjectDifficulty> =
+        subjectIds.filter(String::isNotBlank).associateWith { id -> subjectDifficulties[id] ?: SubjectDifficulty.MEDIUM }
 
     companion object {
         fun defaultAvailability() = listOf(120, 120, 120, 120, 120, 120, 0)
@@ -68,13 +75,14 @@ data class InitialSetupSnapshot(
  * são URL-encoded para que nomes longos, acentos e separadores não quebrem o snapshot.
  */
 object InitialSetupSnapshotCodec {
+    const val CURRENT_VERSION = 2
     private const val FIELD_SEPARATOR = "|"
     private const val LIST_SEPARATOR = "~"
 
     fun encode(value: InitialSetupSnapshot): String {
         val snapshot = value.normalized()
         return listOf(
-            snapshot.version.toString(),
+            CURRENT_VERSION.toString(),
             snapshot.status.name,
             snapshot.step.name,
             snapshot.competitionId?.toString().orEmpty(),
@@ -92,6 +100,9 @@ object InitialSetupSnapshotCodec {
             snapshot.planMethod.name,
             encodeText(snapshot.planPreference),
             encodeText(snapshot.lastValidPlanId.orEmpty()),
+            snapshot.subjectDifficulties.entries.joinToString(LIST_SEPARATOR) { (id, difficulty) ->
+                "${encodeText(id)}=${difficulty.name}"
+            },
         ).joinToString(FIELD_SEPARATOR)
     }
 
@@ -120,6 +131,13 @@ object InitialSetupSnapshotCodec {
                 planMethod = enumOrDefault(field(13), PlanCreationMethod.AUTOMATIC),
                 planPreference = decodeText(field(14)),
                 lastValidPlanId = decodeText(field(15)).takeIf(String::isNotBlank),
+                subjectDifficulties = field(16).split(LIST_SEPARATOR).mapNotNull { entry ->
+                    val separator = entry.lastIndexOf('=')
+                    if (separator <= 0) null else {
+                        val id = decodeText(entry.substring(0, separator)).trim()
+                        if (id.isBlank()) null else id to enumOrDefault(entry.substring(separator + 1), SubjectDifficulty.MEDIUM)
+                    }
+                }.toMap(),
             ).normalized()
         }.getOrDefault(InitialSetupSnapshot())
     }
@@ -140,7 +158,8 @@ object InitialSetupTransitions {
         InitialSetupStep.SYLLABUS_METHOD to InitialSetupStep.SYLLABUS_REVIEW,
         InitialSetupStep.SYLLABUS_REVIEW to InitialSetupStep.PROFILE,
         InitialSetupStep.PROFILE to InitialSetupStep.AVAILABILITY,
-        InitialSetupStep.AVAILABILITY to InitialSetupStep.PLAN_METHOD,
+        InitialSetupStep.AVAILABILITY to InitialSetupStep.SUBJECT_DIFFICULTY,
+        InitialSetupStep.SUBJECT_DIFFICULTY to InitialSetupStep.PLAN_METHOD,
         InitialSetupStep.PLAN_METHOD to InitialSetupStep.PLAN_REVIEW,
         InitialSetupStep.PLAN_REVIEW to InitialSetupStep.READY,
     )

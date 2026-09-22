@@ -26,6 +26,7 @@ import br.com.estudario.domain.setup.InitialSetupTransitions
 import br.com.estudario.domain.setup.InitialSetupWorkspace
 import br.com.estudario.domain.setup.PlanCreationMethod
 import br.com.estudario.domain.setup.SyllabusMethod
+import br.com.estudario.domain.setup.SubjectDifficulty
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -198,6 +199,13 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
         })
     }
     fun chooseProfile(value: br.com.estudario.domain.planner.StudyProfile) = update { it.copy(studyProfile = value) }
+    fun setSubjectDifficulty(subjectId: String, value: SubjectDifficulty) = update { current ->
+        if (subjectId.isBlank()) current else current.copy(subjectDifficulties = current.subjectDifficulties + (subjectId to value))
+    }
+    fun reconcileSubjectDifficulties(subjectIds: Set<String>) = update { current ->
+        val reconciled = current.subjectDifficultiesFor(subjectIds)
+        if (reconciled == current.subjectDifficulties) current else current.copy(subjectDifficulties = reconciled)
+    }
     fun chooseSessionMinutes(value: Int) = update { it.copy(sessionMinutes = value.coerceIn(15, 180)) }
     fun choosePlanMethod(value: PlanCreationMethod) = update { it.copy(planMethod = value) }
     fun savePlanPreference(value: String) = update { it.copy(planPreference = value) }
