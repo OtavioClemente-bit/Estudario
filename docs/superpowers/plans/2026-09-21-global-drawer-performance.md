@@ -20,6 +20,7 @@
 
 - Destinos secundários mantêm menu, ação de voltar e back stack; não há barra inferior em detalhes nem topo duplicado.
 - Rota de calendário/notificação/quiz e gestos horizontais continuam funcionais; insets não deslocam conteúdo sob status/navigation bars.
+- Em `topic/{id}`, o relógio/status bar não cobre o cabeçalho, a navegação do sistema não corta as ações/conteúdo final, e a lista ainda rola até o fim em viewport compacto.
 - Limites de data local e janela anterior cobrem troca de mês, fim de dia e mudança de fuso.
 - Tempo de sessões de estudo e de questões fica em subtotais, salvo prova explícita de que as durações não se sobrepõem.
 - Plano parcial, pausado, não realizado e sem execução não produz aderência falsamente perfeita.
@@ -32,6 +33,7 @@
 **Files:**
 - Modify: `app/src/main/java/br/com/estudario/ui/EstudarioApp.kt`
 - Modify: `app/src/main/java/br/com/estudario/ui/navigation/EstudarioDrawer.kt`
+- Modify: `app/src/main/java/br/com/estudario/ui/screens/TopicDetailScreen.kt`
 - Modify: `app/src/androidTest/java/br/com/estudario/ui/PlannerNavigationTest.kt`
 - Modify: `app/src/androidTest/java/br/com/estudario/ui/InsetsNavigationTest.kt`
 
@@ -45,7 +47,7 @@ Estender `PlannerNavigationTest`: validar quatro abas, abrir menu em `Plano`, na
 Manter `showBottom = currentRoute in destinations.map { it.route }`, mas renderizar a top bar global para todas as rotas completas e habilitar o drawer por botão em qualquer uma. Derivar rota empilhada para ação de voltar sem substituir o acionador de menu. Auditar barras próprias das rotas: consolidar título/voltar na barra comum quando possível e preservar ações contextuais necessárias sem repetir marca nem criar um segundo acionador de menu. Manter `ModalNavigationDrawer` envolvendo o `Scaffold`/`NavHost`; limitar a `NavigationBar` às quatro rotas atuais. Implementar navegação de destino sem duplicar a rota atual e continuar usando `popUpTo("home")` com save/restore para abas.
 - [ ] **Step 3: Tornar política de gesto explícita e verificar insets**
 
-Permitir gesto do drawer nas telas compatíveis; desabilitá-lo nas rotas em que o conteúdo usa gesto de borda/horizontal (identificar em `NavHost`, especialmente teoria, quiz e foco). O botão de marca permanece sempre habilitado. Atualizar testes para confirmar drawer visível em uma rota secundária e que a navegação inferior não aparece nela; manter assertions de `InsetsNavigationTest`.
+Permitir gesto do drawer nas telas compatíveis; desabilitá-lo nas rotas em que o conteúdo usa gesto de borda/horizontal (identificar em `NavHost`, especialmente teoria, quiz e foco). O botão de marca permanece sempre habilitado. Corrigir a responsabilidade dos insets por camada: a barra global reserva a região superior; o conteúdo de `topic/{id}` respeita a região inferior segura quando não há bottom bar, sem duplicar o inset superior. Atualizar `InsetsNavigationTest` para cobrir esse caso em viewport compacto com status/navigation insets explícitos: cabeçalho abaixo do relógio, ações visíveis, último conteúdo alcançável por rolagem acima da navegação. Atualizar também os testes para confirmar drawer visível em uma rota secundária e que a navegação inferior não aparece nela.
 - [ ] **Step 4: Executar testes e commit seletivo**
 
 ```powershell
@@ -54,7 +56,7 @@ Permitir gesto do drawer nas telas compatíveis; desabilitá-lo nas rotas em que
 ./gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.ui.InsetsNavigationTest
 ```
 
-Registrar se device/emulador indisponível. `git diff --check`; stage apenas os quatro arquivos deste task e commitar `feat: expose Estudario drawer across app screens`.
+Registrar se device/emulador indisponível. Quando disponível, conferir visualmente `topic/{id}` em aparelho compacto com barras do sistema visíveis e fontes padrão/ampliadas. `git diff --check`; stage apenas os arquivos deste task e commitar `feat: expose Estudario drawer across app screens`.
 
 ### Task 2: Definir contratos puros da avaliação de desempenho
 

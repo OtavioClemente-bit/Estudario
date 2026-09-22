@@ -14,6 +14,7 @@ Permitir que a pessoa abra o menu do Estudário enquanto navega por qualquer tel
 ## Diagnóstico confirmado
 
 - Em `EstudarioApp.kt`, o acionador da top bar e os gestos do drawer estão condicionados a `showBottom`; rotas secundárias não oferecem acesso consistente ao menu.
+- A janela usa edge-to-edge e o `Scaffold` global declara `WindowInsets(0, 0, 0, 0)`. Em `topic/{id}`, sem top/bottom bar do shell, `TopicDetailScreen` preenche a janela com uma `LazyColumn` sem insets seguros; assim, o conteúdo pode ficar sob o relógio/status bar e a área de navegação do celular.
 - `StatisticsScreen` filtra tentativas de questões pelo período, mas calcula sequência/atividade sobre histórico completo. O tempo mostrado soma apenas sessões de questões, e a comparação por matéria depende do banco de questões presente.
 - O app já armazena tentativas, sessões de questões, sessões de estudo, revisões e execuções de tarefas do plano. O `StudyPaceEvaluator` existente mede previsão de cobertura versus data da prova, não substituindo a avaliação de desempenho.
 
@@ -25,6 +26,7 @@ Permitir que a pessoa abra o menu do Estudário enquanto navega por qualquer tel
 - Gestos do drawer e botão funcionam em todas as rotas compatíveis, sem interceptar gestos próprios de leitura, quiz, foco ou controles horizontais.
 - Telas completas recebem o shell comum; diálogos, folhas modais temporárias, seletores de arquivo e telas de autenticação do sistema não ganham um drawer independente.
 - A top bar e o drawer respeitam insets em notch, status bar e navegação gestual ou por botões. O trabalho existente de edge-to-edge/Home deve ser preservado.
+- Em detalhes de tópico, título, ações e conteúdo permanecem dentro da área realmente visível: abaixo da status bar/relógio e acima da navegação do sistema. O conteúdo longo continua rolável até o fim; insets não são aplicados duas vezes quando a barra comum já reservou a área superior.
 
 ## Avaliação de desempenho
 
@@ -59,7 +61,7 @@ Permitir que a pessoa abra o menu do Estudário enquanto navega por qualquer tel
 ## Testes e critérios de aceite
 
 1. O menu abre por botão em todas as rotas completas citadas e o back stack continua correto; há um único acionador de drawer.
-2. Testar janela compacta, insets, navegação por gesto/botão e que gestos do quiz/foco não abram o drawer por acidente.
+2. Testar janela compacta e fontes ampliadas com status bar e navegação do sistema: em `topic/{id}`, cabeçalho não fica sob o relógio, ações não são cortadas e o último conteúdo pode ser alcançado acima da navegação. Verificar também navegação por gesto/botão e que gestos do quiz/foco não abram o drawer por acidente.
 3. Cada métrica usa a mesma janela; limites de período e comparação anterior têm testes de fronteira.
 4. Tempo não duplica fontes sem vínculo; revisões não são tratadas como retenção medida.
 5. Amostras pequenas exibem contagem e “Poucos dados”; tendências e orientações usam somente eventos do período.
