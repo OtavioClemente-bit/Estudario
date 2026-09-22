@@ -308,13 +308,14 @@ private fun CompetitionStep(snapshot: InitialSetupSnapshot, selected: Competitio
 private fun ExamDateStep(snapshot: InitialSetupSnapshot, viewModel: InitialSetupViewModel) {
     var date by rememberSaveable(snapshot.competitionId) { mutableStateOf(snapshot.examDate.orEmpty()) }
     val parsed = runCatching { LocalDate.parse(date) }.getOrNull()
+    val dateIsBeforeStart = parsed?.isBefore(LocalDate.now()) == true
     SetupPage(
         eyebrow = "Sem pressão",
         title = "Você já sabe quando é a prova?",
         description = "A data ajuda a dividir as fases. Se ainda não houver edital ou calendário definido, seu plano continua funcionando sem ela.",
         icon = Icons.Outlined.CalendarMonth,
         bottom = {
-            SetupPrimaryButton("Continuar", { viewModel.saveExamDate(date) }, enabled = date.isBlank() || parsed != null)
+            SetupPrimaryButton("Continuar", { viewModel.saveExamDate(date) }, enabled = date.isBlank() || (parsed != null && !dateIsBeforeStart))
         },
     ) {
         OutlinedTextField(
@@ -323,15 +324,15 @@ private fun ExamDateStep(snapshot: InitialSetupSnapshot, viewModel: InitialSetup
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Data da prova (opcional)") },
             placeholder = { Text("AAAA-MM-DD") },
-            supportingText = { Text(if (date.isBlank()) "Você pode adicionar depois." else if (parsed == null) "Use o formato AAAA-MM-DD." else "Data registrada.") },
-            isError = date.isNotBlank() && parsed == null,
+            supportingText = { Text(if (date.isBlank()) "Você pode adicionar depois." else if (parsed == null) "Use o formato AAAA-MM-DD." else if (dateIsBeforeStart) "A data da prova não pode ser anterior a hoje." else "Data registrada.") },
+            isError = date.isNotBlank() && (parsed == null || dateIsBeforeStart),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         )
         Spacer(Modifier.height(16.dp))
         SetupCard {
             Icon(Icons.Outlined.Schedule, null, tint = MaterialTheme.colorScheme.primary)
-            Text("Sem data, o plano trabalha em ciclos de 6 meses e você ajusta quando souber mais.", style = MaterialTheme.typography.bodyMedium)
+            Text("Sem data, o plano trabalha em ciclos de quatro semanas. Você pode gerar o próximo bloco e ajustar quando souber mais.", style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -670,27 +671,42 @@ private fun PlanMethodStep(
         },
     ) {
         ChoiceCard("Montar automaticamente", "Recomendado para começar: distribui suas matérias nos dias disponíveis e já cria a primeira atividade.", snapshot.planMethod == PlanCreationMethod.AUTOMATIC, onClick = { viewModel.choosePlanMethod(PlanCreationMethod.AUTOMATIC) })
-        ChoiceCard("Montar com IA externa", "Receba um prompt com seu edital, disponibilidade e IDs reais; depois importe e confira o .plano gerado.", snapshot.planMethod == PlanCreationMethod.EXTERNAL_AI, onClick = { viewModel.choosePlanMethod(PlanCreationMethod.EXTERNAL_AI) })
+        ChoiceCard("Montar com IA externa", "O prompt inclui o edital completo, seus tópicos e prioridades, ritmo, bloco e perfil. Depois, importe e confira o .plano.", snapshot.planMethod == PlanCreationMethod.EXTERNAL_AI, onClick = { viewModel.choosePlanMethod(PlanCreationMethod.EXTERNAL_AI) })
         if (snapshot.planMethod == PlanCreationMethod.EXTERNAL_AI) {
-            val prompt = remember(
-                snapshot.competitionName,
-                uiState.promptSubjects,
-                uiState.planningPrioritiesByExternalId,
-                snapshot.examDate,
-                snapshot.availabilityMinutes,
-            ) {
-                PlanPromptBuilder.build(
-                    competitionId = uiState.competition?.let(PromptIds::competition) ?: "concurso-${PromptIds.slug(snapshot.competitionName)}",
-                    competitionName = snapshot.competitionName,
-                    subjects = uiState.promptSubjects,
-                    o = PlanPromptOptions(
-                        examDate = snapshot.examDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
-                        dayMinutes = snapshot.availabilityMinutes,
-                        priorities = uiState.planningPrioritiesByExternalId,
-                    ),
-                )
+            val planStartDate = LocalDate.now()
+            val examDate = snapshot.examDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+            val examDateBeforeStart = examDate?.isBefore(planStartDate) == true
+            if (examDateBeforeStart) {
+                Text("A data da prova está antes do início do plano. Volte e escolha uma data válida para gerar a proposta.", color = MaterialTheme.colorScheme.error)
+            } else {
+                val prompt = remember(
+                    snapshot.competitionName,
+                    uiState.promptSubjects,
+                    uiState.planningPrioritiesByExternalId,
+                    snapshot.examDate,
+                    snapshot.availabilityMinutes,
+                    snapshot.sessionMinutes,
+                    snapshot.studyProfile,
+                    snapshot.planPreference,
+                    planStartDate,
+                ) {
+                    PlanPromptBuilder.build(
+                        competitionId = uiState.competition?.let(PromptIds::competition) ?: "concurso-${PromptIds.slug(snapshot.competitionName)}",
+                        competitionName = snapshot.competitionName,
+                        subjects = uiState.promptSubjects,
+                        o = PlanPromptOptions(
+                            startDate = planStartDate,
+                            examDate = examDate,
+                            dayMinutes = snapshot.availabilityMinutes,
+                            priorities = uiState.planningPrioritiesByExternalId,
+                            blockMinutes = snapshot.sessionMinutes,
+                            studyProfile = snapshot.studyProfile,
+                            planPreference = snapshot.planPreference,
+                        ),
+                    )
+                }
+                PlanPromptActionCard(prompt, onImport = { picker.launch(arrayOf("application/json", "text/plain", "*/*")) })
             }
-            PlanPromptActionCard(prompt, onImport = { picker.launch(arrayOf("application/json", "text/plain", "*/*")) })
             TextButton(onClick = { viewModel.choosePlanMethod(PlanCreationMethod.AUTOMATIC) }) { Text("Voltar para o plano automático") }
         }
         OutlinedTextField(snapshot.planPreference, viewModel::savePlanPreference, Modifier.fillMaxWidth(), label = { Text("Alguma prioridade? (opcional)") }, placeholder = { Text("Ex.: mais questões de Constitucional") }, minLines = 2)

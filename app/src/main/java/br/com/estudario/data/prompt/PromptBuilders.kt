@@ -5,6 +5,7 @@ import br.com.estudario.data.local.PriorityEvidenceCodec
 import br.com.estudario.data.local.SubjectEntity
 import br.com.estudario.data.local.TopicEntity
 import br.com.estudario.domain.planner.PlanPriority
+import br.com.estudario.domain.planner.StudyProfile
 import java.text.Normalizer
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -534,6 +535,9 @@ data class PlanPromptOptions(
     val startDate: LocalDate = LocalDate.now(),
     val examDate: LocalDate? = null,
     val horizonWeeks: Int = 4,
+    val blockMinutes: Int = 50,
+    val studyProfile: StudyProfile = StudyProfile.DO_ZERO,
+    val planPreference: String = "",
     /** Minutos por dia, segunda (índice 0) a domingo (índice 6). 0 = dia de folga. */
     val dayMinutes: List<Int> = listOf(120, 120, 120, 120, 120, 60, 0),
     val weeklyQuestions: Int = 100,
@@ -548,8 +552,12 @@ object PlanPromptBuilder {
     private val dayNames = listOf("segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo")
 
     fun endDate(o: PlanPromptOptions): LocalDate {
+        require(o.examDate == null || !o.examDate.isBefore(o.startDate)) {
+            "A data da prova não pode ser anterior à data de início do plano."
+        }
+        if (o.examDate != null) return o.examDate
         val byHorizon = o.startDate.plusWeeks(o.horizonWeeks.toLong()).minusDays(1)
-        return if (o.examDate != null && o.examDate.isBefore(byHorizon)) o.examDate else byHorizon
+        return byHorizon
     }
 
     fun build(competitionId: String, competitionName: String, subjects: List<PlanSubjectInfo>, o: PlanPromptOptions): String = buildString {
@@ -573,6 +581,9 @@ object PlanPromptBuilder {
         appendLine("- Concurso: $competitionName")
         appendLine("- Objetivo: ${o.objective.text}.")
         appendLine("- Método preferido: ${o.method.text}")
+        appendLine("- Perfil de estudo: ${o.studyProfile.label}. ${o.studyProfile.summary}")
+        appendLine("- Bloco-base de cada tarefa: ${o.blockMinutes.coerceAtLeast(1)} minutos; ele não representa a disponibilidade total do dia.")
+        if (o.planPreference.isNotBlank()) appendLine("- Prioridade declarada pela pessoa: ${o.planPreference.trim()}")
         appendLine("- Início: ${o.startDate}. ${if (o.examDate != null) "Data da prova: ${o.examDate}." else "Data da prova ainda não definida."}")
         appendLine("- Gere tarefas de ${o.startDate} até $end ($days dias). Fases anuais e metas mensais podem ir além, até ${o.examDate ?: o.startDate.plusMonths(6)}.")
         appendLine("- Disponibilidade líquida (já descontadas pausas): " + o.dayMinutes.mapIndexed { index, minutes -> "${dayNames[index]} ${if (minutes == 0) "folga" else "$minutes min"}" }.joinToString(", ") + ". Total: $weeklyMinutes min por semana.")
@@ -598,6 +609,7 @@ object PlanPromptBuilder {
         }
         appendLine()
         appendLine("REGRAS DO PLANEJAMENTO:")
+        appendLine("- Respeite o perfil de estudo e a prioridade informada pela pessoa sem substituir o peso/prioridade oficial já listado para cada matéria.")
         appendLine("- use somente as matérias e os tópicos listados pelo app. Não crie matérias, tópicos, IDs ou dados factuais; não deduza conteúdo de edital pelo nome do concurso ou por conhecimento geral.")
         appendLine("- Nunca ultrapasse os minutos de cada dia; dias de folga ficam sem tarefas. Não invente horários.")
         appendLine("- Distribua o tempo conforme a prioridade: CRITICAL recebe mais tempo, depois HIGH, MEDIUM e LOW; nenhuma matéria ativa pode ficar mais de 7 dias sem contato.")

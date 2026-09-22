@@ -10,6 +10,7 @@ import br.com.estudario.data.transfer.IncomingFileFormat
 import br.com.estudario.data.transfer.IncomingText
 import br.com.estudario.data.transfer.planner.StudyPlanCodec
 import br.com.estudario.domain.planner.PlanPriority
+import br.com.estudario.domain.planner.StudyProfile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -110,6 +111,66 @@ class PromptBuildersTest {
         assertTrue(prompt.contains("\"topicoNome\": \"Hash\""))
         assertTrue(prompt.contains("55% de acerto"))
         assertTrue(prompt.contains("\"prioridade\": \"CRITICAL\""))
+    }
+
+    @Test fun `plan prompt horizon uses the exam date even when it is more than four weeks away`() {
+        val start = LocalDate.of(2026, 9, 22)
+        val exam = start.plusWeeks(12)
+        assertEquals(exam, PlanPromptBuilder.endDate(PlanPromptOptions(startDate = start, examDate = exam)))
+    }
+
+    @Test fun `plan prompt without an exam date defaults to four weeks from its start`() {
+        val start = LocalDate.of(2026, 9, 22)
+        assertEquals(start.plusWeeks(4).minusDays(1), PlanPromptBuilder.endDate(PlanPromptOptions(startDate = start)))
+    }
+
+    @Test fun `plan prompt keeps the explicitly selected horizon when there is no exam date`() {
+        val start = LocalDate.of(2026, 9, 22)
+        assertEquals(start.plusWeeks(12).minusDays(1), PlanPromptBuilder.endDate(PlanPromptOptions(startDate = start, horizonWeeks = 12)))
+    }
+
+    @Test fun `plan prompt stops at an exam date inside the default four week horizon`() {
+        val start = LocalDate.of(2026, 9, 22)
+        val exam = start.plusDays(10)
+        assertEquals(exam, PlanPromptBuilder.endDate(PlanPromptOptions(startDate = start, examDate = exam)))
+    }
+
+    @Test fun `plan prompt includes difficulty context block and all real syllabus references deterministically`() {
+        val start = LocalDate.of(2026, 9, 22)
+        val exam = start.plusWeeks(12)
+        val subjects = listOf(
+            PlanSubjectInfo("materia-10", "Segurança", listOf(PlanTopicInfo("topico-101", "Hash", true)), 20, 55),
+            PlanSubjectInfo("materia-11", "Redes", listOf(PlanTopicInfo("topico-102", "Roteamento", false)), 4, 75),
+        )
+        val options = PlanPromptOptions(
+            startDate = start,
+            examDate = exam,
+            dayMinutes = listOf(90, 75, 60, 45, 30, 0, 0),
+            priorities = mapOf("materia-10" to PlanPriority.CRITICAL, "materia-11" to PlanPriority.HIGH),
+            blockMinutes = 45,
+            studyProfile = StudyProfile.APROFUNDANDO,
+            planPreference = "Mais questões de Redes",
+        )
+        val first = PlanPromptBuilder.build("concurso-trt3", "TRT-3", subjects, options)
+
+        assertTrue(first.contains("até $exam"))
+        assertTrue(first.contains("topico-101 → Hash [ok]"))
+        assertTrue(first.contains("topico-102 → Roteamento"))
+        assertTrue(first.contains("materia-10") && first.contains("materia-11"))
+        assertTrue(first.contains("prioridade: CRITICAL") && first.contains("prioridade: HIGH"))
+        assertTrue(first.contains("75 min") && first.contains("45 min"))
+        assertTrue(first.contains("Bloco-base de cada tarefa: 45 minutos"))
+        assertTrue(first.contains(StudyProfile.APROFUNDANDO.label))
+        assertTrue(first.contains("Mais questões de Redes"))
+        assertEquals(first, PlanPromptBuilder.build("concurso-trt3", "TRT-3", subjects, options))
+    }
+
+    @Test fun `plan prompt rejects an exam date before its start date`() {
+        val start = LocalDate.of(2026, 9, 22)
+        val earlierExam = start.minusDays(1)
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            PlanPromptBuilder.endDate(PlanPromptOptions(startDate = start, examDate = earlierExam))
+        }
     }
 
     @Test fun `knowledge content prompt requires official web research and records consulted sources`() {

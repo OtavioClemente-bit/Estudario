@@ -311,8 +311,9 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
         }
     }
     val effective = options.copy(dayMinutes = dayMinutes.toList(), priorities = priorities.toMap())
+    val datesValid = effective.examDate == null || !effective.examDate.isBefore(effective.startDate)
     val prompt = remember(effective, subjectInfos, competition) {
-        if (competition == null) "" else PlanPromptBuilder.build(PromptIds.competition(competition), competition.name, subjectInfos, effective)
+        if (competition == null || !datesValid) "" else PlanPromptBuilder.build(PromptIds.competition(competition), competition.name, subjectInfos, effective)
     }
 
     if (pickExamDate) {
@@ -336,8 +337,9 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
         onDismiss = onDismiss,
         onImportText = { onDismiss(); viewModel.openIncomingText(it) },
         onPickFile = { onDismiss(); onPickFile() },
-        shareEnabled = competition != null && competitionSubjects.isNotEmpty() && dayMinutes.any { it > 0 },
+        shareEnabled = datesValid && competition != null && competitionSubjects.isNotEmpty() && dayMinutes.any { it > 0 },
         disabledReason = when {
+            !datesValid -> "A data da prova não pode ser anterior ao início do plano."
             competition == null -> "Crie ou importe um concurso no Edital antes de gerar o plano."
             competitionSubjects.isEmpty() -> "Este concurso ainda não tem matérias. Importe o edital primeiro."
             else -> "Defina pelo menos um dia com tempo de estudo."
@@ -360,9 +362,12 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
             }
             Text("Tarefas detalhadas para:", style = MaterialTheme.typography.bodyMedium)
             ChoiceChips(listOf(2, 4, 8, 12), options.horizonWeeks, { "$it semanas" }) { options = options.copy(horizonWeeks = it) }
-            val end = PlanPromptBuilder.endDate(effective)
-            Text("De ${options.startDate.format(dateFormat)} até ${end.format(dateFormat)}. Horizontes curtos cabem melhor numa resposta; depois é só gerar o próximo bloco.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (options.examDate != null && options.examDate!!.isBefore(LocalDate.now())) Text("A data da prova está no passado.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            if (datesValid) {
+                val end = PlanPromptBuilder.endDate(effective)
+                Text("De ${options.startDate.format(dateFormat)} até ${end.format(dateFormat)}. Horizontes curtos cabem melhor numa resposta; depois é só gerar o próximo bloco.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Text("A data da prova não pode ser anterior ao início do plano.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
         }
         OptionSection("Tempo líquido por dia", "Já descontando pausas. Deixe em 0 os dias de folga.") {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

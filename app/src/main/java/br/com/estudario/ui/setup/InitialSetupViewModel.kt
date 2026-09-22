@@ -159,7 +159,15 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
         repository.setPrimary(competition.id)
     }
 
-    fun saveExamDate(value: String?) = update { it.copy(examDate = value?.trim()?.takeIf(String::isNotBlank), step = InitialSetupStep.SYLLABUS_METHOD) }
+    fun saveExamDate(value: String?) = viewModelScope.launch {
+        val clean = value?.trim()?.takeIf(String::isNotBlank)
+        val date = clean?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        if (clean != null && (date == null || date.isBefore(LocalDate.now()))) {
+            _operation.value = SetupOperation.Error("A data da prova precisa ser hoje ou uma data futura.")
+            return@launch
+        }
+        app.preferences.updateInitialSetup { it.copy(examDate = clean, step = InitialSetupStep.SYLLABUS_METHOD) }
+    }
     fun chooseSyllabusMethod(value: SyllabusMethod) = update { it.copy(syllabusMethod = value) }
     fun saveManualSubjects(value: List<String>) = update { it.copy(manualSubjects = value) }
     fun saveManualTopics(value: Map<String, List<String>>) = update { it.copy(manualTopics = value) }
@@ -350,6 +358,9 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
                 snapshot = current,
             )
             val exam = current.examDate?.let { LocalDate.parse(it) }
+            require(exam == null || !exam.isBefore(LocalDate.now())) {
+                "A data da prova não pode ser anterior à data de início do plano."
+            }
             val method = StudyMethodConfig.forProfile(current.studyProfile).copy(blockMinutes = current.sessionMinutes)
             val baseObjective = current.role.ifBlank { "Preparação para ${current.competitionName.ifBlank { "a prova" }}" }
             val objective = if (current.planPreference.isBlank()) baseObjective else "$baseObjective • Prioridade declarada: ${current.planPreference}"
