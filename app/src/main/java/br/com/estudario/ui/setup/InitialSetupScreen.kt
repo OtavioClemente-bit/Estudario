@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -91,6 +92,7 @@ import br.com.estudario.data.prompt.PromptIds
 import br.com.estudario.domain.planner.StudyProfile
 import br.com.estudario.domain.setup.SubjectDifficulty
 import br.com.estudario.domain.setup.InitialSetupSnapshot
+import br.com.estudario.domain.setup.PlanCoverageResult
 import br.com.estudario.domain.setup.InitialSetupStatus
 import br.com.estudario.domain.setup.InitialSetupStep
 import br.com.estudario.domain.setup.PlanCreationMethod
@@ -254,7 +256,46 @@ fun InitialSetupFlow(
             dismissButton = { TextButton(onClick = viewModel::clearOperation) { Text("Escolher outro") } },
         )
     }
+    if (operation is SetupOperation.PlanCoverageError) {
+        val issue = operation as SetupOperation.PlanCoverageError
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("O plano não cobre todo o edital") },
+            text = {
+                Text(
+                    text = issue.result.asReadableCoverageSummary(),
+                    modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { picker.launch(arrayOf("application/json", "text/plain", "*/*")) }) {
+                    Text("Importar outro arquivo")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::createAutomaticPlan) { Text("Usar plano automático") }
+            },
+        )
+    }
 }
+
+private fun PlanCoverageResult.asReadableCoverageSummary(): String = buildList {
+    if (missingTopics.isNotEmpty()) {
+        add("Tópicos sem tarefa (${missingTopics.size}):")
+        missingTopics.forEach { add("• ${it.subjectName}: ${it.topicName} [${it.topicId}]") }
+    }
+    if (missingSubjects.isNotEmpty()) {
+        add("Matérias sem tarefa (${missingSubjects.size}):")
+        missingSubjects.forEach { add("• $it") }
+    }
+    if (overCapacityDates.isNotEmpty()) {
+        add("Dias que excedem sua disponibilidade (${overCapacityDates.size}):")
+        overCapacityDates.forEach { add("• $it") }
+    }
+    if (availabilityMismatchDays.isNotEmpty()) {
+        add("A disponibilidade do arquivo difere da sua seleção nos dias: ${availabilityMismatchDays.joinToString()}. Gere outro plano com os minutos originais.")
+    }
+}.joinToString("\n")
 
 @Composable
 private fun IntroStep(onContinue: () -> Unit) {

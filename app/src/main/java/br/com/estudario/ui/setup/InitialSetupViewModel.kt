@@ -15,6 +15,7 @@ import br.com.estudario.data.transfer.EstudoPackageService
 import br.com.estudario.data.transfer.EstudoPreview
 import br.com.estudario.data.transfer.ImportMode
 import br.com.estudario.data.transfer.planner.PlanImportMode
+import br.com.estudario.data.transfer.planner.StudyPlanCodec
 import br.com.estudario.data.transfer.planner.StudyPlanImportPreview
 import br.com.estudario.data.prompt.PromptIds
 import br.com.estudario.data.prompt.PlanSubjectInfo
@@ -26,6 +27,12 @@ import br.com.estudario.domain.setup.InitialSetupStatus
 import br.com.estudario.domain.setup.InitialSetupStep
 import br.com.estudario.domain.setup.InitialSetupTransitions
 import br.com.estudario.domain.setup.InitialSetupWorkspace
+import br.com.estudario.domain.setup.MissingTopic
+import br.com.estudario.domain.setup.PlanCoverageResult
+import br.com.estudario.domain.setup.PlanCoverageSubject
+import br.com.estudario.domain.setup.PlanCoverageTask
+import br.com.estudario.domain.setup.PlanCoverageTopic
+import br.com.estudario.domain.setup.PlanCoverageValidator
 import br.com.estudario.domain.setup.PlanCreationMethod
 import br.com.estudario.domain.setup.SyllabusMethod
 import br.com.estudario.domain.setup.SubjectDifficulty
@@ -46,6 +53,7 @@ sealed interface SetupOperation {
     data object Loading : SetupOperation
     data class Preview(val raw: String, val value: EstudoPreview) : SetupOperation
     data class PlanPreview(val raw: String, val value: StudyPlanImportPreview) : SetupOperation
+    data class PlanCoverageError(val raw: String, val result: PlanCoverageResult) : SetupOperation
     data class Success(val message: String) : SetupOperation
     data class Error(val message: String) : SetupOperation
 }
@@ -288,9 +296,46 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
     fun confirmPlanImport(raw: String) = viewModelScope.launch {
         _operation.value = SetupOperation.Loading
         try {
+            val current = app.preferences.initialSetup.first()
+            val competitionId = current.competitionId ?: state.value.competition?.id
+                ?: error("Selecione o concurso antes de importar o plano.")
+            val file = withContext(Dispatchers.Default) {
+                StudyPlanCodec().decode(br.com.estudario.data.transfer.IncomingText.clean(raw))
+            }
+            val sourceSubjects = dao.subjectsFor(competitionId).map { subject ->
+                PlanCoverageSubject(
+                    id = PromptIds.subject(subject),
+                    name = subject.name,
+                    topics = dao.topicsFor(subject.id).map { topic -> PlanCoverageTopic(PromptIds.topic(topic), topic.title) },
+                )
+            }
+            val expectedCompetition = dao.competitionsOnce().firstOrNull { it.id == competitionId }
+                ?: error("O concurso selecionado não foi encontrado.")
+            require(file.competition.externalId == PromptIds.competition(expectedCompetition)) {
+                "Este .plano foi criado para outro concurso. Gere ou escolha um plano para ${expectedCompetition.name}."
+            }
+            val importedDayMinutes = List(7) { index ->
+                file.configuration.days.firstOrNull { it.day == index + 1 }
+                    ?.let { if (it.unavailable) 0 else it.minutes }
+                    ?: 0
+            }
+            val coverage = withContext(Dispatchers.Default) {
+                PlanCoverageValidator.validate(
+                    sourceSubjects = sourceSubjects,
+                    importedTasks = file.tasks.map { task ->
+                        PlanCoverageTask(task.subjectExternalId, task.topicExternalId, task.date, task.minutes)
+                    },
+                    dayMinutes = current.availabilityMinutes,
+                    importedDayMinutes = importedDayMinutes,
+                )
+            }
+            if (!coverage.isComplete) {
+                _operation.value = SetupOperation.PlanCoverageError(raw, coverage)
+                return@launch
+            }
             ensureExternalIds()
             val result = withContext(Dispatchers.Default) {
-                app.planTransferService.`import`(raw, PlanImportMode.CREATE, confirmActive = true, confirmMaster = true)
+                app.planTransferService.`import`(br.com.estudario.data.transfer.IncomingText.clean(raw), PlanImportMode.CREATE, confirmActive = true, confirmMaster = true)
             }
             app.planService.activate(result.planId)
             app.planService.markMaster(result.planId)
@@ -392,7 +437,7 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
                 app.planService.markMaster(planId)
                 app.planService.replan(planId, ReplanReason.INITIAL)
             }
-            app.preferences.updateInitialSetup { it.copy(lastValidPlanId = planId, step = InitialSetupStep.PLAN_REVIEW) }
+            app.preferences.updateInitialSetup { it.copy(planMethod = PlanCreationMethod.AUTOMATIC, lastValidPlanId = planId, step = InitialSetupStep.PLAN_REVIEW) }
             _operation.value = SetupOperation.Success("Plano criado com base no seu edital e na sua disponibilidade.")
         } catch (error: Exception) {
             _operation.value = SetupOperation.Error(error.message ?: "Não foi possível criar o plano agora.")
