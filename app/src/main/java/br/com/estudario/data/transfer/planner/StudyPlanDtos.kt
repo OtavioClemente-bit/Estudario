@@ -3,6 +3,7 @@ package br.com.estudario.data.transfer.planner
 import br.com.estudario.data.local.planner.AvailabilityMode
 import br.com.estudario.domain.planner.PlanOrigin
 import br.com.estudario.domain.planner.PlanPriority
+import br.com.estudario.domain.planner.StudyProfile
 import br.com.estudario.domain.planner.PlanTaskStatus
 import br.com.estudario.domain.planner.PlanTaskType
 import java.time.LocalDate
@@ -14,6 +15,8 @@ data class PlanConfigurationDto(
     val days: List<PlanDayDto>,
     val weeklyQuestions: Int,
     val monthlyDiscursives: Int,
+    val blockMinutes: Int = 50,
+    val profile: StudyProfile = StudyProfile.DO_ZERO,
 )
 data class PlanSubjectDto(
     val externalId: String,

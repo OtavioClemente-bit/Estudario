@@ -1,5 +1,6 @@
 package br.com.estudario.data.transfer.planner
 
+import br.com.estudario.domain.planner.StudyProfile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -16,6 +17,52 @@ class StudyPlanCodecTest {
         assertEquals("competition-1", roundTrip.competition.externalId)
         assertEquals(1_320, roundTrip.configuration.days.sumOf { it.minutes })
         assertEquals(decoded, roundTrip)
+    }
+
+    @Test
+    fun `legacy version one plan defaults the study method`() {
+        val decoded = codec.decode(validPlan())
+
+        assertEquals(50, decoded.configuration.blockMinutes)
+        assertEquals(StudyProfile.DO_ZERO, decoded.configuration.profile)
+    }
+
+    @Test
+    fun `study method is preserved in version one round trip`() {
+        val plan = codec.decode(validPlan()).copy(
+            configuration = codec.decode(validPlan()).configuration.copy(
+                blockMinutes = 90,
+                profile = StudyProfile.RETA_FINAL,
+            ),
+        )
+
+        val encoded = codec.encode(plan)
+        val roundTrip = codec.decode(encoded)
+
+        assertTrue(encoded.contains("\"blocoMinutos\": 90"))
+        assertTrue(encoded.contains("\"perfil\": \"RETA_FINAL\""))
+        assertEquals(90, roundTrip.configuration.blockMinutes)
+        assertEquals(StudyProfile.RETA_FINAL, roundTrip.configuration.profile)
+    }
+
+    @Test
+    fun `unknown study profile and out of range blocks are rejected`() {
+        val unknownProfile = validPlan().replace(
+            "\"discursivasMensais\":2",
+            "\"discursivasMensais\":2,\"perfil\":\"DESCONHECIDO\"",
+        )
+        val tooShort = validPlan().replace(
+            "\"discursivasMensais\":2",
+            "\"discursivasMensais\":2,\"blocoMinutos\":14",
+        )
+        val tooLong = validPlan().replace(
+            "\"discursivasMensais\":2",
+            "\"discursivasMensais\":2,\"blocoMinutos\":181",
+        )
+
+        assertTrue(runCatching { codec.decode(unknownProfile) }.exceptionOrNull() is StudyPlanValidationException)
+        assertTrue(runCatching { codec.decode(tooShort) }.exceptionOrNull() is StudyPlanValidationException)
+        assertTrue(runCatching { codec.decode(tooLong) }.exceptionOrNull() is StudyPlanValidationException)
     }
 
     @Test

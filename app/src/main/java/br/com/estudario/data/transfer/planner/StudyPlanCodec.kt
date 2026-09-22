@@ -5,6 +5,7 @@ import br.com.estudario.domain.planner.PlanOrigin
 import br.com.estudario.domain.planner.PlanPriority
 import br.com.estudario.domain.planner.PlanTaskStatus
 import br.com.estudario.domain.planner.PlanTaskType
+import br.com.estudario.domain.planner.StudyProfile
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
@@ -41,6 +42,8 @@ class StudyPlanCodec {
                 },
                 weeklyQuestions = configuration.optInt("questoesSemanais", 0),
                 monthlyDiscursives = configuration.optInt("discursivasMensais", 0),
+                blockMinutes = if (configuration.has("blocoMinutos")) configuration.requireInt("blocoMinutos", "configuracao.blocoMinutos") else 50,
+                profile = if (configuration.has("perfil")) enum(configuration.requireText("perfil", "configuracao.perfil"), "configuracao.perfil") else StudyProfile.DO_ZERO,
             ),
             subjects = root.array("prioridades").objects().mapIndexed { index, item ->
                 PlanSubjectDto(
@@ -97,7 +100,8 @@ class StudyPlanCodec {
             .put("baseRevision", plan.baseRevision ?: JSONObject.NULL)
             .put("configuracao", JSONObject().put("modo", plan.configuration.mode.name)
                 .put("dias", JSONArray(plan.configuration.days.sortedBy { it.day }.map { JSONObject().put("dia", it.day).put("minutos", it.minutes).put("indisponivel", it.unavailable) }))
-                .put("questoesSemanais", plan.configuration.weeklyQuestions).put("discursivasMensais", plan.configuration.monthlyDiscursives))
+                .put("questoesSemanais", plan.configuration.weeklyQuestions).put("discursivasMensais", plan.configuration.monthlyDiscursives)
+                .put("blocoMinutos", plan.configuration.blockMinutes).put("perfil", plan.configuration.profile.name))
             .put("prioridades", JSONArray(plan.subjects.sortedBy { it.position }.map { subjectJson(it) }))
             .put("fasesAnuais", JSONArray(plan.annualPhases.map { annualJson(it) }))
             .put("planosMensais", JSONArray(plan.monthlyPlans.map { monthJson(it) }))

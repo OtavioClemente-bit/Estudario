@@ -160,6 +160,8 @@ class PromptBuildersTest {
         assertTrue(first.contains("prioridade: CRITICAL") && first.contains("prioridade: HIGH"))
         assertTrue(first.contains("75 min") && first.contains("45 min"))
         assertTrue(first.contains("Bloco-base de cada tarefa: 45 minutos"))
+        assertTrue(first.contains("\"blocoMinutos\": 45"))
+        assertTrue(first.contains("\"perfil\": \"APROFUNDANDO\""))
         assertTrue(first.contains(StudyProfile.APROFUNDANDO.label))
         assertTrue(first.contains("Mais questões de Redes"))
         assertEquals(first, PlanPromptBuilder.build("concurso-trt3", "TRT-3", subjects, options))

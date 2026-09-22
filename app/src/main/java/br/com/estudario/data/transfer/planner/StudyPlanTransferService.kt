@@ -87,6 +87,8 @@ class StudyPlanTransferService(
                     examEpochDay = resolved.file.examDate?.toEpochDay(),
                     active = confirmActive && resolved.file.active,
                     masterPlan = confirmMaster && resolved.file.masterPlan,
+                    profile = resolved.file.configuration.profile.name,
+                    blockMinutes = resolved.file.configuration.blockMinutes,
                 ),
             )
             planner.insertRevision(StudyPlanRevisionEntity(planId, 0, 0, "IMPORTED_CREATE", summary = "Plano importado."))

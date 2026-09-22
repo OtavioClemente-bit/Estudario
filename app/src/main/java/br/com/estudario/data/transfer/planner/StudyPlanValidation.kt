@@ -19,6 +19,7 @@ internal object StudyPlanValidation {
         }
         nonNegative(plan.configuration.weeklyQuestions, "configuracao.questoesSemanais")
         nonNegative(plan.configuration.monthlyDiscursives, "configuracao.discursivasMensais")
+        if (plan.configuration.blockMinutes !in 15..180) fail("configuracao.blocoMinutos", "deve estar entre 15 e 180 minutos")
         plan.subjects.forEachIndexed { index, subject ->
             requireText(subject.externalId, "prioridades[$index].externalId")
             nonNegative(subject.maintenanceMinutes, "prioridades[$index].manutencaoMinutos")

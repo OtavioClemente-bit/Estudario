@@ -75,7 +75,7 @@ data class StudyMethodConfig(
     val interleaveSubjects: Boolean = true,
 ) {
     init {
-        require(blockMinutes in 15..120) { "O bloco precisa ter entre 15 e 120 minutos." }
+        require(blockMinutes in 15..180) { "O bloco precisa ter entre 15 e 180 minutos." }
         require(weeklyQuestionsTarget >= 0)
         require(questionsPerTopic >= 0)
         require(simulationsPerMonth in 0..8)

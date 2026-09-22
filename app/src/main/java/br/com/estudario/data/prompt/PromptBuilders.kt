@@ -582,7 +582,7 @@ object PlanPromptBuilder {
         appendLine("- Objetivo: ${o.objective.text}.")
         appendLine("- Método preferido: ${o.method.text}")
         appendLine("- Perfil de estudo: ${o.studyProfile.label}. ${o.studyProfile.summary}")
-        appendLine("- Bloco-base de cada tarefa: ${o.blockMinutes.coerceAtLeast(1)} minutos; ele não representa a disponibilidade total do dia.")
+        appendLine("- Bloco-base de cada tarefa: ${o.blockMinutes.coerceIn(15, 180)} minutos; ele não representa a disponibilidade total do dia.")
         if (o.planPreference.isNotBlank()) appendLine("- Prioridade declarada pela pessoa: ${o.planPreference.trim()}")
         appendLine("- Início: ${o.startDate}. ${if (o.examDate != null) "Data da prova: ${o.examDate}." else "Data da prova ainda não definida."}")
         appendLine("- Gere tarefas de ${o.startDate} até $end ($days dias). Fases anuais e metas mensais podem ir além, até ${o.examDate ?: o.startDate.plusMonths(6)}.")
@@ -609,7 +609,7 @@ object PlanPromptBuilder {
         }
         appendLine()
         appendLine("REGRAS DO PLANEJAMENTO:")
-        appendLine("- Respeite o perfil de estudo e a prioridade informada pela pessoa sem substituir o peso/prioridade oficial já listado para cada matéria.")
+        appendLine("- Respeite o perfil de estudo e preserve a prioridade fornecida para cada matéria. Distribua mais tempo às prioridades maiores, sem inventar ou reduzir esses valores.")
         appendLine("- use somente as matérias e os tópicos listados pelo app. Não crie matérias, tópicos, IDs ou dados factuais; não deduza conteúdo de edital pelo nome do concurso ou por conhecimento geral.")
         appendLine("- Nunca ultrapasse os minutos de cada dia; dias de folga ficam sem tarefas. Não invente horários.")
         appendLine("- Distribua o tempo conforme a prioridade: CRITICAL recebe mais tempo, depois HIGH, MEDIUM e LOW; nenhuma matéria ativa pode ficar mais de 7 dias sem contato.")
@@ -621,6 +621,7 @@ object PlanPromptBuilder {
         appendLine("- Copie o planId abaixo. IDs de fases, meses, semanas e tarefas: textos curtos e únicos (fase-01, mes-01, semana-01, tarefa-001...). tarefas[].dependencias só com IDs existentes, sem ciclos (use [] quando não houver).")
         appendLine("- status PLANEJADA, origem IMPORTED, locked false. active e masterPlan false. baseRevision null.")
         appendLine("- Enumeradores permitidos: modo SIMPLE ou ADVANCED; prioridade CRITICAL, HIGH, MEDIUM ou LOW; tipo THEORY, QUESTIONS, REVIEW, ACTIVE_RECALL, FLASHCARDS, SIMULATION ou DISCURSIVE.")
+        appendLine("- Em configuracao.perfil, use somente DO_ZERO, APROFUNDANDO ou RETA_FINAL; copie o perfil informado acima. Em configuracao.blocoMinutos, copie o tamanho do bloco informado acima.")
         appendLine()
         appendLine("FORMATO:")
         appendLine("- O conteúdo do arquivo é JSON válido puro, sem Markdown e sem ```. Entregue como arquivo .plano, conforme o bloco COMO ENTREGAR no topo.")
@@ -646,7 +647,9 @@ object PlanPromptBuilder {
         }
         appendLine("    ],")
         appendLine("    \"questoesSemanais\": ${o.weeklyQuestions},")
-        appendLine("    \"discursivasMensais\": ${o.monthlyDiscursives}")
+        appendLine("    \"discursivasMensais\": ${o.monthlyDiscursives},")
+        appendLine("    \"blocoMinutos\": ${o.blockMinutes.coerceIn(15, 180)},")
+        appendLine("    \"perfil\": \"${o.studyProfile.name}\"")
         appendLine("  },")
         appendLine("  \"prioridades\": [")
         subjects.forEachIndexed { index, subject ->

@@ -45,7 +45,7 @@ data class StudyPlanEntity(
         br.com.estudario.domain.planner.StudyMethodConfig(
             profile = runCatching { br.com.estudario.domain.planner.StudyProfile.valueOf(profile) }
                 .getOrDefault(br.com.estudario.domain.planner.StudyProfile.DO_ZERO),
-            blockMinutes = blockMinutes.coerceIn(15, 120),
+            blockMinutes = blockMinutes.coerceIn(15, 180),
             weeklyQuestionsTarget = weeklyQuestionsTarget.coerceAtLeast(0),
             questionsPerTopic = questionsPerTopic.coerceAtLeast(0),
             simulationsPerMonth = simulationsPerMonth.coerceIn(0, 8),
