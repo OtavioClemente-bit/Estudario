@@ -223,27 +223,40 @@ class StudyRepository(private val db: AppDatabase) {
     private suspend fun completeStudyInternal(topicId: Long, startedAt: Long, notes: String) {
         val now = System.currentTimeMillis()
         val topic = dao.topic(topicId) ?: return
+        // A conclusão é um marco único. Repetir o toque não cria outra sessão (e portanto não
+        // acumula XP), nem outra agenda de revisão. Ainda removemos uma entrada antiga da fila,
+        // caso ela tenha sobrevivido a uma versão anterior do app.
+        if (topic.status != TopicStatus.NAO_ESTUDADO) {
+            dao.queueOnce().firstOrNull { it.topicId == topicId }?.let { item ->
+                dao.deleteQueue(item)
+                dao.insertQueueEvent(QueueEventEntity(topicId = topicId, type = QueueEventType.CONCLUIDO))
+            }
+            return
+        }
+        val firstCompletion = dao.studySessionCount(topicId) == 0
         val subject = dao.subjectsOnce().firstOrNull { it.id == topic.subjectId }
         val topicQuestionIds = dao.questionsOnce().filter { it.question.topicId == topicId }.map { it.question.id }.toSet()
         val attempts = dao.attemptsOnce().filter { it.answeredAt in startedAt..now && it.questionId in topicQuestionIds }
-        dao.insertStudySession(StudySessionEntity(
-            topicId = topicId,
-            startedAt = startedAt,
-            completedAt = now,
-            competitionId = subject?.competitionId,
-            subjectId = subject?.id,
-            durationSeconds = ((now - startedAt) / 1000).coerceAtLeast(0),
-            questionCount = attempts.size,
-            correctCount = attempts.count { it.correct },
-            wrongCount = attempts.count { !it.correct },
-            notes = notes,
-        ))
+        if (firstCompletion) {
+            dao.insertStudySession(StudySessionEntity(
+                topicId = topicId,
+                startedAt = startedAt,
+                completedAt = now,
+                competitionId = subject?.competitionId,
+                subjectId = subject?.id,
+                durationSeconds = ((now - startedAt) / 1000).coerceAtLeast(0),
+                questionCount = attempts.size,
+                correctCount = attempts.count { it.correct },
+                wrongCount = attempts.count { !it.correct },
+                notes = notes,
+            ))
+        }
         dao.updateTopic(topic.copy(status = TopicStatus.ESTUDADO, firstStudiedAt = topic.firstStudiedAt ?: now, lastStudiedAt = now))
         val zone = ZoneId.systemDefault()
         val base = LocalDate.now(zone)
         dao.insertReviews(ReviewIntervals.days.mapIndexed { index, days -> ReviewScheduleEntity(topicId = topicId, stage = index + 1, dueAt = base.plusDays(days).atStartOfDay(zone).toInstant().toEpochMilli()) })
         dao.queueOnce().firstOrNull { it.topicId == topicId }?.let { item ->
-            dao.updateQueue(item.copy(position = StudyQueueRules.completedPosition(dao.maxQueuePosition())))
+            dao.deleteQueue(item)
             dao.insertQueueEvent(QueueEventEntity(topicId = topicId, type = QueueEventType.CONCLUIDO))
         }
     }
