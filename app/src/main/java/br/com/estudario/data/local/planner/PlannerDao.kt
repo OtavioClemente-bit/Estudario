@@ -21,6 +21,28 @@ interface PlannerDao {
     @Query("SELECT * FROM study_plans WHERE competitionId = :competitionId AND masterPlan = 1 AND archived = 0 LIMIT 1") suspend fun masterPlanOnce(competitionId: Long): StudyPlanEntity?
     @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertPlan(value: StudyPlanEntity)
     @Update suspend fun updatePlan(value: StudyPlanEntity)
+    @Query("SELECT * FROM plan_competitions WHERE planId = :planId ORDER BY position")
+    suspend fun competitionsFor(planId: String): List<PlanCompetitionEntity>
+    @Query("SELECT * FROM plan_competitions ORDER BY planId, position")
+    suspend fun planCompetitionsOnce(): List<PlanCompetitionEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertPlanCompetitions(values: List<PlanCompetitionEntity>)
+    @Query(
+        "SELECT DISTINCT study_plans.* FROM study_plans " +
+            "INNER JOIN plan_competitions ON plan_competitions.planId = study_plans.id " +
+            "WHERE plan_competitions.competitionId = :competitionId AND study_plans.id <> :excludingPlanId",
+    )
+    suspend fun combinedPlansUsingCompetition(competitionId: Long, excludingPlanId: String = ""): List<StudyPlanEntity>
+    @Query(
+        "UPDATE study_plans SET active = 0 WHERE archived = 0 AND id <> :planId AND id IN " +
+            "(SELECT planId FROM plan_competitions WHERE competitionId IN (:competitionIds))",
+    )
+    suspend fun deactivatePlansSharingCompetitions(planId: String, competitionIds: List<Long>)
+    @Query(
+        "UPDATE study_plans SET masterPlan = 0 WHERE archived = 0 AND id <> :planId AND id IN " +
+            "(SELECT planId FROM plan_competitions WHERE competitionId IN (:competitionIds))",
+    )
+    suspend fun unmarkMasterPlansSharingCompetitions(planId: String, competitionIds: List<Long>)
     @Query("UPDATE study_plans SET revision = revision + 1, updatedAt = :now WHERE id = :planId AND revision = :baseRevision") suspend fun claimRevision(planId: String, baseRevision: Long, now: Long): Int
     @Query("UPDATE study_plans SET active = CASE WHEN id = :planId THEN 1 ELSE 0 END WHERE competitionId = :competitionId AND archived = 0") suspend fun activateOnly(competitionId: Long, planId: String)
     @Query("UPDATE study_plans SET masterPlan = CASE WHEN id = :planId THEN 1 ELSE 0 END WHERE competitionId = :competitionId AND archived = 0") suspend fun markOnlyMaster(competitionId: Long, planId: String)

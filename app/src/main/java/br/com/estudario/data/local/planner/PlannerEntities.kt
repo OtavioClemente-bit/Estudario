@@ -54,6 +54,22 @@ data class StudyPlanEntity(
         )
 }
 
+/** Editais que formam o escopo de um plano, na ordem escolhida no assistente. */
+@Entity(
+    tableName = "plan_competitions",
+    primaryKeys = ["planId", "competitionId"],
+    foreignKeys = [
+        ForeignKey(entity = StudyPlanEntity::class, parentColumns = ["id"], childColumns = ["planId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = CompetitionEntity::class, parentColumns = ["id"], childColumns = ["competitionId"], onDelete = ForeignKey.CASCADE),
+    ],
+    indices = [Index("planId"), Index("competitionId")],
+)
+data class PlanCompetitionEntity(
+    val planId: String,
+    val competitionId: Long,
+    val position: Int,
+)
+
 @Entity(
     tableName = "study_plan_revisions",
     primaryKeys = ["planId", "revision"],

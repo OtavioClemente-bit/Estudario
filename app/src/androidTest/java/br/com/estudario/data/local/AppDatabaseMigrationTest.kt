@@ -191,4 +191,26 @@ class AppDatabaseMigrationTest {
             close()
         }
     }
+
+    @Test
+    fun migrateTwelveToThirteenBackfillsPlanCompetition() {
+        val name = "migration-v12-v13-plan-competitions-test"
+        helper.createDatabase(name, 12).apply {
+            execSQL("INSERT INTO competitions (id, name, isPrimary, createdAt) VALUES (1, 'TRF', 1, 1)")
+            execSQL(
+                "INSERT INTO study_plans (id, competitionId, name, objective, startEpochDay, active, masterPlan, archived, revision, createdAt, updatedAt, profile, blockMinutes, weeklyQuestionsTarget, questionsPerTopic, simulationsPerMonth, discursivesPerMonth, interleaveSubjects) " +
+                    "VALUES ('p1', 1, 'Plano', 'Aprovação', 1, 1, 0, 0, 0, 1, 1, 'DO_ZERO', 50, 100, 15, 2, 0, 1)",
+            )
+            close()
+        }
+
+        helper.runMigrationsAndValidate(name, 13, true, AppDatabase.MIGRATION_12_13).apply {
+            query("SELECT competitionId, position FROM plan_competitions WHERE planId = 'p1'").use { cursor ->
+                assertEquals(true, cursor.moveToFirst())
+                assertEquals(1L, cursor.getLong(0))
+                assertEquals(0, cursor.getInt(1))
+            }
+            close()
+        }
+    }
 }

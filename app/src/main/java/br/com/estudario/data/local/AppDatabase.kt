@@ -19,13 +19,13 @@ import br.com.estudario.data.local.planner.*
         TopicSnippetEntity::class, ErrorConceptEntity::class, ErrorConceptEntryCrossRef::class,
         ReviewSessionEntity::class, QueueEventEntity::class, QuestionSessionEntity::class,
         ImportPackageEntity::class, ContentSourceEntity::class,
-        StudyPlanEntity::class, StudyPlanRevisionEntity::class, StudyAvailabilityEntity::class,
+        StudyPlanEntity::class, PlanCompetitionEntity::class, StudyPlanRevisionEntity::class, StudyAvailabilityEntity::class,
         StudyDayOverrideEntity::class, PlanSubjectEntity::class, AnnualPhaseEntity::class,
         AnnualPhaseSubjectEntity::class, AnnualPhaseTopicEntity::class, MonthlyPlanEntity::class,
         MonthlyPlanSubjectEntity::class, MonthlyPlanTopicEntity::class, WeeklyPlanEntity::class,
         PlanTaskEntity::class, PlanTaskDependencyEntity::class, StudyTaskExecutionEntity::class,
     ],
-    version = 12,
+    version = 13,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -164,6 +164,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Um plano antigo passa a declarar explicitamente seu edital âncora como escopo. */
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `plan_competitions` (" +
+                        "`planId` TEXT NOT NULL, `competitionId` INTEGER NOT NULL, `position` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`planId`, `competitionId`), " +
+                        "FOREIGN KEY(`planId`) REFERENCES `study_plans`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, " +
+                        "FOREIGN KEY(`competitionId`) REFERENCES `competitions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_plan_competitions_planId` ON `plan_competitions` (`planId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_plan_competitions_competitionId` ON `plan_competitions` (`competitionId`)")
+                db.execSQL(
+                    "INSERT INTO plan_competitions (planId, competitionId, position) " +
+                        "SELECT id, competitionId, 0 FROM study_plans",
+                )
+            }
+        }
+
         /** Guarda o recorte declarado de cada tópico: o que o item do edital cobra e o que não cobra. */
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -289,6 +308,6 @@ abstract class AppDatabase : RoomDatabase() {
             context.applicationContext,
             AppDatabase::class.java,
             "estudario.db",
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13).build()
     }
 }
