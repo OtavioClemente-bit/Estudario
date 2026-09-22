@@ -95,6 +95,7 @@ import br.com.estudario.domain.setup.InitialSetupStatus
 import br.com.estudario.domain.setup.InitialSetupStep
 import br.com.estudario.domain.setup.PlanCreationMethod
 import br.com.estudario.domain.setup.SyllabusMethod
+import br.com.estudario.domain.setup.formatAvailabilityMinutes
 import br.com.estudario.ui.AppViewModel
 import br.com.estudario.ui.TransferState
 import br.com.estudario.ui.prompt.sharePromptWithAi
@@ -588,7 +589,15 @@ private fun ProfileStep(snapshot: InitialSetupSnapshot, viewModel: InitialSetupV
 
 @Composable
 private fun AvailabilityStep(snapshot: InitialSetupSnapshot, viewModel: InitialSetupViewModel) {
-    val days = listOf("Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom")
+    val days = listOf(
+        "Seg" to "Segunda-feira",
+        "Ter" to "Terça-feira",
+        "Qua" to "Quarta-feira",
+        "Qui" to "Quinta-feira",
+        "Sex" to "Sexta-feira",
+        "Sáb" to "Sábado",
+        "Dom" to "Domingo",
+    )
     SetupPage(
         eyebrow = "Seu ritmo",
         title = "Quanto tempo cabe na sua semana?",
@@ -596,18 +605,16 @@ private fun AvailabilityStep(snapshot: InitialSetupSnapshot, viewModel: InitialS
         icon = Icons.Outlined.Schedule,
         bottom = { SetupPrimaryButton("Continuar", { viewModel.advance(InitialSetupStep.AVAILABILITY, InitialSetupStep.SUBJECT_DIFFICULTY) }) },
     ) {
-        days.forEachIndexed { index, day ->
+        days.forEachIndexed { index, (shortDay, fullDay) ->
             val minutes = snapshot.availabilityMinutes.getOrElse(index) { 0 }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                Text(day, Modifier.width(34.dp), fontWeight = FontWeight.SemiBold)
-                listOf(0, 60, 120, 180).forEach { option ->
-                    FilterChip(selected = minutes == option, onClick = { viewModel.setAvailability(index, option) }, label = { Text(if (option == 0) "Folga" else "${option}m") })
-                }
-            }
+            AvailabilityDaySlider(shortDay, fullDay, minutes) { viewModel.setAvailability(index, it) }
         }
-        Text("Bloco preferido", style = MaterialTheme.typography.titleMedium)
+        Text("Total disponível na semana: ${formatAvailabilityMinutes(snapshot.availabilityMinutes.sum())}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text("Este total é a soma dos dias disponíveis; cada controle acima é por dia.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Tamanho do bloco", style = MaterialTheme.typography.titleMedium)
+        Text("O bloco é o tamanho-base de cada tarefa do plano. Não é o total de estudo do dia; as tarefas usam múltiplos do bloco dentro do tempo disponível.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(25, 45, 50, 60, 90).forEach { option -> FilterChip(snapshot.sessionMinutes == option, { viewModel.chooseSessionMinutes(option) }, label = { Text("${option}m") }) }
+            listOf(25, 45, 50, 60, 90).forEach { option -> FilterChip(snapshot.sessionMinutes == option, { viewModel.chooseSessionMinutes(option) }, label = { Text("$option min") }) }
         }
     }
 }
