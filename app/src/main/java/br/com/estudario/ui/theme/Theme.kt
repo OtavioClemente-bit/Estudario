@@ -3,6 +3,7 @@ package br.com.estudario.ui.theme
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 private val LightColors = lightColorScheme(
@@ -37,3 +38,24 @@ fun EstudarioTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composa
         content = content,
     )
 }
+
+data class EstudarioExtendedColors(
+    val completed: Color,
+    val onCompleted: Color,
+    val current: Color,
+    val onCurrent: Color,
+    val upcoming: Color,
+    val attention: Color,
+    val subjectPalette: List<Color>,
+)
+
+private val LightExtendedColors = EstudarioExtendedColors(
+    completed = Color(0xFF087F5B), onCompleted = Color.White,
+    current = Color(0xFF4F46E5), onCurrent = Color.White,
+    upcoming = Color(0xFF6B6B70), attention = Color(0xFF9A4D00),
+    subjectPalette = listOf(Color(0xFF4F46E5), Color(0xFF087F5B), Color(0xFF9A4D00), Color(0xFF1D6FA5), Color(0xFFA23E6B)),
+)
+private val LocalEstudarioColors = staticCompositionLocalOf { LightExtendedColors }
+
+@Composable
+fun estudarioColors(): EstudarioExtendedColors = LocalEstudarioColors.current

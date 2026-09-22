@@ -290,7 +290,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     val taskId = backStack.arguments?.getString("taskId")
                     // Mesma tela do tópico, só que sabendo de qual missão do plano ela veio: o modo
                     // foco iniciado aqui, ao encerrar, volta e completa essa missão automaticamente.
-                    TopicDetailScreen(viewModel, id, taskId = taskId, onBack = { navController.popBackStack() }, onQuiz = { navController.navigate("quiz/15/$id/0/random/_/_") }, onTheory = { navController.navigate("theory/$it") }, onFocus = { navController.navigate("focus") })
+                    TopicDetailScreen(viewModel, id, onBack = { navController.popBackStack() }, onQuiz = { navController.navigate("quiz/15/$id/0/random/_/_") }, onTheory = { navController.navigate("theory/$it") }, onFocus = { navController.navigate("focus") })
                 }
                 composable("theory/{id}") { backStack -> TheoryReaderScreen(viewModel, backStack.arguments?.getString("id")?.toLongOrNull() ?: 0) { navController.popBackStack() } }
                 composable("quiz/{count}/{topic}/{subject}/{mode}/{board}/{difficulty}") { backStack ->
