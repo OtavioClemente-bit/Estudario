@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import br.com.estudario.EstudarioApplication
 import br.com.estudario.data.local.CompetitionEntity
+import br.com.estudario.data.local.TopicEntity
 import br.com.estudario.data.local.SubjectEntity
 import br.com.estudario.data.local.planner.AvailabilityMode
 import br.com.estudario.data.local.planner.StudyAvailabilityEntity
@@ -16,6 +17,7 @@ import br.com.estudario.data.transfer.ImportMode
 import br.com.estudario.data.transfer.planner.PlanImportMode
 import br.com.estudario.data.transfer.planner.StudyPlanImportPreview
 import br.com.estudario.data.prompt.PromptIds
+import br.com.estudario.data.prompt.PlanSubjectInfo
 import br.com.estudario.domain.planner.PlanPriority
 import br.com.estudario.domain.planner.ReplanReason
 import br.com.estudario.domain.planner.StudyMethodConfig
@@ -53,8 +55,13 @@ data class InitialSetupUiState(
     val competition: CompetitionEntity? = null,
     val competitions: List<CompetitionEntity> = emptyList(),
     val subjects: List<SubjectEntity> = emptyList(),
+    val topicEntities: List<TopicEntity> = emptyList(),
     val topicCount: Int = 0,
     val topicTitlesBySubject: Map<Long, List<String>> = emptyMap(),
+    val promptSubjects: List<PlanSubjectInfo> = emptyList(),
+    val officialPrioritiesBySubjectId: Map<Long, PlanPriority> = emptyMap(),
+    val planningPrioritiesBySubjectId: Map<Long, PlanPriority> = emptyMap(),
+    val planningPrioritiesByExternalId: Map<String, PlanPriority> = emptyMap(),
 )
 
 /** Orquestra a primeira configuração e mantém a lógica de dados fora das telas Compose. */
@@ -64,7 +71,7 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
     private val dao = app.database.dao()
     private val estudoService = EstudoPackageService(app.database)
 
-    val state: StateFlow<InitialSetupUiState> = combine(
+    private val syllabusState = combine(
         app.preferences.initialSetup,
         repository.competitions,
         repository.subjects,
@@ -80,8 +87,19 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
             competition = competition,
             competitions = competitions,
             subjects = scopedSubjects,
+            topicEntities = topics.filter { it.subjectId in scopedSubjectIds },
             topicCount = topics.count { it.subjectId in scopedSubjectIds },
             topicTitlesBySubject = topics.filter { it.subjectId in scopedSubjectIds }.groupBy { it.subjectId }.mapValues { (_, values) -> values.map { it.title } },
+        )
+    }
+
+    val state: StateFlow<InitialSetupUiState> = combine(syllabusState, dao.attempts(), dao.questions()) { base, attempts, questions ->
+        val planData = InitialSetupPlanMapper.map(base.competition, base.subjects, base.topicEntities, questions, attempts, base.snapshot)
+        base.copy(
+            promptSubjects = planData.promptSubjects,
+            officialPrioritiesBySubjectId = planData.officialPrioritiesBySubjectId,
+            planningPrioritiesBySubjectId = planData.planningPrioritiesBySubjectId,
+            planningPrioritiesByExternalId = planData.planningPrioritiesByExternalId,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, InitialSetupUiState())
 
@@ -322,6 +340,15 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
             val competitionId = ensureCompetition(current)
             val subjects = dao.subjectsFor(competitionId)
             require(subjects.isNotEmpty()) { "Adicione ao menos uma matéria antes de criar o plano." }
+            val competition = dao.competitionsOnce().firstOrNull { it.id == competitionId }
+            val planData = InitialSetupPlanMapper.map(
+                competition = competition,
+                subjects = subjects,
+                topics = subjects.flatMap { dao.topicsFor(it.id) },
+                questions = dao.questionsOnce(),
+                attempts = dao.attemptsOnce(),
+                snapshot = current,
+            )
             val exam = current.examDate?.let { LocalDate.parse(it) }
             val method = StudyMethodConfig.forProfile(current.studyProfile).copy(blockMinutes = current.sessionMinutes)
             val baseObjective = current.role.ifBlank { "Preparação para ${current.competitionName.ifBlank { "a prova" }}" }
@@ -338,7 +365,7 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
                         StudyAvailabilityEntity("pending", index + 1, minutes, unavailable = minutes <= 0, mode = AvailabilityMode.SIMPLE)
                     },
                     subjects = subjects.mapIndexed { index, subject ->
-                        PlanSubjectInput(subject.id, subject.name, PlanPriority.MEDIUM, 0, false, index, weight = 3)
+                        PlanSubjectInput(subject.id, subject.name, planData.planningPrioritiesBySubjectId[subject.id] ?: PlanPriority.MEDIUM, 0, false, index, weight = 3)
                     },
                     active = true,
                     masterPlan = true,

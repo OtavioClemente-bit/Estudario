@@ -665,12 +665,22 @@ private fun PlanMethodStep(
         ChoiceCard("Montar automaticamente", "Recomendado para começar: distribui suas matérias nos dias disponíveis e já cria a primeira atividade.", snapshot.planMethod == PlanCreationMethod.AUTOMATIC, onClick = { viewModel.choosePlanMethod(PlanCreationMethod.AUTOMATIC) })
         ChoiceCard("Montar com IA externa", "Receba um prompt com seu edital, disponibilidade e IDs reais; depois importe e confira o .plano gerado.", snapshot.planMethod == PlanCreationMethod.EXTERNAL_AI, onClick = { viewModel.choosePlanMethod(PlanCreationMethod.EXTERNAL_AI) })
         if (snapshot.planMethod == PlanCreationMethod.EXTERNAL_AI) {
-            val prompt = remember(snapshot.competitionName, uiState.subjects, snapshot.examDate, snapshot.availabilityMinutes) {
+            val prompt = remember(
+                snapshot.competitionName,
+                uiState.promptSubjects,
+                uiState.planningPrioritiesByExternalId,
+                snapshot.examDate,
+                snapshot.availabilityMinutes,
+            ) {
                 PlanPromptBuilder.build(
                     competitionId = uiState.competition?.let(PromptIds::competition) ?: "concurso-${PromptIds.slug(snapshot.competitionName)}",
                     competitionName = snapshot.competitionName,
-                    subjects = uiState.subjects.map { subject -> PlanSubjectInfo(PromptIds.subject(subject), subject.name, emptyList(), 0, null) },
-                    o = PlanPromptOptions(examDate = snapshot.examDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }, dayMinutes = snapshot.availabilityMinutes),
+                    subjects = uiState.promptSubjects,
+                    o = PlanPromptOptions(
+                        examDate = snapshot.examDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
+                        dayMinutes = snapshot.availabilityMinutes,
+                        priorities = uiState.planningPrioritiesByExternalId,
+                    ),
                 )
             }
             PlanPromptActionCard(prompt, onImport = { picker.launch(arrayOf("application/json", "text/plain", "*/*")) })
