@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.theme.screenPadding
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -15,7 +16,13 @@ import br.com.estudario.ui.AppViewModel
 import br.com.estudario.ui.components.EmptyState
 
 @Composable
-fun SearchScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenTopic: (Long) -> Unit, onOpenTheory: (Long) -> Unit) {
+fun SearchScreen(
+    viewModel: AppViewModel,
+    onBack: () -> Unit,
+    onOpenTopic: (Long) -> Unit,
+    onOpenTheory: (Long) -> Unit,
+    showInlineBack: Boolean = true,
+) {
     val subjects by viewModel.subjects.collectAsState()
     val topics by viewModel.topics.collectAsState()
     val summaries by viewModel.summaries.collectAsState()
@@ -29,8 +36,8 @@ fun SearchScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenTopic: (Long
     val summaryMatches = if (normalized.length < 2) emptyList() else summaries.filter { it.title.contains(normalized, true) || it.markdown.contains(normalized, true) || it.ownNotes.contains(normalized, true) }
     val theoryMatches = if (normalized.length < 2) emptyList() else theories.filter { theory -> theory.title.contains(normalized, true) || theory.markdown.contains(normalized, true) || theoryMarks.any { it.theoryId == theory.id && (it.quote.contains(normalized, true) || it.note.contains(normalized, true)) } }
     val questionMatches = if (normalized.length < 2) emptyList() else questions.filter { it.question.statement.contains(normalized, true) || it.question.explanation.contains(normalized, true) || it.question.tagsText.contains(normalized, true) }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") }; Text("Pesquisa global", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) } }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item { Row(verticalAlignment = Alignment.CenterVertically) { if (showInlineBack) IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") }; Text("Pesquisa global", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) } }
         item { OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), leadingIcon = { Icon(Icons.Outlined.Search, null) }, label = { Text("Teoria, observação, resumo, questão ou tópico") }, singleLine = true) }
         if (normalized.length < 2) item { EmptyState("Digite para pesquisar", "A busca funciona inteiramente offline.") }
         else if (subjectMatches.isEmpty() && topicMatches.isEmpty() && theoryMatches.isEmpty() && summaryMatches.isEmpty() && questionMatches.isEmpty()) item { EmptyState("Nenhum resultado", "Tente outro termo.") }
@@ -43,5 +50,5 @@ fun SearchScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenTopic: (Long
 }
 
 @Composable private fun ResultCard(type: String, title: String, subtitle: String, onClick: () -> Unit) {
-    ElevatedCard(onClick = onClick) { Column(Modifier.padding(14.dp)) { Text(type.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary); Text(title, fontWeight = FontWeight.Bold); if (subtitle.isNotBlank()) Text(subtitle, maxLines = 2, style = MaterialTheme.typography.bodySmall) } }
+    ElevatedCard(onClick = onClick) { Column(Modifier.padding(14.dp)) { Text(type.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary); Text(title, fontWeight = FontWeight.Bold); if (subtitle.isNotBlank()) Text(subtitle, maxLines = 2, style = MaterialTheme.typography.bodySmall, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) } }
 }

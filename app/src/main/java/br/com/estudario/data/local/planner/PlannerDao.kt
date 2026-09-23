@@ -58,6 +58,7 @@ interface PlannerDao {
     @Update suspend fun updateTask(value: PlanTaskEntity)
     @Query("SELECT * FROM plan_tasks WHERE id = :id") suspend fun task(id: String): PlanTaskEntity?
     @Query("SELECT * FROM plan_tasks WHERE planId = :planId ORDER BY scheduledEpochDay, createdAt") fun tasksFor(planId: String): Flow<List<PlanTaskEntity>>
+    @Query("SELECT * FROM plan_tasks ORDER BY planId, scheduledEpochDay, createdAt") fun tasks(): Flow<List<PlanTaskEntity>>
     @Query("SELECT * FROM plan_tasks WHERE planId = :planId ORDER BY scheduledEpochDay, createdAt") suspend fun tasksForOnce(planId: String): List<PlanTaskEntity>
     @Query("SELECT * FROM plan_tasks ORDER BY planId, scheduledEpochDay, createdAt") suspend fun tasksOnce(): List<PlanTaskEntity>
     /** Todas as tarefas, de todos os planos: o XP precisa saber o tipo de cada execução. */

@@ -26,7 +26,7 @@ import java.time.LocalTime
 /**
  * O topo da Home: quem está estudando e para qual concurso.
  *
- * A saudação é uma linha de contexto, não um "Olá 👋" ocupando meia tela — a marca, a busca e o
+ * A saudação é uma linha de contexto, não um "Olá 👋" ocupando meia tela, a marca, a busca e o
  * perfil já moram na barra de identidade do app, então aqui sobra espaço para o que importa: o
  * concurso ativo, que é o que dá sentido a todo o resto da tela.
  */
@@ -54,14 +54,14 @@ fun HomeHeader(
                     contest.name,
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
+                    maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
                 if (!contest.objective.isNullOrBlank()) {
                     Text(
                         contest.objective,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
+                        maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     )
                 }
             }
@@ -70,7 +70,7 @@ fun HomeHeader(
 }
 
 /**
- * Sem concurso cadastrado não existe painel para mostrar — e um dashboard zerado seria pior que
+ * Sem concurso cadastrado não existe painel para mostrar, e um dashboard zerado seria pior que
  * nada. Esta tela faz uma pergunta e oferece o primeiro passo.
  */
 @Composable
@@ -103,7 +103,7 @@ fun HomeNoContestState(onAddContest: () -> Unit, modifier: Modifier = Modifier) 
 
 /**
  * Uma linha só, no fim de uma seção: leva para onde o assunto continua. Evita transformar a Home em
- * menu — quem quer o detalhe toca, quem não quer nem percebe.
+ * menu, quem quer o detalhe toca, quem não quer nem percebe.
  */
 @Composable
 fun HomeSectionLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {

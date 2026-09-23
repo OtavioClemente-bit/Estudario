@@ -6,10 +6,14 @@ import androidx.room.Index
 import br.com.estudario.data.local.CompetitionEntity
 import br.com.estudario.data.local.SubjectEntity
 import br.com.estudario.data.local.TopicEntity
+import br.com.estudario.domain.planner.InitialKnowledge
+import br.com.estudario.domain.planner.PersonalDifficulty
 import br.com.estudario.domain.planner.PlanOrigin
 import br.com.estudario.domain.planner.PlanPriority
 import br.com.estudario.domain.planner.PlanTaskStatus
 import br.com.estudario.domain.planner.PlanTaskType
+import br.com.estudario.domain.planner.StudyDimensions
+import br.com.estudario.domain.planner.toExamPriority
 
 enum class AvailabilityMode { SIMPLE, ADVANCED }
 enum class PerceivedDifficulty { EASY, NORMAL, HARD }
@@ -40,6 +44,8 @@ data class StudyPlanEntity(
     @androidx.room.ColumnInfo(defaultValue = "2") val simulationsPerMonth: Int = 2,
     @androidx.room.ColumnInfo(defaultValue = "0") val discursivesPerMonth: Int = 0,
     @androidx.room.ColumnInfo(defaultValue = "1") val interleaveSubjects: Boolean = true,
+    /** Teto diário por matéria, vindo da preferência de variedade escolhida no assistente. */
+    @androidx.room.ColumnInfo(defaultValue = "60") val dailySubjectSharePercent: Int = 60,
 ) {
     fun methodConfig(): br.com.estudario.domain.planner.StudyMethodConfig =
         br.com.estudario.domain.planner.StudyMethodConfig(
@@ -51,6 +57,7 @@ data class StudyPlanEntity(
             simulationsPerMonth = simulationsPerMonth.coerceIn(0, 8),
             discursivesPerMonth = discursivesPerMonth.coerceIn(0, 12),
             interleaveSubjects = interleaveSubjects,
+            dailySubjectSharePercent = dailySubjectSharePercent.coerceIn(20, 100),
         )
 }
 
@@ -111,12 +118,32 @@ data class PlanSubjectEntity(
     val planId: String,
     val subjectId: Long,
     val subjectNameSnapshot: String,
+    /** Importância da matéria **na prova**. Não misturar com os dois campos abaixo. */
     val priority: PlanPriority,
     val paused: Boolean = false,
     val minimumMaintenanceMinutes: Int = 0,
     val weightOverride: Int? = null,
     val position: Int = 0,
-)
+    /**
+     * Quanto a matéria custa **para esta pessoa**. Eixo independente da prioridade: uma matéria
+     * pode valer muito ponto e ser fácil, ou valer pouco e ser um suplício.
+     */
+    @androidx.room.ColumnInfo(defaultValue = "NORMAL")
+    val personalDifficulty: PersonalDifficulty = PersonalDifficulty.NORMAL,
+    /**
+     * Quanto a pessoa **já sabia** antes do plano começar. Diferente de dificuldade: dá para achar
+     * uma matéria difícil e mesmo assim já ter base nela.
+     */
+    @androidx.room.ColumnInfo(defaultValue = "NONE")
+    val initialKnowledge: InitialKnowledge = InitialKnowledge.NONE,
+) {
+    /** Os três eixos juntos, do jeito que o motor de necessidade espera recebê-los. */
+    fun dimensions(): StudyDimensions = StudyDimensions(
+        examPriority = priority.toExamPriority(),
+        personalDifficulty = personalDifficulty,
+        initialKnowledge = initialKnowledge,
+    )
+}
 
 @Entity(
     tableName = "annual_phases",

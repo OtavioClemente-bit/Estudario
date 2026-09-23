@@ -111,7 +111,7 @@ class StudyRepository(private val db: AppDatabase) {
 
     /**
      * Desfaz o "marcar estudado". Tira o tópico do estado ESTUDADO e cancela as revisões que ainda
-     * não foram feitas. O que já aconteceu de verdade — sessões de estudo e revisões concluídas —
+     * não foram feitas. O que já aconteceu de verdade, sessões de estudo e revisões concluídas,
      * não é apagado: se houver histórico, as datas de estudo são preservadas.
      */
     suspend fun unmarkStudied(topic: TopicEntity) = db.withTransaction {
@@ -223,27 +223,42 @@ class StudyRepository(private val db: AppDatabase) {
     private suspend fun completeStudyInternal(topicId: Long, startedAt: Long, notes: String) {
         val now = System.currentTimeMillis()
         val topic = dao.topic(topicId) ?: return
+        // Concluir é uma transição única. Depois que o tópico já foi estudado, um toque repetido
+        // não cria outra sessão, não concede XP novamente e limpa qualquer item antigo que tenha
+        // permanecido na fila.
+        if (topic.status in setOf(TopicStatus.ESTUDADO, TopicStatus.REVISANDO, TopicStatus.DOMINADO)) {
+            dao.queueOnce().firstOrNull { it.topicId == topicId }?.let { item ->
+                dao.deleteQueue(item)
+                dao.insertQueueEvent(QueueEventEntity(topicId = topicId, type = QueueEventType.CONCLUIDO))
+            }
+            return
+        }
+        val firstCompletion = dao.studySessionCount(topicId) == 0
         val subject = dao.subjectsOnce().firstOrNull { it.id == topic.subjectId }
         val topicQuestionIds = dao.questionsOnce().filter { it.question.topicId == topicId }.map { it.question.id }.toSet()
         val attempts = dao.attemptsOnce().filter { it.answeredAt in startedAt..now && it.questionId in topicQuestionIds }
-        dao.insertStudySession(StudySessionEntity(
-            topicId = topicId,
-            startedAt = startedAt,
-            completedAt = now,
-            competitionId = subject?.competitionId,
-            subjectId = subject?.id,
-            durationSeconds = ((now - startedAt) / 1000).coerceAtLeast(0),
-            questionCount = attempts.size,
-            correctCount = attempts.count { it.correct },
-            wrongCount = attempts.count { !it.correct },
-            notes = notes,
-        ))
+        if (firstCompletion) {
+            dao.insertStudySession(StudySessionEntity(
+                topicId = topicId,
+                startedAt = startedAt,
+                completedAt = now,
+                competitionId = subject?.competitionId,
+                subjectId = subject?.id,
+                durationSeconds = ((now - startedAt) / 1000).coerceAtLeast(0),
+                questionCount = attempts.size,
+                correctCount = attempts.count { it.correct },
+                wrongCount = attempts.count { !it.correct },
+                notes = notes,
+            ))
+        }
         dao.updateTopic(topic.copy(status = TopicStatus.ESTUDADO, firstStudiedAt = topic.firstStudiedAt ?: now, lastStudiedAt = now))
         val zone = ZoneId.systemDefault()
         val base = LocalDate.now(zone)
-        dao.insertReviews(ReviewIntervals.days.mapIndexed { index, days -> ReviewScheduleEntity(topicId = topicId, stage = index + 1, dueAt = base.plusDays(days).atStartOfDay(zone).toInstant().toEpochMilli()) })
+        if (firstCompletion) {
+            dao.insertReviews(ReviewIntervals.days.mapIndexed { index, days -> ReviewScheduleEntity(topicId = topicId, stage = index + 1, dueAt = base.plusDays(days).atStartOfDay(zone).toInstant().toEpochMilli()) })
+        }
         dao.queueOnce().firstOrNull { it.topicId == topicId }?.let { item ->
-            dao.updateQueue(item.copy(position = StudyQueueRules.completedPosition(dao.maxQueuePosition())))
+            dao.deleteQueue(item)
             dao.insertQueueEvent(QueueEventEntity(topicId = topicId, type = QueueEventType.CONCLUIDO))
         }
     }
@@ -362,8 +377,8 @@ class StudyRepository(private val db: AppDatabase) {
 
     suspend fun loadDemoData() = db.withTransaction {
         val existingCompetitions = dao.competitionsOnce()
-        val competitionId = existingCompetitions.firstOrNull { it.name == "TRT — Tecnologia da Informação" }?.id
-            ?: dao.insertCompetition(CompetitionEntity(name = "TRT — Tecnologia da Informação", isPrimary = existingCompetitions.isEmpty()))
+        val competitionId = existingCompetitions.firstOrNull { it.name == "TRT, Tecnologia da Informação" }?.id
+            ?: dao.insertCompetition(CompetitionEntity(name = "TRT, Tecnologia da Informação", isPrimary = existingCompetitions.isEmpty()))
         val subjectNames = listOf("Português", "Banco de Dados", "Redes", "Segurança da Informação", "Matemática/RLM")
         val existingSubjects = dao.subjectsFor(competitionId)
         val subjectIds = subjectNames.mapIndexed { index, name ->
@@ -378,11 +393,11 @@ class StudyRepository(private val db: AppDatabase) {
                 ?: dao.insertTopic(TopicEntity(subjectId = securityId, title = title, position = index, status = if (index < 4) TopicStatus.ESTUDADO else TopicStatus.NAO_ESTUDADO))
         }
         if (dao.summaryByExternalId("demo-resumo-hash") == null) dao.insertSummary(SummaryEntity(
-            topicId = topicIds[3], externalId = "demo-resumo-hash", title = "Resumo rápido — Hash",
+            topicId = topicIds[3], externalId = "demo-resumo-hash", title = "Resumo rápido, Hash",
             markdown = "# Hash em 2 minutos\n\n- Transforma entrada de tamanho variável em **digest de tamanho fixo**.\n- Propriedades: resistência à pré-imagem, à segunda pré-imagem e a colisões.\n- Usos: integridade, assinatura digital e armazenamento de senhas com salt e função apropriada.\n\n> Hash não cifra: não existe operação de descriptografia.", kind = SummaryKind.RAPIDO,
         ))
         if (dao.theoryByExternalId("demo-teoria-hash") == null) dao.insertTheory(TheoryDocumentEntity(
-            topicId = topicIds[3], externalId = "demo-teoria-hash", title = "Livro demonstrativo — Funções hash",
+            topicId = topicIds[3], externalId = "demo-teoria-hash", title = "Livro demonstrativo, Funções hash",
             markdown = """# Funções hash criptográficas
 
 ## 1. A ideia de impressão digital
@@ -419,11 +434,11 @@ Algoritmos obsoletos não devem ser escolhidos apenas porque ainda produzem um d
 - Senhas exigem salt e função específica e custosa.""",
         ))
         if (dao.summaryByExternalId("demo-resumo-controle-acesso") == null) dao.insertSummary(SummaryEntity(
-            topicId = topicIds[6], externalId = "demo-resumo-controle-acesso", title = "Resumo rápido — Controle de acesso",
+            topicId = topicIds[6], externalId = "demo-resumo-controle-acesso", title = "Resumo rápido, Controle de acesso",
             markdown = "# Controle de acesso\n\n- **DAC:** o proprietário decide.\n- **MAC:** política central baseada em rótulos.\n- **RBAC:** permissões agrupadas por papéis.\n- **ABAC:** decisão por atributos e contexto.\n\n> Autenticação confirma identidade; autorização decide o que ela pode fazer.", kind = SummaryKind.RAPIDO,
         ))
         if (dao.theoryByExternalId("demo-teoria-controle-acesso") == null) dao.insertTheory(TheoryDocumentEntity(
-            topicId = topicIds[6], externalId = "demo-teoria-controle-acesso", title = "Livro demonstrativo — Controle de acesso",
+            topicId = topicIds[6], externalId = "demo-teoria-controle-acesso", title = "Livro demonstrativo, Controle de acesso",
             markdown = """# Controle de acesso: fundamentos e modelos
 
 ## 1. Do reconhecimento à permissão
@@ -438,13 +453,13 @@ O menor privilégio concede somente as permissões necessárias pelo tempo neces
 
 Negação por padrão significa que um acesso não expressamente autorizado deve ser recusado. Revisões periódicas removem privilégios acumulados quando pessoas mudam de função ou deixam a organização.
 
-## 3. Modelo discricionário — DAC
+## 3. Modelo discricionário, DAC
 
 No DAC, o proprietário do recurso pode conceder ou retirar acesso. É um modelo flexível e comum em sistemas de arquivos, mas a delegação sucessiva pode dificultar o controle central.
 
 Listas de controle de acesso podem representar quais sujeitos possuem quais permissões sobre um objeto. ACL é um mecanismo; o contexto da política é que indica se o controle é discricionário.
 
-## 4. Modelo obrigatório — MAC
+## 4. Modelo obrigatório, MAC
 
 No MAC, uma autoridade central estabelece classificações e credenciais. O usuário comum não pode alterar livremente a política. A decisão compara níveis e categorias segundo regras obrigatórias.
 
@@ -480,8 +495,8 @@ Não confunda autenticação multifator com autorização. Usar senha e biometri
             if (dao.snippetByExternalId(externalId) == null) dao.insertSnippet(TopicSnippetEntity(topicId = topicIds[3], kind = kind, text = text, externalId = externalId, position = index))
         }
         if (dao.summaryByExternalId("demo-quick-hash-v2") == null) dao.insertSummary(SummaryEntity(
-            topicId = topicIds[3], externalId = "demo-quick-hash-v2", title = "Revisão de 3 minutos — Hash", kind = SummaryKind.RAPIDO,
-            markdown = "# Hash — revisão rápida\n\n- Entrada variável → digest fixo.\n- É determinístico e não foi feito para ser reversível.\n- Propriedades: pré-imagem, segunda pré-imagem e colisão.\n- Senhas: salt + função de derivação lenta.\n\n> Integridade não é confidencialidade.",
+            topicId = topicIds[3], externalId = "demo-quick-hash-v2", title = "Revisão de 3 minutos, Hash", kind = SummaryKind.RAPIDO,
+            markdown = "# Hash, revisão rápida\n\n- Entrada variável → digest fixo.\n- É determinístico e não foi feito para ser reversível.\n- Propriedades: pré-imagem, segunda pré-imagem e colisão.\n- Senhas: salt + função de derivação lenta.\n\n> Integridade não é confidencialidade.",
         ))
         if (dao.errorConceptByExternalId("demo-error-hash-v2") == null) dao.insertErrorConcept(ErrorConceptEntity(
             topicId = topicIds[3], externalId = "demo-error-hash-v2", title = "Hash não é criptografia reversível",

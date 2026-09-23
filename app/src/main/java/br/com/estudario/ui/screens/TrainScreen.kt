@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.theme.screenPadding
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -19,7 +20,15 @@ import br.com.estudario.ui.tour.TourKey
 import br.com.estudario.ui.tour.tourTarget
 import androidx.compose.foundation.lazy.rememberLazyListState
 
-data class QuizConfig(val count: Int, val topicId: Long? = null, val subjectId: Long? = null, val mode: String = "random", val board: String? = null, val difficulty: String? = null)
+data class QuizConfig(
+    val count: Int,
+    val topicId: Long? = null,
+    val subjectId: Long? = null,
+    val mode: String = "random",
+    val board: String? = null,
+    val difficulty: String? = null,
+    val planTaskId: String? = null,
+)
 
 @Composable
 fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: () -> Unit = {}) {
@@ -51,8 +60,8 @@ fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: 
     }
     fun target(key: TourKey) = Modifier.tourTarget(key, tourStep?.key) { viewModel.reportTourTargetBounds(key, it) }
 
-    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        item { ScreenTitle("Treinar", "Escolha o foco da sua sessão") { IconButton(onClick = onHelp) { Icon(Icons.Outlined.HelpOutline, "Como treinar") } } }
+    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        item { ScreenTitle("Treinar", "Escolha o foco da sua sessão", stackActionsWhenNarrow = false) { IconButton(onClick = onHelp) { Icon(Icons.Outlined.HelpOutline, "Como treinar") } } }
         if (questions.isEmpty()) {
             item { EmptyState("Sem questões ainda", "No Edital, toque em ✨ numa matéria ou tópico para pedir questões à IA e importe o .estudo gerado.") }
         } else {
@@ -117,7 +126,7 @@ fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: 
                 Slider(value = count.toFloat().coerceIn(5f, 50f), onValueChange = { count = it.toInt() }, valueRange = 5f..50f, steps = 8)
             }
             item {
-                Button(onClick = { onStart(QuizConfig(count, topicId, subjectId, mode, board, difficulty)) }, Modifier.fillMaxWidth().height(52.dp).then(target(TourKey.TRAIN_START))) {
+                Button(onClick = { onStart(QuizConfig(count, topicId, subjectId, mode, board, difficulty)) }, Modifier.fillMaxWidth().heightIn(min = 52.dp).then(target(TourKey.TRAIN_START))) {
                     Text(when (mode) { "simulation" -> "Iniciar simulado"; "smart" -> "Iniciar treino inteligente"; else -> "Começar treino" })
                 }
             }

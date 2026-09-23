@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -38,7 +36,8 @@ import androidx.compose.ui.window.DialogProperties
 /**
  * Loading padrão do app. Toda espera perceptível (importar arquivo, gerar plano, carregar telas
  * pesadas) usa um destes três formatos, para a pessoa nunca ficar olhando uma tela parada sem
- * saber se o app travou:
+ * saber se o app travou. Os dois primeiros usam o livro folheando ([EstudarioBookLoader]), não um
+ * spinner genérico, a espera também tem a cara do Estudário:
  *
  * - [LoadingDialog]: espera que bloqueia a tela inteira e tem começo e fim claros.
  * - [LoadingScreen]: a tela ainda não tem o que mostrar; ocupa o corpo inteiro.
@@ -57,15 +56,16 @@ fun LoadingDialog(title: String, message: String? = null) {
             color = MaterialTheme.colorScheme.surface,
             modifier = Modifier.widthIn(max = 360.dp),
         ) {
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    CircularProgressIndicator(Modifier.size(30.dp), strokeWidth = 3.dp)
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        if (message != null) Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+            Row(
+                Modifier.padding(horizontal = 24.dp, vertical = 22.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                EstudarioBookLoader(size = 52.dp)
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    if (message != null) Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                LinearProgressIndicator(Modifier.fillMaxWidth().clip(RoundedCornerShape(50)))
             }
         }
     }
@@ -79,7 +79,7 @@ fun LoadingScreen(title: String, message: String? = null, modifier: Modifier = M
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        CircularProgressIndicator(Modifier.size(38.dp), strokeWidth = 3.dp)
+        EstudarioBookLoader(size = 72.dp)
         Text(
             title,
             style = MaterialTheme.typography.titleMedium,

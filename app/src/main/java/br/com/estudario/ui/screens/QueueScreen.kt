@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.theme.screenPadding
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -13,11 +14,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import br.com.estudario.ui.AppViewModel
 import br.com.estudario.ui.components.EmptyState
+import br.com.estudario.data.local.TopicStatus
+import br.com.estudario.ui.screens.home.firstEligibleQueueTopic
 
 @Composable
-fun QueueScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenTopic: (Long) -> Unit) {
+fun QueueScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenTopic: (Long) -> Unit, showInlineBack: Boolean = true) {
     val queue by viewModel.queue.collectAsState()
     val events by viewModel.queueEvents.collectAsState()
+    val nextQueueItemId = firstEligibleQueueTopic(queue)?.item?.id
     var postpone by remember { mutableStateOf<br.com.estudario.data.local.StudyQueueEntity?>(null) }
     var reason by remember { mutableStateOf("") }
     postpone?.let { item ->
@@ -29,10 +33,10 @@ fun QueueScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenTopic: (Long)
             dismissButton = { TextButton(onClick = { postpone = null }) { Text("Cancelar") } },
         )
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") }
+                if (showInlineBack) IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") }
                 Column { Text("Fila de estudos", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("A fila não avança com a mudança do dia") }
             }
         }
@@ -44,7 +48,13 @@ fun QueueScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenTopic: (Long)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(row.topic.title, fontWeight = FontWeight.Bold)
-                        Text((if (row.item.paused) "Pausado" else if (index == 0) "Próximo estudo" else "Na fila") + if (row.item.postponements > 0) " • ${row.item.postponements} adiamento(s)" else "", style = MaterialTheme.typography.bodySmall)
+                        val completed = row.topic.status in setOf(TopicStatus.ESTUDADO, TopicStatus.REVISANDO, TopicStatus.DOMINADO)
+                        val label = queueRowLabel(
+                            paused = row.item.paused,
+                            completed = completed,
+                            isNext = row.item.id == nextQueueItemId,
+                        )
+                        Text(label + if (row.item.postponements > 0) " • ${row.item.postponements} adiamento(s)" else "", style = MaterialTheme.typography.bodySmall)
                     }
                     IconButton(onClick = { postpone = row.item }) { Icon(Icons.Outlined.EventBusy, "Não consegui estudar") }
                     IconButton(enabled = index > 0, onClick = {

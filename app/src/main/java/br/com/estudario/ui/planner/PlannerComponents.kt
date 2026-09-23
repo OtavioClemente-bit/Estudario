@@ -56,8 +56,7 @@ fun PlannerSummary(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Text(periodTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.weight(1f))
+                Text(periodTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 Text("$completionPercent%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             
@@ -68,9 +67,11 @@ fun PlannerSummary(
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
             )
 
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                AssistChip(onClick = {}, label = { Text("${minutesLabel(plannedMinutes)} $plannedLabel") })
-                AssistChip(onClick = {}, label = { Text("${minutesLabel(actualMinutes)} realizadas") })
+            // FlowRow: com fonte maior ou tela estreita, o segundo chip desce para a linha de baixo
+            // em vez de ser esmagado (antes o texto dele quebrava dentro do chip).
+            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(onClick = {}, label = { Text("${minutesLabel(plannedMinutes)} $plannedLabel", maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) })
+                AssistChip(onClick = {}, label = { Text("${minutesLabel(actualMinutes)} realizadas", maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) })
             }
             if (deficitMinutes > 0) Text("Capacidade insuficiente: faltam ${minutesLabel(deficitMinutes)}.", color = MaterialTheme.colorScheme.error)
         }
@@ -79,7 +80,7 @@ fun PlannerSummary(
 
 /**
  * O plano sem IA não é caixa-preta: aqui ficam, em uma frase cada, as regras que produziram as
- * tarefas desta rodada — fase atual, divisão do tempo, revisões atrasadas, rodízio das matérias.
+ * tarefas desta rodada, fase atual, divisão do tempo, revisões atrasadas, rodízio das matérias.
  */
 @Composable
 fun PorQueEstePlano(notes: List<String>) {
@@ -92,7 +93,7 @@ fun PorQueEstePlano(notes: List<String>) {
             ) {
                 Column(Modifier.weight(1f)) {
                     Text("Por que este plano", fontWeight = FontWeight.Bold)
-                    if (!aberto) Text(notes.first(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    if (!aberto) Text(notes.first(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
                 Icon(if (aberto) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, if (aberto) "Recolher" else "Ver regras")
             }

@@ -35,7 +35,15 @@ class StudyExecutionService(
         planner.insertRevision(StudyPlanRevisionEntity(plan.id, plan.revision + 1, plan.revision, "TASK_STARTED", summary = task.id))
     }
 
-    suspend fun complete(taskId: String, input: CompleteTaskInput): String = db.withTransaction {
+    suspend fun complete(taskId: String, input: CompleteTaskInput): String = complete(taskId, input, CompletionSource.MANUAL)
+
+    /** A confirmação explícita do tópico conclui a tarefa mesmo quando o cronômetro ficou abaixo da meta. */
+    suspend fun completeFromTopic(taskId: String, input: CompleteTaskInput): String = complete(taskId, input, CompletionSource.TOPIC)
+
+    /** Finalizar a bateria do quiz fecha a tarefa mesmo que a sessão tenha sido mais curta que a previsão. */
+    suspend fun completeFromQuestionQuiz(taskId: String, input: CompleteTaskInput): String = complete(taskId, input, CompletionSource.QUESTION_QUIZ)
+
+    private suspend fun complete(taskId: String, input: CompleteTaskInput, source: CompletionSource): String = db.withTransaction {
         require(input.actualMinutes >= 0) { "O tempo realizado não pode ser negativo." }
         require(input.questions >= 0) { "A quantidade de questões não pode ser negativa." }
         require(input.correct in 0..input.questions) { "Os acertos devem estar entre zero e o total de questões." }
@@ -62,11 +70,19 @@ class StudyExecutionService(
                 perceivedDifficulty = input.perceivedDifficulty,
             ),
         )
-        val nextStatus = if (input.actualMinutes < task.plannedMinutes) PlanTaskStatus.EM_ANDAMENTO else PlanTaskStatus.CONCLUIDA
+        val nextStatus = if (source == CompletionSource.MANUAL && input.actualMinutes < task.plannedMinutes) PlanTaskStatus.EM_ANDAMENTO else PlanTaskStatus.CONCLUIDA
         planner.updateTask(task.withStatus(nextStatus, plan.revision + 1))
-        planner.insertRevision(StudyPlanRevisionEntity(plan.id, plan.revision + 1, plan.revision, if (nextStatus == PlanTaskStatus.CONCLUIDA) "TASK_COMPLETED" else "TASK_PARTIAL", summary = task.id))
+        val reason = when {
+            source == CompletionSource.TOPIC -> "TOPIC_COMPLETED"
+            source == CompletionSource.QUESTION_QUIZ -> "QUESTION_BATTERY_COMPLETED"
+            nextStatus == PlanTaskStatus.CONCLUIDA -> "TASK_COMPLETED"
+            else -> "TASK_PARTIAL"
+        }
+        planner.insertRevision(StudyPlanRevisionEntity(plan.id, plan.revision + 1, plan.revision, reason, summary = task.id))
         executionId
     }
+
+    private enum class CompletionSource { MANUAL, TOPIC, QUESTION_QUIZ }
 
     suspend fun skip(taskId: String, reason: String) = db.withTransaction {
         val task = planner.task(taskId) ?: error("Tarefa não encontrada.")

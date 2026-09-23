@@ -3,6 +3,8 @@ package br.com.estudario.data.local
 import androidx.room.TypeConverter
 import br.com.estudario.data.local.planner.AvailabilityMode
 import br.com.estudario.data.local.planner.PerceivedDifficulty
+import br.com.estudario.domain.planner.InitialKnowledge
+import br.com.estudario.domain.planner.PersonalDifficulty
 import br.com.estudario.domain.planner.PlanOrigin
 import br.com.estudario.domain.planner.PlanPriority
 import br.com.estudario.domain.planner.PlanTaskStatus
@@ -31,6 +33,8 @@ class Converters {
     @TypeConverter fun errorStatus(value: String): ErrorStatus = ErrorStatus.valueOf(value)
     @TypeConverter fun sessionType(value: QuestionSessionType): String = value.name
     @TypeConverter fun sessionType(value: String): QuestionSessionType = QuestionSessionType.valueOf(value)
+    @TypeConverter fun focusSessionOrigin(value: FocusSessionOrigin): String = value.name
+    @TypeConverter fun focusSessionOrigin(value: String): FocusSessionOrigin = FocusSessionOrigin.valueOf(value)
     @TypeConverter fun queueEventType(value: QueueEventType): String = value.name
     @TypeConverter fun queueEventType(value: String): QueueEventType = QueueEventType.valueOf(value)
     @TypeConverter fun contentOriginType(value: ContentOriginType): String = value.name
@@ -51,4 +55,13 @@ class Converters {
     @TypeConverter fun availabilityMode(value: String): AvailabilityMode = AvailabilityMode.valueOf(value)
     @TypeConverter fun perceivedDifficulty(value: PerceivedDifficulty): String = value.name
     @TypeConverter fun perceivedDifficulty(value: String): PerceivedDifficulty = PerceivedDifficulty.valueOf(value)
+
+    // Os dois eixos pessoais do Smart Planner. Ficam separados da prioridade da prova de propósito:
+    // são perguntas diferentes e o motor precisa das três respostas.
+    @TypeConverter fun personalDifficulty(value: PersonalDifficulty): String = value.name
+    @TypeConverter fun personalDifficulty(value: String): PersonalDifficulty =
+        runCatching { PersonalDifficulty.valueOf(value) }.getOrDefault(PersonalDifficulty.NORMAL)
+    @TypeConverter fun initialKnowledge(value: InitialKnowledge): String = value.name
+    @TypeConverter fun initialKnowledge(value: String): InitialKnowledge =
+        runCatching { InitialKnowledge.valueOf(value) }.getOrDefault(InitialKnowledge.NONE)
 }

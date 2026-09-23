@@ -2,6 +2,7 @@ package br.com.estudario
 
 import android.app.Application
 import br.com.estudario.data.StudyRepository
+import br.com.estudario.data.FocusSessionRepository
 import br.com.estudario.data.local.AppDatabase
 import br.com.estudario.data.preferences.AppPreferences
 import br.com.estudario.data.planner.StudyExecutionService
@@ -19,6 +20,8 @@ class EstudarioApplication : Application() {
         private set
     lateinit var repository: StudyRepository
         private set
+    lateinit var focusSessionRepository: FocusSessionRepository
+        private set
     lateinit var preferences: AppPreferences
         private set
     lateinit var planRepository: StudyPlanRepository
@@ -35,6 +38,7 @@ class EstudarioApplication : Application() {
         super.onCreate()
         database = AppDatabase.create(this)
         repository = StudyRepository(database)
+        focusSessionRepository = FocusSessionRepository(database.dao())
         preferences = AppPreferences(this)
         planRepository = StudyPlanRepository(database)
         val calendarSyncService = br.com.estudario.data.planner.CalendarSyncService(this)

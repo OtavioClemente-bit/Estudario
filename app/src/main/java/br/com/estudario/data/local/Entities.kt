@@ -78,7 +78,7 @@ data class TopicEntity(
     val contentOriginType: ContentOriginType = ContentOriginType.EDITAL,
     /**
      * Recorte declarado por quem gerou o conteúdo: o que este item do edital cobra e o que fica de
-     * fora. Fica visível no tópico para a pessoa conferir contra o edital dela — é a defesa contra
+     * fora. Fica visível no tópico para a pessoa conferir contra o edital dela, é a defesa contra
      * estudar 40 páginas de um assunto que o edital pediu em uma linha.
      */
     val scopeCovers: String? = null,
@@ -195,7 +195,7 @@ data class QuestionEntity(
     val reviewAnchor: String? = null,
     /**
      * Conceito de erro que esta questão testa, apontado por quem a gerou. Ao errar, o caderno liga
-     * o erro a esse conceito em vez de adivinhar pelo título do tópico — é o que faz o caderno
+     * o erro a esse conceito em vez de adivinhar pelo título do tópico, é o que faz o caderno
      * mostrar o padrão ("confundo competência com atribuição") em vez de uma lista de questões.
      */
     val errorConceptExternalId: String? = null,
@@ -371,6 +371,21 @@ data class StudySessionEntity(
     val sourcePackageId: String? = null,
 )
 
+enum class FocusSessionOrigin { LIVRE, MATERIA, PLANO }
+
+@Entity(tableName = "focus_sessions", indices = [Index("completedAt"), Index("topicId"), Index("taskId")])
+data class FocusSessionEntity(
+    @PrimaryKey val id: String,
+    val title: String,
+    val startedAt: Long,
+    val completedAt: Long,
+    val durationSeconds: Long,
+    val subjectIdsText: String = "",
+    val origin: FocusSessionOrigin,
+    val topicId: Long? = null,
+    val taskId: String? = null,
+)
+
 @Entity(tableName = "question_sessions", indices = [Index("startedAt"), Index("completedAt"), Index("type")])
 data class QuestionSessionEntity(
     @PrimaryKey val id: String,
@@ -399,7 +414,7 @@ data class ImportPackageEntity(
 
 /**
  * De onde a IA tirou o conteúdo. Fica guardado junto com o material para a pessoa poder conferir
- * depois — sem isso, "a IA disse" é a única garantia que ela tem.
+ * depois, sem isso, "a IA disse" é a única garantia que ela tem.
  *
  * [topicId] nulo = fonte do pacote inteiro, não de um tópico específico.
  */

@@ -9,11 +9,14 @@ import org.json.JSONObject
 internal object PlannerBackupCodec {
     suspend fun write(db: AppDatabase, root: JSONObject) {
         val d = db.plannerDao()
-        root.put("studyPlans", rows(d.plansOnce()) { p -> j("id",p.id,"competitionId",p.competitionId,"name",p.name,"objective",p.objective,"start",p.startEpochDay,"exam",p.examEpochDay,"active",p.active,"master",p.masterPlan,"archived",p.archived,"revision",p.revision,"createdAt",p.createdAt,"updatedAt",p.updatedAt,"profile",p.profile,"block",p.blockMinutes,"weeklyQuestions",p.weeklyQuestionsTarget,"topicQuestions",p.questionsPerTopic,"simulations",p.simulationsPerMonth,"discursives",p.discursivesPerMonth,"interleave",p.interleaveSubjects) })
+        root.put("studyPlans", rows(d.plansOnce()) { p -> j("id",p.id,"competitionId",p.competitionId,"name",p.name,"objective",p.objective,"start",p.startEpochDay,"exam",p.examEpochDay,"active",p.active,"master",p.masterPlan,"archived",p.archived,"revision",p.revision,"createdAt",p.createdAt,"updatedAt",p.updatedAt,"profile",p.profile,"block",p.blockMinutes,"weeklyQuestions",p.weeklyQuestionsTarget,"topicQuestions",p.questionsPerTopic,"simulations",p.simulationsPerMonth,"discursives",p.discursivesPerMonth,"interleave",p.interleaveSubjects,"dailyShare",p.dailySubjectSharePercent) })
         root.put("studyPlanRevisions", rows(d.revisionsOnce()) { r -> j("planId",r.planId,"revision",r.revision,"base",r.baseRevision,"reason",r.reason,"proposalId",r.proposalId,"summary",r.summary,"createdAt",r.createdAt) })
         root.put("studyAvailability", rows(d.availabilityOnce()) { a -> j("planId",a.planId,"day",a.dayOfWeek,"minutes",a.availableMinutes,"unavailable",a.unavailable,"mode",a.mode.name) })
         root.put("studyDayOverrides", rows(d.dayOverridesOnce()) { a -> j("planId",a.planId,"day",a.epochDay,"minutes",a.availableMinutes,"unavailable",a.unavailable,"locked",a.locked) })
-        root.put("planSubjects", rows(d.subjectsOnce()) { s -> j("planId",s.planId,"subjectId",s.subjectId,"name",s.subjectNameSnapshot,"priority",s.priority.name,"paused",s.paused,"maintenance",s.minimumMaintenanceMinutes,"weight",s.weightOverride,"position",s.position) })
+        // Os três eixos viajam no backup. Sem "personalDifficulty" e "initialKnowledge", restaurar
+        // um backup devolveria o plano com todas as matérias em normal/nunca estudei, ou seja,
+        // apagaria em silêncio o que a pessoa respondeu no assistente.
+        root.put("planSubjects", rows(d.subjectsOnce()) { s -> j("planId",s.planId,"subjectId",s.subjectId,"name",s.subjectNameSnapshot,"priority",s.priority.name,"paused",s.paused,"maintenance",s.minimumMaintenanceMinutes,"weight",s.weightOverride,"position",s.position,"personalDifficulty",s.personalDifficulty.name,"initialKnowledge",s.initialKnowledge.name) })
         root.put("annualPhases", rows(d.annualPhasesOnce()) { p -> j("id",p.id,"planId",p.planId,"position",p.position,"name",p.name,"objective",p.objective,"criteria",p.completionCriteria,"start",p.startEpochDay,"end",p.endEpochDay,"minutes",p.targetMinutes,"questions",p.targetQuestions,"discursives",p.targetDiscursives,"percent",p.targetPercent,"fromRevision",p.validFromRevision,"untilRevision",p.validUntilRevision) })
         root.put("monthlyPlans", rows(d.monthlyPlansOnce()) { p -> j("id",p.id,"planId",p.planId,"yearMonth",p.yearMonth,"focus",p.focus,"minutes",p.targetMinutes,"questions",p.targetQuestions,"discursives",p.targetDiscursives,"percent",p.targetPercent,"fromRevision",p.validFromRevision,"untilRevision",p.validUntilRevision) })
         root.put("weeklyPlans", rows(d.weeklyPlansOnce()) { p -> j("id",p.id,"planId",p.planId,"weekStart",p.weekStartEpochDay,"objective",p.objective,"minutes",p.targetMinutes,"questions",p.targetQuestions,"discursives",p.targetDiscursives,"fromRevision",p.validFromRevision,"untilRevision",p.validUntilRevision) })
@@ -28,11 +31,13 @@ internal object PlannerBackupCodec {
 
     suspend fun restore(db: AppDatabase, root: JSONObject) {
         val d = db.plannerDao()
-        root.a("studyPlans").forEach { x -> d.insertPlan(StudyPlanEntity(x.s("id"),x.l("competitionId"),x.s("name"),x.s("objective"),x.l("start"),x.nl("exam"),x.b("active"),x.b("master"),x.b("archived"),x.l("revision"),x.l("createdAt"),x.l("updatedAt"),x.ns("profile") ?: "DO_ZERO",x.ni("block") ?: 50,x.ni("weeklyQuestions") ?: 100,x.ni("topicQuestions") ?: 15,x.ni("simulations") ?: 2,x.ni("discursives") ?: 0,x.optBoolean("interleave", true))) }
+        root.a("studyPlans").forEach { x -> d.insertPlan(StudyPlanEntity(x.s("id"),x.l("competitionId"),x.s("name"),x.s("objective"),x.l("start"),x.nl("exam"),x.b("active"),x.b("master"),x.b("archived"),x.l("revision"),x.l("createdAt"),x.l("updatedAt"),x.ns("profile") ?: "DO_ZERO",x.ni("block") ?: 50,x.ni("weeklyQuestions") ?: 100,x.ni("topicQuestions") ?: 15,x.ni("simulations") ?: 2,x.ni("discursives") ?: 0,x.optBoolean("interleave", true),x.ni("dailyShare") ?: 60)) }
         root.a("studyPlanRevisions").forEach { x -> d.insertRevision(StudyPlanRevisionEntity(x.s("planId"),x.l("revision"),x.l("base"),x.s("reason"),x.ns("proposalId"),x.s("summary"),x.l("createdAt"))) }
         d.upsertAvailability(root.a("studyAvailability").map { x -> StudyAvailabilityEntity(x.s("planId"),x.i("day"),x.i("minutes"),x.b("unavailable"),AvailabilityMode.valueOf(x.s("mode"))) })
         root.a("studyDayOverrides").forEach { x -> d.upsertDayOverride(StudyDayOverrideEntity(x.s("planId"),x.l("day"),x.ni("minutes"),x.b("unavailable"),x.b("locked"))) }
-        d.upsertPlanSubjects(root.a("planSubjects").map { x -> PlanSubjectEntity(x.s("planId"),x.l("subjectId"),x.s("name"),PlanPriority.valueOf(x.s("priority")),x.b("paused"),x.i("maintenance"),x.ni("weight"),x.i("position")) })
+        // Backup antigo não tem os dois eixos pessoais: a ausência cai no padrão neutro em vez de
+        // explodir, que é o mesmo que um plano criado antes do Smart Planner já faz.
+        d.upsertPlanSubjects(root.a("planSubjects").map { x -> PlanSubjectEntity(x.s("planId"),x.l("subjectId"),x.s("name"),PlanPriority.valueOf(x.s("priority")),x.b("paused"),x.i("maintenance"),x.ni("weight"),x.i("position"),x.personalDifficulty("personalDifficulty"),x.initialKnowledge("initialKnowledge")) })
         d.insertAnnualPhases(root.a("annualPhases").map { x -> AnnualPhaseEntity(x.s("id"),x.s("planId"),x.i("position"),x.s("name"),x.s("objective"),x.s("criteria"),x.l("start"),x.l("end"),x.i("minutes"),x.i("questions"),x.i("discursives"),x.i("percent"),x.l("fromRevision"),x.nl("untilRevision")) })
         d.insertMonthlyPlans(root.a("monthlyPlans").map { x -> MonthlyPlanEntity(x.s("id"),x.s("planId"),x.s("yearMonth"),x.s("focus"),x.i("minutes"),x.i("questions"),x.i("discursives"),x.i("percent"),x.l("fromRevision"),x.nl("untilRevision")) })
         d.insertWeeklyPlans(root.a("weeklyPlans").map { x -> WeeklyPlanEntity(x.s("id"),x.s("planId"),x.l("weekStart"),x.s("objective"),x.i("minutes"),x.i("questions"),x.i("discursives"),x.l("fromRevision"),x.nl("untilRevision")) })
@@ -52,4 +57,11 @@ internal object PlannerBackupCodec {
     private fun JSONObject.i(k:String)=getInt(k); private fun JSONObject.ni(k:String)=if(!has(k)||isNull(k)) null else getInt(k)
     private fun JSONObject.l(k:String)=getLong(k); private fun JSONObject.nl(k:String)=if(!has(k)||isNull(k)) null else getLong(k)
     private fun JSONObject.b(k:String)=getBoolean(k)
+
+    // Enum ausente ou irreconhecível cai no padrão: um backup antigo, ou corrompido, nunca deve
+    // derrubar a restauração inteira por causa de um campo novo.
+    private fun JSONObject.personalDifficulty(k: String): PersonalDifficulty =
+        ns(k)?.let { raw -> runCatching { PersonalDifficulty.valueOf(raw) }.getOrNull() } ?: PersonalDifficulty.NORMAL
+    private fun JSONObject.initialKnowledge(k: String): InitialKnowledge =
+        ns(k)?.let { raw -> runCatching { InitialKnowledge.valueOf(raw) }.getOrNull() } ?: InitialKnowledge.NONE
 }

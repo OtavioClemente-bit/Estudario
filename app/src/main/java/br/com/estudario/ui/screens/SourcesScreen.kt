@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.theme.screenPadding
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -27,7 +28,7 @@ import java.util.Date
 /**
  * De onde veio cada conteúdo.
  *
- * O app não tem como verificar sozinho se a IA leu mesmo o que diz ter lido — o que ele pode fazer
+ * O app não tem como verificar sozinho se a IA leu mesmo o que diz ter lido, o que ele pode fazer
  * é guardar a declaração dela e deixar a pessoa conferir com um toque. Fonte oficial e
  * complementar aparecem separadas de propósito: tratar as duas como iguais é o erro que faz alguém
  * estudar por um blog achando que é a lei.
@@ -37,7 +38,12 @@ import java.util.Date
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SourcesScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenTopic: (Long) -> Unit) {
+fun SourcesScreen(
+    viewModel: AppViewModel,
+    onBack: () -> Unit,
+    onOpenTopic: (Long) -> Unit,
+    showInternalTopBar: Boolean = true,
+) {
     val sources by viewModel.sources.collectAsState()
     val packages by viewModel.importPackages.collectAsState()
     val topics by viewModel.topics.collectAsState()
@@ -73,7 +79,7 @@ fun SourcesScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenTopic: (Lon
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            if (showInternalTopBar) TopAppBar(
                 title = { Column { Text("Histórico e fontes"); Text("De onde veio o seu material", style = MaterialTheme.typography.bodySmall) } },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Voltar") } },
             )
@@ -81,7 +87,7 @@ fun SourcesScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenTopic: (Lon
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(20.dp),
+            contentPadding = screenPadding(),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
@@ -89,7 +95,7 @@ fun SourcesScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenTopic: (Lon
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("${sources.size} fonte(s) em ${packages.size} importação(ões)", fontWeight = FontWeight.Bold)
                         Text(
-                            "As fontes são declaradas por quem gerou o material. O app guarda e mostra — conferir continua sendo com você, e é por isso que o link está aqui.",
+                            "As fontes são declaradas por quem gerou o material. O app guarda e mostra, conferir continua sendo com você, e é por isso que o link está aqui.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -106,7 +112,7 @@ fun SourcesScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenTopic: (Lon
                 item {
                     EmptyState(
                         "Nenhuma fonte registrada ainda",
-                        "Conteúdo gerado a partir de agora traz as fontes junto. O material importado antes disso não tem esse registro — gere de novo pelo botão ✨ se quiser a rastreabilidade.",
+                        "Conteúdo gerado a partir de agora traz as fontes junto. O material importado antes disso não tem esse registro, gere de novo pelo botão ✨ se quiser a rastreabilidade.",
                     )
                 }
             } else if (visiveis.isEmpty()) {

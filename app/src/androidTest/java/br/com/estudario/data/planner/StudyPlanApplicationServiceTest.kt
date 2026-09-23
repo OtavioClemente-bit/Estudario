@@ -11,6 +11,7 @@ import br.com.estudario.data.local.planner.StudyAvailabilityEntity
 import br.com.estudario.domain.planner.CapacityReport
 import br.com.estudario.domain.planner.ForecastResult
 import br.com.estudario.domain.planner.PlanningProposal
+import br.com.estudario.domain.planner.PlanOrigin
 import br.com.estudario.domain.planner.PlanPriority
 import br.com.estudario.domain.planner.PlanTaskStatus
 import br.com.estudario.domain.planner.PlanTaskType
@@ -107,6 +108,82 @@ class StudyPlanApplicationServiceTest {
         assertEquals(25, db.plannerDao().executionsForOnce(planId).single().actualMinutes)
         assertEquals(35, proposal.newTasks.single { it.replannedFromTaskId == taskId }.plannedMinutes)
         assertEquals(PlanTaskStatus.REPROGRAMADA, db.plannerDao().task(taskId)?.status)
+    }
+
+    @Test
+    fun completingTopicFromItsPlanClosesTaskEvenWhenFocusWasShorterThanPlanned() = runBlocking {
+        val planId = service.createPlan(input("Conclusão pelo tópico"))
+        service.applyProposal(proposal(planId, baseRevision = 0))
+        val taskId = db.plannerDao().tasksForOnce(planId).single().id
+        val executionService = StudyExecutionService(db, service)
+
+        executionService.completeFromTopic(
+            taskId,
+            CompleteTaskInput(startedAt = 1_000, completedAt = 541_000, actualMinutes = 9),
+        )
+
+        assertEquals(PlanTaskStatus.CONCLUIDA, db.plannerDao().task(taskId)?.status)
+        assertEquals(9, db.plannerDao().executionsForOnce(planId).single().actualMinutes)
+        assertEquals("TOPIC_COMPLETED", db.plannerDao().latestRevision(planId)?.reason)
+    }
+
+    @Test
+    fun completingQuestionQuizClosesTaskAndCannotAwardExecutionTwice() = runBlocking {
+        val planId = service.createPlan(input("Bateria de questões"))
+        val questionsProposal = proposal(planId, baseRevision = 0).copy(
+            newTasks = proposal(planId, baseRevision = 0).newTasks.map {
+                it.copy(type = PlanTaskType.QUESTIONS, plannedQuestions = 15)
+            },
+        )
+        service.applyProposal(questionsProposal)
+        val taskId = db.plannerDao().tasksForOnce(planId).single().id
+        val executionService = StudyExecutionService(db, service)
+        val completion = CompleteTaskInput(
+            startedAt = 1_000,
+            completedAt = 301_000,
+            actualMinutes = 5,
+            questions = 3,
+            correct = 2,
+        )
+
+        executionService.completeFromQuestionQuiz(taskId, completion)
+        val duplicate = runCatching { executionService.completeFromQuestionQuiz(taskId, completion.copy(completedAt = 302_000)) }
+
+        assertTrue(duplicate.isFailure)
+        assertEquals(PlanTaskStatus.CONCLUIDA, db.plannerDao().task(taskId)?.status)
+        assertEquals(1, db.plannerDao().executionsForOnce(planId).size)
+        assertEquals(3, db.plannerDao().executionsForOnce(planId).single().questionsDone)
+        assertEquals("QUESTION_BATTERY_COMPLETED", db.plannerDao().latestRevision(planId)?.reason)
+    }
+
+    @Test
+    fun oldQuestionEstimatesAreCorrectedWithoutChangingStartedLockedOrManualTasks() = runBlocking {
+        val planId = service.createPlan(input("Estimativa de questões"))
+        val questionTask = proposal(planId, baseRevision = 0).newTasks.single().copy(
+            type = PlanTaskType.QUESTIONS,
+            plannedMinutes = 50,
+            plannedQuestions = 15,
+        )
+        val generated = proposal(planId, baseRevision = 0).copy(
+            newTasks = listOf(
+                questionTask,
+                questionTask.copy(id = "locked-question-task", locked = true),
+                questionTask.copy(id = "manual-question-task", origin = PlanOrigin.MANUAL),
+                questionTask.copy(id = "started-question-task"),
+            ),
+        )
+        service.applyProposal(generated)
+        StudyExecutionService(db, service).start("started-question-task")
+
+        val changed = service.normalizeQuestionTaskEstimates(planId)
+        val tasks = db.plannerDao().tasksForOnce(planId).associateBy { it.id }
+
+        assertEquals(1, changed)
+        assertEquals(30, tasks.getValue(questionTask.id).plannedMinutes)
+        assertEquals(50, tasks.getValue("locked-question-task").plannedMinutes)
+        assertEquals(50, tasks.getValue("manual-question-task").plannedMinutes)
+        assertEquals(50, tasks.getValue("started-question-task").plannedMinutes)
+        assertEquals(0, service.normalizeQuestionTaskEstimates(planId))
     }
 
     private fun input(name: String) = CreatePlanInput(

@@ -18,7 +18,7 @@ class BackupService(private val db: AppDatabase) {
         val questions = dao.questionsOnce()
         val root = JSONObject()
             .put("format", BACKUP_FORMAT)
-            .put("version", 6)
+            .put("version", 7)
             .put("exportedAt", System.currentTimeMillis())
             .put("competitions", JSONArray(dao.competitionsOnce().map { JSONObject().put("id", it.id).put("name", it.name).put("primary", it.isPrimary).put("createdAt", it.createdAt).putNullable("externalId", it.externalId).putPriorityFields(it) }))
             .put("subjects", JSONArray(dao.subjectsOnce().map { JSONObject().put("id", it.id).put("competitionId", it.competitionId).put("name", it.name).put("position", it.position).putNullable("externalId", it.externalId).putPriorityFields(it) }))
@@ -39,6 +39,7 @@ class BackupService(private val db: AppDatabase) {
             .put("queue", JSONArray(dao.queueOnce().map { JSONObject().put("id", it.id).put("topicId", it.topicId).put("position", it.position).put("paused", it.paused).put("enqueuedAt", it.enqueuedAt).put("postponements", it.postponements) }))
             .put("queueEvents", JSONArray(dao.queueEventsOnce().map { JSONObject().put("id", it.id).put("topicId", it.topicId).put("type", it.type.name).put("occurredAt", it.occurredAt).put("reason", it.reason) }))
             .put("sessions", JSONArray(dao.sessionsOnce().map { JSONObject().put("id", it.id).put("topicId", it.topicId).put("startedAt", it.startedAt).put("completedAt", it.completedAt).putNullable("competitionId", it.competitionId).putNullable("subjectId", it.subjectId).put("durationSeconds", it.durationSeconds).put("questionCount", it.questionCount).put("correctCount", it.correctCount).put("wrongCount", it.wrongCount).put("notes", it.notes).putNullable("sourcePackageId", it.sourcePackageId) }))
+            .put("focusSessions", JSONArray(dao.focusSessionsOnce().map { JSONObject().put("id", it.id).put("title", it.title).put("startedAt", it.startedAt).put("completedAt", it.completedAt).put("durationSeconds", it.durationSeconds).put("subjectIds", it.subjectIdsText).put("origin", it.origin.name).putNullable("topicId", it.topicId).putNullable("taskId", it.taskId) }))
             .put("questionSessions", JSONArray(dao.questionSessionsOnce().map { JSONObject().put("id", it.id).put("type", it.type.name).put("startedAt", it.startedAt).put("completedAt", it.completedAt).put("durationSeconds", it.durationSeconds).put("questionCount", it.questionCount).put("correctCount", it.correctCount).put("subjectIds", it.subjectIdsText).put("topicIds", it.topicIdsText) }))
             .put("importPackages", JSONArray(dao.importPackagesOnce().map { JSONObject().put("id", it.id).put("packageId", it.packageId).put("schemaVersion", it.schemaVersion).put("importedAt", it.importedAt).put("contentHash", it.contentHash).put("fileName", it.fileName).put("createdCount", it.createdCount).put("updatedCount", it.updatedCount).put("ignoredCount", it.ignoredCount) }))
             .put("notes", JSONArray(dao.notesOnce().map { JSONObject().put("id", it.id).putNullable("topicId", it.topicId).putNullable("questionId", it.questionId).put("text", it.text).put("createdAt", it.createdAt) }))
@@ -51,7 +52,7 @@ class BackupService(private val db: AppDatabase) {
     suspend fun restore(text: String) = db.withTransaction {
         val root = try { JSONObject(text) } catch (_: Exception) { throw IllegalArgumentException("Backup JSON inválido.") }
         // Aceita o formato antigo para não invalidar backups feitos antes da troca de nome.
-        if (root.optString("format") !in ACCEPTED_BACKUP_FORMATS || root.optInt("version") !in 1..6) throw IllegalArgumentException("Formato ou versão de backup não suportado.")
+        if (root.optString("format") !in ACCEPTED_BACKUP_FORMATS || root.optInt("version") !in 1..7) throw IllegalArgumentException("Formato ou versão de backup não suportado.")
         val competitions = root.array("competitions").objects().map { item -> CompetitionEntity(id = item.getLong("id"), name = item.getString("name"), isPrimary = item.getBoolean("primary"), createdAt = item.getLong("createdAt"), externalId = item.optNullableString("externalId"), assessedPriorityScore = item.assessedPriorityScore(), assessedPrioritySource = item.assessedPrioritySource(), assessedPriorityConfidence = item.assessedPriorityConfidence(), assessedPriorityRationale = item.optNullableString("assessedPriorityRationale"), assessedPriorityEvidenceJson = item.assessedPriorityEvidenceJson(), hasAssessedPriority = item.optBoolean("hasAssessedPriority", false), userPriorityOverride = item.userPriorityOverride()) }
         val subjects = root.array("subjects").objects().map { item -> SubjectEntity(id = item.getLong("id"), competitionId = item.getLong("competitionId"), name = item.getString("name"), position = item.getInt("position"), externalId = item.optNullableString("externalId"), assessedPriorityScore = item.assessedPriorityScore(), assessedPrioritySource = item.assessedPrioritySource(), assessedPriorityConfidence = item.assessedPriorityConfidence(), assessedPriorityRationale = item.optNullableString("assessedPriorityRationale"), assessedPriorityEvidenceJson = item.assessedPriorityEvidenceJson(), hasAssessedPriority = item.optBoolean("hasAssessedPriority", false), userPriorityOverride = item.userPriorityOverride()) }
         val topics = root.array("topics").objects().map { item -> TopicEntity(id = item.getLong("id"), subjectId = item.getLong("subjectId"), parentTopicId = item.optLongOrNull("parentTopicId"), title = item.getString("title"), description = item.getString("description"), position = item.getInt("position"), status = TopicStatus.valueOf(item.getString("status")), firstStudiedAt = item.optLongOrNull("firstStudiedAt"), lastStudiedAt = item.optLongOrNull("lastStudiedAt"), lastReviewedAt = item.optLongOrNull("lastReviewedAt"), notes = item.getString("notes"), priority = Priority.valueOf(item.getString("priority")), externalId = item.optNullableString("externalId"), contentOriginType = ContentOriginType.valueOf(item.optString("contentOriginType", "EDITAL")), scopeCovers = item.optNullableString("scopeCovers"), scopeExcludes = item.optNullableString("scopeExcludes"), assessedPriorityScore = item.assessedPriorityScore(), assessedPrioritySource = item.assessedPrioritySource(), assessedPriorityConfidence = item.assessedPriorityConfidence(), assessedPriorityRationale = item.optNullableString("assessedPriorityRationale"), assessedPriorityEvidenceJson = item.assessedPriorityEvidenceJson(), hasAssessedPriority = item.optBoolean("hasAssessedPriority", false), userPriorityOverride = item.userPriorityOverride()) }
@@ -80,15 +81,41 @@ class BackupService(private val db: AppDatabase) {
         val reviewSessions = root.array("reviewSessions").objects().map { ReviewSessionEntity(it.getLong("id"), it.getLong("reviewId"), it.getLong("topicId"), it.getLong("startedAt"), it.getLong("completedAt"), it.optInt("recalled"), it.optInt("forgotten"), it.optInt("questionCorrect"), it.optInt("questionTotal"), ReviewDifficulty.valueOf(it.optString("difficulty", "NORMAL"))) }
         val queue = root.array("queue").objects().map { StudyQueueEntity(it.getLong("id"), it.getLong("topicId"), it.getInt("position"), it.getBoolean("paused"), it.optLong("enqueuedAt", System.currentTimeMillis()), it.optInt("postponements")) }
         val queueEvents = root.array("queueEvents").objects().map { QueueEventEntity(it.getLong("id"), it.getLong("topicId"), QueueEventType.valueOf(it.getString("type")), it.getLong("occurredAt"), it.optString("reason")) }
-        val sessions = root.array("sessions").objects().map { StudySessionEntity(it.getLong("id"), it.getLong("topicId"), it.getLong("startedAt"), it.getLong("completedAt"), it.optLongOrNull("competitionId"), it.optLongOrNull("subjectId"), it.optLong("durationSeconds"), it.optInt("questionCount"), it.optInt("correctCount"), it.optInt("wrongCount"), it.optString("notes"), it.optNullableString("sourcePackageId")) }
+        val sessionsFromBackup = root.array("sessions").objects().map { StudySessionEntity(it.getLong("id"), it.getLong("topicId"), it.getLong("startedAt"), it.getLong("completedAt"), it.optLongOrNull("competitionId"), it.optLongOrNull("subjectId"), it.optLong("durationSeconds"), it.optInt("questionCount"), it.optInt("correctCount"), it.optInt("wrongCount"), it.optString("notes"), it.optNullableString("sourcePackageId")) }
+        val legacyFocusSessions = sessionsFromBackup.filter { it.notes == "Modo foco" }.map { session ->
+            FocusSessionEntity(
+                id = "legacy-${session.id}",
+                title = "Sessão de foco",
+                startedAt = session.startedAt,
+                completedAt = session.completedAt,
+                durationSeconds = session.durationSeconds,
+                subjectIdsText = session.subjectId?.toString().orEmpty(),
+                origin = if (session.topicId > 0L) FocusSessionOrigin.MATERIA else FocusSessionOrigin.LIVRE,
+                topicId = session.topicId.takeIf { it > 0L },
+            )
+        }
+        val sessions = sessionsFromBackup.filterNot { it.notes == "Modo foco" }
+        val focusSessions = (legacyFocusSessions + root.array("focusSessions").objects().map { item ->
+            FocusSessionEntity(
+                id = item.getString("id"),
+                title = item.getString("title"),
+                startedAt = item.getLong("startedAt"),
+                completedAt = item.getLong("completedAt"),
+                durationSeconds = item.getLong("durationSeconds"),
+                subjectIdsText = item.optString("subjectIds"),
+                origin = FocusSessionOrigin.valueOf(item.getString("origin")),
+                topicId = item.optLongOrNull("topicId"),
+                taskId = item.optNullableString("taskId"),
+            )
+        }).distinctBy { it.id }
         val questionSessions = root.array("questionSessions").objects().map { QuestionSessionEntity(it.getString("id"), QuestionSessionType.valueOf(it.getString("type")), it.getLong("startedAt"), it.getLong("completedAt"), it.getLong("durationSeconds"), it.getInt("questionCount"), it.getInt("correctCount"), it.optString("subjectIds"), it.optString("topicIds")) }
         val importPackages = root.array("importPackages").objects().map { ImportPackageEntity(it.getLong("id"), it.getString("packageId"), it.getInt("schemaVersion"), it.getLong("importedAt"), it.getString("contentHash"), it.optString("fileName"), it.optInt("createdCount"), it.optInt("updatedCount"), it.optInt("ignoredCount")) }
         val notes = root.array("notes").objects().map { UserNoteEntity(it.getLong("id"), it.optLongOrNull("topicId"), it.optLongOrNull("questionId"), it.getString("text"), it.getLong("createdAt")) }
         val tags = root.array("tags").objects().map { TagEntity(it.getLong("id"), it.getString("name")) }
         val questionTags = root.array("questionTags").objects().map { QuestionTagCrossRef(it.getLong("questionId"), it.getLong("tagId")) }
 
-        dao.clearContentSources(); dao.clearQuestionTags(); dao.clearTags(); dao.clearNotes(); dao.clearImportPackages(); dao.clearQuestionSessions(); dao.clearQueueEvents(); dao.clearSessions(); dao.clearQueue(); dao.clearReviewHistory(); dao.clearReviewSessions(); dao.clearReviews(); dao.clearErrorConceptEntries(); dao.clearErrorConcepts(); dao.clearErrors(); dao.clearAttempts(); dao.clearQuestions(); dao.clearSnippets(); dao.clearSummaries(); dao.clearTheoryMarks(); dao.clearTheories(); dao.clearTopics(); dao.clearSubjects(); dao.clearCompetitions()
-        dao.restoreCompetitions(competitions); dao.restoreSubjects(subjects); dao.restoreTopics(topics); dao.restoreSummaries(summaries); dao.restoreSnippets(snippets); dao.restoreTheories(theories); dao.restoreTheoryMarks(theoryMarks); dao.restoreQuestions(questions); dao.restoreOptions(options); dao.restoreAttempts(attempts); dao.restoreErrors(errors); dao.restoreErrorConcepts(errorConcepts); dao.restoreErrorConceptEntries(errorConceptEntries); dao.restoreReviews(reviews); dao.restoreReviewHistory(history); dao.restoreReviewSessions(reviewSessions); dao.restoreQueue(queue); dao.restoreSessions(sessions); dao.restoreQueueEvents(queueEvents); dao.restoreQuestionSessions(questionSessions); dao.restoreImportPackages(importPackages); dao.restoreNotes(notes); dao.restoreTags(tags); dao.restoreQuestionTags(questionTags); dao.restoreContentSources(contentSources)
+        dao.clearContentSources(); dao.clearQuestionTags(); dao.clearTags(); dao.clearNotes(); dao.clearImportPackages(); dao.clearFocusSessions(); dao.clearQuestionSessions(); dao.clearQueueEvents(); dao.clearSessions(); dao.clearQueue(); dao.clearReviewHistory(); dao.clearReviewSessions(); dao.clearReviews(); dao.clearErrorConceptEntries(); dao.clearErrorConcepts(); dao.clearErrors(); dao.clearAttempts(); dao.clearQuestions(); dao.clearSnippets(); dao.clearSummaries(); dao.clearTheoryMarks(); dao.clearTheories(); dao.clearTopics(); dao.clearSubjects(); dao.clearCompetitions()
+        dao.restoreCompetitions(competitions); dao.restoreSubjects(subjects); dao.restoreTopics(topics); dao.restoreSummaries(summaries); dao.restoreSnippets(snippets); dao.restoreTheories(theories); dao.restoreTheoryMarks(theoryMarks); dao.restoreQuestions(questions); dao.restoreOptions(options); dao.restoreAttempts(attempts); dao.restoreErrors(errors); dao.restoreErrorConcepts(errorConcepts); dao.restoreErrorConceptEntries(errorConceptEntries); dao.restoreReviews(reviews); dao.restoreReviewHistory(history); dao.restoreReviewSessions(reviewSessions); dao.restoreQueue(queue); dao.restoreSessions(sessions); dao.restoreFocusSessions(focusSessions); dao.restoreQueueEvents(queueEvents); dao.restoreQuestionSessions(questionSessions); dao.restoreImportPackages(importPackages); dao.restoreNotes(notes); dao.restoreTags(tags); dao.restoreQuestionTags(questionTags); dao.restoreContentSources(contentSources)
         if (root.optInt("version") >= 5) PlannerBackupCodec.restore(db, root)
     }
 }

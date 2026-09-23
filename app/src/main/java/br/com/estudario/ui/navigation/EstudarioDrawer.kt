@@ -1,5 +1,6 @@
 package br.com.estudario.ui.navigation
 
+import br.com.estudario.BuildConfig
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,12 +22,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FactCheck
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.QueryStats
@@ -35,11 +38,13 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
@@ -59,7 +64,7 @@ import br.com.estudario.ui.theme.EstudarioSpacing
  *
  * A navegação de baixo guarda os quatro lugares onde se estuda; aqui ficam as ferramentas de
  * acompanhamento e as configurações do app. A separação é essa, e é por isso que não existe mais
- * uma aba "Mais" — aba é para destino frequente, não para o que sobrou.
+ * uma aba "Mais", aba é para destino frequente, não para o que sobrou.
  */
 data class DrawerEntry(
     val label: String,
@@ -132,7 +137,7 @@ private fun DrawerHeader(profile: UserProfile, level: Int?, totalXp: Int?, onOpe
             profile.displayName,
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         )
         Text(
             when {
@@ -142,7 +147,7 @@ private fun DrawerHeader(profile: UserProfile, level: Int?, totalXp: Int?, onOpe
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.primary,
-            maxLines = 1,
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         )
     }
 }
@@ -168,7 +173,7 @@ private fun DrawerRow(entry: DrawerEntry, selected: Boolean) {
 }
 
 /**
- * As seções reais do app. Só entra aqui o que existe de verdade — o menu não é vitrine de planos
+ * As seções reais do app. Só entra aqui o que existe de verdade, o menu não é vitrine de planos
  * futuros. [onHelp] abre o mesmo seletor de guias que já existia em "Como usar o app".
  */
 fun estudarioDrawerSections(
@@ -185,6 +190,7 @@ fun estudarioDrawerSections(
     onNotifications: () -> Unit,
     onSyncCalendar: () -> Unit,
     onHelp: () -> Unit,
+    onFocusHistory: () -> Unit = onFocus,
 ): List<DrawerSection> = listOf(
     DrawerSection(
         "Estudos",
@@ -203,6 +209,7 @@ fun estudarioDrawerSections(
             DrawerEntry("Desempenho", Icons.Outlined.QueryStats, onStatistics, "statistics"),
             DrawerEntry("Conquistas", Icons.Outlined.EmojiEvents, onBadges, "badges"),
             DrawerEntry("Histórico e fontes", Icons.Outlined.FactCheck, onSources, "sources"),
+            DrawerEntry("Histórico do foco", Icons.Outlined.History, onFocusHistory, "focus-history"),
         ),
     ),
     DrawerSection(
@@ -217,9 +224,9 @@ fun estudarioDrawerSections(
 )
 
 /**
- * A barra de identidade do app: aparece nos quatro destinos principais e é o único lugar onde a
- * marca, a busca e o perfil moram. As telas abaixo dela não repetem o nome do app — por isso aqui
- * fica o logotipo, e não o título da aba.
+ * A barra de identidade do app: aparece em toda rota completa e é o único lugar onde a marca, a
+ * busca e o perfil moram. As telas abaixo dela não repetem o nome do app; rotas empilhadas ainda
+ * podem exibir aqui a ação de voltar e seu título.
  */
 @Composable
 fun EstudarioTopBar(
@@ -227,8 +234,11 @@ fun EstudarioTopBar(
     onOpenMenu: () -> Unit,
     onSearch: () -> Unit,
     onProfile: () -> Unit,
+    onBack: (() -> Unit)? = null,
+    title: String? = null,
     windowInsets: WindowInsets = WindowInsets.statusBars,
     profileModifier: Modifier = Modifier,
+    menuModifier: Modifier = Modifier,
 ) {
     Row(
         Modifier
@@ -238,11 +248,17 @@ fun EstudarioTopBar(
             .padding(horizontal = EstudarioSpacing.small, vertical = EstudarioSpacing.tight),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (onBack != null) {
+            IconButton(onClick = onBack, modifier = Modifier.size(40.dp).testTag("global-back")) {
+                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Voltar")
+            }
+        }
         Row(
-            Modifier
+            menuModifier
                 .clip(RoundedCornerShape(50))
                 .clickable(onClick = onOpenMenu)
                 .semantics { contentDescription = "Abrir menu" }
+                .testTag("estudario-menu-trigger")
                 .padding(horizontal = EstudarioSpacing.tight, vertical = EstudarioSpacing.tight),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight),
@@ -250,18 +266,27 @@ fun EstudarioTopBar(
             EstudarioGlyph(size = 20.dp)
             Text("ESTUDÁRIO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
         }
-        Spacer(Modifier.weight(1f))
-        IconAction(Icons.Outlined.Search, "Pesquisar", onSearch)
-        Spacer(Modifier.width(EstudarioSpacing.hairline))
-        Box(
-            profileModifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(50))
-                .semantics { contentDescription = "Abrir perfil" }
-                .clickable(onClick = onProfile),
-            contentAlignment = Alignment.Center,
-        ) {
-            ProfileAvatar(profile.photoPath, profile.initials, 34.dp)
+        if (title != null) {
+            Text(
+                title,
+                modifier = Modifier.weight(1f).padding(start = EstudarioSpacing.tight),
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+        } else {
+            Spacer(Modifier.weight(1f))
+            IconAction(Icons.Outlined.Search, "Pesquisar", onSearch)
+            Spacer(Modifier.width(EstudarioSpacing.hairline))
+            Box(
+                profileModifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(50))
+                    .semantics { contentDescription = "Abrir perfil" }
+                    .clickable(onClick = onProfile),
+                contentAlignment = Alignment.Center,
+            ) {
+                ProfileAvatar(profile.photoPath, profile.initials, 34.dp)
+            }
         }
     }
 }
@@ -278,13 +303,13 @@ private fun DrawerPreview() {
             totalXp = 1840,
             currentRoute = "plan",
             sections = estudarioDrawerSections({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}),
-            appVersion = "Estudário 2.2.0 · Local-first",
+            appVersion = "Estudário ${BuildConfig.VERSION_NAME}",
             onOpenProfile = {},
         )
     }
 }
 
-@Preview(name = "Menu lateral — conta local (escuro)", showBackground = true, widthDp = 320, heightDp = 780, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Menu lateral, conta local (escuro)", showBackground = true, widthDp = 320, heightDp = 780, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun DrawerLocalDarkPreview() {
     EstudarioTheme {
@@ -294,7 +319,7 @@ private fun DrawerLocalDarkPreview() {
             totalXp = null,
             currentRoute = "home",
             sections = estudarioDrawerSections({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}),
-            appVersion = "Estudário 2.2.0 · Local-first",
+            appVersion = "Estudário ${BuildConfig.VERSION_NAME}",
             onOpenProfile = {},
         )
     }

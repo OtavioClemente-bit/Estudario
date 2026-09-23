@@ -1,5 +1,7 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.theme.estudarioLayout
+import br.com.estudario.ui.theme.screenPadding
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -58,7 +60,7 @@ fun ReviewSessionScreen(viewModel: AppViewModel, reviewId: Long, onBack: () -> U
     var answered by remember { mutableStateOf<Boolean?>(null) }
     var correct by remember { mutableIntStateOf(0) }
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Sair") }
@@ -81,7 +83,8 @@ fun ReviewSessionScreen(viewModel: AppViewModel, reviewId: Long, onBack: () -> U
                     Text("Responda mentalmente e registre como foi. O objetivo é recuperar a informação, não apenas reconhecê-la.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 item {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Lado a lado quando cabe; em tela estreita ou fonte grande, um botão por linha.
+                    FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = if (estudarioLayout().prefersStacking) 1 else Int.MAX_VALUE, verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         OutlinedButton(onClick = { forgotten++; if (recallIndex < recall.lastIndex) recallIndex++ else step = 1 }, Modifier.weight(1f)) { Text("Não lembrei") }
                         Button(onClick = { recalled++; if (recallIndex < recall.lastIndex) recallIndex++ else step = 1 }, Modifier.weight(1f)) { Text("Lembrei") }
                     }

@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.theme.screenPadding
 import android.Manifest
 import android.app.TimePickerDialog
 import android.content.Intent
@@ -27,7 +28,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
 @Composable
-fun NotificationSettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
+fun NotificationSettingsScreen(viewModel: AppViewModel, onBack: () -> Unit, showInlineBack: Boolean = true) {
     val context = LocalContext.current
     val enabled by viewModel.notificationsEnabled.collectAsState()
     val daily by viewModel.dailyReminderEnabled.collectAsState()
@@ -64,12 +65,12 @@ fun NotificationSettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing),
-        contentPadding = PaddingValues(20.dp),
+        contentPadding = screenPadding(),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") }
+                if (showInlineBack) IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") }
                 Column { Text("Notificações de estudo", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("Lembretes úteis, sem excesso") }
             }
         }

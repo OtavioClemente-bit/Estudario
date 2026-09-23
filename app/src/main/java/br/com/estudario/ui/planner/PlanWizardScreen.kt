@@ -32,7 +32,7 @@ private val DIAS = listOf("Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom")
 
 /**
  * Assistente do plano sem IA. Cada passo é uma pergunta que muda o cronograma de verdade, e o
- * último passo mostra a prévia calculada com as mesmas regras que vão gerar as tarefas — dá para
+ * último passo mostra a prévia calculada com as mesmas regras que vão gerar as tarefas, dá para
  * voltar e ajustar antes de criar.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,6 +86,9 @@ fun PlanWizardScreen(
         simulationsPerMonth = simulations,
         discursivesPerMonth = discursives,
         interleaveSubjects = interleave,
+        // Sem isto, marcar "não intercalar" aqui perderia efeito: o motor passou a usar o teto
+        // diário por matéria em vez do booleano, e o padrão de 60% continuaria picando o dia.
+        dailySubjectSharePercent = if (interleave) 60 else 100,
     )
     fun weightOf(subject: SubjectEntity) = weights[subject.id] ?: 3
 
@@ -170,7 +173,7 @@ fun PlanWizardScreen(
                 ) {
                     when (step) {
                         0 -> {
-                            Explicacao("Este é o plano montado pelo próprio app, sem IA. Ele segue sempre as mesmas regras — teoria com questões logo depois, revisão espaçada, rodízio de matérias por peso e simulado periódico — e na última tela você vê exatamente o que vai sair.")
+                            Explicacao("Este é o plano montado pelo próprio app, sem IA. Ele segue sempre as mesmas regras, teoria com questões logo depois, revisão espaçada, rodízio de matérias por peso e simulado periódico, e na última tela você vê exatamente o que vai sair.")
                             OutlinedTextField(name, { name = it }, label = { Text("Nome do plano") }, modifier = Modifier.fillMaxWidth())
                             OutlinedTextField(objective, { objective = it }, label = { Text("Objetivo") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
                         }
@@ -179,7 +182,7 @@ fun PlanWizardScreen(
                             competitions.forEach { item ->
                                 FilterChip(competitionId == item.id, { competitionId = item.id }, { Text(item.name) })
                             }
-                            if (selectedSubjects.isEmpty()) Aviso("Este concurso ainda não tem matérias. Monte o edital primeiro — é a única parte que realmente pede IA (ou digitação manual).")
+                            if (selectedSubjects.isEmpty()) Aviso("Este concurso ainda não tem matérias. Monte o edital primeiro, é a única parte que realmente pede IA (ou digitação manual).")
                             else Text("${selectedSubjects.size} matéria(s) • ${selectedTopics.size} tópico(s) • ${selectedTopics.count { it.status == TopicStatus.NAO_ESTUDADO }} ainda não estudado(s)", style = MaterialTheme.typography.bodyMedium)
                         }
                         2 -> {
@@ -190,7 +193,7 @@ fun PlanWizardScreen(
                             HorizontalDivider()
                             SecaoTitulo("Data da prova")
                             Text("Com a data, o plano se divide em Base, Aprofundamento e Reta final, e a divisão do tempo muda sozinha conforme a prova chega.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(onClick = { showDatePicker = true }) { Text(examDate?.let { "%02d/%02d/%d".format(it.dayOfMonth, it.monthValue, it.year) } ?: "Escolher data") }
                                 if (examDate != null) TextButton(onClick = { examDate = null }) { Text("Ainda não sei") }
                             }
@@ -198,7 +201,7 @@ fun PlanWizardScreen(
                         3 -> {
                             SecaoTitulo("Quanto tempo você tem de verdade?")
                             Text("Conte só o tempo limpo de estudo, sem deslocamento e sem pausa. Plano que assume tempo que não existe atrasa na primeira semana.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 FilterChip(!advanced, { advanced = false }, { Text("Mesmo tempo todo dia") })
                                 FilterChip(advanced, { advanced = true }, { Text("Dia a dia") })
                             }
@@ -208,7 +211,7 @@ fun PlanWizardScreen(
                             } else {
                                 DIAS.forEachIndexed { index, label ->
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("$label: ${advancedMinutes[index]} min", Modifier.width(110.dp), style = MaterialTheme.typography.bodySmall)
+                                        Text("$label: ${advancedMinutes[index]} min", Modifier.widthIn(min = 96.dp), style = MaterialTheme.typography.bodySmall)
                                         Slider(advancedMinutes[index].toFloat(), { advancedMinutes[index] = it.toInt() }, Modifier.weight(1f), valueRange = 0f..480f, steps = 15)
                                     }
                                 }
@@ -353,7 +356,7 @@ private fun PreviaDoPlano(preview: WizardPreview, name: String, subjects: List<S
                 Modifier.fillMaxWidth(),
             )
             Text(
-                if (preview.plannedMinutes > preview.horizonCapacity) "A demanda passa da sua disponibilidade — o que não couber é remarcado automaticamente."
+                if (preview.plannedMinutes > preview.horizonCapacity) "A demanda passa da sua disponibilidade, o que não couber é remarcado automaticamente."
                 else "${minutesLabel(preview.plannedMinutes)} planejados de ${minutesLabel(preview.horizonCapacity)} disponíveis.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -366,7 +369,7 @@ private fun PreviaDoPlano(preview: WizardPreview, name: String, subjects: List<S
             Text(preview.currentPhase.mix.describe(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
             preview.minutesByType.entries.sortedByDescending { it.value }.forEach { (type, minutes) ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(type.label(), style = MaterialTheme.typography.bodySmall)
+                    Text(type.label(), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f).padding(end = 8.dp))
                     Text(minutesLabel(minutes), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
                 }
             }
@@ -469,7 +472,7 @@ private fun pesoLabel(weight: Int) = when (weight) {
 @Composable private fun NumeroSlider(label: String, value: Int, range: IntRange, step: Int, onChange: (Int) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(label, style = MaterialTheme.typography.bodyMedium)
+            Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f).padding(end = 8.dp))
             Text("$value", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         }
         Slider(

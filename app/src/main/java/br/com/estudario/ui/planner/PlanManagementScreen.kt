@@ -1,5 +1,6 @@
 package br.com.estudario.ui.planner
 
+import br.com.estudario.ui.theme.screenPadding
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -34,7 +35,7 @@ private fun ExcluirPlanoDialog(
                 Text("Some para sempre: o cronograma, as tarefas e as fases deste plano.")
                 if (execucoes != null && execucoes > 0) {
                     Text(
-                        "Também some o registro de $execucoes atividade(s) que você concluiu por ele — e o XP dessas atividades sai da sua conta.",
+                        "Também some o registro de $execucoes atividade(s) que você concluiu por ele, e o XP dessas atividades sai da sua conta.",
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
@@ -55,7 +56,7 @@ private fun ExcluirPlanoDialog(
             }
         },
         dismissButton = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = onDismiss) { Text("Cancelar") }
                 if (!plan.archived) TextButton(onClick = onArchive) { Text("Arquivar") }
             }
@@ -97,9 +98,9 @@ fun PlanManagementScreen(
             onConfirm = { excluir = null; onDelete(plano.id) },
         )
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Gerenciar planos", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); TextButton(onClick = onBack) { Text("Voltar") } } }
-        if (state.activePlan != null) item { ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text("Contexto compacto", fontWeight = FontWeight.Bold); Text("Somente planejamento, métricas e alertas — sem teorias ou enunciados.", style = MaterialTheme.typography.bodySmall); Row { TextButton(onClick = onContextJson) { Text("Exportar JSON") }; TextButton(onClick = onContextText) { Text("Exportar texto") } } } } }
+        if (state.activePlan != null) item { ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text("Contexto compacto", fontWeight = FontWeight.Bold); Text("Somente planejamento, métricas e alertas, sem teorias ou enunciados.", style = MaterialTheme.typography.bodySmall); Row { TextButton(onClick = onContextJson) { Text("Exportar JSON") }; TextButton(onClick = onContextText) { Text("Exportar texto") } } } } }
         if (state.activePlan != null) item { ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Disponibilidade e matérias", fontWeight = FontWeight.Bold); TextButton(onClick = onEditAvailability) { Text("Editar horas") } }
             state.planSubjects.forEach { subject -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Column(Modifier.weight(1f)) { Text(subject.subjectNameSnapshot); Text(subject.priority.name, style = MaterialTheme.typography.labelSmall) }; TextButton(onClick = { val values = PlanPriority.entries; onUpdateSubject(subject.subjectId, values[(subject.priority.ordinal + 1) % values.size], subject.paused) }) { Text("Prioridade") }; Switch(subject.paused, { onUpdateSubject(subject.subjectId, subject.priority, it) }) } }
@@ -112,7 +113,7 @@ fun PlanManagementScreen(
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (!plan.archived && !plan.active) TextButton(onClick = { confirm = "O plano ativo atual será desativado, sem apagar o histórico." to { onActivate(plan.id) } }) { Text("Ativar") }
                     if (!plan.archived && !plan.masterPlan) TextButton(onClick = { confirm = "O Plano Mestre anterior será desmarcado, preservando todos os dados." to { onMaster(plan.id) } }) { Text("Tornar Mestre") }
-                    TextButton(onClick = { onDuplicate(plan.id, "${plan.name} — cópia") }) { Text("Duplicar") }
+                    TextButton(onClick = { onDuplicate(plan.id, "${plan.name}, cópia") }) { Text("Duplicar") }
                     TextButton(onClick = { onExport(plan) }) { Text("Exportar") }
                     if (!plan.archived) TextButton(onClick = { confirm = "O plano ficará consultável, mas deixará de alimentar Hoje/Semana/Mês/Ano." to { onArchive(plan.id) } }) { Text("Arquivar") }
                     else TextButton(onClick = { onRestore(plan.id) }) { Text("Restaurar") }

@@ -18,7 +18,7 @@ import org.junit.Test
 import java.time.LocalDate
 
 class PromptBuildersTest {
-    private val competition = CompetitionEntity(id = 1, name = "TRT-3 — Analista de TI", externalId = "concurso-trt3")
+    private val competition = CompetitionEntity(id = 1, name = "TRT-3: Analista de TI", externalId = "concurso-trt3")
     private val subject = SubjectEntity(id = 10, competitionId = 1, name = "Segurança da Informação", position = 2, externalId = null)
     private val parent = TopicEntity(id = 100, subjectId = 10, title = "Criptografia", position = 1, priority = Priority.ALTA, externalId = "seg-cripto")
     private val child = TopicEntity(id = 101, subjectId = 10, parentTopicId = 100, title = "Hash \"SHA\" e MAC", position = 0, contentOriginType = ContentOriginType.DIDACTIC_SUBDIVISION)
@@ -99,6 +99,51 @@ class PromptBuildersTest {
 
         val plan = EstudoPackageParser.parse(IncomingText.clean(prompt.substringAfter("ESTRUTURA:")))
         assertEquals(1, plan.subjects.single().topics.single().questions.size)
+    }
+
+    @Test fun `additional question prompt includes prior subject questions and creates a question-only unique package`() {
+        val existing = listOf(
+            ExistingQuestionReference(
+                statement = "Qual função produz o resumo criptográfico da mensagem?",
+                options = listOf("SHA-256", "RSA", "AES", "HMAC"),
+            ),
+        )
+        val prompt = ContentPromptBuilder.build(
+            competition,
+            subject,
+            listOf(parent, child, other),
+            setOf(child.id),
+            ContentPromptOptions(
+                blocks = setOf(ContentBlock.SUMMARY),
+                questionCount = 8,
+                style = QuestionStyle.FOUR_OPTIONS,
+                difficulty = QuestionDifficulty.HARD,
+                board = "FCC",
+            ),
+            existingQuestions = existing,
+            additionalQuestionBatchId = "batch-abc",
+        )
+
+        assertTrue(prompt.contains(existing.single().statement))
+        assertTrue(prompt.contains("SHA-256"))
+        assertTrue(prompt.contains("não repita nem reformule"))
+        assertTrue(prompt.contains("apenas como referência"))
+        assertTrue(prompt.contains("8 questão(ões)"))
+        assertTrue(prompt.contains("Cada questão com 4 alternativas"))
+        assertTrue(prompt.contains("DIFICIL"))
+
+        val plan = EstudoPackageParser.parse(IncomingText.clean(prompt.substringAfter("ESTRUTURA:")))
+        val topic = plan.subjects.single().topics.single().children.single()
+        assertTrue(plan.packageId.contains("batch-abc"))
+        assertTrue(topic.questions.single().id.contains("batch-abc"))
+        assertEquals(1, topic.questions.size)
+        assertTrue(topic.theories.isEmpty())
+        assertTrue(topic.summaries.isEmpty())
+        assertTrue(topic.errorConcepts.isEmpty())
+        assertTrue(topic.questions.single().reviewAnchor == null)
+        assertTrue(topic.sources.single().id.orEmpty().contains("batch-abc"))
+        assertTrue(topic.scopeCovers == null && topic.scopeExcludes == null)
+        assertEquals("topico-101", topic.id)
     }
 
     @Test fun `plan prompt carries the exact ids and availability`() {

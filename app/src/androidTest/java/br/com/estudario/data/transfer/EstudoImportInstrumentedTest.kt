@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import br.com.estudario.data.local.AppDatabase
+import br.com.estudario.data.local.CompetitionEntity
 import br.com.estudario.data.StudyRepository
 import br.com.estudario.data.local.ReviewHistoryEntity
 import br.com.estudario.data.local.StudyQueueEntity
@@ -48,6 +49,19 @@ class EstudoImportInstrumentedTest {
         assertEquals(3, second.skipped)
         assertTrue(second.topicsUpdated >= 2)
         assertEquals(1, database.dao().questionsOnce().size)
+    }
+
+    @Test fun selectedCompetitionReceivesImportedContentWhenFileHasAnotherName() = runBlocking {
+        val dao = database.dao()
+        val chosenName = "Nome escolhido"
+        val chosenId = dao.insertCompetition(CompetitionEntity(name = chosenName))
+        val service = EstudoPackageService(database)
+
+        service.import(packageJson.replace("Concurso Instrumentado", "Nome vindo do arquivo"), targetCompetitionId = chosenId)
+
+        assertEquals(1, dao.competitionsOnce().size)
+        assertEquals(chosenName, dao.competitionsOnce().single().name)
+        assertEquals(listOf(chosenId), dao.subjectsOnce().map { it.competitionId }.distinct())
     }
 
     @Test fun updateModeChangesContentAndPreservesStudyHistory() = runBlocking {

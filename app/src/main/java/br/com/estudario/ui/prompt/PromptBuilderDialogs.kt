@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -52,6 +53,7 @@ import br.com.estudario.data.prompt.EditalPromptBuilder
 import br.com.estudario.data.prompt.EditalPromptOptions
 import br.com.estudario.data.prompt.EditalScope
 import br.com.estudario.data.prompt.EditalSource
+import br.com.estudario.data.prompt.ExistingQuestionReference
 import br.com.estudario.data.prompt.MaterialSource
 import br.com.estudario.data.prompt.PlanMethod
 import br.com.estudario.data.prompt.PlanObjective
@@ -71,6 +73,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.UUID
 
 private val attachmentTypes = arrayOf("application/pdf", "image/*", "text/plain")
 private val dateFormat = DateTimeFormatter.ofPattern("dd/MM/yyyy")
@@ -103,7 +106,7 @@ fun EditalPromptBuilderDialog(viewModel: AppViewModel, selectedCompetitionId: Lo
         ),
         prompt = prompt,
         onDismiss = onDismiss,
-        onImportText = { onDismiss(); viewModel.openIncomingText(it) },
+        onImportText = { onDismiss(); viewModel.openIncomingText(it, targetId) },
         onPickFile = { onDismiss(); onPickFile() },
         attachment = attachment.takeIf { options.source == EditalSource.ATTACH_PDF },
         tutorial = TutorialVideo.EDITAL,
@@ -195,7 +198,7 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         ),
         prompt = prompt,
         onDismiss = onDismiss,
-        onImportText = { onDismiss(); viewModel.openIncomingText(it) },
+        onImportText = { onDismiss(); viewModel.openIncomingText(it, competition.id) },
         onPickFile = { onDismiss(); onPickFile() },
         attachment = attachment.takeIf { options.source == MaterialSource.ATTACHED },
         shareEnabled = selectedIds.isNotEmpty(),
@@ -205,7 +208,7 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
     ) {
         if (!singleTopicMode) OptionSection("Tópicos", "Selecione o tópico que vai estudar agora. Para obter uma resposta mais completa e verificar as fontes, recomendamos gerar um tópico por vez. Tópicos com ✓ já têm conteúdo.") {
             if (ordered.isEmpty()) Text("Esta matéria ainda não tem tópicos. Adicione tópicos ou importe o edital primeiro.", color = MaterialTheme.colorScheme.error)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AssistChip(onClick = { selected.clear(); selected.addAll(ordered.map { it.first }.filter { it.id !in withContent }.take(1).map { it.id }) }, label = { Text("Próximo sem conteúdo") })
                 AssistChip(onClick = { selected.clear() }, label = { Text("Limpar") })
             }
@@ -253,6 +256,111 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         OptionSection("Fonte do conteúdo") {
             ChoiceChips(MaterialSource.entries, options.source, { it.label }) { options = options.copy(source = it) }
             if (options.source == MaterialSource.ATTACHED) AttachmentPicker(attachment, "Anexar lei, apostila ou PDF", { attach.launch(attachmentTypes) }, { attachment = null })
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun AdditionalQuestionPromptBuilderDialog(
+    viewModel: AppViewModel,
+    subjectId: Long,
+    topicId: Long,
+    onDismiss: () -> Unit,
+    onPickFile: () -> Unit,
+) {
+    val competitions by viewModel.competitions.collectAsState()
+    val subjects by viewModel.subjects.collectAsState()
+    val allTopics by viewModel.topics.collectAsState()
+    val questions by viewModel.questions.collectAsState()
+    val subject = subjects.firstOrNull { it.id == subjectId }
+    val competition = competitions.firstOrNull { it.id == subject?.competitionId }
+    val topic = allTopics.firstOrNull { it.id == topicId && it.subjectId == subjectId }
+    val subjectTopics = allTopics.filter { it.subjectId == subjectId }
+    val subjectTopicIds = remember(subjectTopics) { subjectTopics.map { it.id }.toSet() }
+    val existingQuestions = remember(questions, subjectTopicIds) {
+        questions.asSequence()
+            .filter { it.question.topicId in subjectTopicIds }
+            .map { question ->
+                ExistingQuestionReference(
+                    statement = question.question.statement,
+                    options = question.options.sortedBy { it.position }.map { it.text },
+                )
+            }
+            .toList()
+    }
+    val subjectBoard = remember(questions, subjectTopicIds) {
+        questions.asSequence()
+            .filter { it.question.topicId in subjectTopicIds }
+            .mapNotNull { it.question.board?.takeIf(String::isNotBlank) }
+            .groupingBy { it }
+            .eachCount()
+            .maxByOrNull { it.value }
+            ?.key
+            .orEmpty()
+    }
+    var options by remember(subjectBoard) {
+        mutableStateOf(
+            ContentPromptOptions(
+                blocks = setOf(ContentBlock.QUESTIONS),
+                questionCount = 10,
+                difficulty = QuestionDifficulty.MEDIUM,
+                board = subjectBoard,
+            ),
+        )
+    }
+    val batchId = remember(topicId) { UUID.randomUUID().toString() }
+
+    if (subject == null || competition == null || topic == null) {
+        LaunchedEffect(Unit) { onDismiss() }
+        return
+    }
+
+    val prompt = remember(options, competition, subject, subjectTopics, topic, existingQuestions, batchId) {
+        ContentPromptBuilder.build(
+            competition = competition,
+            subject = subject,
+            topics = subjectTopics,
+            targetTopicIds = setOf(topic.id),
+            o = options.copy(blocks = setOf(ContentBlock.QUESTIONS)),
+            existingQuestions = existingQuestions,
+            additionalQuestionBatchId = batchId,
+        )
+    }
+
+    PromptBuilderDialog(
+        title = "Gerar mais questões",
+        subtitle = ContentPromptBuilder.pathOf(topic, subjectTopics),
+        steps = listOf(
+            "Escolha a quantidade, o formato e a dificuldade.",
+            "O pedido inclui enunciados e alternativas já cadastrados nesta matéria para a IA evitar repetições.",
+            "Gere as questões, depois abra o arquivo .estudo ou cole a resposta no Estudário.",
+        ),
+        prompt = prompt,
+        onDismiss = onDismiss,
+        onImportText = { onDismiss(); viewModel.openIncomingText(it) },
+        onPickFile = { onDismiss(); onPickFile() },
+    ) {
+        OptionSection("Quantidade") {
+            Text("${options.questionCount} questões", fontWeight = FontWeight.SemiBold)
+            Slider(options.questionCount.toFloat(), { options = options.copy(questionCount = it.toInt()) }, valueRange = 5f..30f, steps = 4)
+        }
+        OptionSection("Formato") {
+            ChoiceChips(QuestionStyle.entries, options.style, { it.label }) { options = options.copy(style = it) }
+        }
+        OptionSection("Dificuldade") {
+            ChoiceChips(QuestionDifficulty.entries, options.difficulty, { it.label }) { options = options.copy(difficulty = it) }
+        }
+        OptionSection("Banca (opcional)", "Usada só para orientar o estilo das questões.") {
+            OutlinedTextField(options.board, { options = options.copy(board = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Banca") })
+        }
+        OptionSection("Banco atual da matéria") {
+            Text(
+                if (existingQuestions.isEmpty()) "Ainda não há questões cadastradas para comparar."
+                else "${existingQuestions.size} questão(ões) serão enviadas apenas como referência antirrepetição, sem gabaritos ou dados de desempenho.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -356,7 +464,7 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
             Text(options.objective.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         OptionSection("Datas") {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { pickExamDate = true }) { Text(options.examDate?.let { "Prova: ${it.format(dateFormat)}" } ?: "Definir data da prova") }
                 if (options.examDate != null) TextButton(onClick = { options = options.copy(examDate = null) }) { Text("Sem data") }
             }
@@ -372,14 +480,14 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
         OptionSection("Tempo líquido por dia", "Já descontando pausas. Deixe em 0 os dias de folga.") {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(60, 120, 180, 240).forEachIndexed { index, minutes ->
-                    FilterChip(selected = dailyPreset == index, onClick = { dailyPreset = index; for (day in 0..4) dayMinutes[day] = minutes }, label = { Text("${minutes / 60}h seg–sex") })
+                    FilterChip(selected = dailyPreset == index, onClick = { dailyPreset = index; for (day in 0..4) dayMinutes[day] = minutes }, label = { Text("${minutes / 60}h de segunda a sexta") })
                 }
             }
             listOf("Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom").forEachIndexed { index, label ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(label, Modifier.width(40.dp), fontWeight = FontWeight.SemiBold)
                     Slider(dayMinutes[index].toFloat(), { dayMinutes[index] = (it / 15f).toInt() * 15; dailyPreset = -1 }, Modifier.weight(1f), valueRange = 0f..480f, steps = 31)
-                    Text(if (dayMinutes[index] == 0) "folga" else minutesText(dayMinutes[index]), Modifier.width(64.dp), style = MaterialTheme.typography.bodySmall)
+                    Text(if (dayMinutes[index] == 0) "folga" else minutesText(dayMinutes[index]), Modifier.widthIn(min = 64.dp), style = MaterialTheme.typography.bodySmall, maxLines = 1)
                 }
             }
             Text("Total: ${minutesText(dayMinutes.sum())} por semana", fontWeight = FontWeight.SemiBold)

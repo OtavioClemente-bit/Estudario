@@ -37,9 +37,9 @@ import br.com.estudario.ui.theme.EstudarioShapes
 import br.com.estudario.ui.theme.EstudarioSpacing
 
 /**
- * Nível 1 — AGORA. A seção de maior peso visual da Home: um painel só, nunca uma lista de cards.
+ * Nível 1, AGORA. A seção de maior peso visual da Home: um painel só, nunca uma lista de cards.
  * A borda arredondada [EstudarioShapes.spotlight] e o fundo `surfaceContainerHigh` aparecem só
- * aqui na tela — é o que faz esse painel se destacar sem depender de gradiente ou sombra.
+ * aqui na tela, é o que faz esse painel se destacar sem depender de gradiente ou sombra.
  */
 @Composable
 fun CurrentStudySection(
@@ -110,7 +110,7 @@ private fun ReadyBody(state: CurrentStudyUiState.Ready, onStart: () -> Unit) {
             }
         }
         Text(
-            task.activityLabel + " · " + task.durationLabel,
+            if (task.durationLabel.isBlank()) task.activityLabel else "${task.activityLabel} · ${task.durationLabel}",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -147,7 +147,7 @@ private fun NoPlanBody(onCreatePlan: () -> Unit, practiceAvailable: Boolean, onP
             color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
-            "Você não precisa organizar sua vida de estudos sozinho. Diga seu concurso e sua disponibilidade — nós cuidamos da agenda.",
+            "Você não precisa organizar sua vida de estudos sozinho. Diga seu concurso e sua disponibilidade, nós cuidamos da agenda.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

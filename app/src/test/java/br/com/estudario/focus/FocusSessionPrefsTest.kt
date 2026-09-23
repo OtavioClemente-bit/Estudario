@@ -1,6 +1,7 @@
 package br.com.estudario.focus
 
 import br.com.estudario.data.preferences.FocusSessionPrefs
+import br.com.estudario.data.local.FocusSessionOrigin
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -30,5 +31,24 @@ class FocusSessionPrefsTest {
 
     @Test fun semFiltroAnteriorConhecidoNadaEhRestaurado() {
         assertEquals(FocusSessionPrefs.FILTER_UNKNOWN, FocusSessionPrefs(startedAt = inicio).previousFilter)
+    }
+
+    @Test fun legacyActiveSessionGetsStableIdentity() {
+        val first = FocusSessionPrefs.legacy(startedAt = 1_000L, topicId = 9L, taskId = null)
+        val second = FocusSessionPrefs.legacy(startedAt = 1_000L, topicId = 9L, taskId = null)
+        assertEquals(first.sessionId, second.sessionId)
+        assertEquals("legacy-1000", first.sessionId)
+        assertEquals(FocusSessionOrigin.MATERIA, first.origin)
+    }
+
+    @Test fun taskSourceTakesPrecedenceWhenInferringLegacyOrigin() {
+        assertEquals(
+            FocusSessionOrigin.PLANO,
+            FocusSessionPrefs.legacy(startedAt = 1_000L, topicId = 9L, taskId = "task-1").origin,
+        )
+        assertEquals(
+            FocusSessionOrigin.LIVRE,
+            FocusSessionPrefs.legacy(startedAt = 1_000L, topicId = null, taskId = null).origin,
+        )
     }
 }

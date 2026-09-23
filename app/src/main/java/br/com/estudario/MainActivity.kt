@@ -1,5 +1,6 @@
 package br.com.estudario
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -12,12 +13,24 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import br.com.estudario.ui.AppViewModel
 import br.com.estudario.ui.EstudarioApp
+import br.com.estudario.ui.theme.EstudarioAdaptiveScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private val viewModel: AppViewModel by viewModels()
+
+    /**
+     * Ajusta fonte e densidade antes de qualquer tela existir, para que o app inteiro, inclusive
+     * diálogos, menus e seletores de data, que abrem em janelas próprias, fique proporcional ao
+     * aparelho e ao tamanho de fonte escolhido. As regras estão em [EstudarioAdaptiveScale].
+     * A Activity é recriada quando a pessoa muda fonte/zoom no Android, então isto sempre reflete o atual.
+     */
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase)
+        EstudarioAdaptiveScale.adjust(newBase.resources.configuration)?.let(::applyOverrideConfiguration)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()

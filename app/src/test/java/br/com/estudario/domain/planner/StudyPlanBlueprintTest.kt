@@ -66,6 +66,29 @@ class StudyPlanBlueprintTest {
     }
 
     @Test
+    fun `bateria de quinze questoes usa dois minutos por questao sem arredondar para bloco`() {
+        val result = StudyPlanBlueprint.build(input())
+        val questoes = result.demands.first { it.type == PlanTaskType.QUESTIONS && it.topicId != null }
+
+        assertEquals(30, questoes.minutes)
+    }
+
+    @Test
+    fun `bateria semanal usa o tempo calculado por questao sem arredondar para bloco`() {
+        val result = StudyPlanBlueprint.build(
+            input(
+                config = StudyMethodConfig(blockMinutes = 50, weeklyQuestionsTarget = 15, questionsPerTopic = 0, simulationsPerMonth = 0),
+                topics = emptyList(),
+                weekly = 600,
+            ).copy(horizonDays = 7),
+        )
+        val bateria = result.demands.single { it.type == PlanTaskType.QUESTIONS }
+
+        assertEquals(15, bateria.questions)
+        assertEquals(30, bateria.minutes)
+    }
+
+    @Test
     fun `materia de peso maior recebe mais tempo e todas aparecem`() {
         val result = StudyPlanBlueprint.build(
             input(
@@ -121,7 +144,7 @@ class StudyPlanBlueprintTest {
     @Test
     fun `toda tarefa é multiplo do bloco escolhido`() {
         val result = StudyPlanBlueprint.build(input(config = StudyMethodConfig(blockMinutes = 25)))
-        val blocosInteiros = result.demands.filter { it.type != PlanTaskType.REVIEW }
+        val blocosInteiros = result.demands.filter { it.type !in setOf(PlanTaskType.REVIEW, PlanTaskType.QUESTIONS) }
 
         assertTrue(blocosInteiros.isNotEmpty())
         assertTrue(blocosInteiros.all { it.minutes % 25 == 0 })

@@ -11,7 +11,7 @@ object ReviewIntervals {
 
     /**
      * Próximo intervalo depois que a agenda fixa acabou: dobra o último intervalo usado, nunca
-     * abaixo do maior estágio fixo e nunca acima do teto. É isso que faz a revisão não morrer —
+     * abaixo do maior estágio fixo e nunca acima do teto. É isso que faz a revisão não morrer,
      * concluir a última revisão sempre agenda a próxima. Funciona também com o ciclo intensivo,
      * porque parte do intervalo real do tópico, não de uma tabela fixa.
      */
@@ -20,7 +20,7 @@ object ReviewIntervals {
 
     /**
      * Ajusta esse intervalo pelo que a pessoa sentiu na revisão e por quanto acertou nas questões.
-     * Difícil aproxima, fácil afasta — o mesmo motor que já ajustava os estágios fixos.
+     * Difícil aproxima, fácil afasta, o mesmo motor que já ajustava os estágios fixos.
      */
     fun adjustedIntervalDays(previousIntervalDays: Long, difficulty: ReviewDifficulty, correct: Int = 0, total: Int = 0): Long {
         val base = nextIntervalDays(previousIntervalDays)

@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.theme.screenPadding
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,15 +23,21 @@ import java.text.DateFormat
 import java.util.Date
 
 @Composable
-fun ReviewsScreen(viewModel: AppViewModel, onBack: () -> Unit, onStartReview: (Long) -> Unit, onOpenTopic: (Long) -> Unit) {
+fun ReviewsScreen(
+    viewModel: AppViewModel,
+    onBack: () -> Unit,
+    onStartReview: (Long) -> Unit,
+    onOpenTopic: (Long) -> Unit,
+    showInlineBack: Boolean = true,
+) {
     val reviews by viewModel.reviews.collectAsState()
     val topics by viewModel.topics.collectAsState()
     val pending = reviews.filter { it.completedAt == null && it.ignoredAt == null }.sortedWith(compareBy({ ReviewPolicy.status(it).ordinal }, { it.dueAt }))
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") }
-                Column { Text("Revisões", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("D+1, D+7, D+30 — e depois sempre, com intervalo maior a cada volta") }
+                if (showInlineBack) IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") }
+                Column { Text("Revisões", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("D+1, D+7, D+30, e depois sempre, com intervalo maior a cada volta") }
             }
         }
         if (pending.isEmpty()) item { EmptyState("Revisões em dia", "Marque um tópico como estudado para criar a agenda automaticamente.") }

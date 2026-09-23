@@ -20,7 +20,7 @@ object MasteryCalculator {
     /**
      * Domínio V2 (0..100): base teórica/revisões 20, histórico 40, janela recente 25 e
      * retenção 15. Histórico exige 20 respostas e janela recente exige 10 para confiança
-     * total; assim uma amostra de 1–2 acertos nunca produz domínio alto.
+     * total; assim uma amostra de 1 a 2 acertos nunca produz domínio alto.
      */
     fun percent(input: MasteryInput): Int {
         val studied = when (input.status) {

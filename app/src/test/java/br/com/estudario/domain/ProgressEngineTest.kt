@@ -119,4 +119,27 @@ class ProgressEngineTest {
         assertTrue(resumo.badges.first { it.badge.id == "simulado-5" }.earned)
         assertTrue(resumo.badges.first { it.badge.id == "simulado-20" }.earned.not())
     }
+
+    @Test
+    fun focusXpIsFreeOnlyAndCappedPerDay() {
+        val free = DailyActivity(date = hoje, freeFocusMinutes = 120)
+        val linked = DailyActivity(date = hoje.plusDays(1), focusMinutes = 120, focusSessions = 1)
+        val result = ProgressEngine.evaluate(input(days = listOf(free, linked)))
+
+        assertEquals(10, result.sources.single { it.label == "Modo foco" }.xp)
+    }
+
+    @Test
+    fun oneHundredMinutesOfFreeFocusEarnTenXp() {
+        val result = ProgressEngine.evaluate(input(days = listOf(DailyActivity(hoje, freeFocusMinutes = 100))))
+
+        assertEquals(10, result.sources.single { it.label == "Modo foco" }.xp)
+    }
+
+    @Test
+    fun linkedFocusEarnsNoFocusXp() {
+        val linked = DailyActivity(date = hoje, focusMinutes = 120, focusSessions = 1)
+
+        assertEquals(0, ProgressEngine.evaluate(input(days = listOf(linked))).totalXp)
+    }
 }

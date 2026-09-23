@@ -96,7 +96,7 @@ data class TaskDemand(
     val replannedFromTaskId: String? = null,
     /**
      * Posição decidida por quem montou a demanda. Quando vem preenchida, ela manda na ordem do
-     * calendário — é assim que o plano sem IA garante o rodízio de matérias que calculou.
+     * calendário, é assim que o plano sem IA garante o rodízio de matérias que calculou.
      * O padrão deixa a ordenação por pontuação valendo.
      */
     val order: Int = Int.MAX_VALUE,

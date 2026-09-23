@@ -14,7 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 
 @Composable
 fun TaskExecutionDialog(task: PlannerTaskUi, measuredMinutes: Int? = null, onDismiss: () -> Unit, onConfirm: (CompleteTaskInput) -> Unit) {
-    // Quando a sessão veio do modo foco, os minutos já vêm do cronômetro — nada de chutar.
+    // Quando a sessão veio do modo foco, os minutos já vêm do cronômetro, nada de chutar.
     var minutes by remember { mutableStateOf((measuredMinutes?.takeIf { it > 0 } ?: task.entity.plannedMinutes).toString()) }
     var questions by remember { mutableStateOf(task.entity.plannedQuestions.toString()) }
     var correct by remember { mutableStateOf("0") }

@@ -56,7 +56,7 @@ object FocusMode {
         }.getOrDefault(FocusSessionPrefs.FILTER_UNKNOWN)
     }
 
-    /** Devolve o filtro anterior. Se não sabemos qual era, não mexe — nunca "chuta" o normal. */
+    /** Devolve o filtro anterior. Se não sabemos qual era, não mexe, nunca "chuta" o normal. */
     fun restoreDnd(context: Context, previousFilter: Int) {
         if (previousFilter == FocusSessionPrefs.FILTER_UNKNOWN) return
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
@@ -97,7 +97,7 @@ object FocusMode {
 
     fun clearOngoing(context: Context) = NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
 
-    /** Avisa que uma sessão esquecida foi encerrada sozinha — a pessoa precisa saber. */
+    /** Avisa que uma sessão esquecida foi encerrada sozinha, a pessoa precisa saber. */
     fun notifyAutoClosed(context: Context, minutes: Int) {
         if (!canPost(context)) return
         val notification = NotificationCompat.Builder(context, CHANNEL)

@@ -46,10 +46,11 @@ fun XpTag(
             if (earned) "${reward.base} XP" else "+${reward.base} XP",
             color = cor,
             fontWeight = FontWeight.Bold,
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.sp),
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         )
         if (showBonus && reward.hasBonus && !earned) {
-            Text("a +${reward.max}", color = cor.copy(alpha = 0.72f), fontSize = 11.sp)
+            Text("a +${reward.max}", color = cor.copy(alpha = 0.72f), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Normal, letterSpacing = 0.sp), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
     }
 }

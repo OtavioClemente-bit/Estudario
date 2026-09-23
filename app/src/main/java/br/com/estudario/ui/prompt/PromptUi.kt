@@ -1,5 +1,6 @@
 package br.com.estudario.ui.prompt
 
+import br.com.estudario.ui.theme.estudarioLayout
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -108,7 +109,7 @@ fun sharePromptWithAi(context: Context, prompt: String, attachment: PromptAttach
         context.startActivity(Intent.createChooser(intent, "Enviar para o app de IA"))
         Toast.makeText(context, "Prompt também copiado: se o app de IA não preencher sozinho, é só colar.", Toast.LENGTH_LONG).show()
     } catch (_: ActivityNotFoundException) {
-        Toast.makeText(context, "Nenhum app para compartilhar. O prompt foi copiado — cole no app de IA.", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, "Nenhum app para compartilhar. O prompt foi copiado, cole no app de IA.", Toast.LENGTH_LONG).show()
     }
 }
 
@@ -179,7 +180,8 @@ fun PromptBuilderDialog(
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("Já tem a resposta da IA?", fontWeight = FontWeight.SemiBold)
                             Text("Baixe o arquivo gerado e abra com o Estudário, compartilhe a resposta com o app ou use uma das opções abaixo.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            // Lado a lado quando cabe; em tela estreita ou fonte grande, um botão por linha.
+                            FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = if (estudarioLayout().prefersStacking) 1 else Int.MAX_VALUE, verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(onClick = {
                                     val text = readClipboardText(context)
                                     if (text.isNullOrBlank()) Toast.makeText(context, "A área de transferência está vazia. Copie a resposta inteira da IA.", Toast.LENGTH_LONG).show()
@@ -195,7 +197,8 @@ fun PromptBuilderDialog(
                 Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (!shareEnabled && disabledReason != null) Text(disabledReason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                     if (attachment != null) Text("O anexo “${attachment.name}” vai junto no compartilhamento.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Lado a lado quando cabe; em tela estreita ou fonte grande, um botão por linha.
+                    FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = if (estudarioLayout().prefersStacking) 1 else Int.MAX_VALUE, verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         OutlinedButton(onClick = { runAction(PromptAction.COPY) }, enabled = shareEnabled, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Outlined.ContentCopy, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Copiar")
                         }
@@ -283,7 +286,7 @@ fun AttachmentPicker(attachment: PromptAttachment?, label: String, onPick: () ->
     Row(verticalAlignment = Alignment.CenterVertically) {
         OutlinedButton(onClick = onPick) { Icon(Icons.Outlined.AttachFile, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(if (attachment == null) label else "Trocar anexo") }
         if (attachment != null) {
-            Text(attachment.name, Modifier.weight(1f).padding(horizontal = 8.dp), style = MaterialTheme.typography.bodySmall, maxLines = 2)
+            Text(attachment.name, Modifier.weight(1f).padding(horizontal = 8.dp), style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             IconButton(onClick = onClear) { Icon(Icons.Outlined.Close, "Remover anexo") }
         }
     }

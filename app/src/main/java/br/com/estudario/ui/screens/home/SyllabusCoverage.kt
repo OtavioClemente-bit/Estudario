@@ -91,7 +91,7 @@ fun SyllabusCoverage(
 
 /**
  * A barra segmentada. Cada matéria recebe largura proporcional ao número de tópicos que tem, e cada
- * segmento é preenchido pela sua própria cor de matéria — a mesma que identifica a matéria em todo
+ * segmento é preenchido pela sua própria cor de matéria, a mesma que identifica a matéria em todo
  * o app, vinda da paleta controlada do design system.
  */
 @Composable
@@ -190,7 +190,7 @@ private fun SubjectCoverageRow(subject: SubjectCoverageUi) {
 /**
  * A frase que separa cobertura de domínio. Não é um segundo indicador competindo: é a leitura
  * honesta do primeiro. Só aparece quando existe base de questões/revisões suficiente para o domínio
- * significar alguma coisa — caso contrário, mostrar um número seria inventar precisão.
+ * significar alguma coisa, caso contrário, mostrar um número seria inventar precisão.
  */
 @Composable
 private fun MasteryNote(coverage: Int, mastery: Int) {
@@ -211,7 +211,7 @@ private fun MasteryNote(coverage: Int, mastery: Int) {
         )
         Spacer(Modifier.width(2.dp))
         Text(
-            "Domínio médio de $mastery% no que você já estudou — estudado não é o mesmo que dominado.",
+            "Domínio médio de $mastery% no que você já estudou, estudado não é o mesmo que dominado.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

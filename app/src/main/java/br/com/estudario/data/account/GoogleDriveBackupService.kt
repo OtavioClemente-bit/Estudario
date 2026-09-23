@@ -20,7 +20,7 @@ class GoogleBackupException(message: String) : Exception(message)
  *
  * O backup vai para a pasta privada do app no Drive (appDataFolder): ela não aparece no Meu Drive,
  * não ocupa a visão de arquivos da pessoa e só este app consegue ler. O token de acesso vem da
- * autorização feita na tela de perfil e vale cerca de uma hora — por isso cada ação pede o token
+ * autorização feita na tela de perfil e vale cerca de uma hora, por isso cada ação pede o token
  * de novo (quando a permissão já foi dada, isso acontece sem mostrar nada).
  */
 class GoogleDriveBackupService {

@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.theme.screenPadding
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -22,7 +23,7 @@ import br.com.estudario.ui.components.EmptyState
 import br.com.estudario.ui.components.QuestionProvenance
 
 @Composable
-fun QuestionBankScreen(viewModel: AppViewModel, onBack: () -> Unit, onStart: (QuizConfig) -> Unit) {
+fun QuestionBankScreen(viewModel: AppViewModel, onBack: () -> Unit, onStart: (QuizConfig) -> Unit, showInlineBack: Boolean = true) {
     val questions by viewModel.questions.collectAsState()
     val topics by viewModel.topics.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
@@ -50,8 +51,8 @@ fun QuestionBankScreen(viewModel: AppViewModel, onBack: () -> Unit, onStart: (Qu
             when (status) { "new" -> row.question.answerCount == 0; "errors" -> row.question.errorCount > 0; "correct" -> row.question.correctCount > 0; else -> true }
     }.take(250).toList()
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") }; Column { Text("Banco de questões", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("${questions.size} questões locais") } } }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item { Row(verticalAlignment = Alignment.CenterVertically) { if (showInlineBack) IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") }; Column { Text("Banco de questões", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("${questions.size} questões locais") } } }
         item { OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), leadingIcon = { Icon(Icons.Outlined.Search, null) }, label = { Text("Buscar enunciado ou tag") }, singleLine = true) }
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -97,7 +98,7 @@ fun QuestionBankScreen(viewModel: AppViewModel, onBack: () -> Unit, onStart: (Qu
             ElevatedCard {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) { Text(topic?.title ?: "Tópico", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary); IconButton(onClick = { viewModel.toggleQuestionFavorite(row.question) }) { Icon(if (row.question.isFavorite) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, "Favoritar") } }
-                    Text(row.question.statement, maxLines = 4)
+                    Text(row.question.statement, maxLines = 4, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     Text(listOfNotNull(row.question.board, row.question.agency, row.question.year?.toString(), row.question.difficulty?.name).joinToString(" • ") + " • ${row.question.answerCount} resposta(s)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     QuestionProvenance(row.question)
                 }

@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.theme.screenPadding
 import android.content.Context
 import android.net.Uri
 import android.widget.Toast
@@ -72,7 +73,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
             viewModel.beginIncomingFile()
             scope.launch {
                 val text = readEditalFile(context, it)
-                if (text.isNullOrBlank()) viewModel.reportIncomingFileError("Não foi possível ler o arquivo escolhido.") else viewModel.openIncomingText(text)
+                if (text.isNullOrBlank()) viewModel.reportIncomingFileError("Não foi possível ler o arquivo escolhido.") else viewModel.openIncomingText(text, selectedCompetitionId.takeIf { it != 0L })
             }
         }
     }
@@ -126,7 +127,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
         )
     }
 
-    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             ScreenTitle("Edital", "Organize matérias e acompanhe seu domínio") {
                 Row {

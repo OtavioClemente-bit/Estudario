@@ -30,7 +30,7 @@ import kotlin.math.sin
  *
  * Nada de ícone dentro de um círculo: é um escudo hexagonal com metal degradê, aro biselado,
  * raios de brilho atrás, disco interno, reflexo em cima e uma pedrinha por faixa na base. A
- * silhueta é sempre a mesma — o que muda com a faixa é o metal (bronze, prata, ouro, ametista,
+ * silhueta é sempre a mesma, o que muda com a faixa é o metal (bronze, prata, ouro, ametista,
  * esmeralda) e o número de pedras, para dar de longe a noção de progressão.
  *
  * O emblema bloqueado mantém a silhueta em cinza com um cadeado, para a pessoa ver o que está

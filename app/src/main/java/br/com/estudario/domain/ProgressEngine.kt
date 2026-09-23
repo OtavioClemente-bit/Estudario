@@ -12,7 +12,7 @@ import java.time.LocalDate
  *    que responder questão solta, porque é o comportamento que leva à aprovação. Simulado e
  *    discursiva rendem muito por serem caros de fazer.
  * 2. **Nada é acumulável sem limite no mesmo dia.** Questão fora do plano tem teto diário, então
- *    não dá para moer o banco de questões e pular de nível — e o XP nunca é "gasto", só cresce,
+ *    não dá para moer o banco de questões e pular de nível, e o XP nunca é "gasto", só cresce,
  *    por isso ele é recalculado do zero a partir do histórico e não fica guardado em lugar nenhum.
  *    Isso também significa que restaurar um backup devolve o nível certo.
  */
@@ -29,6 +29,8 @@ object ProgressEngine {
     private const val STREAK_BONUS_PER_DAY = 3
     private const val STREAK_BONUS_CAP_DAYS = 10
     private const val MINUTES_PER_XP = 5
+    private const val FOCUS_MINUTES_PER_XP = 10
+    private const val DAILY_FOCUS_XP_CAP = 10
 
     /** Base de cada tipo de tarefa do plano, antes do tempo e dos acertos. */
     fun baseXp(type: PlanTaskType): Int = when (type) {
@@ -163,6 +165,7 @@ object ProgressEngine {
         var questionXp = 0
         var reviewXp = 0
         var topicXp = 0
+        var focusXp = 0
         var goalXp = 0
         var xpToday = 0
         var xpThisWeek = 0
@@ -190,9 +193,13 @@ object ProgressEngine {
                 dayXp += activity.reviews * REVIEW_XP
                 topicXp += activity.studySessions * TOPIC_STUDIED_XP
                 dayXp += activity.studySessions * TOPIC_STUDIED_XP
+
+                val earnedFocusXp = (activity.freeFocusMinutes / FOCUS_MINUTES_PER_XP).coerceAtMost(DAILY_FOCUS_XP_CAP)
+                focusXp += earnedFocusXp
+                dayXp += earnedFocusXp
             }
             if (date in goalDays) {
-                // Bônus cresce com a sequência viva naquele dia, com teto — sequência longa vale,
+                // Bônus cresce com a sequência viva naquele dia, com teto, sequência longa vale,
                 // mas não vira uma bola de neve que ofusca o estudo em si.
                 var run = 0
                 var cursor = date
@@ -206,7 +213,7 @@ object ProgressEngine {
             if (!date.isBefore(weekStart) && !date.isAfter(input.today)) xpThisWeek += dayXp
         }
 
-        val totalXp = planXp + questionXp + reviewXp + topicXp + goalXp
+        val totalXp = planXp + questionXp + reviewXp + topicXp + focusXp + goalXp
         val level = levelFor(totalXp)
         val floor = xpForLevel(level)
         val ceiling = xpForLevel(level + 1)
@@ -225,6 +232,7 @@ object ProgressEngine {
                 XpSource("Questões", questionXp),
                 XpSource("Revisões", reviewXp),
                 XpSource("Tópicos estudados", topicXp),
+                XpSource("Modo foco", focusXp),
             ).filter { it.xp > 0 }.sortedByDescending { it.xp },
             badges = BadgeCatalog.evaluate(input, planByDate),
         )

@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import br.com.estudario.domain.planner.PlanTaskStatus
 
@@ -47,6 +48,7 @@ fun PlanProgressHeader(state: ActivePlanUiState, modifier: Modifier = Modifier) 
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 Surface(
@@ -76,6 +78,8 @@ fun PlanProgressHeader(state: ActivePlanUiState, modifier: Modifier = Modifier) 
                     "$completedTasks de $totalTasks missões concluídas",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // Ocupa o que sobrar e quebra linha se precisar, em vez de invadir a previsão ao lado.
+                    modifier = Modifier.weight(1f).padding(end = 12.dp),
                 )
                 Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
                     Text(
@@ -92,7 +96,7 @@ fun PlanProgressHeader(state: ActivePlanUiState, modifier: Modifier = Modifier) 
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 PlanMetric("No plano", minutesLabelPtBr(plannedMinutes), Modifier.weight(1f))
                 PlanMetric("Realizado", minutesLabelPtBr(actualMinutes), Modifier.weight(1f))
@@ -105,7 +109,7 @@ fun PlanProgressHeader(state: ActivePlanUiState, modifier: Modifier = Modifier) 
 @Composable
 private fun PlanMetric(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(value, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

@@ -119,10 +119,10 @@ Revisar ausência de writes à importância oficial. Commit seletivo dos arquivo
 - Modify: `app/src/main/java/br/com/estudario/ui/setup/InitialSetupScreen.kt`
 - Modify: `app/src/androidTest/java/br/com/estudario/ui/InitialSetupFlowTest.kt` (criar se ausente)
 
-- [ ] **Step 1: Testar valor e leitura da disponibilidade**
+- [x] **Step 1: Testar valor e leitura da disponibilidade**
 
 No teste Compose, ajustar um dia por semântica/gesto para 0, 120 e 135 minutos; confirmar rótulos “Folga”, “2 h” e “2 h 15 min”, total semanal atualizado e que o outro dia não mudou. Garantir que dias e valores têm descrições acessíveis e são alcançáveis sem arrastar.
-- [ ] **Step 2: Implementar controles e explicação de bloco**
+- [x] **Step 2: Implementar controles e explicação de bloco**
 
 Em `AvailabilityStep`, substituir chips 0/60/120/180 por `Slider(valueRange = 0f..1440f, steps = 95)` e arredondar `onValueChange` para múltiplos de 15 antes de chamar `setAvailability`. Extrair formatter puro com estes resultados fixos:
 
@@ -147,10 +147,10 @@ Slider(
 ```
 
 Mostrar valor da faixa em formato pt-BR e total semanal. Manter bloco como escolha separada; apresentar exatamente: “O bloco é o tamanho-base de cada tarefa do plano. Não é o total de estudo do dia; as tarefas usam múltiplos do bloco dentro do tempo disponível.” Usar rótulos `25 min`, `45 min` etc.
-- [ ] **Step 3: Montar seleção de dificuldade por matéria**
+- [x] **Step 3: Montar seleção de dificuldade por matéria**
 
 Renderizar cartão por matéria com escolhas “Tenho facilidade”, “Intermediária”, “Tenho dificuldade”, seleção única visível e descrições sem truncar nomes extensos. Reusar o componente de seleção atual se houver; não criar ícones duplicados. Cobrir largura compacta e tamanho de fonte maior.
-- [ ] **Step 4: Rodar teste visual automatizado e commit**
+- [x] **Step 4: Rodar teste visual automatizado e commit**
 
 ```powershell
 ./gradlew.bat :app:compileDebugAndroidTestKotlin
@@ -158,6 +158,8 @@ Renderizar cartão por matéria com escolhas “Tenho facilidade”, “Intermed
 ```
 
 Se nenhum device estiver conectado, registrar a mensagem; não alegar teste instrumentado executado. Commit: `git commit -m "feat: clarify study pace and difficulty setup"`.
+
+Verificação no dispositivo conectado: compilação do teste passou, mas a instalação foi bloqueada pelo Android com `INSTALL_FAILED_USER_RESTRICTED`; o teste instrumentado não foi executado.
 
 ### Task 4: Alinhar prompt e cronograma de IA ao horizonte e à entrada completa
 
@@ -167,10 +169,10 @@ Se nenhum device estiver conectado, registrar a mensagem; não alegar teste inst
 - Modify: `app/src/main/java/br/com/estudario/ui/setup/InitialSetupViewModel.kt`
 - Modify: `app/src/test/java/br/com/estudario/data/prompt/PromptBuildersTest.kt`
 
-- [ ] **Step 1: Acrescentar testes de horizonte e contexto**
+- [x] **Step 1: Acrescentar testes de horizonte e contexto**
 
 Testar prova daqui a 12 semanas => `endDate == examDate`; sem prova => quatro semanas a partir do início; prova antes do fim de quatro semanas => prova é o fim. Confirmar no texto do prompt nomes/IDs de todos os tópicos, prioridades efetivas, bloco, disponibilidade diária e perfil. Garantir que prompts iguais produzem texto igual.
-- [ ] **Step 2: Corrigir regra de horizonte e cache do prompt**
+- [x] **Step 2: Corrigir regra de horizonte e cache do prompt**
 
 Atualizar `PlanPromptBuilder.endDate` com esta regra, e incluir teste para cada ramo. Em `PlanPromptOptions`, adicionar `blockMinutes: Int = 50` e `studyProfile: StudyProfile = StudyProfile.DO_ZERO`:
 
@@ -180,13 +182,15 @@ fun endDate(o: PlanPromptOptions): LocalDate =
 ```
 
 Enviar os dados comuns montados na Task 2, tamanho do bloco e `studyProfile`; no construtor, imprimir o perfil escolhido como contexto de planejamento. Incluir no `remember`/chave de memoização disponibilidade, bloco, perfil, prioridades, IDs/títulos de tópico e data de prova, para evitar prompt desatualizado após alteração. Rejeitar data de prova anterior à data de início antes de abrir/importar a proposta.
-- [ ] **Step 3: Testar e integrar**
+- [x] **Step 3: Testar e integrar**
 
 ```powershell
 ./gradlew.bat :app:testDebugUnitTest --tests "br.com.estudario.data.prompt.PromptBuildersTest"
 ```
 
 O prompt deve explicar horizonte longo e não solicitar conteúdo fora dos IDs recebidos. Commit: `git commit -m "feat: build complete AI plan prompts from syllabus"`.
+
+Mantido o horizonte escolhido no gerador geral (2/4/8/12 semanas) para não regredir essa configuração já existente; sem data, o padrão continua em quatro semanas. No onboarding, a data da prova passa a definir o fim, desde que não seja anterior ao início.
 
 ### Task 5: Preservar bloco e perfil em `.plano` mantendo compatibilidade
 
@@ -197,13 +201,13 @@ O prompt deve explicar horizonte longo e não solicitar conteúdo fora dos IDs r
 - Modify: `app/src/test/java/br/com/estudario/data/transfer/planner/StudyPlanCodecTest.kt`
 - Modify: `app/src/androidTest/java/br/com/estudario/data/transfer/planner/StudyPlanTransferServiceTest.kt`
 
-- [ ] **Step 1: Escrever teste de fixture antiga e round-trip novo**
+- [x] **Step 1: Escrever teste de fixture antiga e round-trip novo**
 
 Ler fixture válida `.plano` sem `blocoMinutos`/`perfil`; esperar 50 e `DO_ZERO`. Codificar/decodificar configuração com valores selecionados e preservar campos em importação para `StudyPlanEntity`.
-- [ ] **Step 2: Acrescentar propriedades opcionais**
+- [x] **Step 2: Acrescentar propriedades opcionais**
 
 Adicionar `blockMinutes: Int = 50` e `profile: StudyProfile = DO_ZERO` ao `PlanConfigurationDto`; ler `configuracao.blocoMinutos` com default 50 e `configuracao.perfil` ausente como `DO_ZERO`, rejeitando enum presente desconhecido pelo `StudyPlanValidationException` já usado no codec. Emitir `.put("blocoMinutos", ...)` e `.put("perfil", ...)` em `encode`; validar `blockMinutes` no intervalo 15..180 sem alterar a versão 1.
-- [ ] **Step 3: Persistir no plano importado e verificar**
+- [x] **Step 3: Persistir no plano importado e verificar**
 
 Ao importar, repassar perfil/bloco para entidade/`StudyMethodConfig`; não alterar entidades nem versão do arquivo. Executar testes unitários de codec e instrumentação disponível do serviço:
 
@@ -213,6 +217,8 @@ Ao importar, repassar perfil/bloco para entidade/`StudyMethodConfig`; não alter
 ```
 
 Commit: `git commit -m "fix: preserve study method in plan transfers"`.
+
+Compatibilidade mantida na versão 1. Blocos validados em 15–180 minutos, alinhados ao `StudyMethodConfig`; o teste de importação do Room compila, mas a execução em dispositivo ficou indisponível porque o Android bloqueou a instalação de instrumentação (`INSTALL_FAILED_USER_RESTRICTED`).
 
 ### Task 6: Recusar cobertura incompleta na finalização do onboarding
 
@@ -244,7 +250,26 @@ No fluxo de setup, validar o `.plano` contra o edital atualmente selecionado ant
 
 Rodar `:app:testDebugUnitTest` para `PlanCoverageValidatorTest` e testes de codec, mais `:app:compileDebugKotlin`. Commit: `git commit -m "fix: require complete syllabus coverage in setup"`.
 
-### Task 7: Revisão final, regressões e verificação integral
+### Task 7: Evitar que replanejamentos inflem as horas planejadas
+
+**Files:**
+- Modify: `app/src/main/java/br/com/estudario/ui/planner/StudyPlanUiModels.kt`
+- Modify: `app/src/main/java/br/com/estudario/ui/planner/PlanProgressHeader.kt`
+- Modify: `app/src/main/java/br/com/estudario/ui/planner/CalendarScreen.kt`
+- Modify: `app/src/test/java/br/com/estudario/ui/planner/StudyPlanUiMapperTest.kt`
+- Modify: `app/src/test/java/br/com/estudario/ui/planner/PlannerPresentationTest.kt`
+
+- [ ] **Step 1: Reproduzir a inflação por tarefa reprogramada**
+
+Criar fixtures com uma tarefa atual de 80 minutos e uma antiga `REPROGRAMADA` de 280 minutos no mesmo dia; o resumo deve mostrar 1 h 20 min, não 6 h. Cobrir também `PAUSADA`, `NAO_REALIZADA` e `CONCLUIDA` explicitamente, com totais de dia/semana e progresso coerentes.
+- [ ] **Step 2: Centralizar o que conta como carga do plano**
+
+Manter tarefas históricas no banco, mas não somar `REPROGRAMADA` nem `PAUSADA` como carga vigente. Preservar a carga originalmente prevista de tarefas `PLANEJADA`, `EM_ANDAMENTO`, `CONCLUIDA` e `NAO_REALIZADA` uma única vez, conforme a data da tarefa. Aplicar o mesmo predicado nos resumos diário, semanal, mensal, anual e total do cabeçalho; separar explicitamente “por dia” de “por semana”.
+- [ ] **Step 3: Verificar e registrar**
+
+Executar os testes de mapper/apresentação e `git diff --check`; manter intactas as linhas históricas. Commit seletivo: `fix: exclude superseded tasks from planned time totals`.
+
+### Task 8: Revisão final, regressões e verificação integral
 
 **Files:**
 - Modify: `app/src/main/java/br/com/estudario/ui/setup/InitialSetupScreen.kt`

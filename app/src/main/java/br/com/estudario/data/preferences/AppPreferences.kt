@@ -7,10 +7,12 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import br.com.estudario.data.local.FocusSessionOrigin
 import br.com.estudario.domain.setup.InitialSetupSnapshot
 import br.com.estudario.domain.setup.InitialSetupSnapshotCodec
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.util.UUID
 
 private val Context.dataStore by preferencesDataStore("settings")
 
@@ -44,6 +46,9 @@ class AppPreferences(private val context: Context) {
     private val focusTitleKey = stringPreferencesKey("focus_title")
     private val focusTopicKey = longPreferencesKey("focus_topic_id")
     private val focusTaskKey = stringPreferencesKey("focus_task_id")
+    private val focusSessionIdKey = stringPreferencesKey("focus_session_id")
+    private val focusSubjectIdsKey = stringPreferencesKey("focus_subject_ids")
+    private val focusOriginKey = stringPreferencesKey("focus_origin")
     private val focusPreviousFilterKey = intPreferencesKey("focus_previous_filter")
     private val focusDndKey = booleanPreferencesKey("focus_do_not_disturb")
     private val focusKeepScreenOnKey = booleanPreferencesKey("focus_keep_screen_on")
@@ -78,7 +83,7 @@ class AppPreferences(private val context: Context) {
     val userEmail: Flow<String> = context.dataStore.data.map { it[userEmailKey].orEmpty() }
     val userPhotoPath: Flow<String?> = context.dataStore.data.map { it[userPhotoKey]?.takeIf(String::isNotBlank) }
     val dailyGoalQuestions: Flow<Int> = context.dataStore.data.map { it[dailyGoalKey] ?: 20 }
-    /** Dia (epochDay) em que a tela de sequência já foi mostrada — evita comemorar duas vezes. */
+    /** Dia (epochDay) em que a tela de sequência já foi mostrada, evita comemorar duas vezes. */
     val lastCelebratedDay: Flow<Long> = context.dataStore.data.map { it[lastCelebratedDayKey] ?: 0L }
 
     /**
@@ -86,11 +91,19 @@ class AppPreferences(private val context: Context) {
      * ou o aparelho reiniciar, ainda dá para encerrar a sessão e devolver o Não Perturbe ao normal.
      */
     val focusSession: Flow<FocusSessionPrefs> = context.dataStore.data.map { prefs ->
+        val startedAt = prefs[focusStartedAtKey] ?: 0L
+        val topicId = prefs[focusTopicKey]?.takeIf { it > 0 }
+        val taskId = prefs[focusTaskKey]?.takeIf(String::isNotBlank)
+        val legacy = FocusSessionPrefs.legacy(startedAt, topicId, taskId)
         FocusSessionPrefs(
-            startedAt = prefs[focusStartedAtKey] ?: 0L,
+            sessionId = prefs[focusSessionIdKey]?.takeIf(String::isNotBlank) ?: if (startedAt > 0L) legacy.sessionId else "",
+            startedAt = startedAt,
             title = prefs[focusTitleKey].orEmpty(),
-            topicId = prefs[focusTopicKey]?.takeIf { it > 0 },
-            taskId = prefs[focusTaskKey]?.takeIf(String::isNotBlank),
+            subjectIds = prefs[focusSubjectIdsKey].orEmpty().split(',').mapNotNull(String::toLongOrNull).filter { it > 0L }.toSet(),
+            origin = prefs[focusOriginKey]?.let { runCatching { FocusSessionOrigin.valueOf(it) }.getOrNull() }
+                ?: if (startedAt > 0L) legacy.origin else FocusSessionOrigin.LIVRE,
+            topicId = topicId,
+            taskId = taskId,
             previousFilter = prefs[focusPreviousFilterKey] ?: FocusSessionPrefs.FILTER_UNKNOWN,
         )
     }
@@ -117,23 +130,38 @@ class AppPreferences(private val context: Context) {
         }
     }
 
-    suspend fun startFocusSession(startedAt: Long, title: String, topicId: Long?, taskId: String?, previousFilter: Int) {
+    suspend fun startFocusSession(
+        startedAt: Long,
+        title: String,
+        subjectIds: Set<Long>,
+        origin: FocusSessionOrigin,
+        topicId: Long?,
+        taskId: String?,
+        previousFilter: Int,
+    ) {
+        val sessionId = UUID.randomUUID().toString()
         context.dataStore.edit { prefs ->
             prefs[focusStartedAtKey] = startedAt
             prefs[focusTitleKey] = title
             prefs[focusTopicKey] = topicId ?: 0L
             prefs[focusTaskKey] = taskId.orEmpty()
+            prefs[focusSessionIdKey] = sessionId
+            prefs[focusSubjectIdsKey] = subjectIds.filter { it > 0L }.sorted().joinToString(",")
+            prefs[focusOriginKey] = origin.name
             prefs[focusPreviousFilterKey] = previousFilter
         }
     }
 
-    /** Encerra a sessão guardando o tempo medido — nada aqui depende do app estar aberto. */
+    /** Encerra a sessão guardando o tempo medido, nada aqui depende do app estar aberto. */
     suspend fun clearFocusSession(minutes: Int, taskId: String?) {
         context.dataStore.edit { prefs ->
             prefs.remove(focusStartedAtKey)
             prefs.remove(focusTitleKey)
             prefs.remove(focusTopicKey)
             prefs.remove(focusTaskKey)
+            prefs.remove(focusSessionIdKey)
+            prefs.remove(focusSubjectIdsKey)
+            prefs.remove(focusOriginKey)
             prefs.remove(focusPreviousFilterKey)
             prefs[lastFocusMinutesKey] = minutes
             prefs[lastFocusTaskKey] = taskId.orEmpty()
@@ -148,7 +176,7 @@ class AppPreferences(private val context: Context) {
     val driveLastBackupAt: Flow<Long> = context.dataStore.data.map { it[driveBackupAtKey] ?: 0L }
     suspend fun setDriveLastBackupAt(value: Long) { context.dataStore.edit { it[driveBackupAtKey] = value } }
 
-    /** Emblemas já anunciados — evita comemorar o mesmo emblema duas vezes. */
+    /** Emblemas já anunciados, evita comemorar o mesmo emblema duas vezes. */
     val earnedBadges: Flow<Set<String>> = context.dataStore.data.map { prefs ->
         prefs[earnedBadgesKey]?.split(",")?.filter { it.isNotBlank() }?.toSet().orEmpty()
     }
@@ -202,8 +230,11 @@ class AppPreferences(private val context: Context) {
 
 /** Retrato da sessão de foco guardada em disco. */
 data class FocusSessionPrefs(
+    val sessionId: String = "",
     val startedAt: Long = 0L,
     val title: String = "",
+    val subjectIds: Set<Long> = emptySet(),
+    val origin: FocusSessionOrigin = FocusSessionOrigin.LIVRE,
     val topicId: Long? = null,
     val taskId: String? = null,
     val previousFilter: Int = FILTER_UNKNOWN,
@@ -215,5 +246,17 @@ data class FocusSessionPrefs(
     companion object {
         /** Não sabemos qual era o filtro antes (permissão negada ou sessão antiga): não mexer nele. */
         const val FILTER_UNKNOWN = -1
+
+        fun legacy(startedAt: Long, topicId: Long?, taskId: String?): FocusSessionPrefs = FocusSessionPrefs(
+            sessionId = "legacy-$startedAt",
+            startedAt = startedAt,
+            topicId = topicId,
+            taskId = taskId,
+            origin = when {
+                !taskId.isNullOrBlank() -> FocusSessionOrigin.PLANO
+                topicId != null -> FocusSessionOrigin.MATERIA
+                else -> FocusSessionOrigin.LIVRE
+            },
+        )
     }
 }

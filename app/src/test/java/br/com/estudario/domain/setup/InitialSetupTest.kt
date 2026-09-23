@@ -1,5 +1,7 @@
 package br.com.estudario.domain.setup
 
+import br.com.estudario.domain.planner.ExamPriority
+import br.com.estudario.domain.planner.PersonalDifficulty
 import br.com.estudario.domain.planner.StudyProfile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -10,7 +12,6 @@ class InitialSetupTest {
     @Test
     fun `snapshot round trips accents separators and optional values`() {
         val source = InitialSetupSnapshot(
-            version = 2,
             status = InitialSetupStatus.IN_PROGRESS,
             step = InitialSetupStep.SUBJECT_DIFFICULTY,
             competitionId = 42,
@@ -25,8 +26,8 @@ class InitialSetupTest {
             sessionMinutes = 45,
             planPreference = "Priorizar questões e revisão",
             subjectDifficulties = mapOf(
-                "materia|1" to SubjectDifficulty.HARD,
-                "direito~civil" to SubjectDifficulty.EASY,
+                "materia|1" to PersonalDifficulty.HARD,
+                "direito~civil" to PersonalDifficulty.EASY,
             ),
         )
 
@@ -59,23 +60,47 @@ class InitialSetupTest {
     fun `state machine only advances one intentional step`() {
         assertTrue(InitialSetupTransitions.canAdvance(InitialSetupStep.INTRO, InitialSetupStep.COMPETITION))
         assertFalse(InitialSetupTransitions.canAdvance(InitialSetupStep.INTRO, InitialSetupStep.PROFILE))
-        assertEquals(InitialSetupStep.PROFILE, InitialSetupTransitions.previous(InitialSetupStep.AVAILABILITY))
-        assertTrue(InitialSetupTransitions.canAdvance(InitialSetupStep.AVAILABILITY, InitialSetupStep.SUBJECT_DIFFICULTY))
-        assertTrue(InitialSetupTransitions.canAdvance(InitialSetupStep.SUBJECT_DIFFICULTY, InitialSetupStep.PLAN_METHOD))
-        assertEquals(InitialSetupStep.SUBJECT_DIFFICULTY, InitialSetupTransitions.previous(InitialSetupStep.PLAN_METHOD))
+        assertTrue(InitialSetupTransitions.canAdvance(InitialSetupStep.SYLLABUS_REVIEW, InitialSetupStep.SUBJECT_PRIORITY))
+        assertEquals(InitialSetupStep.SUBJECT_DIFFICULTY, InitialSetupTransitions.previous(InitialSetupStep.AVAILABILITY))
+        assertTrue(InitialSetupTransitions.canAdvance(InitialSetupStep.SUBJECT_DIFFICULTY, InitialSetupStep.AVAILABILITY))
+        assertTrue(InitialSetupTransitions.canAdvance(InitialSetupStep.AVAILABILITY, InitialSetupStep.PROFILE))
+        assertEquals(InitialSetupStep.AVAILABILITY, InitialSetupTransitions.previous(InitialSetupStep.PROFILE))
         assertEquals(null, InitialSetupTransitions.previous(InitialSetupStep.INTRO))
     }
 
     @Test
     fun `subject difficulty selection follows the current stable subject ids`() {
         val snapshot = InitialSetupSnapshot(
-            subjectDifficulties = mapOf("subject-1" to SubjectDifficulty.HARD, "removed" to SubjectDifficulty.EASY),
+            subjectDifficulties = mapOf("subject-1" to PersonalDifficulty.HARD, "removed" to PersonalDifficulty.EASY),
         )
 
         assertEquals(
-            mapOf("subject-1" to SubjectDifficulty.HARD, "subject-2" to SubjectDifficulty.MEDIUM),
+            mapOf("subject-1" to PersonalDifficulty.HARD),
             snapshot.subjectDifficultiesFor(setOf("subject-1", "subject-2")),
         )
+    }
+
+    @Test
+    fun `new subjects have no preselected difficulty`() {
+        assertTrue(InitialSetupSnapshot().subjectDifficultiesFor(setOf("1", "2")).isEmpty())
+    }
+
+    @Test
+    fun `difficulty step allows neutral defaults for unmodified subjects`() {
+        val snapshot = InitialSetupSnapshot(
+            step = InitialSetupStep.SUBJECT_DIFFICULTY,
+            subjectDifficulties = mapOf("1" to PersonalDifficulty.EASY),
+        )
+        assertTrue(InitialSetupTransitions.canAdvance(snapshot, InitialSetupStep.AVAILABILITY, setOf("1", "2")))
+        assertTrue(InitialSetupTransitions.canAdvance(snapshot, InitialSetupStep.AVAILABILITY, emptySet()))
+        assertEquals(PersonalDifficulty.DEFAULT, snapshot.dimensionsFor("2", ExamPriority.HIGH).personalDifficulty)
+    }
+
+    @Test
+    fun `empty syllabus cannot advance from review`() {
+        val snapshot = InitialSetupSnapshot(step = InitialSetupStep.SYLLABUS_REVIEW)
+        assertFalse(InitialSetupTransitions.canAdvance(snapshot, InitialSetupStep.SUBJECT_PRIORITY, emptySet()))
+        assertTrue(InitialSetupTransitions.canAdvance(snapshot, InitialSetupStep.SUBJECT_PRIORITY, setOf("1")))
     }
 
     @Test

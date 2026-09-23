@@ -15,7 +15,7 @@ class HomeComponentsPresentationTest {
     fun coverageShowsAllLongSubjectNames() {
         val subjects = listOf(
             SubjectCoverageUi("LÍNGUA PORTUGUESA (NÍVEL MÉDIO/SUPERIOR)", 8, 10, 0),
-            SubjectCoverageUi("ANALISTA JUDICIÁRIO – ÁREA APOIO ESPECIALIZADO – TECNOLOGIA DA INFORMAÇÃO", 7, 10, 1),
+            SubjectCoverageUi("ANALISTA JUDICIÁRIO: ÁREA APOIO ESPECIALIZADO: TECNOLOGIA DA INFORMAÇÃO", 7, 10, 1),
             SubjectCoverageUi("Direito Administrativo", 6, 10, 2),
             SubjectCoverageUi("Banco de Dados", 5, 10, 3),
             SubjectCoverageUi("Redes de Computadores", 4, 10, 4),
@@ -45,7 +45,7 @@ class HomeComponentsPresentationTest {
 
         compose.onNodeWithText("Ainda sem histórico de questões.").assertIsDisplayed()
         compose.onNodeWithText("Comece hoje.").assertIsDisplayed()
-        compose.onNodeWithText("—").assertDoesNotExist()
+        compose.onNodeWithText("\u2014").assertDoesNotExist()
     }
 
     @Test

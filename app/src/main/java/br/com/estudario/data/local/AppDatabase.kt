@@ -18,14 +18,14 @@ import br.com.estudario.data.local.planner.*
         QuestionTagCrossRef::class, TheoryDocumentEntity::class, TheoryMarkEntity::class,
         TopicSnippetEntity::class, ErrorConceptEntity::class, ErrorConceptEntryCrossRef::class,
         ReviewSessionEntity::class, QueueEventEntity::class, QuestionSessionEntity::class,
-        ImportPackageEntity::class, ContentSourceEntity::class,
+        ImportPackageEntity::class, ContentSourceEntity::class, FocusSessionEntity::class,
         StudyPlanEntity::class, StudyPlanRevisionEntity::class, StudyAvailabilityEntity::class,
         StudyDayOverrideEntity::class, PlanSubjectEntity::class, AnnualPhaseEntity::class,
         AnnualPhaseSubjectEntity::class, AnnualPhaseTopicEntity::class, MonthlyPlanEntity::class,
         MonthlyPlanSubjectEntity::class, MonthlyPlanTopicEntity::class, WeeklyPlanEntity::class,
         PlanTaskEntity::class, PlanTaskDependencyEntity::class, StudyTaskExecutionEntity::class,
     ],
-    version = 12,
+    version = 14,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -164,6 +164,50 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Separa os três eixos do Smart Planner.
+         *
+         * Até aqui o plano guardava um `priority` só, que na prática vinha contaminado pela
+         * dificuldade que a pessoa declarou, o que impedia o motor de distinguir "vale muito
+         * ponto" de "me custa muito". Agora cada matéria do plano guarda também o quanto ela custa
+         * para a pessoa e o quanto ela já sabia ao começar.
+         *
+         * Planos existentes entram nos padrões neutros: dificuldade normal e nenhum conhecimento
+         * prévio declarado. Como o `priority` antigo podia ter sido elevado pela dificuldade, o
+         * campo novo recupera essa intenção nas matérias que ficaram em CRITICAL/HIGH, sem alterar
+         * a prioridade gravada, que continua sendo a da prova.
+         */
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `plan_subjects` ADD COLUMN `personalDifficulty` TEXT NOT NULL DEFAULT 'NORMAL'")
+                db.execSQL("ALTER TABLE `plan_subjects` ADD COLUMN `initialKnowledge` TEXT NOT NULL DEFAULT 'NONE'")
+                // Teto diário por matéria: dá comportamento próprio a cada resposta da pergunta de
+                // variedade. Planos antigos herdam 60%, que é o equilíbrio que eles já tinham.
+                db.execSQL("ALTER TABLE `study_plans` ADD COLUMN `dailySubjectSharePercent` INTEGER NOT NULL DEFAULT 60")
+            }
+        }
+
+        /** Move as sessões do modo foco para um histórico próprio, sem misturá-las às conclusões. */
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `focus_sessions` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `startedAt` INTEGER NOT NULL, `completedAt` INTEGER NOT NULL, `durationSeconds` INTEGER NOT NULL, `subjectIdsText` TEXT NOT NULL, `origin` TEXT NOT NULL, `topicId` INTEGER, `taskId` TEXT, PRIMARY KEY(`id`))",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_focus_sessions_completedAt` ON `focus_sessions` (`completedAt`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_focus_sessions_topicId` ON `focus_sessions` (`topicId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_focus_sessions_taskId` ON `focus_sessions` (`taskId`)")
+                db.execSQL(
+                    "INSERT OR IGNORE INTO `focus_sessions` (`id`, `title`, `startedAt`, `completedAt`, `durationSeconds`, `subjectIdsText`, `origin`, `topicId`, `taskId`) " +
+                        "SELECT 'legacy-' || `id`, 'Sessão de foco', `startedAt`, `completedAt`, `durationSeconds`, " +
+                        "CASE WHEN `subjectId` IS NULL THEN '' ELSE CAST(`subjectId` AS TEXT) END, " +
+                        "CASE WHEN `topicId` > 0 THEN 'MATERIA' ELSE 'LIVRE' END, " +
+                        "CASE WHEN `topicId` > 0 THEN `topicId` ELSE NULL END, NULL " +
+                        "FROM `study_sessions` WHERE `notes` = 'Modo foco'",
+                )
+                db.execSQL("DELETE FROM `study_sessions` WHERE `notes` = 'Modo foco'")
+            }
+        }
+
         /** Guarda o recorte declarado de cada tópico: o que o item do edital cobra e o que não cobra. */
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -289,6 +333,6 @@ abstract class AppDatabase : RoomDatabase() {
             context.applicationContext,
             AppDatabase::class.java,
             "estudario.db",
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14).build()
     }
 }

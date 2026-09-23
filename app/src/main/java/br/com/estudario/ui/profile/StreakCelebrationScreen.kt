@@ -1,5 +1,8 @@
 package br.com.estudario.ui.profile
 
+import androidx.compose.foundation.layout.PaddingValues
+import br.com.estudario.ui.components.FitOrScrollColumn
+import br.com.estudario.ui.theme.estudarioLayout
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
@@ -15,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
@@ -79,8 +83,11 @@ fun StreakCelebrationScreen(celebration: StreakCelebration, onClose: () -> Unit)
                 .fillMaxSize()
                 .background(Brush.verticalGradient(listOf(AppMarkBackground, Color(0xFF0E2E63), AppMarkBackground))),
         ) {
-            Column(
-                Modifier.fillMaxSize().systemBarsPadding().padding(start = 28.dp, end = 28.dp, top = 28.dp, bottom = 108.dp),
+            // Centralizado quando cabe; rola quando a tela é baixa ou a fonte é grande (antes o topo e
+            // o fim eram cortados). O rodapé de 108dp deixa espaço para o botão fixo embaixo.
+            FitOrScrollColumn(
+                Modifier.fillMaxSize().systemBarsPadding(),
+                contentPadding = PaddingValues(start = 28.dp, end = 28.dp, top = 28.dp, bottom = 108.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
@@ -99,11 +106,11 @@ fun StreakCelebrationScreen(celebration: StreakCelebration, onClose: () -> Unit)
                     Text(celebration.reason, color = Verde, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
                 }
 
-                Spacer(Modifier.height(36.dp))
+                Spacer(Modifier.height(if (estudarioLayout().isShortHeight) 20.dp else 36.dp))
 
                 Box(contentAlignment = Alignment.BottomEnd) {
                     AppMark(
-                        size = 168.dp,
+                        size = if (estudarioLayout().isShortHeight) 124.dp else 168.dp,
                         modifier = Modifier.graphicsLayer { scaleX = markScale; scaleY = markScale; alpha = markAlpha },
                     )
                     Box(
@@ -119,7 +126,7 @@ fun StreakCelebrationScreen(celebration: StreakCelebration, onClose: () -> Unit)
                     }
                 }
 
-                Spacer(Modifier.height(36.dp))
+                Spacer(Modifier.height(if (estudarioLayout().isShortHeight) 20.dp else 36.dp))
 
                 Text(
                     "$streakValue",
@@ -176,7 +183,7 @@ fun StreakCelebrationScreen(celebration: StreakCelebration, onClose: () -> Unit)
                     .systemBarsPadding()
                     .padding(28.dp)
                     .fillMaxWidth()
-                    .height(52.dp)
+                    .heightIn(min = 52.dp)
                     .graphicsLayer { alpha = textAlpha },
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Verde, contentColor = Color.White),

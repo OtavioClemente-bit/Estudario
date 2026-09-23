@@ -2,6 +2,7 @@ package br.com.estudario.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -77,7 +78,7 @@ fun StudyFocusCard(
                     fontWeight = FontWeight.Black,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         Icon(Icons.Outlined.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
                         Text(minutesLabelPtBr(task.entity.plannedMinutes), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)

@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import br.com.estudario.domain.planner.PlanTaskStatus
 import br.com.estudario.domain.planner.PlanTaskType
@@ -79,13 +80,15 @@ fun MissionCard(
                         text = task.subjectNameSnapshot.uppercase(),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = statusColor
+                        color = statusColor,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 
                 AssistChip(
                     onClick = { },
-                    label = { Text(task.type.displayNamePtBr()) },
+                    label = { Text(task.type.displayNamePtBr(), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
                     leadingIcon = { Icon(typeIcon, contentDescription = null, modifier = Modifier.size(16.dp)) },
                     colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     border = null
@@ -99,9 +102,11 @@ fun MissionCard(
                     fontWeight = FontWeight.Bold
                 )
                 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // FlowRow: "45 min • 20 qts • Prioridade alta" não cabe numa linha em tela estreita
+                // ou com fonte maior; os pedaços descem para a linha de baixo em vez de serem cortados.
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     Text(
                         text = minutesLabelPtBr(task.plannedMinutes),
@@ -125,12 +130,13 @@ fun MissionCard(
                 }
             }
 
-            Row(
+            // Botões e XP: lado a lado quando cabem; senão o XP desce para a linha de baixo.
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (task.status == PlanTaskStatus.CONCLUIDA) {
                         FilledTonalButton(
                             onClick = { },
@@ -175,7 +181,8 @@ fun MissionCard(
                 val xpBase = task.plannedMinutes + (task.plannedQuestions * 2)
                 XpTag(
                     reward = ProgressEngine.XpReward(base = xpBase),
-                    earned = task.status == PlanTaskStatus.CONCLUIDA
+                    earned = task.status == PlanTaskStatus.CONCLUIDA,
+                    modifier = Modifier.align(Alignment.CenterVertically),
                 )
             }
         }

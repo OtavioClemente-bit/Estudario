@@ -5,6 +5,8 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -187,6 +189,62 @@ class AppDatabaseMigrationTest {
                 assertEquals(70, cursor.getInt(4))
                 assertEquals(1, cursor.getInt(5))
                 assertEquals(null, cursor.getString(6))
+            }
+            close()
+        }
+    }
+
+    @Test
+    fun migrateThirteenToFourteenSeparatesLegacyFocusRows() {
+        val name = "migration-v13-v14-focus-test"
+        helper.createDatabase(name, 13).apply {
+            execSQL(
+                "INSERT INTO study_sessions " +
+                    "(id, topicId, startedAt, completedAt, competitionId, subjectId, durationSeconds, " +
+                    "questionCount, correctCount, wrongCount, notes, sourcePackageId) " +
+                    "VALUES (7, 0, 1000, 91000, NULL, NULL, 90, 0, 0, 0, 'Modo foco', NULL)",
+            )
+            execSQL(
+                "INSERT INTO study_sessions " +
+                    "(id, topicId, startedAt, completedAt, competitionId, subjectId, durationSeconds, " +
+                    "questionCount, correctCount, wrongCount, notes, sourcePackageId) " +
+                    "VALUES (8, 42, 2000, 122000, 3, 4, 120, 0, 0, 0, 'Modo foco', NULL)",
+            )
+            execSQL(
+                "INSERT INTO study_sessions " +
+                    "(id, topicId, startedAt, completedAt, competitionId, subjectId, durationSeconds, " +
+                    "questionCount, correctCount, wrongCount, notes, sourcePackageId) " +
+                    "VALUES (9, 42, 3000, 6000, 3, 4, 3, 1, 1, 0, 'Estudo concluído', NULL)",
+            )
+            close()
+        }
+
+        helper.runMigrationsAndValidate(name, 14, true, AppDatabase.MIGRATION_13_14).apply {
+            query("SELECT id, title, startedAt, completedAt, durationSeconds, subjectIdsText, origin, topicId FROM focus_sessions ORDER BY id").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("legacy-7", cursor.getString(0))
+                assertEquals("Sessão de foco", cursor.getString(1))
+                assertEquals(1000L, cursor.getLong(2))
+                assertEquals(91000L, cursor.getLong(3))
+                assertEquals(90L, cursor.getLong(4))
+                assertEquals("", cursor.getString(5))
+                assertEquals("LIVRE", cursor.getString(6))
+                assertTrue(cursor.isNull(7))
+
+                assertTrue(cursor.moveToNext())
+                assertEquals("legacy-8", cursor.getString(0))
+                assertEquals("4", cursor.getString(5))
+                assertEquals("MATERIA", cursor.getString(6))
+                assertEquals(42L, cursor.getLong(7))
+                assertFalse(cursor.moveToNext())
+            }
+            query("SELECT COUNT(*) FROM study_sessions WHERE notes = 'Modo foco'").use { cursor ->
+                cursor.moveToFirst()
+                assertEquals(0, cursor.getInt(0))
+            }
+            query("SELECT COUNT(*) FROM study_sessions WHERE id = 9 AND notes = 'Estudo concluído'").use { cursor ->
+                cursor.moveToFirst()
+                assertEquals(1, cursor.getInt(0))
             }
             close()
         }

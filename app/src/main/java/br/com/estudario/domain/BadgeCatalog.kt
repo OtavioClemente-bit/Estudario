@@ -41,7 +41,7 @@ data class BadgeProgress(
 
 /**
  * Emblemas. Toda conquista sai do histórico real, então nada é perdido ao trocar de aparelho nem
- * ganho por engano — se o backup voltar, os emblemas voltam junto.
+ * ganho por engano, se o backup voltar, os emblemas voltam junto.
  *
  * As faixas sobem devagar de propósito: o primeiro emblema de cada categoria é fácil (serve de
  * convite), o último é coisa de quem levou a preparação inteira até o fim.

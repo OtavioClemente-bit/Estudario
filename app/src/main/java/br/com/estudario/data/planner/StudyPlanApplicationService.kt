@@ -13,8 +13,12 @@ import br.com.estudario.data.local.planner.MonthlyPlanEntity
 import br.com.estudario.data.local.planner.WeeklyPlanEntity
 import br.com.estudario.data.local.planner.PlanTaskDependencyEntity
 import br.com.estudario.data.local.planner.StudyDayOverrideEntity
+import br.com.estudario.data.local.planner.PlanTaskEntity
+import br.com.estudario.domain.planner.InitialKnowledge
+import br.com.estudario.domain.planner.PersonalDifficulty
 import br.com.estudario.domain.planner.PlanPriority
 import br.com.estudario.domain.planner.PlanningProposal
+import br.com.estudario.domain.planner.QuestionTaskDurationCorrection
 import br.com.estudario.domain.planner.ReplanReason
 import br.com.estudario.domain.planner.StudyPlannerEngine
 import br.com.estudario.domain.planner.StudyMethod
@@ -28,12 +32,17 @@ import java.time.YearMonth
 data class PlanSubjectInput(
     val subjectId: Long,
     val name: String,
+    /** Importância **na prova**. Não recebe influência da dificuldade declarada. */
     val priority: PlanPriority,
     val minimumMaintenanceMinutes: Int,
     val paused: Boolean,
     val position: Int,
     /** Peso de 1 a 5 dado no assistente; manda no rodízio de tempo entre as matérias. */
     val weight: Int = 3,
+    /** Quanto a matéria custa para esta pessoa, segundo eixo, independente da prioridade. */
+    val personalDifficulty: PersonalDifficulty = PersonalDifficulty.NORMAL,
+    /** Quanto a pessoa já sabia ao começar, terceiro eixo, também independente. */
+    val initialKnowledge: InitialKnowledge = InitialKnowledge.NONE,
 )
 
 data class CreatePlanInput(
@@ -82,12 +91,24 @@ class StudyPlanApplicationService(
                 simulationsPerMonth = input.method.simulationsPerMonth,
                 discursivesPerMonth = input.method.discursivesPerMonth,
                 interleaveSubjects = input.method.interleaveSubjects,
+                dailySubjectSharePercent = input.method.dailySubjectSharePercent,
             ),
         )
         planner.insertRevision(StudyPlanRevisionEntity(id, 0, 0, "CREATED", summary = "Plano criado."))
         planner.upsertAvailability(input.availability.map { it.copy(planId = id) })
         planner.upsertPlanSubjects(input.subjects.map { subject ->
-            PlanSubjectEntity(id, subject.subjectId, subject.name, subject.priority, subject.paused, subject.minimumMaintenanceMinutes, weightOverride = subject.weight.coerceIn(1, 5), position = subject.position)
+            PlanSubjectEntity(
+                planId = id,
+                subjectId = subject.subjectId,
+                subjectNameSnapshot = subject.name,
+                priority = subject.priority,
+                paused = subject.paused,
+                minimumMaintenanceMinutes = subject.minimumMaintenanceMinutes,
+                weightOverride = subject.weight.coerceIn(1, 5),
+                position = subject.position,
+                personalDifficulty = subject.personalDifficulty,
+                initialKnowledge = subject.initialKnowledge,
+            )
         })
         val weeklyMinutes = input.availability.sumOf { if (it.unavailable) 0 else it.availableMinutes }
         // As fases vêm do método: com data de prova viram Base › Aprofundamento › Reta final, cada
@@ -150,7 +171,7 @@ class StudyPlanApplicationService(
 
     /**
      * Apaga o plano de vez. Só o plano: edital, questões, revisões e tópicos estudados ficam onde
-     * estão. O que vai junto é o cronograma e as execuções registradas nele — por isso a tela
+     * estão. O que vai junto é o cronograma e as execuções registradas nele, por isso a tela
      * confirma antes e oferece arquivar como caminho reversível.
      */
     suspend fun delete(planId: String) = db.withTransaction {
@@ -230,6 +251,37 @@ class StudyPlanApplicationService(
         planner.insertRevision(
             StudyPlanRevisionEntity(plan.id, nextRevision, proposal.baseRevision, "PROPOSAL_APPLIED", proposal.id, summary),
         )
+    }
+
+    /** Corrige estimativas antigas de questões ao abrir um plano, sem mexer em trabalho iniciado. */
+    suspend fun normalizeQuestionTaskEstimates(planId: String): Int {
+        val corrected = db.withTransaction {
+            val plan = planner.plan(planId) ?: return@withTransaction emptyList()
+            val minutesPerQuestion = plan.methodConfig().minutesPerQuestion
+            val now = System.currentTimeMillis()
+            val changed = mutableListOf<PlanTaskEntity>()
+            for (task in planner.tasksForOnce(planId)) {
+                val minutes = QuestionTaskDurationCorrection.correctedMinutes(
+                    type = task.type,
+                    status = task.status,
+                    origin = task.origin,
+                    locked = task.locked,
+                    plannedMinutes = task.plannedMinutes,
+                    plannedQuestions = task.plannedQuestions,
+                    minutesPerQuestion = minutesPerQuestion,
+                ) ?: continue
+                val updated = task.copy(plannedMinutes = minutes, updatedAt = now)
+                planner.updateTask(updated)
+                changed += updated
+            }
+            changed
+        }
+        if (corrected.isNotEmpty()) {
+            calendarSync?.let { sync ->
+                withContext(Dispatchers.IO) { sync.syncTasks(planner.tasksForOnce(planId)) }
+            }
+        }
+        return corrected.size
     }
 
     /**

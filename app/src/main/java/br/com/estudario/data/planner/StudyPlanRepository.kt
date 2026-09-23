@@ -11,6 +11,7 @@ class StudyPlanRepository(private val db: AppDatabase) {
     fun executions(planId: String) = dao.executionsFor(planId)
 
     suspend fun plan(planId: String) = dao.plan(planId)
+    suspend fun task(taskId: String) = dao.task(taskId)
     suspend fun plansOnce() = dao.plansOnce()
     suspend fun tasksOnce(planId: String) = dao.tasksForOnce(planId)
     suspend fun executionsOnce(planId: String) = dao.executionsForOnce(planId)

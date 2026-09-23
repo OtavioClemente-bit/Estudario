@@ -22,13 +22,16 @@ android {
         applicationId = "br.com.estudario"
         minSdk = 26
         targetSdk = 36
-        versionCode = 21
-        versionName = "3.0.3"
+        versionCode = 23
+        versionName = "3.0.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 
     sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
 

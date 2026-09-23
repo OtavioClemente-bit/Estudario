@@ -1,12 +1,13 @@
 package br.com.estudario.ui.screens.home
 
+import br.com.estudario.data.local.QueueWithTopic
 import java.time.LocalDate
 
 /**
- * Modelos de apresentação da Home — nada de `PlannerTaskUi`, `StreakSummary` ou ViewModel aqui.
+ * Modelos de apresentação da Home, nada de `PlannerTaskUi`, `StreakSummary` ou ViewModel aqui.
  * O [br.com.estudario.ui.screens.HomeScreen] traduz o estado real do app para estes tipos simples;
  * os composables desta pasta só recebem estado pronto e nunca tocam em domínio, Room ou regra de
- * negócio. É isso que torna as previews possíveis sem instanciar um `AppViewModel` — e o que
+ * negócio. É isso que torna as previews possíveis sem instanciar um `AppViewModel`, e o que
  * garante que a Home não vire um segundo lugar onde as regras do planejador são calculadas.
  */
 data class StudyTaskUi(
@@ -20,15 +21,15 @@ data class StudyTaskUi(
     val scheduledForToday: Boolean,
 )
 
-/** O concurso ativo — contexto do objetivo, nunca protagonista da tela. */
+/** O concurso ativo, contexto do objetivo, nunca protagonista da tela. */
 data class ActiveContestUi(
     val name: String,
     val objective: String?,
 )
 
-/** O painel "Agora" — a seção de maior hierarquia da tela. Um estado por vez, nunca combinados. */
+/** O painel "Agora", a seção de maior hierarquia da tela. Um estado por vez, nunca combinados. */
 sealed interface CurrentStudyUiState {
-    /** Há uma missão para agora — em andamento ou ainda não começada. */
+    /** Há uma missão para agora, em andamento ou ainda não começada. */
     data class Ready(val task: StudyTaskUi, val progressFraction: Float?) : CurrentStudyUiState
     /** Nenhum plano ativo: primeira coisa que a pessoa precisa resolver, não um aviso qualquer. */
     data object NoPlan : CurrentStudyUiState
@@ -52,7 +53,7 @@ data class SubjectCoverageUi(
 
 /**
  * A cobertura do edital inteiro. [masteryPercent] é nulo quando ainda não há base suficiente de
- * questões e revisões para falar em domínio — e aí a Home simplesmente não fala, em vez de mostrar
+ * questões e revisões para falar em domínio, e aí a Home simplesmente não fala, em vez de mostrar
  * um número que não se sustenta.
  */
 data class SyllabusCoverageUi(
@@ -85,7 +86,7 @@ data class PerformanceUi(
     val delta: Int? get() = previousAccuracy?.let { recentAccuracy - it }
 }
 
-/** Constância e evolução dentro do Estudário — nível é progresso no app, não medida de capacidade. */
+/** Constância e evolução dentro do Estudário, nível é progresso no app, não medida de capacidade. */
 data class StandingUi(
     val streakDays: Int,
     val bestStreakDays: Int,
@@ -97,8 +98,25 @@ data class StandingUi(
     val xpForNextLevel: Int = 100,
 )
 
-/** As próximas atividades do dia, em versão discreta — a agenda completa vive na aba Plano. */
+/** As próximas atividades do dia, em versão discreta, a agenda completa vive na aba Plano. */
 data class NextUpUi(
     val items: List<StudyTaskUi>,
     val remainingToday: Int,
+    val fromQueue: Boolean = false,
 )
+
+/** Adapta um tópico da fila ao mesmo cartão usado pelo plano. */
+internal fun queueTopicUi(row: QueueWithTopic, subjectName: String): StudyTaskUi = StudyTaskUi(
+    id = "queue:${row.item.id}",
+    topicId = row.item.topicId,
+    subjectName = subjectName,
+    topicName = row.topic.title,
+    activityLabel = "Fila de estudos",
+    durationLabel = "",
+    ctaLabel = "Abrir tópico",
+    scheduledForToday = false,
+)
+
+/** A fila tem prioridade; o plano continua como alternativa quando não há tópico disponível. */
+internal fun currentHomeTask(queueTask: StudyTaskUi?, planTask: StudyTaskUi?): StudyTaskUi? =
+    queueTask ?: planTask

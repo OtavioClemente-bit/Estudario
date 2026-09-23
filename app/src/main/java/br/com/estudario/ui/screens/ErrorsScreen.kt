@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.theme.screenPadding
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -34,7 +35,7 @@ fun ErrorsScreen(viewModel: AppViewModel, onTrainErrors: () -> Unit, onOpenTopic
     val filtered = errors.filter { status == null || it.entry.status == status }
     editing?.let { entry -> ErrorNoteDialog(entry.comment, entry.concept, onDismiss = { editing = null }) { comment, concept -> viewModel.updateError(entry.copy(comment = comment, concept = concept)) } }
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { ScreenTitle("Caderno de erros", "O histórico nunca é apagado ao acertar novamente") }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -68,9 +69,9 @@ fun ErrorsScreen(viewModel: AppViewModel, onTrainErrors: () -> Unit, onOpenTopic
                         IconButton(onClick = { viewModel.deleteError(item.entry.id) }) { Icon(Icons.Outlined.Delete, "Remover do caderno") }
                         IconButton(onClick = { editing = item.entry }) { Icon(Icons.Outlined.EditNote, "Editar comentário") }
                     }
-                    Text(item.question.statement.take(180), maxLines = 3)
+                    Text(item.question.statement.take(180), maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     Text("Erros: ${item.entry.errorCount}  •  Acertos ao refazer: ${item.entry.retryCorrectCount}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
-                    if (item.entry.selectedAnswer != null || item.entry.correctAnswer != null) Text("Marquei ${item.entry.selectedAnswer ?: "—"} • Correta ${item.entry.correctAnswer ?: "—"}", style = MaterialTheme.typography.bodySmall)
+                    if (item.entry.selectedAnswer != null || item.entry.correctAnswer != null) Text("Marquei ${item.entry.selectedAnswer ?: ","} • Correta ${item.entry.correctAnswer ?: ","}", style = MaterialTheme.typography.bodySmall)
                     if (item.entry.comment.isNotBlank()) Text("Minha observação: ${item.entry.comment}")
                     Text("Último erro: ${DateFormat.getDateInstance(DateFormat.SHORT).format(Date(item.entry.lastErrorAt))}", style = MaterialTheme.typography.bodySmall)
                     item.entry.nextRetryAt?.let { volta ->

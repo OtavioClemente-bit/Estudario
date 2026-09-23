@@ -8,7 +8,7 @@ import br.com.estudario.data.local.SubjectEntity
 import br.com.estudario.data.local.TopicEntity
 import br.com.estudario.data.local.TopicStatus
 import br.com.estudario.domain.planner.PlanPriority
-import br.com.estudario.domain.setup.SubjectDifficulty
+import br.com.estudario.domain.planner.PersonalDifficulty
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertTrue
@@ -16,7 +16,7 @@ import org.junit.Test
 
 class InitialSetupPlanMapperTest {
     @Test
-    fun `prompt receives the complete real topic tree progress and effective priorities`() {
+    fun `prompt receives topic progress and keeps exam priority separate from difficulty`() {
         val competition = CompetitionEntity(id = 9, name = "Concurso")
         val highSubject = SubjectEntity(id = 10, competitionId = 9, name = "Constitucional", externalId = "subject-constitutional", assessedPriorityScore = 75, hasAssessedPriority = true)
         val lowSubject = SubjectEntity(id = 11, competitionId = 9, name = "Português", externalId = "subject-portuguese", assessedPriorityScore = 30, hasAssessedPriority = true)
@@ -37,7 +37,7 @@ class InitialSetupPlanMapperTest {
             topics = listOf(studiedTopic, unansweredTopic),
             questions = questions,
             attempts = attempts,
-            difficulties = mapOf("10" to SubjectDifficulty.EASY, "11" to SubjectDifficulty.HARD),
+            difficulties = mapOf("10" to PersonalDifficulty.EASY, "11" to PersonalDifficulty.HARD),
         )
 
         assertEquals(listOf("topic-rights", "topic-control"), result.promptSubjects.first().topics.map { it.id })
@@ -47,14 +47,16 @@ class InitialSetupPlanMapperTest {
         assertEquals(PlanPriority.HIGH, result.officialPrioritiesBySubjectId[10L])
         assertEquals(PlanPriority.HIGH, result.planningPrioritiesBySubjectId[10L])
         assertEquals(PlanPriority.LOW, result.officialPrioritiesBySubjectId[11L])
-        assertEquals(PlanPriority.HIGH, result.planningPrioritiesBySubjectId[11L])
+        assertEquals(PlanPriority.LOW, result.planningPrioritiesBySubjectId[11L])
+        assertEquals(PersonalDifficulty.EASY, result.difficultiesBySubjectId[10L])
+        assertEquals(PersonalDifficulty.HARD, result.difficultiesBySubjectId[11L])
         assertEquals(75, highSubject.assessedPriorityScore)
         assertEquals(30, lowSubject.assessedPriorityScore)
         assertNotSame(result.officialPrioritiesBySubjectId, result.planningPrioritiesBySubjectId)
     }
 
     @Test
-    fun `missing difficulty defaults to medium and unknown topic associations are ignored`() {
+    fun `missing difficulty defaults to normal and unknown topic associations are ignored`() {
         val subject = SubjectEntity(id = 10, competitionId = 9, name = "Português", externalId = "subject-portuguese")
         val topic = TopicEntity(id = 20, subjectId = 10, title = "Interpretação", externalId = "topic-reading")
 
@@ -68,6 +70,7 @@ class InitialSetupPlanMapperTest {
         )
 
         assertEquals(PlanPriority.MEDIUM, result.planningPrioritiesBySubjectId[10L])
+        assertEquals(PersonalDifficulty.DEFAULT, result.difficultiesBySubjectId[10L])
         assertEquals(0, result.promptSubjects.single().answered)
         assertEquals(null, result.promptSubjects.single().accuracyPercent)
     }

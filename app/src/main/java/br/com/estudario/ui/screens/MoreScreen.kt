@@ -1,5 +1,7 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.theme.screenPadding
+import br.com.estudario.BuildConfig
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -52,7 +54,7 @@ fun MoreScreen(
         Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing),
-        contentPadding = PaddingValues(20.dp),
+        contentPadding = screenPadding(),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item { ScreenTitle("Ajustes", "Preferências de estudo") }
@@ -131,7 +133,7 @@ fun MoreScreen(
         item {
             Spacer(Modifier.height(4.dp))
             Text(
-                "Estudário 2.2.0 • Local-first",
+                "Estudário ${BuildConfig.VERSION_NAME}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

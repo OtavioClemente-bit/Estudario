@@ -1,5 +1,8 @@
 package br.com.estudario.ui.profile
 
+import androidx.compose.foundation.layout.PaddingValues
+import br.com.estudario.ui.components.FitOrScrollColumn
+import br.com.estudario.ui.theme.estudarioLayout
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -20,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
@@ -63,7 +67,7 @@ private fun faixaLabel(tier: Int) = when (tier) {
 
 /**
  * Comemoração do emblema, no mesmo formato da sequência: tela cheia, raios girando atrás e o
- * escudo entrando com mola. Quando cai mais de um emblema de uma vez, eles aparecem em sequência —
+ * escudo entrando com mola. Quando cai mais de um emblema de uma vez, eles aparecem em sequência,
  * cada conquista ganha sua própria tela em vez de virar uma lista.
  */
 @Composable
@@ -88,7 +92,7 @@ fun BadgeCelebrationScreen(badges: List<Badge>, onClose: () -> Unit) {
                     .systemBarsPadding()
                     .padding(28.dp)
                     .fillMaxWidth()
-                    .height(52.dp),
+                    .heightIn(min = 52.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Verde, contentColor = Color.White),
             ) {
@@ -119,8 +123,10 @@ private fun Conteudo(badge: Badge, total: Int, index: Int) {
         label = "angulo",
     )
 
-    Column(
-        Modifier.fillMaxSize().systemBarsPadding().padding(start = 28.dp, end = 28.dp, top = 28.dp, bottom = 108.dp),
+    // Centralizado quando cabe; rola quando a tela é baixa ou a fonte é grande.
+    FitOrScrollColumn(
+        Modifier.fillMaxSize().systemBarsPadding(),
+        contentPadding = PaddingValues(start = 28.dp, end = 28.dp, top = 28.dp, bottom = 108.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -146,7 +152,7 @@ private fun Conteudo(badge: Badge, total: Int, index: Int) {
         Box(contentAlignment = Alignment.Center) {
             Canvas(
                 Modifier
-                    .size(300.dp)
+                    .size(if (estudarioLayout().isShortHeight) 220.dp else 300.dp)
                     .graphicsLayer { rotationZ = angulo; alpha = opacidade * 0.5f },
             ) {
                 val centro = Offset(size.width / 2f, size.height / 2f)
@@ -172,7 +178,7 @@ private fun Conteudo(badge: Badge, total: Int, index: Int) {
             BadgeArt(
                 badge = badge,
                 earned = true,
-                size = 190.dp,
+                size = if (estudarioLayout().isShortHeight) 140.dp else 190.dp,
                 modifier = Modifier.graphicsLayer { scaleX = escala; scaleY = escala; alpha = opacidade },
             )
         }

@@ -1,7 +1,7 @@
 package br.com.estudario.data.preferences
 
 object PromptTemplates {
-    const val PLANO = """COMO ENTREGAR A RESPOSTA — ISTO VEM ANTES DE QUALQUER OUTRA INSTRUÇÃO:
+    const val PLANO = """COMO ENTREGAR A RESPOSTA, ISTO VEM ANTES DE QUALQUER OUTRA INSTRUÇÃO:
 1. Entregue UM ARQUIVO para download, com a extensão indicada. Se você tiver ferramenta de gerar arquivos (interpretador de código, análise de dados, canvas ou documento), use-a e me devolva o arquivo pronto para baixar.
 2. Não escreva NADA fora do arquivo: sem introdução, sem explicação do que você fez, sem resumo, sem aviso e sem pergunta no final. A resposta é o arquivo e nada mais.
 3. Não cole o conteúdo do arquivo na conversa. Quem vai ler esse JSON é o aplicativo, não uma pessoa.
@@ -89,7 +89,7 @@ FORMATO OBRIGATÓRIO:
 
 Antes de responder, valide JSON puro, formato e versão, datas, enumeradores, IDs únicos, externalIds não inventados, dependências válidas e capacidade diária/semanal sem exceder a disponibilidade informada."""
 
-    const val EDITAL = """COMO ENTREGAR A RESPOSTA — ISTO VEM ANTES DE QUALQUER OUTRA INSTRUÇÃO:
+    const val EDITAL = """COMO ENTREGAR A RESPOSTA, ISTO VEM ANTES DE QUALQUER OUTRA INSTRUÇÃO:
 1. Entregue UM ARQUIVO para download, com a extensão indicada. Se você tiver ferramenta de gerar arquivos (interpretador de código, análise de dados, canvas ou documento), use-a e me devolva o arquivo pronto para baixar.
 2. Não escreva NADA fora do arquivo: sem introdução, sem explicação do que você fez, sem resumo, sem aviso e sem pergunta no final. A resposta é o arquivo e nada mais.
 3. Não cole o conteúdo do arquivo na conversa. Quem vai ler esse JSON é o aplicativo, não uma pessoa.
@@ -101,7 +101,7 @@ Vou enviar o conteúdo programático de um edital. Gere um arquivo .estudo compa
 OBJETIVO: montar a estrutura completa, preservando todas as matérias, tópicos, subtópicos e a ordem oficial. Não omita, resuma, una nem invente itens.
 
 PROIBIDO INVENTAR MATÉRIA OU TÓPICO:
-- Use APENAS o que está escrito no edital. Não acrescente matéria, tópico ou assunto que não esteja lá — nem para "completar o que falta", nem porque "costuma cair".
+- Use APENAS o que está escrito no edital. Não acrescente matéria, tópico ou assunto que não esteja lá, nem para "completar o que falta", nem porque "costuma cair".
 - Copie o nome de cada matéria e tópico como está escrito, com a mesma grafia, numeração e ordem. Não troque pelo nome "padrão de mercado".
 - Matéria listada sem conteúdo programático fica com topicos vazio. Não preencha por conta própria.
 - Item ilegível ou ambíguo: reproduza como conseguir ler e registre a dúvida em observacoes. Não chute.
@@ -137,7 +137,7 @@ RAIZ DO ARQUIVO:
 {
   "version": 2,
   "packageId": "edital-ORGAO-CARGO-ANO-v1",
-  "concurso": { "id": "concurso-orgao-cargo-ano", "nome": "NOME DO CONCURSO — CARGO", "principal": true },
+  "concurso": { "id": "concurso-orgao-cargo-ano", "nome": "NOME DO CONCURSO, CARGO", "principal": true },
   "padroesQuestao": { "banca": "BANCA", "orgao": "ORGAO", "ano": 2026, "origem": "Material de estudo gerado" },
   "materias": [{ "id": "materia", "nome": "Matéria", "ordem": 0, "topicos": [] }]
 }
@@ -147,7 +147,7 @@ Antes de responder, confira internamente: JSON válido, todos os itens do edital
 TEXTO DO EDITAL:
 [COLE O EDITAL AQUI]"""
 
-    const val CONTEUDO = """COMO ENTREGAR A RESPOSTA — ISTO VEM ANTES DE QUALQUER OUTRA INSTRUÇÃO:
+    const val CONTEUDO = """COMO ENTREGAR A RESPOSTA, ISTO VEM ANTES DE QUALQUER OUTRA INSTRUÇÃO:
 1. Entregue UM ARQUIVO para download, com a extensão indicada. Se você tiver ferramenta de gerar arquivos (interpretador de código, análise de dados, canvas ou documento), use-a e me devolva o arquivo pronto para baixar.
 2. Não escreva NADA fora do arquivo: sem introdução, sem explicação do que você fez, sem resumo, sem aviso e sem pergunta no final. A resposta é o arquivo e nada mais.
 3. Não cole o conteúdo do arquivo na conversa. Quem vai ler esse JSON é o aplicativo, não uma pessoa.
@@ -165,7 +165,7 @@ DADOS:
 - Fontes ou texto-base: [COLE OU ANEXE AQUI]
 - O priorityAssessment já salvo é contexto do tópico. preserve esse bloco quando ele aparecer no modelo e não recalcule a importância genérica; o app mantém a avaliação local quando o pacote não o trouxer.
 
-TEORIA COMPLETA — TRATE COMO UM LIVRO:
+TEORIA COMPLETA, TRATE COMO UM LIVRO:
 - Escreva material longo, didático e autossuficiente, não um resumo ampliado.
 - Divida em capítulos e seções numa sequência pedagógica: fundamentos, desenvolvimento, exemplos, aplicações, pegadinhas da banca e revisão do capítulo.
 - Explique termos na primeira ocorrência, use exemplos concretos, comparações, tabelas Markdown quando ajudarem e conecte os conceitos.
@@ -173,7 +173,7 @@ TEORIA COMPLETA — TRATE COMO UM LIVRO:
 - Cubra integralmente o escopo informado, sem inventar leis, números, jurisprudência ou versões. Indique a data de referência quando o conteúdo puder mudar.
 - O campo markdown de cada capítulo aceita títulos, subtítulos, listas, negrito, tabelas e citações.
 
-FONTES (campo "fontes") — OBRIGATÓRIO:
+FONTES (campo "fontes"), OBRIGATÓRIO:
 - Liste as fontes que você realmente abriu para escrever este material. Cada item: tipo ("OFICIAL" ou "COMPLEMENTAR"), titulo, publicador, referencia (artigo/seção/página), url exata e acessadoEm (AAAA-MM-DD).
 - É essa lista que o app guarda e mostra para a pessoa conferir depois. Fonte sem título não entra.
 - Não liste fonte que não abriu, não invente URL, título, órgão, página ou data, e não chame fonte complementar de oficial.
@@ -196,20 +196,20 @@ QUESTÕES:
   • Questão real reescrita com outras palavras: "REAL_ADAPTED", mantendo banca/orgao/ano da original.
   • Só quando não existir questão real sobre o ponto: "AUTHORIAL", no estilo da banca, com banca/orgao/ano/sourceId em null.
   • NUNCA marque como REAL uma questão que você criou, e nunca invente banca, órgão, ano ou fonte para parecer real. Isso é pior que não ter questão real nenhuma.
-- FORMATO MISTO, obrigatório: cerca de 70% de múltipla escolha com 5 alternativas (chaves A, B, C, D, E) e 30% no estilo Certo/Errado. Múltipla escolha SEMPRE em maior número. Com 20 questões: 14 de A–E e 6 de Certo/Errado.
-  • Certo/Errado: o enunciado é uma afirmação a ser julgada e há exatamente 2 alternativas — chave "C" com texto "Certo" e chave "E" com texto "Errado" —, uma delas correta. Não escreva "(Certo ou Errado)" no enunciado.
+- FORMATO MISTO, obrigatório: cerca de 70% de múltipla escolha com 5 alternativas (chaves A, B, C, D, E) e 30% no estilo Certo/Errado. Múltipla escolha SEMPRE em maior número. Com 20 questões: 14 de A a E e 6 de Certo/Errado.
+  • Certo/Errado: o enunciado é uma afirmação a ser julgada e há exatamente 2 alternativas, chave "C" com texto "Certo" e chave "E" com texto "Errado", uma delas correta. Não escreva "(Certo ou Errado)" no enunciado.
   • Alterne os dois formatos ao longo da lista em vez de agrupar por tipo.
 - NÍVEL: prova difícil de verdade. Pelo menos metade DIFICIL, o resto MEDIA, no máximo uma FACIL.
   • Difícil é caso concreto em vez de definição, exceção à regra, prazo/competência/requisito parecido com outro, comparação entre institutos vizinhos, alternativa correta que exige descartar duas quase certas.
   • Difícil NÃO é texto confuso, enunciado ambíguo nem pegadinha de português.
   • Cada distrator precisa ser o erro que alguém que ESTUDOU cometeria. Distrator descartável de bate-pronto deve ser trocado.
 - Explicação: diga por que a correta está certa E por que cada errada está errada, citando a fonte da resposta.
-- COBERTURA: cada questão cobra um ponto DIFERENTE do tópico. Não reformule o mesmo conceito várias vezes. Priorize o que a banca cobra de verdade — prazo, competência, exceção, quórum, requisito, hipótese de cabimento — em vez de definição de manual.
+- COBERTURA: cada questão cobra um ponto DIFERENTE do tópico. Não reformule o mesmo conceito várias vezes. Priorize o que a banca cobra de verdade, prazo, competência, exceção, quórum, requisito, hipótese de cabimento, em vez de definição de manual.
 - PROIBIDO (entregam o gabarito de graça): alternativa "todas as anteriores" ou "nenhuma das anteriores"; absolutos como "sempre", "nunca", "em nenhuma hipótese" usados só para marcar o distrator errado; e a correta ser visivelmente a mais longa ou detalhada. Todas as alternativas com tamanho e detalhe parecidos.
-- GABARITO DISTRIBUÍDO: espalhe a letra correta entre A, B, C, D e E — não concentre em B e C. Nas de Certo/Errado, aproxime metade de certos e metade de errados.
+- GABARITO DISTRIBUÍDO: espalhe a letra correta entre A, B, C, D e E, não concentre em B e C. Nas de Certo/Errado, aproxime metade de certos e metade de errados.
 - ENUNCIADO no estilo da banca informada: use o verbo de comando dela ("julgue o item", "assinale a alternativa correta", "é correto afirmar") e o tamanho típico de enunciado dela.
-- CONCEITO DO ERRO (campo "conceitoErro"): em cada questão, informe o id de um item de errorConcepts deste mesmo arquivo — o conceito que a pessoa não domina quando erra essa questão. É assim que o caderno de erros mostra o padrão em vez de uma lista solta. Se o conceito não existir na lista, crie-o em errorConcepts.
-- VÍNCULO COM O MATERIAL (campo "secao"): em TODA questão, preencha "secao" com o título EXATO de um capítulo da teoria ou de uma seção do resumo deste mesmo arquivo — o trecho que responde a questão. Copie o título caractere por caractere, sem acrescentar numeração nem reescrever. É esse campo que faz o app abrir a revisão no ponto certo quando a pessoa erra. Se nenhuma seção explica o ponto, corrija o material para cobri-lo em vez de deixar vazio.
+- CONCEITO DO ERRO (campo "conceitoErro"): em cada questão, informe o id de um item de errorConcepts deste mesmo arquivo, o conceito que a pessoa não domina quando erra essa questão. É assim que o caderno de erros mostra o padrão em vez de uma lista solta. Se o conceito não existir na lista, crie-o em errorConcepts.
+- VÍNCULO COM O MATERIAL (campo "secao"): em TODA questão, preencha "secao" com o título EXATO de um capítulo da teoria ou de uma seção do resumo deste mesmo arquivo, o trecho que responde a questão. Copie o título caractere por caractere, sem acrescentar numeração nem reescrever. É esse campo que faz o app abrir a revisão no ponto certo quando a pessoa erra. Se nenhuma seção explica o ponto, corrija o material para cobri-lo em vez de deixar vazio.
 - Use dificuldade FACIL, MEDIA ou DIFICIL e tags específicas.
 
 FORMATO OBRIGATÓRIO (modelo simples recomendado para um tópico):
@@ -228,7 +228,7 @@ USE EXATAMENTE ESTA ESTRUTURA:
 "teorias": [
   {
     "id": "teoria-topico-v1",
-    "titulo": "Teoria completa — Nome do tópico",
+    "titulo": "Teoria completa, Nome do tópico",
     "capitulos": [
       { "id": "cap-01", "titulo": "1. Fundamentos", "markdown": "Texto longo em Markdown..." },
       { "id": "cap-02", "titulo": "2. Desenvolvimento", "markdown": "Texto longo em Markdown..." }

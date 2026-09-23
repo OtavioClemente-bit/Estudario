@@ -1,5 +1,6 @@
 package br.com.estudario.ui.profile
 
+import br.com.estudario.ui.theme.screenPadding
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,13 +47,13 @@ internal fun categoryIcon(category: BadgeCategory): ImageVector = when (category
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BadgesScreen(viewModel: AppViewModel, onBack: () -> Unit) {
+fun BadgesScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopBar: Boolean = true) {
     val progress by viewModel.progress.collectAsState()
     var categoria by remember { mutableStateOf<BadgeCategory?>(null) }
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            if (showInternalTopBar) TopAppBar(
                 title = { Text("Emblemas") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Voltar") } },
             )
@@ -69,7 +70,7 @@ fun BadgesScreen(viewModel: AppViewModel, onBack: () -> Unit) {
 
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(20.dp),
+            contentPadding = screenPadding(),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
@@ -83,7 +84,7 @@ fun BadgesScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                         val proximo = current.nextBadges.firstOrNull()
                         Text(
                             if (proximo == null) "Você conquistou tudo. Sério."
-                            else "Mais perto: ${proximo.badge.name} — faltam ${proximo.remaining} ${proximo.badge.unit}.",
+                            else "Mais perto: ${proximo.badge.name}, faltam ${proximo.remaining} ${proximo.badge.unit}.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

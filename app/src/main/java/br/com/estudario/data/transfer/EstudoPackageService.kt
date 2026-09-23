@@ -445,12 +445,21 @@ class EstudoPackageService(private val db: AppDatabase) {
         )
     }
 
-    suspend fun import(text: String, mode: ImportMode = ImportMode.SKIP): ImportResult = db.withTransaction {
+    suspend fun import(
+        text: String,
+        mode: ImportMode = ImportMode.SKIP,
+        targetCompetitionId: Long? = null,
+    ): ImportResult = db.withTransaction {
         val plan = EstudoPackageParser.parse(text)
         val contentHash = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
         val prefix = if (mode == ImportMode.COPY) "${plan.packageId}:copy:${contentHash.take(8)}" else plan.packageId
         val competitions = dao.competitionsOnce()
-        val currentCompetition = dao.competitionByExternalId(plan.competitionId) ?: competitions.firstOrNull { it.name.equals(plan.competitionName, true) }
+        val selectedCompetition = targetCompetitionId
+            ?.takeIf { mode != ImportMode.COPY }
+            ?.let { id -> competitions.firstOrNull { it.id == id } ?: throw EstudoPackageException("O edital selecionado não foi encontrado.") }
+        val currentCompetition = selectedCompetition
+            ?: dao.competitionByExternalId(plan.competitionId)
+            ?: competitions.firstOrNull { it.name.equals(plan.competitionName, true) }
         val competitionId = currentCompetition?.id ?: dao.insertCompetition(
             CompetitionEntity(
                 name = plan.competitionName,

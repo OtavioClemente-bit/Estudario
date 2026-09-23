@@ -191,5 +191,5 @@ private fun describe(day: DailyActivity): String {
         if (day.minutes > 0) add("${day.minutes} min")
     }
     val date = "%02d/%02d".format(day.date.dayOfMonth, day.date.monthValue)
-    return if (parts.isEmpty()) "$date — sem estudo registrado" else "$date — ${parts.joinToString(" • ")}"
+    return if (parts.isEmpty()) "$date, sem estudo registrado" else "$date, ${parts.joinToString(" • ")}"
 }

@@ -82,7 +82,7 @@ private fun secoes(markdown: String, origem: String, tituloPadrao: String, chave
  * Resumo da questão errada, aberto por cima do quiz.
  *
  * Duas coisas importam aqui: a pessoa não perde a sessão de questões (a folha é uma camada, não
- * uma tela nova), e ela cai direto no trecho que fala do assunto — o app compara as palavras do
+ * uma tela nova), e ela cai direto no trecho que fala do assunto, o app compara as palavras do
  * enunciado com os títulos e o corpo do material do tópico e abre o pedaço mais próximo.
  */
 @OptIn(ExperimentalMaterial3Api::class)

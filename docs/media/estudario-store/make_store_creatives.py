@@ -112,24 +112,49 @@ def draw_book_mark(draw, cx, cy, size, color, crease=(76,67,232,255)):
     draw.polygon(pts([(4,-23),(42,-31),(42,25),(4,34)]), fill=color)
     draw.line(pts([(0,-23),(0,34)]), fill=crease, width=max(3, int(5*s)))
 
-def make_store_icon():
-    size = 512
-    im = Image.new("RGB", (size, size))
-    p = im.load()
-    for y in range(size):
-        for x in range(size):
-            t = (x+y)/(2*(size-1))
-            p[x,y] = (round(83*(1-t)+35*t), round(69*(1-t)+32*t), round(242*(1-t)+174*t))
-    d = ImageDraw.Draw(im)
-    # Subtle inset ring and native-size glyph, leaving Play's adaptive mask safe.
-    d.rounded_rectangle((28,28,484,484), radius=112, outline=(255,255,255,38), width=3)
-    draw_book_mark(d, 256, 256, 310, (255,255,255), (76,67,232))
-    im.save(ROOT / "estudario-play-store-icon-512.png", optimize=True)
+def draw_launcher_glyph(draw, left, top, size):
+    # Mirror ic_launcher_foreground.xml so the Play listing and installed app use the same mark.
+    scale = size / 108
+    def point(x, y):
+        x = 54 + (x - 54) * .66
+        y = 59.5 + (y - 59.5) * .66 - 5.5
+        return (left + x * scale, top + y * scale)
+    def polygon(points, color):
+        draw.polygon([point(x, y) for x, y in points], fill=color)
+    def stroke(points, width, color):
+        mapped = [point(x, y) for x, y in points]
+        px = max(1, round(width * .66 * scale))
+        radius = px / 2
+        draw.line(mapped, fill=color, width=px, joint="curve")
+        for x, y in (mapped[0], mapped[-1]):
+            draw.ellipse((x-radius, y-radius, x+radius, y+radius), fill=color)
 
-    fg = Image.new("RGBA", (432,432), (0,0,0,0))
-    fgd = ImageDraw.Draw(fg)
-    draw_book_mark(fgd, 216, 216, 264, (255,255,255,255))
-    fg.save(ROOT / "estudario-adaptive-foreground-432.png", optimize=True)
+    white = (255, 255, 255, 255)
+    ink = (51, 38, 206, 255)
+    mint = (126, 224, 184, 255)
+    polygon([(16,28),(51,34),(51,82),(16,76)], white)
+    polygon([(57,34),(92,28),(92,76),(57,82)], white)
+    stroke([(22,43.53),(38,46.27)], 3.6, ink)
+    stroke([(22,52.53),(45,56.47)], 2.6, ink)
+    stroke([(22,60.03),(45,63.97)], 2.6, ink)
+    stroke([(22,67.53),(36,69.93)], 2.6, ink)
+    stroke([(67.5,53.5),(73,59),(84.5,45)], 3.8, ink)
+    stroke([(66,72.96),(86,69.53)], 2.6, ink)
+    polygon([(60,32.89),(64.5,32.11),(64.5,91),(62.25,88),(60,91)], mint)
+
+def make_store_icon():
+    scale = 4
+    size = 512
+    im = Image.new("RGBA", (size*scale, size*scale), (51,38,206,255))
+    draw_launcher_glyph(ImageDraw.Draw(im), 0, 0, size*scale)
+    im.resize((size,size), Image.Resampling.LANCZOS).convert("RGB").save(
+        ROOT / "estudario-play-store-icon-512.png", optimize=True)
+
+    fg_size = 432
+    fg = Image.new("RGBA", (fg_size*scale, fg_size*scale), (0,0,0,0))
+    draw_launcher_glyph(ImageDraw.Draw(fg), 0, 0, fg_size*scale)
+    fg.resize((fg_size,fg_size), Image.Resampling.LANCZOS).save(
+        ROOT / "estudario-adaptive-foreground-432.png", optimize=True)
 
 def make_feature_graphic():
     fw, fh = 1024, 500

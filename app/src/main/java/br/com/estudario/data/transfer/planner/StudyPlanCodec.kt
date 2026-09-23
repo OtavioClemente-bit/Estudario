@@ -68,8 +68,8 @@ class StudyPlanCodec {
 
     /**
      * IAs raramente produzem UUIDs válidos para dezenas de tarefas ("tarefa-01", UUIDs com letras
-     * fora de a–f...). IDs que não são UUID viram UUIDs determinísticos derivados do texto original,
-     * sempre no escopo do plano — o mesmo arquivo gera os mesmos IDs, e dependências continuam
+     * fora do intervalo a até f...). IDs que não são UUID viram UUIDs determinísticos derivados do texto original,
+     * sempre no escopo do plano, o mesmo arquivo gera os mesmos IDs, e dependências continuam
      * apontando para as tarefas certas. Duplicados continuam duplicados e são rejeitados.
      */
     private fun normalizeIdentifiers(plan: StudyPlanFileV1): StudyPlanFileV1 {

@@ -13,7 +13,7 @@ class HomeMetricsCalculatorTest {
         val competition = CompetitionEntity(id = 1L, name = "TRT 3ª Região", isPrimary = true)
         val subjects = listOf(
             SubjectEntity(id = 10L, competitionId = competition.id, name = "LÍNGUA PORTUGUESA (NÍVEL MÉDIO/SUPERIOR)", position = 0),
-            SubjectEntity(id = 11L, competitionId = competition.id, name = "ANALISTA JUDICIÁRIO – ÁREA APOIO ESPECIALIZADO – TECNOLOGIA DA INFORMAÇÃO", position = 1),
+            SubjectEntity(id = 11L, competitionId = competition.id, name = "ANALISTA JUDICIÁRIO: ÁREA APOIO ESPECIALIZADO: TECNOLOGIA DA INFORMAÇÃO", position = 1),
             SubjectEntity(id = 12L, competitionId = competition.id, name = "Direito Administrativo", position = 2),
             SubjectEntity(id = 13L, competitionId = competition.id, name = "Banco de Dados", position = 3),
             SubjectEntity(id = 14L, competitionId = competition.id, name = "Redes de Computadores", position = 4),

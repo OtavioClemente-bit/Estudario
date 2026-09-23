@@ -10,6 +10,7 @@ import br.com.estudario.EstudarioApplication
 import br.com.estudario.data.local.*
 import br.com.estudario.data.transfer.*
 import br.com.estudario.data.preferences.FocusSessionPrefs
+import br.com.estudario.data.local.FocusSessionOrigin
 import br.com.estudario.focus.FocusSessionManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -22,6 +23,13 @@ import br.com.estudario.ui.tour.TourKey
 import br.com.estudario.ui.tour.TourStep
 import br.com.estudario.ui.tour.tourSteps
 import br.com.estudario.data.local.planner.StudyTaskExecutionEntity
+import br.com.estudario.data.local.planner.PlanTaskEntity
+import br.com.estudario.data.local.planner.StudyPlanEntity
+import br.com.estudario.domain.performance.StudyPerformanceEvaluator
+import br.com.estudario.domain.performance.StudyPerformanceInput
+import br.com.estudario.domain.performance.StudyPerformancePeriod
+import br.com.estudario.ui.screens.performance.StudyPerformanceInputMapper
+import br.com.estudario.ui.screens.performance.StudyPerformanceUiState
 import br.com.estudario.domain.DailyActivity
 import br.com.estudario.domain.DailyGoal
 import br.com.estudario.domain.StreakEngine
@@ -43,7 +51,7 @@ import java.time.ZoneId
 sealed interface TransferState {
     data object Idle : TransferState
     data object Loading : TransferState
-    data class Preview(val value: EstudoPreview, val raw: String) : TransferState
+    data class Preview(val value: EstudoPreview, val raw: String, val targetCompetitionId: Long? = null) : TransferState
     data class Success(val message: String) : TransferState
     data class Error(val message: String) : TransferState
 }
@@ -75,6 +83,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val queue = repository.queue.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val queueEvents = repository.queueEvents.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val studySessions = repository.studySessions.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val focusSessions = app.focusSessionRepository.sessions.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val questionSessions = repository.questionSessions.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val darkTheme = app.preferences.darkTheme.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val editalPrompt = app.preferences.editalPrompt.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), br.com.estudario.data.preferences.PromptTemplates.EDITAL)
@@ -99,6 +108,77 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Execuções de tarefas do plano, de todos os planos: entram na sequência junto com questões e revisões. */
     val planExecutions: StateFlow<List<StudyTaskExecutionEntity>> = app.database.plannerDao().executions().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    private val allPlanTasks: StateFlow<List<PlanTaskEntity>> = app.database.plannerDao().tasks()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    private val performancePeriod = MutableStateFlow(StudyPerformancePeriod.DAYS_30)
+
+    private data class PerformanceCoreSources(
+        val attempts: List<QuestionAttemptEntity>,
+        val reviews: List<ReviewHistoryEntity>,
+        val studySessions: List<StudySessionEntity>,
+        val questionSessions: List<QuestionSessionEntity>,
+        val focusSessions: List<FocusSessionEntity> = emptyList(),
+    )
+
+    private data class PerformanceCatalog(
+        val questions: List<QuestionWithOptions>,
+        val subjects: List<SubjectEntity>,
+        val topics: List<TopicEntity>,
+    )
+    private data class PerformancePlanSources(
+        val plans: List<StudyPlanEntity>,
+        val tasks: List<PlanTaskEntity>,
+        val executions: List<StudyTaskExecutionEntity>,
+    )
+
+    private val performanceInput: StateFlow<StudyPerformanceInput> = combine(
+        combine(
+            combine(attempts, reviewHistory, studySessions, questionSessions) { answers, history, sessions, questionRuns ->
+                PerformanceCoreSources(answers, history, sessions, questionRuns)
+            },
+            focusSessions,
+        ) { core, focus -> core.copy(focusSessions = focus) },
+        combine(questions, subjects, topics) { questionList, subjectList, topicList ->
+            PerformanceCatalog(questionList, subjectList, topicList)
+        },
+        combine(studyPlans, allPlanTasks, planExecutions) { plans, tasks, executions -> PerformancePlanSources(plans, tasks, executions) },
+    ) { core, catalog, plan ->
+        StudyPerformanceInputMapper.map(
+            attempts = core.attempts,
+            questions = catalog.questions,
+            subjects = catalog.subjects,
+            topics = catalog.topics,
+            reviewHistory = core.reviews,
+            studySessions = core.studySessions,
+            focusSessions = core.focusSessions,
+            questionSessions = core.questionSessions,
+            plans = plan.plans,
+            tasks = plan.tasks,
+            executions = plan.executions,
+        )
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StudyPerformanceInput())
+
+    val studyPerformance: StateFlow<StudyPerformanceUiState> = combine(performanceInput, performancePeriod) { input, period ->
+        val zone = ZoneId.systemDefault()
+        StudyPerformanceUiState(
+            selectedPeriod = period,
+            result = StudyPerformanceEvaluator.evaluate(input, period, LocalDate.now(zone), zone),
+        )
+    }.flowOn(Dispatchers.Default)
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            StudyPerformanceUiState(
+                selectedPeriod = StudyPerformancePeriod.DAYS_30,
+                result = StudyPerformanceEvaluator.evaluate(StudyPerformanceInput(), StudyPerformancePeriod.DAYS_30, LocalDate.now(), ZoneId.systemDefault()),
+            ),
+        )
+
+    fun selectStudyPerformancePeriod(period: StudyPerformancePeriod) {
+        performancePeriod.value = period
+    }
+
     val profile: StateFlow<UserProfile> = combine(
         app.preferences.userName,
         app.preferences.userEmail,
@@ -117,20 +197,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val reviewsCompleted: Int,
     )
 
+    private data class ActivitySources(
+        val answers: List<QuestionAttemptEntity>,
+        val history: List<ReviewHistoryEntity>,
+        val sessions: List<StudySessionEntity>,
+        val executions: List<StudyTaskExecutionEntity>,
+        val goal: DailyGoal,
+    )
+
     private val activity: StateFlow<ActivityBundle?> = combine(
-        attempts,
-        reviewHistory,
-        studySessions,
-        planExecutions,
-        app.preferences.dailyGoalQuestions,
-    ) { answers, history, sessions, executions, goal ->
+        combine(attempts, reviewHistory, studySessions, planExecutions, app.preferences.dailyGoalQuestions) { answers, history, sessions, executions, goal ->
+            ActivitySources(answers, history, sessions, executions, DailyGoal(goal))
+        },
+        focusSessions,
+    ) { sources, focus ->
         ActivityBundle(
-            days = dailyActivity(answers, history, sessions, executions),
-            goal = DailyGoal(goal),
-            executions = executions,
-            totalQuestions = answers.size,
-            correctQuestions = answers.count { it.correct },
-            reviewsCompleted = history.size,
+            days = dailyActivity(sources.answers, sources.history, sources.sessions, focus, sources.executions),
+            goal = sources.goal,
+            executions = sources.executions,
+            totalQuestions = sources.answers.size,
+            correctQuestions = sources.answers.count { it.correct },
+            reviewsCompleted = sources.history.size,
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -142,7 +229,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val planTaskTypes = app.database.plannerDao().taskTypes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** (total de tópicos, tópicos já estudados) do concurso principal — base do emblema de edital. */
+    /** (total de tópicos, tópicos já estudados) do concurso principal, base do emblema de edital. */
     private val syllabus: StateFlow<Pair<Int, Int>> = combine(competitions, subjects, topics) { contests, allSubjects, allTopics ->
         val primary = contests.firstOrNull { it.isPrimary } ?: contests.firstOrNull()
         val ids = allSubjects.filter { it.competitionId == primary?.id }.mapTo(hashSetOf()) { it.id }
@@ -150,7 +237,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         scoped.size to scoped.count { it.status != TopicStatus.NAO_ESTUDADO }
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0 to 0)
 
-    /** XP, nível e emblemas. Tudo recalculado do histórico, nada guardado — backup devolve o nível. */
+    /** XP, nível e emblemas. Tudo recalculado do histórico, nada guardado, backup devolve o nível. */
     val progress: StateFlow<ProgressEngine.ProgressSummary?> =
         combine(activity, streak, planTaskTypes, syllabus) { bundle, streakSummary, types, counts ->
             if (bundle == null || streakSummary == null) return@combine null
@@ -241,7 +328,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (app.preferences.userName.first().isBlank() && user.name.isNotBlank()) app.preferences.setUserName(user.name)
             if (app.preferences.userPhotoPath.first() == null) user.pictureUrl?.let { saveGooglePhoto(it) }
             when (action) {
-                GoogleAction.SIGN_IN -> TransferState.Success("Conectado como ${user.email}. Os backups ficam numa pasta privada do app no seu Drive — ela não aparece no Meu Drive e só este app enxerga.")
+                GoogleAction.SIGN_IN -> TransferState.Success("Conectado como ${user.email}. Os backups ficam numa pasta privada do app no seu Drive, ela não aparece no Meu Drive e só este app enxerga.")
                 GoogleAction.BACKUP -> {
                     val content = withContext(Dispatchers.Default) { backupService.export() }
                     val file = drive.upload(token, "estudario-${LocalDate.now()}.json", content)
@@ -281,7 +368,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setDailyGoal(value: Int) = launchCatching { app.preferences.setDailyGoalQuestions(value) }
     fun clearProfilePhoto() = launchCatching { app.preferences.setUserPhotoPath(null); withContext(Dispatchers.IO) { deleteOldPhotos(null) } }
 
-    /** Copia a foto escolhida para dentro do app, reduzida — o URI da galeria não sobrevive ao reinício. */
+    /** Copia a foto escolhida para dentro do app, reduzida, o URI da galeria não sobrevive ao reinício. */
     fun setProfilePhoto(uri: Uri) = launchCatching {
         val path = withContext(Dispatchers.IO) {
             val target = File(app.filesDir, "profile_${System.currentTimeMillis()}.jpg")
@@ -307,6 +394,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         answers: List<QuestionAttemptEntity>,
         history: List<ReviewHistoryEntity>,
         sessions: List<StudySessionEntity>,
+        focusSessions: List<FocusSessionEntity>,
         executions: List<StudyTaskExecutionEntity>,
     ): List<DailyActivity> {
         val zone = ZoneId.systemDefault()
@@ -318,6 +406,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         answers.forEach { attempt -> merge(day(attempt.answeredAt)) { it.copy(questions = it.questions + 1, correct = it.correct + if (attempt.correct) 1 else 0) } }
         history.forEach { review -> merge(day(review.reviewedAt)) { it.copy(reviews = it.reviews + 1) } }
         sessions.forEach { session -> merge(day(session.completedAt)) { it.copy(studySessions = it.studySessions + 1, minutes = it.minutes + (session.durationSeconds / 60).toInt()) } }
+        focusSessions.groupBy { day(it.completedAt) }.forEach { (date, rowsForDay) ->
+            val totalSeconds = rowsForDay.sumOf { it.durationSeconds.coerceAtLeast(0L) }
+            val freeSeconds = rowsForDay.asSequence().filter { it.origin == FocusSessionOrigin.LIVRE }
+                .sumOf { it.durationSeconds.coerceAtLeast(0L) }
+            val totalMinutes = (totalSeconds / 60L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            val freeMinutes = (freeSeconds / 60L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            merge(date) {
+                it.copy(
+                    focusSessions = it.focusSessions + rowsForDay.size,
+                    focusMinutes = it.focusMinutes + totalMinutes,
+                    freeFocusMinutes = it.freeFocusMinutes + freeMinutes,
+                    minutes = it.minutes + totalMinutes,
+                )
+            }
+        }
         executions.forEach { execution -> merge(day(execution.completedAt)) { it.copy(planTasks = it.planTasks + 1, minutes = it.minutes + execution.actualMinutes) } }
         return rows.values.toList()
     }
@@ -402,6 +505,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun removeQueue(value: StudyQueueEntity) = launchCatching { repository.removeQueue(value) }
     fun completeQueue(value: StudyQueueEntity) = launchCatching { repository.completeQueue(value) }
     fun completeStudy(topicId: Long, startedAt: Long, notes: String = "") = launchCatching { repository.completeStudy(topicId, startedAt, notes) }
+    suspend fun completeStudyNow(topicId: Long, startedAt: Long, notes: String = "") = repository.completeStudy(topicId, startedAt, notes)
     fun postponeQueue(value: StudyQueueEntity, reason: String) = launchCatching { repository.postponeQueue(value, reason) }
     fun deleteError(id: Long) = launchCatching { repository.deleteError(id) }
     fun updateError(value: ErrorNotebookEntryEntity) = launchCatching { repository.updateError(value) }
@@ -425,10 +529,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val lastFocusMinutes = app.preferences.lastFocusMinutes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
     val lastFocusTaskId = app.preferences.lastFocusTaskId.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
 
-    fun startFocus(title: String, topicId: Long? = null, taskId: String? = null) = launchCatching {
-        FocusSessionManager.start(app, title.ifBlank { "Sessão de estudo" }, topicId, taskId)
+    fun startFocus(
+        title: String,
+        topicId: Long? = null,
+        taskId: String? = null,
+        subjectIds: Set<Long> = emptySet(),
+        origin: FocusSessionOrigin = when {
+            taskId != null -> FocusSessionOrigin.PLANO
+            topicId != null -> FocusSessionOrigin.MATERIA
+            else -> FocusSessionOrigin.LIVRE
+        },
+    ) = launchCatching {
+        FocusSessionManager.start(app, title.ifBlank { "Sessão de estudo" }, subjectIds, origin, topicId, taskId)
     }
-    /** Devolve os minutos medidos para quem encerrou — a tela usa isso para registrar a tarefa. */
+    /** Devolve os minutos medidos para quem encerrou, a tela usa isso para registrar a tarefa. */
     suspend fun stopFocus(): Int = FocusSessionManager.stop(app)
     fun clearLastFocus() = launchCatching { app.preferences.clearLastFocus() }
     fun setFocusDoNotDisturb(value: Boolean) = launchCatching { app.preferences.setFocusDoNotDisturb(value) }
@@ -457,14 +571,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Texto vindo de "Abrir com", "Compartilhar" ou da área de transferência: descobre o tipo e
-     * encaminha. Limpeza e detecção fazem parse de JSON — em respostas grandes de IA isso segurava
+     * encaminha. Limpeza e detecção fazem parse de JSON, em respostas grandes de IA isso segurava
      * a thread principal, então roda fora dela com o loading já na tela.
      */
-    fun openIncomingText(raw: String) = viewModelScope.launch {
+    fun openIncomingText(raw: String, targetCompetitionId: Long? = null) = viewModelScope.launch {
         _transfer.value = TransferState.Loading
         val text = withContext(Dispatchers.Default) { IncomingText.clean(raw) }
         when (withContext(Dispatchers.Default) { IncomingFileFormat.detect(text) }) {
-            IncomingFileFormat.ESTUDO -> previewEstudo(text)
+            IncomingFileFormat.ESTUDO -> previewEstudo(text, targetCompetitionId)
             IncomingFileFormat.PLANO -> { app.incomingFiles.publishPlan(text); _transfer.value = TransferState.Idle }
             IncomingFileFormat.BACKUP -> _transfer.value = TransferState.Error("Este é um backup completo. Para substituir os dados deste aparelho, use Mais › Restaurar backup.")
             null -> _transfer.value = TransferState.Error(
@@ -489,25 +603,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     suspend fun answer(question: QuestionWithOptions, selectedKey: String, sessionId: String? = null): Boolean = repository.answer(question, selectedKey, sessionId)
     suspend fun smartQuestions(count: Int): List<QuestionWithOptions> = repository.smartQuestions(count.coerceIn(1, 100))
-    fun saveQuestionSession(value: QuestionSessionEntity) = launchCatching { repository.saveQuestionSession(value) }
+    suspend fun saveQuestionSession(value: QuestionSessionEntity) = repository.saveQuestionSession(value)
     fun toggleQuestionFavorite(value: QuestionEntity) = launchCatching { repository.toggleQuestionFavorite(value) }
 
     fun inspectEstudo(text: String) = viewModelScope.launch { previewEstudo(text) }
 
-    private suspend fun previewEstudo(text: String) {
+    private suspend fun previewEstudo(text: String, targetCompetitionId: Long? = null) {
         _transfer.value = TransferState.Loading
         _transfer.value = try {
             withContext(Dispatchers.Default) {
                 val clean = IncomingText.clean(text)
-                TransferState.Preview(estudoService.preview(clean), clean)
+                TransferState.Preview(estudoService.preview(clean), clean, targetCompetitionId)
             }
         } catch (e: Exception) { TransferState.Error(e.message ?: "Não foi possível analisar o arquivo.") }
     }
 
-    fun confirmImport(raw: String, mode: ImportMode = ImportMode.SKIP, markAsStudied: Boolean = false) = viewModelScope.launch {
+    fun confirmImport(
+        raw: String,
+        mode: ImportMode = ImportMode.SKIP,
+        markAsStudied: Boolean = false,
+        targetCompetitionId: Long? = null,
+    ) = viewModelScope.launch {
         _transfer.value = TransferState.Loading
         _transfer.value = try {
-            val result = withContext(Dispatchers.Default) { estudoService.import(raw, mode) }
+            val result = withContext(Dispatchers.Default) { estudoService.import(raw, mode, targetCompetitionId) }
             if (markAsStudied) result.importedTopicIds.forEach { topicId -> repository.completeStudy(topicId, System.currentTimeMillis(), "Importado e marcado como estudado") }
             if (result.subjectsCreated + result.topicsCreated > 0) pendingContentTour = true
             TransferState.Success(

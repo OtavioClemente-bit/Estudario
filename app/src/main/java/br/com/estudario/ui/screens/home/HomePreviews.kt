@@ -18,7 +18,7 @@ import br.com.estudario.ui.theme.EstudarioTheme
 import java.time.LocalDate
 
 /**
- * Previews da Home sem ViewModel — dados falsos batendo nos mesmos modelos de apresentação que
+ * Previews da Home sem ViewModel, dados falsos batendo nos mesmos modelos de apresentação que
  * [br.com.estudario.ui.screens.HomeScreen] monta a partir do estado real. Cobrem os estados que
  * mais mudam a tela: rotina normal, dia concluído, sem plano, sem concurso, plano atrasado, edital
  * quase fechado, Dark Mode e fonte ampliada.
@@ -31,7 +31,7 @@ private fun HomePreviewScaffold(
     performance: PerformanceUi?,
     standing: StandingUi,
     nextUp: NextUpUi = NextUpUi(emptyList(), 0),
-    contest: ActiveContestUi? = ActiveContestUi("TRT 3ª Região", "Analista Judiciário — Tecnologia da Informação"),
+    contest: ActiveContestUi? = ActiveContestUi("TRT 3ª Região", "Analista Judiciário, Tecnologia da Informação"),
 ) {
     EstudarioTheme {
         Surface(color = MaterialTheme.colorScheme.background) {
@@ -60,7 +60,7 @@ private fun HomePreviewScaffold(
                     item { Spacer(Modifier.height(EstudarioSpacing.medium)) }
                     item {
                         Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
-                            NextUpStrip(nextUp, onOpenPlan = {})
+                            NextUpStrip(nextUp, onOpenPlan = {}, onOpenQueue = {})
                         }
                     }
                 }
@@ -130,7 +130,7 @@ private val fakeCoverage = SyllabusCoverageUi(
         SubjectCoverageUi("Direito Constitucional", 46, 62),
         SubjectCoverageUi("LÍNGUA PORTUGUESA (NÍVEL MÉDIO E SUPERIOR)", 28, 44),
         SubjectCoverageUi("Redes de Computadores", 22, 38),
-        SubjectCoverageUi("ANALISTA JUDICIÁRIO – ÁREA DE APOIO ESPECIALIZADO – TECNOLOGIA DA INFORMAÇÃO", 30, 34),
+        SubjectCoverageUi("ANALISTA JUDICIÁRIO: ÁREA DE APOIO ESPECIALIZADO: TECNOLOGIA DA INFORMAÇÃO", 30, 34),
         SubjectCoverageUi("Direito Administrativo", 16, 30),
     ),
     masteryPercent = 54,
@@ -157,12 +157,37 @@ private val fakeNextUp = NextUpUi(
     remainingToday = 3,
 )
 
-@Preview(name = "Home — rotina normal", showBackground = true, heightDp = 1180)
+private val fakeQueueNextUp = NextUpUi(
+    items = listOf(
+        StudyTaskUi("queue:2", 2L, "Direito Constitucional", "Controle de constitucionalidade", "Fila de estudos", "", "Abrir tópico", false),
+        StudyTaskUi("queue:3", 3L, "Direito Constitucional", "Direitos fundamentais", "Fila de estudos", "", "Abrir tópico", false),
+    ),
+    remainingToday = 2,
+    fromQueue = true,
+)
+
+@Preview(name = "Home, fila de estudos prioritária", showBackground = true, heightDp = 1180)
+@Composable
+private fun HomeQueuePriorityPreview() {
+    HomePreviewScaffold(
+        current = CurrentStudyUiState.Ready(
+            StudyTaskUi("queue:1", 1L, "Direito Constitucional", "Princípios fundamentais", "Fila de estudos", "", "Abrir tópico", false),
+            progressFraction = null,
+        ),
+        coverage = fakeCoverage,
+        pace = PaceUi.Comfortable(LocalDate.now().plusMonths(2), 24),
+        performance = fakePerformance,
+        standing = fakeStanding,
+        nextUp = fakeQueueNextUp,
+    )
+}
+
+@Preview(name = "Home, rotina normal", showBackground = true, heightDp = 1180)
 @Composable
 private fun HomeNormalPreview() {
     HomePreviewScaffold(
         current = CurrentStudyUiState.Ready(
-            fakeTask("Banco de Dados", "Normalização — 3ª Forma Normal", "Teoria", 25, "Continuar estudo"),
+            fakeTask("Banco de Dados", "Normalização, 3ª Forma Normal", "Teoria", 25, "Continuar estudo"),
             progressFraction = 0.4f,
         ),
         coverage = fakeCoverage,
@@ -173,7 +198,7 @@ private fun HomeNormalPreview() {
     )
 }
 
-@Preview(name = "Home — dia concluído", showBackground = true, heightDp = 1180)
+@Preview(name = "Home, dia concluído", showBackground = true, heightDp = 1180)
 @Composable
 private fun HomeDayCompletePreview() {
     HomePreviewScaffold(
@@ -185,7 +210,7 @@ private fun HomeDayCompletePreview() {
     )
 }
 
-@Preview(name = "Home — plano atrasado", showBackground = true, heightDp = 1180)
+@Preview(name = "Home, plano atrasado", showBackground = true, heightDp = 1180)
 @Composable
 private fun HomeBehindPreview() {
     HomePreviewScaffold(
@@ -201,7 +226,7 @@ private fun HomeBehindPreview() {
     )
 }
 
-@Preview(name = "Home — sem plano", showBackground = true, heightDp = 1180)
+@Preview(name = "Home, sem plano", showBackground = true, heightDp = 1180)
 @Composable
 private fun HomeNoPlanPreview() {
     HomePreviewScaffold(
@@ -214,7 +239,7 @@ private fun HomeNoPlanPreview() {
     )
 }
 
-@Preview(name = "Home — edital quase fechado", showBackground = true, heightDp = 1180)
+@Preview(name = "Home, edital quase fechado", showBackground = true, heightDp = 1180)
 @Composable
 private fun HomeAlmostDonePreview() {
     HomePreviewScaffold(
@@ -226,12 +251,12 @@ private fun HomeAlmostDonePreview() {
     )
 }
 
-@Preview(name = "Home — Dark Mode", showBackground = true, heightDp = 1180, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Home, Dark Mode", showBackground = true, heightDp = 1180, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun HomeDarkPreview() {
     HomePreviewScaffold(
         current = CurrentStudyUiState.Ready(
-            fakeTask("Banco de Dados", "Normalização — 3ª Forma Normal", "Teoria", 25, "Continuar estudo"),
+            fakeTask("Banco de Dados", "Normalização, 3ª Forma Normal", "Teoria", 25, "Continuar estudo"),
             progressFraction = 0.4f,
         ),
         coverage = fakeCoverage,
@@ -242,12 +267,12 @@ private fun HomeDarkPreview() {
     )
 }
 
-@Preview(name = "Home — fonte ampliada", showBackground = true, heightDp = 1400, fontScale = 1.6f)
+@Preview(name = "Home, fonte ampliada", showBackground = true, heightDp = 1400, fontScale = 1.6f)
 @Composable
 private fun HomeLargeFontPreview() {
     HomePreviewScaffold(
         current = CurrentStudyUiState.Ready(
-            fakeTask("Banco de Dados", "Normalização — 3ª Forma Normal", "Teoria", 25, "Continuar estudo"),
+            fakeTask("Banco de Dados", "Normalização, 3ª Forma Normal", "Teoria", 25, "Continuar estudo"),
             progressFraction = 0.4f,
         ),
         coverage = fakeCoverage,
@@ -257,7 +282,7 @@ private fun HomeLargeFontPreview() {
     )
 }
 
-@Preview(name = "Home — sem concurso", showBackground = true, heightDp = 700)
+@Preview(name = "Home, sem concurso", showBackground = true, heightDp = 700)
 @Composable
 private fun HomeNoContestPreview() {
     EstudarioTheme {
@@ -269,7 +294,7 @@ private fun HomeNoContestPreview() {
     }
 }
 
-@Preview(name = "Home — sem concurso (escuro)", showBackground = true, heightDp = 700, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Home, sem concurso (escuro)", showBackground = true, heightDp = 700, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun HomeNoContestDarkPreview() {
     EstudarioTheme {

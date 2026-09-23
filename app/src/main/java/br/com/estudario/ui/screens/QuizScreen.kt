@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.theme.screenPadding
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,7 +25,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import br.com.estudario.data.local.QuestionWithOptions
 import br.com.estudario.data.local.QuestionSessionEntity
+import br.com.estudario.data.planner.CompleteTaskInput
 import br.com.estudario.domain.SessionTypeMapper
+import br.com.estudario.domain.ProgressEngine
+import br.com.estudario.domain.planner.PlanTaskType
 import br.com.estudario.ui.AppViewModel
 import br.com.estudario.ui.components.EmptyState
 import br.com.estudario.ui.components.MarkdownText
@@ -34,7 +38,13 @@ import kotlinx.coroutines.delay
 import java.util.UUID
 
 @Composable
-fun QuizScreen(viewModel: AppViewModel, config: QuizConfig, onBack: () -> Unit, onOpenTopic: (Long) -> Unit) {
+fun QuizScreen(
+    viewModel: AppViewModel,
+    config: QuizConfig,
+    onBack: () -> Unit,
+    onOpenTopic: (Long) -> Unit,
+    onPlanTaskComplete: suspend (String, CompleteTaskInput) -> Unit = { _, _ -> },
+) {
     val allQuestions by viewModel.questions.collectAsState()
     val topics by viewModel.topics.collectAsState()
     val errors by viewModel.errors.collectAsState()
@@ -42,12 +52,15 @@ fun QuizScreen(viewModel: AppViewModel, config: QuizConfig, onBack: () -> Unit, 
     val showExplanation by viewModel.showExplanation.collectAsState()
     val scope = rememberCoroutineScope()
     // Tudo abaixo é rememberSaveable de propósito: abrir o resumo de um tópico empilha outra tela
-    // por cima do quiz e antes disso a sessão inteira se perdia — voltava na questão 1, sem as
+    // por cima do quiz e antes disso a sessão inteira se perdia, voltava na questão 1, sem as
     // respostas já dadas. Agora a sessão sobrevive a sair, voltar e até o app ser recriado.
     val sessionId = rememberSaveable { UUID.randomUUID().toString() }
     val startedAt = rememberSaveable { System.currentTimeMillis() }
     var elapsedSeconds by remember { mutableLongStateOf(0L) }
     var finished by rememberSaveable { mutableStateOf(false) }
+    var finishing by rememberSaveable { mutableStateOf(false) }
+    var finishError by rememberSaveable { mutableStateOf<String?>(null) }
+    var planTaskXp by rememberSaveable { mutableIntStateOf(-1) }
     var questionIdsText by rememberSaveable { mutableStateOf("") }
     val questionIds = remember(questionIdsText) { questionIdsText.split(",").mapNotNull(String::toLongOrNull) }
     val eligible = allQuestions.filter { item ->
@@ -92,8 +105,10 @@ fun QuizScreen(viewModel: AppViewModel, config: QuizConfig, onBack: () -> Unit, 
     val results = rememberSaveable(saver = resultsSaver) { mutableStateMapOf<Long, Boolean>() }
     var revisao by remember { mutableStateOf<QuestionWithOptions?>(null) }
     val simulation = config.mode == "simulation"
-    val finishSession = {
+    suspend fun finishSession() {
         val now = System.currentTimeMillis()
+        val correctCount = results.values.count { it }
+        val actualMinutes = ((now - startedAt) / 60_000L).toInt().coerceAtLeast(0)
         viewModel.saveQuestionSession(QuestionSessionEntity(
             id = sessionId,
             type = SessionTypeMapper.fromMode(config.mode, config.topicId, config.subjectId),
@@ -101,22 +116,49 @@ fun QuizScreen(viewModel: AppViewModel, config: QuizConfig, onBack: () -> Unit, 
             completedAt = now,
             durationSeconds = (now - startedAt) / 1_000,
             questionCount = sessionQuestions.size,
-            correctCount = results.values.count { it },
+            correctCount = correctCount,
             subjectIdsText = config.subjectId?.toString().orEmpty(),
             topicIdsText = config.topicId?.toString().orEmpty(),
         ))
+        config.planTaskId?.let { taskId ->
+            onPlanTaskComplete(
+                taskId,
+                CompleteTaskInput(
+                    startedAt = startedAt,
+                    completedAt = now,
+                    actualMinutes = actualMinutes,
+                    questions = sessionQuestions.size,
+                    correct = correctCount,
+                ),
+            )
+            planTaskXp = ProgressEngine.earnedPlanTask(PlanTaskType.QUESTIONS, actualMinutes, correctCount)
+        }
         finished = true
+    }
+    fun requestFinish(beforeSave: suspend () -> Unit = {}) {
+        if (finished || finishing) return
+        finishing = true
+        finishError = null
+        scope.launch {
+            runCatching {
+                beforeSave()
+                finishSession()
+            }.onFailure {
+                finishError = "Não foi possível salvar a sessão e concluir a bateria. Tente novamente."
+            }
+            finishing = false
+        }
     }
 
     if (sessionQuestions.isEmpty()) {
-        Column(Modifier.fillMaxSize().padding(20.dp)) {
+        Column(Modifier.fillMaxSize().padding(screenPadding())) {
             IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") }
             EmptyState("Nenhuma questão encontrada", "Ajuste os filtros ou importe mais conteúdo.", "Voltar", onBack)
         }
         return
     }
     if (finished) {
-        QuizResult(sessionQuestions, results, onBack)
+        QuizResult(sessionQuestions, results, planTaskXp.takeIf { it >= 0 }, config.planTaskId != null, onBack)
         return
     }
 
@@ -124,13 +166,14 @@ fun QuizScreen(viewModel: AppViewModel, config: QuizConfig, onBack: () -> Unit, 
     val selected = selections[current.question.id]
     val confirmed = results.containsKey(current.question.id)
     val correct = results[current.question.id]
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        finishError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) } }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Sair") }
                 Column(Modifier.weight(1f)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(if (simulation) "Simulado" else "Questão ${index + 1} de ${sessionQuestions.size}", fontWeight = FontWeight.Bold)
+                        Text(if (simulation) "Simulado" else "Questão ${index + 1} de ${sessionQuestions.size}", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).padding(end = 8.dp))
                         if (timerEnabled) Text("%02d:%02d".format(elapsedSeconds / 60, elapsedSeconds % 60), style = MaterialTheme.typography.labelLarge)
                     }
                     LinearProgressIndicator({ (index + 1f) / sessionQuestions.size }, Modifier.fillMaxWidth())
@@ -152,7 +195,7 @@ fun QuizScreen(viewModel: AppViewModel, config: QuizConfig, onBack: () -> Unit, 
         if (certoErrado) {
             item {
                 // Questão de banca tipo Cespe: dois botões largos, sem lista de alternativas.
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     current.options.sortedBy { it.key }.forEach { option ->
                         val reveal = confirmed && !simulation
                         val container = when {
@@ -162,7 +205,8 @@ fun QuizScreen(viewModel: AppViewModel, config: QuizConfig, onBack: () -> Unit, 
                             else -> MaterialTheme.colorScheme.surface
                         }
                         Surface(
-                            modifier = Modifier.weight(1f).height(72.dp).selectable(
+                            // Altura mínima em vez de fixa: com fonte maior o rótulo não é cortado.
+                            modifier = Modifier.weight(1f).fillMaxHeight().heightIn(min = 72.dp).selectable(
                                 selected = option.key == selected,
                                 enabled = !confirmed || simulation,
                             ) { selections[current.question.id] = option.key },
@@ -170,7 +214,7 @@ fun QuizScreen(viewModel: AppViewModel, config: QuizConfig, onBack: () -> Unit, 
                             color = container,
                             border = BorderStroke(if (option.key == selected) 2.dp else 1.dp, if (option.key == selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
                         ) {
-                            Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                            Column(Modifier.fillMaxSize().padding(vertical = 10.dp, horizontal = 8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                                 Icon(
                                     if (option.key.equals("C", true)) Icons.Outlined.CheckCircle else Icons.Outlined.Cancel,
                                     null,
@@ -236,7 +280,7 @@ fun QuizScreen(viewModel: AppViewModel, config: QuizConfig, onBack: () -> Unit, 
                         if (showExplanation) MarkdownText(current.question.explanation)
                         else Text("Explicação oculta pela sua configuração.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (correct == false) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 FilledTonalButton(onClick = { revisao = current }) { Text("Revisar este assunto") }
                                 TextButton(onClick = { onOpenTopic(current.question.topicId) }) { Text("Abrir tópico") }
                             }
@@ -251,16 +295,28 @@ fun QuizScreen(viewModel: AppViewModel, config: QuizConfig, onBack: () -> Unit, 
                     OutlinedButton(onClick = { if (index > 0) index-- }, enabled = index > 0, modifier = Modifier.weight(1f)) { Text("Anterior") }
                     if (index < sessionQuestions.lastIndex) Button(onClick = { index++ }, enabled = selected != null, modifier = Modifier.weight(1f)) { Text("Próxima") }
                     else Button(onClick = {
-                        scope.launch {
+                        requestFinish {
                             sessionQuestions.forEach { question -> selections[question.question.id]?.let { key -> results[question.question.id] = viewModel.answer(question, key, sessionId) } }
-                            finishSession()
                         }
-                    }, enabled = selections.size == sessionQuestions.size, modifier = Modifier.weight(1f)) { Text("Finalizar") }
+                    }, enabled = selections.size == sessionQuestions.size && !finishing, modifier = Modifier.weight(1f)) { Text(if (finishing) "Salvando…" else "Finalizar") }
                 }
             } else if (!confirmed) {
                 Button(onClick = { scope.launch { results[current.question.id] = viewModel.answer(current, selected!!, sessionId) } }, enabled = selected != null, modifier = Modifier.fillMaxWidth()) { Text("Confirmar resposta") }
             } else {
-                Button(onClick = { if (index < sessionQuestions.lastIndex) index++ else finishSession() }, Modifier.fillMaxWidth()) { Text(if (index < sessionQuestions.lastIndex) "Próxima questão" else "Ver resultado") }
+                Button(
+                    onClick = { if (index < sessionQuestions.lastIndex) index++ else requestFinish() },
+                    enabled = !finishing,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        when {
+                            finishing -> "Salvando…"
+                            index < sessionQuestions.lastIndex -> "Próxima questão"
+                            config.planTaskId != null -> "Concluir bateria do plano"
+                            else -> "Ver resultado"
+                        },
+                    )
+                }
             }
         }
     }
@@ -301,7 +357,13 @@ private val resultsSaver = Saver<SnapshotStateMap<Long, Boolean>, String>(
 )
 
 @Composable
-private fun QuizResult(questions: List<QuestionWithOptions>, results: SnapshotStateMap<Long, Boolean>, onBack: () -> Unit) {
+private fun QuizResult(
+    questions: List<QuestionWithOptions>,
+    results: SnapshotStateMap<Long, Boolean>,
+    planTaskXp: Int?,
+    isPlanTask: Boolean,
+    onBack: () -> Unit,
+) {
     val correct = results.values.count { it }
     val percent = if (questions.isEmpty()) 0 else correct * 100 / questions.size
     Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -315,7 +377,14 @@ private fun QuizResult(questions: List<QuestionWithOptions>, results: SnapshotSt
             br.com.estudario.domain.ProgressEngine.XpReward(questions.size + correct),
             earned = true,
         )
+        if (planTaskXp != null) {
+            Spacer(Modifier.height(8.dp))
+            Text("Bateria do plano concluída", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            br.com.estudario.ui.components.XpTag(ProgressEngine.XpReward(planTaskXp), earned = true)
+        }
         Spacer(Modifier.height(24.dp))
-        Button(onClick = onBack) { Text("Voltar ao treino") }
+        Button(onClick = onBack) {
+            Text(if (isPlanTask) "Voltar ao plano" else "Voltar ao treino")
+        }
     }
 }

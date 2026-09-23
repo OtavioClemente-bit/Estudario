@@ -10,6 +10,7 @@ import br.com.estudario.data.transfer.planner.PlanImportMode
 import br.com.estudario.data.transfer.planner.*
 import br.com.estudario.domain.planner.PlanPriority
 import br.com.estudario.domain.planner.ReplanReason
+import br.com.estudario.domain.planner.PlanTaskStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -63,6 +64,7 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private suspend fun load(planId: String, plans: List<br.com.estudario.data.local.planner.StudyPlanEntity>, section: PlanSection): ActivePlanUiState {
+        service.normalizeQuestionTaskEstimates(planId)
         val plan = repository.plan(planId) ?: return ActivePlanUiState(allPlans = plans, selectedSection = section)
         val availability = repository.availabilityOnce(planId)
         val mapped = StudyPlanUiMapper.map(
@@ -117,7 +119,44 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
     fun duplicate(id: String, name: String) = launch("Duplicando o plano") { service.duplicate(id, name) }
     fun generate() = _state.value.activePlan?.id?.let { id -> launch("Gerando as tarefas", "Montando a agenda a partir da sua disponibilidade…") { service.replan(id, ReplanReason.INITIAL) } }
     fun start(taskId: String) = launch { executions.start(taskId) }
+    suspend fun startQuestionTask(taskId: String): Int {
+        val task = repository.task(taskId) ?: error("A tarefa não está mais no plano ativo.")
+        require(task.type == br.com.estudario.domain.planner.PlanTaskType.QUESTIONS) { "Esta tarefa não é uma bateria de questões." }
+        val available = savedQuestionsForPlanTask(task, app.database.dao().questionsOnce(), app.database.dao().topicsOnce()).size
+        if (available == 0) return 0
+        when (task.status) {
+            PlanTaskStatus.PLANEJADA -> executions.start(taskId)
+            PlanTaskStatus.EM_ANDAMENTO -> Unit
+            else -> error("Esta bateria não está mais disponível para iniciar.")
+        }
+        return available.coerceAtMost(task.plannedQuestions.coerceAtLeast(1))
+    }
     fun complete(taskId: String, input: CompleteTaskInput) = launch("Registrando e reorganizando") { executions.complete(taskId, input); service.replan(_state.value.activePlan!!.id, ReplanReason.TASK_COMPLETED) }
+    suspend fun matchingPendingTask(topicId: Long, preferredTaskId: String? = null): PlannerTaskUi? {
+        val current = state.first { !it.loading }
+        val planId = current.activePlan?.id ?: return null
+        val candidates = current.tasks.filter { row ->
+            row.entity.planId == planId && row.entity.topicId == topicId &&
+                row.entity.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO)
+        }
+        return candidates.firstOrNull { it.entity.id == preferredTaskId }
+            ?: candidates.minByOrNull { it.entity.scheduledEpochDay }
+    }
+
+    suspend fun completeFromTopic(taskId: String, input: CompleteTaskInput) {
+        _state.value.tasks.firstOrNull { it.entity.id == taskId }
+            ?: error("A tarefa não está mais no plano ativo.")
+        executions.completeFromTopic(taskId, input)
+    }
+    suspend fun completeFromQuestionQuiz(taskId: String, input: CompleteTaskInput) {
+        val task = _state.value.tasks.firstOrNull { it.entity.id == taskId }?.entity
+            ?: repository.task(taskId)
+            ?: error("A tarefa não está mais no plano ativo.")
+        require(task.type == br.com.estudario.domain.planner.PlanTaskType.QUESTIONS) { "Esta tarefa não é uma bateria de questões." }
+        executions.completeFromQuestionQuiz(taskId, input)
+        service.replan(task.planId, ReplanReason.TASK_COMPLETED)
+    }
+    suspend fun replanAfterTopicCompletion(planId: String) = service.replan(planId, ReplanReason.TASK_COMPLETED)
     fun skip(taskId: String, reason: String) = launch("Reorganizando o plano") { executions.skip(taskId, reason); service.replan(_state.value.activePlan!!.id, ReplanReason.TASK_SKIPPED) }
     fun reprogram(taskId: String, date: LocalDate?) = launch("Reprogramando") { executions.reprogram(taskId, date) }
     fun toggleTaskLock(taskId: String, locked: Boolean) = launch { service.setTaskLocked(taskId, locked) }
@@ -176,7 +215,7 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
 
     /**
      * Toda ação do plano passa por aqui. Quando [busyTitle] é informado, a tela mostra o loading
-     * bloqueante do app enquanto a ação roda — nenhuma espera fica sem resposta visual.
+     * bloqueante do app enquanto a ação roda, nenhuma espera fica sem resposta visual.
      */
     private fun launch(busyTitle: String? = null, busyMessage: String? = null, block: suspend () -> Unit) = viewModelScope.launch {
         if (busyTitle != null) _busy.value = PlanBusyState(busyTitle, busyMessage)

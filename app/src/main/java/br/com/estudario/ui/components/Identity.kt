@@ -31,11 +31,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/** Azul da moldura do ícone do app — usado onde a marca aparece dentro da interface. */
-val AppMarkBackground = Color(0xFF071B45)
+/** Índigo do fundo do ícone do app (`ic_launcher_background`), usado onde a marca aparece dentro da interface. */
+val AppMarkBackground = Color(0xFF3326CE)
 
 /**
- * A marca do app: o livro com o certo verde, o mesmo desenho do ícone na tela inicial do celular.
+ * A marca do app: o livro aberto com as páginas desenhadas e a fita verde, o mesmo desenho do ícone
+ * na tela inicial do celular.
  * Aparece na comemoração da sequência e no perfil.
  */
 @Composable

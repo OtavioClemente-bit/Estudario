@@ -5,7 +5,7 @@ import br.com.estudario.domain.StreakSummary
 
 /**
  * Perfil local da pessoa. Quando o login com Google for ligado, ele apenas preenche estes mesmos
- * campos — nada mais no app precisa saber de onde o nome e a foto vieram.
+ * campos, nada mais no app precisa saber de onde o nome e a foto vieram.
  */
 data class UserProfile(
     val name: String = "",

@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, onBack: () -> Unit) {
+fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopBar: Boolean = true, onBack: () -> Unit) {
     val theories by viewModel.theories.collectAsState()
     val allMarks by viewModel.theoryMarks.collectAsState()
     val theory = theories.firstOrNull { it.id == theoryId }
@@ -57,7 +57,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, onBack: () -> Un
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Column { Text(theory.title, maxLines = 1); Text("${(progress * 100).toInt()}% lido • ${marks.size} marcação(ões)", style = MaterialTheme.typography.labelSmall) } },
+                    title = { Column { Text(theory.title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis); Text("${(progress * 100).toInt()}% lido • ${marks.size} marcação(ões)", style = MaterialTheme.typography.labelSmall) } },
                     navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") } },
                     actions = { IconButton(onClick = { textScale = (textScale - .1f).coerceAtLeast(.8f) }) { Text("A−", fontWeight = FontWeight.Bold) }; IconButton(onClick = { textScale = (textScale + .1f).coerceAtMost(1.5f) }) { Text("A+", fontWeight = FontWeight.Bold) } },
                 )
@@ -67,6 +67,17 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, onBack: () -> Un
         floatingActionButton = { ExtendedFloatingActionButton(onClick = { viewModel.updateTheoryProgress(theory, currentBlock) }, icon = { Icon(Icons.Outlined.BookmarkAdded, null) }, text = { Text(if (reachedEnd) "Leitura concluída" else "Salvar página") }) },
     ) { padding ->
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            if (!showInternalTopBar) item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(theory.title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        IconButton(onClick = { textScale = (textScale - .1f).coerceAtLeast(.8f) }) { Text("A−", fontWeight = FontWeight.Bold) }
+                        IconButton(onClick = { textScale = (textScale + .1f).coerceAtMost(1.5f) }) { Text("A+", fontWeight = FontWeight.Bold) }
+                    }
+                    Text("${(progress * 100).toInt()}% lido • ${marks.size} marcação(ões)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    LinearProgressIndicator({ progress.coerceIn(0f, 1f) }, Modifier.fillMaxWidth())
+                }
+            }
             blocks.forEachIndexed { index, block ->
                 item(key = index) {
                     val mark = marks.firstOrNull { it.blockIndex == index }

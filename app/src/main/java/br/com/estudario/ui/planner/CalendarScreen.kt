@@ -2,6 +2,7 @@ package br.com.estudario.ui.planner
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
@@ -13,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import br.com.estudario.ui.components.EmptyState
 import br.com.estudario.ui.components.MissionCard
+import br.com.estudario.ui.theme.estudarioLayout
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
@@ -29,9 +31,11 @@ fun CalendarScreen(
     onToggleLock: (String, Boolean) -> Unit,
     onToggleDayLock: (LocalDate, Boolean) -> Unit,
     onGenerate: () -> Unit,
+    /** Itens que abrem a lista e rolam junto com ela (resumo do plano, abas fixas). */
+    header: LazyListScope.() -> Unit = {},
 ) {
     // Os chips "Acompanhe seu plano" (Hoje/Semana/Mês/Visão geral) escolhem qual destas visões
-    // aparece — antes eles só destacavam o próprio chip e a tela sempre mostrava o dia selecionado.
+    // aparece, antes eles só destacavam o próprio chip e a tela sempre mostrava o dia selecionado.
     when (state.selectedSection) {
         PlanSection.TODAY -> DayPlanView(
             state = state,
@@ -40,10 +44,11 @@ fun CalendarScreen(
             onSkip = onSkip,
             onToggleDayLock = onToggleDayLock,
             onGenerate = onGenerate,
+            header = header,
         )
-        PlanSection.WEEK -> WeekPlanView(state = state, onFocus = onFocus, onGenerate = onGenerate)
-        PlanSection.MONTH -> MonthPlanView(state = state, onFocus = onFocus, onGenerate = onGenerate)
-        PlanSection.YEAR -> OverviewPlanView(state = state)
+        PlanSection.WEEK -> WeekPlanView(state = state, onFocus = onFocus, onGenerate = onGenerate, header = header)
+        PlanSection.MONTH -> MonthPlanView(state = state, onFocus = onFocus, onGenerate = onGenerate, header = header)
+        PlanSection.YEAR -> OverviewPlanView(state = state, header = header)
     }
 }
 
@@ -55,6 +60,7 @@ private fun DayPlanView(
     onSkip: (PlannerTaskUi) -> Unit,
     onToggleDayLock: (LocalDate, Boolean) -> Unit,
     onGenerate: () -> Unit,
+    header: LazyListScope.() -> Unit,
 ) {
     var selectedDate by remember { mutableStateOf(state.today) }
     
@@ -67,11 +73,7 @@ private fun DayPlanView(
 
     val taskDates = state.tasks.map { LocalDate.ofEpochDay(it.entity.scheduledEpochDay) }.toSet()
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+    PlanList(header) {
         // Calendário Interativo
         item {
             ElevatedCard(Modifier.fillMaxWidth()) {
@@ -87,14 +89,15 @@ private fun DayPlanView(
         // Header do dia e ações
         item {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
                     text = if (selectedDate == state.today) "Hoje" else "${selectedDate.dayOfMonth} de ${selectedDate.month.getDisplayName(TextStyle.FULL, Locale("pt", "BR"))}",
                     style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
                 )
                 
                 TextButton(
@@ -198,6 +201,7 @@ private fun WeekPlanView(
     state: ActivePlanUiState,
     onFocus: (PlannerTaskUi) -> Unit,
     onGenerate: () -> Unit,
+    header: LazyListScope.() -> Unit,
 ) {
     val weekStart = state.weekStart
     val weekEnd = weekStart.plusDays(6)
@@ -208,11 +212,7 @@ private fun WeekPlanView(
     val byDay = weekTasks.groupBy { LocalDate.ofEpochDay(it.entity.scheduledEpochDay) }
     val dayNames = listOf("Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo")
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
+    PlanList(header) {
         item {
             Text(
                 "Semana de ${weekStart.dayOfMonth} a ${weekEnd.dayOfMonth} de ${weekEnd.month.getDisplayName(TextStyle.FULL, Locale("pt", "BR")).replaceFirstChar { it.uppercase() }}",
@@ -253,6 +253,7 @@ private fun MonthPlanView(
     state: ActivePlanUiState,
     onFocus: (PlannerTaskUi) -> Unit,
     onGenerate: () -> Unit,
+    header: LazyListScope.() -> Unit,
 ) {
     val monthTasks = state.monthTasks
     val plannedMinutes = monthTasks.plannedLoadMinutes()
@@ -274,11 +275,7 @@ private fun MonthPlanView(
         .map { (name, tasks) -> name to tasks.sumOf { it.entity.plannedMinutes } }
         .sortedByDescending { it.second }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
+    PlanList(header) {
         item { Text("$monthLabel de ${state.today.year}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
         item { PlannerSummary(plannedMinutes = plannedMinutes, actualMinutes = actualMinutes, completionPercent = completionPercent, plannedLabel = "planejadas no mês", periodTitle = "Progresso do mês") }
         if (bySubject.isNotEmpty()) {
@@ -289,7 +286,7 @@ private fun MonthPlanView(
                         bySubject.forEach { (name, minutes) ->
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                                Text(minutesLabel(minutes), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                Text(minutesLabel(minutes), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.padding(start = 8.dp), overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                             }
                         }
                     }
@@ -310,7 +307,7 @@ private fun MonthPlanView(
 // ---------------------------------------------------------------- visão geral
 
 @Composable
-private fun OverviewPlanView(state: ActivePlanUiState) {
+private fun OverviewPlanView(state: ActivePlanUiState, header: LazyListScope.() -> Unit) {
     val currentTasks = state.tasks.plannedLoadTasks()
     val totalTasks = currentTasks.size
     val completedTasks = currentTasks.count { it.entity.status == br.com.estudario.domain.planner.PlanTaskStatus.CONCLUIDA }
@@ -318,11 +315,7 @@ private fun OverviewPlanView(state: ActivePlanUiState) {
     val plannedMinutes = state.totalPlannedMinutes
     val actualMinutes = state.tasks.sumOf { it.actualMinutes }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
+    PlanList(header) {
         item { Text("Visão geral do plano", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
         item {
             Text(
@@ -362,5 +355,23 @@ private fun OverviewPlanView(state: ActivePlanUiState) {
                 }
             }
         }
+    }
+}
+
+/**
+ * A lista de todas as visões do plano. O [header] entra primeiro e rola junto (antes o resumo e as
+ * abas ficavam presos acima da lista e, em celular com fonte normal, quase não sobrava tela para as
+ * tarefas). Margem lateral proporcional à largura do aparelho.
+ */
+@Composable
+private fun PlanList(header: LazyListScope.() -> Unit, content: LazyListScope.() -> Unit) {
+    val gutter = estudarioLayout().screenGutter
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = gutter, end = gutter, top = 8.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        header()
+        content()
     }
 }

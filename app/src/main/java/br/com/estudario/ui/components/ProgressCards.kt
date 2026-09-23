@@ -35,7 +35,7 @@ fun CoverageCard(
             
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Edital estudado", style = MaterialTheme.typography.bodyMedium)
+                    Text("Edital estudado", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f).padding(end = 8.dp))
                     Text("$coveragePercent%", fontWeight = FontWeight.Bold)
                 }
                 LinearProgressIndicator(
@@ -48,7 +48,7 @@ fun CoverageCard(
             
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Domínio médio", style = MaterialTheme.typography.bodyMedium)
+                    Text("Domínio médio", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f).padding(end = 8.dp))
                     Text("$masteryPercent%", fontWeight = FontWeight.Bold)
                 }
                 val masteryColor = when {
@@ -132,7 +132,7 @@ fun WeakTopicCard(
             Text(
                 text = topicName,
                 style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2
+                maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Domínio:", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

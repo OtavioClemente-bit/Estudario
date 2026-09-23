@@ -1,5 +1,7 @@
 package br.com.estudario.ui.components
 
+import br.com.estudario.ui.theme.EstudarioLayout
+import br.com.estudario.ui.theme.estudarioLayout
 import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -16,7 +18,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.font.FontFamily
@@ -27,14 +31,37 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalUriHandler
 import kotlinx.coroutines.delay
 
+/**
+ * Título de tela com ações opcionais à direita. Em tela estreita ou com fonte grande
+ * ([EstudarioLayout.prefersStacking]) as ações descem para uma linha própria, alinhadas à direita,
+ * para o título não ficar espremido, a menos que [stackActionsWhenNarrow] seja falso (telas em que o
+ * título é uma barra fixa e cada linha conta, como o Plano).
+ */
 @Composable
-fun ScreenTitle(title: String, subtitle: String? = null, action: (@Composable () -> Unit)? = null) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+fun ScreenTitle(
+    title: String,
+    subtitle: String? = null,
+    stackActionsWhenNarrow: Boolean = true,
+    action: (@Composable () -> Unit)? = null,
+) {
+    val texts: @Composable (Modifier) -> Unit = { modifier ->
+        Column(modifier) {
+            // Uma linha cada, com reticências: com fonte grande ou tela estreita o título dividia o
+            // espaço com os botões de ação e quebrava letra por letra, empurrando a tela para baixo.
+            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = if (action == null) 2 else 1, overflow = TextOverflow.Ellipsis)
         }
-        action?.invoke()
+    }
+    if (action != null && stackActionsWhenNarrow && estudarioLayout().prefersStacking) {
+        Column(Modifier.fillMaxWidth()) {
+            texts(Modifier.fillMaxWidth())
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { action() }
+        }
+    } else {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            texts(Modifier.weight(1f))
+            action?.invoke()
+        }
     }
 }
 
@@ -51,10 +78,10 @@ fun MetricCard(title: String, value: String, supporting: String, color: Color = 
 
 @Composable
 fun EmptyState(title: String, body: String, actionLabel: String? = null, onAction: (() -> Unit)? = null) {
-    Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Icon(Icons.Outlined.Inbox, null, Modifier.size(44.dp), tint = MaterialTheme.colorScheme.primary)
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+        Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
         if (actionLabel != null && onAction != null) Button(onClick = onAction) { Text(actionLabel) }
     }
 }

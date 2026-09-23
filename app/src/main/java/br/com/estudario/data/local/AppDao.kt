@@ -115,6 +115,11 @@ interface AppDao {
     @Insert suspend fun insertStudySession(value: StudySessionEntity)
     @Query("SELECT * FROM study_sessions ORDER BY completedAt DESC") suspend fun sessionsOnce(): List<StudySessionEntity>
     @Query("SELECT * FROM study_sessions ORDER BY completedAt DESC") fun sessions(): Flow<List<StudySessionEntity>>
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertFocusSessionIfAbsent(value: FocusSessionEntity): Long
+    @Query("SELECT * FROM focus_sessions ORDER BY completedAt DESC") fun focusSessions(): Flow<List<FocusSessionEntity>>
+    @Query("SELECT * FROM focus_sessions ORDER BY completedAt DESC") suspend fun focusSessionsOnce(): List<FocusSessionEntity>
+    @Query("DELETE FROM focus_sessions") suspend fun clearFocusSessions()
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun restoreFocusSessions(values: List<FocusSessionEntity>)
     @Insert suspend fun insertQueueEvent(value: QueueEventEntity): Long
     @Query("SELECT * FROM queue_events ORDER BY occurredAt DESC") fun queueEvents(): Flow<List<QueueEventEntity>>
     @Query("SELECT * FROM queue_events ORDER BY occurredAt DESC") suspend fun queueEventsOnce(): List<QueueEventEntity>
@@ -133,7 +138,7 @@ interface AppDao {
 
     @Query("DELETE FROM study_queue WHERE topicId IN (:topicIds)") suspend fun deleteQueueForTopics(topicIds: List<Long>)
     @Query("DELETE FROM review_history WHERE topicId IN (:topicIds)") suspend fun deleteReviewHistoryForTopics(topicIds: List<Long>)
-    /** Revisões ainda não feitas de um tópico — some ao desmarcar o tópico como estudado. */
+    /** Revisões ainda não feitas de um tópico, some ao desmarcar o tópico como estudado. */
     @Query("DELETE FROM review_schedule WHERE topicId = :topicId AND completedAt IS NULL AND ignoredAt IS NULL") suspend fun deletePendingReviews(topicId: Long)
     @Query("SELECT COUNT(*) FROM review_schedule WHERE topicId = :topicId AND completedAt IS NOT NULL") suspend fun completedReviewCount(topicId: Long): Int
     @Query("SELECT COUNT(*) FROM study_sessions WHERE topicId = :topicId") suspend fun studySessionCount(topicId: Long): Int

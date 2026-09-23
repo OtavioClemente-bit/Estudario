@@ -45,6 +45,9 @@ import br.com.estudario.ui.screens.home.HomeMetrics
 import br.com.estudario.ui.screens.home.HomeNoContestState
 import br.com.estudario.ui.screens.home.calculateHomeMetrics
 import br.com.estudario.ui.screens.home.HomeSectionLink
+import br.com.estudario.ui.screens.home.firstEligibleQueueTopic
+import br.com.estudario.ui.screens.home.queueTopicUi
+import br.com.estudario.ui.screens.home.currentHomeTask
 import br.com.estudario.ui.screens.home.JourneySnapshot
 import br.com.estudario.ui.screens.home.LevelRow
 import br.com.estudario.ui.screens.home.NextUpStrip
@@ -66,7 +69,7 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
 /**
- * O painel de evolução do concurso — não o planejamento, e não a agenda.
+ * O painel de evolução do concurso, não o planejamento, e não a agenda.
  *
  * A Home responde, em segundos: qual concurso estou estudando, o que faço agora, há quanto tempo
  * mantenho constância, quanto do edital já cobri, como está meu desempenho e quando devo terminar
@@ -75,15 +78,15 @@ import java.time.LocalDate
  *
  * Composição, de cima para baixo:
  *
- * 1. [HomeHeader]              — saudação discreta e o concurso ativo.
- * 2. [JourneySnapshot]          — onde a pessoa está no edital e na própria evolução.
- * 3. [CurrentStudySection]      — AGORA: a única coisa com peso máximo na tela.
- * 4. [NextUpStrip]              — a continuidade, sem esconder atividades.
- * 5. [SyllabusCoverage]         — o edital completo, matéria por matéria.
- * 6. [PaceForecast]             — quando o edital fecha, e o que isso significa perto da prova.
- * 7. [PerformanceAndStanding]   — acerto recente e constância, dois números escolhidos.
- * 8. [LevelRow]                 — nível e XP, discretos, fechando a evolução.
- * 9. [HomeAttention]            — revisões, erros e ponto frágil, no rodapé.
+ * 1. [HomeHeader], saudação discreta e o concurso ativo.
+ * 2. [JourneySnapshot], onde a pessoa está no edital e na própria evolução.
+ * 3. [CurrentStudySection], AGORA: a única coisa com peso máximo na tela.
+ * 4. [NextUpStrip], a continuidade, sem esconder atividades.
+ * 5. [SyllabusCoverage], o edital completo, matéria por matéria.
+ * 6. [PaceForecast], quando o edital fecha, e o que isso significa perto da prova.
+ * 7. [PerformanceAndStanding], acerto recente e constância, dois números escolhidos.
+ * 8. [LevelRow], nível e XP, discretos, fechando a evolução.
+ * 9. [HomeAttention], revisões, erros e ponto frágil, no rodapé.
  */
 @Composable
 fun HomeScreen(
@@ -96,6 +99,7 @@ fun HomeScreen(
     onProfile: () -> Unit = {},
     onSyllabus: () -> Unit = {},
     onPlan: () -> Unit = {},
+    onOpenQueue: () -> Unit = {},
     onFocus: () -> Unit = {},
     onStatistics: () -> Unit = {},
     onErrors: () -> Unit = {},
@@ -113,6 +117,7 @@ fun HomeScreen(
     val streak by viewModel.streak.collectAsState()
     val progress by viewModel.progress.collectAsState()
     val planState by planViewModel.state.collectAsState()
+    val queue by viewModel.queue.collectAsState()
     val tourStep by viewModel.tourStep.collectAsState()
 
     val competition = competitions.firstOrNull { it.isPrimary } ?: competitions.firstOrNull()
@@ -162,7 +167,22 @@ fun HomeScreen(
         }
 
         val focusTask = pickFocusTask(planState)
-        val currentStudy = currentStudyState(planState, focusTask)
+        val planCurrentStudy = currentStudyState(planState, focusTask)
+        val currentQueueItem = firstEligibleQueueTopic(queue)
+        val queueTask = currentQueueItem?.let { row ->
+            val subjectName = subjects.firstOrNull { it.id == row.topic.subjectId }?.name ?: "Matéria removida"
+            queueTopicUi(row, subjectName)
+        }
+        val selectedCurrentTask = currentHomeTask(
+            queueTask = queueTask,
+            planTask = (planCurrentStudy as? CurrentStudyUiState.Ready)?.task,
+        )
+        val currentStudy = when {
+            queueTask != null -> CurrentStudyUiState.Ready(task = queueTask, progressFraction = null)
+            selectedCurrentTask != null && planCurrentStudy is CurrentStudyUiState.Ready ->
+                planCurrentStudy.copy(task = selectedCurrentTask)
+            else -> planCurrentStudy
+        }
         val activePlan = planState.activePlan
 
         item {
@@ -194,7 +214,10 @@ fun HomeScreen(
                     state = currentStudy,
                     onPrimaryAction = {
                         when (currentStudy) {
-                            is CurrentStudyUiState.Ready -> startTask(viewModel, focusTask, onStudyTask, onFocus)
+                            is CurrentStudyUiState.Ready -> {
+                                if (queueTask != null) queueTask.topicId?.let(onTopic)
+                                else startTask(viewModel, focusTask, onStudyTask, onFocus)
+                            }
                             is CurrentStudyUiState.NoPlan -> onPlan()
                             else -> Unit
                         }
@@ -206,12 +229,23 @@ fun HomeScreen(
             }
         }
 
-        val nextUp = nextUpToday(planState, focusTask)
+        val nextUp = currentQueueItem?.let { selected ->
+            val remaining = queue.asSequence()
+                .filter { it.item.id != selected.item.id }
+                .filter { firstEligibleQueueTopic(listOf(it)) != null }
+                .sortedBy { it.item.position }
+                .map { row ->
+                    val subjectName = subjects.firstOrNull { it.id == row.topic.subjectId }?.name ?: "Matéria removida"
+                    queueTopicUi(row, subjectName)
+                }
+                .toList()
+            NextUpUi(items = remaining, remainingToday = remaining.size, fromQueue = true)
+        } ?: nextUpToday(planState, focusTask)
         if (nextUp.items.isNotEmpty()) {
             item { Spacer(Modifier.height(EstudarioSpacing.medium)) }
             item {
                 Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
-                    NextUpStrip(nextUp, onOpenPlan = onPlan)
+                    NextUpStrip(nextUp, onOpenPlan = onPlan, onOpenQueue = onOpenQueue)
                 }
             }
         }
@@ -318,7 +352,7 @@ private fun currentStudyState(planState: ActivePlanUiState, focusTask: PlannerTa
     return CurrentStudyUiState.Ready(task = focusTask.toStudyTaskUi(), progressFraction = progressFraction)
 }
 
-/** As próximas de hoje, sem a de agora — a aba Plano continua sendo o lugar do cronograma completo. */
+/** As próximas de hoje, sem a de agora, a aba Plano continua sendo o lugar do cronograma completo. */
 private fun nextUpToday(planState: ActivePlanUiState, focusTask: PlannerTaskUi?): NextUpUi {
     val pendentes = planState.todayTasks.filter {
         it.entity.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO) &&
@@ -347,7 +381,7 @@ private fun startTask(
     val current = task ?: return
     val topicId = current.entity.topicId
     if (topicId != null) {
-        // Leva para o tópico, onde a teoria e as questões estão de fato — o modo foco é uma etapa
+        // Leva para o tópico, onde a teoria e as questões estão de fato, o modo foco é uma etapa
         // de dentro do tópico, não o destino direto.
         onStudyTask(topicId, current.entity.id)
     } else {
@@ -394,7 +428,7 @@ private fun paceUi(planState: ActivePlanUiState): PaceUi {
 
 /**
  * Desempenho recente: as últimas [RECENT_WINDOW] respostas contra as [RECENT_WINDOW] anteriores.
- * Janela fixa em número de questões, não em dias — assim quem responde pouco não vê a taxa oscilar
+ * Janela fixa em número de questões, não em dias, assim quem responde pouco não vê a taxa oscilar
  * por causa de uma semana parada.
  */
 private const val RECENT_WINDOW = 50

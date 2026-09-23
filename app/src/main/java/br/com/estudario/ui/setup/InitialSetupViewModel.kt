@@ -19,9 +19,13 @@ import br.com.estudario.data.transfer.planner.StudyPlanCodec
 import br.com.estudario.data.transfer.planner.StudyPlanImportPreview
 import br.com.estudario.data.prompt.PromptIds
 import br.com.estudario.data.prompt.PlanSubjectInfo
+import br.com.estudario.domain.planner.InitialKnowledge
+import br.com.estudario.domain.planner.PersonalDifficulty
 import br.com.estudario.domain.planner.PlanPriority
 import br.com.estudario.domain.planner.ReplanReason
 import br.com.estudario.domain.planner.StudyMethodConfig
+import br.com.estudario.domain.planner.rotationWeight
+import br.com.estudario.domain.planner.toExamPriority
 import br.com.estudario.domain.setup.InitialSetupSnapshot
 import br.com.estudario.domain.setup.InitialSetupStatus
 import br.com.estudario.domain.setup.InitialSetupStep
@@ -35,7 +39,8 @@ import br.com.estudario.domain.setup.PlanCoverageTopic
 import br.com.estudario.domain.setup.PlanCoverageValidator
 import br.com.estudario.domain.setup.PlanCreationMethod
 import br.com.estudario.domain.setup.SyllabusMethod
-import br.com.estudario.domain.setup.SubjectDifficulty
+import br.com.estudario.domain.setup.SubjectVariety
+import br.com.estudario.domain.planner.ExamPriority
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -233,12 +238,38 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
         })
     }
     fun chooseProfile(value: br.com.estudario.domain.planner.StudyProfile) = update { it.copy(studyProfile = value) }
-    fun setSubjectDifficulty(subjectId: String, value: SubjectDifficulty) = update { current ->
+    // --- Os três eixos ------------------------------------------------------------------------
+    // Cada um tem seu próprio setter e seu próprio mapa. Não existe um caminho no código em que
+    // responder sobre dificuldade altere a prioridade da prova, ou vice-versa.
+
+    /** Eixo 1: a pessoa discorda do peso que o edital deu à matéria e corrige à mão. */
+    fun setSubjectPriority(subjectId: String, value: ExamPriority) = update { current ->
+        if (subjectId.isBlank()) current else current.copy(subjectPriorities = current.subjectPriorities + (subjectId to value))
+    }
+
+    /** Volta a matéria para a prioridade que veio do edital, removendo o ajuste manual. */
+    fun clearSubjectPriority(subjectId: String) = update { current ->
+        current.copy(subjectPriorities = current.subjectPriorities - subjectId)
+    }
+
+    /** Eixo 2: quanto a matéria custa para esta pessoa. */
+    fun setSubjectDifficulty(subjectId: String, value: PersonalDifficulty) = update { current ->
         if (subjectId.isBlank()) current else current.copy(subjectDifficulties = current.subjectDifficulties + (subjectId to value))
     }
+
+    /** Eixo 3: quanto ela já sabia ao começar. */
+    fun setSubjectKnowledge(subjectId: String, value: InitialKnowledge) = update { current ->
+        if (subjectId.isBlank()) current else current.copy(subjectKnowledge = current.subjectKnowledge + (subjectId to value))
+    }
+
+    fun chooseVariety(value: SubjectVariety) = update { it.copy(variety = value) }
+
     fun reconcileSubjectDifficulties(subjectIds: Set<String>) = update { current ->
-        val reconciled = current.subjectDifficultiesFor(subjectIds)
-        if (reconciled == current.subjectDifficulties) current else current.copy(subjectDifficulties = reconciled)
+        current.copy(
+            subjectDifficulties = current.subjectDifficultiesFor(subjectIds),
+            subjectKnowledge = current.subjectKnowledge.filterKeys { it in subjectIds },
+            subjectPriorities = current.subjectPriorities.filterKeys { it in subjectIds },
+        )
     }
     fun chooseSessionMinutes(value: Int) = update { it.copy(sessionMinutes = value.coerceIn(15, 180)) }
     fun choosePlanMethod(value: PlanCreationMethod) = update { it.copy(planMethod = value) }
@@ -249,9 +280,71 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
         current.copy(availabilityMinutes = values)
     }
 
-    fun advance(from: InitialSetupStep, to: InitialSetupStep) {
-        if (!InitialSetupTransitions.canAdvance(from, to)) return
-        update { it.copy(status = InitialSetupStatus.IN_PROGRESS, step = to) }
+    /**
+     * Volta a um passo já respondido, sem perder nada do que foi coletado.
+     *
+     * É o que permite ao resumo dizer "sua agenda está apertada" e oferecer o caminho de volta à
+     * disponibilidade: a pessoa ajusta a carga e o resumo se refaz com o número novo.
+     */
+    fun jumpTo(step: InitialSetupStep) = viewModelScope.launch {
+        app.preferences.updateInitialSetup { it.copy(status = InitialSetupStatus.IN_PROGRESS, step = step) }
+    }
+
+    fun advance(from: InitialSetupStep, to: InitialSetupStep) = viewModelScope.launch {
+        val current = app.preferences.initialSetup.first()
+        val subjectIds = current.competitionId?.let { id -> dao.subjectsFor(id).mapTo(hashSetOf()) { it.id.toString() } }.orEmpty()
+        app.preferences.updateInitialSetup {
+            if (it.step == from && InitialSetupTransitions.canAdvance(it, to, subjectIds)) {
+                it.copy(status = InitialSetupStatus.IN_PROGRESS, step = to)
+            } else it
+        }
+    }
+
+    fun addReviewSubject(name: String) = editSyllabus { competitionId ->
+        val clean = name.trim()
+        require(clean.isNotBlank()) { "Digite o nome da matéria." }
+        require(dao.subjectsFor(competitionId).none { it.name.equals(clean, true) }) { "Esta matéria já está no edital." }
+        repository.addSubject(competitionId, clean)
+    }
+
+    fun addReviewTopic(subjectId: Long, title: String) = editSyllabus { competitionId ->
+        require(dao.subjectsFor(competitionId).any { it.id == subjectId }) { "Esta matéria não está mais no edital." }
+        val clean = title.trim()
+        require(clean.isNotBlank()) { "Digite o nome do tópico." }
+        require(dao.topicsFor(subjectId).none { it.title.equals(clean, true) }) { "Este tópico já está na matéria." }
+        repository.addTopic(subjectId, clean)
+    }
+
+    fun removeReviewSubject(subject: SubjectEntity) = editSyllabus { competitionId ->
+        dao.subjectsFor(competitionId).firstOrNull { it.id == subject.id }?.let { repository.deleteSubject(it) }
+    }
+
+    fun removeReviewTopic(topic: TopicEntity) = editSyllabus { competitionId ->
+        if (dao.subjectsFor(competitionId).any { it.id == topic.subjectId }) {
+            dao.topic(topic.id)?.let { repository.deleteTopic(it) }
+        }
+    }
+
+    private fun editSyllabus(edit: suspend (Long) -> Unit) = viewModelScope.launch {
+        try {
+            val competitionId = ensureCompetition(app.preferences.initialSetup.first())
+            edit(competitionId)
+            val subjects = dao.subjectsFor(competitionId)
+            val topics = subjects.associate { subject -> subject.name to dao.topicsFor(subject.id).map { it.title } }
+            app.preferences.updateInitialSetup { current ->
+                val ids = subjects.mapTo(hashSetOf()) { it.id.toString() }
+                current.copy(
+                    subjectDifficulties = current.subjectDifficultiesFor(ids),
+                    subjectKnowledge = current.subjectKnowledge.filterKeys { it in ids },
+                    subjectPriorities = current.subjectPriorities.filterKeys { it in ids },
+                    // Mantém a edição ao voltar à entrada manual, sem recriar itens removidos.
+                    manualSubjects = if (current.syllabusMethod == SyllabusMethod.MANUAL) subjects.map { it.name } else current.manualSubjects,
+                    manualTopics = if (current.syllabusMethod == SyllabusMethod.MANUAL) topics else current.manualTopics,
+                )
+            }
+        } catch (error: Exception) {
+            _operation.value = SetupOperation.Error(error.message ?: "Não foi possível atualizar o edital.")
+        }
     }
 
     fun goBack() = viewModelScope.launch {
@@ -349,10 +442,13 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
     fun confirmEstudoImport(raw: String) = viewModelScope.launch {
         _operation.value = SetupOperation.Loading
         try {
+            val current = app.preferences.initialSetup.first()
+            val targetCompetitionId = current.competitionId ?: state.value.competition?.id
             val clean = withContext(Dispatchers.Default) { br.com.estudario.data.transfer.IncomingText.clean(raw) }
             val preview = withContext(Dispatchers.Default) { estudoService.preview(clean) }
-            withContext(Dispatchers.Default) { estudoService.import(clean, ImportMode.SKIP) }
-            val importedCompetition = dao.competitionsOnce().firstOrNull { it.name.equals(preview.competition, true) }
+            withContext(Dispatchers.Default) { estudoService.import(clean, ImportMode.SKIP, targetCompetitionId) }
+            val importedCompetition = targetCompetitionId?.let { id -> dao.competitionsOnce().firstOrNull { it.id == id } }
+                ?: dao.competitionsOnce().firstOrNull { it.name.equals(preview.competition, true) }
             importedCompetition?.let { repository.setPrimary(it.id) }
             app.preferences.updateInitialSetup {
                 it.copy(
@@ -406,7 +502,13 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
             require(exam == null || !exam.isBefore(LocalDate.now())) {
                 "A data da prova não pode ser anterior à data de início do plano."
             }
-            val method = StudyMethodConfig.forProfile(current.studyProfile).copy(blockMinutes = current.sessionMinutes)
+            // O método gravado no plano carrega o que o assistente coletou sobre ritmo: tamanho de
+            // bloco e preferência de variedade. Replanejar depois segue as mesmas regras.
+            val method = StudyMethodConfig.forProfile(current.studyProfile).copy(
+                blockMinutes = current.sessionMinutes,
+                interleaveSubjects = current.variety.interleave,
+                dailySubjectSharePercent = current.variety.dailySubjectSharePercent,
+            )
             val baseObjective = current.role.ifBlank { "Preparação para ${current.competitionName.ifBlank { "a prova" }}" }
             val objective = if (current.planPreference.isBlank()) baseObjective else "$baseObjective • Prioridade declarada: ${current.planPreference}"
             val existingPlan = current.lastValidPlanId?.let { id -> app.database.plannerDao().plan(id) }
@@ -421,7 +523,23 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
                         StudyAvailabilityEntity("pending", index + 1, minutes, unavailable = minutes <= 0, mode = AvailabilityMode.SIMPLE)
                     },
                     subjects = subjects.mapIndexed { index, subject ->
-                        PlanSubjectInput(subject.id, subject.name, planData.planningPrioritiesBySubjectId[subject.id] ?: PlanPriority.MEDIUM, 0, false, index, weight = 3)
+                        // Os três eixos chegam separados ao plano: a prova define a prioridade, a
+                        // pessoa define a dificuldade e o conhecimento prévio. Fundir qualquer par
+                        // deles aqui apagaria a informação que o Smart Planner usa para decidir.
+                        PlanSubjectInput(
+                            subjectId = subject.id,
+                            name = subject.name,
+                            priority = planData.officialPrioritiesBySubjectId[subject.id] ?: PlanPriority.MEDIUM,
+                            minimumMaintenanceMinutes = 0,
+                            paused = false,
+                            position = index,
+                            weight = (planData.officialPrioritiesBySubjectId[subject.id] ?: PlanPriority.MEDIUM)
+                                .toExamPriority().rotationWeight(),
+                            personalDifficulty = planData.difficultiesBySubjectId[subject.id]
+                                ?: PersonalDifficulty.NORMAL,
+                            initialKnowledge = planData.knowledgeBySubjectId[subject.id]
+                                ?: InitialKnowledge.NONE,
+                        )
                     },
                     active = true,
                     masterPlan = true,

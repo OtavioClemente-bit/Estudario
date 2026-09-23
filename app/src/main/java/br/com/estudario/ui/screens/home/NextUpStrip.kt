@@ -19,20 +19,25 @@ import br.com.estudario.ui.components.SubjectDot
 import br.com.estudario.ui.theme.EstudarioSpacing
 
 /**
- * O que vem depois de agora — em duas linhas, no máximo.
+ * O que vem depois de agora, em duas linhas, no máximo.
  *
  * A Home **não** mostra a agenda do dia nem a semana: isso é a aba Plano, e duplicar o cronograma
  * aqui foi exatamente o que deixava as duas telas redundantes. O que fica é só a continuidade: a
  * pessoa vê que existe um depois, sem precisar ler o depois inteiro.
  */
 @Composable
-fun NextUpStrip(nextUp: NextUpUi, onOpenPlan: () -> Unit, modifier: Modifier = Modifier) {
+fun NextUpStrip(
+    nextUp: NextUpUi,
+    onOpenPlan: () -> Unit,
+    modifier: Modifier = Modifier,
+    onOpenQueue: () -> Unit = onOpenPlan,
+) {
     if (nextUp.items.isEmpty()) return
     Column(
         modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(4.dp))
-            .clickable(onClick = onOpenPlan),
+            .clickable(onClick = if (nextUp.fromQueue) onOpenQueue else onOpenPlan),
         verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight),
     ) {
         Text(
@@ -63,11 +68,13 @@ fun NextUpStrip(nextUp: NextUpUi, onOpenPlan: () -> Unit, modifier: Modifier = M
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Text(
-                    task.durationLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (task.durationLabel.isNotBlank()) {
+                    Text(
+                        task.durationLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }

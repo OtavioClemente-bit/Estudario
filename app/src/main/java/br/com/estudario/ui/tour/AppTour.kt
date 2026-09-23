@@ -1,5 +1,8 @@
 package br.com.estudario.ui.tour
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -32,7 +35,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,7 +57,6 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
 
 /**
  * Guias passo a passo, separados por contexto. Cada guia aparece sozinho na primeira vez em que
@@ -82,7 +83,7 @@ fun helpGuideOptions(): List<HelpGuide> = listOf(HelpGuide.EDITAL, HelpGuide.MAT
 
 enum class TourKey {
     HOME_PROFILE, HOME_MISSION,
-    NAV_EDITAL, EDITAL_CREATE, EDITAL_AI, EDITAL_IMPORT, SUBJECT_AI,
+    NAV_MENU, NAV_EDITAL, EDITAL_CREATE, EDITAL_AI, EDITAL_IMPORT, SUBJECT_AI,
     PLAN_AI, PLAN_IMPORT, PLAN_CREATE, PLAN_TABS, PLAN_MANAGE,
     TRAIN_DAILY, TRAIN_MODES, TRAIN_START,
     MORE_REVIEWS, MORE_QUEUE, MORE_STATS, MORE_ERRORS, MORE_GUIDE,
@@ -93,55 +94,53 @@ data class TourStep(val route: String, val key: TourKey?, val title: String, val
 
 fun tourSteps(id: TourId): List<TourStep> = when (id) {
     TourId.EDITAL -> listOf(
-        TourStep("home", null, "Bem-vindo ao Estudário", "Vou te mostrar o caminho em três etapas: montar o edital, criar o plano e treinar. Use as setas para avançar — não precisa tocar em nada na tela."),
-        TourStep("home", TourKey.NAV_EDITAL, "1. Tudo começa pelo Edital", "Aqui ficam as matérias e os tópicos do seu concurso. Plano, revisões e questões partem dele."),
-        TourStep("syllabus", TourKey.EDITAL_CREATE, "Criar manualmente", "No + você cria o concurso e depois adiciona as matérias e os tópicos, se preferir digitar."),
-        TourStep("syllabus", TourKey.EDITAL_AI, "Ou peça para a IA montar", "No botão ✨ você escolhe as opções (cargo, banca, o que incluir), anexa o PDF do edital e compartilha direto com o ChatGPT, Gemini ou outro app de IA. Você não precisa escrever nem editar prompt.", TutorialVideo.EDITAL),
-        TourStep("syllabus", TourKey.EDITAL_IMPORT, "Traga a resposta de volta", "Quando a IA gerar o arquivo .estudo: abra o arquivo com o Estudário, compartilhe a resposta com o app ou toque aqui para escolher o arquivo. Também dá para copiar o texto e usar “Colar resposta da IA”."),
-        TourStep("syllabus", null, "A IA é para o conteúdo, não para o plano", "Edital, teoria e questões valem a pena pedir para a IA — é texto que alguém precisa escrever. O plano de estudos o app monta sozinho, offline, com regras que você confere na tela. Tudo aqui também pode ser digitado à mão pelo +."),
-        TourStep("syllabus", null, "Depois do edital", "Assim que o edital for importado, eu mostro como gerar o conteúdo do tópico que você vai estudar. Plano e Treinar têm seus próprios guias na primeira vez que você abrir essas abas."),
+        TourStep("home", null, "Bem-vindo ao Estudário", "Este guia apresenta três etapas da sua preparação: organizar o edital, criar o plano e treinar. Use as setas para avançar sem interagir com a tela principal."),
+        TourStep("home", TourKey.NAV_MENU, "Acesse todas as ferramentas", "Toque no nome do app para abrir o menu. Ali você encontra revisões, fila de estudos, desempenho, backup e os guias de orientação."),
+        TourStep("home", TourKey.NAV_EDITAL, "1. Comece pelo edital", "Aqui ficam as matérias e os tópicos do seu concurso. O plano, as revisões e as questões são organizados a partir desse conteúdo."),
+        TourStep("syllabus", TourKey.EDITAL_CREATE, "Crie seu edital manualmente", "Toque no botão + para criar o concurso e adicionar as matérias e os tópicos manualmente."),
+        TourStep("syllabus", TourKey.EDITAL_AI, "Peça ajuda à IA", "No botão ✨, selecione as opções, como cargo, banca e conteúdo, anexe o PDF do edital e compartilhe a solicitação com o ChatGPT, Gemini ou outra ferramenta de IA. Não é necessário escrever ou editar o prompt.", TutorialVideo.EDITAL),
+        TourStep("syllabus", TourKey.EDITAL_IMPORT, "Importe a resposta", "Quando a IA gerar o arquivo .estudo, abra-o com o Estudário, compartilhe a resposta com o app ou selecione o arquivo por aqui. Você também pode copiar o texto e usar a opção “Colar resposta da IA”."),
+        TourStep("syllabus", null, "A IA cria o conteúdo. O app organiza o plano.", "Use a IA para produzir edital, teoria e questões. O Estudário monta o plano de estudos automaticamente e funciona offline. Assim que o edital estiver pronto, você poderá gerar o conteúdo do primeiro tópico."),
     )
     TourId.CONTENT -> listOf(
-        TourStep("syllabus", null, "Edital importado!", "Recomendamos gerar teoria, resumos e questões de um tópico por vez. Pedidos com vários tópicos podem reduzir o detalhamento e trazer informações imprecisas ou sem fonte verificável. Confira o material antes de estudar."),
-        TourStep("syllabus", TourKey.SUBJECT_AI, "Gere o tópico de hoje", "Toque em ✨ na matéria e selecione o tópico que vai estudar. Escolha o que quer receber (teoria, resumo, questões…) e envie para a IA. Gerar um tópico por vez facilita a conferência das fontes e a revisão do resultado.", TutorialVideo.CONTENT),
-        TourStep("syllabus", TourKey.EDITAL_IMPORT, "Importe o conteúdo", "A IA devolve um .estudo: abra com o app, compartilhe o texto ou use este botão. Cada teoria e questão cai no tópico certo, sem duplicar."),
-        TourStep("syllabus", null, "Atalho no próprio tópico", "Dentro do tópico, o botão ✨ já abre o gerador com só aquele assunto selecionado. Use quando chegar a hora de estudá-lo; depois repita no próximo tópico."),
-        TourStep("syllabus", null, "Revisões espaçadas", "Ao marcar um tópico como estudado, o app agenda revisões (D+1, D+7 e D+30, ou o ciclo intensivo). Depois do D+30 a agenda não acaba: o tópico volta com intervalo maior a cada rodada, e mais cedo quando você sente dificuldade. Revisar no dia certo é o que fixa o conteúdo — elas aparecem no Início e em Mais › Revisões espaçadas."),
-        TourStep("syllabus", null, "Fila de estudos", "No menu ⋮ de cada tópico use “Adicionar à fila”. O próximo item da fila fica em destaque no Início até você concluir o bloco."),
+        TourStep("syllabus", null, "Edital importado", "Gere teoria, resumos e questões para um tópico por vez. Essa abordagem preserva o detalhamento e reduz o risco de informações imprecisas. Revise o material antes de estudar."),
+        TourStep("syllabus", TourKey.SUBJECT_AI, "Gere o tópico atual", "Toque em ✨ na matéria, escolha o tópico e selecione o conteúdo desejado, como teoria, resumo ou questões. Depois, envie a solicitação à IA.", TutorialVideo.CONTENT),
+        TourStep("syllabus", TourKey.EDITAL_IMPORT, "Importe o conteúdo", "A IA devolve um arquivo .estudo. Abra-o com o app, compartilhe o texto ou use este botão. Cada teoria e questão será associada ao tópico correto, sem duplicação."),
+        TourStep("syllabus", null, "Acesso rápido no tópico", "Dentro do tópico, o botão ✨ abre o gerador com o assunto já selecionado. Repita o processo para cada novo tópico."),
+        TourStep("syllabus", null, "Revisões espaçadas", "Ao marcar um tópico como estudado, o app agenda revisões em D+1, D+7 e D+30, ou segue o ciclo intensivo. Os intervalos aumentam com a consolidação e diminuem quando há dificuldade. As revisões aparecem no Início e em Mais, na seção Revisões espaçadas."),
+        TourStep("syllabus", null, "Fila de estudos", "No menu ⋮ de cada tópico, selecione “Adicionar à fila”. O próximo item ficará em destaque no Início até a conclusão do bloco."),
     )
     TourId.PLAN -> listOf(
-        TourStep("plan", null, "Dois caminhos, e os dois funcionam", "Só o edital precisa mesmo de IA. O plano tem duas portas: o app monta sozinho, com regras fixas, ou você pede para uma IA montar. Vou mostrar as duas — comece pela primeira."),
-        TourStep("plan", TourKey.PLAN_CREATE, "1. Montar aqui, sem IA", "Sete perguntas: em que ponto você está, data da prova, quanto tempo tem de verdade, tamanho do bloco, peso de cada matéria e suas metas. Antes de criar, o app mostra a prévia — horas por matéria, fases e a previsão de quando o edital acaba."),
-        TourStep("plan", null, "O que o app decide sozinho", "Revisão atrasada vem antes de conteúdo novo. Cada tópico entra como teoria e, na sequência, questões daquele tópico. As matérias entram em rodízio proporcional ao peso, nunca quatro horas seguidas da mesma. Tópico com acerto baixo volta como reforço. Simulado e discursiva caem no seu dia mais livre."),
-        TourStep("plan", null, "Ele se conserta sozinho", "Atrasou um dia? O que ficou para trás volta na frente no próximo replanejamento. Mudou suas horas ou o peso de uma matéria? O cronograma inteiro é refeito na hora, sem perder o histórico do que você já fez."),
-        TourStep("plan", TourKey.PLAN_AI, "2. Gerar com IA", "Use quando quiser um plano fora do padrão — uma banca específica, uma estratégia que você leu, um cronograma que alguém te passou. Em ✨ o app monta o pedido com o seu edital e as suas horas para você colar no ChatGPT, Gemini ou outro app."),
-        TourStep("plan", TourKey.PLAN_IMPORT, "Trazer o .plano de volta", "A IA devolve um arquivo .plano: abra com o Estudário, compartilhe a resposta com o app ou toque aqui para escolher o arquivo."),
-        TourStep("plan", TourKey.PLAN_TABS, "Hoje, semana, mês e ano", "Acompanhe as tarefas do dia, registre o que fez e veja as metas da semana, do mês e as fases da preparação. Em Hoje, “Por que este plano” mostra as regras que geraram as tarefas."),
-        TourStep("plan", TourKey.PLAN_MANAGE, "Gerenciar planos", "Troque o plano ativo, ajuste disponibilidade e pesos ou exporte o contexto para uma IA reavaliar o que você já fez."),
+        TourStep("plan", null, "Duas formas de criar seu plano", "Você pode montar o plano no próprio app, com regras definidas para sua rotina, ou solicitar uma versão personalizada a uma ferramenta de IA. As duas opções funcionam em conjunto."),
+        TourStep("plan", TourKey.PLAN_CREATE, "1. Monte o plano no app", "Informe sua etapa atual, a data da prova, o tempo disponível, a duração dos blocos, o peso de cada matéria e suas metas. Antes de criar, o app mostra uma prévia das horas por matéria, das fases e da previsão de conclusão do edital."),
+        TourStep("plan", null, "Como o app organiza o estudo", "Revisões atrasadas vêm antes de conteúdo novo. As matérias se alternam conforme o peso definido, e os tópicos com mais erros retornam como reforço."),
+        TourStep("plan", null, "Ajustes automáticos", "Quando uma atividade atrasa, ela entra no próximo replanejamento. Se você alterar o tempo disponível ou o peso de uma matéria, o cronograma é atualizado sem perder o histórico já realizado."),
+        TourStep("plan", TourKey.PLAN_AI, "2. Gere um plano com IA", "Use esta opção para estratégias específicas, como uma banca ou um cronograma personalizado. Em ✨, o app prepara a solicitação com seu edital e seu tempo disponível para você enviar ao ChatGPT, Gemini ou outra ferramenta."),
+        TourStep("plan", TourKey.PLAN_IMPORT, "Importe o arquivo .plano", "A IA devolve um arquivo .plano. Abra-o com o Estudário, compartilhe a resposta com o app ou selecione o arquivo por aqui."),
+        TourStep("plan", TourKey.PLAN_TABS, "Acompanhe hoje, semana, mês e ano", "Acompanhe as tarefas do dia, registre o que realizou e consulte as metas da semana, do mês e das fases da preparação. Em Hoje, “Por que este plano” explica as regras usadas pelo cronograma."),
+        TourStep("plan", TourKey.PLAN_MANAGE, "Gerencie seus planos", "Troque o plano ativo, ajuste sua disponibilidade e os pesos das matérias, ou exporte o contexto para uma IA revisar o que já foi realizado."),
     )
     TourId.TRAIN -> listOf(
-        TourStep("train", null, "Hora de treinar", "As questões vêm dos conteúdos que você importa. Cada resposta alimenta o domínio de cada tópico e o seu desempenho."),
-        TourStep("train", TourKey.TRAIN_DAILY, "Desafio do dia", "10 questões escolhidas entre erros recorrentes, revisões atrasadas e tópicos com menor domínio."),
-        TourStep("train", TourKey.TRAIN_MODES, "Escolha o modo", "O treino inteligente prioriza o que você mais precisa. Também dá para treinar só as erradas, as favoritas ou fazer um simulado."),
-        TourStep("train", TourKey.TRAIN_START, "Monte a sessão", "Filtre por matéria, tópico, banca e dificuldade, defina a quantidade e comece."),
-        TourStep("train", null, "Caderno de erros", "Toda questão errada vai para o Caderno de erros (em Mais) e volta sozinha: 3 dias depois do erro, 10 dias se você acertar, 30 no acerto seguinte. Errou de novo, ela recomeça em 3 dias."),
+        TourStep("train", null, "Hora de treinar", "As questões são baseadas nos conteúdos importados. Cada resposta atualiza o domínio do tópico e os indicadores de desempenho."),
+        TourStep("train", TourKey.TRAIN_DAILY, "Desafio do dia", "São dez questões selecionadas entre erros recorrentes, revisões atrasadas e tópicos com menor domínio."),
+        TourStep("train", TourKey.TRAIN_MODES, "Escolha o modo de treino", "O treino inteligente prioriza o que merece mais atenção. Você também pode revisar apenas as questões erradas, suas favoritas ou iniciar um simulado."),
+        TourStep("train", TourKey.TRAIN_START, "Configure a sessão", "Filtre por matéria, tópico, banca e dificuldade, defina a quantidade de questões e comece."),
+        TourStep("train", null, "Caderno de erros", "Toda questão errada vai para o Caderno de erros e retorna automaticamente. Ela volta três dias após o erro, dez dias após um acerto e trinta dias após o acerto seguinte. Um novo erro reinicia o ciclo."),
     )
     TourId.PROFILE -> listOf(
-        TourStep("home", TourKey.HOME_PROFILE, "Este canto é seu", "Sua foto, seu nome e, ao lado, a sequência de dias, o nível e o XP de hoje. Toque em qualquer um deles para abrir o perfil."),
-        TourStep("home", TourKey.HOME_MISSION, "A missão de hoje", "O anel mostra o quanto falta para fechar a meta do dia. Embaixo aparece quanto XP as atividades de hoje ainda valem — o que está na mesa esperando você."),
-        TourStep("home", null, "Como o XP funciona", "Cada coisa que você conclui rende XP, e o app avisa quanto vale antes de você fazer. Tarefa do plano rende mais que questão avulsa, de propósito: seguir o cronograma é o que leva à aprovação. Simulado e discursiva são as que mais pagam."),
-        TourStep("home", null, "O XP não se perde", "Ele é recalculado do seu histórico, não fica guardado num contador. Trocou de aparelho e restaurou o backup? O nível volta igualzinho. E questão avulsa tem teto diário, então não adianta moer o banco de questões para subir de nível."),
-        TourStep("home", null, "Sequência e meta do dia", "O dia entra na sequência quando você bate a meta: X questões, OU uma tarefa do plano, OU uma revisão. Você escolhe o X no perfil. Ao fechar a meta pela primeira vez no dia, aparece a tela de comemoração."),
-        TourStep("home", null, "Emblemas", "São 44, em onze categorias: sequência, metas, questões, pontaria, tópicos, edital, plano, revisões, simulados, discursivas e maratona. Cada um tem faixas de bronze a esmeralda. No perfil você vê os conquistados e, nos que faltam, exatamente quanto falta."),
-        TourStep("home", TourKey.HOME_PROFILE, "Tudo fica no perfil", "Toque na sua foto para ver nível, quadro de recompensas, mapa de frequência estilo GitHub, emblemas, meta do dia e backup."),
+        TourStep("home", TourKey.HOME_PROFILE, "Seu espaço pessoal", "Veja sua foto, seu nome, a sequência de dias, o nível e o XP do dia. Toque nesses elementos para abrir o perfil."),
+        TourStep("home", TourKey.HOME_MISSION, "A missão de hoje", "O anel mostra quanto falta para atingir a meta do dia. Abaixo, você acompanha o XP que ainda pode conquistar."),
+        TourStep("home", null, "Sequência e XP", "Cada tarefa concluída gera XP. As atividades do plano têm um peso maior que as questões avulsas. O dia entra na sequência quando você atinge a meta definida no perfil."),
+        TourStep("home", null, "Emblemas", "São 44 emblemas, do bronze ao esmeralda. No perfil, você acompanha as conquistas obtidas e o progresso necessário para desbloquear as próximas."),
+        TourStep("home", TourKey.HOME_PROFILE, "Tudo no perfil", "Toque na sua foto para consultar nível, recompensas, frequência de estudos, emblemas, meta diária e backup."),
     )
     TourId.MORE -> listOf(
-        TourStep("more", TourKey.MORE_REVIEWS, "Revisões espaçadas", "Revisões do dia e atrasadas de cada tópico estudado. Faça a revisão, diga se foi fácil ou difícil e o app ajusta a próxima data."),
-        TourStep("more", TourKey.MORE_QUEUE, "Fila de estudos", "A ordem dos próximos tópicos: reorganize, pause, adie ou conclua blocos."),
-        TourStep("more", TourKey.MORE_STATS, "Desempenho", "Acertos por matéria, evolução, pontos fortes e assuntos que pedem revisão."),
-        TourStep("more", TourKey.MORE_ERRORS, "Caderno de erros", "Questões que você errou, com status (novo, revisando, corrigido, recorrente), os conceitos que causam o erro e o dia em que cada questão volta para você refazer."),
-        TourStep("more", null, "Modo foco", "Uma sessão de estudo cronometrada, sem ciclo forçado e sem alarme: o app liga o Não Perturbe do Android, segura a tela acesa e mede o tempo real. Você encerra quando quiser, pela tela ou pela notificação, e o telefone volta ao normal na hora. Comece pela tarefa do plano, por um tópico, ou faça uma sessão livre para estudar no livro."),
-        TourStep("more", TourKey.MORE_GUIDE, "Rever os guias", "Quando quiser, repita qualquer guia por aqui."),
+        TourStep("more", TourKey.MORE_REVIEWS, "Revisões espaçadas", "Consulte as revisões do dia e as que estão atrasadas. Informe se o conteúdo foi fácil ou difícil, e o app ajustará a próxima data."),
+        TourStep("more", TourKey.MORE_QUEUE, "Fila de estudos", "Consulte os próximos tópicos e reorganize, pause, adie ou conclua os blocos conforme sua rotina."),
+        TourStep("more", TourKey.MORE_STATS, "Desempenho", "Acompanhe acertos por matéria, evolução, pontos fortes e assuntos que precisam de revisão."),
+        TourStep("more", TourKey.MORE_ERRORS, "Caderno de erros", "Revise as questões erradas, os conceitos relacionados e a data prevista para cada nova tentativa."),
+        TourStep("more", null, "Modo foco", "Inicie uma sessão cronometrada e sem interrupções. O app ativa o Não Perturbe, mantém a tela acesa e registra o tempo real de estudo. Encerre pela tela ou pela notificação."),
+        TourStep("more", TourKey.MORE_GUIDE, "Consulte os guias", "Quando precisar, repita qualquer guia nesta seção."),
     )
 }
 
@@ -177,12 +176,9 @@ fun TourOverlay(
     if (tour == null || step == null) return
     val density = LocalDensity.current
     var overlayOrigin by remember { mutableStateOf(Offset.Zero) }
-    // Se o alvo não aparecer (lista vazia, item fora da tela), o cartão aparece centralizado mesmo assim.
-    var waitedForTarget by remember(tour, stepIndex) { mutableStateOf(step.key == null) }
-    LaunchedEffect(tour, stepIndex) { if (step.key != null) { delay(650); waitedForTarget = true } }
-    // Enquanto o cartão ainda não tem o que mostrar, o guia não desenha nem bloqueia a tela: antes
-    // dava para ficar alguns instantes com tudo travado sem nenhum cartão visível.
-    if (step.key != null && bounds == null && !waitedForTarget) return
+    // A rolagem até o alvo pode levar alguns frames. O cartão permanece aberto e centralizado nesse
+    // intervalo; assim o passo não some e reaparece enquanto a lista de Treinar se movimenta.
+    // Quando a posição chega, o mesmo cartão ganha o recorte no alvo sem interromper o guia.
 
     val paddingPx = with(density) { 8.dp.toPx() }
     val hole = if (step.key != null && bounds != null) Rect(
@@ -197,7 +193,7 @@ fun TourOverlay(
         Modifier
             .fillMaxSize()
             .onGloballyPositioned { overlayOrigin = it.positionInWindow() }
-            // Durante o guia os toques ficam só no cartão — mas tocar na área escura fecha o guia.
+            // Durante o guia os toques ficam só no cartão, mas tocar na área escura fecha o guia.
             // Sem essa saída, quem não visse o botão "Pular" ficava preso achando que travou.
             .pointerInput(onSkip) { detectTapGestures { onSkip() } },
     ) {
@@ -227,13 +223,16 @@ fun TourOverlay(
                 .systemBarsPadding()
                 .padding(horizontal = 20.dp, vertical = 28.dp)
                 .widthIn(max = 440.dp)
+                // Com fonte grande o cartão crescia até cobrir o botão que ele explica: agora ocupa no
+                // máximo ~58% da altura e o texto rola dentro dele.
+                .heightIn(max = maxHeight * 0.58f)
                 // O cartão não é área escura: tocar nele não fecha o guia sem querer.
                 .pointerInput(Unit) { detectTapGestures { } },
             shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
         ) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(tour.title.uppercase(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
                     TextButton(onClick = onSkip) { Text("Pular guia") }

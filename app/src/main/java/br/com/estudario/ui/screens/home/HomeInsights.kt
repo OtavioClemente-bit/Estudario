@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import br.com.estudario.ui.planner.forecastDateLabelPtBr
 import br.com.estudario.ui.theme.EstudarioMotion
@@ -29,7 +32,7 @@ import br.com.estudario.ui.theme.EstudarioSpacing
 import br.com.estudario.ui.theme.estudarioColors
 
 /**
- * A previsão de conclusão — a informação que só um app com plano de estudos consegue dar.
+ * A previsão de conclusão, a informação que só um app com plano de estudos consegue dar.
  *
  * A data vem do planejador; a leitura do ritmo vem de `StudyPaceEvaluator`, no domínio. Aqui só se
  * decide como falar: uma frase curta, sem alarme e sem culpa, e um caminho para ajustar o plano
@@ -44,7 +47,7 @@ fun PaceForecast(pace: PaceUi, onOpenPlan: () -> Unit, modifier: Modifier = Modi
         is PaceUi.Comfortable -> PaceCopy(
             colors.completed,
             "Bom ritmo.",
-            "Nesse ritmo, o edital fecha ${pace.daysBeforeExam} dias antes da prova — em ${forecastDateLabelPtBr(pace.forecast)}.",
+            "Nesse ritmo, o edital fecha ${pace.daysBeforeExam} dias antes da prova, em ${forecastDateLabelPtBr(pace.forecast)}.",
         )
         is PaceUi.Tight -> PaceCopy(
             colors.attention,
@@ -76,18 +79,20 @@ fun PaceForecast(pace: PaceUi, onOpenPlan: () -> Unit, modifier: Modifier = Modi
     Row(
         modifier
             .fillMaxWidth()
+            .height(IntrinsicSize.Min)
             .clip(RoundedCornerShape(4.dp))
             .clickable(onClick = onOpenPlan),
         horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small),
     ) {
+        // O marcador acompanha a altura do texto (antes era fixo em 52dp e ficava curto com fonte maior).
         Box(
             Modifier
                 .width(3.dp)
-                .height(52.dp)
+                .fillMaxHeight()
                 .clip(RoundedCornerShape(50))
                 .background(copy.marker),
         )
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 "Previsão",
                 style = MaterialTheme.typography.labelSmall,
@@ -101,7 +106,7 @@ fun PaceForecast(pace: PaceUi, onOpenPlan: () -> Unit, modifier: Modifier = Modi
 
 /**
  * Desempenho e constância lado a lado: o que as questões dizem, e o que a rotina diz. Dois números
- * escolhidos — não um painel de indicadores.
+ * escolhidos, não um painel de indicadores.
  */
 @Composable
 fun PerformanceAndStanding(
@@ -199,7 +204,7 @@ private fun AccuracyDelta(delta: Int) {
 
 /**
  * O nível do Estudário: uma linha, no fim da tela, com a barra do próximo nível. Discreto de
- * propósito — é evolução dentro do app, não um troféu disputando espaço com o edital.
+ * propósito, é evolução dentro do app, não um troféu disputando espaço com o edital.
  */
 @Composable
 fun LevelRow(standing: StandingUi, onOpenProfile: () -> Unit, modifier: Modifier = Modifier) {
@@ -226,8 +231,11 @@ fun LevelRow(standing: StandingUi, onOpenProfile: () -> Unit, modifier: Modifier
                 standing.levelTitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.width(EstudarioSpacing.tight))
             Text(
                 "${standing.xpIntoLevel} / ${standing.xpForNextLevel} XP",
                 style = MaterialTheme.typography.labelLarge,
@@ -257,7 +265,7 @@ fun LevelRow(standing: StandingUi, onOpenProfile: () -> Unit, modifier: Modifier
     }
 }
 
-/** Divisor da Home: fino, curto e sem peso — separa bandas de informação sem virar moldura. */
+/** Divisor da Home: fino, curto e sem peso, separa bandas de informação sem virar moldura. */
 @Composable
 fun HomeDivider(modifier: Modifier = Modifier) {
     Box(

@@ -1,5 +1,6 @@
 package br.com.estudario.ui.setup
 
+import br.com.estudario.ui.theme.estudarioLayout
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -50,6 +52,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -59,7 +63,10 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -79,8 +86,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import br.com.estudario.data.local.CompetitionEntity
 import br.com.estudario.data.prompt.EditalPromptBuilder
@@ -90,7 +96,7 @@ import br.com.estudario.data.prompt.PlanPromptOptions
 import br.com.estudario.data.prompt.PlanSubjectInfo
 import br.com.estudario.data.prompt.PromptIds
 import br.com.estudario.domain.planner.StudyProfile
-import br.com.estudario.domain.setup.SubjectDifficulty
+import br.com.estudario.domain.setup.SubjectVariety
 import br.com.estudario.domain.setup.InitialSetupSnapshot
 import br.com.estudario.domain.setup.PlanCoverageResult
 import br.com.estudario.domain.setup.InitialSetupStatus
@@ -101,20 +107,36 @@ import br.com.estudario.domain.setup.formatAvailabilityMinutes
 import br.com.estudario.ui.AppViewModel
 import br.com.estudario.ui.TransferState
 import br.com.estudario.ui.prompt.sharePromptWithAi
+import br.com.estudario.ui.prompt.AttachmentPicker
+import br.com.estudario.ui.prompt.PromptAttachment
+import br.com.estudario.ui.prompt.attachmentFor
 import br.com.estudario.ui.components.LoadingDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
+/**
+ * Os passos visíveis na barra de progresso, na ordem da conversa.
+ *
+ * Primeiro o concurso e o edital; depois o peso das matérias na prova; depois como a pessoa está
+ * em cada uma; depois a rotina; e só então o resumo antes de montar. É a mesma ordem de
+ * [InitialSetupTransitions].
+ */
 private val visibleSteps = listOf(
     InitialSetupStep.COMPETITION,
     InitialSetupStep.EXAM_DATE,
     InitialSetupStep.SYLLABUS_METHOD,
     InitialSetupStep.SYLLABUS_REVIEW,
-    InitialSetupStep.PROFILE,
-    InitialSetupStep.AVAILABILITY,
+    InitialSetupStep.SUBJECT_PRIORITY,
     InitialSetupStep.SUBJECT_DIFFICULTY,
+    InitialSetupStep.AVAILABILITY,
+    InitialSetupStep.PROFILE,
+    InitialSetupStep.PLAN_SUMMARY,
     InitialSetupStep.PLAN_METHOD,
     InitialSetupStep.PLAN_REVIEW,
 )
@@ -154,6 +176,16 @@ fun InitialSetupFlow(
             }
             else -> Unit
         }
+    }
+
+    // Anexo do edital (PDF): escolhido já no passo do nome do concurso, para ir junto quando a
+    // pessoa enviar o prompt pra IA. Fica aqui em cima (e não dentro do passo) porque cada passo
+    // sai de composição ao avançar — sem isso, o anexo se perderia entre um passo e outro. Muitas
+    // IAs gratuitas só respondem direito com o PDF em mãos; sem ele, dependem de pesquisar na
+    // internet, o que nem sempre funciona nos planos grátis.
+    var editalAttachment by remember { mutableStateOf<PromptAttachment?>(null) }
+    val editalAttach = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { editalAttachment = context.attachmentFor(it) }
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -211,15 +243,56 @@ fun InitialSetupFlow(
             ) { step ->
                 when (step) {
                     InitialSetupStep.INTRO -> IntroStep(onContinue = { viewModel.advance(step, InitialSetupStep.COMPETITION) })
-                    InitialSetupStep.COMPETITION -> CompetitionStep(snapshot, uiState.competition, uiState.competitions, viewModel)
+                    InitialSetupStep.COMPETITION -> CompetitionStep(
+                        snapshot, uiState.competition, uiState.competitions, viewModel,
+                        editalAttachment = editalAttachment,
+                        onPickEditalAttachment = { editalAttach.launch(arrayOf("application/pdf", "image/*", "text/plain")) },
+                        onClearEditalAttachment = { editalAttachment = null },
+                    )
                     InitialSetupStep.EXAM_DATE -> ExamDateStep(snapshot, viewModel)
-                    InitialSetupStep.SYLLABUS_METHOD -> SyllabusMethodStep(snapshot, operation, viewModel, picker)
-                    InitialSetupStep.SYLLABUS_REVIEW -> SyllabusReviewStep(uiState, viewModel)
-                    InitialSetupStep.PROFILE -> ProfileStep(snapshot, viewModel)
+                    InitialSetupStep.SYLLABUS_METHOD -> SyllabusMethodStep(
+                        snapshot, operation, viewModel, picker,
+                        editalAttachment = editalAttachment,
+                        onPickEditalAttachment = { editalAttach.launch(arrayOf("application/pdf", "image/*", "text/plain")) },
+                        onClearEditalAttachment = { editalAttachment = null },
+                    )
+                    InitialSetupStep.SYLLABUS_REVIEW -> SyllabusReviewStep(
+                        uiState = uiState,
+                        onContinue = { viewModel.advance(InitialSetupStep.SYLLABUS_REVIEW, InitialSetupStep.SUBJECT_PRIORITY) },
+                        onAddSubject = { viewModel.addReviewSubject(it) },
+                        onAddTopic = { subjectId, title -> viewModel.addReviewTopic(subjectId, title) },
+                        onRemoveSubject = { viewModel.removeReviewSubject(it) },
+                        onRemoveTopic = { viewModel.removeReviewTopic(it) },
+                    )
+                    InitialSetupStep.SUBJECT_PRIORITY -> SubjectPriorityStep(
+                        subjects = uiState.subjects,
+                        topics = uiState.topicEntities,
+                        snapshot = snapshot,
+                        officialPriorities = uiState.officialPrioritiesBySubjectId,
+                        onSelect = { subjectId, priority -> viewModel.setSubjectPriority(subjectId, priority) },
+                        onReset = { subjectId -> viewModel.clearSubjectPriority(subjectId) },
+                        onContinue = { viewModel.advance(InitialSetupStep.SUBJECT_PRIORITY, InitialSetupStep.SUBJECT_DIFFICULTY) },
+                    )
+                    InitialSetupStep.SUBJECT_DIFFICULTY -> SubjectProfileStep(
+                        subjects = uiState.subjects,
+                        snapshot = snapshot,
+                        officialPriorities = uiState.officialPrioritiesBySubjectId,
+                        onDifficulty = { subjectId, value -> viewModel.setSubjectDifficulty(subjectId, value) },
+                        onKnowledge = { subjectId, value -> viewModel.setSubjectKnowledge(subjectId, value) },
+                        onContinue = { viewModel.advance(InitialSetupStep.SUBJECT_DIFFICULTY, InitialSetupStep.AVAILABILITY) },
+                    )
                     InitialSetupStep.AVAILABILITY -> AvailabilityStep(snapshot, viewModel)
-                    InitialSetupStep.SUBJECT_DIFFICULTY -> SubjectDifficultyStep(uiState, snapshot, viewModel)
+                    InitialSetupStep.PROFILE -> ProfileStep(snapshot, viewModel)
+                    InitialSetupStep.PLAN_SUMMARY -> PlanSummaryStep(
+                        snapshot = snapshot,
+                        subjects = uiState.subjects,
+                        topics = uiState.topicEntities,
+                        officialPriorities = uiState.officialPrioritiesBySubjectId,
+                        onContinue = { viewModel.advance(InitialSetupStep.PLAN_SUMMARY, InitialSetupStep.PLAN_METHOD) },
+                        onReviewAvailability = { viewModel.jumpTo(InitialSetupStep.AVAILABILITY) },
+                    )
                     InitialSetupStep.PLAN_METHOD -> PlanMethodStep(snapshot, uiState, operation, viewModel, picker)
-                    InitialSetupStep.PLAN_REVIEW -> PlanReviewStep(snapshot, viewModel)
+                    InitialSetupStep.PLAN_REVIEW -> PlanReviewStep(snapshot, uiState, viewModel)
                     InitialSetupStep.READY -> ReadyStep(onFinish = { viewModel.finish(); onFinished() })
                 }
             }
@@ -314,7 +387,15 @@ private fun IntroStep(onContinue: () -> Unit) {
 }
 
 @Composable
-private fun CompetitionStep(snapshot: InitialSetupSnapshot, selected: CompetitionEntity?, competitions: List<CompetitionEntity>, viewModel: InitialSetupViewModel) {
+private fun CompetitionStep(
+    snapshot: InitialSetupSnapshot,
+    selected: CompetitionEntity?,
+    competitions: List<CompetitionEntity>,
+    viewModel: InitialSetupViewModel,
+    editalAttachment: PromptAttachment?,
+    onPickEditalAttachment: () -> Unit,
+    onClearEditalAttachment: () -> Unit,
+) {
     var name by rememberSaveable(snapshot.competitionId) { mutableStateOf(snapshot.competitionName) }
     var role by rememberSaveable(snapshot.competitionId) { mutableStateOf(snapshot.role) }
     val canContinue = name.trim().length >= 2
@@ -342,14 +423,32 @@ private fun CompetitionStep(snapshot: InitialSetupSnapshot, selected: Competitio
             Spacer(Modifier.height(12.dp))
             AssistChip(onClick = { }, label = { Text("Concurso já salvo neste aparelho") }, leadingIcon = { Icon(Icons.Outlined.CheckCircle, null) })
         }
+
+        Spacer(Modifier.height(16.dp))
+        SetupCard {
+            Text("Já aproveite e anexe o edital", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                "A maioria das IAs gratuitas só consegue pesquisar direito quando o PDF é enviado junto — sem ele, geralmente não conseguem buscar o edital sozinhas. Se puder, escolha a versão com o conteúdo programático (as matérias) já incluído. É opcional, e dá pra anexar depois, no passo do edital.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            AttachmentPicker(editalAttachment, "Anexar edital (PDF)", onPickEditalAttachment, onClearEditalAttachment)
+        }
     }
 }
 
+private val examDateDisplayFormatter: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", Locale("pt", "BR"))
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ExamDateStep(snapshot: InitialSetupSnapshot, viewModel: InitialSetupViewModel) {
     var date by rememberSaveable(snapshot.competitionId) { mutableStateOf(snapshot.examDate.orEmpty()) }
+    var showPicker by rememberSaveable { mutableStateOf(false) }
     val parsed = runCatching { LocalDate.parse(date) }.getOrNull()
     val dateIsBeforeStart = parsed?.isBefore(LocalDate.now()) == true
+    val isError = date.isNotBlank() && (parsed == null || dateIsBeforeStart)
+
     SetupPage(
         eyebrow = "Sem pressão",
         title = "Você já sabe quando é a prova?",
@@ -359,21 +458,83 @@ private fun ExamDateStep(snapshot: InitialSetupSnapshot, viewModel: InitialSetup
             SetupPrimaryButton("Continuar", { viewModel.saveExamDate(date) }, enabled = date.isBlank() || (parsed != null && !dateIsBeforeStart))
         },
     ) {
-        OutlinedTextField(
-            value = date,
-            onValueChange = { date = it.filter { char -> char.isDigit() || char == '-' }.take(10) },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Data da prova (opcional)") },
-            placeholder = { Text("AAAA-MM-DD") },
-            supportingText = { Text(if (date.isBlank()) "Você pode adicionar depois." else if (parsed == null) "Use o formato AAAA-MM-DD." else if (dateIsBeforeStart) "A data da prova não pode ser anterior a hoje." else "Data registrada.") },
-            isError = date.isNotBlank() && (parsed == null || dateIsBeforeStart),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        )
+        // Campo somente-calendário: ninguém digita uma data de prova errada. Toque em qualquer
+        // ponto do campo abre o calendário; o texto é só a leitura do que foi escolhido.
+        Box {
+            OutlinedTextField(
+                value = parsed?.format(examDateDisplayFormatter).orEmpty(),
+                onValueChange = {},
+                modifier = Modifier.fillMaxWidth(),
+                enabled = false,
+                label = { Text("Data da prova (opcional)") },
+                placeholder = { Text("Toque para escolher no calendário") },
+                trailingIcon = { Icon(Icons.Outlined.CalendarMonth, null, tint = MaterialTheme.colorScheme.primary) },
+                supportingText = {
+                    Text(
+                        when {
+                            date.isBlank() -> "Você pode adicionar depois."
+                            dateIsBeforeStart -> "Essa data já passou. Escolha outra."
+                            parsed == null -> "Data inválida. Escolha outra no calendário."
+                            else -> "Data registrada."
+                        },
+                    )
+                },
+                isError = isError,
+                colors = OutlinedTextFieldDefaults.colors(
+                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                    disabledBorderColor = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
+                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    disabledTrailingIconColor = MaterialTheme.colorScheme.primary,
+                    disabledSupportingTextColor = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+            )
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .clip(MaterialTheme.shapes.extraSmall)
+                    .clickable(onClick = { showPicker = true }),
+            )
+        }
+        if (date.isNotBlank()) {
+            TextButton(onClick = { date = "" }) { Text("Remover data") }
+        }
+
         Spacer(Modifier.height(16.dp))
         SetupCard {
             Icon(Icons.Outlined.Schedule, null, tint = MaterialTheme.colorScheme.primary)
             Text("Sem data, o plano trabalha em ciclos de quatro semanas. Você pode gerar o próximo bloco e ajustar quando souber mais.", style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+
+    if (showPicker) {
+        val today = LocalDate.now()
+        val initialMillis = (parsed?.takeIf { !it.isBefore(today) } ?: today)
+            .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        val pickerState = rememberDatePickerState(
+            initialSelectedDateMillis = initialMillis,
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                    val candidate = Instant.ofEpochMilli(utcTimeMillis).atZone(ZoneOffset.UTC).toLocalDate()
+                    return !candidate.isBefore(today)
+                }
+            },
+        )
+        DatePickerDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickerState.selectedDateMillis?.let { millis ->
+                        date = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate().toString()
+                    }
+                    showPicker = false
+                }) { Text("Confirmar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) { Text("Cancelar") }
+            },
+        ) {
+            DatePicker(state = pickerState)
         }
     }
 }
@@ -384,6 +545,9 @@ private fun SyllabusMethodStep(
     operation: SetupOperation,
     viewModel: InitialSetupViewModel,
     picker: androidx.activity.result.ActivityResultLauncher<Array<String>>,
+    editalAttachment: PromptAttachment?,
+    onPickEditalAttachment: () -> Unit,
+    onClearEditalAttachment: () -> Unit,
 ) {
     var pastedText by rememberSaveable { mutableStateOf("") }
     val method = when (snapshot.syllabusMethod) {
@@ -410,11 +574,20 @@ private fun SyllabusMethodStep(
 
         when (method) {
             SyllabusMethod.DIRECT_AI -> {
-                val prompt = remember(snapshot.competitionName, snapshot.role) {
-                    EditalPromptBuilder.build(EditalPromptOptions(competitionName = snapshot.competitionName, role = snapshot.role))
+                val prompt = remember(snapshot.competitionName, snapshot.role, editalAttachment) {
+                    EditalPromptBuilder.build(
+                        EditalPromptOptions(
+                            competitionName = snapshot.competitionName,
+                            role = snapshot.role,
+                            attachmentProvided = editalAttachment != null,
+                        ),
+                    )
                 }
                 PromptActionCard(
                     prompt = prompt,
+                    attachment = editalAttachment,
+                    onPickAttachment = onPickEditalAttachment,
+                    onClearAttachment = onClearEditalAttachment,
                     onImport = { picker.launch(arrayOf("application/json", "text/plain", "*/*")) },
                 )
             }
@@ -494,7 +667,7 @@ private fun ManualSyllabusEditor(snapshot: InitialSetupSnapshot, viewModel: Init
                     label = { Text("Nome da matéria") },
                     singleLine = true,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = {
                             val clean = editingSubjectDraft.trim()
@@ -518,7 +691,7 @@ private fun ManualSyllabusEditor(snapshot: InitialSetupSnapshot, viewModel: Init
                     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(subject, fontWeight = FontWeight.SemiBold)
                         Text(if (subject.equals(selectedSubject, ignoreCase = true)) "Matéria selecionada" else "Toque para editar os tópicos", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             TextButton(onClick = { editingSubject = subject; editingSubjectDraft = subject }) { Text("Editar") }
                             TextButton(onClick = { viewModel.deleteManualSubject(subject) }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
                         }
@@ -563,7 +736,7 @@ private fun ManualSyllabusEditor(snapshot: InitialSetupSnapshot, viewModel: Init
                         label = { Text("Nome do tópico") },
                         singleLine = true,
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
                             onClick = {
                                 if (editingTopicDraft.trim().isNotBlank()) {
@@ -588,40 +761,13 @@ private fun ManualSyllabusEditor(snapshot: InitialSetupSnapshot, viewModel: Init
 }
 
 @Composable
-private fun SyllabusReviewStep(uiState: InitialSetupUiState, viewModel: InitialSetupViewModel) {
-    var expandedSubjectId by rememberSaveable { mutableStateOf<Long?>(null) }
-    SetupPage(
-        eyebrow = "Confira antes de seguir",
-        title = "Seu edital está com este tamanho",
-        description = "Uma visão resumida ajuda você a perceber se a importação fez sentido. A árvore completa continua na aba Edital.",
-        icon = Icons.Outlined.CheckCircle,
-        bottom = { SetupPrimaryButton("Está certo, continuar", { viewModel.advance(InitialSetupStep.SYLLABUS_REVIEW, InitialSetupStep.PROFILE) }) },
-    ) {
-        SetupCard {
-            Text("${uiState.subjects.size} matéria(s) • ${uiState.topicCount} tópico(s)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            uiState.subjects.take(8).forEach { subject ->
-                val topics = uiState.topicTitlesBySubject[subject.id].orEmpty()
-                ElevatedCard(onClick = { expandedSubjectId = if (expandedSubjectId == subject.id) null else subject.id }) {
-                    Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(subject.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                        Text("${topics.size} tópico(s)${if (expandedSubjectId == subject.id && topics.isNotEmpty()) ": ${topics.take(4).joinToString(" • ")}" else ""}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-            if (uiState.subjects.size > 8) Text("e mais ${uiState.subjects.size - 8} matéria(s)", style = MaterialTheme.typography.bodySmall)
-        }
-        if (uiState.subjects.isEmpty()) Text("Ainda não há matérias. Volte e importe um arquivo ou adicione-as manualmente.", color = MaterialTheme.colorScheme.error)
-    }
-}
-
-@Composable
 private fun ProfileStep(snapshot: InitialSetupSnapshot, viewModel: InitialSetupViewModel) {
     SetupPage(
         eyebrow = "Seu momento",
         title = "Onde você está nessa preparação?",
         description = "Isso muda a mistura de teoria, questões e revisão — não é um rótulo permanente.",
         icon = Icons.Outlined.School,
-        bottom = { SetupPrimaryButton("Continuar", { viewModel.advance(InitialSetupStep.PROFILE, InitialSetupStep.AVAILABILITY) }) },
+        bottom = { SetupPrimaryButton("Continuar", { viewModel.advance(InitialSetupStep.PROFILE, InitialSetupStep.PLAN_SUMMARY) }) },
     ) {
         StudyProfile.entries.forEach { profile ->
             ChoiceCard(profile.label, profile.summary, selected = snapshot.studyProfile == profile) { viewModel.chooseProfile(profile) }
@@ -645,7 +791,7 @@ private fun AvailabilityStep(snapshot: InitialSetupSnapshot, viewModel: InitialS
         title = "Quanto tempo cabe na sua semana?",
         description = "Você pode mudar isso depois. O plano vai distribuir tarefas apenas nos dias disponíveis.",
         icon = Icons.Outlined.Schedule,
-        bottom = { SetupPrimaryButton("Continuar", { viewModel.advance(InitialSetupStep.AVAILABILITY, InitialSetupStep.SUBJECT_DIFFICULTY) }) },
+        bottom = { SetupPrimaryButton("Continuar", { viewModel.advance(InitialSetupStep.AVAILABILITY, InitialSetupStep.PROFILE) }) },
     ) {
         days.forEachIndexed { index, (shortDay, fullDay) ->
             val minutes = snapshot.availabilityMinutes.getOrElse(index) { 0 }
@@ -658,36 +804,21 @@ private fun AvailabilityStep(snapshot: InitialSetupSnapshot, viewModel: InitialS
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(25, 45, 50, 60, 90).forEach { option -> FilterChip(snapshot.sessionMinutes == option, { viewModel.chooseSessionMinutes(option) }, label = { Text("$option min") }) }
         }
-    }
-}
-
-@Composable
-private fun SubjectDifficultyStep(uiState: InitialSetupUiState, snapshot: InitialSetupSnapshot, viewModel: InitialSetupViewModel) {
-    val subjectIds = remember(uiState.subjects) { uiState.subjects.mapTo(linkedSetOf()) { it.id.toString() } }
-    LaunchedEffect(subjectIds) { if (subjectIds.isNotEmpty()) viewModel.reconcileSubjectDifficulties(subjectIds) }
-    SetupPage(
-        eyebrow = "Prioridades do plano",
-        title = "Quais matérias pedem mais atenção?",
-        description = "Sua percepção ajusta a distribuição do plano sem substituir o peso oficial do edital.",
-        icon = Icons.Outlined.School,
-        bottom = { SetupPrimaryButton("Continuar", { viewModel.advance(InitialSetupStep.SUBJECT_DIFFICULTY, InitialSetupStep.PLAN_METHOD) }) },
-    ) {
-        if (uiState.subjects.isEmpty()) {
-            SetupCard { Text("Não encontrei matérias neste edital. Você ainda pode continuar e ajustar o plano depois.") }
-        }
-        uiState.subjects.forEach { subject ->
-            SetupCard {
-                Text(subject.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                listOf(
-                    SubjectDifficulty.EASY to ("Tenho facilidade" to "Posso dedicar menos tempo por enquanto."),
-                    SubjectDifficulty.MEDIUM to ("Intermediária" to "Quero manter um ritmo equilibrado."),
-                    SubjectDifficulty.HARD to ("Tenho dificuldade" to "Dê mais espaço para esta matéria."),
-                ).forEach { (difficulty, copy) ->
-                    ChoiceCard(copy.first, copy.second, snapshot.subjectDifficulties[subject.id.toString()] == difficulty) {
-                        viewModel.setSubjectDifficulty(subject.id.toString(), difficulty)
-                    }
-                }
-            }
+        // Esta pergunta só existe porque muda comportamento real: ela define o teto diário por
+        // matéria e a alternância do rodízio. Se um dia deixar de mudar algo, ela sai do assistente.
+        Text("Variar ou aprofundar", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Você prefere alternar bastante entre matérias no mesmo dia ou ficar mais tempo na mesma?",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        SubjectVariety.entries.forEach { option ->
+            ChoiceCard(
+                title = option.label,
+                description = option.description,
+                selected = snapshot.variety == option,
+                onClick = { viewModel.chooseVariety(option) },
+            )
         }
     }
 }
@@ -757,29 +888,118 @@ private fun PlanMethodStep(
 }
 
 @Composable
-private fun PlanReviewStep(snapshot: InitialSetupSnapshot, viewModel: InitialSetupViewModel) {
+private fun PlanReviewStep(snapshot: InitialSetupSnapshot, uiState: InitialSetupUiState, viewModel: InitialSetupViewModel) {
     val context = LocalContext.current.applicationContext as br.com.estudario.EstudarioApplication
-    var taskName by remember(snapshot.lastValidPlanId) { mutableStateOf<String?>(null) }
+    var reviewTasks by remember(snapshot.lastValidPlanId) { mutableStateOf<List<br.com.estudario.data.local.planner.PlanTaskEntity>?>(null) }
     LaunchedEffect(snapshot.lastValidPlanId) {
-        taskName = snapshot.lastValidPlanId?.let { id -> context.database.plannerDao().tasksForOnce(id).firstOrNull()?.let { task -> task.topicNameSnapshot ?: task.subjectNameSnapshot } }
+        reviewTasks = snapshot.lastValidPlanId?.let { id -> context.database.plannerDao().tasksForOnce(id) }.orEmpty()
     }
+    val tasks = reviewTasks.orEmpty()
+    val currentTasks = remember(tasks) {
+        tasks.filter {
+            it.status != br.com.estudario.domain.planner.PlanTaskStatus.PAUSADA &&
+                it.status != br.com.estudario.domain.planner.PlanTaskStatus.REPROGRAMADA
+        }
+    }
+    val plannedTopicIds = remember(currentTasks) { currentTasks.mapNotNullTo(hashSetOf()) { it.topicId } }
+    val plannedSubjectIds = remember(currentTasks) { currentTasks.mapNotNullTo(hashSetOf()) { it.subjectId } }
+    val sourceSubjects = remember(uiState.subjects, uiState.topicEntities) {
+        uiState.subjects.map { subject ->
+            br.com.estudario.domain.setup.PlanCoverageSubject(
+                id = subject.id.toString(),
+                name = subject.name,
+                topics = uiState.topicEntities.filter { it.subjectId == subject.id }.map { topic ->
+                    br.com.estudario.domain.setup.PlanCoverageTopic(topic.id.toString(), topic.title)
+                },
+            )
+        }
+    }
+    val coverage = remember(sourceSubjects, currentTasks, snapshot.availabilityMinutes) {
+        br.com.estudario.domain.setup.PlanCoverageValidator.validate(
+            sourceSubjects = sourceSubjects,
+            importedTasks = currentTasks.map { task ->
+                br.com.estudario.domain.setup.PlanCoverageTask(
+                    subjectId = task.subjectId?.toString(),
+                    topicId = task.topicId?.toString(),
+                    date = java.time.LocalDate.ofEpochDay(task.scheduledEpochDay),
+                    minutes = task.plannedMinutes,
+                )
+            },
+            dayMinutes = snapshot.availabilityMinutes,
+        )
+    }
+    val coveredTopicCount = uiState.topicEntities.count { it.id in plannedTopicIds }
+    val topicsWithoutChildren = uiState.subjects.filter { subject -> uiState.topicEntities.none { it.subjectId == subject.id } }
+    val coveredStandaloneSubjects = topicsWithoutChildren.count { it.id in plannedSubjectIds }
+    val firstTask = currentTasks.firstOrNull()
+    val firstTaskName = firstTask?.let { it.topicNameSnapshot ?: it.subjectNameSnapshot }
+    val firstDate = currentTasks.minOfOrNull { it.scheduledEpochDay }?.let(java.time.LocalDate::ofEpochDay)
+    val lastDate = currentTasks.maxOfOrNull { it.scheduledEpochDay }?.let(java.time.LocalDate::ofEpochDay)
+    val examDate = snapshot.examDate?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+    val remainingDays = examDate?.let { java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), it).coerceAtLeast(0) }
+    val dayNames = listOf("Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo")
     SetupPage(
         eyebrow = "Última conferência",
         title = "Seu plano começa assim",
         description = "Veja o resumo e confirme. O restante continua visível e editável na aba Plano.",
         icon = Icons.Outlined.CheckCircle,
-        bottom = { SetupPrimaryButton("Tudo certo", viewModel::complete, enabled = snapshot.lastValidPlanId != null) },
+        bottom = { SetupPrimaryButton("Concluir configuração", viewModel::complete, enabled = snapshot.lastValidPlanId != null) },
     ) {
         SetupCard {
             Text(snapshot.competitionName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text("Perfil: ${snapshot.studyProfile.label}")
-            Text("Disponibilidade: ${snapshot.availabilityMinutes.count { it > 0 }} dias por semana • blocos de ${snapshot.sessionMinutes} min")
-            Text("Prova: ${snapshot.examDate ?: "sem data definida"}")
+            Text("Perfil de estudo: ${snapshot.studyProfile.label}")
+            Text("Método: ${if (snapshot.planMethod == PlanCreationMethod.AUTOMATIC) "plano do Estudário" else "plano gerado com IA e validado"}")
+            Text("Bloco de estudo: ${snapshot.sessionMinutes} min — é o tamanho-base de cada tarefa, não o total diário.")
+            Text("Disponibilidade semanal: ${formatAvailabilityMinutes(snapshot.availabilityMinutes.sum())} em ${snapshot.availabilityMinutes.count { it > 0 }} dias.")
+            snapshot.availabilityMinutes.forEachIndexed { index, minutes ->
+                Text("${dayNames[index]}: ${formatAvailabilityMinutes(minutes)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text("Data da prova: ${snapshot.examDate ?: "não definida"}${remainingDays?.let { " · $it dias a partir de hoje" }.orEmpty()}")
+            if (firstDate != null && lastDate != null) Text("Calendário criado: $firstDate a $lastDate (${currentTasks.size} tarefas vigentes)", style = MaterialTheme.typography.bodySmall)
         }
         SetupCard {
             Icon(Icons.Outlined.School, null, tint = MaterialTheme.colorScheme.primary)
-            Text("Primeira atividade", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Text(taskName ?: "O plano foi criado; a primeira tarefa aparecerá na Home.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Seus três eixos por matéria", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                "O peso na prova vem do edital; o esforço e a base são seus. São coisas diferentes, e o plano usa as três separadamente.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            uiState.subjects.forEach { subject ->
+                val key = subject.id.toString()
+                val dimensions = snapshot.dimensionsFor(
+                    subjectId = key,
+                    examPriority = SetupPlannerPreviewFactory.suggestedPriority(uiState.officialPrioritiesBySubjectId, subject.id),
+                )
+                Text(subject.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Prova: ${dimensions.examPriority.label.lowercase()} · " +
+                        "Esforço: ${dimensions.personalDifficulty.label.lowercase()} · " +
+                        "Base: ${dimensions.initialKnowledge.label.lowercase()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        SetupCard {
+            Text("Cobertura do edital", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            if (reviewTasks == null) {
+                Text("Conferindo as tarefas do plano…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Text("Tópicos programados: $coveredTopicCount de ${uiState.topicEntities.size}.")
+                if (topicsWithoutChildren.isNotEmpty()) Text("Matérias sem subtópicos contempladas: $coveredStandaloneSubjects de ${topicsWithoutChildren.size}.")
+                if (coverage.isComplete) {
+                    Text("Todos os tópicos identificados estão no calendário desta versão do plano.", color = MaterialTheme.colorScheme.primary)
+                } else {
+                    Text("Esta versão ainda não cobre todo o edital no horizonte exibido. Você pode revisar o plano completo na aba Plano.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (coverage.overCapacityDates.isNotEmpty()) Text("Há ${coverage.overCapacityDates.size} dia(s) acima do tempo disponível informado.", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+        SetupCard {
+            Text("Primeiro passo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(firstTaskName ?: "O plano foi criado; a primeira tarefa aparecerá na Home.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            firstDate?.let { Text("Programado para $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 }
@@ -801,33 +1021,40 @@ private fun ReadyStep(onFinish: () -> Unit) {
 }
 
 @Composable
-private fun SetupPage(
+internal fun SetupPage(
     eyebrow: String,
     title: String,
     description: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
+    showScrollIndicator: Boolean = false,
     bottom: @Composable () -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 22.dp, bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp), content = {
+    Column(Modifier.fillMaxSize().padding(horizontal = estudarioLayout().screenGutter)) {
+        SetupScrollContainer(Modifier.weight(1f), showScrollIndicator = showScrollIndicator) {
             Icon(icon, null, Modifier.size(34.dp), tint = MaterialTheme.colorScheme.primary)
             Text(eyebrow.uppercase(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
             Text(description, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             content()
-        })
-        Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 12.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) { bottom() }
+        }
+        // FlowRow: com fonte maior os botões do rodapé (Voltar / Continuar) descem um para cada
+        // linha em vez de espremer o rótulo.
+        FlowRow(
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 4.dp, bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) { bottom() }
     }
 }
 
 @Composable
-private fun SetupCard(content: @Composable ColumnScope.() -> Unit) {
-    ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content) }
+internal fun SetupCard(content: @Composable ColumnScope.() -> Unit) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content) }
 }
 
 @Composable
-private fun SetupPrimaryButton(label: String, onClick: () -> Unit, enabled: Boolean = true) {
+internal fun SetupPrimaryButton(label: String, onClick: () -> Unit, enabled: Boolean = true) {
     Button(onClick = onClick, enabled = enabled, contentPadding = PaddingValues(horizontal = 22.dp, vertical = 12.dp)) { Text(label); Spacer(Modifier.width(8.dp)); Icon(Icons.Outlined.ArrowForward, null) }
 }
 
@@ -855,7 +1082,7 @@ private fun SyllabusChoice(title: String, description: String, icon: androidx.co
 @Composable
 private fun ImportActionCard(pastedText: String, onPastedTextChange: (String) -> Unit, onChooseFile: () -> Unit, onInspect: () -> Unit) {
     SetupCard {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = onChooseFile) { Icon(Icons.Outlined.FolderOpen, null); Spacer(Modifier.width(6.dp)); Text("Escolher .estudo") }
             Button(onClick = onInspect, enabled = pastedText.isNotBlank()) { Text("Analisar texto") }
         }
@@ -864,12 +1091,26 @@ private fun ImportActionCard(pastedText: String, onPastedTextChange: (String) ->
 }
 
 @Composable
-private fun PromptActionCard(prompt: String, onImport: () -> Unit) {
+private fun PromptActionCard(
+    prompt: String,
+    onImport: () -> Unit,
+    attachment: PromptAttachment? = null,
+    onPickAttachment: (() -> Unit)? = null,
+    onClearAttachment: (() -> Unit)? = null,
+) {
     val context = LocalContext.current
     SetupCard {
         Text("O prompt já vem com o nome do seu concurso e regras para não inventar matérias.", style = MaterialTheme.typography.bodyMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { sharePromptWithAi(context, prompt) }) { Icon(Icons.Outlined.OpenInNew, null); Spacer(Modifier.width(6.dp)); Text("Compartilhar com IA") }
+        if (onPickAttachment != null && onClearAttachment != null) {
+            AttachmentPicker(attachment, "Anexar edital (PDF)", onPickAttachment, onClearAttachment)
+            Text(
+                if (attachment != null) "O anexo “${attachment.name}” vai junto ao compartilhar." else "Recomendado: sem o PDF anexado, a maioria das IAs gratuitas não consegue pesquisar o edital sozinha.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { sharePromptWithAi(context, prompt, attachment) }) { Icon(Icons.Outlined.OpenInNew, null); Spacer(Modifier.width(6.dp)); Text("Compartilhar com IA") }
             OutlinedButton(onClick = {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("Prompt do Estudário", prompt))
@@ -885,7 +1126,7 @@ private fun PlanPromptActionCard(prompt: String, onImport: () -> Unit) {
     val context = LocalContext.current
     SetupCard {
         Text("A IA recebe somente matérias e disponibilidade já existentes no seu aparelho.", style = MaterialTheme.typography.bodyMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("Prompt de plano do Estudário", prompt))

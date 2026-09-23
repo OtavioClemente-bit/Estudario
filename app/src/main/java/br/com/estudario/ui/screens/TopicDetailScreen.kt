@@ -1,5 +1,7 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.theme.estudarioLayout
+import br.com.estudario.ui.theme.screenPadding
 import android.content.Context
 import android.net.Uri
 import android.widget.Toast
@@ -26,19 +28,26 @@ import br.com.estudario.data.local.SummaryEntity
 import br.com.estudario.data.local.SummaryKind
 import br.com.estudario.data.local.SnippetKind
 import br.com.estudario.data.local.ErrorStatus
+import br.com.estudario.data.planner.CompleteTaskInput
+import br.com.estudario.ui.prompt.AdditionalQuestionPromptBuilderDialog
 import br.com.estudario.ui.prompt.ContentPromptBuilderDialog
 import br.com.estudario.domain.MasteryCalculator
 import br.com.estudario.domain.MasteryInput
 import br.com.estudario.domain.ReviewPolicy
 import br.com.estudario.domain.ComputedReviewStatus
+import br.com.estudario.domain.TopicCompletionPolicy
+import br.com.estudario.domain.TopicCompletionWarning
 import br.com.estudario.ui.AppViewModel
 import br.com.estudario.ui.components.*
+import br.com.estudario.ui.planner.PlannerTaskUi
+import br.com.estudario.ui.planner.StudyPlanViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit, onQuiz: () -> Unit, onTheory: (Long) -> Unit, onFocus: () -> Unit) {
+fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = null, planViewModel: StudyPlanViewModel, onBack: () -> Unit, onQuiz: () -> Unit, onTheory: (Long) -> Unit, onFocus: () -> Unit) {
     val topics by viewModel.topics.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
     val summaries by viewModel.summaries.collectAsState()
@@ -53,6 +62,8 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit
     val studySessions by viewModel.studySessions.collectAsState()
     val reviewHistory by viewModel.reviewHistory.collectAsState()
     val queue by viewModel.queue.collectAsState()
+    val focusSession by viewModel.focusSession.collectAsState()
+    val focusSessions by viewModel.focusSessions.collectAsState()
     val topic = topics.firstOrNull { it.id == topicId }
     if (topic == null) { EmptyState("Tópico não encontrado", "Ele pode ter sido excluído.", "Voltar", onBack); return }
     val subject = subjects.firstOrNull { it.id == topic.subjectId }
@@ -80,10 +91,19 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit
     val sources by viewModel.sources.collectAsState()
     var completedNow by remember { mutableStateOf(false) }
     var studyNotes by remember { mutableStateOf("") }
+    var completionBusy by remember { mutableStateOf(false) }
+    var completionError by remember { mutableStateOf<String?>(null) }
+    var completionWarning by remember { mutableStateOf<TopicCompletionWarning?>(null) }
+    var showFocusChoice by remember { mutableStateOf(false) }
+    var pendingCompletionTask by remember { mutableStateOf<PlannerTaskUi?>(null) }
+    var pendingCompletionStartedAt by remember { mutableLongStateOf(studyStartedAt) }
+    var pendingCompletionMinutes by remember { mutableIntStateOf(0) }
+    var pendingFocusIsActive by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
     val queueItem = queue.firstOrNull { it.item.topicId == topicId }
     val sessionAttempts = attempts.filter { it.questionId in questionIds && it.answeredAt >= studyStartedAt }
     var showContentPrompt by remember { mutableStateOf(false) }
+    var showAdditionalQuestionPrompt by remember { mutableStateOf(false) }
     var showPriority by remember { mutableStateOf(false) }
     val competitions by viewModel.competitions.collectAsState()
     val context = LocalContext.current
@@ -93,13 +113,116 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit
             viewModel.beginIncomingFile()
             scope.launch {
                 val text = readContentFile(context, it)
-                if (text.isNullOrBlank()) viewModel.reportIncomingFileError("Não foi possível ler o arquivo escolhido.") else viewModel.openIncomingText(text)
+                if (text.isNullOrBlank()) viewModel.reportIncomingFileError("Não foi possível ler o arquivo escolhido.") else viewModel.openIncomingText(text, subject?.competitionId)
+            }
+        }
+    }
+
+    suspend fun finishTopicCompletion(stopLinkedFocus: Boolean) {
+        if (completionBusy || completedNow) return
+        completionBusy = true
+        completionWarning = null
+        showFocusChoice = false
+        completionError = null
+        var topicSaved = false
+        try {
+            val stoppedMinutes = if (stopLinkedFocus && pendingFocusIsActive) viewModel.stopFocus() else null
+            val completedAt = System.currentTimeMillis()
+            val actualMinutes = maxOf(
+                pendingCompletionMinutes,
+                stoppedMinutes ?: if (pendingFocusIsActive && focusSession.active) focusSession.elapsedMinutes(completedAt) else 0,
+            )
+            pendingCompletionTask?.let { plannedTask ->
+                planViewModel.completeFromTopic(
+                    plannedTask.entity.id,
+                    CompleteTaskInput(
+                        startedAt = pendingCompletionStartedAt,
+                        completedAt = completedAt,
+                        actualMinutes = actualMinutes,
+                    ),
+                )
+            }
+            viewModel.completeStudyNow(topicId, pendingCompletionStartedAt, studyNotes)
+            topicSaved = true
+            completedNow = true
+            finishStudy = false
+            pendingCompletionTask?.let { plannedTask ->
+                try {
+                    planViewModel.replanAfterTopicCompletion(plannedTask.entity.planId)
+                } catch (error: Exception) {
+                    completionError = "O tópico foi concluído, mas não consegui atualizar o plano: ${error.message ?: "tente gerar o plano novamente"}"
+                }
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            completionError = if (topicSaved) {
+                "O tópico foi concluído, mas uma parte do plano não foi atualizada: ${error.message ?: "tente novamente"}"
+            } else {
+                error.message ?: "Não foi possível registrar a conclusão. Tente novamente."
+            }
+        } finally {
+            completionBusy = false
+        }
+    }
+
+    fun requestTopicCompletion() {
+        if (completionBusy || completedNow) return
+        finishStudy = false
+        completionBusy = true
+        completionError = null
+        scope.launch {
+            try {
+                val plannedTask = planViewModel.matchingPendingTask(topicId, taskId)
+                val now = System.currentTimeMillis()
+                val linkedActiveFocus = focusSession.active &&
+                    (focusSession.topicId == topicId || (plannedTask != null && focusSession.taskId == plannedTask.entity.id))
+                val recentFocus = focusSessions
+                    .asSequence()
+                    .filter { it.startedAt >= studyStartedAt && (it.topicId == topicId || (plannedTask != null && it.taskId == plannedTask.entity.id)) }
+                    .maxByOrNull { it.completedAt }
+                val actualMinutes = when {
+                    linkedActiveFocus -> focusSession.elapsedMinutes(now)
+                    recentFocus != null -> (recentFocus.durationSeconds / 60L).toInt()
+                    else -> ((now - studyStartedAt) / 60_000L).coerceAtLeast(0L).toInt()
+                }
+                pendingCompletionTask = plannedTask
+                pendingCompletionMinutes = actualMinutes
+                pendingCompletionStartedAt = when {
+                    linkedActiveFocus -> focusSession.startedAt
+                    recentFocus != null -> recentFocus.startedAt
+                    else -> studyStartedAt
+                }
+                pendingFocusIsActive = linkedActiveFocus
+                val warning = TopicCompletionPolicy.warning(plannedTask?.entity?.plannedMinutes, actualMinutes)
+                completionBusy = false
+                if (warning != TopicCompletionWarning.NONE) {
+                    completionWarning = warning
+                } else if (linkedActiveFocus) {
+                    showFocusChoice = true
+                } else {
+                    finishTopicCompletion(stopLinkedFocus = false)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                completionBusy = false
+                completionError = error.message ?: "Não foi possível conferir o plano. Tente novamente."
             }
         }
     }
 
     if (showContentPrompt && subject != null) {
         ContentPromptBuilderDialog(viewModel, subject.id, setOf(topic.id), onDismiss = { showContentPrompt = false }, onPickFile = { importLauncher.launch(arrayOf("*/*")) })
+    }
+    if (showAdditionalQuestionPrompt && subject != null) {
+        AdditionalQuestionPromptBuilderDialog(
+            viewModel = viewModel,
+            subjectId = subject.id,
+            topicId = topic.id,
+            onDismiss = { showAdditionalQuestionPrompt = false },
+            onPickFile = { importLauncher.launch(arrayOf("*/*")) },
+        )
     }
     if (creating) SummaryEditorDialog(null, onDismiss = { creating = false }) { title, markdown -> viewModel.addSummary(topicId, title, markdown) }
     if (showPriority) {
@@ -109,6 +232,68 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit
             onDismiss = { showPriority = false },
             onSetOverride = { level -> viewModel.setTopicPriorityOverride(topic.id, level); showPriority = false },
             onClearOverride = { viewModel.setTopicPriorityOverride(topic.id, null); showPriority = false },
+        )
+    }
+    completionWarning?.let { warning ->
+        val title: String
+        val message: String
+        when (warning) {
+            TopicCompletionWarning.OUTSIDE_ACTIVE_PLAN -> {
+                title = "Tópico fora do plano ativo"
+                message = "Este tópico não está no seu plano de estudos atual. Quer marcá-lo como concluído mesmo assim? Você recebe o XP normal, e o próximo replanejamento considera este tópico estudado."
+            }
+            TopicCompletionWarning.UNDER_PLANNED_TIME -> {
+                title = "Tempo abaixo do planejado"
+                val actualLabel = if (pendingCompletionMinutes == 0) "menos de 1 min" else "$pendingCompletionMinutes min"
+                message = "Você registrou $actualLabel e o plano previa ${pendingCompletionTask?.entity?.plannedMinutes ?: 0} min. O modo foco só mede o tempo; quer concluir mesmo assim?"
+            }
+            TopicCompletionWarning.NONE -> return@let
+        }
+        AlertDialog(
+            onDismissRequest = { completionWarning = null },
+            title = { Text(title) },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = {
+                    completionWarning = null
+                    if (pendingFocusIsActive) showFocusChoice = true
+                    else scope.launch { finishTopicCompletion(stopLinkedFocus = false) }
+                }) { Text("Concluir mesmo") }
+            },
+            dismissButton = { TextButton(onClick = { completionWarning = null }) { Text("Cancelar") } },
+        )
+    }
+    if (showFocusChoice) {
+        AlertDialog(
+            onDismissRequest = { showFocusChoice = false },
+            title = { Text("Modo foco em andamento") },
+            text = { Text("Quer encerrar e salvar esta sessão no histórico junto com a conclusão do tópico?") },
+            confirmButton = {
+                TextButton(onClick = { scope.launch { finishTopicCompletion(stopLinkedFocus = true) } }) {
+                    Text("Salvar foco e concluir")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { scope.launch { finishTopicCompletion(stopLinkedFocus = false) } }) {
+                    Text("Manter foco e concluir")
+                }
+            },
+        )
+    }
+    if (completionBusy) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Salvando conclusão") },
+            text = { Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(Modifier.size(24.dp)); Text("Atualizando o tópico e o plano…") } },
+            confirmButton = {},
+        )
+    }
+    completionError?.let { message ->
+        AlertDialog(
+            onDismissRequest = { completionError = null },
+            title = { Text(if (completedNow) "Conclusão salva" else "Não foi possível concluir") },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { completionError = null }) { Text("Fechar") } },
         )
     }
     editor?.let { value -> SummaryEditorDialog(value, onDismiss = { editor = null }) { title, markdown -> viewModel.updateSummary(value.copy(title = title, markdown = markdown)) } }
@@ -125,7 +310,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit
         title = { Text("Estudo concluído hoje") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Matéria: ${subject?.name ?: "—"}")
+                Text("Matéria: ${subject?.name ?: ","}")
                 Text("Tópico: ${topic.title}")
                 Text("Questões: ${sessionAttempts.size} • Acertos: ${sessionAttempts.count { it.correct }} • Erros: ${sessionAttempts.count { !it.correct }}")
                 Text("Tempo: ${((System.currentTimeMillis() - studyStartedAt) / 60_000).coerceAtLeast(1)} min")
@@ -135,10 +320,15 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit
                     br.com.estudario.domain.ProgressEngine.previewTopicStudied(),
                     prefix = "Ao concluir você ganha",
                 )
-                Text("As revisões D+1, D+7 e D+30 também entram na agenda — e continuam depois disso, com intervalo maior. Cada uma vale mais XP.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("As revisões D+1, D+7 e D+30 também entram na agenda, e continuam depois disso, com intervalo maior. Cada uma vale mais XP.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
-        confirmButton = { TextButton(onClick = { viewModel.completeStudy(topicId, studyStartedAt, studyNotes); finishStudy = false; completedNow = true }) { Text("Confirmar") } },
+        confirmButton = {
+            TextButton(
+                enabled = !completedNow && !completionBusy,
+                onClick = ::requestTopicCompletion,
+            ) { Text(if (completedNow || completionBusy) "Concluindo…" else "Confirmar") }
+        },
         dismissButton = { TextButton(onClick = { finishStudy = false }) { Text("Cancelar") } },
     )
 
@@ -152,34 +342,52 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit
     val topicSources = sources.filter { it.topicId == topicId }
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
-            Row {
-                IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") }
-                Column(Modifier.weight(1f)) {
+            val titleBlock: @Composable (Modifier) -> Unit = { mod ->
+                Column(mod) {
                     Text(topic.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Text(listOfNotNull(subject?.name, parent?.title).joinToString(" › "), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(topic.contentOriginType.displayName(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 }
+            }
+            val actions: @Composable () -> Unit = {
                 IconButton(onClick = { showContentPrompt = true }) { Icon(Icons.Outlined.AutoAwesome, "Gerar conteúdo com IA", tint = MaterialTheme.colorScheme.primary) }
                 IconButton(onClick = { showPriority = true }) { Icon(Icons.Outlined.Flag, "Definir prioridade", tint = MaterialTheme.colorScheme.primary) }
                 IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) { Icon(Icons.Outlined.FileOpen, "Importar arquivo .estudo") }
+            }
+            // Em tela estreita/fonte grande, os três botões ao lado espremiam o título numa coluna
+            // estreita (uma palavra por linha). Aí o título ocupa a largura toda e os botões descem.
+            if (estudarioLayout().prefersStacking) {
+                Column {
+                    titleBlock(Modifier.fillMaxWidth())
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { actions() }
+                }
+            } else {
+                Row {
+                    titleBlock(Modifier.weight(1f))
+                    actions()
+                }
             }
         }
         item {
             ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Domínio ${MasteryCalculator.label(mastery)}", fontWeight = FontWeight.Bold)
+                        Text("Domínio ${MasteryCalculator.label(mastery)}", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).padding(end = 8.dp))
                         Text("$mastery%", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     }
                     LinearProgressIndicator({ mastery / 100f }, Modifier.fillMaxWidth())
                     val coverage = listOf(topic.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO, theories.any { it.topicId == topicId && it.lastReadBlock >= 0 }, answered > 0, completedReviews > 0).count { it } * 25
                     Text("Cobertura $coverage% • Questões: ${if (answered == 0) "amostra insuficiente" else "${correct * 100 / answered}% ($answered)"} • Revisões: $completedReviews", style = MaterialTheme.typography.bodySmall)
                     Text("Prioridade: ${PriorityPresentation.label(topicPriorityState(topic, topics).effectivePriority)}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    if (taskId != null) {
+                        // O vínculo permite sincronizar esta conclusão com a atividade correspondente.
+                        Text("Atividade vinculada ao plano", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    }
                     // Estudar de verdade este tópico: cronômetro rodando e Não Perturbe ligado.
                     FilledTonalButton(
-                        onClick = { viewModel.startFocus(topic.title, topicId = topicId); onFocus() },
+                        onClick = { viewModel.startFocus(topic.title, topicId = topicId, taskId = taskId); onFocus() },
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text("Estudar com modo foco") }
                     if (topic.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO) {
@@ -193,7 +401,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit
         if (!topic.scopeCovers.isNullOrBlank() || !topic.scopeExcludes.isNullOrBlank()) {
             item {
                 // O recorte que a IA declarou antes de escrever. Fica visível para a pessoa bater
-                // com o edital dela — é a defesa contra estudar o que não vai cair.
+                // com o edital dela, é a defesa contra estudar o que não vai cair.
                 ElevatedCard(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Recorte deste item do edital", fontWeight = FontWeight.Bold)
@@ -262,8 +470,17 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit
             }
         }
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { finishStudy = true }, Modifier.weight(1f)) { Icon(Icons.Outlined.Check, null); Spacer(Modifier.width(4.dp)); Text("Estudo concluído hoje") }
+            // Lado a lado quando cabe; em tela estreita ou fonte grande, um botão por linha.
+            FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = if (estudarioLayout().prefersStacking) 1 else Int.MAX_VALUE, verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { finishStudy = true },
+                    enabled = !completedNow && topic.status == br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO,
+                     modifier = Modifier.weight(1f),
+                ) {
+                    Icon(Icons.Outlined.Check, null)
+                    Spacer(Modifier.width(4.dp))
+                    Text(if (completedNow || topic.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO) "Estudo concluído ✓" else "Estudo concluído hoje")
+                }
                 OutlinedButton(onClick = { if (queueItem == null) viewModel.enqueue(topic.id) }, enabled = queueItem == null, modifier = Modifier.weight(1f)) { Text(if (queueItem == null) "Adicionar à fila" else "Na fila") }
             }
         }
@@ -317,7 +534,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit
                             IconButton(onClick = { editor = summary }) { Icon(Icons.Outlined.Edit, "Editar") }
                             IconButton(onClick = { viewModel.deleteSummary(summary) }) { Icon(Icons.Outlined.Delete, "Excluir") }
                         }
-                        Text(summary.markdown.replace("#", "").replace("**", "").take(160), maxLines = 3, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(summary.markdown.replace("#", "").replace("**", "").take(160), maxLines = 3, color = MaterialTheme.colorScheme.onSurfaceVariant, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -352,6 +569,26 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit
                         Text("${topicQuestions.count { it.question.answerCount == 0 }} nunca respondidas • ${topicQuestions.count { it.question.isFavorite }} favoritas", style = MaterialTheme.typography.bodySmall)
                     }
                     Button(onClick = onQuiz, enabled = topicQuestions.isNotEmpty()) { Text("Treinar tópico") }
+                }
+            }
+        }
+        if (subject != null) item {
+            val subjectTopicIds = topics.asSequence().filter { it.subjectId == subject.id }.map { it.id }.toSet()
+            val subjectQuestionCount = questions.count { it.question.topicId in subjectTopicIds }
+            ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Precisa de mais questões?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (subjectQuestionCount == 0) "Gere as primeiras questões para este tópico."
+                        else "A IA vai comparar com as $subjectQuestionCount questões já cadastradas nesta matéria para evitar repetições.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                    Button(onClick = { showAdditionalQuestionPrompt = true }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Outlined.AutoAwesome, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Gerar com IA")
+                    }
                 }
             }
         }

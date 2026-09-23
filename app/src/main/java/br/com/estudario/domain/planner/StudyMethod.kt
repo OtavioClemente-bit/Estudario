@@ -7,7 +7,7 @@ import java.time.temporal.ChronoUnit
  * O método do plano sem IA.
  *
  * A ideia é que o app não sorteie tarefas: ele aplica, sempre do mesmo jeito, o que funciona em
- * preparação para concurso — teoria com consolidação em questões, revisão espaçada, simulado
+ * preparação para concurso, teoria com consolidação em questões, revisão espaçada, simulado
  * periódico, prioridade para matéria de peso e para o que a pessoa erra mais, e o tempo dividido em
  * blocos do tamanho que ela aguenta. É engessado de propósito: dá para conferir por que cada
  * tarefa entrou.
@@ -73,6 +73,14 @@ data class StudyMethodConfig(
     val includeFlashcards: Boolean = true,
     /** Misturar matérias no mesmo dia em vez de emendar horas da mesma. */
     val interleaveSubjects: Boolean = true,
+    /**
+     * Teto de um dia que uma mesma matéria pode ocupar, em porcento. 100 = sem teto.
+     *
+     * É o que dá comportamento distinto a cada resposta da pergunta de variedade do assistente,
+     * sem este campo, "mais variedade" e "equilibrado" acabariam no mesmo plano, e a pergunta seria
+     * decorativa.
+     */
+    val dailySubjectSharePercent: Int = 60,
 ) {
     init {
         require(blockMinutes in 15..180) { "O bloco precisa ter entre 15 e 180 minutos." }
@@ -80,6 +88,7 @@ data class StudyMethodConfig(
         require(questionsPerTopic >= 0)
         require(simulationsPerMonth in 0..8)
         require(discursivesPerMonth in 0..12)
+        require(dailySubjectSharePercent in 20..100) { "O teto diário por matéria precisa ficar entre 20% e 100%." }
     }
 
     /** Minutos por questão usados para dimensionar as tarefas de questões. */
@@ -96,14 +105,14 @@ data class StudyMethodConfig(
 }
 
 object StudyMethod {
-    /** Reta final nunca menor que isso, nem maior que isso — mesmo em preparação longa. */
+    /** Reta final nunca menor que isso, nem maior que isso, mesmo em preparação longa. */
     private const val MIN_FINAL_DAYS = 21
     private const val MAX_FINAL_DAYS = 60
     private const val MIN_DEEP_DAYS = 21
 
     /**
      * Divide o tempo até a prova em fases. Sem data de prova existe uma fase só, do perfil
-     * escolhido — não dá para prometer reta final sem saber quando a prova é.
+     * escolhido, não dá para prometer reta final sem saber quando a prova é.
      */
     fun phases(start: LocalDate, exam: LocalDate?, profile: StudyProfile): List<StudyPhase> {
         if (profile == StudyProfile.RETA_FINAL) {

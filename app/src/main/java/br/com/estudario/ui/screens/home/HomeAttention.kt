@@ -22,11 +22,11 @@ import br.com.estudario.ui.theme.EstudarioSpacing
 /**
  * O que está pedindo atenção agora: revisões vencendo, erros para refazer, o tópico mais frágil.
  *
- * Fica no rodapé da Home de propósito — é útil, mas não é o que abre o dia. Cada linha só aparece
+ * Fica no rodapé da Home de propósito, é útil, mas não é o que abre o dia. Cada linha só aparece
  * quando tem conteúdo real; nenhuma delas vira um "0 pendências" ocupando espaço.
  *
  * (Este arquivo ainda se chama `ProgressSummary.kt` por herança da versão anterior da Home. Vale
- * renomear para `HomeAttention.kt` no Android Studio — não dá para renomear arquivos daqui.)
+ * renomear para `HomeAttention.kt` no Android Studio, não dá para renomear arquivos daqui.)
  */
 @Composable
 fun HomeAttention(
@@ -84,7 +84,7 @@ private fun AttentionRow(text: String, onClick: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 2,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f), overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         )
         Icon(
             Icons.AutoMirrored.Outlined.ArrowForward,

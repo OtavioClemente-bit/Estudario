@@ -8,7 +8,7 @@ class PlanContextExporterTest {
     @Test
     fun `compact context contains planning signals but no learning content`() {
         val context = PlanContext(
-            competition = "TRT-3 — TI",
+            competition = "TRT-3: TI",
             objective = "Aprovação",
             annualPhase = "Fase 1",
             currentMonth = "2026-09",

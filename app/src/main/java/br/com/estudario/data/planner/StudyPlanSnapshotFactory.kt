@@ -11,7 +11,7 @@ import java.time.ZoneId
 
 /**
  * Lê o estado do app e entrega ao motor o retrato do plano. As tarefas em si são desenhadas pelo
- * [StudyPlanBlueprint], que aplica o método escolhido no assistente — é o que faz o plano sem IA
+ * [StudyPlanBlueprint], que aplica o método escolhido no assistente, é o que faz o plano sem IA
  * ter cara de cronograma pensado e não de lista de tópicos.
  */
 class StudyPlanSnapshotFactory(private val db: AppDatabase) {
@@ -47,14 +47,89 @@ class StudyPlanSnapshotFactory(private val db: AppDatabase) {
         }
         val performanceById = performance.associateBy { it.topicId }
 
+        // --- Camada de necessidade -------------------------------------------------------------
+        // Os três eixos e a evidência de cada matéria/tópico entram aqui; daqui sai o NeedScore que
+        // decide frequência, volume de questões e ordem do reforço. Tudo determinístico.
+        val planStart = LocalDate.ofEpochDay(plan.startEpochDay)
+        val examDate = plan.examEpochDay?.let(LocalDate::ofEpochDay)
+        val daysUntilExam = examDate
+            ?.let { java.time.temporal.ChronoUnit.DAYS.between(today, it).toInt() }
+            ?.takeIf { it >= 0 }
+        val currentPhase = StudyMethod.phaseAt(
+            StudyMethod.phases(planStart, examDate, config.profile),
+            today,
+        )
+        val weights = PlannerWeights.forPhase(currentPhase.kind)
+
+        val missedBySubject = tasks
+            .filter { it.status == PlanTaskStatus.NAO_REALIZADA && it.subjectId != null }
+            .groupingBy { it.subjectId!! }
+            .eachCount()
+        val overdueReviewsBySubject = pendingReviewsBySubject(reviews, topics, today, zone)
+
+        fun evidenceOf(topic: br.com.estudario.data.local.TopicEntity): StudyEvidence {
+            val row = performanceById[topic.id]
+            val covered = topic.status != TopicStatus.NAO_ESTUDADO
+            return StudyEvidence(
+                answered = row?.answered ?: 0,
+                correct = row?.correct ?: 0,
+                coveredTopics = if (covered) 1 else 0,
+                totalTopics = 1,
+                daysSinceContact = row?.lastStudiedDate
+                    ?.let { java.time.temporal.ChronoUnit.DAYS.between(it, today).toInt().coerceAtLeast(0) },
+            )
+        }
+
+        val topicEvidence = topics.associate { it.id to evidenceOf(it) }
+        val evidenceBySubject = planSubjects.associate { subject ->
+            val rows = topics.filter { it.subjectId == subject.subjectId }.map { topicEvidence.getValue(it.id) }
+            subject.subjectId to StudyEvidence(
+                answered = rows.sumOf { it.answered },
+                correct = rows.sumOf { it.correct },
+                coveredTopics = rows.sumOf { it.coveredTopics },
+                totalTopics = rows.size,
+                overdueReviews = overdueReviewsBySubject[subject.subjectId] ?: 0,
+                missedTasks = missedBySubject[subject.subjectId] ?: 0,
+                daysSinceContact = rows.mapNotNull { it.daysSinceContact }.minOrNull(),
+            )
+        }
+
+        val subjectDimensions = planSubjects.associate { it.subjectId to it.dimensions() }
+        val subjectNeeds = planSubjects.associate { subject ->
+            subject.subjectId to StudyNeedCalculator.evaluate(
+                subjectId = subject.subjectId,
+                dimensions = subjectDimensions.getValue(subject.subjectId),
+                evidence = evidenceBySubject.getValue(subject.subjectId),
+                weights = weights,
+                daysUntilExam = daysUntilExam,
+            )
+        }
+        val topicNeeds = topics.associate { topic ->
+            // O tópico herda os eixos da matéria e traz a própria evidência, é assim que ninguém
+            // precisa classificar 120 tópicos no primeiro setup e mesmo assim o plano diferencia
+            // tópico forte de tópico fraco dentro da mesma matéria.
+            topic.id to StudyNeedCalculator.evaluate(
+                subjectId = topic.subjectId,
+                topicId = topic.id,
+                dimensions = subjectDimensions[topic.subjectId] ?: StudyDimensions.DEFAULT,
+                evidence = topicEvidence.getValue(topic.id),
+                weights = weights,
+                daysUntilExam = daysUntilExam,
+            )
+        }
+
         val blueprintSubjects = planSubjects.map { subject ->
             BlueprintSubject(
                 subjectId = subject.subjectId,
                 name = subject.subjectNameSnapshot,
                 priority = subject.priority,
-                weight = StudyMethod.weightOf(subject.priority, subject.weightOverride),
+                // O peso do rodízio vem só da prova; a dificuldade age pelo NeedScore.
+                weight = subject.weightOverride?.coerceIn(1, 5)
+                    ?: subject.priority.toExamPriority().rotationWeight(),
                 position = subject.position,
                 paused = subject.paused,
+                dimensions = subjectDimensions.getValue(subject.subjectId),
+                need = subjectNeeds[subject.subjectId],
             )
         }
         val blueprintTopics = topics.map { topic ->
@@ -69,6 +144,8 @@ class StudyPlanSnapshotFactory(private val db: AppDatabase) {
                 lastStudied = row?.lastStudiedDate,
                 answered = row?.answered ?: 0,
                 accuracyPercent = row?.takeIf { it.answered > 0 }?.let { it.correct * 100 / it.answered },
+                evidence = topicEvidence.getValue(topic.id),
+                need = topicNeeds[topic.id],
             )
         }
         val pendingReviews = reviews.mapNotNull { review ->
@@ -95,16 +172,16 @@ class StudyPlanSnapshotFactory(private val db: AppDatabase) {
             minimumBlockMinutes = (config.blockMinutes / 2).coerceAtLeast(10),
             preferredBlockMinutes = config.blockMinutes,
             // O rodízio de matérias já é decidido no blueprint, então o teto antigo por matéria sai
-            // do caminho; o que segura o dia é o teto diário abaixo.
+            // do caminho; o que segura o dia é o teto diário abaixo, escolhido no assistente.
             maxFlexibleSharePercent = 100,
-            dailySubjectSharePercent = if (config.interleaveSubjects && activeSubjectCount > 1) 50 else 100,
+            dailySubjectSharePercent = if (activeSubjectCount > 1) config.dailySubjectSharePercent else 100,
         )
 
         val blueprint = StudyPlanBlueprint.build(
             BlueprintInput(
                 today = today,
-                planStart = LocalDate.ofEpochDay(plan.startEpochDay),
-                examDate = plan.examEpochDay?.let(LocalDate::ofEpochDay),
+                planStart = planStart,
+                examDate = examDate,
                 config = config,
                 subjects = blueprintSubjects,
                 topics = blueprintTopics,
@@ -142,5 +219,26 @@ class StudyPlanSnapshotFactory(private val db: AppDatabase) {
             policy = policy,
             notes = blueprint.notes,
         )
+    }
+
+    /**
+     * Revisões já vencidas, por matéria. Alimenta o fator de revisão do NeedScore: revisão perdida
+     * é conteúdo perdido, e a matéria que a acumula precisa voltar antes.
+     */
+    private fun pendingReviewsBySubject(
+        reviews: List<br.com.estudario.data.local.ReviewScheduleEntity>,
+        topics: List<br.com.estudario.data.local.TopicEntity>,
+        today: LocalDate,
+        zone: ZoneId,
+    ): Map<Long, Int> {
+        val subjectByTopic = topics.associate { it.id to it.subjectId }
+        return reviews
+            .filter { review ->
+                val due = Instant.ofEpochMilli(review.dueAt).atZone(zone).toLocalDate()
+                !due.isAfter(today)
+            }
+            .mapNotNull { subjectByTopic[it.topicId] }
+            .groupingBy { it }
+            .eachCount()
     }
 }

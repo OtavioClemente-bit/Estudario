@@ -13,17 +13,32 @@ import br.com.estudario.domain.PriorityAssessment
 import br.com.estudario.domain.PriorityLevel
 import br.com.estudario.domain.PriorityResolver
 import br.com.estudario.domain.PriorityState
+import br.com.estudario.domain.planner.ExamPriority
+import br.com.estudario.domain.planner.InitialKnowledge
+import br.com.estudario.domain.planner.PersonalDifficulty
 import br.com.estudario.domain.planner.PlanPriority
+import br.com.estudario.domain.planner.toExamPriority
+import br.com.estudario.domain.planner.toPlanPriority
 import br.com.estudario.domain.setup.InitialSetupSnapshot
-import br.com.estudario.domain.setup.SubjectDifficulty
-import br.com.estudario.domain.setup.effectivePriority
-import br.com.estudario.domain.setup.toPlanPriority
 
 data class InitialSetupPlanData(
     val promptSubjects: List<PlanSubjectInfo>,
+    /** Importância na prova, vinda do edital/análise. É a única coisa que decide peso de rodízio. */
     val officialPrioritiesBySubjectId: Map<Long, PlanPriority>,
+    /**
+     * Mantido por compatibilidade com as telas existentes, e agora **idêntico** a
+     * [officialPrioritiesBySubjectId].
+     *
+     * Antes este mapa carregava a prioridade já elevada pela dificuldade declarada, o que fundia
+     * dois conceitos independentes num número só. A dificuldade agora viaja em
+     * [difficultiesBySubjectId] e é o motor de necessidade que decide o que fazer com ela.
+     */
     val planningPrioritiesBySubjectId: Map<Long, PlanPriority>,
     val planningPrioritiesByExternalId: Map<String, PlanPriority>,
+    /** Quanto cada matéria custa para esta pessoa. Eixo separado, nunca somado à prioridade. */
+    val difficultiesBySubjectId: Map<Long, PersonalDifficulty> = emptyMap(),
+    /** Quanto a pessoa já sabia de cada matéria ao começar. Terceiro eixo, também separado. */
+    val knowledgeBySubjectId: Map<Long, InitialKnowledge> = emptyMap(),
 )
 
 /** Builds both plan paths from the same selected syllabus, evidence and priority snapshot. */
@@ -34,7 +49,10 @@ object InitialSetupPlanMapper {
         topics: List<TopicEntity>,
         questions: List<QuestionWithOptions>,
         attempts: List<QuestionAttemptEntity>,
-        difficulties: Map<String, SubjectDifficulty>,
+        difficulties: Map<String, PersonalDifficulty>,
+        knowledge: Map<String, InitialKnowledge> = emptyMap(),
+        /** Ajustes manuais de prioridade feitos no assistente; vazio significa "aceito o edital". */
+        priorityOverrides: Map<String, ExamPriority> = emptyMap(),
     ): InitialSetupPlanData {
         val topicById = topics.associateBy { it.id }
         val questionById = questions.associate { it.question.id to it.question }
@@ -47,15 +65,21 @@ object InitialSetupPlanMapper {
         val officialPriorities = LinkedHashMap<Long, PlanPriority>()
         val planningPriorities = LinkedHashMap<Long, PlanPriority>()
         val prioritiesByExternalId = LinkedHashMap<String, PlanPriority>()
+        val personalDifficulties = LinkedHashMap<Long, PersonalDifficulty>()
+        val priorKnowledge = LinkedHashMap<Long, InitialKnowledge>()
 
         val promptSubjects = subjects.map { subject ->
             val externalId = PromptIds.subject(subject)
-            val official = effectiveOfficialPriority(subject, officialCompetitionPriority)
-            val difficulty = difficulties[subject.id.toString()] ?: SubjectDifficulty.MEDIUM
-            val planned = effectivePriority(official, difficulty)
+            val key = subject.id.toString()
+            // A prioridade é a da prova e segue sendo só isso, vinda do edital, ou corrigida à mão
+            // pela pessoa no assistente. A dificuldade e o conhecimento vão por outros campos.
+            val official = priorityOverrides[key]?.toPlanPriority()
+                ?: effectiveOfficialPriority(subject, officialCompetitionPriority)
             officialPriorities[subject.id] = official
-            planningPriorities[subject.id] = planned
-            prioritiesByExternalId[externalId] = planned
+            planningPriorities[subject.id] = official
+            prioritiesByExternalId[externalId] = official
+            personalDifficulties[subject.id] = difficulties[key] ?: PersonalDifficulty.DEFAULT
+            priorKnowledge[subject.id] = knowledge[key] ?: InitialKnowledge.DEFAULT
 
             val subjectTopics = topics.filter { it.subjectId == subject.id }.sortedWith(compareBy<TopicEntity> { it.position }.thenBy { it.id })
             val subjectAttempts = attemptsBySubject[subject.id].orEmpty()
@@ -70,7 +94,14 @@ object InitialSetupPlanMapper {
                 accuracyPercent = if (answered == 0) null else subjectAttempts.count { it.correct } * 100 / answered,
             )
         }
-        return InitialSetupPlanData(promptSubjects, officialPriorities, planningPriorities, prioritiesByExternalId)
+        return InitialSetupPlanData(
+            promptSubjects = promptSubjects,
+            officialPrioritiesBySubjectId = officialPriorities,
+            planningPrioritiesBySubjectId = planningPriorities,
+            planningPrioritiesByExternalId = prioritiesByExternalId,
+            difficultiesBySubjectId = personalDifficulties,
+            knowledgeBySubjectId = priorKnowledge,
+        )
     }
 
     fun map(
@@ -80,7 +111,16 @@ object InitialSetupPlanMapper {
         questions: List<QuestionWithOptions>,
         attempts: List<QuestionAttemptEntity>,
         snapshot: InitialSetupSnapshot,
-    ): InitialSetupPlanData = map(competition, subjects, topics, questions, attempts, snapshot.subjectDifficulties)
+    ): InitialSetupPlanData = map(
+        competition = competition,
+        subjects = subjects,
+        topics = topics,
+        questions = questions,
+        attempts = attempts,
+        difficulties = snapshot.subjectDifficulties,
+        knowledge = snapshot.subjectKnowledge,
+        priorityOverrides = snapshot.subjectPriorities,
+    )
 
     private fun effectiveOfficialPriority(subject: SubjectEntity, parent: PriorityLevel?): PlanPriority =
         priorityState(
@@ -124,5 +164,6 @@ object InitialSetupPlanMapper {
             override,
         ),
         parent,
-    ).toPlanPriority()
+        // Passa pela escala de cinco faixas antes de virar bucket: é o caminho sem perda.
+    ).toExamPriority().toPlanPriority()
 }

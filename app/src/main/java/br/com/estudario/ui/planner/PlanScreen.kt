@@ -5,6 +5,8 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
@@ -29,6 +31,7 @@ import androidx.compose.material.icons.outlined.FileOpen
 import androidx.compose.material.icons.outlined.HelpOutline
 import br.com.estudario.data.transfer.planner.PlanImportMode
 import br.com.estudario.data.local.planner.StudyAvailabilityEntity
+import br.com.estudario.data.local.planner.PlanTaskEntity
 import br.com.estudario.domain.planner.PlanTaskStatus
 import br.com.estudario.ui.AppViewModel
 import br.com.estudario.ui.components.EmptyState
@@ -37,13 +40,15 @@ import br.com.estudario.ui.components.LoadingScreen
 import br.com.estudario.ui.components.ScreenTitle
 import br.com.estudario.ui.tour.TourKey
 import br.com.estudario.ui.tour.tourTarget
+import br.com.estudario.ui.theme.estudarioLayout
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpenTopic: (Long) -> Unit, onOpenTopicTask: (Long, String) -> Unit = { id, _ -> onOpenTopic(id) }, onOpenErrors: () -> Unit = {}, onFocus: () -> Unit = {}, onHelp: () -> Unit = {}) {
+fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpenTopic: (Long) -> Unit, onOpenTopicTask: (Long, String) -> Unit = { id, _ -> onOpenTopic(id) }, onOpenErrors: () -> Unit = {}, onFocus: () -> Unit = {}, onHelp: () -> Unit = {}, onStartQuestions: (PlanTaskEntity, Int) -> Unit = { _, _ -> }) {
     val state by viewModel.state.collectAsState()
     val transfer by viewModel.transfer.collectAsState()
     val busy by viewModel.busy.collectAsState()
@@ -57,12 +62,10 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
     var management by remember { mutableStateOf(false) }
     var promptGenerator by remember { mutableStateOf(false) }
     var completion by remember { mutableStateOf<PlannerTaskUi?>(null) }
-    // Minutos que vieram do cronômetro da sessão de foco encerrada; zero quando a conclusão é manual.
-    var measuredMinutes by remember { mutableIntStateOf(0) }
-    val lastFocusTaskId by appViewModel.lastFocusTaskId.collectAsState()
-    val lastFocusMinutes by appViewModel.lastFocusMinutes.collectAsState()
     var reprogram by remember { mutableStateOf<PlannerTaskUi?>(null) }
     var skip by remember { mutableStateOf<PlannerTaskUi?>(null) }
+    var missingQuestionsTask by remember { mutableStateOf<PlanTaskEntity?>(null) }
+    var questionLaunchError by remember { mutableStateOf<String?>(null) }
     var pendingExport by remember { mutableStateOf<String?>(null) }
     var pendingContext by remember { mutableStateOf<String?>(null) }
     var editAvailability by remember { mutableStateOf(false) }
@@ -83,20 +86,29 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
     LaunchedEffect(Unit) { viewModel.selectSection(PlanSection.TODAY) }
 
     state.message?.let { message -> AlertDialog(onDismissRequest = viewModel::consumeMessage, title = { Text("Plano") }, text = { Text(message) }, confirmButton = { TextButton(onClick = viewModel::consumeMessage) { Text("OK") } }) }
+    missingQuestionsTask?.let { task ->
+        AlertDialog(
+            onDismissRequest = { missingQuestionsTask = null },
+            title = { Text("Questões ainda não salvas") },
+            text = {
+                Text("Ainda não há questões salvas para ${task.topicNameSnapshot ?: task.subjectNameSnapshot}. Salve questões deste assunto e volte para iniciar a bateria. A tarefa continua pendente no seu plano.")
+            },
+            confirmButton = { TextButton(onClick = { missingQuestionsTask = null }) { Text("Entendi") } },
+        )
+    }
+    questionLaunchError?.let { message ->
+        AlertDialog(
+            onDismissRequest = { questionLaunchError = null },
+            title = { Text("Não foi possível iniciar a bateria") },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { questionLaunchError = null }) { Text("OK") } },
+        )
+    }
     if (wizard) PlanWizardScreen(competitions, subjects, topics, { wizard = false }) { viewModel.createPlan(it) }
     if (promptGenerator) PlanPromptBuilderDialog(appViewModel, onDismiss = { promptGenerator = false }, onPickFile = pickPlanFile)
     if (editAvailability) AvailabilityDialog(state.availability, { editAvailability = false }) { viewModel.updateAvailability(it) }
-    // Encerrou o modo foco numa tarefa do plano: a conclusão abre sozinha, já com o tempo medido.
-    LaunchedEffect(lastFocusTaskId, state.todayTasks) {
-        val task = lastFocusTaskId.takeIf { it.isNotBlank() }?.let { id -> state.todayTasks.firstOrNull { it.entity.id == id } }
-        if (task != null) {
-            measuredMinutes = lastFocusMinutes
-            completion = task
-            appViewModel.clearLastFocus()
-        }
-    }
     completion?.let { row ->
-        TaskExecutionDialog(row, measuredMinutes.takeIf { it > 0 }, { completion = null; measuredMinutes = 0 }) { viewModel.complete(row.entity.id, it) }
+        TaskExecutionDialog(row, null, { completion = null }) { viewModel.complete(row.entity.id, it) }
     }
     reprogram?.let { row -> DateOrAutomaticDialog({ reprogram = null }) { viewModel.reprogram(row.entity.id, it) } }
     skip?.let { row -> ReasonDialog({ skip = null }) { viewModel.skip(row.entity.id, it) } }
@@ -109,26 +121,32 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
         }, onContextJson = { pendingContext = viewModel.exportContextJson(); saveContext.launch("contexto-plano.json") }, onContextText = { pendingContext = viewModel.exportContextText(); saveContext.launch("contexto-plano.txt") }, onEditAvailability = { editAvailability = true }, onUpdateSubject = viewModel::updateSubject)
         return
     }
+    val layout = estudarioLayout()
+    val gutter = layout.screenGutter
+    // Em tela estreita (ou fonte grande) os cinco botões encolhem um pouco para o título continuar legível.
+    val actionSize = if (layout.prefersStacking) 40.dp else 48.dp
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.padding(20.dp, 16.dp, 20.dp, 0.dp)) {
-            ScreenTitle("Plano", state.activePlan?.name ?: "Planejamento adaptativo") {
+        // Só a linha de título fica fixa (é a "barra" da tela). Progresso e abas rolam junto com as
+        // tarefas, antes eles ficavam presos no topo e, com fonte normal, sobrava pouco espaço para ler o plano.
+        Row(Modifier.padding(start = gutter, end = gutter - 8.dp, top = 8.dp)) {
+            ScreenTitle("Plano", state.activePlan?.name ?: "Planejamento adaptativo", stackActionsWhenNarrow = false) {
                 Row {
-                    IconButton(onClick = onHelp) { Icon(Icons.Outlined.HelpOutline, "Como usar o plano") }
+                    IconButton(onClick = onHelp, modifier = Modifier.size(actionSize)) { Icon(Icons.Outlined.HelpOutline, "Como usar o plano") }
                     IconButton(
                         onClick = { promptGenerator = true },
-                        modifier = Modifier.tourTarget(TourKey.PLAN_AI, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_AI, it) },
+                        modifier = Modifier.size(actionSize).tourTarget(TourKey.PLAN_AI, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_AI, it) },
                     ) { Icon(Icons.Outlined.AutoAwesome, "Gerar plano com IA") }
                     IconButton(
                         onClick = pickPlanFile,
-                        modifier = Modifier.tourTarget(TourKey.PLAN_IMPORT, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_IMPORT, it) },
+                        modifier = Modifier.size(actionSize).tourTarget(TourKey.PLAN_IMPORT, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_IMPORT, it) },
                     ) { Icon(Icons.Outlined.FileOpen, "Importar arquivo .plano") }
                     IconButton(
                         onClick = { wizard = true },
-                        modifier = Modifier.tourTarget(TourKey.PLAN_CREATE, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_CREATE, it) },
+                        modifier = Modifier.size(actionSize).tourTarget(TourKey.PLAN_CREATE, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_CREATE, it) },
                     ) { Icon(Icons.Outlined.Add, "Novo plano") }
                     IconButton(
                         onClick = { management = true },
-                        modifier = Modifier.tourTarget(TourKey.PLAN_MANAGE, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_MANAGE, it) },
+                        modifier = Modifier.size(actionSize).tourTarget(TourKey.PLAN_MANAGE, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_MANAGE, it) },
                     ) { Icon(Icons.Outlined.Tune, "Gerenciar planos") }
                 }
             }
@@ -145,30 +163,51 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
         } else {
             if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
             Column(Modifier.fillMaxSize()) {
-                PlanProgressHeader(state = state, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
-                PlanSectionSelector(
-                    selected = state.selectedSection,
-                    onSelected = viewModel::selectSection,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-                )
                 CalendarScreen(
                     state = state,
+                    header = {
+                        // O resumo do plano rola para fora da tela; as abas Hoje/Semana/Mês/Visão geral
+                        // grudam no topo (sticky) para trocar de visão sem precisar voltar lá em cima.
+                        item(key = "plan-progress-header") { PlanProgressHeader(state = state) }
+                        stickyHeader(key = "plan-section-selector") {
+                            PlanSectionSelector(
+                                selected = state.selectedSection,
+                                onSelected = viewModel::selectSection,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.background)
+                                    .padding(vertical = 6.dp)
+                                    .tourTarget(TourKey.PLAN_TABS, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_TABS, it) },
+                            )
+                        }
+                    },
                     onOpenTopic = onOpenTopic,
                     onStart = viewModel::start,
                     onFocus = { row ->
-                        if (row.entity.status == PlanTaskStatus.PLANEJADA) viewModel.start(row.entity.id)
-                        val topicId = row.entity.topicId
-                        if (topicId != null) {
-                            // Mesmo ajuste da tela inicial: começar leva para o tópico (onde está o
-                            // conteúdo), não direto para um cronômetro em branco.
-                            onOpenTopicTask(topicId, row.entity.id)
+                        if (row.entity.type == br.com.estudario.domain.planner.PlanTaskType.QUESTIONS) {
+                            scope.launch {
+                                runCatching { viewModel.startQuestionTask(row.entity.id) }
+                                    .onSuccess { savedCount ->
+                                        if (savedCount == 0) missingQuestionsTask = row.entity
+                                        else onStartQuestions(row.entity, savedCount)
+                                    }
+                                    .onFailure { error -> questionLaunchError = error.message ?: "Confira se a tarefa continua disponível no plano." }
+                            }
                         } else {
-                            appViewModel.startFocus(
-                                title = listOfNotNull(row.entity.subjectNameSnapshot, row.entity.topicNameSnapshot).joinToString(" › ").ifBlank { "Tarefa do plano" },
-                                topicId = null,
-                                taskId = row.entity.id,
-                            )
-                            onFocus()
+                            if (row.entity.status == PlanTaskStatus.PLANEJADA) viewModel.start(row.entity.id)
+                            val topicId = row.entity.topicId
+                            if (topicId != null) {
+                                // Mesmo ajuste da tela inicial: começar leva para o tópico (onde está o
+                                // conteúdo), não direto para um cronômetro em branco.
+                                onOpenTopicTask(topicId, row.entity.id)
+                            } else {
+                                appViewModel.startFocus(
+                                    title = listOfNotNull(row.entity.subjectNameSnapshot, row.entity.topicNameSnapshot).joinToString(" › ").ifBlank { "Tarefa do plano" },
+                                    topicId = null,
+                                    taskId = row.entity.id,
+                                )
+                                onFocus()
+                            }
                         }
                     },
                     onComplete = { completion = it },
@@ -185,19 +224,19 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
 
 @Composable
 private fun PlanSectionSelector(selected: PlanSection, onSelected: (PlanSection) -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Visão do plano", style = MaterialTheme.typography.titleSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-            Text("Tudo organizado por período", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PlanSection.entries.forEach { section ->
-                FilterChip(
-                    selected = section == selected,
-                    onClick = { onSelected(section) },
-                    label = { Text(section.label) },
-                )
-            }
+    // Só os chips: o título "Visão do plano" + legenda disputavam a mesma linha e se atropelavam em
+    // tela estreita, e como este seletor agora fica grudado no topo, cada linha a menos é conteúdo a mais.
+    Row(
+        modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PlanSection.entries.forEach { section ->
+            FilterChip(
+                selected = section == selected,
+                onClick = { onSelected(section) },
+                label = { Text(section.label, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
+            )
         }
     }
 }
@@ -209,7 +248,7 @@ private fun PlanSectionSelector(selected: PlanSection, onSelected: (PlanSection)
 @Composable
 private fun EscolhaDeCaminho(onSemIa: () -> Unit, onComIa: () -> Unit, onImportar: () -> Unit, onSelecionar: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(estudarioLayout().screenGutter),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text("Como você quer montar seu plano?", style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
@@ -236,7 +275,7 @@ private fun EscolhaDeCaminho(onSemIa: () -> Unit, onComIa: () -> Unit, onImporta
             destaque = false,
             onClick = onComIa,
         )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             TextButton(onClick = onImportar) { Text("Importar .plano") }
             TextButton(onClick = onSelecionar) { Text("Selecionar plano existente") }
         }
@@ -252,8 +291,8 @@ private fun CaminhoCard(titulo: String, selo: String?, corpo: String, rodape: St
         ),
     ) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(titulo, style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+            FlowRow(verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(titulo, style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, modifier = Modifier.align(Alignment.CenterVertically))
                 if (selo != null) AssistChip(onClick = {}, label = { Text(selo) })
             }
             Text(corpo, style = MaterialTheme.typography.bodyMedium)
@@ -279,5 +318,5 @@ private suspend fun readPlanText(context: Context, uri: Uri): String? = withCont
     val initial = (1..7).map { day -> current.firstOrNull { it.dayOfWeek == day }?.availableMinutes ?: 0 }
     val minutes = remember(current) { mutableStateListOf(*initial.toTypedArray()) }
     val names = listOf("Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom")
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Disponibilidade líquida") }, text = { Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) { names.forEachIndexed { index, name -> Row { Text("$name: ${minutes[index]} min", Modifier.width(100.dp)); Slider(minutes[index].toFloat(), { minutes[index] = it.toInt() }, Modifier.weight(1f), valueRange = 0f..360f, steps = 11) } }; Text("Total: ${minutesLabel(minutes.sum())} por semana") } }, confirmButton = { TextButton(enabled = minutes.any { it > 0 }, onClick = { onConfirm(minutes.mapIndexed { index, value -> StudyAvailabilityEntity("pending", index + 1, value, value == 0) }); onDismiss() }) { Text("Salvar e recalcular") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } })
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Disponibilidade líquida") }, text = { Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) { names.forEachIndexed { index, name -> Row(verticalAlignment = Alignment.CenterVertically) { Text("$name: ${minutes[index]} min", Modifier.widthIn(min = 88.dp), style = MaterialTheme.typography.bodyMedium); Slider(minutes[index].toFloat(), { minutes[index] = it.toInt() }, Modifier.weight(1f), valueRange = 0f..360f, steps = 11) } }; Text("Total: ${minutesLabel(minutes.sum())} por semana") } }, confirmButton = { TextButton(enabled = minutes.any { it > 0 }, onClick = { onConfirm(minutes.mapIndexed { index, value -> StudyAvailabilityEntity("pending", index + 1, value, value == 0) }); onDismiss() }) { Text("Salvar e recalcular") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } })
 }

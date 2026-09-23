@@ -11,8 +11,11 @@ data class DailyActivity(
     val planTasks: Int = 0,
     val studySessions: Int = 0,
     val minutes: Int = 0,
+    val focusSessions: Int = 0,
+    val focusMinutes: Int = 0,
+    val freeFocusMinutes: Int = 0,
 ) {
-    val hasAnything: Boolean get() = questions + reviews + planTasks + studySessions > 0
+    val hasAnything: Boolean get() = questions + reviews + planTasks + studySessions + focusSessions > 0
 }
 
 /**
@@ -44,7 +47,7 @@ data class StreakSummary(
     val totalQuestions: Int = 0,
     val totalMinutes: Int = 0,
 ) {
-    /** 0f..1f — quanto falta para fechar o dia. Tarefa do plano ou revisão já fecham sozinhas. */
+    /** 0f..1f, quanto falta para fechar o dia. Tarefa do plano ou revisão já fecham sozinhas. */
     val todayProgress: Float
         get() = when {
             todayDone -> 1f
