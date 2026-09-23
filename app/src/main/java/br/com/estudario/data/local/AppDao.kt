@@ -12,6 +12,20 @@ interface AppDao {
     @Delete suspend fun deleteCompetition(value: CompetitionEntity)
     @Query("UPDATE competitions SET isPrimary = CASE WHEN id = :id THEN 1 ELSE 0 END") suspend fun setPrimaryCompetition(id: Long)
     @Query("SELECT * FROM competitions WHERE externalId = :externalId LIMIT 1") suspend fun competitionByExternalId(externalId: String): CompetitionEntity?
+    @Query("SELECT * FROM competitions WHERE remoteSyllabusId = :remoteSyllabusId LIMIT 1") suspend fun competitionByRemoteSyllabusId(remoteSyllabusId: String): CompetitionEntity?
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun enqueueRemoteSyllabusSync(value: RemoteSyllabusSyncEntity): Long
+    @Query("SELECT * FROM remote_syllabus_sync WHERE state = 'PENDING' AND nextAttemptAt <= :now ORDER BY nextAttemptAt, createdAt, id")
+    suspend fun pendingRemoteSyllabusSync(now: Long): List<RemoteSyllabusSyncEntity>
+    @Query("SELECT * FROM remote_syllabus_sync WHERE id = :id LIMIT 1")
+    suspend fun remoteSyllabusSyncById(id: Long): RemoteSyllabusSyncEntity?
+    @Query("UPDATE remote_syllabus_sync SET attemptCount = attemptCount + 1, nextAttemptAt = :nextAttemptAt, updatedAt = :updatedAt WHERE id = :id AND state = 'PENDING'")
+    suspend fun markRemoteSyncAttempt(id: Long, nextAttemptAt: Long, updatedAt: Long): Int
+    @Query("UPDATE remote_syllabus_sync SET state = 'SYNCED', nextAttemptAt = 0, lastError = NULL, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun markRemoteSyncSynced(id: Long, updatedAt: Long): Int
+    @Query("UPDATE remote_syllabus_sync SET state = 'FAILED', nextAttemptAt = :nextAttemptAt, lastError = :error, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun markRemoteSyncFailed(id: Long, error: String, nextAttemptAt: Long, updatedAt: Long): Int
 
     @Query("SELECT * FROM subjects ORDER BY competitionId, position, name") fun subjects(): Flow<List<SubjectEntity>>
     @Query("SELECT * FROM subjects ORDER BY competitionId, position, name") suspend fun subjectsOnce(): List<SubjectEntity>

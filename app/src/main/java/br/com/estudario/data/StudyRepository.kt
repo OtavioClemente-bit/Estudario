@@ -35,6 +35,30 @@ class StudyRepository(private val db: AppDatabase) {
     val questionSessions = dao.questionSessions()
 
     suspend fun addCompetition(name: String) = dao.insertCompetition(CompetitionEntity(name = name.trim(), isPrimary = dao.competitionsOnce().isEmpty()))
+    suspend fun associateCompetitionWithRemoteSyllabus(
+        competitionId: Long,
+        remoteSyllabusId: String,
+        jobId: String?,
+        payloadHash: String,
+        operation: RemoteSyllabusSyncOperation = RemoteSyllabusSyncOperation.UPSERT,
+        now: Long = System.currentTimeMillis(),
+    ): Long = db.withTransaction {
+        val competition = dao.competitionsOnce().firstOrNull { it.id == competitionId }
+            ?: error("Competition $competitionId does not exist")
+        dao.updateCompetition(competition.copy(remoteSyllabusId = remoteSyllabusId))
+        dao.enqueueRemoteSyllabusSync(
+            RemoteSyllabusSyncEntity(
+                operation = operation,
+                localSyllabusId = competitionId,
+                remoteSyllabusId = remoteSyllabusId,
+                jobId = jobId,
+                payloadHash = payloadHash,
+                nextAttemptAt = now,
+                createdAt = now,
+                updatedAt = now,
+            ),
+        )
+    }
     suspend fun setPrimary(id: Long) = dao.setPrimaryCompetition(id)
     suspend fun setCompetitionPriorityOverride(id: Long, override: PriorityLevel?) {
         dao.competitionsOnce().firstOrNull { it.id == id }?.let { dao.updateCompetition(it.copy(userPriorityOverride = override)) }

@@ -16,14 +16,17 @@ enum class QueueEventType { ADICIONADO, CONCLUIDO, ADIADO, PAUSADO, RETOMADO }
 enum class ContentOriginType { EDITAL, DIDACTIC_SUBDIVISION, AUXILIARY_CONTENT }
 enum class QuestionSourceType { REAL, REAL_ADAPTED, AUTHORIAL }
 enum class SourceKind { OFICIAL, COMPLEMENTAR }
+enum class RemoteSyllabusSyncOperation { UPSERT, DELETE }
+enum class RemoteSyllabusSyncState { PENDING, SYNCED, FAILED }
 
-@Entity(tableName = "competitions", indices = [Index(value = ["externalId"], unique = true)])
+@Entity(tableName = "competitions", indices = [Index(value = ["externalId"], unique = true), Index(value = ["remoteSyllabusId"], unique = true)])
 data class CompetitionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val isPrimary: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
     val externalId: String? = null,
+    val remoteSyllabusId: String? = null,
     @ColumnInfo(defaultValue = "50") val assessedPriorityScore: Int = 50,
     @ColumnInfo(defaultValue = "DEFAULT") val assessedPrioritySource: PrioritySource = PrioritySource.DEFAULT,
     @ColumnInfo(defaultValue = "0") val assessedPriorityConfidence: Float = 0f,
@@ -31,6 +34,29 @@ data class CompetitionEntity(
     @ColumnInfo(defaultValue = "[]") val assessedPriorityEvidenceJson: String = "[]",
     @ColumnInfo(defaultValue = "0") val hasAssessedPriority: Boolean = false,
     val userPriorityOverride: PriorityLevel? = null,
+)
+
+@Entity(
+    tableName = "remote_syllabus_sync",
+    indices = [
+        Index(value = ["localSyllabusId", "operation", "payloadHash", "state"], unique = true),
+        Index(value = ["state", "nextAttemptAt"]),
+        Index(value = ["remoteSyllabusId"]),
+    ],
+)
+data class RemoteSyllabusSyncEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val operation: RemoteSyllabusSyncOperation,
+    val localSyllabusId: Long,
+    val remoteSyllabusId: String? = null,
+    val jobId: String? = null,
+    val payloadHash: String,
+    val state: RemoteSyllabusSyncState = RemoteSyllabusSyncState.PENDING,
+    val attemptCount: Int = 0,
+    val nextAttemptAt: Long = 0L,
+    val lastError: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
 )
 
 @Entity(

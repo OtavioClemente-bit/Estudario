@@ -12,6 +12,7 @@ import br.com.estudario.data.local.planner.*
 @Database(
     entities = [
         CompetitionEntity::class, SubjectEntity::class, TopicEntity::class, SummaryEntity::class,
+        RemoteSyllabusSyncEntity::class,
         QuestionEntity::class, QuestionOptionEntity::class, QuestionAttemptEntity::class,
         ErrorNotebookEntryEntity::class, ReviewScheduleEntity::class, ReviewHistoryEntity::class,
         StudyQueueEntity::class, StudySessionEntity::class, UserNoteEntity::class, TagEntity::class,
@@ -25,7 +26,7 @@ import br.com.estudario.data.local.planner.*
         MonthlyPlanSubjectEntity::class, MonthlyPlanTopicEntity::class, WeeklyPlanEntity::class,
         PlanTaskEntity::class, PlanTaskDependencyEntity::class, StudyTaskExecutionEntity::class,
     ],
-    version = 14,
+    version = 15,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -208,6 +209,31 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `competitions` ADD COLUMN `remoteSyllabusId` TEXT")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_competitions_remoteSyllabusId` ON `competitions` (`remoteSyllabusId`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `remote_syllabus_sync` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`operation` TEXT NOT NULL, " +
+                        "`localSyllabusId` INTEGER NOT NULL, " +
+                        "`remoteSyllabusId` TEXT, " +
+                        "`jobId` TEXT, " +
+                        "`payloadHash` TEXT NOT NULL, " +
+                        "`state` TEXT NOT NULL, " +
+                        "`attemptCount` INTEGER NOT NULL, " +
+                        "`nextAttemptAt` INTEGER NOT NULL, " +
+                        "`lastError` TEXT, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_remote_syllabus_sync_localSyllabusId_operation_payloadHash_state` ON `remote_syllabus_sync` (`localSyllabusId`, `operation`, `payloadHash`, `state`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_remote_syllabus_sync_state_nextAttemptAt` ON `remote_syllabus_sync` (`state`, `nextAttemptAt`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_remote_syllabus_sync_remoteSyllabusId` ON `remote_syllabus_sync` (`remoteSyllabusId`)")
+            }
+        }
+
         /** Guarda o recorte declarado de cada tópico: o que o item do edital cobra e o que não cobra. */
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -333,6 +359,6 @@ abstract class AppDatabase : RoomDatabase() {
             context.applicationContext,
             AppDatabase::class.java,
             "estudario.db",
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15).build()
     }
 }
