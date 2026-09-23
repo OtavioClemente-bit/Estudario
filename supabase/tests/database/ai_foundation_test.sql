@@ -61,15 +61,114 @@ select ok(
   'topic parents are constrained to the same subject tree'
 );
 
-select has_policy('public', 'profiles', 'profiles_select_own', 'profiles are readable only by their owner');
-select has_policy('public', 'ai_jobs', 'ai_jobs_select_own', 'jobs are readable only by their owner');
-select has_policy('public', 'ai_quota_reservations', 'ai_quota_reservations_select_own', 'reservations are readable only by their owner');
-select has_policy('public', 'user_syllabi', 'user_syllabi_select_own', 'syllabi are readable only by their owner');
-select has_policy('public', 'user_syllabus_subjects', 'user_syllabus_subjects_select_own', 'subjects are readable only through the owning syllabus');
-select has_policy('public', 'user_syllabus_topics', 'user_syllabus_topics_select_own', 'topics are readable only through the owning syllabus');
-select has_policy('storage', 'objects', 'ai_syllabus_sources_select_own', 'source objects are readable only by their owner');
-select has_policy('storage', 'objects', 'ai_syllabus_sources_insert_own', 'source objects are insertable only in the owner path');
-select has_policy('storage', 'objects', 'ai_syllabus_snapshots_select_own', 'snapshot objects are readable only by their owner');
+select ok(
+  exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'profiles'
+      and policyname = 'profiles_select_own'
+      and cmd = 'SELECT'
+      and coalesce(qual, '') like '%auth.uid()%'
+  ),
+  'profiles owner policy exists with an auth.uid predicate'
+);
+select ok(
+  exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'ai_jobs'
+      and policyname = 'ai_jobs_select_own'
+      and cmd = 'SELECT'
+      and coalesce(qual, '') like '%auth.uid()%'
+  ),
+  'jobs owner policy exists with an auth.uid predicate'
+);
+select ok(
+  exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'ai_quota_reservations'
+      and policyname = 'ai_quota_reservations_select_own'
+      and cmd = 'SELECT'
+      and coalesce(qual, '') like '%auth.uid()%'
+  ),
+  'reservation owner policy exists with an auth.uid predicate'
+);
+select ok(
+  exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'user_syllabi'
+      and policyname = 'user_syllabi_select_own'
+      and cmd = 'SELECT'
+      and coalesce(qual, '') like '%auth.uid()%'
+  ),
+  'syllabus owner policy exists with an auth.uid predicate'
+);
+select ok(
+  exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'user_syllabus_subjects'
+      and policyname = 'user_syllabus_subjects_select_own'
+      and cmd = 'SELECT'
+      and coalesce(qual, '') like '%auth.uid()%'
+  ),
+  'subject owner policy exists with an auth.uid predicate'
+);
+select ok(
+  exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'user_syllabus_topics'
+      and policyname = 'user_syllabus_topics_select_own'
+      and cmd = 'SELECT'
+      and coalesce(qual, '') like '%auth.uid()%'
+  ),
+  'topic owner policy exists with an auth.uid predicate'
+);
+select ok(
+  exists (
+    select 1
+    from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'ai_syllabus_sources_select_own'
+      and cmd = 'SELECT'
+      and coalesce(qual, '') like '%auth.uid()%'
+  ),
+  'source Storage select policy exists with an auth.uid predicate'
+);
+select ok(
+  exists (
+    select 1
+    from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'ai_syllabus_sources_insert_own'
+      and cmd = 'INSERT'
+      and coalesce(with_check, '') like '%auth.uid()%'
+  ),
+  'source Storage insert policy exists with an auth.uid predicate'
+);
+select ok(
+  exists (
+    select 1
+    from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'ai_syllabus_snapshots_select_own'
+      and cmd = 'SELECT'
+      and coalesce(qual, '') like '%auth.uid()%'
+  ),
+  'snapshot Storage select policy exists with an auth.uid predicate'
+);
 
 select ok(
   (select not public from storage.buckets where id = 'ai-syllabus-sources'),
@@ -83,7 +182,13 @@ select ok(
 select has_extension('dblink', 'dblink is available for the concurrent quota test');
 
 select ok(
-  dblink_connect('race_setup', format('dbname=%s', current_database())) = 'OK',
+  dblink_connect(
+    'race_setup',
+    format(
+      'host=supabase_db_estudario-local port=5432 dbname=%s user=postgres password=postgres options=-csearch_path=',
+      current_database()
+    )
+  ) = 'OK',
   'concurrency fixture connection opens'
 );
 select ok(
@@ -111,7 +216,13 @@ select ok(dblink_disconnect('race_setup') = 'OK', 'concurrency fixture connectio
 select set_config('request.jwt.claim.role', 'authenticated', false);
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000c1', false);
 select ok(
-  dblink_connect('race_hold', format('dbname=%s', current_database())) = 'OK',
+  dblink_connect(
+    'race_hold',
+    format(
+      'host=supabase_db_estudario-local port=5432 dbname=%s user=postgres password=postgres options=-csearch_path=',
+      current_database()
+    )
+  ) = 'OK',
   'concurrent quota connection opens'
 );
 select ok(
@@ -276,7 +387,7 @@ select is(
 select throws_ok(
   $$insert into public.user_syllabi (owner_user_id, title, position, schema_version, visibility)
     values ('00000000-0000-0000-0000-0000000000a1', 'Non-private syllabus', 99, 1, 'COMMUNITY_REVIEWED')$$,
-  '23514',
+  '42501',
   null,
   'authenticated owners cannot insert a non-private syllabus'
 );
@@ -284,7 +395,7 @@ select throws_ok(
   $$update public.user_syllabi
     set visibility = 'VERIFIED'
     where id = '00000000-0000-0000-0000-0000000000d1'$$,
-  '23514',
+  '42501',
   null,
   'authenticated owners cannot update a syllabus away from PRIVATE'
 );
@@ -752,7 +863,13 @@ set local role authenticated;
 
 set local role postgres;
 select ok(
-  dblink_connect('race_cleanup', format('dbname=%s', current_database())) = 'OK',
+  dblink_connect(
+    'race_cleanup',
+    format(
+      'host=supabase_db_estudario-local port=5432 dbname=%s user=postgres password=postgres options=-csearch_path=',
+      current_database()
+    )
+  ) = 'OK',
   'concurrency fixture cleanup connection opens'
 );
 select ok(

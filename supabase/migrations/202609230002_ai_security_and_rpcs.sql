@@ -472,8 +472,8 @@ begin
     end if;
 
     select * into v_reservation
-    from public.ai_quota_reservations
-    where job_id = v_job.id;
+    from public.ai_quota_reservations as reservation
+    where reservation.job_id = v_job.id;
 
     if not found then
       raise exception using errcode = 'P0001', message = 'AI_JOB_RESERVATION_REQUIRED';
@@ -547,8 +547,8 @@ begin
     end if;
 
     select * into v_reservation
-    from public.ai_quota_reservations
-    where job_id = v_job.id;
+    from public.ai_quota_reservations as reservation
+    where reservation.job_id = v_job.id;
 
     if not found then
       raise exception using errcode = 'P0001', message = 'AI_JOB_RESERVATION_REQUIRED';
