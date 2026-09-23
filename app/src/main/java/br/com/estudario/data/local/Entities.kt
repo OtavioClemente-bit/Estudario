@@ -38,8 +38,9 @@ data class CompetitionEntity(
 
 @Entity(
     tableName = "remote_syllabus_sync",
+    foreignKeys = [ForeignKey(entity = CompetitionEntity::class, parentColumns = ["id"], childColumns = ["localSyllabusId"], onDelete = ForeignKey.CASCADE)],
     indices = [
-        Index(value = ["localSyllabusId", "operation", "payloadHash", "state"], unique = true),
+        Index(value = ["localSyllabusId", "operation", "payloadHash"], unique = true),
         Index(value = ["state", "nextAttemptAt"]),
         Index(value = ["remoteSyllabusId"]),
     ],

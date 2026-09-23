@@ -18,14 +18,20 @@ interface AppDao {
     suspend fun enqueueRemoteSyllabusSync(value: RemoteSyllabusSyncEntity): Long
     @Query("SELECT * FROM remote_syllabus_sync WHERE state = 'PENDING' AND nextAttemptAt <= :now ORDER BY nextAttemptAt, createdAt, id")
     suspend fun pendingRemoteSyllabusSync(now: Long): List<RemoteSyllabusSyncEntity>
+    @Query("SELECT * FROM remote_syllabus_sync WHERE state = 'FAILED' AND nextAttemptAt <= :now ORDER BY nextAttemptAt, createdAt, id")
+    suspend fun failedRemoteSyllabusSync(now: Long): List<RemoteSyllabusSyncEntity>
     @Query("SELECT * FROM remote_syllabus_sync WHERE id = :id LIMIT 1")
     suspend fun remoteSyllabusSyncById(id: Long): RemoteSyllabusSyncEntity?
     @Query("UPDATE remote_syllabus_sync SET attemptCount = attemptCount + 1, nextAttemptAt = :nextAttemptAt, updatedAt = :updatedAt WHERE id = :id AND state = 'PENDING'")
     suspend fun markRemoteSyncAttempt(id: Long, nextAttemptAt: Long, updatedAt: Long): Int
-    @Query("UPDATE remote_syllabus_sync SET state = 'SYNCED', nextAttemptAt = 0, lastError = NULL, updatedAt = :updatedAt WHERE id = :id")
+    @Query("UPDATE remote_syllabus_sync SET state = 'PENDING', nextAttemptAt = :now, lastError = NULL, updatedAt = :updatedAt WHERE id = :id AND state = 'FAILED' AND nextAttemptAt <= :now")
+    suspend fun requeueRemoteSync(id: Long, now: Long, updatedAt: Long): Int
+    @Query("UPDATE remote_syllabus_sync SET state = 'SYNCED', nextAttemptAt = 0, lastError = NULL, updatedAt = :updatedAt WHERE id = :id AND state = 'PENDING'")
     suspend fun markRemoteSyncSynced(id: Long, updatedAt: Long): Int
-    @Query("UPDATE remote_syllabus_sync SET state = 'FAILED', nextAttemptAt = :nextAttemptAt, lastError = :error, updatedAt = :updatedAt WHERE id = :id")
-    suspend fun markRemoteSyncFailed(id: Long, error: String, nextAttemptAt: Long, updatedAt: Long): Int
+    @Query("UPDATE remote_syllabus_sync SET state = 'FAILED', nextAttemptAt = :nextAttemptAt, lastError = :error, updatedAt = :updatedAt WHERE id = :id AND state = 'PENDING'")
+    suspend fun markRemoteSyncFailedRaw(id: Long, error: String, nextAttemptAt: Long, updatedAt: Long): Int
+    suspend fun markRemoteSyncFailed(id: Long, error: String, nextAttemptAt: Long, updatedAt: Long): Int =
+        markRemoteSyncFailedRaw(id, RemoteSyllabusSyncError.safe(error), nextAttemptAt, updatedAt)
 
     @Query("SELECT * FROM subjects ORDER BY competitionId, position, name") fun subjects(): Flow<List<SubjectEntity>>
     @Query("SELECT * FROM subjects ORDER BY competitionId, position, name") suspend fun subjectsOnce(): List<SubjectEntity>

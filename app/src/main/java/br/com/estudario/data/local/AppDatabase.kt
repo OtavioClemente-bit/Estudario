@@ -26,7 +26,7 @@ import br.com.estudario.data.local.planner.*
         MonthlyPlanSubjectEntity::class, MonthlyPlanTopicEntity::class, WeeklyPlanEntity::class,
         PlanTaskEntity::class, PlanTaskDependencyEntity::class, StudyTaskExecutionEntity::class,
     ],
-    version = 15,
+    version = 16,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -234,6 +234,40 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `remote_syllabus_sync_new` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`operation` TEXT NOT NULL, " +
+                        "`localSyllabusId` INTEGER NOT NULL, " +
+                        "`remoteSyllabusId` TEXT, " +
+                        "`jobId` TEXT, " +
+                        "`payloadHash` TEXT NOT NULL, " +
+                        "`state` TEXT NOT NULL, " +
+                        "`attemptCount` INTEGER NOT NULL, " +
+                        "`nextAttemptAt` INTEGER NOT NULL, " +
+                        "`lastError` TEXT, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL, " +
+                        "FOREIGN KEY(`localSyllabusId`) REFERENCES `competitions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)",
+                )
+                db.execSQL(
+                    "INSERT INTO `remote_syllabus_sync_new` (id, operation, localSyllabusId, remoteSyllabusId, jobId, payloadHash, state, attemptCount, nextAttemptAt, lastError, createdAt, updatedAt) " +
+                        "SELECT old.id, old.operation, old.localSyllabusId, old.remoteSyllabusId, old.jobId, old.payloadHash, old.state, old.attemptCount, old.nextAttemptAt, old.lastError, old.createdAt, old.updatedAt " +
+                        "FROM `remote_syllabus_sync` old " +
+                        "WHERE EXISTS (SELECT 1 FROM `competitions` competition WHERE competition.id = old.localSyllabusId) " +
+                        "AND NOT EXISTS (SELECT 1 FROM `remote_syllabus_sync` newer WHERE newer.localSyllabusId = old.localSyllabusId AND newer.operation = old.operation AND newer.payloadHash = old.payloadHash " +
+                        "AND (newer.updatedAt > old.updatedAt OR (newer.updatedAt = old.updatedAt AND newer.id > old.id)))",
+                )
+                db.execSQL("DROP TABLE `remote_syllabus_sync`")
+                db.execSQL("ALTER TABLE `remote_syllabus_sync_new` RENAME TO `remote_syllabus_sync`")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_remote_syllabus_sync_localSyllabusId_operation_payloadHash` ON `remote_syllabus_sync` (`localSyllabusId`, `operation`, `payloadHash`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_remote_syllabus_sync_state_nextAttemptAt` ON `remote_syllabus_sync` (`state`, `nextAttemptAt`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_remote_syllabus_sync_remoteSyllabusId` ON `remote_syllabus_sync` (`remoteSyllabusId`)")
+            }
+        }
+
         /** Guarda o recorte declarado de cada tópico: o que o item do edital cobra e o que não cobra. */
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -359,6 +393,6 @@ abstract class AppDatabase : RoomDatabase() {
             context.applicationContext,
             AppDatabase::class.java,
             "estudario.db",
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16).build()
     }
 }
