@@ -106,6 +106,8 @@ A RPC deve criar ou recuperar o job e a reserva na mesma transação. Ela não p
 
 Em falha, liberar reserva. Timeout, erro de rede, erro OpenAI, schema inválido, documento ilegível, falha interna ou cancelamento não consomem quota. Depois de proposta válida armazenada e job `SUCCEEDED`, a geração foi consumida mesmo que o usuário abandone a revisão ou apague depois a cópia local/remota.
 
+Cancelamento em `RESERVED` é permitido somente quando nenhuma execução do provider foi iniciada e nenhum `openai_response_id` foi criado; nessa situação, a transição para `CANCELLED` e a liberação da reserva de quota acontecem atomicamente. Cancelamento em `PROCESSING` só pode transicionar para `CANCELLED` depois da reconciliação do provider. Se houver resultado concluído ou recuperável, o job preserva esse resultado e a quota não é liberada; se o backend confirmar que não existe execução nem resultado recuperável, a transição e a liberação são permitidas.
+
 ### Idempotência e retry
 
 Constraint equivalente a `(user_id, feature, idempotency_key)`. A mesma chave e fingerprint devolvem o mesmo job; chave igual com payload diferente retorna conflito.
@@ -125,12 +127,13 @@ Jobs em `PROCESSING` possuem lease/expiração server-side. Nova tentativa só o
 
 ```text
 RESERVED → PROCESSING → SUCCEEDED (terminal)
-                    ├→ FAILED    (terminal)
-                    ├→ EXPIRED   (terminal)
-                    └→ CANCELLED (terminal)
+RESERVED → CANCELLED (terminal, somente sem execução iniciada)
+PROCESSING → FAILED (terminal)
+PROCESSING → EXPIRED (terminal)
+PROCESSING → CANCELLED (terminal, após reconciliação)
 ```
 
-`SUCCEEDED` significa que proposta válida está armazenada e recuperável. `FAILED`, `EXPIRED` e `CANCELLED` só saem de `PROCESSING` e são terminais. `IMPORT_APPLIED` é estado separado da aplicação local.
+`SUCCEEDED` significa que proposta válida está armazenada e recuperável. `FAILED` e `EXPIRED` só saem de `PROCESSING`. `CANCELLED` pode sair de `RESERVED` somente antes de qualquer execução do provider, ou de `PROCESSING` depois da reconciliação do provider. `SUCCEEDED`, `FAILED`, `EXPIRED` e `CANCELLED` são terminais. `IMPORT_APPLIED` é estado separado da aplicação local.
 
 ### PDF e anexo de matérias
 
@@ -313,6 +316,7 @@ O modelo comporta visibilidade/status futuros, mas a primeira versão não terá
 15. PDF acima de bytes/páginas/itens configurados é rejeitado server-side.
 16. Usuário fora do beta é bloqueado no servidor e continua usando o app local.
 17. Android compila sem credenciais reais; Secret ausente gera erro explícito e seguro.
+18. Um job `RESERVED` só pode ir para `CANCELLED` e liberar quota atomicamente quando nenhum provider/OpenAI response foi iniciado; após início do provider, o cancelamento exige reconciliação e preserva qualquer resultado concluído ou recuperável.
 
 ## Dependências externas antes da integração real
 

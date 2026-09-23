@@ -19,7 +19,7 @@
 - The model may return only an `AiSyllabusProposal`; it must never write directly to Room or remote tables.
 - Apply reviewed content through the existing official `.estudo` import/application pipeline so import, replacement, rollback, and ID generation retain one source of truth.
 - Create the durable job and reserve quota through the atomic `create_or_get_ai_job_and_reserve_quota()` Postgres/RPC operation.
-- Treat `SUCCEEDED`, `FAILED`, `EXPIRED`, and `CANCELLED` as terminal states. A cancellation releases quota only after the backend confirms that no OpenAI execution has completed or remains recoverable.
+- Treat `SUCCEEDED`, `FAILED`, `EXPIRED`, and `CANCELLED` as terminal states. Allow `RESERVED -> CANCELLED` only when no provider execution has started and release its reservation atomically; allow `PROCESSING -> CANCELLED` only after provider reconciliation confirms no completed or recoverable execution. Never release quota for a completed or recoverable provider result.
 - `POST /process` must return quickly with `202 Accepted`; processing belongs to the durable worker/poller and may use OpenAI background mode.
 - Bind every job to the exact Storage object and computed `sourceHash` that will be processed before any OpenAI call begins.
 - Store stable `external_id`, `package_version`, and `schema_version` for remote subjects and topics so restoration returns the same identity-bearing tree.
@@ -93,11 +93,11 @@
 
 - [ ] Write database tests first for table existence, enum/check constraints, indexes, ownership policies, and the allowed job state graph. Run them against the local Supabase database and confirm they fail because the schema does not exist.
 - [ ] Create tables for profiles/beta access, feature flags, `ai_jobs`, quota reservations, usage, `user_syllabi`, `user_syllabus_subjects`, and `user_syllabus_topics`. Include job fields for feature, status, user, idempotency key, request fingerprint, Storage object path, source hash/bytes/pages, provider response ID, prompt/schema/model versions, proposal, warnings, lease, and timestamps.
-- [ ] Encode and test the state graph explicitly: `RESERVED -> PROCESSING -> SUCCEEDED` and `PROCESSING -> FAILED`, `PROCESSING -> CANCELLED`, or `PROCESSING -> EXPIRED`; terminal states have no outgoing transitions. Cancellation from `RESERVED` is handled by the cancellation RPC with the quota-release rule in Task 8.
+- [ ] Encode and test the state graph explicitly: `RESERVED -> PROCESSING -> SUCCEEDED`, `RESERVED -> CANCELLED` only before provider execution starts, and `PROCESSING -> FAILED`, `PROCESSING -> EXPIRED`, or reconciled `PROCESSING -> CANCELLED`; terminal states have no outgoing transitions.
 - [ ] Add `external_id`, `package_version`, and `schema_version` to remote subjects and topics, plus positions and parent relationships needed for exact restoration.
 - [ ] Add private Storage buckets/policies and RLS policies so a user can access only their own source objects and private syllabi.
 - [ ] Add the exact transactional RPCs: `create_or_get_ai_job_and_reserve_quota()`, `claim_ai_job()`, `release_ai_job_reservation()`, `finalize_ai_job_success()`, and `finalize_ai_job_failure()`. The first RPC must be idempotent for the same key/fingerprint and must never leave a reservation without a job.
-- [ ] Add database assertions for quota concurrency, duplicate idempotency keys, terminal-state immutability, and cancellation release rules. Run `supabase db reset` and `supabase test db` until green.
+- [ ] Add database assertions for quota concurrency, duplicate idempotency keys, terminal-state immutability, and cancellation release rules. Include a specific assertion that `RESERVED -> CANCELLED` releases quota atomically only when no provider/OpenAI response was initiated. Run `supabase db reset` and `supabase test db` until green.
 - [ ] Commit as `feat: add AI beta database foundation`.
 
 **Configuration gate:** Install/configure the Supabase CLI for local development only. No external credential is needed for this task.
@@ -214,7 +214,8 @@
 **Steps:**
 
 - [ ] Write failing tests for these exact cases:
-  - `RESERVED` cancellation becomes `CANCELLED` and releases quota.
+  - `RESERVED` cancellation becomes `CANCELLED` and releases quota atomically only when no provider execution or OpenAI response was initiated.
+  - A `RESERVED` job with evidence that provider execution started is not cancelled through the pre-provider path and does not release quota without provider reconciliation.
   - `PROCESSING` without a provider response ID becomes `CANCELLED` and releases quota.
   - `PROCESSING` with `openai_response_id` queries/cancels/reconciles the provider before deciding quota.
   - A completed or recoverable provider response wins over a cancellation request and consumes quota.
