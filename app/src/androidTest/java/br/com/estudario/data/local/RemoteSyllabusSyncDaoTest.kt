@@ -64,20 +64,20 @@ class RemoteSyllabusSyncDaoTest {
         val id = dao.enqueueRemoteSyllabusSync(sync(localId, payloadHash = "hash-1", nextAttemptAt = 100L))
         val rowId = if (id == -1L) dao.pendingRemoteSyllabusSync(100L).single().id else id
 
-        assertEquals(1, dao.markRemoteSyncAttempt(rowId, nextAttemptAt = 250L, updatedAt = 200L))
+        assertEquals(1, dao.markRemoteSyncAttempt(rowId, expectedAttemptToken = "", attemptToken = "attempt-1", nextAttemptAt = 250L, updatedAt = 200L))
         val attempted = dao.pendingRemoteSyllabusSync(now = 200L)
         assertTrue(attempted.isEmpty())
         val afterAttempt = dao.remoteSyllabusSyncById(rowId)!!
         assertEquals(1, afterAttempt.attemptCount)
         assertEquals(250L, afterAttempt.nextAttemptAt)
 
-        assertEquals(1, dao.markRemoteSyncFailed(rowId, error = "network", nextAttemptAt = 500L, updatedAt = 300L))
+        assertEquals(1, dao.markRemoteSyncFailed(rowId, attemptToken = "attempt-1", error = "network", nextAttemptAt = 500L, updatedAt = 300L))
         val failed = dao.remoteSyllabusSyncById(rowId)!!
         assertEquals(RemoteSyllabusSyncState.FAILED, failed.state)
         assertEquals(RemoteSyllabusSyncError.NETWORK, failed.lastError)
 
-        assertEquals(0, dao.markRemoteSyncSynced(rowId, updatedAt = 400L))
-        assertEquals(0, dao.markRemoteSyncFailed(rowId, error = "late worker", nextAttemptAt = 600L, updatedAt = 500L))
+        assertEquals(0, dao.markRemoteSyncSynced(rowId, attemptToken = "attempt-1", updatedAt = 400L))
+        assertEquals(0, dao.markRemoteSyncFailed(rowId, attemptToken = "attempt-1", error = "late worker", nextAttemptAt = 600L, updatedAt = 500L))
         assertEquals(RemoteSyllabusSyncState.FAILED, dao.remoteSyllabusSyncById(rowId)!!.state)
     }
 
@@ -86,9 +86,10 @@ class RemoteSyllabusSyncDaoTest {
         val localId = dao.insertCompetition(CompetitionEntity(name = "Concurso"))
         val rowId = dao.enqueueRemoteSyllabusSync(sync(localId, payloadHash = "hash-1", nextAttemptAt = 100L))
 
-        dao.markRemoteSyncAttempt(rowId, nextAttemptAt = 250L, updatedAt = 200L)
+        dao.markRemoteSyncAttempt(rowId, expectedAttemptToken = "", attemptToken = "attempt-1", nextAttemptAt = 250L, updatedAt = 200L)
         dao.markRemoteSyncFailed(
             rowId,
+            attemptToken = "attempt-1",
             error = "HTTP 503 Authorization: test-secret",
             nextAttemptAt = 500L,
             updatedAt = 300L,
@@ -99,9 +100,9 @@ class RemoteSyllabusSyncDaoTest {
 
         assertTrue(dao.pendingRemoteSyllabusSync(now = 499L).isEmpty())
         assertTrue(dao.failedRemoteSyllabusSync(now = 499L).isEmpty())
-        assertEquals(0, dao.requeueRemoteSync(rowId, now = 499L, updatedAt = 499L))
+        assertEquals(0, dao.requeueRemoteSync(rowId, expectedAttemptToken = "attempt-1", attemptToken = "attempt-2", now = 499L, updatedAt = 499L))
         assertEquals(1, dao.failedRemoteSyllabusSync(now = 500L).size)
-        assertEquals(1, dao.requeueRemoteSync(rowId, now = 500L, updatedAt = 500L))
+        assertEquals(1, dao.requeueRemoteSync(rowId, expectedAttemptToken = "attempt-1", attemptToken = "attempt-2", now = 500L, updatedAt = 500L))
 
         val requeued = dao.pendingRemoteSyllabusSync(now = 500L).single()
         assertEquals(RemoteSyllabusSyncState.PENDING, requeued.state)
@@ -114,10 +115,11 @@ class RemoteSyllabusSyncDaoTest {
         val localId = dao.insertCompetition(CompetitionEntity(name = "Concurso"))
         val rowId = dao.enqueueRemoteSyllabusSync(sync(localId, payloadHash = "hash-1", nextAttemptAt = 100L))
 
-        assertEquals(1, dao.markRemoteSyncSynced(rowId, updatedAt = 200L))
-        assertEquals(0, dao.markRemoteSyncSynced(rowId, updatedAt = 300L))
-        assertEquals(0, dao.markRemoteSyncFailed(rowId, error = "late network", nextAttemptAt = 400L, updatedAt = 300L))
-        assertEquals(0, dao.markRemoteSyncAttempt(rowId, nextAttemptAt = 500L, updatedAt = 400L))
+        assertEquals(1, dao.markRemoteSyncAttempt(rowId, expectedAttemptToken = "", attemptToken = "attempt-1", nextAttemptAt = 150L, updatedAt = 150L))
+        assertEquals(1, dao.markRemoteSyncSynced(rowId, attemptToken = "attempt-1", updatedAt = 200L))
+        assertEquals(0, dao.markRemoteSyncSynced(rowId, attemptToken = "attempt-1", updatedAt = 300L))
+        assertEquals(0, dao.markRemoteSyncFailed(rowId, attemptToken = "attempt-1", error = "late network", nextAttemptAt = 400L, updatedAt = 300L))
+        assertEquals(0, dao.markRemoteSyncAttempt(rowId, expectedAttemptToken = "attempt-1", attemptToken = "attempt-2", nextAttemptAt = 500L, updatedAt = 400L))
         val synced = dao.remoteSyllabusSyncById(rowId)!!
         assertEquals(RemoteSyllabusSyncState.SYNCED, synced.state)
         assertNull(synced.lastError)
@@ -128,12 +130,29 @@ class RemoteSyllabusSyncDaoTest {
         val localId = dao.insertCompetition(CompetitionEntity(name = "Concurso"))
         val mutation = sync(localId, payloadHash = "hash-1", nextAttemptAt = 100L)
         val rowId = dao.enqueueRemoteSyllabusSync(mutation)
-        dao.markRemoteSyncAttempt(rowId, nextAttemptAt = 200L, updatedAt = 150L)
-        dao.markRemoteSyncFailed(rowId, error = "network", nextAttemptAt = 500L, updatedAt = 200L)
+        dao.markRemoteSyncAttempt(rowId, expectedAttemptToken = "", attemptToken = "attempt-1", nextAttemptAt = 200L, updatedAt = 150L)
+        dao.markRemoteSyncFailed(rowId, attemptToken = "attempt-1", error = "network", nextAttemptAt = 500L, updatedAt = 200L)
 
         assertEquals(-1L, dao.enqueueRemoteSyllabusSync(mutation.copy(id = 0, state = RemoteSyllabusSyncState.PENDING)))
         assertEquals(1, dao.failedRemoteSyllabusSync(now = 500L).size)
         assertTrue(dao.pendingRemoteSyllabusSync(now = 500L).isEmpty())
+    }
+
+    @Test
+    fun staleWorkerCannotCompleteAfterFailedRowIsRequeued() = runBlocking {
+        val localId = dao.insertCompetition(CompetitionEntity(name = "Concurso"))
+        val rowId = dao.enqueueRemoteSyllabusSync(sync(localId, payloadHash = "hash-1", nextAttemptAt = 100L))
+
+        assertEquals(1, dao.markRemoteSyncAttempt(rowId, expectedAttemptToken = "", attemptToken = "attempt-1", nextAttemptAt = 150L, updatedAt = 150L))
+        assertEquals(1, dao.markRemoteSyncFailed(rowId, attemptToken = "attempt-1", error = "network", nextAttemptAt = 500L, updatedAt = 200L))
+        assertEquals(1, dao.requeueRemoteSync(rowId, expectedAttemptToken = "attempt-1", attemptToken = "attempt-2", now = 500L, updatedAt = 500L))
+
+        assertEquals(0, dao.markRemoteSyncSynced(rowId, attemptToken = "attempt-1", updatedAt = 600L))
+        assertEquals(0, dao.markRemoteSyncFailed(rowId, attemptToken = "attempt-1", error = "late network", nextAttemptAt = 700L, updatedAt = 600L))
+        assertEquals(RemoteSyllabusSyncState.PENDING, dao.remoteSyllabusSyncById(rowId)!!.state)
+
+        assertEquals(1, dao.markRemoteSyncAttempt(rowId, expectedAttemptToken = "attempt-2", attemptToken = "attempt-3", nextAttemptAt = 650L, updatedAt = 650L))
+        assertEquals(1, dao.markRemoteSyncSynced(rowId, attemptToken = "attempt-3", updatedAt = 700L))
     }
 
     @Test

@@ -54,6 +54,7 @@ data class RemoteSyllabusSyncEntity(
     val payloadHash: String,
     val state: RemoteSyllabusSyncState = RemoteSyllabusSyncState.PENDING,
     val attemptCount: Int = 0,
+    @ColumnInfo(defaultValue = "") val attemptToken: String = "",
     val nextAttemptAt: Long = 0L,
     val lastError: String? = null,
     val createdAt: Long = System.currentTimeMillis(),

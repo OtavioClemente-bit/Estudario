@@ -22,16 +22,21 @@ interface AppDao {
     suspend fun failedRemoteSyllabusSync(now: Long): List<RemoteSyllabusSyncEntity>
     @Query("SELECT * FROM remote_syllabus_sync WHERE id = :id LIMIT 1")
     suspend fun remoteSyllabusSyncById(id: Long): RemoteSyllabusSyncEntity?
-    @Query("UPDATE remote_syllabus_sync SET attemptCount = attemptCount + 1, nextAttemptAt = :nextAttemptAt, updatedAt = :updatedAt WHERE id = :id AND state = 'PENDING'")
-    suspend fun markRemoteSyncAttempt(id: Long, nextAttemptAt: Long, updatedAt: Long): Int
-    @Query("UPDATE remote_syllabus_sync SET state = 'PENDING', nextAttemptAt = :now, lastError = NULL, updatedAt = :updatedAt WHERE id = :id AND state = 'FAILED' AND nextAttemptAt <= :now")
-    suspend fun requeueRemoteSync(id: Long, now: Long, updatedAt: Long): Int
-    @Query("UPDATE remote_syllabus_sync SET state = 'SYNCED', nextAttemptAt = 0, lastError = NULL, updatedAt = :updatedAt WHERE id = :id AND state = 'PENDING'")
-    suspend fun markRemoteSyncSynced(id: Long, updatedAt: Long): Int
-    @Query("UPDATE remote_syllabus_sync SET state = 'FAILED', nextAttemptAt = :nextAttemptAt, lastError = :error, updatedAt = :updatedAt WHERE id = :id AND state = 'PENDING'")
-    suspend fun markRemoteSyncFailedRaw(id: Long, error: String, nextAttemptAt: Long, updatedAt: Long): Int
-    suspend fun markRemoteSyncFailed(id: Long, error: String, nextAttemptAt: Long, updatedAt: Long): Int =
-        markRemoteSyncFailedRaw(id, RemoteSyllabusSyncError.safe(error), nextAttemptAt, updatedAt)
+    @Query("UPDATE remote_syllabus_sync SET attemptCount = attemptCount + 1, attemptToken = :attemptToken, nextAttemptAt = :nextAttemptAt, updatedAt = :updatedAt WHERE id = :id AND state = 'PENDING' AND attemptToken = :expectedAttemptToken AND :attemptToken != ''")
+    suspend fun markRemoteSyncAttempt(id: Long, expectedAttemptToken: String, attemptToken: String, nextAttemptAt: Long, updatedAt: Long): Int
+    @Query("UPDATE remote_syllabus_sync SET state = 'PENDING', attemptToken = :attemptToken, nextAttemptAt = :now, lastError = NULL, updatedAt = :updatedAt WHERE id = :id AND state = 'FAILED' AND nextAttemptAt <= :now AND attemptToken = :expectedAttemptToken AND :attemptToken != ''")
+    suspend fun requeueRemoteSync(id: Long, expectedAttemptToken: String, attemptToken: String, now: Long, updatedAt: Long): Int
+    @Query("UPDATE remote_syllabus_sync SET state = 'SYNCED', nextAttemptAt = 0, lastError = NULL, updatedAt = :updatedAt WHERE id = :id AND state = 'PENDING' AND attemptToken = :attemptToken AND :attemptToken != ''")
+    suspend fun markRemoteSyncSynced(id: Long, attemptToken: String, updatedAt: Long): Int
+    @Query(
+        "UPDATE remote_syllabus_sync SET state = 'FAILED', nextAttemptAt = :nextAttemptAt, lastError = CASE " +
+            "WHEN lower(:error) LIKE '%401%' OR lower(:error) LIKE '%unauthorized%' OR lower(:error) LIKE '%forbidden%' OR lower(:error) LIKE '%authorization%' OR lower(:error) LIKE '%bearer%' THEN 'AUTH_REQUIRED' " +
+            "WHEN lower(:error) LIKE '%timeout%' OR lower(:error) LIKE '%timed out%' THEN 'NETWORK_TIMEOUT' " +
+            "WHEN lower(:error) LIKE '%network%' OR lower(:error) LIKE '%connect%' OR lower(:error) LIKE '%socket%' OR lower(:error) LIKE '%dns%' THEN 'NETWORK_ERROR' " +
+            "WHEN lower(:error) LIKE '%http%' OR lower(:error) LIKE '%remote%' OR lower(:error) LIKE '%server%' THEN 'REMOTE_ERROR' " +
+            "ELSE 'SYNC_FAILED' END, updatedAt = :updatedAt WHERE id = :id AND state = 'PENDING' AND attemptToken = :attemptToken AND :attemptToken != ''",
+    )
+    suspend fun markRemoteSyncFailed(id: Long, attemptToken: String, error: String, nextAttemptAt: Long, updatedAt: Long): Int
 
     @Query("SELECT * FROM subjects ORDER BY competitionId, position, name") fun subjects(): Flow<List<SubjectEntity>>
     @Query("SELECT * FROM subjects ORDER BY competitionId, position, name") suspend fun subjectsOnce(): List<SubjectEntity>

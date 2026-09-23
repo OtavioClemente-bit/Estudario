@@ -54,6 +54,10 @@ class RemoteSyllabusSyncMigrationTest {
         }
 
         helper.runMigrationsAndValidate(databaseName, 16, true, AppDatabase.MIGRATION_15_16).apply {
+            close()
+        }
+
+        helper.runMigrationsAndValidate(databaseName, 17, true, AppDatabase.MIGRATION_16_17).apply {
             query("SELECT id, name, externalId, remoteSyllabusId FROM competitions WHERE id = 41").use { cursor ->
                 assertTrue(cursor.moveToFirst())
                 assertEquals(41L, cursor.getLong(0))
@@ -113,7 +117,7 @@ class RemoteSyllabusSyncMigrationTest {
                 val columns = buildSet {
                     while (cursor.moveToNext()) add(cursor.getString(1))
                 }
-                assertTrue(columns.containsAll(setOf("operation", "localSyllabusId", "remoteSyllabusId", "jobId", "payloadHash", "state", "attemptCount", "nextAttemptAt", "lastError", "createdAt", "updatedAt")))
+                assertTrue(columns.containsAll(setOf("operation", "localSyllabusId", "remoteSyllabusId", "jobId", "payloadHash", "state", "attemptCount", "attemptToken", "nextAttemptAt", "lastError", "createdAt", "updatedAt")))
             }
             query("SELECT COUNT(*) FROM remote_syllabus_sync WHERE localSyllabusId = 41 AND operation = 'UPSERT' AND payloadHash = 'same-payload'").use { cursor ->
                 assertTrue(cursor.moveToFirst())
@@ -124,6 +128,10 @@ class RemoteSyllabusSyncMigrationTest {
                 assertEquals("FAILED", cursor.getString(0))
                 assertEquals("job-new", cursor.getString(1))
                 assertEquals("NETWORK_ERROR", cursor.getString(2))
+            }
+            query("SELECT attemptToken FROM remote_syllabus_sync WHERE localSyllabusId = 41 AND payloadHash = 'same-payload'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("", cursor.getString(0))
             }
             close()
         }
