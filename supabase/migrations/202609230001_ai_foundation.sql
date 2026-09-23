@@ -1,4 +1,5 @@
 create extension if not exists pgcrypto;
+create extension if not exists dblink;
 
 create type public.ai_feature as enum (
   'SYLLABUS_GENERATION',
@@ -158,7 +159,7 @@ create table public.user_syllabi (
   updated_at timestamptz not null default now(),
   constraint user_syllabi_title_check check (length(btrim(title)) > 0),
   constraint user_syllabi_position_check check (position >= 0),
-  constraint user_syllabi_visibility_check check (visibility in ('PRIVATE', 'COMMUNITY_REVIEWED', 'VERIFIED', 'SUPERSEDED', 'ARCHIVED')),
+  constraint user_syllabi_visibility_check check (visibility = 'PRIVATE'),
   constraint user_syllabi_source_check check (source in ('AI_GENERATED', 'IMPORTED', 'MANUAL')),
   constraint user_syllabi_source_hash_check check (source_hash is null or source_hash ~ '^[0-9a-f]{64}$'),
   constraint user_syllabi_schema_version_check check (schema_version > 0),

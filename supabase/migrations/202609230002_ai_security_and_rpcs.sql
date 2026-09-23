@@ -132,16 +132,22 @@ begin
     end if;
   elsif old.status = 'PROCESSING' and new.status = 'CANCELLED' then
     if new.provider_reconciled_at is null
-       or coalesce(new.provider_result_recoverable, false) then
+       or new.provider_result_recoverable is not false then
       raise exception using
         errcode = 'P0001',
         message = 'CANCELLATION_RECONCILIATION_REQUIRED';
     end if;
   elsif old.status = 'PROCESSING' and new.status in ('FAILED', 'EXPIRED') then
-    if coalesce(old.provider_result_recoverable, false) then
+    if new.provider_reconciled_at is null
+       or new.provider_result_recoverable is not false then
+      if coalesce(new.provider_result_recoverable, false) then
+        raise exception using
+          errcode = 'P0001',
+          message = 'PROVIDER_RESULT_RECOVERABLE';
+      end if;
       raise exception using
         errcode = 'P0001',
-        message = 'PROVIDER_RESULT_RECOVERABLE';
+        message = 'PROVIDER_RECONCILIATION_REQUIRED';
     end if;
   else
     raise exception using
@@ -213,13 +219,13 @@ using (owner_user_id = auth.uid());
 create policy user_syllabi_insert_own
 on public.user_syllabi
 for insert to authenticated
-with check (owner_user_id = auth.uid());
+with check (owner_user_id = auth.uid() and visibility = 'PRIVATE');
 
 create policy user_syllabi_update_own
 on public.user_syllabi
 for update to authenticated
 using (owner_user_id = auth.uid())
-with check (owner_user_id = auth.uid());
+with check (owner_user_id = auth.uid() and visibility = 'PRIVATE');
 
 create policy user_syllabi_delete_own
 on public.user_syllabi
@@ -681,8 +687,15 @@ begin
   if p_terminal_status in ('FAILED', 'EXPIRED') and v_job.status <> 'PROCESSING' then
     raise exception using errcode = 'P0001', message = 'INVALID_FAILURE_STATE';
   end if;
+  if p_terminal_status in ('FAILED', 'EXPIRED') and v_job.status = 'PROCESSING'
+     and (v_job.provider_reconciled_at is null or v_job.provider_result_recoverable is not false) then
+    if coalesce(v_job.provider_result_recoverable, false) then
+      raise exception using errcode = 'P0001', message = 'PROVIDER_RESULT_RECOVERABLE';
+    end if;
+    raise exception using errcode = 'P0001', message = 'PROVIDER_RECONCILIATION_REQUIRED';
+  end if;
   if p_terminal_status = 'CANCELLED' and v_job.status = 'PROCESSING'
-     and (v_job.provider_reconciled_at is null or coalesce(v_job.provider_result_recoverable, false)) then
+     and (v_job.provider_reconciled_at is null or v_job.provider_result_recoverable is not false) then
     raise exception using errcode = 'P0001', message = 'CANCELLATION_RECONCILIATION_REQUIRED';
   end if;
   if p_terminal_status = 'CANCELLED' and v_job.status = 'RESERVED'
