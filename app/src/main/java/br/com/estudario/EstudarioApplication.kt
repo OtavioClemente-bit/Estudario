@@ -21,6 +21,9 @@ import br.com.estudario.data.ai.HttpAiApiClient
 import br.com.estudario.data.ai.FilePdfSourceSnapshotStore
 import br.com.estudario.data.ai.PdfSourceReader
 import br.com.estudario.data.remote.SupabaseAiTokenProvider
+import br.com.estudario.data.remote.HttpPrivateSyllabusRemoteApi
+import br.com.estudario.data.remote.PrivateSyllabusRepository
+import br.com.estudario.data.remote.RemoteSyllabusSyncWorker
 import br.com.estudario.data.transfer.IncomingFileCoordinator
 import br.com.estudario.data.transfer.planner.StudyPlanTransferService
 import br.com.estudario.domain.planner.StudyPlannerEngine
@@ -33,6 +36,7 @@ class EstudarioApplication : Application() {
 
     lateinit var database: AppDatabase
         private set
+    val supabaseClientConfig: SupabaseClientConfig by lazy { SupabaseClientConfig.fromBuildConfig() }
     lateinit var repository: StudyRepository
         private set
     lateinit var focusSessionRepository: FocusSessionRepository
@@ -46,24 +50,32 @@ class EstudarioApplication : Application() {
     lateinit var executionService: StudyExecutionService
         private set
     val supabaseAuthRepository: SupabaseAuthRepository by lazy {
-        val config = SupabaseClientConfig.fromBuildConfig()
         DefaultSupabaseAuthRepository(
-            client = UnavailableSupabaseAuthClient(config),
+            client = UnavailableSupabaseAuthClient(supabaseClientConfig),
             sessionStore = DataStoreSupabaseSessionStore(this, applicationScope),
         )
     }
     val aiSyllabusRepository: DefaultAiSyllabusRepository by lazy {
-        val config = SupabaseClientConfig.fromBuildConfig()
         DefaultAiSyllabusRepository(
             api = HttpAiApiClient(
-                baseUrl = config.projectUrl,
-                publishableKey = config.publishableKey,
+                baseUrl = supabaseClientConfig.projectUrl,
+                publishableKey = supabaseClientConfig.publishableKey,
                 accessTokenProvider = SupabaseAiTokenProvider(supabaseAuthRepository),
             ),
             sourceReader = PdfSourceReader.fromContentResolver(contentResolver),
             requestStore = DataStoreAiJobRequestStore(this),
             accessTokenProvider = SupabaseAiTokenProvider(supabaseAuthRepository),
             sourceSnapshots = FilePdfSourceSnapshotStore(File(filesDir, "ai-syllabus-sources")),
+        )
+    }
+    val privateSyllabusRepository: PrivateSyllabusRepository by lazy {
+        PrivateSyllabusRepository(
+            database = database,
+            api = HttpPrivateSyllabusRemoteApi(
+                baseUrl = supabaseClientConfig.projectUrl,
+                publishableKey = supabaseClientConfig.publishableKey,
+                accessTokenProvider = SupabaseAiTokenProvider(supabaseAuthRepository),
+            ),
         )
     }
     lateinit var planTransferService: StudyPlanTransferService
@@ -83,6 +95,7 @@ class EstudarioApplication : Application() {
         planTransferService = StudyPlanTransferService(database)
         aiSyllabusRepository
         AiJobRecoveryWorker.enqueue(this)
+        RemoteSyllabusSyncWorker.enqueue(this)
         StudyNotificationCoordinator.createChannels(this)
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             StudyNotificationCoordinator.refresh(this@EstudarioApplication, preferences)

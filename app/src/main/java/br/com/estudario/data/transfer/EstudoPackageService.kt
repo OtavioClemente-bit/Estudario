@@ -118,6 +118,7 @@ internal data class TopicPlan(
     val externalId: String = id,
     val parentExternalId: String? = null,
     val sourcePages: List<Int> = emptyList(),
+    val metadata: JSONObject? = null,
 )
 internal data class SubjectPlan(
     val id: String,
@@ -128,6 +129,7 @@ internal data class SubjectPlan(
     val externalId: String = id,
     val priority: Priority = Priority.NORMAL,
     val sourcePages: List<Int> = emptyList(),
+    val metadata: JSONObject? = null,
 )
 internal data class PackageWarning(
     val code: String,
@@ -208,7 +210,7 @@ internal object EstudoPackageParser {
             val topics = item.optJSONArray("topicos") ?: throw EstudoPackageException("$path: topicos deve ser uma lista.")
             SubjectPlan(id, name, item.optInt("ordem", index), topics.objects().mapIndexed { i, topic ->
                 parseTopic(topic, "$name › tópico ${i + 1}", i, defaults, ids, true)
-            }, parsePriorityAssessment(item, path, ids), externalId, parsePriority(item, path), parseSourcePages(item))
+            }, parsePriorityAssessment(item, path, ids), externalId, parsePriority(item, path), parseSourcePages(item), copyMetadata(item))
         }
         val competitionName = requireText(competition, "nome", "concurso")
         return PackagePlan(
@@ -267,6 +269,7 @@ internal object EstudoPackageParser {
             externalId = externalId,
             parentExternalId = item.optNullableString("parentExternalId"),
             sourcePages = parseSourcePages(item),
+            metadata = copyMetadata(item),
         )
     }
 
@@ -495,6 +498,7 @@ internal object EstudoPackageCodec {
         .put("prioridade", subject.priority.name)
         .put("sourcePages", JSONArray(subject.sourcePages))
         .put("topicos", JSONArray().also { topics -> subject.topics.sortedBy { it.position }.forEach { topics.put(topicJson(it)) } })
+        .also { subject.metadata?.let { metadata -> it.put("metadata", JSONObject(metadata.toString())) } }
 
     private fun topicJson(topic: TopicPlan): JSONObject = JSONObject()
         .put("id", topic.id)
@@ -507,6 +511,7 @@ internal object EstudoPackageCodec {
         .put("parentExternalId", topic.parentExternalId ?: JSONObject.NULL)
         .put("sourcePages", JSONArray(topic.sourcePages))
         .put("subtopicos", JSONArray().also { children -> topic.children.sortedBy { it.position }.forEach { children.put(topicJson(it)) } })
+        .also { topic.metadata?.let { metadata -> it.put("metadata", JSONObject(metadata.toString())) } }
 
     private fun warningJson(warning: PackageWarning): JSONObject = JSONObject()
         .put("code", warning.code)

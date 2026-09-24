@@ -8,6 +8,7 @@ import br.com.estudario.data.ai.requireContractInstant
 import br.com.estudario.data.ai.requireContractText
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonObject
 
 enum class PrivateSyllabusVisibility { PRIVATE }
@@ -73,7 +74,11 @@ data class RemoteSyllabusSyncAcknowledgement(
 object RemoteSyllabusContractJson {
     fun decodePrivateSyllabus(raw: String): PrivateSyllabus = EstudarioContractJson.json.decodeFromString<PrivateSyllabus>(raw).also { it.validate() }
 
+    fun encodePrivateSyllabus(value: PrivateSyllabus): String = EstudarioContractJson.json.encodeToString(value).also { decodePrivateSyllabus(it) }
+
     fun decodeSyncAcknowledgement(raw: String): RemoteSyllabusSyncAcknowledgement = EstudarioContractJson.json.decodeFromString<RemoteSyllabusSyncAcknowledgement>(raw).also { it.validate() }
+
+    fun encodeSyncAcknowledgement(value: RemoteSyllabusSyncAcknowledgement): String = EstudarioContractJson.json.encodeToString(value).also { decodeSyncAcknowledgement(it) }
 }
 
 private fun PrivateSyllabus.validate() {
