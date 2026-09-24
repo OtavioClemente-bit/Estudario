@@ -298,6 +298,7 @@
 **Files:**
 
 - Create `app/src/main/java/.../ui/ai/` review/gate/progress state and components.
+- Add a read-only Android consumer for the existing Task 5 `GET /ai-access` contract (`AiAccessApiClient` and `AiAccessRepository` or equivalent), separate from the job client and using the existing response DTO. The server contract and `ClosedBetaAiPolicy` already exist; this task adds only the missing Android consumer.
 - Modify `InitialSetupViewModel`, setup screens, `EstudarioApp`, and `AppViewModel` only to thread the new state and target ID.
 - Add Compose/UI tests under `app/src/androidTest/java/.../ui/ai/`.
 
@@ -305,6 +306,7 @@
 
 - [ ] Write failing UI tests for unauthenticated gate, login return to the same target, processing progress, app restart recovery, warnings, subject/topic counts, add/remove/edit, explicit replacement confirmation, and provider failure fallback.
 - [ ] Implement the closed-beta gate and job state screen. Resume by the persisted `jobId` and idempotency key; ordinary network timeouts must not create a new job.
+- [ ] Use the shared read-only `AiAccessRepository` for the gate. Send only the Supabase JWT, never a Google Drive token; do not mutate quota or duplicate the server-side access policy.
 - [ ] Render the structured proposal as an editable draft with source-page warnings and clear validation errors. Keep the selected target syllabus visible throughout review.
 - [ ] Wire “Usar este edital” to `SyllabusApplicationService`; after local success show synchronization as pending until the outbox server acknowledgment arrives.
 - [ ] Run unit and Compose tests and commit as `feat: add AI syllabus review flow`.
@@ -333,6 +335,7 @@
 **Files:**
 
 - Create `app/src/main/java/.../ui/ai/AiAccessViewModel.kt` and tests.
+- Reuse the exact `AiAccessRepository` instance introduced in Task 13; do not add another HTTP client or duplicate the access DTO/policy.
 - Modify profile/editais/setup surfaces and server finalizer telemetry.
 
 **Steps:**

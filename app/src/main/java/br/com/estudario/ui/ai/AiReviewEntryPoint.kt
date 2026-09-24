@@ -1,5 +1,6 @@
 package br.com.estudario.ui.ai
 
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -25,15 +26,41 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import br.com.estudario.EstudarioApplication
+import br.com.estudario.ui.setup.AiPdfUriPermission
+import br.com.estudario.ui.setup.ContentResolverAiPdfUriPermission
+import br.com.estudario.ui.setup.InitialSetupAiPdfSource
 import br.com.estudario.ui.prompt.attachmentFor
 import kotlinx.coroutines.launch
+
+/** Boundary around the Android document picker so the result callback remains testable. */
+fun interface AiReviewPdfPicker {
+    fun launch(onResult: (Uri?) -> Unit)
+}
+
+@Composable
+private fun rememberAiReviewPdfPicker(): AiReviewPdfPicker {
+    val callback = remember { mutableStateOf<(Uri?) -> Unit>({}) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        callback.value(uri)
+    }
+    return remember(launcher) {
+        AiReviewPdfPicker { onResult ->
+            callback.value = onResult
+            launcher.launch(InitialSetupAiPdfSource.PICKER_MIME_TYPES)
+        }
+    }
+}
 
 @Composable
 fun AiReviewEntryPoint(
     target: AiReviewTarget,
     onClose: () -> Unit,
     onLoginRequested: ((onReturned: () -> Unit) -> Unit)? = null,
-    onApplied: () -> Unit = {},
+    onLocalApplied: () -> Unit = {},
+    onSyncAck: () -> Unit = {},
+    reviewViewModel: AiReviewViewModel? = null,
+    pdfPicker: AiReviewPdfPicker? = null,
+    pdfPermission: AiPdfUriPermission? = null,
 ) {
     val context = LocalContext.current
     val application = context.applicationContext as EstudarioApplication
@@ -45,6 +72,7 @@ fun AiReviewEntryPoint(
     var loginCode by rememberSaveable { mutableStateOf("") }
     var loginBusy by rememberSaveable { mutableStateOf(false) }
     var loginError by rememberSaveable { mutableStateOf<String?>(null) }
+    var sourceError by rememberSaveable { mutableStateOf<String?>(null) }
     var loginContinuation by remember { mutableStateOf<(() -> Unit)?>(null) }
     val localLoginLauncher = remember {
         AiReviewLoginLauncher { onReturned ->
@@ -54,7 +82,7 @@ fun AiReviewEntryPoint(
             loginError = null
         }
     }
-    val reviewViewModel: AiReviewViewModel = viewModel(
+    val actualReviewViewModel: AiReviewViewModel = reviewViewModel ?: viewModel(
         key = "ai-review-${target.id}",
         factory = remember(target.id, target.title, onLoginRequested) {
             AiReviewViewModelFactory(
@@ -65,28 +93,37 @@ fun AiReviewEntryPoint(
             )
         },
     )
-    val state by reviewViewModel.state.collectAsState()
+    val state by actualReviewViewModel.state.collectAsState()
     LaunchedEffect(target.sourceUri, target.sourceName) {
-        target.sourceUri?.let { reviewViewModel.provideSource(it, target.sourceName) }
+        target.sourceUri?.let { actualReviewViewModel.provideSource(it, target.sourceName) }
     }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let {
-            val attachment = context.attachmentFor(it)
-            reviewViewModel.start(attachment.uri.toString(), attachment.name)
+    val sourcePicker = pdfPicker ?: rememberAiReviewPdfPicker()
+    val sourcePermission = pdfPermission ?: remember(context) { ContentResolverAiPdfUriPermission(context.contentResolver) }
+    val onPdfResult: (Uri?) -> Unit = { uri ->
+        if (uri != null) {
+            runCatching {
+                val persistedUri = InitialSetupAiPdfSource.persist(uri, sourcePermission)
+                val attachment = context.attachmentFor(persistedUri)
+                actualReviewViewModel.start(attachment.uri.toString(), attachment.name)
+            }.onFailure {
+                sourceError = "Não foi possível manter acesso ao PDF selecionado."
+            }
         }
     }
     AiReviewScreen(
         state = state,
-        onLogin = reviewViewModel::requestLogin,
-        onPickSource = { picker.launch(arrayOf("application/pdf")) },
-        onDraftChange = reviewViewModel::changeDraft,
-        onApply = reviewViewModel::apply,
-        onConfirmReplacement = reviewViewModel::confirmReplacement,
-        onCancelReplacement = reviewViewModel::cancelReplacement,
-        onRetry = reviewViewModel::retry,
+        sourceError = sourceError,
+        onLogin = actualReviewViewModel::requestLogin,
+        onPickSource = { sourcePicker.launch(onPdfResult) },
+        onDraftChange = actualReviewViewModel::changeDraft,
+        onApply = actualReviewViewModel::apply,
+        onConfirmReplacement = actualReviewViewModel::confirmReplacement,
+        onCancelReplacement = actualReviewViewModel::cancelReplacement,
+        onRetry = actualReviewViewModel::retry,
         onFallback = onClose,
         onClose = onClose,
-        onApplied = onApplied,
+        onLocalApplied = onLocalApplied,
+        onSyncAck = onSyncAck,
     )
     if (loginOpen) {
         AlertDialog(

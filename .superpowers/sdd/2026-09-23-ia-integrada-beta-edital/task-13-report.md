@@ -21,6 +21,7 @@
 - `app/src/main/java/br/com/estudario/ui/setup/InitialSetupViewModel.kt`
 - `app/src/test/java/br/com/estudario/ui/ai/AiReviewAccessTest.kt`
 - `app/src/androidTest/java/br/com/estudario/ui/ai/AiReviewDurableRecoveryTest.kt`
+- `app/src/androidTest/java/br/com/estudario/ui/ai/AiReviewEntryPointTest.kt`
 - `app/src/androidTest/java/br/com/estudario/ui/ai/AiReviewScreenTest.kt`
 - `app/src/androidTest/java/br/com/estudario/ui/ai/AiReviewViewModelTest.kt`
 - `app/src/androidTest/java/br/com/estudario/ui/setup/SetupSyllabusPersistenceTest.kt`
@@ -85,9 +86,41 @@ Bloqueios baseline reproduzidos, portanto não há alegação de suíte completa
 
 Também houve uma tentativa inicial de instrumentação com `DeviceException: No connected devices!`; o AVD `Pixel_7` foi reiniciado localmente e os testes instrumentados acima foram executados depois disso.
 
+## Correções desta rodada
+
+- `AiReviewEntryPoint` agora mantém a fronteira do seletor injetável para testes, restringe o seletor de produção a `application/pdf`, chama `InitialSetupAiPdfSource.persist` no callback real do `OpenDocument` antes de guardar/iniciar e mostra erro seguro sem iniciar o job quando `takePersistableUriPermission` falha.
+- O callback de aplicação local (`onLocalApplied`) foi separado do callback de ACK (`onSyncAck`). `PENDING` dispara a transição integrada para `SYLLABUS_REVIEW` e fechamento do overlay; `SYNCED` apenas informa o ACK e não reaplica o edital. O callback local é protegido contra repetição durante a mudança `PENDING -> SYNCED`.
+- O teste Compose agora aciona edição e remoção de tópico aninhado, verificando IDs e hierarquia dos pais; o teste de aplicação parte de `PENDING` e verifica a transição antes do ACK.
+- `AiReviewEntryPointTest` aciona o callback capturado pelo picker usado no entrypoint, verifica persistência antes do start e verifica que uma falha de permissão não chama o repositório de jobs.
+
+### Evidência da rodada atual
+
+Passaram:
+
+```text
+:app:compileDebugAndroidTestKotlin — BUILD SUCCESSFUL
+:app:testDebugUnitTest --tests br.com.estudario.ui.ai.AiReviewRecoveryTest :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin --no-daemon — BUILD SUCCESSFUL
+:app:connectedDebugAndroidTest --project-prop "android.testInstrumentationRunnerArguments.class=br.com.estudario.ui.ai.AiReviewScreenTest" --no-daemon — BUILD SUCCESSFUL nos dois dispositivos; 8/8 por dispositivo
+:app:connectedDebugAndroidTest --project-prop "android.testInstrumentationRunnerArguments.class=br.com.estudario.ui.ai.AiReviewEntryPointTest" --no-daemon — BUILD SUCCESSFUL nos dois dispositivos; 2/2 por dispositivo
+:app:connectedDebugAndroidTest --project-prop "android.testInstrumentationRunnerArguments.class=br.com.estudario.ui.ai.AiReviewViewModelTest" --no-daemon — BUILD SUCCESSFUL nos dois dispositivos
+adb -s emulator-5554 shell am instrument -w -r -e class br.com.estudario.ui.ai.AiReviewDurableRecoveryTest br.com.estudario.test/androidx.test.runner.AndroidJUnitRunner — OK (1 test)
+:app:testDebugUnitTest --tests br.com.estudario.ui.ai.AiReviewAccessTest --tests br.com.estudario.ui.ai.AiReviewRecoveryTest --tests br.com.estudario.data.ai.AiApiClientTest --tests br.com.estudario.data.ai.AiJobRecoveryWorkerTest --tests br.com.estudario.data.ai.AiModelsSerializationTest --tests br.com.estudario.data.ai.AiSyllabusRepositoryTest --tests br.com.estudario.data.ai.PdfSourceReaderTest --tests br.com.estudario.data.remote.RemoteSyllabusMapperTest --tests br.com.estudario.data.remote.RemoteSyllabusModelsSerializationTest --tests br.com.estudario.data.remote.RemoteSyllabusSyncWorkerTest --tests br.com.estudario.data.remote.SupabaseAuthRepositoryTest --tests br.com.estudario.data.remote.SupabaseClientConfigTest --tests br.com.estudario.data.remote.SupabaseSessionStoreTest --no-daemon — BUILD SUCCESSFUL
+```
+
+O primeiro `connectedDebugAndroidTest` da classe de recovery também tentou executar no aparelho físico `KF85CQ4LT8FIOFCI`, mas esse aparelho bloqueou a instalação com `INSTALL_FAILED_USER_RESTRICTED` e `Failed to uninstall package ... DELETE_FAILED_INTERNAL_ERROR`. A recuperação foi executada diretamente no `emulator-5554` com APKs instalados com sucesso; não considero o aparelho físico verde.
+
+Os três testes baseline foram executados diretamente no `emulator-5554` sem alteração de código ou expectativa:
+
+- `SetupSyllabusStepsTest`: `Tests run: 6, Failures: 2`; falhas em `:144` (`difficulty_3_HARD` não selecionado) e `:161` (fixture mostra `1 matéria(s) com resposta sua.`).
+- `SetupSyllabusPersistenceTest`: `Tests run: 3, Failures: 1`; falha em `:48` (`expected:<PROFILE> but was:<SYLLABUS_REVIEW>`).
+
+Esses resultados continuam classificados como baseline de `febf2ef`, não como regressão desta rodada. Os corpos e expectativas dos três testes permanecem intactos.
+
 ## Estado do commit
 
 O commit separado desta entrega foi criado após a verificação final da suíte específica da Task 13. Os três failures baseline acima permanecem sem alteração. Os artefatos não relacionados já não rastreados (`node_modules/`, `package-lock.json`, `package.json`, `supabase/.branches/`, `supabase/.temp/`) foram preservados.
+
+As correções desta rodada permanecem restritas ao commit separado atual da Task 13; nenhum trabalho da Task 14 foi iniciado.
 
 ## Riscos e pendências
 

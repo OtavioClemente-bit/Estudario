@@ -60,9 +60,13 @@ fun AiReviewScreen(
     onRetry: () -> Unit = {},
     onFallback: () -> Unit = {},
     onClose: () -> Unit = {},
-    onApplied: () -> Unit = {},
+    sourceError: String? = null,
+    onLocalApplied: () -> Unit = {},
+    onSyncAck: () -> Unit = {},
 ) {
     var addingSubject by remember { mutableStateOf(false) }
+    var localAppliedNotified by remember(state.targetSyllabusId) { mutableStateOf(false) }
+    var syncAckNotified by remember(state.targetSyllabusId) { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -79,6 +83,9 @@ fun AiReviewScreen(
             item {
                 Text("Edital selecionado: ${state.targetTitle}", Modifier.testTag("ai_selected_target"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text("O resultado será aplicado somente a este edital.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            sourceError?.let { message ->
+                item { Text(message, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("ai_source_error")) }
             }
             when (val content = state.content) {
                 AiReviewContent.Gate -> item { AiGate(state.access, onLogin, onPickSource, onFallback) }
@@ -100,7 +107,14 @@ fun AiReviewScreen(
                 is AiReviewContent.Applied -> item {
                     AiApplied(content.syncState)
                     LaunchedEffect(content.syncState) {
-                        if (content.syncState == RemoteSyllabusSyncState.SYNCED) onApplied()
+                        if (!localAppliedNotified) {
+                            localAppliedNotified = true
+                            onLocalApplied()
+                        }
+                        if (content.syncState == RemoteSyllabusSyncState.SYNCED && !syncAckNotified) {
+                            syncAckNotified = true
+                            onSyncAck()
+                        }
                     }
                 }
             }

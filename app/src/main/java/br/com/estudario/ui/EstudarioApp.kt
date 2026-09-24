@@ -90,7 +90,7 @@ fun EstudarioApp(viewModel: AppViewModel) {
             aiReviewTarget != null -> AiReviewEntryPoint(
                 target = aiReviewTarget!!,
                 onClose = viewModel::closeAiReview,
-                onApplied = {
+                onLocalApplied = {
                     setupViewModel.onAiSyllabusApplied().invokeOnCompletion { viewModel.closeAiReview() }
                 },
             )

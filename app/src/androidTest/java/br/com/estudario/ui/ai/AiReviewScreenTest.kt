@@ -113,6 +113,34 @@ class AiReviewScreenTest {
     }
 
     @Test
+    fun nestedTopicEditingAndRemovalPreserveParentHierarchyAndIds() {
+        val current = mutableStateOf(AiReviewUiState.review(42L, "TRT-3", draft()))
+        val parentId = current.value.draft().subjects.single().topics.first().externalId
+        val childId = current.value.draft().subjects.single().topics.first().children.single().externalId
+        compose.setContent {
+            EstudarioTheme(false) {
+                AiReviewScreen(
+                    state = current.value,
+                    onDraftChange = { current.value = current.value.copy(content = AiReviewContent.Review(it)) },
+                )
+            }
+        }
+
+        compose.onNodeWithTag("ai_topic_name_0_0_0").performTextInput(" revisado")
+        compose.onNodeWithTag("ai_remove_topic_0_0_0_0").performScrollTo().performClick()
+        compose.runOnIdle {
+            val parent = current.value.draft().subjects.single().topics.first()
+            val child = parent.children.single()
+            assertEquals(parentId, parent.externalId)
+            assertEquals(childId, child.externalId)
+            assertTrue(child.name.contains("Princípios"))
+            assertTrue(child.name.contains("revisado"))
+            assertTrue(child.children.isEmpty())
+            assertEquals(3, current.value.draft().totalTopicCount())
+        }
+    }
+
+    @Test
     fun applyRequiresExplicitReplacementAndShowsPendingSync() {
         var replacementRequested = false
         val state = mutableStateOf(AiReviewUiState.review(42L, "TRT-3", draft(), confirmReplacement = true))
@@ -151,18 +179,40 @@ class AiReviewScreenTest {
     }
 
     @Test
-    fun acknowledgedApplicationCallsIntegratedSetupTransitionCallback() {
-        var applied = false
+    fun pendingApplicationAdvancesSetupBeforeAckAndAckDoesNotApplyAgain() {
+        var localApplied = 0
+        var syncAcknowledged = 0
+        var setupStep = "SYLLABUS_METHOD"
+        var overlayClosed = false
+        val state = mutableStateOf(AiReviewUiState.applied(42L, "TRT-3", RemoteSyllabusSyncState.PENDING))
         compose.setContent {
             EstudarioTheme(false) {
                 AiReviewScreen(
-                    state = AiReviewUiState.applied(42L, "TRT-3", RemoteSyllabusSyncState.SYNCED),
-                    onApplied = { applied = true },
+                    state = state.value,
+                    onLocalApplied = {
+                        localApplied += 1
+                        setupStep = "SYLLABUS_REVIEW"
+                        overlayClosed = true
+                    },
+                    onSyncAck = { syncAcknowledged += 1 },
                 )
             }
         }
 
-        compose.runOnIdle { assertTrue(applied) }
+        compose.onNodeWithText("Salvo neste dispositivo; sincronização pendente.").assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(1, localApplied)
+            assertEquals(0, syncAcknowledged)
+            assertEquals("SYLLABUS_REVIEW", setupStep)
+            assertTrue(overlayClosed)
+        }
+
+        state.value = AiReviewUiState.applied(42L, "TRT-3", RemoteSyllabusSyncState.SYNCED)
+        compose.onNodeWithText("Salvo na sua conta.").assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(1, localApplied)
+            assertEquals(1, syncAcknowledged)
+        }
     }
 
     private fun AiReviewUiState.draft(): AiSyllabusDraft = (content as AiReviewContent.Review).draft
