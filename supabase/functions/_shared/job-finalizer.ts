@@ -1,4 +1,5 @@
 import type { AiFeature, AiJobStatus } from "./contracts.ts";
+import type { ProviderResponse } from "./openai-provider.ts";
 import type { BoundStorageSource } from "./storage-source.ts";
 
 export interface CreateAiJobInput {
@@ -33,6 +34,10 @@ export interface AiJobRecord {
   sourcePages: number | null;
   sourceFileCount: number | null;
   sourceMimeType: string | null;
+  openaiResponseId?: string | null;
+  providerExecutionStartedAt?: string | null;
+  providerReconciledAt?: string | null;
+  providerResultRecoverable?: boolean | null;
   source?: BoundStorageSource;
 }
 
@@ -42,6 +47,37 @@ export interface AiJobStore {
   bindSource(userId: string, jobId: string, source: BoundStorageSource): Promise<AiJobRecord>;
   claimForProcessing(userId: string, jobId: string): Promise<AiJobRecord>;
   releaseReservation(userId: string, jobId: string): Promise<void>;
+}
+
+export interface CancellationReconciliation {
+  responseId: string | null;
+  providerStatus: string;
+  resultRecoverable: boolean;
+  errorCode?: string | null;
+}
+
+export interface AiJobCancellationStore {
+  getJob(userId: string, jobId: string): Promise<AiJobRecord | null>;
+  requestCancellation(userId: string, jobId: string): Promise<AiJobRecord>;
+  cancelWithoutProvider(userId: string, jobId: string): Promise<AiJobRecord>;
+  recordCancellationReconciliation(
+    userId: string,
+    jobId: string,
+    reconciliation: CancellationReconciliation,
+  ): Promise<AiJobRecord>;
+  cancelAfterReconciliation(
+    userId: string,
+    jobId: string,
+    code: string,
+    message: string,
+    terminalStatus?: "CANCELLED" | "FAILED",
+  ): Promise<AiJobRecord>;
+  finalizeCancellationSuccess(
+    userId: string,
+    jobId: string,
+    response: ProviderResponse,
+    proposal: Record<string, unknown>,
+  ): Promise<AiJobRecord>;
 }
 
 export class JobStoreError extends Error {
@@ -92,7 +128,7 @@ export class SupabaseAiJobStore implements AiJobStore {
 
   async getJob(userId: string, jobId: string): Promise<AiJobRecord | null> {
     const url = this.restUrl("ai_jobs");
-    url.searchParams.set("select", "id,user_id,feature,status,idempotency_key,request_fingerprint,request_payload,source_object_path,source_hash,source_bytes,source_pages,source_file_count,source_mime_type,source_metadata");
+    url.searchParams.set("select", "id,user_id,feature,status,idempotency_key,request_fingerprint,request_payload,source_object_path,source_hash,source_bytes,source_pages,source_file_count,source_mime_type,source_metadata,openai_response_id,provider_execution_started_at,provider_reconciled_at,provider_result_recoverable");
     url.searchParams.set("id", `eq.${jobId}`);
     url.searchParams.set("user_id", `eq.${userId}`);
     url.searchParams.set("limit", "1");
@@ -140,6 +176,61 @@ export class SupabaseAiJobStore implements AiJobStore {
       p_error_code: "SOURCE_VALIDATION_FAILED",
       p_error_message: "The source could not be validated",
     });
+  }
+
+  async requestCancellation(userId: string, jobId: string): Promise<AiJobRecord> {
+    return this.cancellationJob(userId, await this.rpc("request_ai_job_cancellation", { p_job_id: jobId }));
+  }
+
+  async cancelWithoutProvider(userId: string, jobId: string): Promise<AiJobRecord> {
+    return this.cancellationJob(userId, await this.rpc("cancel_ai_job_without_provider", { p_job_id: jobId }));
+  }
+
+  async recordCancellationReconciliation(
+    userId: string,
+    jobId: string,
+    reconciliation: CancellationReconciliation,
+  ): Promise<AiJobRecord> {
+    return this.cancellationJob(userId, await this.rpc("record_ai_job_cancellation_reconciliation", {
+      p_job_id: jobId,
+      p_openai_response_id: reconciliation.responseId,
+      p_provider_status: reconciliation.providerStatus,
+      p_provider_result_recoverable: reconciliation.resultRecoverable,
+      p_error_code: reconciliation.errorCode ?? null,
+    }, this.adminHeaders()));
+  }
+
+  async cancelAfterReconciliation(userId: string, jobId: string, code: string, message: string, terminalStatus: "CANCELLED" | "FAILED" = "CANCELLED"): Promise<AiJobRecord> {
+    const row = firstRow(await this.rpc("release_ai_job_reservation", {
+      p_job_id: jobId,
+      p_terminal_status: terminalStatus,
+      p_error_code: code,
+      p_error_message: message,
+    }));
+    return this.cancellationJob(userId, row);
+  }
+
+  async finalizeCancellationSuccess(
+    userId: string,
+    jobId: string,
+    response: ProviderResponse,
+    proposal: Record<string, unknown>,
+  ): Promise<AiJobRecord> {
+    return this.cancellationJob(userId, await this.rpc("finalize_ai_job_success_after_cancellation", {
+      p_job_id: jobId,
+      p_proposal: proposal,
+      p_warnings: Array.isArray(proposal.warnings) ? proposal.warnings : [],
+      p_openai_response_id: response.id,
+      p_prompt_version: typeof proposal.promptVersion === "string" ? proposal.promptVersion : null,
+      p_schema_version: typeof proposal.schemaVersion === "number" ? proposal.schemaVersion : null,
+      p_model_version: typeof proposal.modelVersion === "string" ? proposal.modelVersion : null,
+    }, this.adminHeaders()));
+  }
+
+  private cancellationJob(userId: string, value: unknown): AiJobRecord {
+    const job = parseJob(firstRow(value));
+    if (job.userId !== userId) throw new JobStoreError("AI_JOB_FORBIDDEN", 403);
+    return job;
   }
 
   private restUrl(table: string): URL {
@@ -209,6 +300,10 @@ function parseJob(value: Record<string, unknown>): AiJobRecord {
     sourcePages: nullableInteger(value, "source_pages"),
     sourceFileCount: nullableInteger(value, "source_file_count"),
     sourceMimeType: nullableString(value, "source_mime_type"),
+    openaiResponseId: nullableString(value, "openai_response_id"),
+    providerExecutionStartedAt: nullableString(value, "provider_execution_started_at"),
+    providerReconciledAt: nullableString(value, "provider_reconciled_at"),
+    providerResultRecoverable: nullableBoolean(value, "provider_result_recoverable"),
     source,
   };
 }
@@ -266,6 +361,10 @@ function integerField(row: Record<string, unknown>, key: string): number {
 
 function nullableInteger(row: Record<string, unknown>, key: string): number | null {
   return row[key] === null || row[key] === undefined ? null : integerField(row, key);
+}
+
+function nullableBoolean(row: Record<string, unknown>, key: string): boolean | null {
+  return row[key] === null || row[key] === undefined ? null : booleanField(row, key);
 }
 
 function booleanField(row: Record<string, unknown>, key: string): boolean {

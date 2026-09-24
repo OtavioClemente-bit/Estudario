@@ -135,6 +135,22 @@ Deno.test("checks the deadline again after a slow source read before starting th
   assert(jobs.events.some((event) => event.includes(":PROCESSING_DEADLINE_EXCEEDED:EXPIRED:false")));
 });
 
+Deno.test("records provider-start evidence before invoking the provider", async () => {
+  const jobs = fakeStore(job({ openaiResponseId: null, providerExecutionStartedAt: null }));
+  (jobs as unknown as { markProviderStarted(id: string, activeLease: Lease): Promise<void> }).markProviderStarted = async (id, activeLease) => {
+    jobs.events.push(`provider-started:${id}:${activeLease.token}`);
+  };
+  await processSyllabusJob(deps(jobs, provider(
+    async () => {
+      jobs.events.push("provider:start");
+      return { id: "resp-before-cancel", status: "in_progress", outputText: null, usage: null };
+    },
+    async () => { throw new Error("retrieve must not run"); },
+  )));
+  assert(jobs.events.indexOf("provider-started:job-round1:lease-token-a") >= 0);
+  assert(jobs.events.indexOf("provider-started:job-round1:lease-token-a") < jobs.events.indexOf("provider:start"));
+});
+
 Deno.test("reconciles provider timeout and stops retrying at the retry limit", async () => {
   const jobs = fakeStore(job({ retryCount: 2 }));
   await processSyllabusJob(deps(jobs, provider(

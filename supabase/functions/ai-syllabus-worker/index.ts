@@ -42,6 +42,7 @@ export interface SyllabusWorkerJob {
 export interface SyllabusWorkerStore {
   claimNext(now: Date, leaseSeconds: number, processingSeconds: number): Promise<SyllabusWorkerJob | null>;
   assertLease(jobId: string, lease: Lease): Promise<void>;
+  markProviderStarted?(jobId: string, lease: Lease): Promise<void>;
   persistResponseId(jobId: string, responseId: string, lease: Lease): Promise<void>;
   reconcileProvider(jobId: string, lease: Lease, recoverable: boolean): Promise<void>;
   markRetry(jobId: string, lease: Lease): Promise<void>;
@@ -186,6 +187,7 @@ export async function processSyllabusJob(dependencies: SyllabusWorkerDependencie
         await finalizeFailure(dependencies, job, lease, "PROCESSING_DEADLINE_EXCEEDED", "EXPIRED", false);
         return true;
       }
+      if (dependencies.jobs.markProviderStarted) await dependencies.jobs.markProviderStarted(job.id, lease);
       response = await dependencies.provider.start({
         jobId: job.id,
         idempotencyKey: job.id,
@@ -282,6 +284,7 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
     return parseJob(row(value));
   }
   async assertLease(jobId: string, lease: Lease): Promise<void> { await this.rpc("assert_ai_job_lease", { p_job_id: jobId, ...lease }); }
+  async markProviderStarted(jobId: string, lease: Lease): Promise<void> { await this.rpc("mark_ai_job_provider_execution_started", { p_job_id: jobId, ...lease }); }
   async persistResponseId(jobId: string, responseId: string, lease: Lease): Promise<void> { await this.rpc("persist_ai_job_provider_response", { p_job_id: jobId, p_response_id: responseId, ...lease }); }
   async reconcileProvider(jobId: string, lease: Lease, recoverable: boolean): Promise<void> { await this.rpc("record_ai_job_provider_reconciliation", { p_job_id: jobId, p_recoverable: recoverable, ...lease }); }
   async markRetry(jobId: string, lease: Lease): Promise<void> { await this.rpc("increment_ai_job_retry", { p_job_id: jobId, ...lease }); }
