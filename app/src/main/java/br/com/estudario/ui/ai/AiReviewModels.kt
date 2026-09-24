@@ -1,9 +1,38 @@
 package br.com.estudario.ui.ai
 
+import br.com.estudario.data.ai.AiAccess
 import br.com.estudario.data.local.RemoteSyllabusSyncState
 import br.com.estudario.domain.ai.AiSyllabusDraft
+import br.com.estudario.domain.ai.AiSyllabusDraftTopic
 
-data class AiReviewTarget(val id: Long, val title: String)
+enum class AiReviewAccessKind { LOADING, UNAUTHENTICATED, DENIED, READY }
+
+data class AiReviewAccessState(
+    val kind: AiReviewAccessKind,
+    val reasonCode: String? = null,
+    val access: AiAccess? = null,
+) {
+    companion object {
+        val LOADING = AiReviewAccessState(AiReviewAccessKind.LOADING)
+        val UNAUTHENTICATED = AiReviewAccessState(AiReviewAccessKind.UNAUTHENTICATED, "UNAUTHENTICATED")
+        val READY = AiReviewAccessState(AiReviewAccessKind.READY)
+
+        fun denied(reasonCode: String?, access: AiAccess? = null) = AiReviewAccessState(
+            AiReviewAccessKind.DENIED,
+            reasonCode?.ifBlank { "ACCESS_DENIED" } ?: "ACCESS_DENIED",
+            access,
+        )
+    }
+}
+
+data class AiReviewTarget(
+    val id: Long,
+    val title: String,
+    val sourceUri: String? = null,
+    val sourceName: String? = null,
+)
+
+data class AiReviewSource(val uri: String, val fileName: String?)
 
 data class AiReviewRequestIdentity(
     val requestId: String,
@@ -34,26 +63,51 @@ data class AiReviewUiState(
     val targetSyllabusId: Long,
     val targetTitle: String,
     val content: AiReviewContent,
+    val access: AiReviewAccessState = AiReviewAccessState.UNAUTHENTICATED,
 ) {
     companion object {
-        fun gate(targetId: Long, targetTitle: String) = AiReviewUiState(targetId, targetTitle, AiReviewContent.Gate)
+        fun gate(
+            targetId: Long,
+            targetTitle: String,
+            access: AiReviewAccessState = AiReviewAccessState.UNAUTHENTICATED,
+        ) = AiReviewUiState(targetId, targetTitle, AiReviewContent.Gate, access)
 
-        fun processing(targetId: Long, targetTitle: String, jobId: String, idempotencyKey: String) = AiReviewUiState(
+        fun processing(
+            targetId: Long,
+            targetTitle: String,
+            jobId: String,
+            idempotencyKey: String,
+            access: AiReviewAccessState = AiReviewAccessState.READY,
+        ) = AiReviewUiState(
             targetId,
             targetTitle,
             AiReviewContent.Processing(jobId, idempotencyKey),
+            access,
         )
 
-        fun review(targetId: Long, targetTitle: String, draft: AiSyllabusDraft, confirmReplacement: Boolean = false) = AiReviewUiState(
+        fun review(
+            targetId: Long,
+            targetTitle: String,
+            draft: AiSyllabusDraft,
+            confirmReplacement: Boolean = false,
+            access: AiReviewAccessState = AiReviewAccessState.READY,
+        ) = AiReviewUiState(
             targetId,
             targetTitle,
             AiReviewContent.Review(draft, confirmReplacement = confirmReplacement),
+            access,
         )
 
-        fun failure(targetId: Long, targetTitle: String, message: String) = AiReviewUiState(
+        fun failure(
+            targetId: Long,
+            targetTitle: String,
+            message: String,
+            access: AiReviewAccessState = AiReviewAccessState.READY,
+        ) = AiReviewUiState(
             targetId,
             targetTitle,
             AiReviewContent.Failure(message),
+            access,
         )
 
         fun applied(targetId: Long, targetTitle: String, syncState: RemoteSyllabusSyncState) = AiReviewUiState(
@@ -63,3 +117,9 @@ data class AiReviewUiState(
         )
     }
 }
+
+fun AiSyllabusDraft.totalTopicCount(): Int = subjects.sumOf { subject ->
+    subject.topics.sumOf { it.totalTopicCount() }
+}
+
+private fun AiSyllabusDraftTopic.totalTopicCount(): Int = 1 + children.sumOf { it.totalTopicCount() }

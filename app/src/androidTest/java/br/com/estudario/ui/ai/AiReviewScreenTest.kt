@@ -1,11 +1,14 @@
 package br.com.estudario.ui.ai
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.runtime.mutableStateOf
 import br.com.estudario.data.ai.AiPriority
@@ -65,6 +68,23 @@ class AiReviewScreenTest {
     }
 
     @Test
+    fun readyGateOffersTheRealSourceSelectionAction() {
+        var picked = false
+        compose.setContent {
+            EstudarioTheme(false) {
+                AiReviewScreen(
+                    state = AiReviewUiState.gate(42L, "TRT-3", AiReviewAccessState.READY),
+                    onPickSource = { picked = true },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Pronto para analisar o edital").assertIsDisplayed()
+        compose.onNodeWithText("Selecionar PDF do edital").performClick()
+        compose.runOnIdle { assertTrue(picked) }
+    }
+
+    @Test
     fun reviewRendersWarningsCountsAndAllowsAddEditRemove() {
         val current = mutableStateOf(AiReviewUiState.review(42L, "TRT-3", draft()))
         compose.setContent {
@@ -76,12 +96,14 @@ class AiReviewScreenTest {
             }
         }
 
-        compose.onNodeWithText("1 matéria · 2 tópicos").assertIsDisplayed()
+        compose.onNodeWithText("1 matéria · 4 tópicos").assertIsDisplayed()
         compose.onNodeWithText("As páginas 58-60 não puderam ser interpretadas.", substring = true).assertIsDisplayed()
         compose.onNodeWithText("Edital selecionado: TRT-3").assertIsDisplayed()
 
-        compose.onNodeWithText("Adicionar matéria").performClick()
-        compose.onNodeWithTag("ai_add_subject_name").performTextInput("Raciocínio lógico")
+        compose.onNodeWithTag("ai_add_subject_button").performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.onAllNodesWithText("Adicionar matéria", useUnmergedTree = true).assertCountEquals(2)
+        compose.onNodeWithTag("ai_add_subject_name", useUnmergedTree = true).performTextInput("Raciocínio lógico")
         compose.onNodeWithText("Adicionar").performClick()
         compose.runOnIdle { assertEquals(2, current.value.draft().subjects.size) }
 
@@ -149,7 +171,7 @@ class AiReviewScreenTest {
                     position = 0,
                     suggestedPriority = AiPriority.NORMAL,
                     topics = listOf(
-                        AiTopicProposal("Direitos fundamentais", 0, emptyList(), listOf(42)),
+                        AiTopicProposal("Direitos fundamentais", 0, listOf(AiTopicProposal("Princípios", 0, listOf(AiTopicProposal("Aplicação", 0, emptyList(), listOf(44))), listOf(43))), listOf(42)),
                         AiTopicProposal("Controle de constitucionalidade", 1, emptyList(), listOf(43)),
                     ),
                     sourcePages = listOf(42, 43),

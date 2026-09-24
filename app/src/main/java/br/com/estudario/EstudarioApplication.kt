@@ -24,6 +24,8 @@ import br.com.estudario.data.remote.SupabaseAiTokenProvider
 import br.com.estudario.data.remote.HttpPrivateSyllabusRemoteApi
 import br.com.estudario.data.remote.PrivateSyllabusRepository
 import br.com.estudario.data.remote.RemoteSyllabusSyncWorker
+import br.com.estudario.ui.ai.AiAccessRepository
+import br.com.estudario.ui.ai.DefaultAiAccessRepository
 import br.com.estudario.data.transfer.IncomingFileCoordinator
 import br.com.estudario.data.transfer.planner.StudyPlanTransferService
 import br.com.estudario.domain.planner.StudyPlannerEngine
@@ -66,6 +68,13 @@ class EstudarioApplication : Application() {
             requestStore = DataStoreAiJobRequestStore(this),
             accessTokenProvider = SupabaseAiTokenProvider(supabaseAuthRepository),
             sourceSnapshots = FilePdfSourceSnapshotStore(File(filesDir, "ai-syllabus-sources")),
+        )
+    }
+    /** Read-only access boundary shared with the AI review gate and future quota UI. */
+    val aiAccessRepository: AiAccessRepository by lazy {
+        DefaultAiAccessRepository(
+            config = supabaseClientConfig,
+            authRepository = supabaseAuthRepository,
         )
     }
     val privateSyllabusRepository: PrivateSyllabusRepository by lazy {

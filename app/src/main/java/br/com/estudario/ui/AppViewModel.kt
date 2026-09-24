@@ -31,6 +31,7 @@ import br.com.estudario.domain.performance.StudyPerformancePeriod
 import br.com.estudario.ui.screens.performance.StudyPerformanceInputMapper
 import br.com.estudario.ui.screens.performance.StudyPerformanceUiState
 import br.com.estudario.ui.ai.AiReviewTarget
+import br.com.estudario.ui.ai.DataStoreAiReviewTargetStore
 import br.com.estudario.ui.ai.DataStoreAiReviewSessionStore
 import br.com.estudario.domain.DailyActivity
 import br.com.estudario.domain.DailyGoal
@@ -70,17 +71,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch {
-            DataStoreAiReviewSessionStore(application).loadLatest()?.let { saved ->
-                _aiReviewTarget.value = AiReviewTarget(saved.targetId, saved.targetTitle)
-            }
+            val targetStore = DataStoreAiReviewTargetStore(application)
+            val session = DataStoreAiReviewSessionStore(application).loadLatest()
+            _aiReviewTarget.value = targetStore.load()
+                ?: session?.let { AiReviewTarget(it.targetId, it.targetTitle) }
         }
     }
 
-    fun openAiReview(targetId: Long, targetTitle: String) {
-        if (targetId > 0L && targetTitle.isNotBlank()) _aiReviewTarget.value = AiReviewTarget(targetId, targetTitle)
+    fun openAiReview(targetId: Long, targetTitle: String, sourceUri: String? = null, sourceName: String? = null) {
+        if (targetId > 0L && targetTitle.isNotBlank()) {
+            val target = AiReviewTarget(targetId, targetTitle, sourceUri, sourceName)
+            _aiReviewTarget.value = target
+            viewModelScope.launch { DataStoreAiReviewTargetStore(app).save(target) }
+        }
     }
 
-    fun closeAiReview() { _aiReviewTarget.value = null }
+    fun closeAiReview() {
+        _aiReviewTarget.value = null
+        viewModelScope.launch { DataStoreAiReviewTargetStore(app).clear() }
+    }
 
     val competitions = repository.competitions.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val subjects = repository.subjects.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

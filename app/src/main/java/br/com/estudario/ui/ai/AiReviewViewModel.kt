@@ -13,7 +13,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import br.com.estudario.EstudarioApplication
 import br.com.estudario.data.ai.AiJob
-import br.com.estudario.data.ai.AiJobRecoveryRepository
 import br.com.estudario.data.ai.AiJobRequestStore
 import br.com.estudario.data.ai.AiProcessTimeoutException
 import br.com.estudario.data.ai.DataStoreAiJobRequestStore
@@ -33,13 +32,14 @@ import br.com.estudario.data.ai.AiTopicProposal
 import br.com.estudario.data.ai.AiWarning
 import br.com.estudario.data.ai.AiWarningCode
 import br.com.estudario.data.ai.AiWarningSeverity
-import java.util.UUID
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -48,7 +48,7 @@ import kotlinx.serialization.json.Json
 data class AiReviewStarted(val job: AiJob, val identity: AiReviewRequestIdentity)
 
 interface AiReviewJobs {
-    suspend fun start(uri: String, fileName: String?): AiReviewStarted
+    suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted
     suspend fun recover(requestId: String): AiReviewStarted
     suspend fun recoverPending(): List<AiReviewStarted>
     suspend fun identityForJob(jobId: String): AiReviewRequestIdentity?
@@ -58,7 +58,8 @@ class DefaultAiReviewJobs(
     private val repository: DefaultAiSyllabusRepository,
     private val requestStore: AiJobRequestStore,
 ) : AiReviewJobs {
-    override suspend fun start(uri: String, fileName: String?): AiReviewStarted = try {
+    override suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted = try {
+        require(targetId > 0L) { "targetId must be positive" }
         val job = repository.start(uri, fileName)
         started(job)
     } catch (timeout: AiProcessTimeoutException) {
@@ -102,6 +103,7 @@ data class AiReviewPersistedSession(
 )
 
 private val Context.aiReviewSessionDataStore: DataStore<Preferences> by preferencesDataStore(name = "ai_review_sessions")
+private val Context.aiReviewTargetDataStore: DataStore<Preferences> by preferencesDataStore(name = "ai_review_target")
 
 class DataStoreAiReviewSessionStore(private val dataStore: DataStore<Preferences>) : AiReviewSessionStore {
     constructor(context: Context) : this(context.aiReviewSessionDataStore)
@@ -132,6 +134,41 @@ class DataStoreAiReviewSessionStore(private val dataStore: DataStore<Preferences
     }
 }
 
+interface AiReviewTargetStore {
+    suspend fun load(): AiReviewTarget?
+    suspend fun save(target: AiReviewTarget)
+    suspend fun clear()
+}
+
+class DataStoreAiReviewTargetStore(private val dataStore: DataStore<Preferences>) : AiReviewTargetStore {
+    constructor(context: Context) : this(context.aiReviewTargetDataStore)
+
+    private val key = stringPreferencesKey("target")
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+    @Serializable
+    private data class StoredTarget(
+        val id: Long,
+        val title: String,
+        val sourceUri: String? = null,
+        val sourceName: String? = null,
+    )
+
+    override suspend fun load(): AiReviewTarget? = dataStore.data.first()[key]
+        ?.let { runCatching { json.decodeFromString<StoredTarget>(it) }.getOrNull() }
+        ?.let { AiReviewTarget(it.id, it.title, it.sourceUri, it.sourceName) }
+
+    override suspend fun save(target: AiReviewTarget) {
+        dataStore.edit { preferences ->
+            preferences[key] = json.encodeToString(StoredTarget(target.id, target.title, target.sourceUri, target.sourceName))
+        }
+    }
+
+    override suspend fun clear() {
+        dataStore.edit { preferences -> preferences.remove(key) }
+    }
+}
+
 class AiReviewViewModel(
     application: Application,
     private val targetId: Long,
@@ -139,42 +176,35 @@ class AiReviewViewModel(
     private val jobs: AiReviewJobs,
     private val applier: AiReviewApplier,
     private val sessions: AiReviewSessionStore,
-    private val canUseAi: () -> Boolean,
+    private val targetStore: AiReviewTargetStore? = null,
+    private val accessGateway: AiReviewAccessGateway,
+    private val loginLauncher: AiReviewLoginLauncher = AiReviewLoginLauncher {},
     private val syncState: suspend (Long) -> RemoteSyllabusSyncState? = { null },
+    private val syncPollDelayMillis: Long = 1_000L,
 ) : AndroidViewModel(application) {
-    private val _state = MutableStateFlow(AiReviewUiState.gate(targetId, targetTitle))
+    private val _state = MutableStateFlow(AiReviewUiState.gate(targetId, targetTitle, AiReviewAccessState.LOADING))
     val state: StateFlow<AiReviewUiState> = _state.asStateFlow()
     private var identity: AiReviewRequestIdentity? = null
+    private var pendingSource: AiReviewSource? = null
+    private val startMutex = Mutex()
 
     init {
-        viewModelScope.launch { restore() }
+        viewModelScope.launch { refreshAccessAndRestore() }
     }
 
+    fun requestLogin() = loginLauncher.launch(::onLoginReturned)
+
     fun onLoginReturned() {
-        viewModelScope.launch { restore() }
+        viewModelScope.launch { refreshAccessAndRestore() }
     }
 
     fun start(uri: String, fileName: String?) {
-        if (!canUseAi()) return
-        viewModelScope.launch {
-            try {
-                val started = jobs.start(uri, fileName)
-                identity = started.identity
-                save(started.identity, null)
-                render(started.job, started.identity)
-            } catch (timeout: AiProcessTimeoutException) {
-                val recoveredIdentity = jobs.identityForJob(timeout.jobId)
-                if (recoveredIdentity != null) {
-                    identity = recoveredIdentity
-                    save(recoveredIdentity, null)
-                    _state.value = AiReviewUiState.processing(targetId, targetTitle, recoveredIdentity.jobId, recoveredIdentity.idempotencyKey)
-                } else {
-                    fail("A análise continua no servidor, mas não foi possível recuperar seus dados locais.")
-                }
-            } catch (error: Throwable) {
-                fail(safeMessage(error))
-            }
-        }
+        provideSource(uri, fileName)
+    }
+
+    fun provideSource(uri: String, fileName: String?) {
+        pendingSource = AiReviewSource(uri, fileName)
+        viewModelScope.launch { startPendingIfReady() }
     }
 
     fun changeDraft(draft: AiSyllabusDraft) {
@@ -204,7 +234,8 @@ class AiReviewViewModel(
     fun useFallback() {
         viewModelScope.launch {
             sessions.clear(targetId)
-            _state.value = AiReviewUiState.gate(targetId, targetTitle)
+            identity = null
+            _state.value = AiReviewUiState.gate(targetId, targetTitle, _state.value.access)
         }
     }
 
@@ -224,14 +255,49 @@ class AiReviewViewModel(
         }
     }
 
-    private suspend fun restore() {
-        if (!canUseAi()) return
-        val saved = sessions.load(targetId) ?: return
-        identity = AiReviewRequestIdentity(saved.requestId, saved.jobId, saved.idempotencyKey)
-        _state.value = AiReviewUiState.processing(targetId, targetTitle, saved.jobId, saved.idempotencyKey)
-        runCatching { jobs.recover(saved.requestId) }
-            .onSuccess { started -> identity = started.identity; render(started.job, started.identity, saved.draftJson) }
-            .onFailure { fail(safeMessage(it)) }
+    private suspend fun refreshAccessAndRestore() {
+        val access = runCatching { accessGateway.check().toUiState() }
+            .getOrElse { AiReviewAccessState.denied("ACCESS_UNAVAILABLE") }
+        _state.value = _state.value.copy(access = access)
+        if (access.kind != AiReviewAccessKind.READY) return
+        val saved = sessions.load(targetId)
+        if (saved != null) {
+            identity = AiReviewRequestIdentity(saved.requestId, saved.jobId, saved.idempotencyKey)
+            _state.value = AiReviewUiState.processing(targetId, targetTitle, saved.jobId, saved.idempotencyKey, access)
+            runCatching { jobs.recover(saved.requestId) }
+                .onSuccess { started -> identity = started.identity; render(started.job, started.identity, saved.draftJson) }
+                .onFailure { fail(safeMessage(it)) }
+        } else {
+            startPendingIfReady()
+        }
+    }
+
+    private suspend fun startPendingIfReady() {
+        val source = pendingSource ?: return
+        if (_state.value.access.kind != AiReviewAccessKind.READY) return
+        startMutex.withLock {
+            if (identity != null || _state.value.content is AiReviewContent.Processing || _state.value.content is AiReviewContent.Review) return
+            try {
+                targetStore?.save(AiReviewTarget(targetId, targetTitle, source.uri, source.fileName))
+                val started = jobs.start(targetId, source.uri, source.fileName)
+                identity = started.identity
+                pendingSource = null
+                save(started.identity, null)
+                render(started.job, started.identity)
+            } catch (timeout: AiProcessTimeoutException) {
+                val recoveredIdentity = jobs.identityForJob(timeout.jobId)
+                if (recoveredIdentity != null) {
+                    identity = recoveredIdentity
+                    pendingSource = null
+                    save(recoveredIdentity, null)
+                    _state.value = AiReviewUiState.processing(targetId, targetTitle, recoveredIdentity.jobId, recoveredIdentity.idempotencyKey, _state.value.access)
+                } else {
+                    fail("A análise continua no servidor, mas não foi possível recuperar seus dados locais.")
+                }
+            } catch (error: Throwable) {
+                fail(safeMessage(error))
+            }
+        }
     }
 
     private fun render(job: AiJob, requestIdentity: AiReviewRequestIdentity, persistedDraftJson: String? = null) {
@@ -242,7 +308,7 @@ class AiReviewViewModel(
             job.status in setOf(AiJobStatus.FAILED, AiJobStatus.EXPIRED, AiJobStatus.CANCELLED) -> AiReviewContent.Failure(job.errorMessage ?: "Não foi possível processar este edital.")
             else -> AiReviewContent.Processing(job.jobId, requestIdentity.idempotencyKey)
         }
-        _state.value = _state.value.copy(content = content)
+        _state.value = _state.value.copy(content = content, access = AiReviewAccessState.READY)
         viewModelScope.launch { save(requestIdentity, (content as? AiReviewContent.Review)?.draft) }
     }
 
@@ -267,7 +333,7 @@ class AiReviewViewModel(
                     _state.value = _state.value.copy(content = AiReviewContent.Applied(state))
                     break
                 }
-                delay(1_000)
+                delay(syncPollDelayMillis)
             }
         }
     }
@@ -281,6 +347,7 @@ class AiReviewViewModelFactory(
     private val application: Application,
     private val targetId: Long,
     private val targetTitle: String,
+    private val loginLauncher: AiReviewLoginLauncher = AiReviewLoginLauncher {},
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         val app = application as EstudarioApplication
@@ -293,7 +360,9 @@ class AiReviewViewModelFactory(
             jobs = DefaultAiReviewJobs(app.aiSyllabusRepository, requestStore),
             applier = AiReviewApplier { id, draft, jobId, replace -> service.applyReviewedSyllabus(id, draft, jobId, replace) },
             sessions = DataStoreAiReviewSessionStore(app),
-            canUseAi = { app.supabaseClientConfig.isConfigured && app.supabaseAuthRepository.accessToken() != null },
+            targetStore = DataStoreAiReviewTargetStore(app),
+            accessGateway = DefaultAiReviewAccessGateway(app.aiAccessRepository),
+            loginLauncher = loginLauncher,
             syncState = { id -> app.database.dao().remoteSyllabusSyncById(id)?.state },
         ) as T
     }
