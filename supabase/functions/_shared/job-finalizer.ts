@@ -103,33 +103,19 @@ export class SupabaseAiJobStore implements AiJobStore {
   }
 
   async bindSource(userId: string, jobId: string, source: BoundStorageSource): Promise<AiJobRecord> {
-    const url = this.restUrl("ai_jobs");
-    url.searchParams.set("id", `eq.${jobId}`);
-    url.searchParams.set("user_id", `eq.${userId}`);
-    url.searchParams.set("status", "eq.RESERVED");
-    url.searchParams.set("source_object_path", "is.null");
-    const response = await this.fetch(url, {
-      method: "PATCH",
-      headers: { ...this.headers(), "content-type": "application/json", prefer: "return=representation" },
-      body: JSON.stringify({
-        source_object_path: source.path,
-        source_mime_type: source.mimeType,
-        source_hash: source.sourceHash,
-        source_bytes: source.sourceBytes,
-        source_pages: source.sourcePages,
-        source_file_count: source.sourceFileCount,
-        source_metadata: source.metadata,
-      }),
-    });
-    if (!response.ok) throw await storeError(response);
-    const rows = await jsonArray(response);
-    if (rows.length === 0) {
-      const current = await this.getJob(userId, jobId);
-      if (!current) throw new JobStoreError("AI_JOB_NOT_FOUND", 404);
-      if (current.sourceObjectPath === source.path && current.sourceHash === source.sourceHash) return current;
-      throw new JobStoreError("SOURCE_ALREADY_BOUND", 409);
-    }
-    return parseJob(rows[0]);
+    const row = firstRow(await this.rpc("bind_ai_job_source", {
+      p_job_id: jobId,
+      p_source_object_path: source.path,
+      p_source_mime_type: source.mimeType,
+      p_source_hash: source.sourceHash,
+      p_source_bytes: source.sourceBytes,
+      p_source_pages: source.sourcePages,
+      p_source_file_count: source.sourceFileCount,
+      p_source_metadata: source.metadata,
+    }));
+    const job = parseJob(row);
+    if (job.userId !== userId) throw new JobStoreError("AI_JOB_FORBIDDEN", 403);
+    return job;
   }
 
   async claimForProcessing(userId: string, jobId: string): Promise<AiJobRecord> {

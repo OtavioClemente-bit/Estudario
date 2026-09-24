@@ -7,12 +7,14 @@ import {
 import type { AiFeature } from "../../functions/_shared/contracts.ts";
 import {
   JobStoreError,
+  SupabaseAiJobStore,
   type AiJobRecord,
   type AiJobStore,
   type CreateAiJobInput,
   type CreatedAiJob,
 } from "../../functions/_shared/job-finalizer.ts";
 import {
+  SupabaseStorageSourceStore,
   type StorageObject,
   type StorageSourceStore,
 } from "../../functions/_shared/storage-source.ts";
@@ -22,12 +24,19 @@ const USER_B = "00000000-0000-0000-0000-0000000000b1";
 const FEATURE = "SYLLABUS_GENERATION" as const;
 
 function pdf(pages: number, bytes = 0): Uint8Array {
-  const body = `%PDF-1.7 ${Array.from({ length: pages }, () => "/Type /Page").join(" ")} %%EOF`;
-  const encoded = new TextEncoder().encode(body);
+  const pageObjects = Array.from({ length: pages }, (_, index) =>
+    `${index + 1} 0 obj\n<< /Type /Page /Parent 99 0 R >>\nendobj\n`
+  ).join("");
+  const prelude = `%PDF-1.7\n${pageObjects}99 0 obj\n<< /Type /Pages /Count ${pages} >>\nendobj\n`;
+  const encoded = new TextEncoder().encode(`${prelude}%%EOF`);
   if (bytes <= encoded.length) return encoded;
-  const padded = new Uint8Array(bytes);
-  padded.set(encoded);
-  return padded;
+  return new TextEncoder().encode(`${prelude}${" ".repeat(bytes - encoded.length)}%%EOF`);
+}
+
+function fakePageInsideStream(): Uint8Array {
+  return new TextEncoder().encode(
+    "%PDF-1.7\n1 0 obj\n<< /Length 12 >>\nstream\n/Type /Page\nendstream\nendobj\n%%EOF",
+  );
 }
 
 class FakeStorage implements StorageSourceStore {
@@ -158,7 +167,6 @@ function dependencies(
 ): AiSyllabusJobsDependencies {
   return {
     authenticate: async () => ({ userId }),
-    policy: { getAccess: async () => ({ canUse: true }) },
     storage,
     jobs,
     limits: { maxBytes: 50_000, maxPages: 10, maxFiles: 1 },
@@ -292,6 +300,36 @@ Deno.test("rejects unsupported MIME metadata and does not bind the job", async (
   assert.equal(jobs.releaseCalls.length, 1);
 });
 
+Deno.test("rejects Storage metadata without a non-null owner", async () => {
+  const storage = new FakeStorage();
+  const jobs = new FakeJobStore();
+  const source = objectFor(USER_A, "missing-owner");
+  storage.objects.set(source.path, { ...source, ownerId: null });
+  const handler = createAiSyllabusJobsHandler(dependencies(USER_A, storage, jobs));
+
+  const response = await postCreate(handler, "missing-owner", { ready: true });
+  const body = await response.json();
+
+  assert.equal(response.status, 422);
+  assert.equal(body.error.code, "SOURCE_METADATA_INVALID");
+  assert.equal(jobs.releaseCalls.length, 1);
+});
+
+Deno.test("rejects Storage metadata owned by another account", async () => {
+  const storage = new FakeStorage();
+  const jobs = new FakeJobStore();
+  const source = objectFor(USER_A, "foreign-owner");
+  storage.objects.set(source.path, { ...source, ownerId: USER_B });
+  const handler = createAiSyllabusJobsHandler(dependencies(USER_A, storage, jobs));
+
+  const response = await postCreate(handler, "foreign-owner", { ready: true });
+  const body = await response.json();
+
+  assert.equal(response.status, 422);
+  assert.equal(body.error.code, "SOURCE_METADATA_INVALID");
+  assert.equal(jobs.releaseCalls.length, 1);
+});
+
 Deno.test("enforces server-side byte, page, and file limits", async () => {
   const cases = [
     { key: "too-many-bytes", body: pdf(1, 101), limits: { maxBytes: 100, maxPages: 10, maxFiles: 1 }, code: "SOURCE_TOO_LARGE" },
@@ -332,7 +370,30 @@ Deno.test("binds exact path, server SHA-256, counts, and metadata before process
   assert.equal(job?.sourcePages, 2);
   assert.equal(job?.sourceFileCount, 1);
   assert.match(job?.sourceHash ?? "", /^[0-9a-f]{64}$/);
+  assert.equal(job?.sourceHash, "09e3a3ff63bc0d19f2d5c9be49482baad2b5bfac2ee80440e12bd624da1cb387");
+  assert.deepEqual(job?.source?.metadata, {
+    bucket: "ai-syllabus-sources",
+    path: source.path,
+    mimeType: "application/pdf",
+    sizeBytes: source.body.byteLength,
+    storageMetadata: source.metadata,
+  });
   assert.deepEqual(jobs.events.slice(-2), [`create:${body.jobId}`, `bind:${body.jobId}`]);
+});
+
+Deno.test("does not count a page-looking token inside a PDF stream", async () => {
+  const storage = new FakeStorage();
+  const jobs = new FakeJobStore();
+  const source = objectFor(USER_A, "fake-page", fakePageInsideStream());
+  storage.objects.set(source.path, source);
+  const handler = createAiSyllabusJobsHandler(dependencies(USER_A, storage, jobs));
+
+  const response = await postCreate(handler, "fake-page", { ready: true });
+  const body = await response.json();
+
+  assert.equal(response.status, 422);
+  assert.equal(body.error.code, "SOURCE_PAGE_COUNT_UNAVAILABLE");
+  assert.equal(jobs.releaseCalls.length, 1);
 });
 
 Deno.test("process is a short durable command and never calls a provider before committed binding", async () => {
@@ -341,7 +402,15 @@ Deno.test("process is a short durable command and never calls a provider before 
   const handler = createAiSyllabusJobsHandler(dependencies(USER_A, storage, jobs));
   const createResponse = await postCreate(handler, "process-before-binding");
   const created = await createResponse.json();
-  let providerCalls = 0;
+  const providerSpy = {
+    calls: 0,
+    start: async (jobId: string) => {
+      const job = await jobs.getJob(USER_A, jobId);
+      if (!job?.sourceHash || !job.sourceObjectPath) throw new Error("provider called before source binding");
+      providerSpy.calls += 1;
+      jobs.events.push(`provider:${jobId}`);
+    },
+  };
 
   const processResponse = await handler(new Request(`https://example.test/ai-syllabus/jobs/${created.jobId}/process`, {
     method: "POST",
@@ -351,14 +420,17 @@ Deno.test("process is a short durable command and never calls a provider before 
 
   assert.equal(processResponse.status, 409);
   assert.equal(processBody.error.code, "SOURCE_NOT_BOUND");
-  assert.equal(providerCalls, 0);
+  assert.equal(providerSpy.calls, 0);
   assert.equal(jobs.records.get(created.jobId)?.status, "RESERVED");
 
   const source = objectFor(USER_A, "process-after-binding");
   storage.objects.set(source.path, source);
-  const boundResponse = await postCreate(handler, "process-after-binding", { ready: true });
+  const providerHandler = createAiSyllabusJobsHandler(dependencies(USER_A, storage, jobs, {
+    schedule: providerSpy.start,
+  }));
+  const boundResponse = await postCreate(providerHandler, "process-after-binding", { ready: true });
   const bound = await boundResponse.json();
-  const process = await handler(new Request(`https://example.test/ai-syllabus/jobs/${bound.jobId}/process`, {
+  const process = await providerHandler(new Request(`https://example.test/ai-syllabus/jobs/${bound.jobId}/process`, {
     method: "POST",
     headers: { Authorization: "Bearer supabase-jwt" },
   }));
@@ -366,9 +438,100 @@ Deno.test("process is a short durable command and never calls a provider before 
 
   assert.equal(process.status, 202);
   assert.equal(processResult.status, "PROCESSING");
-  assert.equal(providerCalls, 0);
+  assert.equal(providerSpy.calls, 1);
   assert.ok(jobs.events.indexOf(`bind:${bound.jobId}`) < jobs.events.indexOf(`claim:${bound.jobId}`));
-  assert.ok(jobs.events.indexOf(`claim:${bound.jobId}`) < jobs.events.indexOf(`schedule:${bound.jobId}`));
+  assert.ok(jobs.events.indexOf(`claim:${bound.jobId}`) < jobs.events.indexOf(`provider:${bound.jobId}`));
+});
+
+Deno.test("allows an idempotent retry to bind the existing job even when quota is no longer available", async () => {
+  const storage = new FakeStorage();
+  const jobs = new FakeJobStore();
+  const handler = createAiSyllabusJobsHandler(dependencies(USER_A, storage, jobs));
+
+  const first = await postCreate(handler, "retry-after-upload");
+  assert.equal(first.status, 201);
+  const source = objectFor(USER_A, "retry-after-upload");
+  storage.objects.set(source.path, source);
+  const retry = await postCreate(handler, "retry-after-upload", { ready: true });
+  const body = await retry.json();
+
+  assert.equal(retry.status, 200);
+  assert.equal(body.sourceBound, true);
+});
+
+Deno.test("uses the Storage metadata RPC and Storage API, never the storage schema REST endpoint", async () => {
+  const body = pdf(1);
+  const path = sourcePathForJob(USER_A, "storage-api");
+  const requests: Request[] = [];
+  const store = new SupabaseStorageSourceStore({
+    supabaseUrl: "http://127.0.0.1:54321",
+    publishableKey: "publishable-key",
+    accessToken: "supabase-jwt",
+    fetcher: async (input, init) => {
+      const request = new Request(input, init);
+      requests.push(request);
+      if (request.url.includes("/rpc/get_ai_syllabus_source_metadata")) {
+        return new Response(JSON.stringify([{
+          bucket_id: "ai-syllabus-sources",
+          name: path,
+          owner: USER_A,
+          metadata: { mimetype: "application/pdf", size: body.byteLength },
+        }]), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response(body.buffer as ArrayBuffer, { status: 200, headers: { "content-type": "application/pdf" } });
+    },
+  }, 50_000);
+
+  const object = await store.getObject(USER_A, path);
+
+  assert.equal(object?.ownerId, USER_A);
+  assert.equal(requests[0].url.includes("/rest/v1/storage.objects"), false);
+  assert.equal(requests[0].url.includes("/rest/v1/rpc/get_ai_syllabus_source_metadata"), true);
+  assert.equal(new URL(requests[1].url).pathname, `/storage/v1/object/ai-syllabus-sources/${path}`);
+});
+
+Deno.test("persists source binding through the owner-checked RPC, not a client UPDATE", async () => {
+  const requests: Request[] = [];
+  const store = new SupabaseAiJobStore({
+    supabaseUrl: "http://127.0.0.1:54321",
+    publishableKey: "publishable-key",
+    accessToken: "supabase-jwt",
+    fetcher: async (input, init) => {
+      const request = new Request(input, init);
+      requests.push(request);
+      return new Response(JSON.stringify({
+        id: "00000000-0000-0000-0000-0000000000c1",
+        user_id: USER_A,
+        feature: FEATURE,
+        status: "RESERVED",
+        idempotency_key: "key",
+        request_fingerprint: "fingerprint",
+        request_payload: {},
+        source_object_path: sourcePathForJob(USER_A, "key"),
+        source_hash: "a".repeat(64),
+        source_bytes: 123,
+        source_pages: 2,
+        source_file_count: 1,
+        source_mime_type: "application/pdf",
+        source_metadata: { bucket: "ai-syllabus-sources" },
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+
+  await store.bindSource(USER_A, "00000000-0000-0000-0000-0000000000c1", {
+    path: sourcePathForJob(USER_A, "key"),
+    mimeType: "application/pdf",
+    sourceHash: "a".repeat(64),
+    sourceBytes: 123,
+    sourcePages: 2,
+    sourceFileCount: 1,
+    metadata: { bucket: "ai-syllabus-sources" },
+  });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].method, "POST");
+  assert.equal(new URL(requests[0].url).pathname, "/rest/v1/rpc/bind_ai_job_source");
+  assert.equal((await requests[0].json()).p_job_id, "00000000-0000-0000-0000-0000000000c1");
 });
 
 Deno.test("requires the syllabus feature and a Supabase JWT", async () => {

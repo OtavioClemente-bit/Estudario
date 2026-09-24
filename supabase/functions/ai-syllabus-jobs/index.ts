@@ -1,9 +1,5 @@
 import type { AiFeature } from "../_shared/contracts.ts";
 import {
-  ClosedBetaAiPolicy,
-  SupabaseAccessDataSource,
-} from "../_shared/access-policy.ts";
-import {
   authenticateSupabaseRequest,
   AuthError,
   type AuthenticatedUser,
@@ -31,9 +27,6 @@ const DEFAULT_LIMITS: StorageSourceLimits = {
 
 export interface AiSyllabusJobsDependencies {
   authenticate: (request: Request) => Promise<AuthenticatedUser>;
-  policy: {
-    getAccess: (userId: string, feature: AiFeature) => Promise<{ canUse: boolean }>;
-  };
   storage: StorageSourceStore;
   jobs: AiJobStore;
   limits: StorageSourceLimits;
@@ -160,8 +153,6 @@ async function createJob(
 
   let created;
   try {
-    const access = await dependencies.policy.getAccess(user.userId, SYLLABUS_FEATURE);
-    if (!access.canUse) return safeError("AI_ACCESS_DENIED", 403);
     created = await dependencies.jobs.createOrGet({
       userId: user.userId,
       feature: SYLLABUS_FEATURE,
@@ -274,13 +265,11 @@ export function createAiSyllabusJobsHandler(dependencies: AiSyllabusJobsDependen
 function runtimeDependencies(request: Request): AiSyllabusJobsDependencies {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim();
   const publishableKey = (Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY"))?.trim();
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
   const accessToken = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? "";
-  if (!supabaseUrl || !publishableKey || !serviceRoleKey) throw new AuthError("AUTH_UNAVAILABLE", 503);
+  if (!supabaseUrl || !publishableKey) throw new AuthError("AUTH_UNAVAILABLE", 503);
   return {
     authenticate: authenticateSupabaseRequest,
-    policy: new ClosedBetaAiPolicy(new SupabaseAccessDataSource()),
-    storage: new SupabaseStorageSourceStore({ supabaseUrl, serviceRoleKey }, runtimeLimits().maxBytes),
+    storage: new SupabaseStorageSourceStore({ supabaseUrl, publishableKey, accessToken }, runtimeLimits().maxBytes),
     jobs: new SupabaseAiJobStore({ supabaseUrl, publishableKey, accessToken }),
     limits: runtimeLimits(),
     schedule: async () => {

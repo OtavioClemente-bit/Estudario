@@ -69,9 +69,78 @@ function metadataBytes(metadata: Record<string, unknown>): number | null {
   return null;
 }
 
+function maskPdfNonStructuralRegions(text: string): string | null {
+  const chars = [...text];
+  const mask = (start: number, end: number) => {
+    for (let index = start; index < end; index += 1) {
+      if (chars[index] !== "\n" && chars[index] !== "\r") chars[index] = " ";
+    }
+  };
+
+  let index = 0;
+  while (index < chars.length) {
+    if (chars[index] === "%") {
+      const start = index;
+      while (index < chars.length && chars[index] !== "\n" && chars[index] !== "\r") index += 1;
+      mask(start, index);
+      continue;
+    }
+    if (chars[index] === "(") {
+      const start = index;
+      let depth = 1;
+      index += 1;
+      while (index < chars.length && depth > 0) {
+        if (chars[index] === "\\") {
+          index += 2;
+          continue;
+        }
+        if (chars[index] === "(") depth += 1;
+        if (chars[index] === ")") depth -= 1;
+        index += 1;
+      }
+      if (depth !== 0) return null;
+      mask(start, index);
+      continue;
+    }
+    if (chars[index] === "<" && chars[index + 1] === "<") {
+      index += 2;
+      continue;
+    }
+    if (chars[index] === "<") {
+      const start = index;
+      index += 1;
+      while (index < chars.length && chars[index] !== ">") index += 1;
+      if (index >= chars.length) return null;
+      index += 1;
+      mask(start, index);
+      continue;
+    }
+    index += 1;
+  }
+
+  const masked = chars.join("");
+  const streamPattern = /(^|\s)stream(?:\r\n|\n|\r)/g;
+  let streamMatch: RegExpExecArray | null;
+  while ((streamMatch = streamPattern.exec(masked)) !== null) {
+    const dataStart = streamMatch.index + streamMatch[0].length;
+    const endStream = masked.indexOf("endstream", dataStart);
+    if (endStream < 0) return null;
+    mask(dataStart, endStream + "endstream".length);
+    streamPattern.lastIndex = endStream + "endstream".length;
+  }
+  return chars.join("");
+}
+
 function countPdfPages(body: Uint8Array): number {
   const text = new TextDecoder("latin1").decode(body);
-  return (text.match(/\/Type\s*\/Page(?!s)(?:\s|\/|>)/g) ?? []).length;
+  if (!/^%PDF-\d\.\d(?:\s|$)/.test(text) || !/%%EOF\s*$/.test(text)) return 0;
+  const masked = maskPdfNonStructuralRegions(text);
+  if (masked === null) return 0;
+  const objects = [...masked.matchAll(/\b\d+\s+\d+\s+obj\b([\s\S]*?)\bendobj\b/g)];
+  const objectStarts = masked.match(/\b\d+\s+\d+\s+obj\b/g) ?? [];
+  const objectEnds = masked.match(/\bendobj\b/g) ?? [];
+  if (objects.length === 0 || objectStarts.length !== objects.length || objectEnds.length !== objects.length) return 0;
+  return objects.filter((match) => /\/Type\s*\/Page(?=\s|\/|>>)/.test(match[1])).length;
 }
 
 function hexDigest(bytes: ArrayBuffer): string {
@@ -93,7 +162,7 @@ export async function validateAndBindStorageSource(
   if (object.bucketId !== AI_SYLLABUS_SOURCE_BUCKET || object.path !== path) {
     throw new StorageSourceError("SOURCE_METADATA_INVALID", 422);
   }
-  if (object.ownerId !== null && object.ownerId !== userId) {
+  if (object.ownerId === null || object.ownerId !== userId) {
     throw new StorageSourceError("SOURCE_METADATA_INVALID", 422);
   }
 
@@ -146,7 +215,8 @@ export async function validateAndBindStorageSource(
 
 export interface SupabaseStorageEnvironment {
   supabaseUrl: string;
-  serviceRoleKey: string;
+  publishableKey: string;
+  accessToken: string;
   fetcher?: typeof fetch;
 }
 
@@ -159,15 +229,15 @@ export class SupabaseStorageSourceStore implements StorageSourceStore {
   async getObject(userId: string, path: string): Promise<StorageObject | null> {
     const fetcher = this.environment.fetcher ?? fetch;
     const baseUrl = this.environment.supabaseUrl.replace(/\/$/, "");
-    const metadataUrl = new URL(`${baseUrl}/rest/v1/storage.objects`);
-    metadataUrl.searchParams.set("select", "bucket_id,name,owner,metadata");
-    metadataUrl.searchParams.set("bucket_id", `eq.${AI_SYLLABUS_SOURCE_BUCKET}`);
-    metadataUrl.searchParams.set("name", `eq.${path}`);
-    const metadataResponse = await fetcher(metadataUrl, { headers: this.headers() });
+    const metadataResponse = await fetcher(`${baseUrl}/rest/v1/rpc/get_ai_syllabus_source_metadata`, {
+      method: "POST",
+      headers: { ...this.headers(), "content-type": "application/json" },
+      body: JSON.stringify({ p_path: path }),
+    });
     if (!metadataResponse.ok) throw new StorageSourceError("SOURCE_METADATA_INVALID", 422);
-    const rows = await metadataResponse.json() as unknown;
-    if (!Array.isArray(rows) || rows.length === 0) return null;
-    const row = rows[0] as Record<string, unknown>;
+    const payload = await metadataResponse.json() as unknown;
+    const row = Array.isArray(payload) ? payload[0] as Record<string, unknown> : payload as Record<string, unknown>;
+    if (!row || typeof row !== "object") return null;
     const metadata = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
       ? row.metadata as Record<string, unknown>
       : {};
@@ -187,7 +257,7 @@ export class SupabaseStorageSourceStore implements StorageSourceStore {
       mimeType: mimeType ?? bodyResponse.headers.get("content-type"),
       sizeBytes: bodyResponse.headers.has("content-length")
         ? Number(bodyResponse.headers.get("content-length"))
-        : null,
+        : metadataBytes(metadata),
       metadata,
       body,
     };
@@ -195,8 +265,8 @@ export class SupabaseStorageSourceStore implements StorageSourceStore {
 
   private headers(): HeadersInit {
     return {
-      apikey: this.environment.serviceRoleKey,
-      authorization: `Bearer ${this.environment.serviceRoleKey}`,
+      apikey: this.environment.publishableKey,
+      authorization: `Bearer ${this.environment.accessToken}`,
       accept: "application/json",
     };
   }

@@ -360,6 +360,14 @@ values
   ('ai-syllabus-sources', '00000000-0000-0000-0000-0000000000a1/account-a.pdf'),
   ('ai-syllabus-sources', '00000000-0000-0000-0000-0000000000b1/account-b.pdf');
 
+update storage.objects
+set owner = case
+  when name like '00000000-0000-0000-0000-0000000000a1/%' then '00000000-0000-0000-0000-0000000000a1'::uuid
+  else '00000000-0000-0000-0000-0000000000b1'::uuid
+end,
+metadata = jsonb_build_object('mimetype', 'application/pdf', 'size', 1024)
+where bucket_id = 'ai-syllabus-sources';
+
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a1', true);
 set local role authenticated;
@@ -489,14 +497,53 @@ select is(
 );
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a1', true);
 
-set local role postgres;
-update public.ai_jobs
-set source_object_path = '00000000-0000-0000-0000-0000000000a1/foundation.pdf',
-    source_hash = repeat('a', 64),
-    source_bytes = 1024,
-    source_pages = 1
-where id = (select job_id from ai_test_jobs where label = 'idempotent');
-set local role authenticated;
+select is(
+  (select status::text from public.bind_ai_job_source(
+  (select job_id from ai_test_jobs where label = 'idempotent'),
+    '00000000-0000-0000-0000-0000000000a1/account-a.pdf',
+    'application/pdf',
+    repeat('a', 64),
+    1024,
+    1,
+    1,
+    '{"bucket":"ai-syllabus-sources"}'::jsonb
+  )),
+  'RESERVED',
+  'source binding RPC preserves RESERVED state'
+);
+select is(
+  (select source_object_path from public.ai_jobs where id = (select job_id from ai_test_jobs where label = 'idempotent')),
+  '00000000-0000-0000-0000-0000000000a1/account-a.pdf',
+  'source binding RPC stores the exact path'
+);
+select is(
+  (select source_hash from public.ai_jobs where id = (select job_id from ai_test_jobs where label = 'idempotent')),
+  repeat('a', 64),
+  'source binding RPC stores the source hash'
+);
+select throws_ok(
+  $$select * from public.bind_ai_job_source(
+    (select job_id from ai_test_jobs where label = 'idempotent'),
+    '00000000-0000-0000-0000-0000000000a1/other.pdf',
+    'application/pdf', repeat('b', 64), 1024, 1, 1, '{}'::jsonb
+  )$$,
+  'P0001',
+  'SOURCE_ALREADY_BOUND',
+  'source binding cannot replace an existing binding'
+);
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000b1', true);
+select throws_ok(
+  $$select * from public.bind_ai_job_source(
+    (select job_id from ai_test_jobs where label = 'idempotent'),
+    '00000000-0000-0000-0000-0000000000a1/foreign.pdf',
+    'application/pdf', repeat('b', 64), 1024, 1, 1, '{}'::jsonb
+  )$$,
+  '42501',
+  'AI_JOB_FORBIDDEN',
+  'another account cannot bind the first account job'
+);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a1', true);
 
 select is(
   (select status::text from public.claim_ai_job((select job_id from ai_test_jobs where label = 'idempotent'), 'foundation-lease', 60)),
