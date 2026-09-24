@@ -22,6 +22,10 @@ interface AppDao {
     suspend fun failedRemoteSyllabusSync(now: Long): List<RemoteSyllabusSyncEntity>
     @Query("SELECT * FROM remote_syllabus_sync WHERE id = :id LIMIT 1")
     suspend fun remoteSyllabusSyncById(id: Long): RemoteSyllabusSyncEntity?
+    @Query("SELECT * FROM remote_syllabus_sync WHERE jobId = :jobId LIMIT 1")
+    suspend fun remoteSyllabusSyncByJobId(jobId: String): RemoteSyllabusSyncEntity?
+    @Query("SELECT * FROM remote_syllabus_sync WHERE localSyllabusId = :localSyllabusId AND operation = :operation AND payloadHash = :payloadHash LIMIT 1")
+    suspend fun remoteSyllabusSyncByPayload(localSyllabusId: Long, operation: RemoteSyllabusSyncOperation, payloadHash: String): RemoteSyllabusSyncEntity?
     @Query("UPDATE remote_syllabus_sync SET attemptCount = attemptCount + 1, attemptToken = :attemptToken, nextAttemptAt = :nextAttemptAt, updatedAt = :updatedAt WHERE id = :id AND state = 'PENDING' AND attemptToken = :expectedAttemptToken AND :attemptToken != ''")
     suspend fun markRemoteSyncAttempt(id: Long, expectedAttemptToken: String, attemptToken: String, nextAttemptAt: Long, updatedAt: Long): Int
     @Query("UPDATE remote_syllabus_sync SET state = 'PENDING', attemptToken = :attemptToken, nextAttemptAt = :now, lastError = NULL, updatedAt = :updatedAt WHERE id = :id AND state = 'FAILED' AND nextAttemptAt <= :now AND attemptToken = :expectedAttemptToken AND :attemptToken != ''")
@@ -44,6 +48,7 @@ interface AppDao {
     @Insert suspend fun insertSubject(value: SubjectEntity): Long
     @Update suspend fun updateSubject(value: SubjectEntity)
     @Delete suspend fun deleteSubject(value: SubjectEntity)
+    @Query("DELETE FROM subjects WHERE competitionId = :competitionId") suspend fun deleteSubjectsForCompetition(competitionId: Long)
     @Query("SELECT * FROM subjects WHERE externalId = :externalId LIMIT 1") suspend fun subjectByExternalId(externalId: String): SubjectEntity?
 
     @Query("SELECT * FROM topics ORDER BY subjectId, position, title") fun topics(): Flow<List<TopicEntity>>

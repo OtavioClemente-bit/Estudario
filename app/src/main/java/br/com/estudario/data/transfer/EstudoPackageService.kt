@@ -570,7 +570,17 @@ class EstudoPackageService(private val db: AppDatabase) {
         mode: ImportMode = ImportMode.SKIP,
         targetCompetitionId: Long? = null,
     ): ImportResult = try {
-        db.withTransaction {
+        db.withTransaction { importInTransaction(text, mode, targetCompetitionId) }
+    } catch (_: SQLiteConstraintException) {
+        throw EstudoPackageException("Conflito de externalId global no pacote oficial.")
+    }
+
+    /** Runs the same official import boundary while the caller owns the Room transaction. */
+    internal suspend fun importInTransaction(
+        text: String,
+        mode: ImportMode = ImportMode.SKIP,
+        targetCompetitionId: Long? = null,
+    ): ImportResult {
         val plan = EstudoPackageParser.parse(text)
         val contentHash = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
         val prefix = if (mode == ImportMode.COPY) "${plan.packageId}:copy:${contentHash.take(8)}" else plan.packageId
@@ -764,10 +774,7 @@ class EstudoPackageService(private val db: AppDatabase) {
             )
         }
         dao.insertImportPackage(ImportPackageEntity(packageId = prefix, schemaVersion = plan.version, contentHash = contentHash, createdCount = theories + summaries + snippets + questions + concepts, updatedCount = updated, ignoredCount = skipped))
-        ImportResult(subjectsCreated, topicsCreated, topicsUpdated, theories, summaries, questions, skipped, snippets, concepts, updated, importedTopicIds.toList(), plan.allTopics().sumOf { topico -> topico.questions.count { it.downgraded } }, plan.sourceCount(), plan.normalizedPriorityCount)
-        }
-    } catch (_: SQLiteConstraintException) {
-        throw EstudoPackageException("Conflito de externalId global no pacote oficial.")
+        return ImportResult(subjectsCreated, topicsCreated, topicsUpdated, theories, summaries, questions, skipped, snippets, concepts, updated, importedTopicIds.toList(), plan.allTopics().sumOf { topico -> topico.questions.count { it.downgraded } }, plan.sourceCount(), plan.normalizedPriorityCount)
     }
 }
 
