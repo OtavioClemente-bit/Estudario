@@ -175,6 +175,16 @@ fun interface DriveAccessTokenSource {
     fun accessToken(): String?
 }
 
+/**
+ * Minimal adapter for the existing Google Drive authorization path. It owns only the Drive token
+ * supplier and is never passed to the Supabase AI token provider.
+ */
+class GoogleDriveAccessTokenSource(
+    private val accessTokenProvider: () -> String?,
+) : DriveAccessTokenSource {
+    override fun accessToken(): String? = accessTokenProvider()
+}
+
 class SupabaseAiTokenProvider(
     private val repository: SupabaseAuthRepository,
 ) : AiAccessTokenProvider {

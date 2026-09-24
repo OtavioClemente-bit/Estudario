@@ -17,7 +17,6 @@ import kotlinx.coroutines.launch
 
 data class SupabaseSession(
     val accessToken: String,
-    val refreshToken: String? = null,
     val userId: String? = null,
     val expiresAtEpochSeconds: Long? = null,
 ) {
@@ -48,8 +47,8 @@ interface SupabaseSessionStore {
 private val Context.supabaseSessionDataStore by preferencesDataStore(name = "supabase_auth_session")
 
 /**
- * Persists only the Supabase access token, user id, and expiry. Refresh tokens stay memory-only
- * and any legacy refresh-token preference is removed on the next save.
+ * Persists only the Supabase access token, user id, and expiry. Refresh tokens are not part of the
+ * public session model, and any legacy refresh-token preference is removed during migration/save.
  */
 class DataStoreSupabaseSessionStore(
     private val dataStore: DataStore<Preferences>,

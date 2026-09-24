@@ -3,6 +3,7 @@ package br.com.estudario.data.remote
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,6 +17,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -41,21 +43,23 @@ class SupabaseSessionStoreTest {
         val dataStore = InMemoryPreferencesDataStore()
         val scope = testScope()
         try {
+            runBlocking { dataStore.seedRefreshToken("legacy-refresh-token") }
             val store = DataStoreSupabaseSessionStore(dataStore, scope)
             val session = SupabaseSession(
                 accessToken = "supabase-jwt-token",
-                refreshToken = "refresh-token-must-not-be-persisted",
                 userId = "user-1",
                 expiresAtEpochSeconds = 1_800_000_000,
             )
 
             assertEquals(SupabaseSessionState.Ready(null), awaitReady(store))
+            assertNull(dataStore.refreshToken())
             runBlocking { store.save(session) }
+            assertEquals("supabase-jwt-token", dataStore.accessToken())
+            assertNull(dataStore.refreshToken())
 
             val reloaded = DataStoreSupabaseSessionStore(dataStore, scope)
             val restored = awaitReady(reloaded).session
-            assertEquals(session.copy(refreshToken = null), restored)
-            assertNotEquals(session.refreshToken, restored?.refreshToken)
+            assertEquals(session, restored)
 
             runBlocking { store.clear() }
 
@@ -100,6 +104,8 @@ class SupabaseSessionStoreTest {
 }
 
 private class InMemoryPreferencesDataStore : DataStore<Preferences> {
+    private val accessTokenKey = stringPreferencesKey("access_token")
+    private val refreshTokenKey = stringPreferencesKey("refresh_token")
     private val preferences = MutableStateFlow<Preferences>(emptyPreferences())
 
     override val data: Flow<Preferences> = preferences
@@ -109,6 +115,16 @@ private class InMemoryPreferencesDataStore : DataStore<Preferences> {
         preferences.value = updated
         return updated
     }
+
+    suspend fun seedRefreshToken(value: String) {
+        updateData { current ->
+            current.toMutablePreferences().apply { this[refreshTokenKey] = value }
+        }
+    }
+
+    fun accessToken(): String? = preferences.value[accessTokenKey]
+
+    fun refreshToken(): String? = preferences.value[refreshTokenKey]
 }
 
 private class BlockingPreferencesDataStore : DataStore<Preferences> {

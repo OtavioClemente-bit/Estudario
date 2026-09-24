@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -12,6 +13,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SupabaseAuthRepositoryTest {
+    @Test
+    fun publicSupabaseSessionDoesNotExposeRefreshToken() {
+        assertFalse(SupabaseSession::class.java.declaredFields.any { it.name == "refreshToken" })
+    }
+
     @Test
     fun missingSessionIsUnauthenticatedAndHasNoAiToken() = runTest {
         val repository = repository()
@@ -43,6 +49,21 @@ class SupabaseAuthRepositoryTest {
         assertEquals("google-drive-access-token", driveTokenSource.accessToken())
         assertNotEquals(driveTokenSource.accessToken(), SupabaseAiTokenProvider(repository).accessToken())
         assertEquals("google-id-token", client.googleCredentials.single().idToken)
+    }
+
+    @Test
+    fun concreteGoogleDriveTokenAdapterCannotProvideTheDriveTokenToAi() = runTest {
+        val client = FakeSupabaseAuthClient(
+            session = SupabaseSession(accessToken = "supabase-jwt-token", userId = "user-1"),
+        )
+        val repository = repository(client)
+        val driveTokenSource = GoogleDriveAccessTokenSource { "google-drive-access-token" }
+
+        repository.signInWithGoogle(SupabaseGoogleCredential("google-id-token"))
+
+        assertEquals("google-drive-access-token", driveTokenSource.accessToken())
+        assertEquals("supabase-jwt-token", SupabaseAiTokenProvider(repository).accessToken())
+        assertNotEquals(driveTokenSource.accessToken(), SupabaseAiTokenProvider(repository).accessToken())
     }
 
     @Test
