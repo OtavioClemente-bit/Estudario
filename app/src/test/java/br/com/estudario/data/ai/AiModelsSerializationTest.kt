@@ -1,5 +1,6 @@
 package br.com.estudario.data.ai
 
+import java.io.File
 import kotlinx.serialization.SerializationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
@@ -66,57 +67,48 @@ class AiModelsSerializationTest {
         assertEquals(1, quotaAccess.quota?.reservedCount)
         assertEquals(null, job.providerExecutionStartedAt)
     }
+
+    @Test
+    fun rejectsBlankJobIdsAndMalformedJobTimestamps() {
+        val blankId = reservedJobJson.replace("\"jobId\": \"job-1\"", "\"jobId\": \" \"")
+        val malformedTimestamp = reservedJobJson.replace("2026-09-23T12:00:00Z", "not-a-timestamp")
+
+        assertThrows(ContractValidationException::class.java) {
+            EstudarioContractJson.decodeJob(blankId)
+        }
+        assertThrows(ContractValidationException::class.java) {
+            EstudarioContractJson.decodeJob(malformedTimestamp)
+        }
+    }
+
+    @Test
+    fun rejectsBlankAccessReasonCodes() {
+        val invalid = accessJson.replace("\"reasonCode\": \"QUOTA_EXHAUSTED\"", "\"reasonCode\": \" \"")
+
+        assertThrows(ContractValidationException::class.java) {
+            EstudarioContractJson.decodeAccess(invalid)
+        }
+    }
 }
 
-private val validProposalJson = """
-    {
-      "schemaVersion": 1,
-      "promptVersion": "syllabus-v1",
-      "modelVersion": "gpt-6-luna",
-      "documentTitle": "Edital TRT-3",
-      "subjects": [{
-        "name": "Direito Constitucional",
-        "position": 0,
-        "suggestedPriority": "NORMAL",
-        "topics": [{
-          "name": "Direitos fundamentais",
-          "position": 0,
-          "children": [{"name":"Remédios constitucionais","position":0,"children":[],"sourcePages":[43]}],
-          "sourcePages": [42, 43]
-        }],
-        "sourcePages": [42, 43]
-      }],
-      "warnings": [{
-        "code": "AMBIGUOUS_STRUCTURE",
-        "severity": "WARNING",
-        "message": "O texto não deixa claro se este item é uma matéria ou um tópico.",
-        "sourcePages": [44],
-        "ambiguity": "A seção pode pertencer a duas matérias."
-      }],
-      "ambiguities": ["A seção pode pertencer a duas matérias."]
-    }
-""".trimIndent()
+private val validProposalJson: String
+    get() = fixture("ai-syllabus-proposal.json")
 
-private val reservedJobJson = """
-    {
-      "jobId":"job-1","feature":"SYLLABUS_GENERATION","status":"RESERVED",
-      "schemaVersion":null,"promptVersion":null,"modelVersion":null,"proposal":null,"warnings":[],
-      "errorCode":null,"errorMessage":null,"createdAt":"2026-09-23T12:00:00Z","updatedAt":"2026-09-23T12:00:00Z",
-      "finishedAt":null,"providerExecutionStartedAt":null
-    }
-""".trimIndent()
+private val reservedJobJson: String
+    get() = fixture("job-reserved.json")
 
-private val accessJson = """
-    {
-      "authenticated":true,"betaAccess":true,"feature":"SYLLABUS_GENERATION","featureEnabled":true,
-      "quota":null,"canUse":false,"reasonCode":"QUOTA_EXHAUSTED"
-    }
-""".trimIndent()
+private val accessJson: String
+    get() = fixture("access-quota-null.json")
 
-private val accessWithQuotaJson = """
-    {
-      "authenticated":true,"betaAccess":true,"feature":"SYLLABUS_GENERATION","featureEnabled":true,
-      "quota":{"feature":"SYLLABUS_GENERATION","limit":1,"successfulCount":0,"reservedCount":1,"remaining":0,"periodStart":"2026-09-23"},
-      "canUse":false,"reasonCode":"QUOTA_RESERVED"
-    }
-""".trimIndent()
+private val accessWithQuotaJson: String
+    get() = fixture("access-quota-reserved.json")
+
+private fun fixture(name: String): String {
+    val file = listOf(
+        File("supabase/functions/_shared/fixtures/v1/$name"),
+        File("../supabase/functions/_shared/fixtures/v1/$name"),
+        File("../../supabase/functions/_shared/fixtures/v1/$name"),
+    ).firstOrNull { it.isFile }
+    check(file != null) { "Missing versioned fixture: $name" }
+    return file.readText()
+}

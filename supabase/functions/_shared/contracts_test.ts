@@ -3,7 +3,7 @@ import {
   parseAiAccess,
   parseAiJob,
   parseAiSyllabusProposal,
-  parseAiSyllabusProposalJson,
+  parseProviderAiSyllabusProposal,
   parsePrivateSyllabus,
   parseRemoteSyllabusSyncAcknowledgement,
 } from "./contracts.ts";
@@ -102,12 +102,41 @@ Deno.test("rejects missing required proposal fields", () => {
 
 Deno.test("parses the versioned proposal fixture and exposes a strict schema", async () => {
   const fixture = await Deno.readTextFile(new URL("./fixtures/v1/ai-syllabus-proposal.json", import.meta.url));
-  const proposal = parseAiSyllabusProposalJson(fixture);
+  const proposal = parseProviderAiSyllabusProposal(fixture);
   const schema = getAiSyllabusProposalSchema(proposal.schemaVersion);
   const defs = schema.$defs as Record<string, Record<string, unknown>>;
+  const properties = schema.properties as Record<string, any>;
+  const subjectsSchema = properties.subjects as Record<string, any>;
+  const topicProperties = defs.topic.properties as Record<string, any>;
   if (proposal.schemaVersion !== 1) throw new Error("fixture version was not preserved");
   if (schema.additionalProperties !== false || defs.topic.additionalProperties !== false || defs.warning.additionalProperties !== false) {
     throw new Error("proposal schema is not strict");
+  }
+  if (properties.documentTitle.pattern !== "\\S" || topicProperties.name.pattern !== "\\S") {
+    throw new Error("schema does not enforce non-whitespace proposal text");
+  }
+  if (schema.$comment === undefined || subjectsSchema.$comment === undefined) {
+    throw new Error("schema does not declare the provider validation boundary");
+  }
+});
+
+Deno.test("provider boundary rejects schema/runtime divergence", async () => {
+  const raw = await Deno.readTextFile(new URL("./fixtures/v1/ai-syllabus-proposal.json", import.meta.url));
+  const whitespaceTitle = JSON.parse(raw) as Record<string, any>;
+  whitespaceTitle.documentTitle = "   ";
+  const duplicateSiblingPosition = JSON.parse(raw) as Record<string, any>;
+  duplicateSiblingPosition.subjects[0].topics.push({
+    ...duplicateSiblingPosition.subjects[0].topics[0],
+    name: "Tópico duplicado",
+  });
+
+  for (const invalid of [whitespaceTitle, duplicateSiblingPosition]) {
+    try {
+      parseProviderAiSyllabusProposal(JSON.stringify(invalid));
+      throw new Error("expected provider validation boundary to reject the payload");
+    } catch (error) {
+      if (!(error instanceof ContractValidationError)) throw error;
+    }
   }
 });
 
@@ -187,6 +216,80 @@ Deno.test("rejects a remote topic whose parent link disagrees with the tree", as
   } catch (error) {
     if (!(error instanceof ContractValidationError)) throw error;
   }
+});
+
+Deno.test("requires unique remote subject and topic IDs across the validated tree", async () => {
+  const subjectDuplicate = JSON.parse(await Deno.readTextFile(new URL("./fixtures/v1/private-syllabus.json", import.meta.url))) as Record<string, any>;
+  subjectDuplicate.subjects.push({
+    ...subjectDuplicate.subjects[0],
+    externalId: "subject-outro",
+    position: 1,
+  });
+  const topicDuplicate = JSON.parse(await Deno.readTextFile(new URL("./fixtures/v1/private-syllabus.json", import.meta.url))) as Record<string, any>;
+  topicDuplicate.subjects[0].topics[0].children[0].remoteTopicId = topicDuplicate.subjects[0].topics[0].remoteTopicId;
+
+  for (const invalid of [subjectDuplicate, topicDuplicate]) {
+    try {
+      parsePrivateSyllabus(invalid);
+      throw new Error("expected duplicate remote ID to be rejected");
+    } catch (error) {
+      if (!(error instanceof ContractValidationError)) throw error;
+    }
+  }
+});
+
+Deno.test("rejects remote unknown fields, unsupported versions, and duplicate sibling positions", async () => {
+  const read = async () => JSON.parse(await Deno.readTextFile(new URL("./fixtures/v1/private-syllabus.json", import.meta.url))) as Record<string, any>;
+  const unknown = await read();
+  unknown.subjects[0].unexpected = true;
+  const unsupported = await read();
+  unsupported.subjects[0].schemaVersion = 2;
+  const duplicatePosition = await read();
+  const topic = duplicatePosition.subjects[0].topics[0];
+  topic.children.push({ ...topic.children[0], remoteTopicId: "remote-topic-3", externalId: "topic-extra" });
+
+  for (const invalid of [unknown, unsupported, duplicatePosition]) {
+    try {
+      parsePrivateSyllabus(invalid);
+      throw new Error("expected malformed remote payload to be rejected");
+    } catch (error) {
+      if (!(error instanceof ContractValidationError)) throw error;
+    }
+  }
+});
+
+Deno.test("rejects blank IDs, malformed timestamps, and blank nullable text", async () => {
+  const job = JSON.parse(await Deno.readTextFile(new URL("./fixtures/v1/job-reserved.json", import.meta.url))) as Record<string, any>;
+  const library = JSON.parse(await Deno.readTextFile(new URL("./fixtures/v1/private-syllabus.json", import.meta.url))) as Record<string, any>;
+  const acknowledgement = JSON.parse(await Deno.readTextFile(new URL("./fixtures/v1/sync-pending.json", import.meta.url))) as Record<string, any>;
+  const access = JSON.parse(await Deno.readTextFile(new URL("./fixtures/v1/access-quota-null.json", import.meta.url))) as Record<string, any>;
+
+  const invalids = [
+    () => parseAiJob({ ...job, jobId: " " }),
+    () => parseAiJob({ ...job, createdAt: "not-a-timestamp" }),
+    () => parseAiAccess({ ...access, reasonCode: " " }),
+    () => parsePrivateSyllabus({ ...library, sourceJobId: " " }),
+    () => parseRemoteSyllabusSyncAcknowledgement({ ...acknowledgement, jobId: " " }),
+    () => parseRemoteSyllabusSyncAcknowledgement({ ...acknowledgement, updatedAt: "not-a-timestamp" }),
+  ];
+
+  for (const parseInvalid of invalids) {
+    try {
+      parseInvalid();
+      throw new Error("expected malformed shared DTO to be rejected");
+    } catch (error) {
+      if (!(error instanceof ContractValidationError)) throw error;
+    }
+  }
+});
+
+Deno.test("parses every versioned shared fixture", async () => {
+  const read = (name: string) => Deno.readTextFile(new URL(`./fixtures/v1/${name}`, import.meta.url));
+  parseProviderAiSyllabusProposal(await read("ai-syllabus-proposal.json"));
+  parseAiJob(JSON.parse(await read("job-reserved.json")));
+  parseAiAccess(JSON.parse(await read("access-quota-null.json")));
+  parsePrivateSyllabus(JSON.parse(await read("private-syllabus.json")));
+  parseRemoteSyllabusSyncAcknowledgement(JSON.parse(await read("sync-pending.json")));
 });
 
 Deno.test("keeps job, access, and sync acknowledgment nullability explicit", () => {

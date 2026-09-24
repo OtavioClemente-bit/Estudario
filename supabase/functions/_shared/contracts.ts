@@ -220,7 +220,9 @@ function jsonObject(value: unknown, path: string): Record<string, unknown> {
 
 function dateTime(value: unknown, path: string): string {
   const text = stringValue(value, path);
-  if (Number.isNaN(Date.parse(text))) fail(path, "must be an ISO-8601 date-time");
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(text) || Number.isNaN(Date.parse(text))) {
+    fail(path, "must be an ISO-8601 date-time");
+  }
   return text;
 }
 
@@ -300,13 +302,24 @@ export function parseAiSyllabusProposal(value: unknown): AiSyllabusProposal {
 }
 
 export function parseAiSyllabusProposalJson(raw: string): AiSyllabusProposal {
+  return parseProviderAiSyllabusProposal(raw);
+}
+
+/**
+ * The only provider-output acceptance boundary. The JSON Schema describes the
+ * versioned wire shape, while this parser enforces runtime-only invariants
+ * such as non-whitespace text and unique sibling positions.
+ */
+export function parseProviderAiSyllabusProposal(raw: string): AiSyllabusProposal {
   let value: unknown;
   try {
     value = JSON.parse(raw);
   } catch (error) {
     fail("proposal", `invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
   }
-  return parseAiSyllabusProposal(value);
+  const item = object(value, "proposal");
+  assertSupportedSchemaVersion(required(item, "schemaVersion", "proposal"), "proposal.schemaVersion");
+  return parseAiSyllabusProposal(item);
 }
 
 function quota(value: unknown, path: string): AiQuota {
@@ -416,12 +429,19 @@ function descendantExternalIds(value: PrivateSyllabusTopic): string[] {
   return value.children.flatMap((child) => [child.externalId, ...descendantExternalIds(child)]);
 }
 
+function descendantRemoteTopicIds(value: PrivateSyllabusTopic): string[] {
+  return [value.remoteTopicId, ...value.children.flatMap((child) => descendantRemoteTopicIds(child))];
+}
+
 export function parsePrivateSyllabus(value: unknown): PrivateSyllabus {
   const item = object(value, "privateSyllabus");
   exactKeys(item, ["remoteSyllabusId", "title", "position", "visibility", "source", "sourceJobId", "sourceHash", "schemaVersion", "status", "metadata", "subjects"], "privateSyllabus");
   const subjects = arrayValue(required(item, "subjects", "privateSyllabus"), "privateSyllabus.subjects", 1).map((value, index) => remoteSubject(value, `privateSyllabus.subjects[${index}]`));
   assertDistinct(subjects.map((value) => value.position), "privateSyllabus.subjects");
   if (new Set(subjects.map((value) => value.externalId)).size !== subjects.length) fail("privateSyllabus.subjects", "externalId must be unique");
+  if (new Set(subjects.map((value) => value.remoteSubjectId)).size !== subjects.length) fail("privateSyllabus.subjects", "remoteSubjectId must be unique");
+  const remoteTopicIds = subjects.flatMap((subject) => subject.topics.flatMap((topic) => descendantRemoteTopicIds(topic)));
+  if (new Set(remoteTopicIds).size !== remoteTopicIds.length) fail("privateSyllabus.subjects", "remoteTopicId must be unique");
   return {
     remoteSyllabusId: stringValue(required(item, "remoteSyllabusId", "privateSyllabus"), "privateSyllabus.remoteSyllabusId"),
     title: stringValue(required(item, "title", "privateSyllabus"), "privateSyllabus.title"),

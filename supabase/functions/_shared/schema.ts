@@ -20,9 +20,9 @@ const warningSchema: JsonSchema = {
       ],
     },
     severity: { type: "string", enum: ["INFO", "WARNING", "ERROR"] },
-    message: { type: "string", minLength: 1 },
+    message: { type: "string", minLength: 1, pattern: "\\S" },
     sourcePages: { $ref: "#/$defs/sourcePages" },
-    ambiguity: { type: ["string", "null"], minLength: 1 },
+    ambiguity: { anyOf: [{ type: "null" }, { type: "string", minLength: 1, pattern: "\\S" }] },
   },
 };
 
@@ -31,9 +31,13 @@ const topicSchema: JsonSchema = {
   additionalProperties: false,
   required: ["name", "position", "children", "sourcePages"],
   properties: {
-    name: { type: "string", minLength: 1 },
+    name: { type: "string", minLength: 1, pattern: "\\S" },
     position: { type: "integer", minimum: 0 },
-    children: { type: "array", items: { $ref: "#/$defs/topic" } },
+    children: {
+      type: "array",
+      items: { $ref: "#/$defs/topic" },
+      $comment: "Sibling position uniqueness is enforced by parseProviderAiSyllabusProposal.",
+    },
     sourcePages: { $ref: "#/$defs/sourcePages" },
   },
 };
@@ -42,32 +46,39 @@ const proposalSchemaV1: JsonSchema = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
   $id: "https://estudario.com/contracts/ai-syllabus-proposal/v1",
   title: "AiSyllabusProposal v1",
+  $comment: "Provider output must be accepted only through parseProviderAiSyllabusProposal; it enforces cross-item position uniqueness.",
   type: "object",
   additionalProperties: false,
   required: ["schemaVersion", "promptVersion", "modelVersion", "documentTitle", "subjects", "warnings", "ambiguities"],
   properties: {
     schemaVersion: { const: CURRENT_AI_SCHEMA_VERSION },
-    promptVersion: { type: "string", minLength: 1 },
-    modelVersion: { type: "string", minLength: 1 },
-    documentTitle: { type: "string", minLength: 1 },
+    promptVersion: { type: "string", minLength: 1, pattern: "\\S" },
+    modelVersion: { type: "string", minLength: 1, pattern: "\\S" },
+    documentTitle: { type: "string", minLength: 1, pattern: "\\S" },
     subjects: {
       type: "array",
       minItems: 1,
+      $comment: "Sibling position uniqueness is enforced by parseProviderAiSyllabusProposal.",
       items: {
         type: "object",
         additionalProperties: false,
         required: ["name", "position", "suggestedPriority", "topics", "sourcePages"],
         properties: {
-          name: { type: "string", minLength: 1 },
+          name: { type: "string", minLength: 1, pattern: "\\S" },
           position: { type: "integer", minimum: 0 },
           suggestedPriority: { type: "string", enum: ["LOW", "NORMAL", "HIGH"] },
-          topics: { type: "array", minItems: 1, items: { $ref: "#/$defs/topic" } },
+          topics: {
+            type: "array",
+            minItems: 1,
+            items: { $ref: "#/$defs/topic" },
+            $comment: "Sibling position uniqueness is enforced by parseProviderAiSyllabusProposal.",
+          },
           sourcePages: { $ref: "#/$defs/sourcePages" },
         },
       },
     },
     warnings: { type: "array", items: { $ref: "#/$defs/warning" } },
-    ambiguities: { type: "array", items: { type: "string", minLength: 1 } },
+    ambiguities: { type: "array", items: { type: "string", minLength: 1, pattern: "\\S" } },
   },
   $defs: {
     sourcePages: { type: "array", minItems: 1, uniqueItems: true, items: { type: "integer", minimum: 1 } },

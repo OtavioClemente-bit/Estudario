@@ -1,5 +1,7 @@
 package br.com.estudario.data.ai
 
+import java.time.Instant
+import java.time.format.DateTimeParseException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -112,15 +114,11 @@ object EstudarioContractJson {
     }
 
     fun decodeJob(raw: String): AiJob = json.decodeFromString<AiJob>(raw).also { job ->
-        if (job.schemaVersion != null && job.schemaVersion != CURRENT_AI_SCHEMA_VERSION) {
-            throw ContractValidationException("job.schemaVersion: unsupported schema version ${job.schemaVersion}")
-        }
-        job.proposal?.validate()
-        job.warnings.validateWarnings("job.warnings")
+        job.validate()
     }
 
     fun decodeAccess(raw: String): AiAccess = json.decodeFromString<AiAccess>(raw).also { access ->
-        access.quota?.validate("access.quota")
+        access.validate()
     }
 }
 
@@ -137,6 +135,28 @@ private fun AiSyllabusProposal.validate() {
     warnings.validateWarnings("proposal.warnings")
     ambiguities.forEachIndexed { index, ambiguity -> requireText(ambiguity, "proposal.ambiguities[$index]") }
     if (ambiguities.size != ambiguities.toSet().size) throw ContractValidationException("proposal.ambiguities: duplicate entries")
+}
+
+private fun AiAccess.validate() {
+    quota?.validate("access.quota")
+    reasonCode?.let { requireContractText(it, "access.reasonCode") }
+}
+
+private fun AiJob.validate() {
+    requireContractText(jobId, "job.jobId")
+    if (schemaVersion != null && schemaVersion != CURRENT_AI_SCHEMA_VERSION) {
+        throw ContractValidationException("job.schemaVersion: unsupported schema version $schemaVersion")
+    }
+    promptVersion?.let { requireContractText(it, "job.promptVersion") }
+    modelVersion?.let { requireContractText(it, "job.modelVersion") }
+    proposal?.validate()
+    warnings.validateWarnings("job.warnings")
+    errorCode?.let { requireContractText(it, "job.errorCode") }
+    errorMessage?.let { requireContractText(it, "job.errorMessage") }
+    requireContractInstant(createdAt, "job.createdAt")
+    requireContractInstant(updatedAt, "job.updatedAt")
+    finishedAt?.let { requireContractInstant(it, "job.finishedAt") }
+    providerExecutionStartedAt?.let { requireContractInstant(it, "job.providerExecutionStartedAt") }
 }
 
 private fun AiSubjectProposal.validate(path: String) {
@@ -168,10 +188,25 @@ private fun AiQuota.validate(path: String) {
     if (limit < 1 || successfulCount < 0 || reservedCount < 0 || remaining < 0 || successfulCount + reservedCount + remaining != limit) {
         throw ContractValidationException("$path: invalid quota counts")
     }
+    requireContractText(periodStart, "$path.periodStart")
 }
 
 private fun requireText(value: String, path: String) {
     if (value.isBlank()) throw ContractValidationException("$path: must be non-empty")
+}
+
+internal fun requireContractText(value: String, path: String) {
+    if (value.isBlank()) throw ContractValidationException("$path: must be non-empty")
+}
+
+internal fun requireContractInstant(value: String, path: String) {
+    requireContractText(value, path)
+    if (!ISO_INSTANT.matches(value)) throw ContractValidationException("$path: must be an ISO-8601 date-time")
+    try {
+        Instant.parse(value)
+    } catch (_: DateTimeParseException) {
+        throw ContractValidationException("$path: must be an ISO-8601 date-time")
+    }
 }
 
 private fun requirePosition(value: Int, path: String) {
@@ -189,3 +224,5 @@ private fun requireUniquePositions(values: List<Int>, path: String) {
         throw ContractValidationException("$path: positions must be unique and >= 0")
     }
 }
+
+private val ISO_INSTANT = Regex("""\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})""")

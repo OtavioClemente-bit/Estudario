@@ -4,6 +4,8 @@ import br.com.estudario.data.ai.AiPriority
 import br.com.estudario.data.ai.CURRENT_AI_SCHEMA_VERSION
 import br.com.estudario.data.ai.ContractValidationException
 import br.com.estudario.data.ai.EstudarioContractJson
+import br.com.estudario.data.ai.requireContractInstant
+import br.com.estudario.data.ai.requireContractText
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.JsonObject
@@ -79,10 +81,18 @@ private fun PrivateSyllabus.validate() {
     requireText(title, "privateSyllabus.title")
     requirePosition(position, "privateSyllabus.position")
     requireSchema(schemaVersion, "privateSyllabus.schemaVersion")
+    sourceJobId?.let { requireContractText(it, "privateSyllabus.sourceJobId") }
     if (subjects.isEmpty()) throw ContractValidationException("privateSyllabus.subjects: must not be empty")
     requireUniquePositions(subjects.map { it.position }, "privateSyllabus.subjects")
     if (subjects.map { it.externalId }.toSet().size != subjects.size) {
         throw ContractValidationException("privateSyllabus.subjects.externalId: duplicate")
+    }
+    if (subjects.map { it.remoteSubjectId }.toSet().size != subjects.size) {
+        throw ContractValidationException("privateSyllabus.subjects.remoteSubjectId: duplicate")
+    }
+    val remoteTopicIds = subjects.flatMap { subject -> subject.topics.flatMap { it.allRemoteTopicIds() } }
+    if (remoteTopicIds.toSet().size != remoteTopicIds.size) {
+        throw ContractValidationException("privateSyllabus.subjects.remoteTopicId: duplicate")
     }
     subjects.forEachIndexed { index, subject -> subject.validate("privateSyllabus.subjects[$index]") }
     if (sourceHash != null && !SHA256.matches(sourceHash)) throw ContractValidationException("privateSyllabus.sourceHash: invalid SHA-256")
@@ -117,9 +127,18 @@ private fun PrivateSyllabusTopic.validate(path: String, expectedParentRemoteTopi
 
 private fun PrivateSyllabusTopic.allExternalIds(): List<String> = listOf(externalId) + children.flatMap { it.allExternalIds() }
 
+private fun PrivateSyllabusTopic.allRemoteTopicIds(): List<String> = listOf(remoteTopicId) + children.flatMap { it.allRemoteTopicIds() }
+
 private fun RemoteSyllabusSyncAcknowledgement.validate() {
+    remoteSyllabusId?.let { requireContractText(it, "syncAcknowledgement.remoteSyllabusId") }
+    jobId?.let { requireContractText(it, "syncAcknowledgement.jobId") }
     if (payloadHash.length != 64 || !SHA256.matches(payloadHash)) throw ContractValidationException("syncAcknowledgement.payloadHash: invalid SHA-256")
     if (attemptCount < 0) throw ContractValidationException("syncAcknowledgement.attemptCount: must be >= 0")
+    nextAttemptAt?.let { requireContractInstant(it, "syncAcknowledgement.nextAttemptAt") }
+    safeError?.let { requireContractText(it, "syncAcknowledgement.safeError") }
+    requireContractInstant(createdAt, "syncAcknowledgement.createdAt")
+    requireContractInstant(updatedAt, "syncAcknowledgement.updatedAt")
+    attemptToken?.let { requireContractText(it, "syncAcknowledgement.attemptToken") }
 }
 
 private fun requireText(value: String, path: String) {
