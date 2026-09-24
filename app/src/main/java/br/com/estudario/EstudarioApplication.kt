@@ -8,6 +8,11 @@ import br.com.estudario.data.preferences.AppPreferences
 import br.com.estudario.data.planner.StudyExecutionService
 import br.com.estudario.data.planner.StudyPlanApplicationService
 import br.com.estudario.data.planner.StudyPlanRepository
+import br.com.estudario.data.remote.DataStoreSupabaseSessionStore
+import br.com.estudario.data.remote.DefaultSupabaseAuthRepository
+import br.com.estudario.data.remote.SupabaseAuthRepository
+import br.com.estudario.data.remote.SupabaseClientConfig
+import br.com.estudario.data.remote.UnavailableSupabaseAuthClient
 import br.com.estudario.data.transfer.IncomingFileCoordinator
 import br.com.estudario.data.transfer.planner.StudyPlanTransferService
 import br.com.estudario.domain.planner.StudyPlannerEngine
@@ -16,6 +21,8 @@ import br.com.estudario.notifications.StudyNotificationCoordinator
 import kotlinx.coroutines.*
 
 class EstudarioApplication : Application() {
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     lateinit var database: AppDatabase
         private set
     lateinit var repository: StudyRepository
@@ -30,6 +37,13 @@ class EstudarioApplication : Application() {
         private set
     lateinit var executionService: StudyExecutionService
         private set
+    val supabaseAuthRepository: SupabaseAuthRepository by lazy {
+        val config = SupabaseClientConfig.fromBuildConfig()
+        DefaultSupabaseAuthRepository(
+            client = UnavailableSupabaseAuthClient(config),
+            sessionStore = DataStoreSupabaseSessionStore(this, applicationScope),
+        )
+    }
     lateinit var planTransferService: StudyPlanTransferService
         private set
     val incomingFiles = IncomingFileCoordinator()

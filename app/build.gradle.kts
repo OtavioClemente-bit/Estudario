@@ -8,6 +8,35 @@ plugins {
 
 import java.util.Properties
 
+fun String.toBuildConfigLiteral(): String =
+    "\"${replace("\\", "\\\\").replace("\"", "\\\"").replace("\r", "\\r").replace("\n", "\\n")}\""
+
+fun requireClientSafeSupabaseValue(name: String, value: String) {
+    val normalized = value.lowercase()
+    check(listOf("service_role", "service-role", "servicerole", "service role", "openai", "sk-", "sb_secret_").none(normalized::contains)) {
+        "$name must contain only client-safe Supabase configuration."
+    }
+}
+
+val supabaseUrl = providers.gradleProperty("estudario.supabase.url").orNull.orEmpty().trim()
+val supabasePublishableKey = providers.gradleProperty("estudario.supabase.publishableKey").orNull.orEmpty().trim()
+check(supabaseUrl.isEmpty() == supabasePublishableKey.isEmpty()) {
+    "Both client-safe Supabase URL and publishable key must be supplied together; the configuration gate remains closed."
+}
+requireClientSafeSupabaseValue("Supabase URL", supabaseUrl)
+requireClientSafeSupabaseValue("Supabase publishable key", supabasePublishableKey)
+val forbiddenAndroidSecretProperty = listOf(
+    "OPENAI_API_KEY",
+    "openai_api_key",
+    "openai.apiKey",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "supabase.serviceRoleKey",
+    "supabase_service_role_key",
+).firstOrNull { providers.gradleProperty(it).orNull?.isNotBlank() == true }
+check(forbiddenAndroidSecretProperty == null) {
+    "Server-only service-role/OpenAI properties are not allowed in Android configuration."
+}
+
 val signingProperties = Properties().apply {
     val propertiesFile = rootProject.file("keystore.properties")
     if (propertiesFile.exists()) {
@@ -27,6 +56,8 @@ android {
         versionName = "3.0.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
+        buildConfigField("String", "SUPABASE_URL", supabaseUrl.toBuildConfigLiteral())
+        buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", supabasePublishableKey.toBuildConfigLiteral())
     }
 
     buildFeatures {
