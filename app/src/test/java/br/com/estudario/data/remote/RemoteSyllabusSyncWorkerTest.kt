@@ -97,6 +97,23 @@ class RemoteSyllabusSyncWorkerTest {
         assertEquals("CAS_CONFLICT", gateway.failed.single().error)
     }
 
+    @Test
+    fun twoConsecutiveFailuresPersistAttemptCountBackoffAndAttemptTokens() = runBlocking {
+        val gateway = PersistedRetryGateway(row())
+
+        val first = RemoteSyllabusSyncRunner(gateway, now = { 100L }, tokenFactory = { "token-1" }).run()
+        val second = RemoteSyllabusSyncRunner(gateway, now = { 30_100L }, tokenFactory = { "token-2" }).run()
+
+        assertEquals(1, first.failed)
+        assertEquals(1, second.failed)
+        assertEquals(listOf(1, 2), gateway.failures.map { it.row.attemptCount })
+        assertEquals(listOf("token-1", "token-2"), gateway.failures.map { it.row.attemptToken })
+        assertEquals(listOf(30_100L, 90_100L), gateway.failures.map { it.nextAttemptAt })
+        assertEquals(2, gateway.persisted.attemptCount)
+        assertEquals("token-2", gateway.persisted.attemptToken)
+        assertEquals(90_100L, gateway.persisted.nextAttemptAt)
+    }
+
     private fun row() = RemoteSyllabusSyncEntity(
         operation = RemoteSyllabusSyncOperation.UPSERT,
         localSyllabusId = 41L,
@@ -140,5 +157,50 @@ class RemoteSyllabusSyncWorkerTest {
         }
     }
 
+    private class PersistedRetryGateway(initial: RemoteSyllabusSyncEntity) : RemoteSyllabusSyncGateway {
+        var persisted = initial
+            private set
+        val failures = mutableListOf<RetryFailure>()
+
+        override suspend fun pending(now: Long): List<RemoteSyllabusSyncEntity> =
+            if (persisted.state == LocalRemoteSyllabusSyncState.PENDING && persisted.nextAttemptAt <= now) listOf(persisted) else emptyList()
+
+        override suspend fun failed(now: Long): List<RemoteSyllabusSyncEntity> =
+            if (persisted.state == LocalRemoteSyllabusSyncState.FAILED && persisted.nextAttemptAt <= now) listOf(persisted) else emptyList()
+
+        override suspend fun requeue(row: RemoteSyllabusSyncEntity, attemptToken: String, now: Long, updatedAt: Long): Boolean {
+            if (persisted.id != row.id || persisted.state != LocalRemoteSyllabusSyncState.FAILED || persisted.attemptToken != row.attemptToken || persisted.nextAttemptAt > now) return false
+            persisted = persisted.copy(
+                state = LocalRemoteSyllabusSyncState.PENDING,
+                attemptCount = persisted.attemptCount + 1,
+                attemptToken = attemptToken,
+                nextAttemptAt = now,
+                lastError = null,
+                updatedAt = updatedAt,
+            )
+            return true
+        }
+
+        override suspend fun claim(row: RemoteSyllabusSyncEntity, attemptToken: String, nextAttemptAt: Long, updatedAt: Long): Boolean {
+            if (persisted.id != row.id || persisted.state != LocalRemoteSyllabusSyncState.PENDING || persisted.attemptToken != row.attemptToken) return false
+            persisted = persisted.copy(attemptCount = persisted.attemptCount + 1, attemptToken = attemptToken, nextAttemptAt = nextAttemptAt, updatedAt = updatedAt)
+            return true
+        }
+
+        override suspend fun expectedRemoteSyllabusId(row: RemoteSyllabusSyncEntity): String = row.remoteSyllabusId ?: "remote-1"
+
+        override suspend fun sync(row: RemoteSyllabusSyncEntity): RemoteSyllabusSyncAcknowledgement =
+            throw PrivateSyllabusApiException("NETWORK_ERROR", 503)
+
+        override suspend fun markSynced(row: RemoteSyllabusSyncEntity, remoteSyllabusId: String, attemptToken: String, updatedAt: Long): Boolean = false
+
+        override suspend fun markFailed(row: RemoteSyllabusSyncEntity, attemptToken: String, error: String, nextAttemptAt: Long, updatedAt: Long): Boolean {
+            persisted = row.copy(state = LocalRemoteSyllabusSyncState.FAILED, lastError = error, nextAttemptAt = nextAttemptAt, updatedAt = updatedAt)
+            failures += RetryFailure(row, attemptToken, nextAttemptAt)
+            return true
+        }
+    }
+
     private data class FailedRow(val row: RemoteSyllabusSyncEntity, val error: String)
+    private data class RetryFailure(val row: RemoteSyllabusSyncEntity, val token: String, val nextAttemptAt: Long)
 }

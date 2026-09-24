@@ -145,3 +145,23 @@ Riscos residuais: a suíte Deno global continua com os três erros baseline de `
 - `git diff --check` — PASS; `git diff 19df09b -- supabase/migrations/202609240012_private_syllabus_atomic_rpc.sql` permanece vazio.
 
 Sem deploy, secrets, credenciais reais ou Task 13. Os bloqueios baseline globais de Deno/Gradle permanecem os mesmos e fora do escopo; os testes direcionados desta correção estão verdes.
+
+## Correção dos dois últimos findings acionáveis
+
+- A migration posterior `202609240015_private_syllabus_table_dml_lockdown.sql` revoga explicitamente INSERT/UPDATE/DELETE/TRUNCATE de `public`, `anon` e `authenticated` nas tabelas privadas e no ledger. SELECT/RLS permanece disponível para o read path; `service_role` mantém os DML necessários aos RPCs SECURITY DEFINER. A migration 012 não foi alterada.
+- O pgTAP verifica privilégios negativos para anon/authenticated, privilégios de backend para service_role e tenta INSERT direto autenticado no root e no ledger, esperando `42501` sem forjar dados.
+- `AppDao.requeueRemoteSync` agora incrementa `attemptCount` atomicamente no SQL. O teste instrumentado verifica a requeue de 1 para 2, e o teste do worker simula duas falhas consecutivas persistidas, validando contagem, tokens distintos e backoffs `30_100`/`90_100`.
+
+## Verificação desta correção
+
+- `npx --yes supabase db reset --workdir .` — PASS; migrations até 015 aplicadas no Postgres local.
+- `npx --yes supabase test db --workdir .` — PASS; 5 arquivos, 226 testes.
+- `npx --yes deno test --no-config supabase/functions/user-syllabi/index_test.ts supabase/functions/user-syllabi/atomic_store_test.ts` — PASS; 5/5.
+- `npx --yes deno check --no-config supabase/functions/user-syllabi/index.ts supabase/functions/user-syllabi/index_test.ts supabase/functions/user-syllabi/atomic_store_test.ts` — PASS.
+- `:app:testDebugUnitTest --tests br.com.estudario.data.remote.RemoteSyllabusSyncWorkerTest --no-daemon` — PASS.
+- `:app:testDebugUnitTest --tests br.com.estudario.data.remote.RemoteSyllabusMapperTest --tests br.com.estudario.data.remote.RemoteSyllabusSyncWorkerTest :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin --no-daemon` — PASS.
+- `:app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.local.RemoteSyllabusSyncDaoTest" --no-daemon` — PASS.
+- `:app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.remote.PrivateSyllabusRepositoryTest" --no-daemon` — PASS; 2/2.
+- `git diff --check` — PASS; `git diff 640e124 -- supabase/migrations/202609240012_private_syllabus_atomic_rpc.sql` vazio.
+
+Riscos residuais: os bloqueios baseline globais de Deno/Gradle permanecem fora da Task 12, conforme documentado acima; os testes direcionados, DB local e instrumentados desta correção estão verdes. Não houve deploy, uso de secrets/URL/key, OAuth/OTP ou credenciais reais; Task 13 não foi iniciada.

@@ -208,6 +208,8 @@ class RemoteSyllabusSyncDaoTest {
 
         val requeued = dao.pendingRemoteSyllabusSync(now = 500L).single()
         assertEquals(RemoteSyllabusSyncState.PENDING, requeued.state)
+        assertEquals(2, requeued.attemptCount)
+        assertEquals("attempt-2", requeued.attemptToken)
         assertEquals(500L, requeued.nextAttemptAt)
         assertNull(requeued.lastError)
     }

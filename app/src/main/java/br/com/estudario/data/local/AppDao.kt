@@ -37,7 +37,7 @@ interface AppDao {
     suspend fun supersedeRemoteSyllabusSync(localSyllabusId: Long, supersessionToken: String, updatedAt: Long): Int
     @Query("UPDATE remote_syllabus_sync SET attemptCount = attemptCount + 1, attemptToken = :attemptToken, nextAttemptAt = :nextAttemptAt, updatedAt = :updatedAt WHERE id = :id AND state = 'PENDING' AND attemptToken = :expectedAttemptToken AND :attemptToken != ''")
     suspend fun markRemoteSyncAttempt(id: Long, expectedAttemptToken: String, attemptToken: String, nextAttemptAt: Long, updatedAt: Long): Int
-    @Query("UPDATE remote_syllabus_sync SET state = 'PENDING', attemptToken = :attemptToken, nextAttemptAt = :now, lastError = NULL, updatedAt = :updatedAt WHERE id = :id AND state = 'FAILED' AND (lastError IS NULL OR lastError != 'SUPERSEDED') AND nextAttemptAt <= :now AND attemptToken = :expectedAttemptToken AND :attemptToken != ''")
+    @Query("UPDATE remote_syllabus_sync SET state = 'PENDING', attemptCount = attemptCount + 1, attemptToken = :attemptToken, nextAttemptAt = :now, lastError = NULL, updatedAt = :updatedAt WHERE id = :id AND state = 'FAILED' AND (lastError IS NULL OR lastError != 'SUPERSEDED') AND nextAttemptAt <= :now AND attemptToken = :expectedAttemptToken AND :attemptToken != ''")
     suspend fun requeueRemoteSync(id: Long, expectedAttemptToken: String, attemptToken: String, now: Long, updatedAt: Long): Int
     @Query("UPDATE remote_syllabus_sync SET state = 'SYNCED', nextAttemptAt = 0, lastError = NULL, updatedAt = :updatedAt WHERE id = :id AND state = 'PENDING' AND attemptToken = :attemptToken AND :attemptToken != ''")
     suspend fun markRemoteSyncSynced(id: Long, attemptToken: String, updatedAt: Long): Int

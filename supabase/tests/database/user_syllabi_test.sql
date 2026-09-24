@@ -6,6 +6,48 @@ select has_column('public', 'user_syllabus_mutations', 'response', 'mutations pr
 select has_index('public', 'user_syllabus_mutations', 'user_syllabus_mutations_syllabus_idx', 'mutation lookup is scoped by owner and syllabus');
 
 select ok(
+  not has_table_privilege('anon', 'public.user_syllabi', 'INSERT')
+  and not has_table_privilege('anon', 'public.user_syllabi', 'UPDATE')
+  and not has_table_privilege('anon', 'public.user_syllabi', 'DELETE')
+  and not has_table_privilege('anon', 'public.user_syllabi', 'TRUNCATE'),
+  'anon has no direct DML privilege on private syllabus roots'
+);
+select ok(
+  not has_table_privilege('authenticated', 'public.user_syllabi', 'INSERT')
+  and not has_table_privilege('authenticated', 'public.user_syllabi', 'UPDATE')
+  and not has_table_privilege('authenticated', 'public.user_syllabi', 'DELETE')
+  and not has_table_privilege('authenticated', 'public.user_syllabi', 'TRUNCATE'),
+  'authenticated has no direct DML privilege on private syllabus roots'
+);
+select ok(
+  not has_table_privilege('anon', 'public.user_syllabus_subjects', 'INSERT')
+  and not has_table_privilege('authenticated', 'public.user_syllabus_subjects', 'INSERT')
+  and not has_table_privilege('anon', 'public.user_syllabus_topics', 'INSERT')
+  and not has_table_privilege('authenticated', 'public.user_syllabus_topics', 'INSERT'),
+  'anonymous and authenticated clients cannot forge private tree rows directly'
+);
+select ok(
+  not has_table_privilege('anon', 'public.user_syllabus_mutations', 'INSERT')
+  and not has_table_privilege('anon', 'public.user_syllabus_mutations', 'UPDATE')
+  and not has_table_privilege('anon', 'public.user_syllabus_mutations', 'DELETE')
+  and not has_table_privilege('anon', 'public.user_syllabus_mutations', 'TRUNCATE')
+  and not has_table_privilege('authenticated', 'public.user_syllabus_mutations', 'INSERT')
+  and not has_table_privilege('authenticated', 'public.user_syllabus_mutations', 'UPDATE')
+  and not has_table_privilege('authenticated', 'public.user_syllabus_mutations', 'DELETE')
+  and not has_table_privilege('authenticated', 'public.user_syllabus_mutations', 'TRUNCATE'),
+  'anonymous and authenticated clients cannot forge the mutation ledger directly'
+);
+select ok(
+  has_table_privilege('service_role', 'public.user_syllabi', 'INSERT')
+  and has_table_privilege('service_role', 'public.user_syllabi', 'UPDATE')
+  and has_table_privilege('service_role', 'public.user_syllabi', 'DELETE')
+  and has_table_privilege('service_role', 'public.user_syllabus_subjects', 'INSERT')
+  and has_table_privilege('service_role', 'public.user_syllabus_topics', 'INSERT')
+  and has_table_privilege('service_role', 'public.user_syllabus_mutations', 'INSERT'),
+  'service_role retains backend tree and ledger DML privileges'
+);
+
+select ok(
   has_function_privilege(
     'authenticated',
     'public.upsert_private_syllabus_atomic(uuid, text, text, jsonb)',
@@ -153,6 +195,21 @@ set local role postgres;
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values ('00000000-0000-0000-0000-0000000000d1', 'authenticated', 'authenticated', 'private-syllabus-rpc@example.test', now(), now())
 on conflict (id) do nothing;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000d1', true);
+select throws_ok(
+  $$insert into public.user_syllabi (id, owner_user_id, title, position, visibility, source, schema_version, status, metadata)
+    values ('00000000-0000-4000-8000-0000000000dc', '00000000-0000-0000-0000-0000000000d1', 'forged', 0, 'PRIVATE', 'IMPORTED', 1, 'ACTIVE', '{}')$$,
+  '42501', 'permission denied for table user_syllabi',
+  'authenticated cannot forge a private root with direct INSERT'
+);
+select throws_ok(
+  $$insert into public.user_syllabus_mutations (owner_user_id, mutation_id, remote_syllabus_id, operation, payload_hash)
+    values ('00000000-0000-0000-0000-0000000000d1', 'forged-ledger', '00000000-0000-4000-8000-0000000000dc', 'UPSERT', repeat('a', 64))$$,
+  '42501', 'permission denied for table user_syllabus_mutations',
+  'authenticated cannot forge a mutation ledger claim with direct INSERT'
+);
 
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
