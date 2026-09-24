@@ -283,6 +283,23 @@ Deno.test("rejects blank IDs, malformed timestamps, and blank nullable text", as
   }
 });
 
+Deno.test("rejects impossible calendar dates in job and sync timestamps", async () => {
+  const job = JSON.parse(await Deno.readTextFile(new URL("./fixtures/v1/job-reserved.json", import.meta.url))) as Record<string, any>;
+  const acknowledgement = JSON.parse(await Deno.readTextFile(new URL("./fixtures/v1/sync-pending.json", import.meta.url))) as Record<string, any>;
+
+  for (const parseInvalid of [
+    () => parseAiJob({ ...job, createdAt: "2026-02-30T12:00:00Z" }),
+    () => parseRemoteSyllabusSyncAcknowledgement({ ...acknowledgement, updatedAt: "2026-02-30T12:00:00Z" }),
+  ]) {
+    try {
+      parseInvalid();
+      throw new Error("expected impossible calendar date to be rejected");
+    } catch (error) {
+      if (!(error instanceof ContractValidationError)) throw error;
+    }
+  }
+});
+
 Deno.test("parses every versioned shared fixture", async () => {
   const read = (name: string) => Deno.readTextFile(new URL(`./fixtures/v1/${name}`, import.meta.url));
   parseProviderAiSyllabusProposal(await read("ai-syllabus-proposal.json"));
