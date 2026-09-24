@@ -70,7 +70,7 @@ Motor de planejamento puro e determinístico
 ## Tecnologias
 
 - Kotlin 2.4.20 e Java 17
-- Jetpack Compose (BOM 2026.09.00) e Material 3
+- Jetpack Compose (BOM 2025.08.01) e Material 3
 - Room 2.8.5/SQLite, Flow, ViewModel e coroutines 1.11.0
 - DataStore Preferences 1.2.1
 - WorkManager 2.12.0 e notificações nativas
