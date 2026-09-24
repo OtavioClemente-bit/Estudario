@@ -19,6 +19,8 @@ import java.util.UUID
 
 /** Bridges the canonical `.estudo` snapshot and the normalized private-library tree. */
 object RemoteSyllabusMapper {
+    private const val TOPIC_PRIORITY_METADATA_KEY = "__estudario_official_priority"
+
     fun fromLocal(competition: CompetitionEntity, packageJson: String, payloadHash: String): PrivateSyllabus {
         val plan = EstudoPackageParser.parse(packageJson)
         val stableIdentity = JSONObject(plan.metadata?.toString() ?: "{}").optString("stableIdentity").takeIf { it.isNotBlank() && it != "null" }
@@ -120,7 +122,7 @@ object RemoteSyllabusMapper {
         description = "",
         notes = "",
         position = topic.position,
-        priority = topic.metadata["officialPriority"]?.toString()?.trim('"')?.let { value ->
+        priority = topic.metadata[TOPIC_PRIORITY_METADATA_KEY]?.toString()?.trim('"')?.let { value ->
             runCatching { Priority.valueOf(value) }.getOrNull()
         } ?: Priority.NORMAL,
         originType = ContentOriginType.EDITAL,
@@ -144,11 +146,11 @@ object RemoteSyllabusMapper {
     private fun jsonMetadata(value: JSONObject?): JsonObject = value?.let(::jsonObject) ?: buildJsonObject { }
 
     private fun topicMetadata(topic: TopicPlan): JsonObject = JSONObject(topic.metadata?.toString() ?: "{}").apply {
-        put("officialPriority", topic.priority.name)
+        put(TOPIC_PRIORITY_METADATA_KEY, topic.priority.name)
     }.let(::jsonObject)
 
     private fun metadataOrNull(value: JsonObject): JSONObject? = value
-        .filterKeys { it != "officialPriority" }
+        .filterKeys { it != TOPIC_PRIORITY_METADATA_KEY }
         .takeIf { it.isNotEmpty() }
         ?.let { JSONObject(JsonObject(it).toString()) }
 

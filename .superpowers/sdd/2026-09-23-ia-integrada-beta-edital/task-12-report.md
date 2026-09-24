@@ -84,3 +84,24 @@ Configuração remota permanece fechada: sem deploy, URL/key, OAuth/OTP, credenc
 - `git diff --check` — PASS antes do commit.
 
 Risco residual: o check Deno global e a suíte unitária global continuam com os dois bloqueios baseline documentados anteriormente, fora da Task 12; os checks direcionados desta correção estão verdes.
+
+## Correção da revisão de 274beaf
+
+- `202609240012_private_syllabus_atomic_rpc.sql` não foi alterada nesta correção; `git diff 274beaf -- ...012...` permanece vazio. A guarda continua exclusivamente na 013.
+- O pgTAP agora cria uma árvore e ACK de ledger usando explicitamente o delegate histórico 012, troca para a função pública 013, envia árvore profunda inválida e verifica `INVALID_SYLLABUS` sem alterar root, subject, topic ou ledger existentes. A limitação da harness é somente executar a chamada histórica como `postgres`, pois o delegate permanece sem grant público/service role.
+- O fake Android persiste root, subjects e topics em tabelas separadas e reconstrói a árvore em `get/readTree`; o fixture agora tem dois subjects, irmãos e múltiplos níveis com posições distintas. O teste compara a instância relida campo a campo e cobre a ordenação completa.
+- A prioridade de tópico usa a chave reservada `__estudario_official_priority`; metadata oficial, inclusive uma chave original `officialPriority`, permanece intacta e é testada.
+- DELETE agora chama exclusivamente `delete_private_syllabus_atomic` (migration 014), que faz claim/lock por owner+mutation, valida hash/remote identity, apaga a árvore em transação, grava ACK e reproduz ACK idempotente. O fake RPC testa chamadas concorrentes duplicadas e conflito determinístico.
+
+## Verificação desta correção
+
+- `npx --yes supabase db reset --workdir .` — PASS; migrations 012, 013 e 014 aplicadas localmente.
+- `npx --yes supabase test db` — PASS; 5 arquivos, 205 testes.
+- `npx --yes deno test --no-config supabase/functions/user-syllabi/index_test.ts supabase/functions/user-syllabi/atomic_store_test.ts` — PASS; 5/5.
+- `npx --yes deno check --no-config supabase/functions/user-syllabi/index.ts supabase/functions/user-syllabi/index_test.ts supabase/functions/user-syllabi/atomic_store_test.ts` — PASS.
+- `:app:testDebugUnitTest --tests br.com.estudario.data.remote.RemoteSyllabusMapperTest --tests br.com.estudario.data.remote.RemoteSyllabusSyncWorkerTest --no-daemon` — PASS.
+- `:app:compileDebugKotlin :app:compileDebugAndroidTestKotlin --no-daemon` — PASS.
+- `:app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.remote.PrivateSyllabusRepositoryTest" --no-daemon` — PASS; 2/2 instrumentados.
+- `git diff --check` — PASS.
+
+Sem deploy, URL/key, OAuth/OTP, credenciais reais, Google Drive ou OpenAI. Task 13 não foi iniciada. Artefatos locais não rastreados (`node_modules`, `.temp`, `.branches`) permaneceram fora do commit.

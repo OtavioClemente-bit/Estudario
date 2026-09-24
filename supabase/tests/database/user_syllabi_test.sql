@@ -41,6 +41,15 @@ select ok(
 );
 
 select ok(
+  has_function_privilege(
+    'service_role',
+    'public.delete_private_syllabus_atomic(uuid, text, uuid, text)',
+    'EXECUTE'
+  ),
+  'the service role can call the atomic private syllabus delete RPC'
+);
+
+select ok(
   exists (
     select 1
     from pg_proc
@@ -149,6 +158,65 @@ select throws_ok(
   'P0001', 'IDEMPOTENCY_KEY_CONFLICT', 'different hash is a deterministic mutation conflict'
 );
 
+select is(
+  public.delete_private_syllabus_atomic(
+    '00000000-0000-0000-0000-0000000000d1'::uuid,
+    'rpc-delete-1',
+    '00000000-0000-4000-8000-0000000000d2'::uuid,
+    repeat('d', 64)
+  )->>'state',
+  'SYNCED',
+  'delete RPC acknowledges only after deleting the complete tree'
+);
+select is((select count(*)::integer from public.user_syllabi where id = '00000000-0000-4000-8000-0000000000d2'), 0, 'delete RPC removes the root atomically');
+select is((select count(*)::integer from public.user_syllabus_subjects where syllabus_id = '00000000-0000-4000-8000-0000000000d2'), 0, 'delete RPC cascades subjects atomically');
+select is(
+  (public.delete_private_syllabus_atomic(
+    '00000000-0000-0000-0000-0000000000d1'::uuid,
+    'rpc-delete-1',
+    '00000000-0000-4000-8000-0000000000d2'::uuid,
+    repeat('d', 64)
+  ))->>'state',
+  'SYNCED',
+  'same delete mutation/hash replays the committed acknowledgement'
+);
+select throws_ok(
+  $$select public.delete_private_syllabus_atomic(
+    '00000000-0000-0000-0000-0000000000d1'::uuid,
+    'rpc-delete-1',
+    '00000000-0000-4000-8000-0000000000d2'::uuid,
+    repeat('e', 64)
+  )$$,
+  'P0001', 'IDEMPOTENCY_KEY_CONFLICT', 'delete mutation conflicts deterministically on a different hash'
+);
+
+-- Incremental-upgrade fixture: 012 writes a valid tree and committed ledger;
+-- 013 must reject a later invalid mutation without touching that data.
+set local role postgres;
+select is(
+  public.upsert_private_syllabus_atomic_v012_legacy(
+    '00000000-0000-0000-0000-0000000000d1'::uuid,
+    'upgrade-seed-012', repeat('f', 64),
+    '{
+      "remoteSyllabusId":"00000000-0000-4000-8000-0000000000d5",
+      "title":"Upgrade seed","position":0,"visibility":"PRIVATE","source":"IMPORTED",
+      "schemaVersion":1,"status":"ACTIVE","metadata":{"upgrade":"012"},
+      "subjects":[{
+        "remoteSubjectId":"00000000-0000-4000-8000-0000000000d6","externalId":"upgrade-subject","name":"Upgrade subject","position":0,
+        "suggestedPriority":"NORMAL","packageVersion":"estudo-v2","schemaVersion":1,"metadata":{"upgrade":true},
+        "topics":[{
+          "remoteTopicId":"00000000-0000-4000-8000-0000000000d7","externalId":"upgrade-topic","parentRemoteTopicId":null,"name":"Upgrade topic","position":0,
+          "packageVersion":"estudo-v2","schemaVersion":1,"metadata":{"upgrade":true},"children":[]
+        }]
+      }]
+    }'::jsonb
+  )->>'state',
+  'SYNCED',
+  '012 fixture commits a valid tree before the incremental guard is exercised'
+);
+select is((select count(*)::integer from public.user_syllabi where id = '00000000-0000-4000-8000-0000000000d5'), 1, '012 fixture root exists before invalid upgrade input');
+set local role service_role;
+
 with recursive nested(depth, node) as (
   select 65,
     jsonb_build_object(
@@ -198,6 +266,10 @@ select throws_ok(
   'P0001', 'INVALID_SYLLABUS', 'tree deeper than the bounded insertion depth is rejected before persistence'
 );
 select is((select count(*)::integer from public.user_syllabi where id = '00000000-0000-4000-8000-0000000000e5'), 0, 'depth rejection does not persist a partial root');
+select is((select count(*)::integer from public.user_syllabi where id = '00000000-0000-4000-8000-0000000000d5'), 1, 'incremental depth rejection preserves the 012 root');
+select is((select count(*)::integer from public.user_syllabus_subjects where syllabus_id = '00000000-0000-4000-8000-0000000000d5'), 1, 'incremental depth rejection preserves the 012 subject');
+select is((select count(*)::integer from public.user_syllabus_topics where subject_id = '00000000-0000-4000-8000-0000000000d6'), 1, 'incremental depth rejection preserves the 012 topic');
+select is((select count(*)::integer from public.user_syllabus_mutations where owner_user_id = '00000000-0000-0000-0000-0000000000d1' and mutation_id = 'upgrade-seed-012' and response->>'state' = 'SYNCED'), 1, 'incremental depth rejection preserves the 012 ledger ACK');
 
 select * from finish();
 rollback;

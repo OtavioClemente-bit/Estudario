@@ -23,6 +23,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -88,6 +89,7 @@ class PrivateSyllabusRepositoryTest {
         assertEquals("", syncedOutbox.lastError ?: "")
 
         val fetched = repository.getRemote(backend.remote!!.remoteSyllabusId)!!
+        assertNotSame(backend.remote, fetched)
         assertRemoteTreeEquals(expectedRemote, fetched)
         assertEquals(payloadHash, fetched.metadata["payloadHash"]?.toString()?.trim('"'))
         val fetchedPackage = RemoteSyllabusMapper.toOfficialPackage(fetched)
@@ -155,9 +157,20 @@ class PrivateSyllabusRepositoryTest {
         {"version":2,"packageId":"pkg-round-trip","packageVersion":"estudo-v9","schemaVersion":7,
         "metadata":{"marker":"root","stableIdentity":"competition-official"},
         "concurso":{"id":"competition-official","nome":"Edital oficial","principal":false},
-        "materias":[{"id":"subject-internal","externalId":"subject-official","nome":"Direito","ordem":1,"prioridade":"ALTA","metadata":{"marker":"subject"},
-        "topicos":[{"id":"topic-internal","externalId":"topic-official","titulo":"Constitucional","ordem":2,"prioridade":"BAIXA","metadata":{"marker":"topic"},
-        "subtopicos":[{"id":"child-internal","externalId":"child-official","parentExternalId":"topic-official","titulo":"Direitos","ordem":0,"prioridade":"NORMAL","metadata":{"marker":"child"}}]}]}]}
+        "materias":[
+          {"id":"subject-internal","externalId":"subject-official","nome":"Direito","ordem":1,"prioridade":"ALTA","metadata":{"marker":"subject"},
+            "topicos":[
+              {"id":"topic-sibling","externalId":"topic-sibling","titulo":"Administrativo","ordem":0,"prioridade":"ALTA","metadata":{"marker":"sibling"},"subtopicos":[]},
+              {"id":"topic-internal","externalId":"topic-official","titulo":"Constitucional","ordem":2,"prioridade":"BAIXA","metadata":{"marker":"topic","officialPriority":"original-metadata"},
+                "subtopicos":[
+                  {"id":"child-internal","externalId":"child-official","parentExternalId":"topic-official","titulo":"Direitos","ordem":0,"prioridade":"NORMAL","metadata":{"marker":"child","officialPriority":"original-child"}},
+                  {"id":"child-second","externalId":"child-second","parentExternalId":"topic-official","titulo":"Garantias","ordem":3,"prioridade":"ALTA","metadata":{"marker":"child-second"}}
+                ]}
+            ]},
+          {"id":"subject-second","externalId":"subject-second","nome":"Português","ordem":4,"prioridade":"BAIXA","metadata":{"marker":"subject-second"},
+            "topicos":[{"id":"topic-second","externalId":"topic-second","titulo":"Gramática","ordem":1,"prioridade":"ALTA","metadata":{"marker":"topic-second"},
+              "subtopicos":[{"id":"child-third","externalId":"child-third","parentExternalId":"topic-second","titulo":"Sintaxe","ordem":2,"prioridade":"BAIXA","metadata":{"marker":"child-third"}}]}]}
+        ]}
     """.trimIndent().replace("\n", "")
 
     private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
@@ -222,7 +235,7 @@ class PrivateSyllabusRepositoryTest {
         val externalId = topic.optString("externalId", topic.getString("id"))
         val remoteTopicId = stableId("topic:$subjectId", externalId)
         val metadata = JSONObject(topic.optJSONObject("metadata")?.toString() ?: "{}")
-            .put("officialPriority", topic.optString("prioridade", "NORMAL").uppercase())
+            .put("__estudario_official_priority", topic.optString("prioridade", "NORMAL").uppercase())
         return PrivateSyllabusTopic(
             remoteTopicId = remoteTopicId,
             externalId = externalId,
@@ -301,33 +314,85 @@ class PrivateSyllabusRepositoryTest {
     private data class TopicSnapshot(val externalId: String?, val title: String, val position: Int, val priority: String, val parentExternalId: String?)
 
     private class TransactionalPrivateSyllabusBackend(initial: PrivateSyllabus? = null) : PrivateSyllabusRemoteApi {
-        var remote: PrivateSyllabus? = initial
-            private set
+        private var persistedRoot: PrivateSyllabus? = null
+        private val persistedSubjects = mutableMapOf<String, PrivateSyllabusSubject>()
+        private val persistedTopics = mutableMapOf<String, PrivateSyllabusTopic>()
+        private val topicSubjectIds = mutableMapOf<String, String>()
         var committedMutations = 0
             private set
-        private val ledger = mutableMapOf<String, Pair<String, RemoteSyllabusSyncAcknowledgement>>()
+        private val ledger = mutableMapOf<String, Mutation>()
         private val lock = kotlinx.coroutines.sync.Mutex()
 
+        init { initial?.let(::persist) }
+
+        val remote: PrivateSyllabus?
+            get() = persistedRoot?.let { readTree(it.remoteSyllabusId) }
+
         override suspend fun list(): List<PrivateSyllabus> = listOfNotNull(remote)
-        override suspend fun get(remoteSyllabusId: String): PrivateSyllabus? = remote?.takeIf { it.remoteSyllabusId == remoteSyllabusId }
+        override suspend fun get(remoteSyllabusId: String): PrivateSyllabus? = readTree(remoteSyllabusId)
 
         override suspend fun upsert(syllabus: PrivateSyllabus, mutationId: String, payloadHash: String): RemoteSyllabusSyncAcknowledgement = lock.withLock {
             val previous = ledger[mutationId]
             if (previous != null) {
-                if (previous.first != payloadHash) throw PrivateSyllabusApiException("IDEMPOTENCY_KEY_CONFLICT", 409)
-                return@withLock previous.second
+                if (previous.payloadHash != payloadHash || previous.remoteSyllabusId != syllabus.remoteSyllabusId) throw PrivateSyllabusApiException("IDEMPOTENCY_KEY_CONFLICT", 409)
+                return@withLock previous.acknowledgement
             }
             val acknowledgement = ack(syllabus.remoteSyllabusId, payloadHash)
-            remote = syllabus
-            ledger[mutationId] = payloadHash to acknowledgement
+            persist(syllabus)
+            ledger[mutationId] = Mutation(payloadHash, syllabus.remoteSyllabusId, acknowledgement)
             committedMutations++
             acknowledgement
         }
 
         override suspend fun delete(remoteSyllabusId: String, mutationId: String, payloadHash: String): RemoteSyllabusSyncAcknowledgement = lock.withLock {
-            remote = null
-            ack(remoteSyllabusId, payloadHash)
+            val previous = ledger[mutationId]
+            if (previous != null) {
+                if (previous.payloadHash != payloadHash || previous.remoteSyllabusId != remoteSyllabusId) throw PrivateSyllabusApiException("IDEMPOTENCY_KEY_CONFLICT", 409)
+                return@withLock previous.acknowledgement
+            }
+            if (readTree(remoteSyllabusId) == null) throw PrivateSyllabusNotFoundException(remoteSyllabusId)
+            persistedRoot = null
+            persistedSubjects.clear()
+            persistedTopics.clear()
+            topicSubjectIds.clear()
+            ack(remoteSyllabusId, payloadHash).also { ledger[mutationId] = Mutation(payloadHash, remoteSyllabusId, it) }
         }
+
+        private fun persist(syllabus: PrivateSyllabus) {
+            persistedRoot = syllabus.copy(subjects = emptyList())
+            persistedSubjects.clear()
+            persistedTopics.clear()
+            topicSubjectIds.clear()
+            syllabus.subjects.forEach { subject ->
+                persistedSubjects[subject.remoteSubjectId] = subject.copy(topics = emptyList())
+                fun store(topic: PrivateSyllabusTopic) {
+                    persistedTopics[topic.remoteTopicId] = topic.copy(children = emptyList())
+                    topicSubjectIds[topic.remoteTopicId] = subject.remoteSubjectId
+                    topic.children.forEach(::store)
+                }
+                subject.topics.forEach(::store)
+            }
+        }
+
+        private fun readTree(remoteSyllabusId: String): PrivateSyllabus? {
+            val root = persistedRoot?.takeIf { it.remoteSyllabusId == remoteSyllabusId } ?: return null
+            return root.copy(subjects = persistedSubjects.values
+                .sortedBy { it.position }
+                .map { subject -> subject.copy(topics = readTopics(subject.remoteSubjectId)) })
+        }
+
+        private fun readTopics(subjectId: String): List<PrivateSyllabusTopic> {
+            val rows = persistedTopics.values.filter { topicSubjectIds[it.remoteTopicId] == subjectId }
+            fun children(parentId: String?): List<PrivateSyllabusTopic> = rows
+                .filter { it.parentRemoteTopicId == parentId }
+                .sortedBy { it.position }
+                .map { topic -> topic.copy(children = children(topic.remoteTopicId)) }
+            return rows.filter { it.parentRemoteTopicId == null }
+                .sortedBy { it.position }
+                .map { topic -> topic.copy(children = children(topic.remoteTopicId)) }
+        }
+
+        private data class Mutation(val payloadHash: String, val remoteSyllabusId: String, val acknowledgement: RemoteSyllabusSyncAcknowledgement)
 
         private fun ack(remoteSyllabusId: String, payloadHash: String) = RemoteSyllabusSyncAcknowledgement(
             remoteSyllabusId = remoteSyllabusId,

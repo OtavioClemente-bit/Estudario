@@ -45,36 +45,40 @@ function syllabus(): PrivateSyllabus {
 class TransactionalRpcFake {
   readonly calls: string[] = [];
   readonly roots = new Map<string, PrivateSyllabus>();
-  private readonly ledger = new Map<string, { hash: string; response: Record<string, unknown> }>();
-  private readonly active = new Map<string, { hash: string; done: Promise<Record<string, unknown>> }>();
+  private readonly ledger = new Map<string, { hash: string; remoteSyllabusId: string; response: Record<string, unknown> }>();
+  private readonly active = new Map<string, { hash: string; remoteSyllabusId: string; done: Promise<Record<string, unknown>> }>();
 
   async fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     const url = String(input);
     this.calls.push(url);
-    assert(url.includes("/rest/v1/rpc/upsert_private_syllabus_atomic"), "upsert must use the atomic RPC");
+    const isDelete = url.includes("/rest/v1/rpc/delete_private_syllabus_atomic");
+    assert(isDelete || url.includes("/rest/v1/rpc/upsert_private_syllabus_atomic"), "mutation must use an atomic RPC");
     const body = JSON.parse(String(init?.body)) as {
       p_owner_user_id: string;
       p_mutation_id: string;
       p_payload_hash: string;
-      p_syllabus: PrivateSyllabus;
+      p_remote_syllabus_id?: string;
+      p_syllabus?: PrivateSyllabus;
     };
+    const remoteSyllabusId = body.p_remote_syllabus_id ?? body.p_syllabus?.remoteSyllabusId;
+    assert(remoteSyllabusId, "mutation must include a remote syllabus identity");
     const key = `${body.p_owner_user_id}:${body.p_mutation_id}`;
     const previous = this.ledger.get(key);
     if (previous) {
-      if (previous.hash !== body.p_payload_hash) return new Response(JSON.stringify({ message: "IDEMPOTENCY_KEY_CONFLICT" }), { status: 409 });
+      if (previous.hash !== body.p_payload_hash || previous.remoteSyllabusId !== remoteSyllabusId) return new Response(JSON.stringify({ message: "IDEMPOTENCY_KEY_CONFLICT" }), { status: 409 });
       return Response.json(previous.response);
     }
     const running = this.active.get(key);
     if (running) {
-      if (running.hash !== body.p_payload_hash) return new Response(JSON.stringify({ message: "IDEMPOTENCY_KEY_CONFLICT" }), { status: 409 });
+      if (running.hash !== body.p_payload_hash || running.remoteSyllabusId !== remoteSyllabusId) return new Response(JSON.stringify({ message: "IDEMPOTENCY_KEY_CONFLICT" }), { status: 409 });
       return Response.json(await running.done);
     }
     let resolve!: (value: Record<string, unknown>) => void;
     const done = new Promise<Record<string, unknown>>((res) => { resolve = res; });
-    this.active.set(key, { hash: body.p_payload_hash, done });
+    this.active.set(key, { hash: body.p_payload_hash, remoteSyllabusId, done });
     await Promise.resolve();
     const response = {
-      remoteSyllabusId: body.p_syllabus.remoteSyllabusId,
+      remoteSyllabusId,
       jobId: null,
       payloadHash: body.p_payload_hash,
       state: "SYNCED",
@@ -85,8 +89,12 @@ class TransactionalRpcFake {
       updatedAt: "2026-09-24T00:00:00Z",
       attemptToken: null,
     };
-    this.roots.set(body.p_syllabus.remoteSyllabusId, structuredClone(body.p_syllabus));
-    this.ledger.set(key, { hash: body.p_payload_hash, response });
+    if (isDelete) this.roots.delete(remoteSyllabusId);
+    else {
+      assert(body.p_syllabus, "upsert must include a syllabus tree");
+      this.roots.set(remoteSyllabusId, structuredClone(body.p_syllabus));
+    }
+    this.ledger.set(key, { hash: body.p_payload_hash, remoteSyllabusId, response });
     this.active.delete(key);
     resolve(response);
     return Response.json(response);
@@ -122,4 +130,28 @@ Deno.test("upsert uses one transactional RPC and serializes same-mutation replay
   ]);
   assertEquals(concurrentConflict.filter((item) => item.status === "fulfilled").length, 1);
   assertEquals(concurrentConflict.filter((item) => item.status === "rejected").length, 1);
+});
+
+Deno.test("delete uses one transactional RPC and replays concurrent duplicate mutations", async () => {
+  const fake = new TransactionalRpcFake();
+  const store = new SupabasePrivateSyllabusStore({
+    supabaseUrl: "https://example.invalid",
+    serviceRoleKey: "test-only",
+    fetcher: fake.fetch.bind(fake),
+  });
+  const value = syllabus();
+  await store.upsert({ ownerId: "owner-a", mutationId: "mutation-seed", payloadHash: "a".repeat(64), syllabus: value });
+
+  const acknowledgements = await Promise.all([
+    store.delete({ ownerId: "owner-a", remoteSyllabusId: REMOTE_ID, mutationId: "delete-1", payloadHash: "b".repeat(64) }),
+    store.delete({ ownerId: "owner-a", remoteSyllabusId: REMOTE_ID, mutationId: "delete-1", payloadHash: "b".repeat(64) }),
+  ]);
+  assertEquals(acknowledgements[0], acknowledgements[1]);
+  assertEquals(fake.roots.has(REMOTE_ID), false);
+
+  await assertRejects(
+    () => store.delete({ ownerId: "owner-a", remoteSyllabusId: REMOTE_ID, mutationId: "delete-1", payloadHash: "c".repeat(64) }),
+    Error,
+    "IDEMPOTENCY_KEY_CONFLICT",
+  );
 });

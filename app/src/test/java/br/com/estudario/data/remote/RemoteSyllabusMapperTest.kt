@@ -41,7 +41,11 @@ class RemoteSyllabusMapperTest {
                 ambiguities = emptyList(),
             ),
         )
-        val packageJson = AiSyllabusToEstudoMapper.toOfficialPackage(draft)
+        val packageJson = JSONObject(AiSyllabusToEstudoMapper.toOfficialPackage(draft)).apply {
+            getJSONArray("materias").getJSONObject(0).getJSONArray("topicos").getJSONObject(0)
+                .put("prioridade", "BAIXA")
+                .put("metadata", JSONObject().put("officialPriority", "original-metadata").put("marker", "topic"))
+        }.toString()
         val payloadHash = sha256(packageJson)
         val remote = RemoteSyllabusMapper.fromLocal(
             CompetitionEntity(id = 41L, name = "Edital oficial", externalId = "competition-official"),
@@ -63,6 +67,8 @@ class RemoteSyllabusMapperTest {
         assertEquals(remote.subjects.single().topics.single().children.single().parentRemoteTopicId, restoredRemote.subjects.single().topics.single().children.single().parentRemoteTopicId)
         assertEquals(remote.subjects.single().metadata, restoredRemote.subjects.single().metadata)
         assertEquals(remote.subjects.single().topics.single().metadata, restoredRemote.subjects.single().topics.single().metadata)
+        assertEquals(JsonPrimitive("original-metadata"), remote.subjects.single().topics.single().metadata["officialPriority"])
+        assertEquals(JsonPrimitive("BAIXA"), remote.subjects.single().topics.single().metadata["__estudario_official_priority"])
         assertEquals("estudo-v2", remote.subjects.single().packageVersion)
         assertEquals(1, remote.schemaVersion)
         assertEquals(payloadHash, remote.metadata["payloadHash"]?.jsonPrimitive?.content)
