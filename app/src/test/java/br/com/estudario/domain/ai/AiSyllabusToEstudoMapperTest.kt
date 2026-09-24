@@ -109,6 +109,15 @@ class AiSyllabusToEstudoMapperTest {
         assertEquals("Edital selecionado", JSONObject(AiSyllabusToEstudoMapper.toOfficialPackage(bound)).getJSONObject("concurso").getString("nome"))
     }
 
+    @Test fun `mapper uses target title even when draft still carries an unbound override`() {
+        val draft = AiSyllabusDraft.fromProposal(7L, "  Título autoritativo  ", proposal(documentTitle = "Título do arquivo"))
+            .copy(titleOverride = "Título do modelo")
+
+        val competition = JSONObject(AiSyllabusToEstudoMapper.toOfficialPackage(draft)).getJSONObject("concurso")
+
+        assertEquals("Título autoritativo", competition.getString("nome"))
+    }
+
     private fun flattenTopics(topics: List<br.com.estudario.data.transfer.TopicPlan>): List<String> = topics.flatMap { topic ->
         listOf("${topic.externalId}|${topic.parentExternalId}|${topic.sourcePages}") + flattenTopics(topic.children)
     }

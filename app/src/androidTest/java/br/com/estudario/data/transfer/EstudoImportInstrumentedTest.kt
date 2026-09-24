@@ -64,6 +64,34 @@ class EstudoImportInstrumentedTest {
         assertEquals(listOf(chosenId), dao.subjectsOnce().map { it.competitionId }.distinct())
     }
 
+    @Test fun selectedExistingCompetitionUpdatesNameMatchedEntitiesWithImportedIdentityAndParents() = runBlocking {
+        val dao = database.dao()
+        val targetId = dao.insertCompetition(CompetitionEntity(name = "Edital selecionado", externalId = "target-existing"))
+        val oldSubjectId = dao.insertSubject(br.com.estudario.data.local.SubjectEntity(competitionId = targetId, name = "Matéria", position = 99, externalId = "old-subject"))
+        val oldRootId = dao.insertTopic(br.com.estudario.data.local.TopicEntity(subjectId = oldSubjectId, title = "Tópico", position = 99, externalId = "old-root"))
+        dao.insertTopic(br.com.estudario.data.local.TopicEntity(subjectId = oldSubjectId, parentTopicId = oldRootId, title = "Subtópico", position = 99, externalId = "old-child"))
+
+        val imported = packageJson
+            .replace("\"id\":\"m\",\"nome\":\"Matéria\"", "\"id\":\"package-subject-id\",\"externalId\":\"import-subject\",\"nome\":\"Matéria\",\"ordem\":4")
+            .replace("\"id\":\"t\",\"titulo\":\"Tópico\"", "\"id\":\"package-root-id\",\"externalId\":\"import-root\",\"titulo\":\"Tópico\",\"ordem\":2")
+            .replace("\"id\":\"st\",\"titulo\":\"Subtópico\"", "\"id\":\"package-child-id\",\"externalId\":\"import-child\",\"parentExternalId\":\"import-root\",\"titulo\":\"Subtópico\",\"ordem\":3")
+
+        EstudoPackageService(database).import(imported, targetCompetitionId = targetId)
+
+        assertEquals(1, dao.competitionsOnce().size)
+        assertEquals("Edital selecionado", dao.competitionsOnce().single().name)
+        assertEquals(targetId, dao.competitionsOnce().single().id)
+        val subject = dao.subjectsOnce().single()
+        assertEquals(targetId, subject.competitionId)
+        assertEquals("import-subject", subject.externalId)
+        assertEquals(4, subject.position)
+        val topics = dao.topicsOnce().sortedBy { it.position }
+        assertEquals(listOf("import-root", "import-child"), topics.map { it.externalId })
+        assertEquals(listOf(2, 3), topics.map { it.position })
+        assertEquals(null, topics[0].parentTopicId)
+        assertEquals(topics[0].id, topics[1].parentTopicId)
+    }
+
     @Test fun updateModeChangesContentAndPreservesStudyHistory() = runBlocking {
         val service = EstudoPackageService(database)
         service.import(packageJson)

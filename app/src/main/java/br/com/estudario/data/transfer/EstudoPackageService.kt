@@ -613,7 +613,7 @@ class EstudoPackageService(private val db: AppDatabase) {
                     current.copy(
                         name = subjectPlan.name,
                         position = subjectPlan.position,
-                        externalId = current.externalId ?: subjectPlan.externalId,
+                        externalId = subjectPlan.externalId,
                         assessedPriorityScore = assessment?.score ?: current.assessedPriorityScore,
                         assessedPrioritySource = assessment?.source ?: current.assessedPrioritySource,
                         assessedPriorityConfidence = assessment?.confidence ?: current.assessedPriorityConfidence,
@@ -643,7 +643,7 @@ class EstudoPackageService(private val db: AppDatabase) {
                             position = p.position,
                             notes = p.notes.ifBlank { it.notes },
                             priority = if (p.legacyPriorityProvided) p.priority else it.priority,
-                            externalId = it.externalId ?: externalId,
+                            externalId = externalId,
                             contentOriginType = p.originType,
                             scopeCovers = p.scopeCovers ?: it.scopeCovers,
                             scopeExcludes = p.scopeExcludes ?: it.scopeExcludes,

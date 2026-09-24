@@ -21,7 +21,7 @@ object AiSyllabusToEstudoMapper {
             version = 2,
             packageId = packageId,
             competitionId = checked.targetSyllabusId.toString(),
-            competitionName = checked.effectiveTitle,
+            competitionName = checked.targetTitle.trim(),
             primary = false,
             subjects = checked.subjects.sortedBy { it.position }.map(::subjectPlan),
             schemaVersion = OFFICIAL_ESTUDO_SCHEMA_VERSION,
