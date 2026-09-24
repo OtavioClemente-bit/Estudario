@@ -6,6 +6,7 @@ plugins {
     id("org.jetbrains.kotlin.kapt")
 }
 
+import java.util.Base64
 import java.util.Properties
 
 fun String.toBuildConfigLiteral(): String =
@@ -18,6 +19,24 @@ fun requireClientSafeSupabaseValue(name: String, value: String) {
     }
 }
 
+fun isClientSafeSupabasePublishableKey(value: String): Boolean {
+    if (Regex("sb_publishable_[A-Za-z0-9_-]{16,}").matches(value)) return true
+    val segments = value.split('.')
+    if (segments.size != 3 || segments.any { !Regex("[A-Za-z0-9_-]+").matches(it) }) return false
+    val payload = runCatching {
+        Base64.getUrlDecoder().decode(segments[1]).toString(Charsets.UTF_8)
+    }.getOrNull() ?: return false
+    val role = Regex("\\\"role\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"")
+        .find(payload)
+        ?.groupValues
+        ?.getOrNull(1)
+    val ref = Regex("\\\"ref\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"")
+        .find(payload)
+        ?.groupValues
+        ?.getOrNull(1)
+    return role == "anon" && !ref.isNullOrBlank()
+}
+
 val supabaseUrl = providers.gradleProperty("estudario.supabase.url").orNull.orEmpty().trim()
 val supabasePublishableKey = providers.gradleProperty("estudario.supabase.publishableKey").orNull.orEmpty().trim()
 check(supabaseUrl.isEmpty() == supabasePublishableKey.isEmpty()) {
@@ -25,6 +44,9 @@ check(supabaseUrl.isEmpty() == supabasePublishableKey.isEmpty()) {
 }
 requireClientSafeSupabaseValue("Supabase URL", supabaseUrl)
 requireClientSafeSupabaseValue("Supabase publishable key", supabasePublishableKey)
+check(supabasePublishableKey.isEmpty() || isClientSafeSupabasePublishableKey(supabasePublishableKey)) {
+    "Supabase publishable key must match the client-safe publishable or legacy anon shape."
+}
 val forbiddenAndroidSecretProperty = listOf(
     "OPENAI_API_KEY",
     "openai_api_key",

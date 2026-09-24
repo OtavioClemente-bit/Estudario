@@ -43,6 +43,9 @@ class SupabaseClientConfig private constructor(
 }
 
 object SupabaseClientConfigValidator {
+    private val publishableKeyPattern = Regex("sb_publishable_[A-Za-z0-9_-]{16,}")
+    private val jwtSegmentPattern = Regex("[A-Za-z0-9_-]+")
+
     fun validate(projectUrl: String, publishableKey: String) {
         val url = runCatching { URI(projectUrl) }.getOrNull()
         if (url == null || url.scheme != "https" || url.host.isNullOrBlank() || url.userInfo != null || url.query != null || url.fragment != null) {
@@ -50,9 +53,23 @@ object SupabaseClientConfigValidator {
         }
         rejectServerOnlyValue(publishableKey)
         rejectServerOnlyValue(projectUrl)
-        if (publishableKey.any(Char::isWhitespace)) {
-            throw SupabaseConfigurationException("Supabase publishable key must not contain whitespace.")
+        if (!isClientSafePublishableKey(publishableKey)) {
+            throw SupabaseConfigurationException(
+                "Supabase publishable key must match the client-safe publishable or legacy anon shape.",
+            )
         }
+    }
+
+    private fun isClientSafePublishableKey(value: String): Boolean {
+        if (publishableKeyPattern.matches(value)) return true
+
+        val segments = value.split('.')
+        if (segments.size != 3 || segments.any { !jwtSegmentPattern.matches(it) }) return false
+
+        val payload = runCatching {
+            Base64.getUrlDecoder().decode(segments[1]).toString(Charsets.UTF_8)
+        }.getOrNull() ?: return false
+        return jwtClaim(payload, "role") == "anon" && !jwtClaim(payload, "ref").isNullOrBlank()
     }
 
     private fun rejectServerOnlyValue(value: String) {
@@ -69,12 +86,15 @@ object SupabaseClientConfigValidator {
     private fun jwtRole(value: String): String? {
         val payload = value.split('.').getOrNull(1) ?: return null
         val decoded = runCatching { Base64.getUrlDecoder().decode(payload).toString(Charsets.UTF_8) }.getOrNull() ?: return null
-        val role = Regex("\\\"role\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"")
-            .find(decoded)
+        return jwtClaim(decoded, "role")
+    }
+
+    private fun jwtClaim(payload: String, name: String): String? =
+        Regex("\\\"$name\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"")
+            .find(payload)
             ?.groupValues
             ?.getOrNull(1)
-        return role?.lowercase()
-    }
+            ?.lowercase()
 }
 
 interface SupabaseAuthClient {
@@ -96,8 +116,9 @@ interface SupabaseAuthRepository {
 
     suspend fun signOut()
 
-    fun observeSession(): Flow<SupabaseSession?>
+    fun observeSession(): Flow<SupabaseSessionState>
 
+    /** Returns a JWT only for a ready authenticated session; loading, empty, and read-error states return null. */
     fun accessToken(): String?
 }
 
@@ -136,12 +157,21 @@ class DefaultSupabaseAuthRepository(
         failure?.let { throw it }
     }
 
-    override fun observeSession(): Flow<SupabaseSession?> = sessionStore.observe()
+    override fun observeSession(): Flow<SupabaseSessionState> = sessionStore.observe()
 
-    override fun accessToken(): String? = sessionStore.current()?.accessToken
+    override fun accessToken(): String? =
+        (sessionStore.current() as? SupabaseSessionState.Ready)?.session?.accessToken
 }
 
 fun interface AiAccessTokenProvider {
+    fun accessToken(): String?
+}
+
+/**
+ * Adapter boundary for the existing Google Drive token owner. Supabase AI callers never receive
+ * this source; it exists so integrations can keep Drive credentials separate from Supabase JWTs.
+ */
+fun interface DriveAccessTokenSource {
     fun accessToken(): String?
 }
 

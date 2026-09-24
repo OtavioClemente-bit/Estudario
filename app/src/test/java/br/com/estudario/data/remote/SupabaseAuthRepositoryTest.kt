@@ -7,6 +7,8 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SupabaseAuthRepositoryTest {
@@ -14,7 +16,15 @@ class SupabaseAuthRepositoryTest {
     fun missingSessionIsUnauthenticatedAndHasNoAiToken() = runTest {
         val repository = repository()
 
-        assertNull(repository.observeSession().first())
+        assertEquals(SupabaseSessionState.Ready(null), repository.observeSession().first())
+        assertNull(repository.accessToken())
+    }
+
+    @Test
+    fun loadingSessionIsNotReportedAsUnauthenticated() = runTest {
+        val repository = repository(initialState = SupabaseSessionState.Loading)
+
+        assertEquals(SupabaseSessionState.Loading, repository.observeSession().first())
         assertNull(repository.accessToken())
     }
 
@@ -24,12 +34,14 @@ class SupabaseAuthRepositoryTest {
             session = SupabaseSession(accessToken = "supabase-jwt-token", userId = "user-1"),
         )
         val repository = repository(client)
+        val driveTokenSource = DriveAccessTokenSource { "google-drive-access-token" }
 
         repository.signInWithGoogle(SupabaseGoogleCredential("google-id-token"))
 
         assertEquals("supabase-jwt-token", repository.accessToken())
         assertEquals("supabase-jwt-token", SupabaseAiTokenProvider(repository).accessToken())
-        assertNotEquals("google-drive-access-token", SupabaseAiTokenProvider(repository).accessToken())
+        assertEquals("google-drive-access-token", driveTokenSource.accessToken())
+        assertNotEquals(driveTokenSource.accessToken(), SupabaseAiTokenProvider(repository).accessToken())
         assertEquals("google-id-token", client.googleCredentials.single().idToken)
     }
 
@@ -59,7 +71,7 @@ class SupabaseAuthRepositoryTest {
 
         repository.signOut()
 
-        assertNull(repository.observeSession().first())
+        assertEquals(SupabaseSessionState.Ready(null), repository.observeSession().first())
         assertNull(repository.accessToken())
     }
 
@@ -72,35 +84,40 @@ class SupabaseAuthRepositoryTest {
         val repository = repository(client)
         repository.signInWithGoogle(SupabaseGoogleCredential("google-id-token"))
 
-        runCatching { repository.signOut() }
+        val result = runCatching { repository.signOut() }
 
-        assertNull(repository.observeSession().first())
+        assertTrue(result.isFailure)
+        assertSame(client.signOutFailure, result.exceptionOrNull())
+        assertEquals(SupabaseSessionState.Ready(null), repository.observeSession().first())
         assertNull(repository.accessToken())
     }
 
-    private fun repository(client: SupabaseAuthClient = FakeSupabaseAuthClient()): SupabaseAuthRepository =
-        DefaultSupabaseAuthRepository(client, FakeSupabaseSessionStore())
+    private fun repository(
+        client: SupabaseAuthClient = FakeSupabaseAuthClient(),
+        initialState: SupabaseSessionState = SupabaseSessionState.Ready(null),
+    ): SupabaseAuthRepository =
+        DefaultSupabaseAuthRepository(client, FakeSupabaseSessionStore(initialState))
 }
 
-private class FakeSupabaseSessionStore(initial: SupabaseSession? = null) : SupabaseSessionStore {
+private class FakeSupabaseSessionStore(initial: SupabaseSessionState) : SupabaseSessionStore {
     private val state = MutableStateFlow(initial)
 
-    override fun observe(): StateFlow<SupabaseSession?> = state
+    override fun observe(): StateFlow<SupabaseSessionState> = state
 
-    override fun current(): SupabaseSession? = state.value
+    override fun current(): SupabaseSessionState = state.value
 
     override suspend fun save(session: SupabaseSession) {
-        state.value = session
+        state.value = SupabaseSessionState.Ready(session)
     }
 
     override suspend fun clear() {
-        state.value = null
+        state.value = SupabaseSessionState.Ready(null)
     }
 }
 
 private class FakeSupabaseAuthClient(
     private val session: SupabaseSession? = null,
-    private val signOutFailure: Throwable? = null,
+    val signOutFailure: Throwable? = null,
 ) : SupabaseAuthClient {
     val googleCredentials = mutableListOf<SupabaseGoogleCredential>()
     val otpEmails = mutableListOf<String>()

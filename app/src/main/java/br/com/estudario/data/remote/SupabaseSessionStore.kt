@@ -1,17 +1,17 @@
 package br.com.estudario.data.remote
 
 import android.content.Context
+import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -26,10 +26,19 @@ data class SupabaseSession(
     }
 }
 
-interface SupabaseSessionStore {
-    fun observe(): StateFlow<SupabaseSession?>
+/** Loading and read failures are distinct from a successfully hydrated empty session. */
+sealed interface SupabaseSessionState {
+    data object Loading : SupabaseSessionState
 
-    fun current(): SupabaseSession?
+    data class Ready(val session: SupabaseSession?) : SupabaseSessionState
+
+    data class ReadError(val cause: Throwable) : SupabaseSessionState
+}
+
+interface SupabaseSessionStore {
+    fun observe(): StateFlow<SupabaseSessionState>
+
+    fun current(): SupabaseSessionState
 
     suspend fun save(session: SupabaseSession)
 
@@ -38,52 +47,64 @@ interface SupabaseSessionStore {
 
 private val Context.supabaseSessionDataStore by preferencesDataStore(name = "supabase_auth_session")
 
+/**
+ * Persists only the Supabase access token, user id, and expiry. Refresh tokens stay memory-only
+ * and any legacy refresh-token preference is removed on the next save.
+ */
 class DataStoreSupabaseSessionStore(
-    context: Context,
+    private val dataStore: DataStore<Preferences>,
     scope: CoroutineScope,
 ) : SupabaseSessionStore {
-    private val dataStore = context.supabaseSessionDataStore
-    private val state = MutableStateFlow<SupabaseSession?>(null)
+    constructor(context: Context, scope: CoroutineScope) : this(context.supabaseSessionDataStore, scope)
+
+    private val state = MutableStateFlow<SupabaseSessionState>(SupabaseSessionState.Loading)
 
     private val accessTokenKey = stringPreferencesKey("access_token")
-    private val refreshTokenKey = stringPreferencesKey("refresh_token")
+    private val legacyRefreshTokenKey = stringPreferencesKey("refresh_token")
     private val userIdKey = stringPreferencesKey("user_id")
     private val expiresAtKey = longPreferencesKey("expires_at_epoch_seconds")
 
     init {
         scope.launch {
-            dataStore.data
-                .catch { emit(emptyPreferences()) }
-                .map(::decode)
-                .collect { state.value = it }
+            try {
+                // Migrate any value written by the previous implementation before exposing state.
+                dataStore.edit { preferences -> preferences.remove(legacyRefreshTokenKey) }
+                dataStore.data
+                    .map(::decode)
+                    .collect { state.value = SupabaseSessionState.Ready(it) }
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                state.value = SupabaseSessionState.ReadError(error)
+            }
         }
     }
 
-    override fun observe(): StateFlow<SupabaseSession?> = state
+    override fun observe(): StateFlow<SupabaseSessionState> = state
 
-    override fun current(): SupabaseSession? = state.value
+    override fun current(): SupabaseSessionState = state.value
 
     override suspend fun save(session: SupabaseSession) {
         dataStore.edit { preferences ->
             preferences[accessTokenKey] = session.accessToken
-            putOrRemove(preferences, refreshTokenKey, session.refreshToken)
+            // Refresh tokens are intentionally memory-only in this task. Remove any value written
+            // by an older implementation so the account-session boundary remains fail-closed.
+            preferences.remove(legacyRefreshTokenKey)
             putOrRemove(preferences, userIdKey, session.userId)
             session.expiresAtEpochSeconds?.let { preferences[expiresAtKey] = it }
                 ?: preferences.remove(expiresAtKey)
         }
-        state.value = session
+        state.value = SupabaseSessionState.Ready(session)
     }
 
     override suspend fun clear() {
         dataStore.edit { it.clear() }
-        state.value = null
+        state.value = SupabaseSessionState.Ready(null)
     }
 
     private fun decode(preferences: Preferences): SupabaseSession? {
         val accessToken = preferences[accessTokenKey]?.takeIf(String::isNotBlank) ?: return null
         return SupabaseSession(
             accessToken = accessToken,
-            refreshToken = preferences[refreshTokenKey],
             userId = preferences[userIdKey],
             expiresAtEpochSeconds = preferences[expiresAtKey],
         )

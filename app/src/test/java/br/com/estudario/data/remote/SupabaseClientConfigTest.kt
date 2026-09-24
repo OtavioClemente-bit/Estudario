@@ -18,10 +18,37 @@ class SupabaseClientConfigTest {
     fun configuredClientUsesOnlyAValidHttpsProjectUrlAndPublishableKey() {
         val config = SupabaseClientConfig.from(
             projectUrl = "https://project.example.invalid",
-            publishableKey = "public-client-key",
+            publishableKey = "sb_publishable_test_key_1234567890",
         )
 
         assertTrue(config.isConfigured)
+    }
+
+    @Test
+    fun legacyAnonJwtShapeIsAcceptedAsClientSafe() {
+        val config = SupabaseClientConfig.from(
+            projectUrl = "https://project.example.invalid",
+            publishableKey = fakeJwt("{\"role\":\"anon\",\"ref\":\"project-ref\"}"),
+        )
+
+        assertTrue(config.isConfigured)
+    }
+
+    @Test
+    fun arbitraryPublishableKeyIsRejectedByTheClosedGate() {
+        assertThrows(SupabaseConfigurationException::class.java) {
+            SupabaseClientConfig.from("https://project.example.invalid", "public-client-key")
+        }
+    }
+
+    @Test
+    fun googleOAuthJwtShapeIsRejectedAsAClientKey() {
+        assertThrows(SupabaseConfigurationException::class.java) {
+            SupabaseClientConfig.from(
+                "https://project.example.invalid",
+                fakeJwt("{\"iss\":\"accounts.google.com\",\"aud\":\"client-id\"}"),
+            )
+        }
     }
 
     @Test
