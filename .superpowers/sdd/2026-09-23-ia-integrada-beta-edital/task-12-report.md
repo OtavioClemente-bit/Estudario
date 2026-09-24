@@ -105,3 +105,25 @@ Risco residual: o check Deno global e a suíte unitária global continuam com os
 - `git diff --check` — PASS.
 
 Sem deploy, URL/key, OAuth/OTP, credenciais reais, Google Drive ou OpenAI. Task 13 não foi iniciada. Artefatos locais não rastreados (`node_modules`, `.temp`, `.branches`) permaneceram fora do commit.
+
+## Correção dos quatro findings P2
+
+- A migration 012 permaneceu histórica e byte-a-byte imutável. A 013 agora valida `jsonb_typeof` de `subjects`, cada `topics` e toda a cadeia de `children` antes de expandir arrays; shapes malformados e profundidade acima de 64 retornam `INVALID_SYLLABUS` sem erro PostgreSQL bruto ou persistência parcial. O pgTAP cobre subjects/topics/children como objetos.
+- O harness real `supabase/tests/incremental_private_syllabus_upgrade.ps1` usa `db reset --version 202609240012`, grava uma árvore/ledger pela implementação 012, executa `migration up --local` para 013/014 e verifica depois a guarda, rollback e preservação de root, subject, topic e ACK. Os fixtures SQL ficam em `scripts/task12/` para não serem descobertos como arquivos pgTAP pelo runner.
+- O harness `supabase/tests/delete_private_syllabus_concurrency.ps1` abre duas sessões `psql` no Postgres local, força lock na mesma mutation, confirma dois ACKs `SYNCED`, uma única deleção, replay idempotente e conflitos determinísticos por hash e remote identity.
+- O teste instrumentado agora reexporta após download com `canonicalPayload` removido e compara um oracle independente do pacote original: version/package/schema, metadata original, hash, identidade do concurso, external IDs, nomes, posições, prioridade da matéria, prioridades de todos os tópicos/subtópicos, parents, metadata e ordenação. A normalização aceita apenas a diferença oficial entre parent ausente e `null` em raiz.
+
+## Verificação desta correção
+
+- `npx --yes supabase db reset --workdir .` — PASS; 012, 013 e 014 aplicadas.
+- `npx --yes supabase test db --workdir .` — PASS; 5 arquivos, 208 testes.
+- `supabase/tests/incremental_private_syllabus_upgrade.ps1` — PASS; upgrade real 012→013 preservou dados e rejeitou shape/depth inválidos.
+- `supabase/tests/delete_private_syllabus_concurrency.ps1` — PASS; duas sessões reais, replay/hash/remote conflicts.
+- `npx --yes deno test --no-config supabase/functions/user-syllabi/index_test.ts supabase/functions/user-syllabi/atomic_store_test.ts` — PASS; 5/5.
+- `npx --yes deno check --no-config supabase/functions/user-syllabi/index.ts supabase/functions/user-syllabi/index_test.ts supabase/functions/user-syllabi/atomic_store_test.ts` — PASS.
+- `:app:testDebugUnitTest --tests br.com.estudario.data.remote.RemoteSyllabusMapperTest --tests br.com.estudario.data.remote.RemoteSyllabusSyncWorkerTest --no-daemon` — PASS.
+- `:app:compileDebugKotlin :app:compileDebugAndroidTestKotlin --no-daemon` — PASS.
+- `:app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.remote.PrivateSyllabusRepositoryTest" --no-daemon` — PASS; 2/2 instrumentados.
+- `git diff --check` — PASS; `git diff 9c9c3a8 -- supabase/migrations/202609240012_private_syllabus_atomic_rpc.sql` vazio.
+
+Riscos residuais: a suíte Deno global continua com os três erros baseline de `ai-syllabus-jobs/index_test.ts` já documentados, fora da Task 12; o Gradle unitário global mantém o único failure baseline de `CopyStyleTest` em `InitialSetupScreen.kt`. A suíte direcionada, DB local, upgrade incremental e concorrência estão verdes. Configuration gate permanece fechado; nenhum deploy, segredo, URL/key, OAuth/OTP ou credencial real foi usado.

@@ -158,6 +158,28 @@ select throws_ok(
   'P0001', 'IDEMPOTENCY_KEY_CONFLICT', 'different hash is a deterministic mutation conflict'
 );
 
+select throws_ok(
+  $$select public.upsert_private_syllabus_atomic(
+    '00000000-0000-0000-0000-0000000000d1'::uuid, 'rpc-invalid-subjects', repeat('1', 64),
+    '{"remoteSyllabusId":"00000000-0000-4000-8000-0000000000e1","subjects":{}}'::jsonb
+  )$$,
+  'P0001', 'INVALID_SYLLABUS', 'object subjects use the contracted invalid syllabus error'
+);
+select throws_ok(
+  $$select public.upsert_private_syllabus_atomic(
+    '00000000-0000-0000-0000-0000000000d1'::uuid, 'rpc-invalid-topics', repeat('2', 64),
+    '{"remoteSyllabusId":"00000000-0000-4000-8000-0000000000e2","subjects":[{"remoteSubjectId":"00000000-0000-4000-8000-0000000000e3","topics":{}}]}'::jsonb
+  )$$,
+  'P0001', 'INVALID_SYLLABUS', 'object topics use the contracted invalid syllabus error'
+);
+select throws_ok(
+  $$select public.upsert_private_syllabus_atomic(
+    '00000000-0000-0000-0000-0000000000d1'::uuid, 'rpc-invalid-children', repeat('3', 64),
+    '{"remoteSyllabusId":"00000000-0000-4000-8000-0000000000e4","subjects":[{"remoteSubjectId":"00000000-0000-4000-8000-0000000000e5","topics":[{"remoteTopicId":"00000000-0000-4000-8000-0000000000e6","children":{}}]}]}'::jsonb
+  )$$,
+  'P0001', 'INVALID_SYLLABUS', 'object children use the contracted invalid syllabus error'
+);
+
 select is(
   public.delete_private_syllabus_atomic(
     '00000000-0000-0000-0000-0000000000d1'::uuid,

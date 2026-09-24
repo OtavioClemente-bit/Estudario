@@ -94,6 +94,11 @@ class PrivateSyllabusRepositoryTest {
         assertEquals(payloadHash, fetched.metadata["payloadHash"]?.toString()?.trim('"'))
         val fetchedPackage = RemoteSyllabusMapper.toOfficialPackage(fetched)
         assertEquals(payloadHash, sha256(fetchedPackage))
+        assertOfficialPackageFields(
+            packageJson,
+            RemoteSyllabusMapper.toOfficialPackage(fetched.copy(metadata = withoutCanonicalPayload(fetched.metadata))),
+            payloadHash,
+        )
 
         database.dao().deleteCompetition(syncedCompetition)
         assertTrue(backend.remote != null)
@@ -103,6 +108,11 @@ class PrivateSyllabusRepositoryTest {
         assertEquals(backend.remote!!.remoteSyllabusId, restored.remoteSyllabusId)
         assertEquals(originalTree, tree(database, restoredId))
         assertEquals(payloadHash, sha256(RemoteSyllabusMapper.toOfficialPackage(backend.remote!!)))
+        assertOfficialPackageFields(
+            packageJson,
+            RemoteSyllabusMapper.toOfficialPackage(backend.remote!!.copy(metadata = withoutCanonicalPayload(backend.remote!!.metadata))),
+            payloadHash,
+        )
     }
 
     @Test
@@ -176,6 +186,78 @@ class PrivateSyllabusRepositoryTest {
     private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
         .digest(value.toByteArray())
         .joinToString("") { "%02x".format(it) }
+
+    private fun withoutCanonicalPayload(metadata: JsonObject): JsonObject =
+        JsonObject(metadata.filterKeys { it != "canonicalPayload" })
+
+    /**
+     * Independent package oracle. It deliberately removes canonicalPayload
+     * before re-export, so a fake cannot pass by echoing the original object.
+     * Internal Room/remote ids may change, but every official identity and
+     * lossless field must remain equal.
+     */
+    private fun assertOfficialPackageFields(originalJson: String, restoredJson: String, payloadHash: String) {
+        val original = JSONObject(originalJson)
+        val restored = JSONObject(restoredJson)
+        assertEquals(original.getInt("version"), restored.getInt("version"))
+        assertEquals(original.getString("packageId"), restored.getString("packageId"))
+        assertEquals(original.getString("packageVersion"), restored.getString("packageVersion"))
+        assertEquals(original.getInt("schemaVersion"), restored.getInt("schemaVersion"))
+        assertEquals(payloadHash, sha256(originalJson))
+        assertEquals(payloadHash, restored.getJSONObject("metadata").getString("payloadHash"))
+        assertMetadataContains(original.optJSONObject("metadata"), restored.optJSONObject("metadata"))
+
+        val originalCompetition = original.getJSONObject("concurso")
+        val restoredCompetition = restored.getJSONObject("concurso")
+        assertEquals(originalCompetition.getString("id"), restoredCompetition.getString("id"))
+        assertEquals(originalCompetition.getString("nome"), restoredCompetition.getString("nome"))
+        assertEquals(originalCompetition.getBoolean("principal"), restoredCompetition.getBoolean("principal"))
+
+        val originalSubjects = jsonObjects(original.getJSONArray("materias"))
+        val restoredSubjects = jsonObjects(restored.getJSONArray("materias"))
+        assertEquals(originalSubjects.size, restoredSubjects.size)
+        originalSubjects.zip(restoredSubjects).forEach { (expected, actual) ->
+            assertEquals(expected.optString("externalId", expected.getString("id")), actual.getString("externalId"))
+            assertEquals(expected.getString("nome"), actual.getString("nome"))
+            assertEquals(expected.getInt("ordem"), actual.getInt("ordem"))
+            assertEquals(expected.getString("prioridade"), actual.getString("prioridade"))
+            assertMetadataEquals(expected.optJSONObject("metadata"), actual.optJSONObject("metadata"))
+            assertOfficialTopics(expected.getJSONArray("topicos"), actual.getJSONArray("topicos"))
+        }
+    }
+
+    private fun assertOfficialTopics(original: JSONArray, restored: JSONArray) {
+        val expectedTopics = jsonObjects(original)
+        val actualTopics = jsonObjects(restored)
+        assertEquals(expectedTopics.size, actualTopics.size)
+        expectedTopics.zip(actualTopics).forEach { (expected, actual) ->
+            assertEquals(expected.optString("externalId", expected.getString("id")), actual.getString("externalId"))
+            assertEquals(expected.getString("titulo"), actual.getString("titulo"))
+            assertEquals(expected.getInt("ordem"), actual.getInt("ordem"))
+            assertEquals(expected.getString("prioridade"), actual.getString("prioridade"))
+            assertEquals(optionalString(expected, "parentExternalId"), optionalString(actual, "parentExternalId"))
+            assertMetadataEquals(expected.optJSONObject("metadata"), actual.optJSONObject("metadata"))
+            assertOfficialTopics(expected.optJSONArray("subtopicos") ?: JSONArray(), actual.optJSONArray("subtopicos") ?: JSONArray())
+        }
+    }
+
+    private fun assertMetadataContains(expected: JSONObject?, actual: JSONObject?) {
+        if (expected == null) return
+        assertNotNull(actual)
+        expected.keys().forEach { key -> assertEquals(expected.get(key).toString(), actual!!.get(key).toString()) }
+    }
+
+    private fun assertMetadataEquals(expected: JSONObject?, actual: JSONObject?) {
+        if (expected == null) {
+            assertTrue(actual == null || actual.length() == 0)
+        } else {
+            assertNotNull(actual)
+            assertEquals(expected.toString(), actual!!.toString())
+        }
+    }
+
+    private fun optionalString(value: JSONObject, key: String): String =
+        if (!value.has(key) || value.isNull(key)) "" else value.getString(key)
 
     /** Independent oracle: this reads the official package instead of invoking RemoteSyllabusMapper. */
     private fun expectedRemoteFromPackage(packageJson: String, localSyllabusId: Long, payloadHash: String): PrivateSyllabus {
