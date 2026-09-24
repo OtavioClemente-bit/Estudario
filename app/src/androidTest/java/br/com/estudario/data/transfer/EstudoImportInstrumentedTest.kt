@@ -77,6 +77,7 @@ class EstudoImportInstrumentedTest {
             .replace("\"id\":\"st\",\"titulo\":\"Subtópico\"", "\"id\":\"package-child-id\",\"externalId\":\"import-child\",\"parentExternalId\":\"import-root\",\"titulo\":\"Subtópico\",\"ordem\":3")
 
         EstudoPackageService(database).import(imported, targetCompetitionId = targetId)
+        EstudoPackageService(database).import(imported, targetCompetitionId = targetId)
 
         assertEquals(1, dao.competitionsOnce().size)
         assertEquals("Edital selecionado", dao.competitionsOnce().single().name)
@@ -90,6 +91,29 @@ class EstudoImportInstrumentedTest {
         assertEquals(listOf(2, 3), topics.map { it.position })
         assertEquals(null, topics[0].parentTopicId)
         assertEquals(topics[0].id, topics[1].parentTopicId)
+    }
+
+    @Test fun externalIdConflictWithAnotherCompetitionFailsBeforeChangingSelectedTarget() = runBlocking {
+        val dao = database.dao()
+        val targetId = dao.insertCompetition(CompetitionEntity(name = "Edital selecionado", externalId = "target-conflict"))
+        dao.insertSubject(br.com.estudario.data.local.SubjectEntity(competitionId = targetId, name = "Matéria", position = 99, externalId = "target-subject-old"))
+        val otherId = dao.insertCompetition(CompetitionEntity(name = "Outro edital", externalId = "other-conflict"))
+        dao.insertSubject(br.com.estudario.data.local.SubjectEntity(competitionId = otherId, name = "Outra matéria", position = 7, externalId = "shared-subject-id"))
+        val imported = packageJson.replace(
+            "\"id\":\"m\",\"nome\":\"Matéria\"",
+            "\"id\":\"package-subject-id\",\"externalId\":\"shared-subject-id\",\"nome\":\"Matéria\",\"ordem\":1",
+        )
+
+        val error = runCatching {
+            EstudoPackageService(database).import(imported, targetCompetitionId = targetId)
+        }.exceptionOrNull()
+
+        assertTrue(error is EstudoPackageException)
+        assertEquals("Conflito de externalId de matéria 'shared-subject-id': já pertence ao edital $otherId.", error?.message)
+        assertEquals(2, dao.competitionsOnce().size)
+        assertEquals(targetId, dao.subjectsOnce().single { it.name == "Matéria" }.competitionId)
+        assertEquals("target-subject-old", dao.subjectsOnce().single { it.name == "Matéria" }.externalId)
+        assertEquals(99, dao.subjectsOnce().single { it.name == "Matéria" }.position)
     }
 
     @Test fun updateModeChangesContentAndPreservesStudyHistory() = runBlocking {

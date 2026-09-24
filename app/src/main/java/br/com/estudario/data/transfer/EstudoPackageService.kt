@@ -1,5 +1,6 @@
 package br.com.estudario.data.transfer
 
+import android.database.sqlite.SQLiteConstraintException
 import androidx.room.withTransaction
 import br.com.estudario.data.local.*
 import br.com.estudario.domain.*
@@ -543,11 +544,33 @@ class EstudoPackageService(private val db: AppDatabase) {
         )
     }
 
+    private suspend fun validateExternalIdConflicts(plan: PackagePlan, targetCompetitionId: Long?) {
+        val subjects = dao.subjectsOnce()
+        val subjectsByExternalId = subjects.filter { !it.externalId.isNullOrBlank() }.associateBy { it.externalId!! }
+        plan.subjects.sortedBy { it.position }.forEach { subjectPlan ->
+            val owner = subjectsByExternalId[subjectPlan.externalId]
+            if (owner != null && owner.competitionId != targetCompetitionId) {
+                throw EstudoPackageException("Conflito de externalId de matéria '${subjectPlan.externalId}': já pertence ao edital ${owner.competitionId}.")
+            }
+        }
+
+        val subjectsById = subjects.associateBy { it.id }
+        val topicsByExternalId = dao.topicsOnce().filter { !it.externalId.isNullOrBlank() }.associateBy { it.externalId!! }
+        plan.allTopics().forEach { topicPlan ->
+            val owner = topicsByExternalId[topicPlan.externalId]
+            val ownerCompetitionId = owner?.let { subjectsById[it.subjectId]?.competitionId }
+            if (owner != null && ownerCompetitionId != null && ownerCompetitionId != targetCompetitionId) {
+                throw EstudoPackageException("Conflito de externalId de tópico '${topicPlan.externalId}': já pertence ao edital $ownerCompetitionId.")
+            }
+        }
+    }
+
     suspend fun import(
         text: String,
         mode: ImportMode = ImportMode.SKIP,
         targetCompetitionId: Long? = null,
-    ): ImportResult = db.withTransaction {
+    ): ImportResult = try {
+        db.withTransaction {
         val plan = EstudoPackageParser.parse(text)
         val contentHash = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
         val prefix = if (mode == ImportMode.COPY) "${plan.packageId}:copy:${contentHash.take(8)}" else plan.packageId
@@ -558,6 +581,7 @@ class EstudoPackageService(private val db: AppDatabase) {
         val currentCompetition = selectedCompetition
             ?: dao.competitionByExternalId(plan.competitionId)
             ?: competitions.firstOrNull { it.name.equals(plan.competitionName, true) }
+        validateExternalIdConflicts(plan, currentCompetition?.id)
         val competitionId = currentCompetition?.id ?: dao.insertCompetition(
             CompetitionEntity(
                 name = plan.competitionName,
@@ -741,6 +765,9 @@ class EstudoPackageService(private val db: AppDatabase) {
         }
         dao.insertImportPackage(ImportPackageEntity(packageId = prefix, schemaVersion = plan.version, contentHash = contentHash, createdCount = theories + summaries + snippets + questions + concepts, updatedCount = updated, ignoredCount = skipped))
         ImportResult(subjectsCreated, topicsCreated, topicsUpdated, theories, summaries, questions, skipped, snippets, concepts, updated, importedTopicIds.toList(), plan.allTopics().sumOf { topico -> topico.questions.count { it.downgraded } }, plan.sourceCount(), plan.normalizedPriorityCount)
+        }
+    } catch (_: SQLiteConstraintException) {
+        throw EstudoPackageException("Conflito de externalId global no pacote oficial.")
     }
 }
 
