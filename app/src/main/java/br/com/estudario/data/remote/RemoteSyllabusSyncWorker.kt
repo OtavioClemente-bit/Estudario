@@ -64,7 +64,20 @@ class RemoteSyllabusSyncRunner(
                 check(acknowledgement.remoteSyllabusId != null && acknowledgement.remoteSyllabusId == expectedRemoteSyllabusId) {
                     "Remote server acknowledged a different syllabus identity."
                 }
-                if (gateway.markSynced(current, acknowledgement.remoteSyllabusId, token, now())) synced++
+                if (gateway.markSynced(current, acknowledgement.remoteSyllabusId, token, now())) {
+                    synced++
+                } else {
+                    // The remote mutation is already acknowledged, but the local CAS lost a race.
+                    // Keep the outbox retryable instead of reporting a false success.
+                    gateway.markFailed(
+                        current,
+                        token,
+                        "CAS_CONFLICT",
+                        now() + backoffMillis(current.attemptCount),
+                        now(),
+                    )
+                    failed++
+                }
             } catch (error: Throwable) {
                 gateway.markFailed(current, token, safeError(error), now() + backoffMillis(current.attemptCount), now())
                 failed++

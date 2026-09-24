@@ -84,6 +84,19 @@ class RemoteSyllabusSyncWorkerTest {
         assertEquals("SYNC_FAILED", gateway.failed.single().error)
     }
 
+    @Test
+    fun aCASLossAfterRemoteAcknowledgementIsRetryableAndNotReportedAsSynced() = runBlocking {
+        val row = row()
+        val gateway = FakeGateway(row, markSyncedResult = false)
+
+        val result = RemoteSyllabusSyncRunner(gateway, now = { 100L }, tokenFactory = { "token-1" }).run()
+
+        assertEquals(0, result.synced)
+        assertEquals(1, result.failed)
+        assertTrue(result.shouldRetry)
+        assertEquals("CAS_CONFLICT", gateway.failed.single().error)
+    }
+
     private fun row() = RemoteSyllabusSyncEntity(
         operation = RemoteSyllabusSyncOperation.UPSERT,
         localSyllabusId = 41L,
@@ -99,6 +112,7 @@ class RemoteSyllabusSyncWorkerTest {
         private val source: RemoteSyllabusSyncEntity,
         private val acknowledgement: RemoteSyllabusSyncAcknowledgement = gatewayAck(source, source.payloadHash),
         private val failure: Throwable? = null,
+        private val markSyncedResult: Boolean = true,
     ) : RemoteSyllabusSyncGateway {
         val synced = mutableListOf<RemoteSyllabusSyncEntity>()
         val failed = mutableListOf<FailedRow>()
@@ -117,8 +131,8 @@ class RemoteSyllabusSyncWorkerTest {
             return acknowledgement
         }
         override suspend fun markSynced(row: RemoteSyllabusSyncEntity, remoteSyllabusId: String, attemptToken: String, updatedAt: Long): Boolean {
-            synced += row
-            return true
+            if (markSyncedResult) synced += row
+            return markSyncedResult
         }
         override suspend fun markFailed(row: RemoteSyllabusSyncEntity, attemptToken: String, error: String, nextAttemptAt: Long, updatedAt: Long): Boolean {
             failed += FailedRow(row, error)

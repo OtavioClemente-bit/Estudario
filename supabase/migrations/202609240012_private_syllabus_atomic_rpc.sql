@@ -70,6 +70,26 @@ begin
     raise exception using message = 'INVALID_SYLLABUS', errcode = 'P0001';
   end if;
 
+  -- Preflight the complete submitted tree before touching the existing root.
+  -- The insertion/count loops below intentionally stop at depth 64 to keep
+  -- parent-FK insertion bounded; a deeper tree must fail rather than be
+  -- truncated and acknowledged as SYNCED.
+  if exists (
+    with recursive topic_tree(subject_node, node, depth) as (
+      select subject, topic, 0
+      from jsonb_array_elements(p_syllabus->'subjects') subject
+      cross join lateral jsonb_array_elements(coalesce(subject->'topics', '[]'::jsonb)) topic
+      union all
+      select topic_tree.subject_node, child, topic_tree.depth + 1
+      from topic_tree
+      cross join lateral jsonb_array_elements(coalesce(topic_tree.node->'children', '[]'::jsonb)) child
+      where topic_tree.depth < 65
+    )
+    select 1 from topic_tree where depth > 64
+  ) then
+    raise exception using message = 'INVALID_SYLLABUS', errcode = 'P0001';
+  end if;
+
   -- Serialize mutations for the same owner/root even when the root does not exist yet.
   perform pg_advisory_xact_lock(hashtextextended(p_owner_user_id::text || ':' || v_syllabus_id::text, 0));
   select owner_user_id into v_existing_owner

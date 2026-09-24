@@ -132,5 +132,55 @@ select throws_ok(
   'P0001', 'IDEMPOTENCY_KEY_CONFLICT', 'different hash is a deterministic mutation conflict'
 );
 
+with recursive nested(depth, node) as (
+  select 65,
+    jsonb_build_object(
+      'remoteTopicId', format('00000000-0000-4000-8000-%s', lpad('65', 12, '0')),
+      'externalId', 'too-deep-65', 'name', 'Too deep 65', 'position', 0,
+      'parentRemoteTopicId', null, 'packageVersion', 'estudo-v2', 'schemaVersion', 1,
+      'metadata', '{}'::jsonb, 'children', '[]'::jsonb
+    )
+  union all
+  select depth - 1,
+    jsonb_build_object(
+      'remoteTopicId', format('00000000-0000-4000-8000-%s', lpad((depth - 1)::text, 12, '0')),
+      'externalId', format('too-deep-%s', depth - 1), 'name', format('Too deep %s', depth - 1), 'position', 0,
+      'parentRemoteTopicId', null, 'packageVersion', 'estudo-v2', 'schemaVersion', 1,
+      'metadata', '{}'::jsonb,
+      'children', jsonb_build_array(
+        jsonb_set(
+          node,
+          '{parentRemoteTopicId}',
+          to_jsonb(format('00000000-0000-4000-8000-%s', lpad((depth - 1)::text, 12, '0'))::text),
+          true
+        )
+      )
+    )
+  from nested
+  where depth > 0
+)
+select throws_ok(
+  format(
+    $sql$select public.upsert_private_syllabus_atomic(
+      '00000000-0000-0000-0000-0000000000d1'::uuid,
+      'rpc-depth-exceeded', repeat('c', 64), %L::jsonb
+    )$sql$,
+    jsonb_build_object(
+      'remoteSyllabusId', '00000000-0000-4000-8000-0000000000e5',
+      'title', 'Too deep', 'position', 0, 'visibility', 'PRIVATE', 'source', 'IMPORTED',
+      'schemaVersion', 1, 'status', 'ACTIVE', 'metadata', '{}'::jsonb,
+      'subjects', jsonb_build_array(jsonb_build_object(
+        'remoteSubjectId', '00000000-0000-4000-8000-0000000000e6',
+        'externalId', 'subject-too-deep', 'name', 'Too deep subject', 'position', 0,
+        'suggestedPriority', 'NORMAL', 'packageVersion', 'estudo-v2', 'schemaVersion', 1,
+        'metadata', '{}'::jsonb,
+        'topics', jsonb_build_array((select node from nested where depth = 0))
+      ))
+    )::text
+  ),
+  'P0001', 'INVALID_SYLLABUS', 'tree deeper than the bounded insertion depth is rejected before persistence'
+);
+select is((select count(*)::integer from public.user_syllabi where id = '00000000-0000-4000-8000-0000000000e5'), 0, 'depth rejection does not persist a partial root');
+
 select * from finish();
 rollback;

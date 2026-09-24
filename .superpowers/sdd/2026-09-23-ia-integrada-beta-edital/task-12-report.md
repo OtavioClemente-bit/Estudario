@@ -45,3 +45,24 @@ Implementada no worktree `C:\Users\otavi\.codex\worktrees\ia-api\vc-x20`. A conf
 
 - `feat: sync and restore private syllabi losslessly`
 - Rodada 1: commit separado com a correção RPC/ACK/identidade/testes.
+
+## Correção final da revisão
+
+- CAS local perdido após ACK remoto agora é falha retryable: o runner tenta persistir `CAS_CONFLICT` com backoff e retorna `shouldRetry`, sem contar sincronização falsa. O teste unitário cobre `markSynced = false`.
+- O RPC rejeita explicitamente árvores com tópico além da profundidade 64 antes de alterar root/subjects/topics/ledger; o erro é `INVALID_SYLLABUS` e a transação não deixa root parcial. O pgTAP monta uma árvore válida de profundidade 65 para impedir ACK de truncamento.
+- O round-trip instrumentado compara o `PrivateSyllabus` fetched normalizado campo a campo: identidade remota, nomes, ordem, prioridades, todos os IDs externos/remotos, parents, metadata, package/schema versions e hash no metadata, além da restauração oficial. Não depende apenas de `canonicalPayload`.
+
+## Verificação da correção final
+
+- `npx --yes supabase db reset --workdir .` — PASS; migration aplicada localmente.
+- `npx --yes supabase test db` — PASS; 5 arquivos, 191 testes, incluindo profundidade excedida e rollback sem root.
+- `npx --yes deno test --no-config supabase/functions/user-syllabi/index_test.ts supabase/functions/user-syllabi/atomic_store_test.ts` — PASS; 4/4.
+- `npx --yes deno check --no-config supabase/functions/user-syllabi/index.ts supabase/functions/user-syllabi/index_test.ts supabase/functions/user-syllabi/atomic_store_test.ts` — PASS.
+- `npx --yes deno check --no-config supabase/functions/*/index.ts supabase/functions/*/*_test.ts` — baseline ainda falha em 3 linhas de `ai-syllabus-jobs/index_test.ts` (`captured.requestPayload` inferido como `never`); fora da Task 12 e não alterado.
+- `:app:testDebugUnitTest --tests br.com.estudario.data.remote.RemoteSyllabusSyncWorkerTest --tests br.com.estudario.data.remote.RemoteSyllabusMapperTest --no-daemon` — PASS.
+- `:app:compileDebugKotlin :app:compileDebugAndroidTestKotlin --no-daemon` — PASS.
+- `:app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.remote.PrivateSyllabusRepositoryTest" --no-daemon` — PASS; 2/2 instrumentados.
+- `:app:testDebugUnitTest --no-daemon` — 346/347 PASS; 1 baseline failure em `CopyStyleTest.appSourceDoesNotContainTypographicDashes` por caracteres preexistentes em `app/src/main/java/br/com/estudario/ui/setup/InitialSetupScreen.kt`, fora da Task 12.
+- `git diff --check` — PASS.
+
+Configuração remota permanece fechada: sem deploy, URL/key, OAuth/OTP, credenciais reais, Google Drive ou OpenAI. Nenhuma alteração foi feita fora da Task 12 e a Task 13 não foi iniciada.

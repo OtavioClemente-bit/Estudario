@@ -35,6 +35,11 @@ class PrivateSyllabusRepositoryTest {
         val importResult = EstudoPackageService(database).import(packageJson, ImportMode.SKIP, targetCompetitionId = 41L)
         assertEquals(41L, importResult.competitionId)
         val originalTree = tree(database, 41L)
+        val expectedRemote = RemoteSyllabusMapper.fromLocal(
+            database.dao().competitionById(41L)!!,
+            packageJson,
+            payloadHash,
+        )
         val outboxId = database.dao().enqueueRemoteSyllabusSync(
             RemoteSyllabusSyncEntity(
                 operation = RemoteSyllabusSyncOperation.UPSERT,
@@ -79,9 +84,10 @@ class PrivateSyllabusRepositoryTest {
         assertEquals("", syncedOutbox.lastError ?: "")
 
         val fetched = repository.getRemote(backend.remote!!.remoteSyllabusId)!!
+        assertRemoteTreeEquals(expectedRemote, fetched)
+        assertEquals(payloadHash, fetched.metadata["payloadHash"]?.toString()?.trim('"'))
         val fetchedPackage = RemoteSyllabusMapper.toOfficialPackage(fetched)
         assertEquals(payloadHash, sha256(fetchedPackage))
-        assertEquals(backend.remote, RemoteSyllabusMapper.fromLocal(syncedCompetition, packageJson, payloadHash))
 
         database.dao().deleteCompetition(syncedCompetition)
         assertTrue(backend.remote != null)
@@ -153,6 +159,49 @@ class PrivateSyllabusRepositoryTest {
     private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
         .digest(value.toByteArray())
         .joinToString("") { "%02x".format(it) }
+
+    private fun assertRemoteTreeEquals(expected: PrivateSyllabus, actual: PrivateSyllabus) {
+        assertEquals(expected.remoteSyllabusId, actual.remoteSyllabusId)
+        assertEquals(expected.title, actual.title)
+        assertEquals(expected.position, actual.position)
+        assertEquals(expected.visibility, actual.visibility)
+        assertEquals(expected.source, actual.source)
+        assertEquals(expected.sourceJobId, actual.sourceJobId)
+        assertEquals(expected.sourceHash, actual.sourceHash)
+        assertEquals(expected.schemaVersion, actual.schemaVersion)
+        assertEquals(expected.status, actual.status)
+        assertEquals(expected.metadata, actual.metadata)
+        assertEquals(expected.subjects.size, actual.subjects.size)
+        expected.subjects.forEachIndexed { index, expectedSubject ->
+            val actualSubject = actual.subjects[index]
+            assertEquals(expectedSubject.remoteSubjectId, actualSubject.remoteSubjectId)
+            assertEquals(expectedSubject.externalId, actualSubject.externalId)
+            assertEquals(expectedSubject.name, actualSubject.name)
+            assertEquals(expectedSubject.position, actualSubject.position)
+            assertEquals(expectedSubject.suggestedPriority, actualSubject.suggestedPriority)
+            assertEquals(expectedSubject.packageVersion, actualSubject.packageVersion)
+            assertEquals(expectedSubject.schemaVersion, actualSubject.schemaVersion)
+            assertEquals(expectedSubject.metadata, actualSubject.metadata)
+            assertEquals(expectedSubject.topics.size, actualSubject.topics.size)
+            assertRemoteTopicsEquals(expectedSubject.topics, actualSubject.topics)
+        }
+    }
+
+    private fun assertRemoteTopicsEquals(expected: List<PrivateSyllabusTopic>, actual: List<PrivateSyllabusTopic>) {
+        expected.forEachIndexed { index, expectedTopic ->
+            val actualTopic = actual[index]
+            assertEquals(expectedTopic.remoteTopicId, actualTopic.remoteTopicId)
+            assertEquals(expectedTopic.externalId, actualTopic.externalId)
+            assertEquals(expectedTopic.parentRemoteTopicId, actualTopic.parentRemoteTopicId)
+            assertEquals(expectedTopic.name, actualTopic.name)
+            assertEquals(expectedTopic.position, actualTopic.position)
+            assertEquals(expectedTopic.packageVersion, actualTopic.packageVersion)
+            assertEquals(expectedTopic.schemaVersion, actualTopic.schemaVersion)
+            assertEquals(expectedTopic.metadata, actualTopic.metadata)
+            assertEquals(expectedTopic.children.size, actualTopic.children.size)
+            assertRemoteTopicsEquals(expectedTopic.children, actualTopic.children)
+        }
+    }
 
     private data class TreeSnapshot(val externalId: String?, val subjects: List<SubjectSnapshot>)
     private data class SubjectSnapshot(val externalId: String?, val name: String, val position: Int, val topics: List<TopicSnapshot>)
