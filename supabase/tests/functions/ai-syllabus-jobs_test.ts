@@ -63,8 +63,10 @@ function pageObjectWithoutPageTree(): Uint8Array {
 
 class FakeStorage implements StorageSourceStore {
   readonly objects = new Map<string, StorageObject>();
+  transientError: StorageSourceError | null = null;
 
   async getObject(_userId: string, path: string): Promise<StorageObject | null> {
+    if (this.transientError) throw this.transientError;
     return this.objects.get(path) ?? null;
   }
 }
@@ -287,6 +289,31 @@ Deno.test("returns a safe error and releases quota when an explicitly ready sour
   assert.equal(response.status, 404);
   assert.equal(body.error.code, "SOURCE_NOT_FOUND");
   assert.equal(jobs.releaseCalls.length, 1);
+});
+
+Deno.test("preserves RESERVED and allows an idempotent retry after a transient Storage lookup failure", async () => {
+  const storage = new FakeStorage();
+  const jobs = new FakeJobStore();
+  const source = objectFor(USER_A, "transient-source");
+  storage.objects.set(source.path, source);
+  storage.transientError = new StorageSourceError("SOURCE_LOOKUP_UNAVAILABLE", 503);
+  const handler = createAiSyllabusJobsHandler(dependencies(USER_A, storage, jobs));
+
+  const first = await postCreate(handler, "transient-source", { ready: true });
+  const firstBody = await first.json();
+
+  assert.equal(first.status, 503);
+  assert.equal(firstBody.error.code, "SOURCE_LOOKUP_UNAVAILABLE");
+  assert.equal(jobs.releaseCalls.length, 0);
+  assert.equal(jobs.records.get("job-1")?.status, "RESERVED");
+
+  storage.transientError = null;
+  const retry = await postCreate(handler, "transient-source", { ready: true });
+  const retryBody = await retry.json();
+
+  assert.equal(retry.status, 200);
+  assert.equal(retryBody.jobId, "job-1");
+  assert.equal(retryBody.sourceBound, true);
 });
 
 Deno.test("rejects a foreign or malformed Storage path before source download", async () => {
@@ -554,6 +581,43 @@ Deno.test("does not mislabel an unexpected metadata RPC failure as SOURCE_METADA
   );
 });
 
+Deno.test("maps Storage download 5xx and timeout failures to SOURCE_LOOKUP_UNAVAILABLE", async () => {
+  const path = sourcePathForJob(USER_A, "download-error");
+  const metadataResponse = () => new Response(JSON.stringify([{
+    bucket_id: "ai-syllabus-sources",
+    name: path,
+    owner: USER_A,
+    metadata: { mimetype: "application/pdf" },
+  }]), { status: 200, headers: { "content-type": "application/json" } });
+
+  const serverFailureStore = new SupabaseStorageSourceStore({
+    supabaseUrl: "http://127.0.0.1:54321",
+    publishableKey: "publishable-key",
+    accessToken: "supabase-jwt",
+    fetcher: async (input) => input.toString().includes("get_ai_syllabus_source_metadata")
+      ? metadataResponse()
+      : new Response("storage unavailable", { status: 502 }),
+  }, 50_000);
+  await assert.rejects(
+    serverFailureStore.getObject(USER_A, path),
+    (error: unknown) => error instanceof StorageSourceError && error.code === "SOURCE_LOOKUP_UNAVAILABLE" && error.status === 503,
+  );
+
+  const timeoutStore = new SupabaseStorageSourceStore({
+    supabaseUrl: "http://127.0.0.1:54321",
+    publishableKey: "publishable-key",
+    accessToken: "supabase-jwt",
+    fetcher: async (input) => {
+      if (input.toString().includes("get_ai_syllabus_source_metadata")) return metadataResponse();
+      throw new TypeError("fetch failed");
+    },
+  }, 50_000);
+  await assert.rejects(
+    timeoutStore.getObject(USER_A, path),
+    (error: unknown) => error instanceof StorageSourceError && error.code === "SOURCE_LOOKUP_UNAVAILABLE" && error.status === 503,
+  );
+});
+
 Deno.test("persists source binding through the owner-checked RPC, not a client UPDATE", async () => {
   const requests: Request[] = [];
   const store = new SupabaseAiJobStore({
@@ -601,6 +665,29 @@ Deno.test("persists source binding through the owner-checked RPC, not a client U
   assert.equal(body.p_user_id, USER_A);
   assert.equal(requests[0].headers.get("apikey"), "service-role-key");
   assert.equal(requests[0].headers.get("authorization"), "Bearer service-role-key");
+});
+
+Deno.test("normalizes SOURCE_NOT_FOUND from the real binding RPC path to HTTP 404", async () => {
+  const store = new SupabaseAiJobStore({
+    supabaseUrl: "http://127.0.0.1:54321",
+    publishableKey: "publishable-key",
+    accessToken: "supabase-jwt",
+    serviceRoleKey: "service-role-key",
+    fetcher: async () => new Response(JSON.stringify({ code: "P0001", message: "SOURCE_NOT_FOUND" }), { status: 400 }),
+  });
+
+  await assert.rejects(
+    store.bindSource(USER_A, "00000000-0000-0000-0000-0000000000c1", {
+      path: sourcePathForJob(USER_A, "rpc-missing"),
+      mimeType: "application/pdf",
+      sourceHash: "a".repeat(64),
+      sourceBytes: 123,
+      sourcePages: 2,
+      sourceFileCount: 1,
+      metadata: { bucket: "ai-syllabus-sources" },
+    }),
+    (error: unknown) => error instanceof JobStoreError && error.code === "SOURCE_NOT_FOUND" && error.status === 404,
+  );
 });
 
 Deno.test("requires the syllabus feature and a Supabase JWT", async () => {

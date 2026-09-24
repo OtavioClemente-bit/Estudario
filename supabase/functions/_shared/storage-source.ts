@@ -284,11 +284,16 @@ export class SupabaseStorageSourceStore implements StorageSourceStore {
   async getObject(userId: string, path: string): Promise<StorageObject | null> {
     const fetcher = this.environment.fetcher ?? fetch;
     const baseUrl = this.environment.supabaseUrl.replace(/\/$/, "");
-    const metadataResponse = await fetcher(`${baseUrl}/rest/v1/rpc/get_ai_syllabus_source_metadata`, {
-      method: "POST",
-      headers: { ...this.headers(), "content-type": "application/json" },
-      body: JSON.stringify({ p_path: path }),
-    });
+    let metadataResponse: Response;
+    try {
+      metadataResponse = await fetcher(`${baseUrl}/rest/v1/rpc/get_ai_syllabus_source_metadata`, {
+        method: "POST",
+        headers: { ...this.headers(), "content-type": "application/json" },
+        body: JSON.stringify({ p_path: path }),
+      });
+    } catch {
+      throw new StorageSourceError("SOURCE_LOOKUP_UNAVAILABLE", 503);
+    }
     if (!metadataResponse.ok) throw await storageLookupError(metadataResponse);
     const payload = await metadataResponse.json() as unknown;
     const row = Array.isArray(payload) ? payload[0] as Record<string, unknown> : payload as Record<string, unknown>;
@@ -298,13 +303,24 @@ export class SupabaseStorageSourceStore implements StorageSourceStore {
       : {};
     const owner = typeof row.owner === "string" ? row.owner : null;
     const mimeType = metadataString(metadata, "mimetype", "mimeType", "contentType");
-    const bodyResponse = await fetcher(
-      `${baseUrl}/storage/v1/object/${AI_SYLLABUS_SOURCE_BUCKET}/${path}`,
-      { headers: this.headers() },
-    );
+    let bodyResponse: Response;
+    try {
+      bodyResponse = await fetcher(
+        `${baseUrl}/storage/v1/object/${AI_SYLLABUS_SOURCE_BUCKET}/${path}`,
+        { headers: this.headers() },
+      );
+    } catch {
+      throw new StorageSourceError("SOURCE_LOOKUP_UNAVAILABLE", 503);
+    }
     if (bodyResponse.status === 404) return null;
-    if (!bodyResponse.ok) throw new StorageSourceError("SOURCE_NOT_FOUND", 404);
-    const body = await readBodyWithinLimit(bodyResponse, this.maxBytes);
+    if (!bodyResponse.ok) throw new StorageSourceError("SOURCE_LOOKUP_UNAVAILABLE", 503);
+    let body: Uint8Array;
+    try {
+      body = await readBodyWithinLimit(bodyResponse, this.maxBytes);
+    } catch (error) {
+      if (error instanceof StorageSourceError) throw error;
+      throw new StorageSourceError("SOURCE_LOOKUP_UNAVAILABLE", 503);
+    }
     return {
       bucketId: typeof row.bucket_id === "string" ? row.bucket_id : "",
       path: typeof row.name === "string" ? row.name : "",

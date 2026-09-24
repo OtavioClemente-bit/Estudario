@@ -180,13 +180,17 @@ async function createJob(
       job = await dependencies.jobs.bindSource(user.userId, created.jobId, bound);
     } catch (error) {
       if (error instanceof StorageSourceError) {
-        await releaseQuietly(dependencies, user.userId, created.jobId);
+        if (error.code !== "SOURCE_LOOKUP_UNAVAILABLE") {
+          await releaseQuietly(dependencies, user.userId, created.jobId);
+        }
         return safeError(error.code, error.status);
       }
       if (error instanceof JobStoreError) {
+        if (error.code === "SOURCE_NOT_FOUND") {
+          await releaseQuietly(dependencies, user.userId, created.jobId);
+        }
         return safeError(error.code, error.status);
       }
-      await releaseQuietly(dependencies, user.userId, created.jobId);
       return safeError("SOURCE_BINDING_FAILED", 503);
     }
   }

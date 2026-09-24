@@ -242,7 +242,11 @@ async function storeError(response: Response): Promise<JobStoreError> {
   } catch {
     // Keep the response safe when PostgREST does not return JSON.
   }
-  const status = response.status >= 400 && response.status < 500 ? response.status : 503;
+  const status = code === "SOURCE_NOT_FOUND"
+    ? 404
+    : response.status >= 400 && response.status < 500
+    ? response.status
+    : 503;
   return new JobStoreError(code, status);
 }
 
