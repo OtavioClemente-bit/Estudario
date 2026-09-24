@@ -13,6 +13,12 @@ import br.com.estudario.data.remote.DefaultSupabaseAuthRepository
 import br.com.estudario.data.remote.SupabaseAuthRepository
 import br.com.estudario.data.remote.SupabaseClientConfig
 import br.com.estudario.data.remote.UnavailableSupabaseAuthClient
+import br.com.estudario.data.ai.AiJobRecoveryWorker
+import br.com.estudario.data.ai.DataStoreAiJobRequestStore
+import br.com.estudario.data.ai.DefaultAiSyllabusRepository
+import br.com.estudario.data.ai.HttpAiApiClient
+import br.com.estudario.data.ai.PdfSourceReader
+import br.com.estudario.data.remote.SupabaseAiTokenProvider
 import br.com.estudario.data.transfer.IncomingFileCoordinator
 import br.com.estudario.data.transfer.planner.StudyPlanTransferService
 import br.com.estudario.domain.planner.StudyPlannerEngine
@@ -44,6 +50,19 @@ class EstudarioApplication : Application() {
             sessionStore = DataStoreSupabaseSessionStore(this, applicationScope),
         )
     }
+    val aiSyllabusRepository: DefaultAiSyllabusRepository by lazy {
+        val config = SupabaseClientConfig.fromBuildConfig()
+        DefaultAiSyllabusRepository(
+            api = HttpAiApiClient(
+                baseUrl = config.projectUrl,
+                publishableKey = config.publishableKey,
+                accessTokenProvider = SupabaseAiTokenProvider(supabaseAuthRepository),
+            ),
+            sourceReader = PdfSourceReader.fromContentResolver(contentResolver),
+            requestStore = DataStoreAiJobRequestStore(this),
+            accessTokenProvider = SupabaseAiTokenProvider(supabaseAuthRepository),
+        )
+    }
     lateinit var planTransferService: StudyPlanTransferService
         private set
     val incomingFiles = IncomingFileCoordinator()
@@ -59,6 +78,8 @@ class EstudarioApplication : Application() {
         planService = StudyPlanApplicationService(database, StudyPlannerEngine(), calendarSyncService)
         executionService = StudyExecutionService(database, planService)
         planTransferService = StudyPlanTransferService(database)
+        aiSyllabusRepository
+        AiJobRecoveryWorker.enqueue(this)
         StudyNotificationCoordinator.createChannels(this)
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             StudyNotificationCoordinator.refresh(this@EstudarioApplication, preferences)

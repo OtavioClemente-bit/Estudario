@@ -1,0 +1,81 @@
+package br.com.estudario.data.ai
+
+import br.com.estudario.data.remote.AiAccessTokenProvider
+import java.time.Instant
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class AiApiClientTest {
+    @Test
+    fun processAccepts202AndSendsSupabaseJwtAndIdempotencyKey() = runTest {
+        val transport = FakeAiHttpTransport(
+            AiHttpResponse(202, "{\"jobId\":\"job-1\",\"status\":\"PROCESSING\"}"),
+        )
+        val client = HttpAiApiClient(
+            baseUrl = "",
+            publishableKey = "",
+            accessTokenProvider = AiAccessTokenProvider { "supabase-jwt" },
+            transport = transport,
+        )
+
+        val result = client.processJob("job-1")
+
+        assertEquals(AiJobStatus.PROCESSING, result)
+        assertEquals("Bearer supabase-jwt", transport.requests.single().headers["Authorization"])
+        assertTrue(transport.requests.single().path.endsWith("/job-1/process"))
+        assertFalse(transport.requests.single().path.contains("openai", ignoreCase = true))
+        assertFalse(transport.requests.single().headers.values.any { it.contains("sk-") })
+    }
+
+    @Test
+    fun pollsJobWithExponentialBackoffUntilSucceeded() = runTest {
+        val transport = FakeAiHttpTransport(
+            AiHttpResponse(200, jobJson("PROCESSING")),
+            AiHttpResponse(200, jobJson("PROCESSING")),
+            AiHttpResponse(200, jobJson("SUCCEEDED")),
+        )
+        val delays = mutableListOf<Long>()
+        val client = HttpAiApiClient(
+            baseUrl = "",
+            publishableKey = "",
+            accessTokenProvider = AiAccessTokenProvider { "supabase-jwt" },
+            transport = transport,
+        )
+
+        val result = client.awaitJob(
+            "job-1",
+            policy = AiPollingPolicy(timeoutMillis = 30_000, initialDelayMillis = 1000, maxDelayMillis = 4000),
+            sleeper = { delays += it },
+        )
+
+        assertEquals(AiJobStatus.SUCCEEDED, result.status)
+        assertEquals(listOf(1000L, 2000L), delays)
+        assertTrue(transport.requests.all { it.path == "/functions/v1/ai-syllabus/jobs/job-1" })
+    }
+
+    private fun jobJson(status: String): String = """
+        {
+          "jobId":"job-1","feature":"SYLLABUS_GENERATION","status":"$status",
+          "schemaVersion":null,"promptVersion":null,"modelVersion":null,"proposal":null,
+          "warnings":[],"errorCode":null,"errorMessage":null,
+          "createdAt":"${Instant.parse("2026-09-24T10:00:00Z")}",
+          "updatedAt":"2026-09-24T10:00:01Z","finishedAt":null,"providerExecutionStartedAt":null
+        }
+    """.trimIndent()
+}
+
+private data class FakeAiHttpTransport(
+    private val responses: MutableList<AiHttpResponse>,
+) : AiHttpTransport {
+    val requests = mutableListOf<AiHttpRequest>()
+
+    constructor(vararg responses: AiHttpResponse) : this(responses.toMutableList())
+
+    override suspend fun execute(request: AiHttpRequest): AiHttpResponse {
+        requests += request
+        return responses.removeAt(0)
+    }
+}
