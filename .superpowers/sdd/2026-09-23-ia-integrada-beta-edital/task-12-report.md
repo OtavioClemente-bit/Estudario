@@ -66,3 +66,21 @@ Implementada no worktree `C:\Users\otavi\.codex\worktrees\ia-api\vc-x20`. A conf
 - `git diff --check` — PASS.
 
 Configuração remota permanece fechada: sem deploy, URL/key, OAuth/OTP, credenciais reais, Google Drive ou OpenAI. Nenhuma alteração foi feita fora da Task 12 e a Task 13 não foi iniciada.
+
+## Correção final da revisão de fc3436d
+
+- `202609240012_private_syllabus_atomic_rpc.sql` voltou a ser histórico imutável. A migration incremental `202609240013_private_syllabus_atomic_rpc_depth_guard.sql` renomeia a implementação 012 para delegate privado e instala o novo `CREATE OR REPLACE FUNCTION` público com rejeição prévia de profundidade `>64`. O teste DB verifica o delegate legado, o guard e o rollback sem root parcial, cobrindo o upgrade incremental sem deploy/credenciais.
+- O round-trip deixou de derivar o esperado do `RemoteSyllabusMapper`: o teste lê diretamente o pacote JSON oficial, calcula a identidade/IDs determinísticos no próprio oracle e compara fetched root, matérias e árvore completa. A prioridade de cada tópico/subtópico é preservada em `metadata.officialPriority`, restaurada pelo mapper e comparada junto com IDs remotos, external IDs, parents, nomes, ordem, metadata, prioridades de matéria, package/schema versions e hash; `canonicalPayload` é removido apenas da comparação de metadata.
+
+## Verificação desta correção
+
+- `npx --yes supabase db reset --workdir .` — PASS; aplicou 012 histórico e 013 incremental.
+- `npx --yes supabase test db` — PASS; 5 arquivos, 193 testes.
+- `npx --yes deno test --no-config supabase/functions/user-syllabi/index_test.ts supabase/functions/user-syllabi/atomic_store_test.ts` — PASS; 4/4.
+- `npx --yes deno check --no-config supabase/functions/user-syllabi/index.ts supabase/functions/user-syllabi/index_test.ts supabase/functions/user-syllabi/atomic_store_test.ts` — PASS.
+- `:app:testDebugUnitTest --tests br.com.estudario.data.remote.RemoteSyllabusMapperTest --tests br.com.estudario.data.remote.RemoteSyllabusSyncWorkerTest --no-daemon` — PASS.
+- `:app:compileDebugKotlin :app:compileDebugAndroidTestKotlin --no-daemon` — PASS.
+- `:app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.remote.PrivateSyllabusRepositoryTest" --no-daemon` — PASS; 2/2 instrumentados.
+- `git diff --check` — PASS antes do commit.
+
+Risco residual: o check Deno global e a suíte unitária global continuam com os dois bloqueios baseline documentados anteriormente, fora da Task 12; os checks direcionados desta correção estão verdes.

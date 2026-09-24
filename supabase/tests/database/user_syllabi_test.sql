@@ -29,10 +29,27 @@ select ok(
     from pg_proc
     where oid = 'public.upsert_private_syllabus_atomic(uuid, text, text, jsonb)'::regprocedure
       and prosecdef
+      and prosrc like '%depth < 65%'
+      and prosrc like '%depth > 64%'
+  ),
+  'the incremental post-012 RPC wrapper rejects depth beyond 64'
+);
+
+select ok(
+  to_regprocedure('public.upsert_private_syllabus_atomic_v012_legacy(uuid, text, text, jsonb)') is not null,
+  'the 012 implementation remains available as the incremental migration delegate'
+);
+
+select ok(
+  exists (
+    select 1
+    from pg_proc
+    where oid = 'public.upsert_private_syllabus_atomic_v012_legacy(uuid, text, text, jsonb)'::regprocedure
+      and prosecdef
       and prosrc like '%pg_advisory_xact_lock%'
       and prosrc like '%user_syllabus_mutations%'
   ),
-  'the upsert RPC is SECURITY DEFINER and locks the mutation ledger/root transactionally'
+  'the 012 implementation remains SECURITY DEFINER and locks the mutation ledger/root transactionally'
 );
 
 select ok(

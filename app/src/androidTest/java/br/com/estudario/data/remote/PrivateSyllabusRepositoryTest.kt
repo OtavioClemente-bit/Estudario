@@ -3,6 +3,7 @@ package br.com.estudario.data.remote
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import br.com.estudario.data.ai.AiPriority
 import br.com.estudario.data.local.AppDatabase
 import br.com.estudario.data.local.CompetitionEntity
 import br.com.estudario.data.local.RemoteSyllabusSyncEntity
@@ -15,12 +16,19 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.security.MessageDigest
+import java.nio.charset.StandardCharsets
+import java.util.UUID
 
 @RunWith(AndroidJUnit4::class)
 class PrivateSyllabusRepositoryTest {
@@ -35,11 +43,7 @@ class PrivateSyllabusRepositoryTest {
         val importResult = EstudoPackageService(database).import(packageJson, ImportMode.SKIP, targetCompetitionId = 41L)
         assertEquals(41L, importResult.competitionId)
         val originalTree = tree(database, 41L)
-        val expectedRemote = RemoteSyllabusMapper.fromLocal(
-            database.dao().competitionById(41L)!!,
-            packageJson,
-            payloadHash,
-        )
+        val expectedRemote = expectedRemoteFromPackage(packageJson, 41L, payloadHash)
         val outboxId = database.dao().enqueueRemoteSyllabusSync(
             RemoteSyllabusSyncEntity(
                 operation = RemoteSyllabusSyncOperation.UPSERT,
@@ -160,6 +164,95 @@ class PrivateSyllabusRepositoryTest {
         .digest(value.toByteArray())
         .joinToString("") { "%02x".format(it) }
 
+    /** Independent oracle: this reads the official package instead of invoking RemoteSyllabusMapper. */
+    private fun expectedRemoteFromPackage(packageJson: String, localSyllabusId: Long, payloadHash: String): PrivateSyllabus {
+        val root = JSONObject(packageJson)
+        val competition = root.getJSONObject("concurso")
+        val rootInputMetadata = root.optJSONObject("metadata") ?: JSONObject()
+        val stableIdentity = rootInputMetadata.optString("stableIdentity", competition.getString("id"))
+        val remoteSyllabusId = stableId("syllabus", stableIdentity)
+        val rootMetadata = JSONObject(rootInputMetadata.toString())
+            .put("stableIdentity", stableIdentity)
+            .put("payloadHash", payloadHash)
+            .put("remoteSyllabusId", remoteSyllabusId)
+            .put("localSyllabusId", localSyllabusId)
+            .put("localSyllabusExternalId", competition.getString("id"))
+            .put("packageId", root.getString("packageId"))
+        val packageVersion = root.optString("packageVersion", "estudo-v${root.optInt("version", 2)}")
+        val schemaVersion = root.optInt("schemaVersion", 1)
+        val subjects = jsonObjects(root.getJSONArray("materias")).map { subject ->
+            val remoteSubjectId = stableId("subject:$remoteSyllabusId", subject.optString("externalId", subject.getString("id")))
+            PrivateSyllabusSubject(
+                remoteSubjectId = remoteSubjectId,
+                externalId = subject.optString("externalId", subject.getString("id")),
+                name = subject.getString("nome"),
+                position = subject.optInt("ordem", 0),
+                suggestedPriority = aiPriority(subject.optString("prioridade", "NORMAL")),
+                packageVersion = packageVersion,
+                schemaVersion = schemaVersion,
+                metadata = jsonObject(subject.optJSONObject("metadata") ?: JSONObject()),
+                topics = expectedTopics(subject.getJSONArray("topicos"), remoteSubjectId, packageVersion, schemaVersion),
+            )
+        }
+        return PrivateSyllabus(
+            remoteSyllabusId = remoteSyllabusId,
+            title = competition.getString("nome"),
+            position = 0,
+            visibility = PrivateSyllabusVisibility.PRIVATE,
+            source = PrivateSyllabusSource.AI_GENERATED,
+            sourceJobId = null,
+            sourceHash = null,
+            schemaVersion = schemaVersion,
+            status = PrivateSyllabusStatus.ACTIVE,
+            metadata = jsonObject(rootMetadata),
+            subjects = subjects,
+        )
+    }
+
+    private fun expectedTopics(array: JSONArray, subjectId: String, packageVersion: String, schemaVersion: Int): List<PrivateSyllabusTopic> =
+        jsonObjects(array).map { topic -> expectedTopic(topic, subjectId, null, packageVersion, schemaVersion) }
+
+    private fun expectedTopic(
+        topic: JSONObject,
+        subjectId: String,
+        parentRemoteTopicId: String?,
+        packageVersion: String,
+        schemaVersion: Int,
+    ): PrivateSyllabusTopic {
+        val externalId = topic.optString("externalId", topic.getString("id"))
+        val remoteTopicId = stableId("topic:$subjectId", externalId)
+        val metadata = JSONObject(topic.optJSONObject("metadata")?.toString() ?: "{}")
+            .put("officialPriority", topic.optString("prioridade", "NORMAL").uppercase())
+        return PrivateSyllabusTopic(
+            remoteTopicId = remoteTopicId,
+            externalId = externalId,
+            parentRemoteTopicId = parentRemoteTopicId,
+            name = topic.getString("titulo"),
+            position = topic.optInt("ordem", 0),
+            packageVersion = packageVersion,
+            schemaVersion = schemaVersion,
+            metadata = jsonObject(metadata),
+            children = jsonObjects(topic.optJSONArray("subtopicos") ?: JSONArray()).map {
+                expectedTopic(it, subjectId, remoteTopicId, packageVersion, schemaVersion)
+            },
+        )
+    }
+
+    private fun jsonObjects(array: JSONArray): List<JSONObject> =
+        (0 until array.length()).map { array.getJSONObject(it) }.sortedBy { it.optInt("ordem", 0) }
+
+    private fun aiPriority(value: String): AiPriority = when (value.uppercase()) {
+        "BAIXA", "LOW" -> AiPriority.LOW
+        "ALTA", "HIGH" -> AiPriority.HIGH
+        else -> AiPriority.NORMAL
+    }
+
+    private fun stableId(namespace: String, value: String): String = UUID.nameUUIDFromBytes(
+        "$namespace:$value".toByteArray(StandardCharsets.UTF_8),
+    ).toString()
+
+    private fun jsonObject(value: JSONObject): JsonObject = Json.parseToJsonElement(value.toString()).jsonObject
+
     private fun assertRemoteTreeEquals(expected: PrivateSyllabus, actual: PrivateSyllabus) {
         assertEquals(expected.remoteSyllabusId, actual.remoteSyllabusId)
         assertEquals(expected.title, actual.title)
@@ -170,7 +263,7 @@ class PrivateSyllabusRepositoryTest {
         assertEquals(expected.sourceHash, actual.sourceHash)
         assertEquals(expected.schemaVersion, actual.schemaVersion)
         assertEquals(expected.status, actual.status)
-        assertEquals(expected.metadata, actual.metadata)
+        assertEquals(expected.metadata, JsonObject(actual.metadata.filterKeys { it != "canonicalPayload" }))
         assertEquals(expected.subjects.size, actual.subjects.size)
         expected.subjects.forEachIndexed { index, expectedSubject ->
             val actualSubject = actual.subjects[index]

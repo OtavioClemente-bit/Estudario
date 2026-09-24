@@ -109,7 +109,7 @@ object RemoteSyllabusMapper {
             position = topic.position,
             packageVersion = plan.packageVersion,
             schemaVersion = plan.schemaVersion,
-            metadata = jsonMetadata(topic.metadata),
+            metadata = topicMetadata(topic),
             children = topic.children.sortedBy { it.position }.map { child -> topicFromPlan(child, subjectId, remoteTopicId, plan) },
         )
     }
@@ -120,7 +120,9 @@ object RemoteSyllabusMapper {
         description = "",
         notes = "",
         position = topic.position,
-        priority = Priority.NORMAL,
+        priority = topic.metadata["officialPriority"]?.toString()?.trim('"')?.let { value ->
+            runCatching { Priority.valueOf(value) }.getOrNull()
+        } ?: Priority.NORMAL,
         originType = ContentOriginType.EDITAL,
         theories = emptyList(),
         summaries = emptyList(),
@@ -141,7 +143,14 @@ object RemoteSyllabusMapper {
 
     private fun jsonMetadata(value: JSONObject?): JsonObject = value?.let(::jsonObject) ?: buildJsonObject { }
 
-    private fun metadataOrNull(value: JsonObject): JSONObject? = value.takeIf { it.isNotEmpty() }?.let { JSONObject(it.toString()) }
+    private fun topicMetadata(topic: TopicPlan): JsonObject = JSONObject(topic.metadata?.toString() ?: "{}").apply {
+        put("officialPriority", topic.priority.name)
+    }.let(::jsonObject)
+
+    private fun metadataOrNull(value: JsonObject): JSONObject? = value
+        .filterKeys { it != "officialPriority" }
+        .takeIf { it.isNotEmpty() }
+        ?.let { JSONObject(JsonObject(it).toString()) }
 
     private fun sourceFromMetadata(metadata: JSONObject): PrivateSyllabusSource = when (metadata.optString("source").uppercase()) {
         "IMPORTED" -> PrivateSyllabusSource.IMPORTED
