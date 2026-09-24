@@ -31,6 +31,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -98,7 +99,9 @@ fun AiReviewScreen(
                 is AiReviewContent.Failure -> item { AiFailure(content, onRetry, onFallback) }
                 is AiReviewContent.Applied -> item {
                     AiApplied(content.syncState)
-                    if (content.syncState == RemoteSyllabusSyncState.SYNCED) onApplied()
+                    LaunchedEffect(content.syncState) {
+                        if (content.syncState == RemoteSyllabusSyncState.SYNCED) onApplied()
+                    }
                 }
             }
         }

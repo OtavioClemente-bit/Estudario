@@ -122,6 +122,17 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
 
     fun selectedAiTarget(): AiReviewTarget? = state.value.competition?.let { AiReviewTarget(it.id, it.name) }
 
+    /** Called only after the AI proposal was applied locally and its outbox row was created. */
+    fun onAiSyllabusApplied() = viewModelScope.launch {
+        app.preferences.updateInitialSetup {
+            it.copy(
+                status = InitialSetupStatus.IN_PROGRESS,
+                step = InitialSetupStep.SYLLABUS_REVIEW,
+                syllabusMethod = SyllabusMethod.DIRECT_AI,
+            )
+        }
+    }
+
     fun begin(reopen: Boolean = false) = viewModelScope.launch {
         app.preferences.updateInitialSetup { current ->
             val step = when {

@@ -40,6 +40,14 @@ data class AiReviewRequestIdentity(
     val idempotencyKey: String,
 )
 
+data class AiReviewPendingRequestIdentity(
+    val requestId: String,
+    val idempotencyKey: String,
+    val jobId: String? = null,
+) {
+    fun asStartedIdentity(): AiReviewRequestIdentity? = jobId?.let { AiReviewRequestIdentity(requestId, it, idempotencyKey) }
+}
+
 object AiReviewRecovery {
     fun afterTimeout(identity: AiReviewRequestIdentity): AiReviewRequestIdentity = identity
 }

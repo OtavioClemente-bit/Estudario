@@ -1,44 +1,96 @@
 # Task 13 — AI syllabus review flow
 
-## Escopo implementado
+## Escopo desta revisão
 
-- Gate Android fail-closed com estados loading, não autenticado, beta/feature/cota negados e pronto, mantendo o edital-alvo visível.
-- Borda Android read-only de `GET /functions/v1/ai-access`, usando somente JWT da sessão Supabase, sem token Google Drive, mutação de cota ou política beta duplicada.
-- Picker de PDF ligado ao start; target e origem persistidos antes do start; single-flight com `Mutex`; retomada por request/job/idempotency sem novo job em timeout/restart.
-- Editor estruturado recursivo para matérias, tópicos e subtópicos, com contagens, edição, adição, remoção, warnings/páginas e confirmação explícita de substituição.
-- Aplicação delegada ao `SyllabusApplicationService`, exibindo `PENDING` até ACK observado na outbox.
-- Instância singleton de `AiAccessRepository` no `EstudarioApplication`, pronta para reutilização futura.
+- Falhas não terminais após a criação do request agora preservam `requestId`, `idempotencyKey` e, quando já disponível, `jobId`; retry/restart chama `recover` da mesma identidade. Há cobertura também para o caso em que o request foi persistido antes do `jobId`.
+- A aplicação local encaminha o callback de ACK da revisão para a configuração inicial; a transição persistida é `SYLLABUS_REVIEW`/`DIRECT_AI` e o overlay fecha somente pelo callback integrado.
+- Recovery instrumentado usa `DataStoreAiJobRequestStore` e `DataStoreAiReviewSessionStore` reais, `HttpAiApiClient` com transporte fake, recriação do ViewModel, falha genérica pós-upload, polling e uma única chave/job.
+- O picker integrado do Initial Setup aceita somente `application/pdf` e chama `takePersistableUriPermission` antes de guardar a origem.
+- O seam anti-Drive injeta um fake que falha se lido; os testes capturam os headers de produção e verificam somente `Bearer <JWT Supabase>`, `apikey` e `Accept`.
+- Nenhum backend, migration, endpoint, política server-side, URL/key real, OAuth/OTP real ou segredo foi adicionado.
 
-## Arquivos alterados
+## Arquivos alterados nesta revisão
 
 - `app/src/main/java/br/com/estudario/ui/ai/AiReviewAccess.kt`
 - `app/src/main/java/br/com/estudario/ui/ai/AiReviewEntryPoint.kt`
 - `app/src/main/java/br/com/estudario/ui/ai/AiReviewModels.kt`
 - `app/src/main/java/br/com/estudario/ui/ai/AiReviewScreen.kt`
 - `app/src/main/java/br/com/estudario/ui/ai/AiReviewViewModel.kt`
-- `app/src/main/java/br/com/estudario/EstudarioApplication.kt`
-- `app/src/main/java/br/com/estudario/ui/AppViewModel.kt`
+- `app/src/main/java/br/com/estudario/ui/EstudarioApp.kt`
 - `app/src/main/java/br/com/estudario/ui/setup/InitialSetupScreen.kt`
+- `app/src/main/java/br/com/estudario/ui/setup/InitialSetupViewModel.kt`
 - `app/src/test/java/br/com/estudario/ui/ai/AiReviewAccessTest.kt`
-- `app/src/test/java/br/com/estudario/ui/ai/AiReviewRecoveryTest.kt`
+- `app/src/androidTest/java/br/com/estudario/ui/ai/AiReviewDurableRecoveryTest.kt`
 - `app/src/androidTest/java/br/com/estudario/ui/ai/AiReviewScreenTest.kt`
 - `app/src/androidTest/java/br/com/estudario/ui/ai/AiReviewViewModelTest.kt`
+- `app/src/androidTest/java/br/com/estudario/ui/setup/SetupSyllabusPersistenceTest.kt`
+- `app/src/androidTest/java/br/com/estudario/ui/setup/SetupSyllabusStepsTest.kt`
 
 ## Verificação
 
-- `:app:testDebugUnitTest` direcionado para ai-access, recovery, jobs/API, repositório, mapper/validator e sync Tasks 9–12 — PASS.
-- `:app:connectedDebugAndroidTest` para `AiReviewScreenTest` — PASS, 6/6.
-- `:app:connectedDebugAndroidTest` para `AiReviewViewModelTest` — PASS, 5/5.
-- `:app:testDebugUnitTest --tests br.com.estudario.ui.ai.AiReviewRecoveryTest :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin --no-daemon` — PASS.
-- `:app:assembleDebug --no-daemon` — PASS.
-- `git diff --check` — PASS.
+Passaram:
 
-Os testes de ai-access cobrem acesso autenticado/liberado, beta negado, feature desabilitada, cota disponível/esgotada, configuração fechada, JWT ausente/expirado, HTTP inválido, resposta inválida, timeout/offline e ausência de uso de token Google Drive. Fixtures usam apenas valores sintéticos.
+- `:app:testDebugUnitTest` direcionado para AiAccess, recovery, jobs/API, repositório, PDF, proposal/mapper e sync — 30 testes.
+- `:app:connectedDebugAndroidTest` para `AiReviewViewModelTest` — 7/7.
+- `:app:connectedDebugAndroidTest` para `AiReviewDurableRecoveryTest` — 1/1.
+- `:app:connectedDebugAndroidTest` para `AiReviewScreenTest` — 7/7.
+- `:app:connectedDebugAndroidTest` para o novo picker integrado — 1/1.
+- `:app:connectedDebugAndroidTest` para `SetupSyllabusPersistenceTest#appliedAiSyllabusMovesSetupToReviewStepForTheSameCompetition` — passou.
+- `:app:testDebugUnitTest --tests br.com.estudario.ui.ai.AiReviewRecoveryTest :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin --no-daemon` — passou.
+- `:app:assembleDebug --no-daemon` — passou.
+- `git diff --check` — passou.
 
-## Pendências e riscos
+### Fase 1: investigação dos três failures baseline
 
-- O transporte Supabase/Auth concreto permanece fechado pela configuração existente; os testes usam fakes e não adicionam URL, chave, OAuth/OTP, conta beta ou segredo.
-- O contrato existente de `DefaultAiSyllabusRepository` recebe a origem, enquanto o boundary Android passa o `targetId` e persiste o target para aplicação/recovery; nenhum backend/Task 9–12 foi alterado.
-- O ACK remoto depende do worker/outbox existente; a UI fica em `PENDING` até observar estado não pendente.
+Os três failures foram reproduzidos isoladamente e nas suítes atuais com:
 
-Commit: separate commit `feat: add AI syllabus review flow`
+```powershell
+.\gradlew.bat :app:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.ui.setup.SetupSyllabusStepsTest#subjectProfileCanContinueWithNeutralDefaultsAndScrollsToEverySubject' --no-daemon
+.\gradlew.bat :app:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.ui.setup.SetupSyllabusStepsTest#addingAnotherSubjectKeepsPreviousChoicesAndUsesNeutralDefaults' --no-daemon
+.\gradlew.bat :app:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.ui.setup.SetupSyllabusPersistenceTest#reviewEditsPersistAndAdvancementRequiresAllCurrentSubjects' --no-daemon
+.\gradlew.bat :app:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.ui.setup.SetupSyllabusStepsTest' --no-daemon
+.\gradlew.bat :app:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.ui.setup.SetupSyllabusPersistenceTest' --no-daemon
+```
+
+Resultados atuais: `SetupSyllabusStepsTest` teve 6 testes/2 failures e `SetupSyllabusPersistenceTest` teve 3 testes/1 failure. Os testes adicionais da Task 13 nas mesmas classes passaram.
+
+Os mesmos comandos foram executados em um checkout temporário limpo de `febf2ef`, sem alterar este worktree. O baseline reproduziu os mesmos resultados: 2 failures em 5 testes de `SetupSyllabusStepsTest` e 1 failure em 2 testes de `SetupSyllabusPersistenceTest`.
+
+Classificação e origem dos estados:
+
+- `SetupSyllabusStepsTest.kt:144`: `difficulty_3_HARD` termina com `Selected = false`. `SubjectProfileStep` deriva a seleção de `snapshot.subjectDifficulties["3"]`, com `NORMAL` como default; a interação não produz a atualização esperada. O mesmo nó/estado ocorre no checkout limpo (`febf2ef`, linha 141). **Baseline; não é regressão da Task 13.**
+- `SetupSyllabusStepsTest.kt:161`: o fixture já contém `subjectDifficulties["1"] = EASY`; `tunedSubjectCount()` retorna 1 e a UI renderiza `1 matéria(s) com resposta sua.`, não a mensagem neutra. O mesmo ocorre em `febf2ef` (linha 158). **Baseline; não é regressão da Task 13.**
+- `SetupSyllabusPersistenceTest.kt:48`: `InitialSetupViewModel.advance()` só grava transições permitidas; `InitialSetupTransitions` define `SYLLABUS_REVIEW -> SUBJECT_PRIORITY`, então a solicitação direta para `PROFILE` é ignorada e o estado permanece `SYLLABUS_REVIEW`. O mesmo ocorre em `febf2ef`. **Baseline; não é regressão da Task 13.**
+
+O diff `febf2ef..worktree` foi revisado. `SetupPlannerSteps.kt`, `PlannerWizard.kt` e `domain/setup/InitialSetup.kt` não foram alterados; os corpos dos três testes existentes também não foram alterados. A Task 13 não mascara nem corrige esses failures.
+
+### Verificação final da Task 13
+
+Após a atualização deste relatório, foram rerodados:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests br.com.estudario.ui.ai.AiReviewAccessTest --tests br.com.estudario.ui.ai.AiReviewRecoveryTest --tests br.com.estudario.data.ai.AiApiClientTest --tests br.com.estudario.data.ai.AiJobRecoveryWorkerTest --tests br.com.estudario.data.ai.AiModelsSerializationTest --tests br.com.estudario.data.ai.AiSyllabusRepositoryTest --tests br.com.estudario.data.ai.PdfSourceReaderTest --tests br.com.estudario.domain.ai.AiSyllabusProposalValidatorTest --tests br.com.estudario.domain.ai.AiSyllabusToEstudoMapperTest --tests br.com.estudario.data.remote.RemoteSyllabusModelsSerializationTest --tests br.com.estudario.data.remote.RemoteSyllabusMapperTest --tests br.com.estudario.data.remote.RemoteSyllabusSyncWorkerTest --no-daemon
+.\gradlew.bat :app:testDebugUnitTest --tests br.com.estudario.ui.ai.AiReviewRecoveryTest :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin --no-daemon
+.\gradlew.bat :app:assembleDebug --no-daemon
+git diff --check
+```
+
+Todos passaram; os unitários direcionados reportaram 30 testes. Os testes instrumentados próprios da Task 13 também passaram no `Pixel_7` (`ANDROID_SERIAL=emulator-5554`): `AiReviewViewModelTest`, `AiReviewDurableRecoveryTest`, `AiReviewScreenTest`, `SetupSyllabusStepsTest#integratedAiAttachmentPickerRequestsOnlyPdf` e `SetupSyllabusPersistenceTest#appliedAiSyllabusMovesSetupToReviewStepForTheSameCompetition`. O segundo dispositivo conectado foi excluído da execução porque a instalação foi recusada pelo sistema (`INSTALL_FAILED_USER_RESTRICTED`); nenhum código ou expectativa foi alterado para contornar isso.
+
+Bloqueios baseline reproduzidos, portanto não há alegação de suíte completa totalmente verde:
+
+- `SetupSyllabusStepsTest#subjectProfileCanContinueWithNeutralDefaultsAndScrollsToEverySubject`: falha em `SetupSyllabusStepsTest.kt:144`, `difficulty_3_HARD` permanece `Selected = false` após o clique.
+- `SetupSyllabusStepsTest#addingAnotherSubjectKeepsPreviousChoicesAndUsesNeutralDefaults`: falha em `SetupSyllabusStepsTest.kt:161`, o fixture contém `subjectDifficulties["1"] = EASY`, então a UI mostra `1 matéria(s) com resposta sua.` em vez de `Você pode seguir sem mexer em nada.`
+- `SetupSyllabusPersistenceTest#reviewEditsPersistAndAdvancementRequiresAllCurrentSubjects`: falha em `SetupSyllabusPersistenceTest.kt:48`, espera `PROFILE`, mas o contrato atual da máquina de estados é `SYLLABUS_REVIEW -> SUBJECT_PRIORITY`.
+
+Também houve uma tentativa inicial de instrumentação com `DeviceException: No connected devices!`; o AVD `Pixel_7` foi reiniciado localmente e os testes instrumentados acima foram executados depois disso.
+
+## Estado do commit
+
+O commit separado desta entrega foi criado após a verificação final da suíte específica da Task 13. Os três failures baseline acima permanecem sem alteração. Os artefatos não relacionados já não rastreados (`node_modules/`, `package-lock.json`, `package.json`, `supabase/.branches/`, `supabase/.temp/`) foram preservados.
+
+## Riscos e pendências
+
+- Os três bloqueios acima são testes de setup existentes fora do fluxo IA alterado; corrigi exclusivamente os seis findings da Task 13 e não alterei a máquina de estados nem a implementação do planner para mascará-los.
+- A configuração Supabase/Auth continua fechada; todos os testes usam fakes/fixtures sintéticos.
+- Não avancei para Task 14.

@@ -93,6 +93,46 @@ class AiReviewViewModelTest {
     }
 
     @Test
+    fun genericFailureAfterCreatedRequestKeepsIdentityForRetry() {
+        val identity = AiReviewRequestIdentity("request-after-upload", "job-after-upload", "idem-after-upload")
+        val jobs = FailOnceAfterCreatedRequestJobs(identity)
+        val sessions = FakeSessionStore()
+        val viewModel = createViewModel(jobs = jobs, sessions = sessions)
+        await { viewModel.state.value.access.kind == AiReviewAccessKind.READY }
+
+        viewModel.start("content://edital", "edital.pdf")
+        await { viewModel.state.value.content is AiReviewContent.Processing }
+        assertEquals(identity.jobId, (viewModel.state.value.content as AiReviewContent.Processing).jobId)
+        assertEquals(identity.idempotencyKey, sessions.saved.last().idempotencyKey)
+
+        viewModel.retry()
+        await { viewModel.state.value.content is AiReviewContent.Review }
+        assertEquals(1, jobs.startCalls)
+        assertEquals(listOf(identity.requestId), jobs.recoveredRequests)
+        assertEquals(identity, jobs.recoveredIdentity)
+    }
+
+    @Test
+    fun genericFailureBeforeJobIdStillPersistsRequestIdentityAcrossRestart() {
+        val pending = AiReviewPendingRequestIdentity("request-before-job", "idem-before-job")
+        val sessions = FakeSessionStore()
+        val firstJobs = PendingIdentityFailureJobs(pending)
+        val firstViewModel = createViewModel(jobs = firstJobs, sessions = sessions)
+        await { firstViewModel.state.value.access.kind == AiReviewAccessKind.READY }
+
+        firstViewModel.start("content://edital", "edital.pdf")
+        await { sessions.saved.any { it.requestId == pending.requestId } }
+        assertEquals("", sessions.saved.last().jobId)
+        assertEquals(pending.idempotencyKey, sessions.saved.last().idempotencyKey)
+
+        val restartedJobs = PendingIdentityFailureJobs(pending, failStart = false)
+        val restartedViewModel = createViewModel(jobs = restartedJobs, sessions = sessions)
+        await { restartedViewModel.state.value.content is AiReviewContent.Review }
+        assertEquals(0, restartedJobs.startCalls)
+        assertEquals(listOf(pending.requestId), restartedJobs.recoveredRequests)
+    }
+
+    @Test
     fun applyUsesSyllabusApplicationServiceAndPollsUntilAcknowledged() {
         val context = ApplicationProvider.getApplicationContext<Application>()
         val database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
@@ -123,7 +163,7 @@ class AiReviewViewModelTest {
     }
 
     private fun createViewModel(
-        jobs: FakeJobs,
+        jobs: AiReviewJobs,
         sessions: FakeSessionStore = FakeSessionStore(),
         access: FakeAccessGateway = FakeAccessGateway(AiReviewAccessResult(true, true)),
         applier: AiReviewApplier = AiReviewApplier { _, _, _, _ -> error("unexpected apply") },
@@ -201,6 +241,50 @@ class AiReviewViewModelTest {
 
         override suspend fun recoverPending(): List<AiReviewStarted> = emptyList()
         override suspend fun identityForJob(jobId: String): AiReviewRequestIdentity? = AiReviewRequestIdentity("request-1", jobId, "idem-1")
+    }
+
+    private inner class FailOnceAfterCreatedRequestJobs(
+        private val identity: AiReviewRequestIdentity,
+    ) : AiReviewJobs {
+        var startCalls = 0
+        val recoveredRequests = mutableListOf<String>()
+        var recoveredIdentity: AiReviewRequestIdentity? = null
+
+        override suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted {
+            startCalls += 1
+            throw AiReviewStartException(identity, IllegalStateException("transport failed after upload"))
+        }
+
+        override suspend fun recover(requestId: String): AiReviewStarted {
+            recoveredRequests += requestId
+            recoveredIdentity = identity
+            return AiReviewStarted(job(AiJobStatus.SUCCEEDED), identity)
+        }
+
+        override suspend fun recoverPending(): List<AiReviewStarted> = emptyList()
+        override suspend fun identityForJob(jobId: String): AiReviewRequestIdentity? = identity.takeIf { it.jobId == jobId }
+    }
+
+    private inner class PendingIdentityFailureJobs(
+        private val pending: AiReviewPendingRequestIdentity,
+        private val failStart: Boolean = true,
+    ) : AiReviewJobs {
+        var startCalls = 0
+        val recoveredRequests = mutableListOf<String>()
+
+        override suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted {
+            startCalls += 1
+            if (failStart) throw AiReviewStartException(pending, IllegalStateException("request persisted before transport"))
+            return AiReviewStarted(job(AiJobStatus.SUCCEEDED), pending.asStartedIdentity()!!)
+        }
+
+        override suspend fun recover(requestId: String): AiReviewStarted {
+            recoveredRequests += requestId
+            return AiReviewStarted(job(AiJobStatus.SUCCEEDED), pending.asStartedIdentity() ?: AiReviewRequestIdentity(requestId, "job-recovered", pending.idempotencyKey))
+        }
+
+        override suspend fun recoverPending(): List<AiReviewStarted> = emptyList()
+        override suspend fun identityForJob(jobId: String): AiReviewRequestIdentity? = null
     }
 
     private fun job(status: AiJobStatus): AiJob = AiJob(

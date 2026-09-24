@@ -33,6 +33,7 @@ fun AiReviewEntryPoint(
     target: AiReviewTarget,
     onClose: () -> Unit,
     onLoginRequested: ((onReturned: () -> Unit) -> Unit)? = null,
+    onApplied: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val application = context.applicationContext as EstudarioApplication
@@ -85,6 +86,7 @@ fun AiReviewEntryPoint(
         onRetry = reviewViewModel::retry,
         onFallback = onClose,
         onClose = onClose,
+        onApplied = onApplied,
     )
     if (loginOpen) {
         AlertDialog(

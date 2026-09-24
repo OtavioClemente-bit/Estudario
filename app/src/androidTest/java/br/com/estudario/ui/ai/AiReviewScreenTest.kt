@@ -150,6 +150,21 @@ class AiReviewScreenTest {
         compose.runOnIdle { assertTrue(fallback) }
     }
 
+    @Test
+    fun acknowledgedApplicationCallsIntegratedSetupTransitionCallback() {
+        var applied = false
+        compose.setContent {
+            EstudarioTheme(false) {
+                AiReviewScreen(
+                    state = AiReviewUiState.applied(42L, "TRT-3", RemoteSyllabusSyncState.SYNCED),
+                    onApplied = { applied = true },
+                )
+            }
+        }
+
+        compose.runOnIdle { assertTrue(applied) }
+    }
+
     private fun AiReviewUiState.draft(): AiSyllabusDraft = (content as AiReviewContent.Review).draft
 
     private fun draft(): AiSyllabusDraft {

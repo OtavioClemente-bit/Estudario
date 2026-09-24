@@ -119,4 +119,34 @@ class SetupSyllabusPersistenceTest {
             app.preferences.setInitialSetup(previous)
         }
     }
+
+    @Test
+    fun appliedAiSyllabusMovesSetupToReviewStepForTheSameCompetition() = runBlocking {
+        val app = ApplicationProvider.getApplicationContext<EstudarioApplication>()
+        val previous = app.preferences.initialSetup.first()
+        val competitionId = app.repository.addCompetition("IA aplicada ${System.nanoTime()}")
+        val store = ViewModelStore()
+        val viewModel = withContext(Dispatchers.Main) { InitialSetupViewModel(app).also { store.put("setup", it) } }
+        try {
+            app.preferences.setInitialSetup(
+                InitialSetupSnapshot(
+                    status = br.com.estudario.domain.setup.InitialSetupStatus.IN_PROGRESS,
+                    step = InitialSetupStep.SYLLABUS_METHOD,
+                    competitionId = competitionId,
+                    competitionName = "IA aplicada",
+                    syllabusMethod = SyllabusMethod.DIRECT_AI,
+                ),
+            )
+
+            viewModel.onAiSyllabusApplied().join()
+
+            val snapshot = app.preferences.initialSetup.first()
+            assertEquals(InitialSetupStep.SYLLABUS_REVIEW, snapshot.step)
+            assertEquals(SyllabusMethod.DIRECT_AI, snapshot.syllabusMethod)
+        } finally {
+            withContext(Dispatchers.Main) { store.clear() }
+            app.repository.deleteCompetition(app.database.dao().competitionsOnce().first { it.id == competitionId })
+            app.preferences.setInitialSetup(previous)
+        }
+    }
 }

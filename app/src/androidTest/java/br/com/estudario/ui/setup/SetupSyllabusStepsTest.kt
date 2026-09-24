@@ -25,6 +25,9 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
 import android.content.Context
 import android.graphics.Bitmap
 import java.io.File
@@ -165,5 +168,43 @@ class SetupSyllabusStepsTest {
         compose.setContent { CompactScreen { SyllabusReviewStep(InitialSetupUiState(), {}, {}, { _, _ -> }, {}, {}) } }
         compose.onNodeWithText("Está certo, continuar").assertIsNotEnabled()
         compose.onNodeWithText("Adicionar matéria").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun integratedAiAttachmentPickerRequestsOnlyPdf() {
+        var requestedTypes: Array<String>? = null
+        val launcher = object : ActivityResultLauncher<Array<String>>() {
+            override fun launch(input: Array<String>, options: androidx.core.app.ActivityOptionsCompat?) { requestedTypes = input }
+            override val contract: androidx.activity.result.contract.ActivityResultContract<Array<String>, *> get() =
+                ActivityResultContracts.OpenDocument()
+            override fun unregister() = Unit
+        }
+        val app = ApplicationProvider.getApplicationContext<br.com.estudario.EstudarioApplication>()
+        val viewModel = InitialSetupViewModel(app)
+
+        compose.setContent {
+            CompactScreen {
+                SyllabusMethodStep(
+                    snapshot = InitialSetupSnapshot(syllabusMethod = br.com.estudario.domain.setup.SyllabusMethod.DIRECT_AI),
+                    operation = SetupOperation.Idle,
+                    viewModel = viewModel,
+                    picker = launcher,
+                    editalAttachment = null,
+                    onPickEditalAttachment = { launcher.launch(InitialSetupAiPdfSource.PICKER_MIME_TYPES) },
+                    onClearEditalAttachment = {},
+                    onOpenIntegratedAi = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("Anexar edital (PDF)").performScrollTo().performClick()
+        val uri = Uri.parse("content://fixture/edital.pdf")
+        var persisted: Uri? = null
+        val selected = InitialSetupAiPdfSource.persist(uri, AiPdfUriPermission { persisted = it })
+        compose.runOnIdle {
+            assertEquals(listOf("application/pdf"), requestedTypes?.toList())
+            assertEquals(uri, persisted)
+            assertEquals(uri, selected)
+        }
     }
 }

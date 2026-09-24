@@ -90,6 +90,9 @@ fun EstudarioApp(viewModel: AppViewModel) {
             aiReviewTarget != null -> AiReviewEntryPoint(
                 target = aiReviewTarget!!,
                 onClose = viewModel::closeAiReview,
+                onApplied = {
+                    setupViewModel.onAiSyllabusApplied().invokeOnCompletion { viewModel.closeAiReview() }
+                },
             )
             // null: a splash do sistema ainda cobre a tela enquanto a preferência carrega.
             onboardingConcluido == null || seenTours == null || initialSetup == null || hasExistingWorkspace == null -> Unit

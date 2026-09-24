@@ -47,6 +47,22 @@ import kotlinx.serialization.json.Json
 
 data class AiReviewStarted(val job: AiJob, val identity: AiReviewRequestIdentity)
 
+/**
+ * A non-terminal failure after the durable request was created. The request identity is retained
+ * so retry/restart can continue the same server-side idempotent request instead of creating one.
+ */
+class AiReviewStartException(
+    val pendingIdentity: AiReviewPendingRequestIdentity?,
+    cause: Throwable,
+) : IllegalStateException("AI review start did not complete.", cause) {
+    val identity: AiReviewRequestIdentity? get() = pendingIdentity?.asStartedIdentity()
+
+    constructor(identity: AiReviewRequestIdentity, cause: Throwable) : this(
+        AiReviewPendingRequestIdentity(identity.requestId, identity.idempotencyKey, identity.jobId),
+        cause,
+    )
+}
+
 interface AiReviewJobs {
     suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted
     suspend fun recover(requestId: String): AiReviewStarted
@@ -58,12 +74,22 @@ class DefaultAiReviewJobs(
     private val repository: DefaultAiSyllabusRepository,
     private val requestStore: AiJobRequestStore,
 ) : AiReviewJobs {
-    override suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted = try {
+    override suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted {
         require(targetId > 0L) { "targetId must be positive" }
-        val job = repository.start(uri, fileName)
-        started(job)
-    } catch (timeout: AiProcessTimeoutException) {
-        throw timeout
+        val knownRequestIds = requestStore.list().mapTo(hashSetOf()) { it.requestId }
+        return try {
+            val job = repository.start(uri, fileName)
+            started(job)
+        } catch (timeout: AiProcessTimeoutException) {
+            throw timeout
+        } catch (error: Throwable) {
+            val persisted = requestStore.list()
+                .asSequence()
+                .filterNot { it.requestId in knownRequestIds }
+                .filter { it.sourceUri == uri && (fileName == null || it.fileName == fileName) }
+                .maxByOrNull { it.updatedAtEpochMillis }
+            throw AiReviewStartException(persisted?.toPendingIdentity(), error)
+        }
     }
 
     override suspend fun recover(requestId: String): AiReviewStarted = started(repository.recover(requestId))
@@ -97,7 +123,7 @@ data class AiReviewPersistedSession(
     val targetId: Long,
     val targetTitle: String,
     val requestId: String,
-    val jobId: String,
+    val jobId: String = "",
     val idempotencyKey: String,
     val draftJson: String? = null,
 )
@@ -185,6 +211,7 @@ class AiReviewViewModel(
     private val _state = MutableStateFlow(AiReviewUiState.gate(targetId, targetTitle, AiReviewAccessState.LOADING))
     val state: StateFlow<AiReviewUiState> = _state.asStateFlow()
     private var identity: AiReviewRequestIdentity? = null
+    private var pendingIdentity: AiReviewPendingRequestIdentity? = null
     private var pendingSource: AiReviewSource? = null
     private val startMutex = Mutex()
 
@@ -223,9 +250,9 @@ class AiReviewViewModel(
     }
 
     fun retry() {
-        val current = identity ?: return
+        val requestId = identity?.requestId ?: pendingIdentity?.requestId ?: return
         viewModelScope.launch {
-            runCatching { jobs.recover(current.requestId) }
+            runCatching { jobs.recover(requestId) }
                 .onSuccess { started -> identity = started.identity; render(started.job, started.identity) }
                 .onFailure { fail(safeMessage(it)) }
         }
@@ -235,6 +262,7 @@ class AiReviewViewModel(
         viewModelScope.launch {
             sessions.clear(targetId)
             identity = null
+            pendingIdentity = null
             _state.value = AiReviewUiState.gate(targetId, targetTitle, _state.value.access)
         }
     }
@@ -262,8 +290,11 @@ class AiReviewViewModel(
         if (access.kind != AiReviewAccessKind.READY) return
         val saved = sessions.load(targetId)
         if (saved != null) {
-            identity = AiReviewRequestIdentity(saved.requestId, saved.jobId, saved.idempotencyKey)
-            _state.value = AiReviewUiState.processing(targetId, targetTitle, saved.jobId, saved.idempotencyKey, access)
+            pendingIdentity = AiReviewPendingRequestIdentity(saved.requestId, saved.idempotencyKey, saved.jobId.takeIf { it.isNotBlank() })
+            identity = pendingIdentity?.asStartedIdentity()
+            if (identity != null) {
+                _state.value = AiReviewUiState.processing(targetId, targetTitle, saved.jobId, saved.idempotencyKey, access)
+            }
             runCatching { jobs.recover(saved.requestId) }
                 .onSuccess { started -> identity = started.identity; render(started.job, started.identity, saved.draftJson) }
                 .onFailure { fail(safeMessage(it)) }
@@ -276,11 +307,12 @@ class AiReviewViewModel(
         val source = pendingSource ?: return
         if (_state.value.access.kind != AiReviewAccessKind.READY) return
         startMutex.withLock {
-            if (identity != null || _state.value.content is AiReviewContent.Processing || _state.value.content is AiReviewContent.Review) return
+            if (identity != null || pendingIdentity != null || _state.value.content is AiReviewContent.Processing || _state.value.content is AiReviewContent.Review) return
             try {
                 targetStore?.save(AiReviewTarget(targetId, targetTitle, source.uri, source.fileName))
                 val started = jobs.start(targetId, source.uri, source.fileName)
                 identity = started.identity
+                pendingIdentity = null
                 pendingSource = null
                 save(started.identity, null)
                 render(started.job, started.identity)
@@ -288,11 +320,36 @@ class AiReviewViewModel(
                 val recoveredIdentity = jobs.identityForJob(timeout.jobId)
                 if (recoveredIdentity != null) {
                     identity = recoveredIdentity
+                    pendingIdentity = AiReviewPendingRequestIdentity(recoveredIdentity.requestId, recoveredIdentity.idempotencyKey, recoveredIdentity.jobId)
                     pendingSource = null
                     save(recoveredIdentity, null)
                     _state.value = AiReviewUiState.processing(targetId, targetTitle, recoveredIdentity.jobId, recoveredIdentity.idempotencyKey, _state.value.access)
                 } else {
                     fail("A análise continua no servidor, mas não foi possível recuperar seus dados locais.")
+                }
+            } catch (startFailure: AiReviewStartException) {
+                val recoveredIdentity = startFailure.identity
+                val persistedIdentity = startFailure.pendingIdentity
+                if (persistedIdentity != null) {
+                    pendingIdentity = persistedIdentity
+                }
+                if (recoveredIdentity != null) {
+                    identity = recoveredIdentity
+                    pendingSource = null
+                    save(recoveredIdentity, null)
+                    _state.value = AiReviewUiState.processing(
+                        targetId,
+                        targetTitle,
+                        recoveredIdentity.jobId,
+                        recoveredIdentity.idempotencyKey,
+                        _state.value.access,
+                    )
+                } else if (persistedIdentity != null) {
+                    pendingSource = null
+                    savePending(persistedIdentity)
+                    fail("A análise foi iniciada e será retomada com a mesma solicitação. Tente novamente.")
+                } else {
+                    fail("A análise foi iniciada e será retomada com a mesma solicitação. Tente novamente.")
                 }
             } catch (error: Throwable) {
                 fail(safeMessage(error))
@@ -313,14 +370,22 @@ class AiReviewViewModel(
     }
 
     private suspend fun save(requestIdentity: AiReviewRequestIdentity, draft: AiSyllabusDraft?) {
+        pendingIdentity = AiReviewPendingRequestIdentity(requestIdentity.requestId, requestIdentity.idempotencyKey, requestIdentity.jobId)
+        savePending(
+            AiReviewPendingRequestIdentity(requestIdentity.requestId, requestIdentity.idempotencyKey, requestIdentity.jobId),
+            draft?.let(AiReviewDraftCodec::encode),
+        )
+    }
+
+    private suspend fun savePending(requestIdentity: AiReviewPendingRequestIdentity, draftJson: String? = null) {
         sessions.save(
             AiReviewPersistedSession(
                 targetId = targetId,
                 targetTitle = targetTitle,
                 requestId = requestIdentity.requestId,
-                jobId = requestIdentity.jobId,
+                jobId = requestIdentity.jobId.orEmpty(),
                 idempotencyKey = requestIdentity.idempotencyKey,
-                draftJson = draft?.let(AiReviewDraftCodec::encode),
+                draftJson = draftJson,
             ),
         )
     }
@@ -369,6 +434,7 @@ class AiReviewViewModelFactory(
 }
 
 private fun PersistedAiJobRequest.toIdentity() = AiReviewRequestIdentity(requestId, jobId ?: error("jobId is missing"), idempotencyKey)
+private fun PersistedAiJobRequest.toPendingIdentity() = AiReviewPendingRequestIdentity(requestId, idempotencyKey, jobId)
 
 private object AiReviewDraftCodec {
     @Serializable private data class DraftPayload(val targetId: Long, val targetTitle: String, val titleOverride: String?, val sourceVersion: String, val sourcePromptVersion: String, val sourceModelVersion: String, val sourceSchemaVersion: Int, val sourceHash: String?, val documentTitle: String, val subjects: List<SubjectPayload>, val warnings: List<WarningPayload>, val ambiguities: List<String>)

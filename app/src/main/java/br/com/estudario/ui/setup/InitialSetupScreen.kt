@@ -120,6 +120,27 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+fun interface AiPdfUriPermission {
+    fun persist(uri: Uri)
+}
+
+class ContentResolverAiPdfUriPermission(
+    private val resolver: android.content.ContentResolver,
+) : AiPdfUriPermission {
+    override fun persist(uri: Uri) {
+        resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+}
+
+object InitialSetupAiPdfSource {
+    val PICKER_MIME_TYPES: Array<String> = arrayOf("application/pdf")
+
+    fun persist(uri: Uri, permission: AiPdfUriPermission): Uri {
+        permission.persist(uri)
+        return uri
+    }
+}
+
 /**
  * Os passos visíveis na barra de progresso, na ordem da conversa.
  *
@@ -184,8 +205,16 @@ fun InitialSetupFlow(
     // IAs gratuitas só respondem direito com o PDF em mãos; sem ele, dependem de pesquisar na
     // internet, o que nem sempre funciona nos planos grátis.
     var editalAttachment by remember { mutableStateOf<PromptAttachment?>(null) }
+    val aiPdfPermission = remember(context) { ContentResolverAiPdfUriPermission(context.contentResolver) }
     val editalAttach = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { editalAttachment = context.attachmentFor(it) }
+        uri?.let {
+            runCatching {
+                val persistedUri = InitialSetupAiPdfSource.persist(it, aiPdfPermission)
+                editalAttachment = context.attachmentFor(persistedUri)
+            }.onFailure {
+                viewModel.reportError("Não foi possível manter acesso ao PDF selecionado.")
+            }
+        }
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -246,14 +275,14 @@ fun InitialSetupFlow(
                     InitialSetupStep.COMPETITION -> CompetitionStep(
                         snapshot, uiState.competition, uiState.competitions, viewModel,
                         editalAttachment = editalAttachment,
-                        onPickEditalAttachment = { editalAttach.launch(arrayOf("application/pdf", "image/*", "text/plain")) },
+                        onPickEditalAttachment = { editalAttach.launch(InitialSetupAiPdfSource.PICKER_MIME_TYPES) },
                         onClearEditalAttachment = { editalAttachment = null },
                     )
                     InitialSetupStep.EXAM_DATE -> ExamDateStep(snapshot, viewModel)
                     InitialSetupStep.SYLLABUS_METHOD -> SyllabusMethodStep(
                         snapshot, operation, viewModel, picker,
                         editalAttachment = editalAttachment,
-                        onPickEditalAttachment = { editalAttach.launch(arrayOf("application/pdf", "image/*", "text/plain")) },
+                        onPickEditalAttachment = { editalAttach.launch(InitialSetupAiPdfSource.PICKER_MIME_TYPES) },
                         onClearEditalAttachment = { editalAttachment = null },
                         onOpenIntegratedAi = { attachment ->
                             viewModel.selectedAiTarget()?.let {
@@ -545,7 +574,7 @@ private fun ExamDateStep(snapshot: InitialSetupSnapshot, viewModel: InitialSetup
 }
 
 @Composable
-private fun SyllabusMethodStep(
+internal fun SyllabusMethodStep(
     snapshot: InitialSetupSnapshot,
     operation: SetupOperation,
     viewModel: InitialSetupViewModel,

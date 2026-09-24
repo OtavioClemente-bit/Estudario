@@ -65,18 +65,36 @@ class AiReviewAccessTest {
     fun absentJwtDoesNotMakeARequestAndDoesNotReadDriveToken() = runTest {
         val transport = RecordingTransport(accessJson(beta = true, featureEnabled = true, remaining = 1))
         val auth = FakeAuthRepository(token = null)
-        val drive = DriveAccessTokenSource { null }
+        val drive = DriveAccessTokenSource { error("Google Drive token must never be read by ai-access") }
         val repository = DefaultAiAccessRepository(
             config = config(),
             authRepository = auth,
             transport = transport,
+            driveAccessTokenSource = drive,
         )
 
         val result = repository.loadAccess()
 
         assertEquals(AiAccessFailureCode.AUTH_REQUIRED, failed(result).failure.code)
-        assertNull(drive.accessToken())
         assertTrue(transport.requests.isEmpty())
+    }
+
+    @Test
+    fun productionAiAccessSendsOnlySupabaseJwtEvenWhenDriveSourceWouldFail() = runTest {
+        val transport = RecordingTransport(accessJson(beta = true, featureEnabled = true, remaining = 1))
+        val drive = DriveAccessTokenSource { error("Google Drive token must never be read by ai-access") }
+        val repository = DefaultAiAccessRepository(
+            config = config(),
+            authRepository = FakeAuthRepository("supabase-jwt"),
+            transport = transport,
+            driveAccessTokenSource = drive,
+        )
+
+        assertTrue(repository.loadAccess() is AiAccessLoadResult.Available)
+        val headers = transport.requests.single().headers
+        assertEquals("Bearer supabase-jwt", headers["Authorization"])
+        assertEquals(setOf("Authorization", "apikey", "Accept"), headers.keys)
+        assertTrue(headers.values.none { it.contains("drive", ignoreCase = true) })
     }
 
     @Test

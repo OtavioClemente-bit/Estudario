@@ -8,6 +8,7 @@ import br.com.estudario.data.ai.EstudarioContractJson
 import br.com.estudario.data.ai.UrlConnectionAiHttpTransport
 import br.com.estudario.data.remote.SupabaseAuthRepository
 import br.com.estudario.data.remote.SupabaseClientConfig
+import br.com.estudario.data.remote.DriveAccessTokenSource
 import java.io.IOException
 import java.net.SocketTimeoutException
 import kotlinx.coroutines.CancellationException
@@ -52,6 +53,9 @@ class HttpAiAccessApiClient(
     private val authRepository: SupabaseAuthRepository,
     private val transport: AiHttpTransport = UrlConnectionAiHttpTransport(config.projectUrl),
     private val httpTimeoutMillis: Long = DEFAULT_HTTP_TIMEOUT_MILLIS,
+    /** Injection-only seam for proving this boundary never reads a Google Drive credential. */
+    @Suppress("UNUSED_PARAMETER")
+    private val driveAccessTokenSource: DriveAccessTokenSource? = null,
 ) : AiAccessApiClient {
     init {
         require(httpTimeoutMillis > 0)
@@ -121,12 +125,14 @@ class DefaultAiAccessRepository(
         authRepository: SupabaseAuthRepository,
         transport: AiHttpTransport = UrlConnectionAiHttpTransport(config.projectUrl),
         httpTimeoutMillis: Long = 30_000L,
+        driveAccessTokenSource: DriveAccessTokenSource? = null,
     ) : this(
         HttpAiAccessApiClient(
             config = config,
             authRepository = authRepository,
             transport = transport,
             httpTimeoutMillis = httpTimeoutMillis,
+            driveAccessTokenSource = driveAccessTokenSource,
         ),
     )
 
