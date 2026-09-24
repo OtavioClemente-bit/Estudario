@@ -1,8 +1,9 @@
 import type { AiSyllabusProposal, AiWarning } from "../_shared/contracts.ts";
-import { validateAiSyllabusProposal, type ProposalValidationLimits } from "../_shared/proposal-validator.ts";
+import { validateAiSyllabusProposal, type ProposalValidationLimits, type ProposalValidationOptions } from "../_shared/proposal-validator.ts";
 import {
   createOpenAiProvider,
   OpenAiProviderError,
+  resolveOpenAiModel,
   type OpenAiProvider,
   type ProviderResponse,
   type ProviderUsage,
@@ -10,6 +11,12 @@ import {
 import { SYLLABUS_PROMPT_VERSION, SYLLABUS_SYSTEM_PROMPT, syllabusUserPrompt } from "../_shared/prompts/syllabus-v1.ts";
 import { AI_SYLLABUS_PROPOSAL_SCHEMA, AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION } from "../_shared/schemas/ai-syllabus-proposal-v1.ts";
 import { AI_SYLLABUS_SOURCE_BUCKET, SupabaseStorageSourceStore, type StorageSourceStore } from "../_shared/storage-source.ts";
+
+export interface Lease { owner: string; token: string; generation: number; }
+
+export class LeaseLostError extends Error {
+  constructor() { super("AI_JOB_LEASE_LOST"); this.name = "LeaseLostError"; }
+}
 
 export interface SyllabusWorkerJob {
   id: string;
@@ -23,25 +30,25 @@ export interface SyllabusWorkerJob {
   openaiResponseId: string | null;
   providerExecutionStartedAt: string | null;
   leaseExpiresAt: string | null;
+  leaseOwner: string;
+  leaseToken: string;
+  leaseGeneration: number;
+  processingDeadlineAt: string | null;
   retryCount: number;
   promptVersion?: string | null;
   modelVersion?: string | null;
 }
 
 export interface SyllabusWorkerStore {
-  claimNext(now: Date, leaseSeconds: number): Promise<SyllabusWorkerJob | null>;
-  persistResponseId(jobId: string, responseId: string): Promise<void>;
-  reconcileProvider(jobId: string, recoverable: boolean): Promise<void>;
-  markRetry(jobId: string): Promise<void>;
-  finalizeSuccess(
-    jobId: string,
-    proposal: AiSyllabusProposal,
-    warnings: AiWarning[],
-    responseId: string | null,
-    usage: ProviderUsage | null,
-  ): Promise<void>;
-  finalizeFailure(jobId: string, code: string, message?: string, terminalStatus?: "FAILED" | "EXPIRED"): Promise<void>;
-  cleanupSource(jobId: string): Promise<void>;
+  claimNext(now: Date, leaseSeconds: number, processingSeconds: number): Promise<SyllabusWorkerJob | null>;
+  assertLease(jobId: string, lease: Lease): Promise<void>;
+  persistResponseId(jobId: string, responseId: string, lease: Lease): Promise<void>;
+  reconcileProvider(jobId: string, lease: Lease, recoverable: boolean): Promise<void>;
+  markRetry(jobId: string, lease: Lease): Promise<void>;
+  captureUsage(jobId: string, lease: Lease, usage: ProviderUsage | null): Promise<void>;
+  finalizeSuccess(jobId: string, lease: Lease, proposal: AiSyllabusProposal, warnings: AiWarning[], responseId: string | null): Promise<void>;
+  finalizeFailure(jobId: string, lease: Lease, code: string, message: string, terminalStatus: "FAILED" | "EXPIRED" | "CANCELLED", providerReconciled: boolean): Promise<void>;
+  cleanupSource(jobId: string, lease: Lease): Promise<void>;
 }
 
 export interface SyllabusWorkerDependencies {
@@ -51,110 +58,161 @@ export interface SyllabusWorkerDependencies {
   now?: () => Date;
   leaseSeconds?: number;
   maxRetries?: number;
+  maxOutputTokens?: number;
+  maxProcessingSeconds?: number;
+  model?: string;
   validationLimits?: ProposalValidationLimits;
-  captureUsage: (jobId: string, usage: ProviderUsage | null) => Promise<void>;
 }
 
-function providerFailureCode(error: unknown): string {
+function leaseOf(job: SyllabusWorkerJob): Lease {
+  if (!job.leaseOwner || !job.leaseToken || !Number.isSafeInteger(job.leaseGeneration)) throw new LeaseLostError();
+  return { owner: job.leaseOwner, token: job.leaseToken, generation: job.leaseGeneration };
+}
+
+function errorCode(error: unknown): string {
   if (error instanceof OpenAiProviderError) {
+    if (error.code === "OPENAI_API_KEY_MISSING") return "OPENAI_API_KEY_MISSING";
     if (error.code === "OPENAI_TIMEOUT") return "PROVIDER_TIMEOUT";
-    if (error.code === "OPENAI_API_KEY_MISSING") return "PROVIDER_NOT_CONFIGURED";
+    return error.code;
   }
-  return "PROVIDER_ERROR";
+  const message = error instanceof Error ? error.message : String(error);
+  return /^[A-Z][A-Z0-9_]{2,63}$/.test(message) ? message : "PROVIDER_ERROR";
 }
 
-function leaseExpired(job: SyllabusWorkerJob, now: Date): boolean {
-  return job.leaseExpiresAt !== null && Date.parse(job.leaseExpiresAt) <= now.getTime();
+function preProviderDefinitive(code: string, providerStarted: boolean, job: SyllabusWorkerJob): boolean {
+  if (providerStarted || job.openaiResponseId !== null || job.providerExecutionStartedAt !== null) return false;
+  return code === "OPENAI_API_KEY_MISSING" || code === "SOURCE_NOT_FOUND" || code === "SOURCE_HASH_MISMATCH" || code.startsWith("SOURCE_");
+}
+
+function deadlineExceeded(job: SyllabusWorkerJob, now: Date): boolean {
+  return job.processingDeadlineAt !== null && Date.parse(job.processingDeadlineAt) <= now.getTime();
+}
+
+function terminalProviderStatus(status: ProviderResponse["status"]): boolean {
+  return status === "failed" || status === "cancelled" || status === "expired" || status === "incomplete";
+}
+
+async function cleanupBestEffort(dependencies: SyllabusWorkerDependencies, job: SyllabusWorkerJob, lease: Lease): Promise<void> {
+  try { await dependencies.jobs.cleanupSource(job.id, lease); } catch { /* cleanup store persists a retryable pending record */ }
 }
 
 async function finalizeFailure(
   dependencies: SyllabusWorkerDependencies,
   job: SyllabusWorkerJob,
+  lease: Lease,
   code: string,
-  message: string,
-  terminalStatus: "FAILED" | "EXPIRED" = "FAILED",
+  status: "FAILED" | "EXPIRED" | "CANCELLED",
+  providerReconciled: boolean,
 ): Promise<void> {
-  await dependencies.jobs.reconcileProvider(job.id, false);
-  await dependencies.jobs.finalizeFailure(job.id, code, message, terminalStatus);
-  try {
-    await dependencies.jobs.cleanupSource(job.id);
-  } catch {
-    // Cleanup is retriable housekeeping; it must not turn a terminal job into a second outcome.
-  }
+  await cleanupBestEffort(dependencies, job, lease);
+  await dependencies.jobs.finalizeFailure(job.id, lease, code, "The AI job did not complete", status, providerReconciled);
+}
+
+function validationOptions(dependencies: SyllabusWorkerDependencies): ProposalValidationOptions {
+  return {
+    ...dependencies.validationLimits,
+    expected: {
+      schemaVersion: AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION,
+      promptVersion: SYLLABUS_PROMPT_VERSION,
+      modelVersion: resolveOpenAiModel(dependencies.model),
+    },
+  };
 }
 
 async function processResponse(
   dependencies: SyllabusWorkerDependencies,
   job: SyllabusWorkerJob,
+  lease: Lease,
   response: ProviderResponse,
+  now: Date,
 ): Promise<void> {
-  if (["queued", "in_progress"].includes(response.status)) {
-    await dependencies.jobs.reconcileProvider(job.id, true);
-    if (job.retryCount >= (dependencies.maxRetries ?? 3)) {
-      // An in-progress provider result is still recoverable. Keep the lease
-      // durable and let the next poll retrieve it; never release quota here.
-    } else {
-      await dependencies.jobs.markRetry(job.id);
+  await dependencies.jobs.assertLease(job.id, lease);
+  if (deadlineExceeded(job, now)) {
+    if (response.status === "queued" || response.status === "in_progress") {
+      const cancellation = await dependencies.provider.cancel(response.id);
+      await dependencies.jobs.assertLease(job.id, lease);
+      if (terminalProviderStatus(cancellation.status)) await finalizeFailure(dependencies, job, lease, "PROCESSING_DEADLINE_EXCEEDED", "EXPIRED", false);
+      else await dependencies.jobs.reconcileProvider(job.id, lease, true);
+      return;
     }
+    await finalizeFailure(dependencies, job, lease, "PROCESSING_DEADLINE_EXCEEDED", "EXPIRED", false);
     return;
   }
-
-  if (response.status !== "completed") {
-    await finalizeFailure(dependencies, job, "PROVIDER_RESULT_UNAVAILABLE", "The provider did not return a recoverable result");
+  if (response.status === "queued" || response.status === "in_progress") {
+    await dependencies.jobs.reconcileProvider(job.id, lease, true);
+    if (job.retryCount < (dependencies.maxRetries ?? 3)) await dependencies.jobs.markRetry(job.id, lease);
+    return;
+  }
+  if (terminalProviderStatus(response.status)) {
+    await finalizeFailure(dependencies, job, lease, "PROVIDER_RESULT_UNAVAILABLE", "FAILED", false);
     return;
   }
 
   let proposal: AiSyllabusProposal;
   try {
-    proposal = await validateAiSyllabusProposal(response.outputText ?? "", dependencies.validationLimits);
+    proposal = await validateAiSyllabusProposal(response.outputText ?? "", validationOptions(dependencies));
   } catch (error) {
     const code = error instanceof Error && error.message.startsWith("EMPTY_OUTPUT") ? "EMPTY_OUTPUT" :
-      error instanceof Error && error.message.startsWith("OUTPUT_LIMIT_EXCEEDED") ? "OUTPUT_LIMIT_EXCEEDED" : "SCHEMA_MISMATCH";
-    await finalizeFailure(dependencies, job, code, "The provider output did not pass strict validation");
+      error instanceof Error && error.message.startsWith("OUTPUT_LIMIT_EXCEEDED") ? "OUTPUT_LIMIT_EXCEEDED" :
+      error instanceof Error && error.message.startsWith("VERSION_MISMATCH") ? "VERSION_MISMATCH" : "SCHEMA_MISMATCH";
+    await finalizeFailure(dependencies, job, lease, code, "FAILED", false);
     return;
   }
-
-  await dependencies.captureUsage(job.id, response.usage);
-  await dependencies.jobs.finalizeSuccess(job.id, proposal, proposal.warnings, response.id, response.usage);
-  try {
-    await dependencies.jobs.cleanupSource(job.id);
-  } catch {
-    // The terminal proposal is already durable; cleanup can be retried by housekeeping.
-  }
+  await dependencies.jobs.captureUsage(job.id, lease, response.usage);
+  await cleanupBestEffort(dependencies, job, lease);
+  await dependencies.jobs.finalizeSuccess(job.id, lease, proposal, proposal.warnings, response.id);
 }
 
 export async function processSyllabusJob(dependencies: SyllabusWorkerDependencies): Promise<boolean> {
   const now = dependencies.now ?? (() => new Date());
-  const job = await dependencies.jobs.claimNext(now(), dependencies.leaseSeconds ?? 300);
+  const job = await dependencies.jobs.claimNext(now(), dependencies.leaseSeconds ?? 300, dependencies.maxProcessingSeconds ?? 900);
   if (!job) return false;
-
+  const lease = leaseOf(job);
+  let providerStarted = job.providerExecutionStartedAt !== null || job.openaiResponseId !== null;
   try {
+    await dependencies.jobs.assertLease(job.id, lease);
+    if (deadlineExceeded(job, now()) && !providerStarted) {
+      await finalizeFailure(dependencies, job, lease, "PROCESSING_DEADLINE_EXCEEDED", "EXPIRED", false);
+      return true;
+    }
     let response: ProviderResponse;
     if (job.openaiResponseId !== null) {
       response = await dependencies.provider.retrieve(job.openaiResponseId);
+      await dependencies.jobs.assertLease(job.id, lease);
     } else {
       const bytes = await dependencies.source(job);
+      await dependencies.jobs.assertLease(job.id, lease);
       response = await dependencies.provider.start({
         jobId: job.id,
         idempotencyKey: job.id,
         source: { filename: job.sourceObjectPath.split("/").pop() ?? "source.pdf", bytes },
-        prompt: `${SYLLABUS_SYSTEM_PROMPT}\n\n${syllabusUserPrompt()}`,
+        systemPrompt: SYLLABUS_SYSTEM_PROMPT,
+        userPrompt: syllabusUserPrompt(),
         promptVersion: SYLLABUS_PROMPT_VERSION,
         schemaVersion: AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION,
         schema: AI_SYLLABUS_PROPOSAL_SCHEMA,
+        model: resolveOpenAiModel(dependencies.model),
+        background: true,
+        store: true,
+        maxOutputTokens: dependencies.maxOutputTokens,
       });
-      await dependencies.jobs.persistResponseId(job.id, response.id);
+      providerStarted = true;
+      await dependencies.jobs.persistResponseId(job.id, response.id, lease);
     }
-    if (leaseExpired(job, now())) await dependencies.jobs.reconcileProvider(job.id, true);
-    await processResponse(dependencies, job, response);
+    await processResponse(dependencies, job, lease, response, now());
   } catch (error) {
-    const code = providerFailureCode(error);
-    if (job.retryCount < (dependencies.maxRetries ?? 3)) {
-      await dependencies.jobs.markRetry(job.id);
-    } else {
-      // A timeout or 5xx does not prove that the provider did not create a
-      // recoverable response. Keep the job PROCESSING and quota reserved.
-      await dependencies.jobs.reconcileProvider(job.id, true);
+    if (error instanceof LeaseLostError) return true;
+    const code = errorCode(error);
+    if (preProviderDefinitive(code, providerStarted, job)) {
+      await finalizeFailure(dependencies, job, lease, code, "FAILED", false);
+      return true;
+    }
+    try {
+      await dependencies.jobs.assertLease(job.id, lease);
+      await dependencies.jobs.reconcileProvider(job.id, lease, true);
+      if (job.retryCount < (dependencies.maxRetries ?? 3)) await dependencies.jobs.markRetry(job.id, lease);
+    } catch (leaseError) {
+      if (!(leaseError instanceof LeaseLostError)) throw leaseError;
     }
   }
   return true;
@@ -169,227 +227,148 @@ export async function runSyllabusWorker(dependencies: SyllabusWorkerDependencies
   return processed;
 }
 
-interface WorkerRuntimeEnvironment {
-  supabaseUrl: string;
-  serviceRoleKey: string;
-  fetcher?: typeof fetch;
-}
+interface WorkerRuntimeEnvironment { supabaseUrl: string; serviceRoleKey: string; fetcher?: typeof fetch; }
 
 function workerHeaders(serviceRoleKey: string): HeadersInit {
-  return {
-    apikey: serviceRoleKey,
-    authorization: `Bearer ${serviceRoleKey}`,
-    accept: "application/json",
-  };
+  return { apikey: serviceRoleKey, authorization: `Bearer ${serviceRoleKey}`, accept: "application/json" };
 }
 
-function workerRow(value: unknown): Record<string, unknown> {
+function row(value: unknown): Record<string, unknown> {
   if (Array.isArray(value) && value.length > 0 && typeof value[0] === "object" && value[0] !== null) return value[0] as Record<string, unknown>;
   if (typeof value === "object" && value !== null && !Array.isArray(value)) return value as Record<string, unknown>;
   throw new Error("AI_WORKER_DATA_UNAVAILABLE");
 }
 
-function stringField(row: Record<string, unknown>, key: string): string {
-  if (typeof row[key] !== "string" || row[key].trim().length === 0) throw new Error("AI_WORKER_DATA_UNAVAILABLE");
-  return row[key] as string;
+function stringField(value: Record<string, unknown>, key: string): string {
+  if (typeof value[key] !== "string" || value[key].trim().length === 0) throw new Error("AI_WORKER_DATA_UNAVAILABLE");
+  return value[key] as string;
 }
 
-function nullableStringField(row: Record<string, unknown>, key: string): string | null {
-  return row[key] === null || row[key] === undefined ? null : stringField(row, key);
+function nullableString(value: Record<string, unknown>, key: string): string | null {
+  return value[key] === null || value[key] === undefined ? null : stringField(value, key);
 }
 
-function numberField(row: Record<string, unknown>, key: string, fallback = 0): number {
-  return typeof row[key] === "number" && Number.isSafeInteger(row[key]) ? row[key] as number : fallback;
+function integerField(value: Record<string, unknown>, key: string): number {
+  if (typeof value[key] !== "number" || !Number.isSafeInteger(value[key])) throw new Error("AI_WORKER_DATA_UNAVAILABLE");
+  return value[key] as number;
 }
 
-function parseWorkerJob(row: Record<string, unknown>): SyllabusWorkerJob {
+function parseJob(value: Record<string, unknown>): SyllabusWorkerJob {
   return {
-    id: stringField(row, "id"),
-    userId: stringField(row, "user_id"),
-    status: "PROCESSING",
-    sourceObjectPath: stringField(row, "source_object_path"),
-    sourceHash: stringField(row, "source_hash"),
-    sourceBytes: numberField(row, "source_bytes"),
-    sourcePages: numberField(row, "source_pages"),
-    sourceFileCount: numberField(row, "source_file_count"),
-    openaiResponseId: nullableStringField(row, "openai_response_id"),
-    providerExecutionStartedAt: nullableStringField(row, "provider_execution_started_at"),
-    leaseExpiresAt: nullableStringField(row, "lease_expires_at"),
-    retryCount: numberField(row, "retry_count"),
-    promptVersion: nullableStringField(row, "prompt_version"),
-    modelVersion: nullableStringField(row, "model_version"),
+    id: stringField(value, "id"), userId: stringField(value, "user_id"), status: "PROCESSING",
+    sourceObjectPath: stringField(value, "source_object_path"), sourceHash: stringField(value, "source_hash"),
+    sourceBytes: integerField(value, "source_bytes"), sourcePages: integerField(value, "source_pages"), sourceFileCount: integerField(value, "source_file_count"),
+    openaiResponseId: nullableString(value, "openai_response_id"), providerExecutionStartedAt: nullableString(value, "provider_execution_started_at"),
+    leaseExpiresAt: nullableString(value, "lease_expires_at"), leaseOwner: stringField(value, "lease_owner"), leaseToken: stringField(value, "lease_token"),
+    leaseGeneration: integerField(value, "lease_generation"), processingDeadlineAt: nullableString(value, "processing_deadline_at"), retryCount: integerField(value, "retry_count"),
+    promptVersion: nullableString(value, "prompt_version"), modelVersion: nullableString(value, "model_version"),
   };
 }
 
 export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
-  private readonly paths = new Map<string, string>();
   private readonly fetcher: typeof fetch;
-
-  constructor(
-    private readonly environment: WorkerRuntimeEnvironment,
-    private readonly storage: StorageSourceStore,
-    private readonly leaseOwner = `worker:${crypto.randomUUID()}`,
-  ) {
+  private readonly workerOwner: string;
+  constructor(private readonly environment: WorkerRuntimeEnvironment, private readonly storage: StorageSourceStore, workerOwner = `worker:${crypto.randomUUID()}`) {
     this.fetcher = environment.fetcher ?? fetch;
+    this.workerOwner = workerOwner;
   }
-
-  async claimNext(_now: Date, leaseSeconds: number): Promise<SyllabusWorkerJob | null> {
-    const response = await this.rpc("claim_ai_syllabus_worker_job", {
-      p_lease_owner: this.leaseOwner,
-      p_lease_seconds: leaseSeconds,
-    });
-    if (response === null || (Array.isArray(response) && response.length === 0)) return null;
-    const job = parseWorkerJob(workerRow(response));
-    this.paths.set(job.id, job.sourceObjectPath);
-    return job;
+  async claimNext(_now: Date, leaseSeconds: number, processingSeconds: number): Promise<SyllabusWorkerJob | null> {
+    const value = await this.rpc("claim_ai_syllabus_worker_job", { p_lease_owner: this.workerOwner, p_lease_token: crypto.randomUUID(), p_lease_seconds: leaseSeconds, p_processing_seconds: processingSeconds });
+    if (value === null || (Array.isArray(value) && value.length === 0)) return null;
+    return parseJob(row(value));
   }
-
-  async persistResponseId(jobId: string, responseId: string): Promise<void> {
-    await this.patch(jobId, {
-      openai_response_id: responseId,
-      provider_execution_started_at: new Date().toISOString(),
-    });
+  async assertLease(jobId: string, lease: Lease): Promise<void> { await this.rpc("assert_ai_job_lease", { p_job_id: jobId, ...lease }); }
+  async persistResponseId(jobId: string, responseId: string, lease: Lease): Promise<void> { await this.rpc("persist_ai_job_provider_response", { p_job_id: jobId, p_response_id: responseId, ...lease }); }
+  async reconcileProvider(jobId: string, lease: Lease, recoverable: boolean): Promise<void> { await this.rpc("record_ai_job_provider_reconciliation", { p_job_id: jobId, p_recoverable: recoverable, ...lease }); }
+  async markRetry(jobId: string, lease: Lease): Promise<void> { await this.rpc("increment_ai_job_retry", { p_job_id: jobId, ...lease }); }
+  async captureUsage(jobId: string, lease: Lease, usage: ProviderUsage | null): Promise<void> { await this.rpc("record_ai_job_usage", { p_job_id: jobId, p_input_tokens: usage?.inputTokens ?? null, p_output_tokens: usage?.outputTokens ?? null, p_total_tokens: usage?.totalTokens ?? null, ...lease }); }
+  async finalizeSuccess(jobId: string, lease: Lease, proposal: AiSyllabusProposal, warnings: AiWarning[], responseId: string | null): Promise<void> { await this.rpc("finalize_ai_job_success_with_lease", { p_job_id: jobId, p_proposal: proposal, p_warnings: warnings, p_openai_response_id: responseId, p_prompt_version: proposal.promptVersion, p_schema_version: proposal.schemaVersion, p_model_version: proposal.modelVersion, ...lease }); }
+  async finalizeFailure(jobId: string, lease: Lease, code: string, message: string, terminalStatus: "FAILED" | "EXPIRED" | "CANCELLED", providerReconciled: boolean): Promise<void> { await this.rpc("finalize_ai_job_failure_with_lease", { p_job_id: jobId, p_terminal_status: terminalStatus, p_error_code: code, p_error_message: message, p_provider_reconciled: providerReconciled, ...lease }); }
+  async cleanupSource(jobId: string, lease: Lease): Promise<void> {
+    const cleanup = row(await this.rpc("prepare_ai_job_source_cleanup", { p_job_id: jobId, ...lease }));
+    if (cleanup.status === "DELETED") return;
+    const path = stringField(cleanup, "source_object_path");
+    try {
+      const response = await this.fetcher(`${this.environment.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/${AI_SYLLABUS_SOURCE_BUCKET}/${path}`, { method: "DELETE", headers: workerHeaders(this.environment.serviceRoleKey) });
+      if (!response.ok && response.status !== 404) throw new Error("AI_SOURCE_CLEANUP_FAILED");
+      await this.rpc("complete_ai_job_source_cleanup", { p_job_id: jobId, ...lease });
+    } catch (error) {
+      await this.rpc("fail_ai_job_source_cleanup", { p_job_id: jobId, p_error: error instanceof Error ? error.message : "AI_SOURCE_CLEANUP_FAILED", ...lease });
+      throw error;
+    }
   }
-
-  async reconcileProvider(jobId: string, recoverable: boolean): Promise<void> {
-    await this.rpc("record_ai_job_provider_reconciliation", { p_job_id: jobId, p_recoverable: recoverable });
+  async cleanupPendingSources(limit = 10): Promise<void> {
+    for (let index = 0; index < limit; index += 1) {
+      const owner = `${this.workerOwner}:cleanup`, token = crypto.randomUUID();
+      const value = await this.rpc("claim_ai_job_source_cleanup", { p_lease_owner: owner, p_lease_token: token, p_lease_seconds: 300 });
+      if (value === null || (Array.isArray(value) && value.length === 0)) return;
+      const cleanup = row(value), jobId = stringField(cleanup, "job_id"), path = stringField(cleanup, "source_object_path");
+      const cleanupLease = { p_lease_owner: owner, p_lease_token: token, p_lease_generation: integerField(cleanup, "lease_generation") };
+      try {
+        const response = await this.fetcher(`${this.environment.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/${AI_SYLLABUS_SOURCE_BUCKET}/${path}`, { method: "DELETE", headers: workerHeaders(this.environment.serviceRoleKey) });
+        if (!response.ok && response.status !== 404) throw new Error("AI_SOURCE_CLEANUP_FAILED");
+        await this.rpc("complete_ai_job_source_cleanup", { p_job_id: jobId, ...cleanupLease });
+      } catch (error) {
+        await this.rpc("fail_ai_job_source_cleanup", { p_job_id: jobId, p_error: error instanceof Error ? error.message : "AI_SOURCE_CLEANUP_FAILED", ...cleanupLease });
+      }
+    }
   }
-
-  async markRetry(jobId: string): Promise<void> {
-    await this.rpc("increment_ai_job_retry", { p_job_id: jobId });
-  }
-
-  async finalizeSuccess(jobId: string, proposal: AiSyllabusProposal, warnings: AiWarning[], responseId: string | null, _usage: ProviderUsage | null): Promise<void> {
-    await this.rpc("finalize_ai_job_success", {
-      p_job_id: jobId,
-      p_proposal: proposal,
-      p_warnings: warnings,
-      p_openai_response_id: responseId,
-      p_prompt_version: proposal.promptVersion,
-      p_schema_version: proposal.schemaVersion,
-      p_model_version: proposal.modelVersion,
-    });
-  }
-
-  async finalizeFailure(jobId: string, code: string, message?: string, terminalStatus: "FAILED" | "EXPIRED" = "FAILED"): Promise<void> {
-    await this.rpc("finalize_ai_job_failure", {
-      p_job_id: jobId,
-      p_terminal_status: terminalStatus,
-      p_error_code: code,
-      p_error_message: message ?? "The AI job did not complete",
-    });
-  }
-
-  async recordUsage(jobId: string, usage: ProviderUsage | null): Promise<void> {
-    await this.rpc("record_ai_job_usage", {
-      p_job_id: jobId,
-      p_input_tokens: usage?.inputTokens ?? null,
-      p_output_tokens: usage?.outputTokens ?? null,
-      p_total_tokens: usage?.totalTokens ?? null,
-    });
-  }
-
-  async cleanupSource(jobId: string): Promise<void> {
-    const path = this.paths.get(jobId);
-    if (!path) return;
-    const url = `${this.environment.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/${AI_SYLLABUS_SOURCE_BUCKET}/${path}`;
-    const response = await this.fetcher(url, { method: "DELETE", headers: workerHeaders(this.environment.serviceRoleKey) });
-    if (!response.ok && response.status !== 404) throw new Error("AI_SOURCE_CLEANUP_FAILED");
-    this.paths.delete(jobId);
-  }
-
-  private async patch(jobId: string, body: Record<string, unknown>): Promise<void> {
-    const url = new URL(`${this.environment.supabaseUrl.replace(/\/$/, "")}/rest/v1/ai_jobs`);
-    url.searchParams.set("id", `eq.${jobId}`);
-    url.searchParams.set("status", "eq.PROCESSING");
-    const response = await this.fetcher(url, {
-      method: "PATCH",
-      headers: { ...workerHeaders(this.environment.serviceRoleKey), "content-type": "application/json", prefer: "return=minimal" },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) throw new Error("AI_WORKER_DATA_UNAVAILABLE");
-  }
-
   private async rpc(name: string, body: Record<string, unknown>): Promise<unknown> {
-    const response = await this.fetcher(`${this.environment.supabaseUrl.replace(/\/$/, "")}/rest/v1/rpc/${name}`, {
-      method: "POST",
-      headers: { ...workerHeaders(this.environment.serviceRoleKey), "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) throw new Error("AI_WORKER_DATA_UNAVAILABLE");
+    const response = await this.fetcher(`${this.environment.supabaseUrl.replace(/\/$/, "")}/rest/v1/rpc/${name}`, { method: "POST", headers: { ...workerHeaders(this.environment.serviceRoleKey), "content-type": "application/json" }, body: JSON.stringify(body) });
+    if (!response.ok) {
+      let providerMessage = "";
+      try {
+        const payload = await response.clone().json() as Record<string, unknown>;
+        providerMessage = [payload.code, payload.message, payload.error].filter((value) => typeof value === "string").join(" ");
+      } catch { /* retain the safe generic error */ }
+      if (response.status === 409 || response.status === 412 || /AI_JOB_LEASE_LOST|LEASE_LOST/.test(providerMessage)) throw new LeaseLostError();
+      throw new Error("AI_WORKER_DATA_UNAVAILABLE");
+    }
     return await response.json();
   }
 }
 
+function environmentNumber(name: string, fallback: number): number { const value = Number(Deno.env.get(name)); return Number.isSafeInteger(value) && value > 0 ? value : fallback; }
 function runtimeEnvironment(): WorkerRuntimeEnvironment {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim();
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim(), serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
   if (!supabaseUrl || !serviceRoleKey) throw new Error("AI_WORKER_NOT_CONFIGURED");
   return { supabaseUrl, serviceRoleKey };
 }
-
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const input = new ArrayBuffer(bytes.byteLength);
-  new Uint8Array(input).set(bytes);
-  const digest = await crypto.subtle.digest("SHA-256", input);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function runtimeDependencies(): SyllabusWorkerDependencies {
+function runtimeDependencies(): SyllabusWorkerDependencies & { runtimeStore: SupabaseSyllabusWorkerStore } {
   const environment = runtimeEnvironment();
-  const storage = new SupabaseStorageSourceStore({
-    supabaseUrl: environment.supabaseUrl,
-    publishableKey: environment.serviceRoleKey,
-    accessToken: environment.serviceRoleKey,
-  }, environmentNumber("MAX_PDF_BYTES", 50 * 1024 * 1024));
-  const jobs = new SupabaseSyllabusWorkerStore(environment, storage);
+  const storage = new SupabaseStorageSourceStore({ supabaseUrl: environment.supabaseUrl, publishableKey: environment.serviceRoleKey, accessToken: environment.serviceRoleKey }, environmentNumber("MAX_PDF_BYTES", 50 * 1024 * 1024));
+  const runtimeStore = new SupabaseSyllabusWorkerStore(environment, storage);
   return {
-    jobs,
-    provider: runtimeProvider(),
+    runtimeStore, jobs: runtimeStore,
+    provider: createOpenAiProvider({ background: true, model: resolveOpenAiModel(), maxOutputTokens: environmentNumber("MAX_OUTPUT_TOKENS", 4096), timeoutMs: environmentNumber("OPENAI_TIMEOUT_MS", 30_000), store: true }),
     source: async (job) => {
       const object = await storage.getObject(job.userId, job.sourceObjectPath);
       if (!object) throw new Error("SOURCE_NOT_FOUND");
-      if (await sha256Hex(object.body) !== job.sourceHash) throw new Error("SOURCE_HASH_MISMATCH");
+      const buffer = new ArrayBuffer(object.body.byteLength); new Uint8Array(buffer).set(object.body);
+      const digest = await crypto.subtle.digest("SHA-256", buffer);
+      const hash = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      if (hash !== job.sourceHash) throw new Error("SOURCE_HASH_MISMATCH");
       return object.body;
     },
-    leaseSeconds: environmentNumber("AI_WORKER_LEASE_SECONDS", 300),
-    maxRetries: environmentNumber("AI_MAX_RETRIES", 3),
+    leaseSeconds: environmentNumber("AI_WORKER_LEASE_SECONDS", 300), maxRetries: environmentNumber("AI_MAX_RETRIES", 3),
+    maxOutputTokens: environmentNumber("MAX_OUTPUT_TOKENS", 4096), maxProcessingSeconds: environmentNumber("MAX_PROCESSING_SECONDS", 900), model: resolveOpenAiModel(),
     validationLimits: {
       maxSubjects: environmentNumber("MAX_SUBJECTS", 100),
       maxTopics: environmentNumber("MAX_TOPICS", 2000),
-      maxTopicDepth: environmentNumber("MAX_TOPIC_DEPTH", 20),
-    },
-    captureUsage: async (jobId, usage) => {
-      await jobs.recordUsage(jobId, usage);
+      maxTopicDepth: environmentNumber("MAX_TOPIC_DEPTH", 8),
     },
   };
-}
-
-function environmentNumber(name: string, fallback: number): number {
-  const value = Number(Deno.env.get(name));
-  return Number.isSafeInteger(value) && value > 0 ? value : fallback;
-}
-
-function runtimeProvider(): OpenAiProvider {
-  return createOpenAiProvider({
-    background: ["1", "true", "yes", "on"].includes((Deno.env.get("AI_OPENAI_BACKGROUND") ?? "").toLowerCase()),
-    timeoutMs: environmentNumber("OPENAI_TIMEOUT_MS", 30_000),
-  });
 }
 
 if (import.meta.main) {
   Deno.serve(async (request) => {
     if (request.method !== "POST") return new Response(null, { status: 405, headers: { allow: "POST" } });
     try {
-      const environment = runtimeEnvironment();
-      const authorization = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
-      if (!authorization || authorization !== environment.serviceRoleKey) {
-        return Response.json({ error: { code: "AI_WORKER_UNAUTHORIZED", message: "AI worker authorization required" } }, { status: 401 });
-      }
-      const processed = await runSyllabusWorker(runtimeDependencies(), environmentNumber("AI_WORKER_BATCH_SIZE", 1));
-      return Response.json({ processed }, { status: 200, headers: { "cache-control": "no-store" } });
-    } catch {
-      return Response.json({ error: { code: "AI_WORKER_UNAVAILABLE", message: "AI worker is unavailable" } }, { status: 503 });
-    }
+      const environment = runtimeEnvironment(), bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
+      if (bearer !== environment.serviceRoleKey) return Response.json({ error: { code: "AI_WORKER_UNAUTHORIZED", message: "AI worker authorization required" } }, { status: 401 });
+      const dependencies = runtimeDependencies(); await dependencies.runtimeStore.cleanupPendingSources();
+      const processed = await runSyllabusWorker(dependencies, environmentNumber("AI_WORKER_BATCH_SIZE", 1));
+      return Response.json({ processed }, { headers: { "cache-control": "no-store" } });
+    } catch { return Response.json({ error: { code: "AI_WORKER_UNAVAILABLE", message: "AI worker is unavailable" } }, { status: 503 }); }
   });
 }

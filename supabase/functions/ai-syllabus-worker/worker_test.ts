@@ -31,6 +31,10 @@ function job(overrides: Partial<SyllabusWorkerJob> = {}): SyllabusWorkerJob {
     openaiResponseId: "resp-1",
     providerExecutionStartedAt: "2026-09-24T12:00:00Z",
     leaseExpiresAt: "2026-09-24T12:05:00Z",
+    leaseOwner: "worker-test",
+    leaseToken: "lease-token-test",
+    leaseGeneration: 1,
+    processingDeadlineAt: "2026-09-24T13:00:00Z",
     retryCount: 0,
     ...overrides,
   };
@@ -40,13 +44,15 @@ function store(initial: SyllabusWorkerJob): SyllabusWorkerStore & { events: stri
   const events: string[] = [];
   return {
     events,
+    async claimNext() { return initial; },
+    async assertLease() {},
     async persistResponseId(id, responseId) { events.push(`response:${id}:${responseId}`); },
     async finalizeSuccess(id) { events.push(`success:${id}`); },
-    async finalizeFailure(id, code) { events.push(`failure:${id}:${code}`); },
+    async finalizeFailure(id, _lease, code) { events.push(`failure:${id}:${code}`); },
     async markRetry(id) { events.push(`retry:${id}`); },
     async cleanupSource(id) { events.push(`cleanup:${id}`); },
-    async reconcileProvider(id, recoverable) { events.push(`reconcile:${id}:${recoverable}`); },
-    async claimNext() { return initial; },
+    async reconcileProvider(id, _lease, recoverable) { events.push(`reconcile:${id}:${recoverable}`); },
+    async captureUsage(id, _lease, usage) { events.push(`usage:${id}:${usage?.totalTokens ?? "null"}`); },
   };
 }
 
@@ -60,17 +66,16 @@ function provider(response: ProviderResponse): OpenAiProvider {
 
 Deno.test("persists response id before finalizing a valid result and captures usage", async () => {
   const jobs = store(job({ openaiResponseId: null, providerExecutionStartedAt: null }));
-  const usage: unknown[] = [];
   await processSyllabusJob({
     jobs,
     provider: provider({ id: "resp-1", status: "completed", outputText: validOutput, usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 } }),
     source: async () => new Uint8Array([1, 2, 3]),
     now: () => new Date("2026-09-24T12:01:00Z"),
-    captureUsage: async (_jobId, value) => { usage.push(value); },
   });
   assertEquals(jobs.events[0], "response:job-1:resp-1");
-  assertEquals(jobs.events[1], "success:job-1");
-  assertEquals(usage.length, 1);
+  assertEquals(jobs.events[1], "usage:job-1:30");
+  assertEquals(jobs.events[2], "cleanup:job-1");
+  assertEquals(jobs.events[3], "success:job-1");
 });
 
 Deno.test("reconciles an expired lease before retrying a recoverable provider response", async () => {
@@ -80,7 +85,6 @@ Deno.test("reconciles an expired lease before retrying a recoverable provider re
     provider: provider({ id: "resp-1", status: "in_progress", outputText: null, usage: null }),
     source: async () => new Uint8Array([1]),
     now: () => new Date("2026-09-24T12:01:00Z"),
-    captureUsage: async () => {},
   });
   assert(jobs.events.includes("reconcile:job-1:true"));
   assert(jobs.events.includes("retry:job-1"));
@@ -93,7 +97,6 @@ Deno.test("fails terminally on empty provider output without publishing a propos
     provider: provider({ id: "resp-1", status: "completed", outputText: "", usage: null }),
     source: async () => new Uint8Array([1]),
     now: () => new Date("2026-09-24T12:01:00Z"),
-    captureUsage: async () => {},
   });
   assert(jobs.events.some((event) => event === "failure:job-1:EMPTY_OUTPUT"));
   assert(!jobs.events.some((event) => event.startsWith("success:")));

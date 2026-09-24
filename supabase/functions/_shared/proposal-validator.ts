@@ -6,8 +6,18 @@ export interface ProposalValidationLimits {
   maxTopicDepth?: number;
 }
 
+export interface ExpectedProposalVersions {
+  schemaVersion: number;
+  promptVersion: string;
+  modelVersion: string;
+}
+
+export interface ProposalValidationOptions extends ProposalValidationLimits {
+  expected?: ExpectedProposalVersions;
+}
+
 export class ProposalValidationError extends Error {
-  constructor(public readonly code: "EMPTY_OUTPUT" | "SCHEMA_MISMATCH" | "OUTPUT_LIMIT_EXCEEDED", message: string) {
+  constructor(public readonly code: "EMPTY_OUTPUT" | "SCHEMA_MISMATCH" | "OUTPUT_LIMIT_EXCEEDED" | "VERSION_MISMATCH", message: string) {
     super(`${code}: ${message}`);
     this.name = "ProposalValidationError";
   }
@@ -36,11 +46,29 @@ function enforceLimits(proposal: AiSyllabusProposal, limits: ProposalValidationL
   }
 }
 
-export async function validateAiSyllabusProposal(raw: string, limits: ProposalValidationLimits = {}): Promise<AiSyllabusProposal> {
+export async function validateAiSyllabusProposal(raw: string, options: ProposalValidationOptions = {}): Promise<AiSyllabusProposal> {
   if (typeof raw !== "string" || raw.trim().length === 0) throw new ProposalValidationError("EMPTY_OUTPUT", "provider returned no structured output");
+  if (options.expected !== undefined) {
+    try {
+      const envelope = JSON.parse(raw) as Record<string, unknown>;
+      if (envelope.schemaVersion !== options.expected.schemaVersion) {
+        throw new ProposalValidationError("VERSION_MISMATCH", "provider schema version differs from the effective worker version");
+      }
+    } catch (error) {
+      if (error instanceof ProposalValidationError) throw error;
+      // The strict parser below owns malformed JSON/schema diagnostics.
+    }
+  }
   try {
     const proposal = parseProviderAiSyllabusProposal(raw);
-    enforceLimits(proposal, limits);
+    enforceLimits(proposal, options);
+    if (options.expected !== undefined && (
+      proposal.schemaVersion !== options.expected.schemaVersion ||
+      proposal.promptVersion !== options.expected.promptVersion ||
+      proposal.modelVersion !== options.expected.modelVersion
+    )) {
+      throw new ProposalValidationError("VERSION_MISMATCH", "provider output versions differ from the effective worker versions");
+    }
     return proposal;
   } catch (error) {
     if (error instanceof ProposalValidationError) throw error;
