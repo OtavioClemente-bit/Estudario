@@ -182,6 +182,10 @@ export async function processSyllabusJob(dependencies: SyllabusWorkerDependencie
     } else {
       const bytes = await dependencies.source(job);
       await dependencies.jobs.assertLease(job.id, lease);
+      if (deadlineExceeded(job, now())) {
+        await finalizeFailure(dependencies, job, lease, "PROCESSING_DEADLINE_EXCEEDED", "EXPIRED", false);
+        return true;
+      }
       response = await dependencies.provider.start({
         jobId: job.id,
         idempotencyKey: job.id,

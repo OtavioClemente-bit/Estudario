@@ -613,19 +613,31 @@ select is(
   'PROCESSING',
   'RESERVED can transition to PROCESSING through the claim RPC'
 );
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
 select is(
-  (select status::text from public.finalize_ai_job_success(
+  (select lease_owner from public.claim_ai_syllabus_worker_job(
+    'foundation-worker', 'foundation-token', 60, 900
+  )),
+  'foundation-worker',
+  'worker claim replaces the legacy lease before success finalization'
+);
+select is(
+  (select status::text from public.finalize_ai_job_success_with_lease(
     (select job_id from ai_test_jobs where label = 'idempotent'),
     '{"schemaVersion":1,"subjects":[]}'::jsonb,
     '[]'::jsonb,
     'response-foundation-1',
     'syllabus-v1',
     1,
-    'gpt-6-luna'
+    'gpt-6-luna',
+    'foundation-worker', 'foundation-token', 1
   )),
   'SUCCEEDED',
   'PROCESSING can transition to SUCCEEDED through the success RPC'
 );
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
 select is(
   (select status::text from public.ai_quota_reservations where job_id = (select job_id from ai_test_jobs where label = 'idempotent')),
   'CONSUMED',
@@ -720,17 +732,26 @@ update public.ai_jobs
 set provider_reconciled_at = now(),
     provider_result_recoverable = false
 where id = (select job_id from ai_test_jobs where label = 'processing-failure');
-set local role authenticated;
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
 select is(
-  (select status::text from public.finalize_ai_job_failure(
+  (select lease_owner from public.claim_ai_syllabus_worker_job('failure-worker', 'failure-token', 60, 900)),
+  'failure-worker',
+  'worker claim replaces the legacy lease before failure finalization'
+);
+select is(
+  (select status::text from public.finalize_ai_job_failure_with_lease(
     (select job_id from ai_test_jobs where label = 'processing-failure'),
     'FAILED',
     'PROVIDER_ERROR',
-    'provider failed without a recoverable result'
+    'provider failed without a recoverable result',
+    false, 'failure-worker', 'failure-token', 1
   )),
   'FAILED',
   'PROCESSING can transition to FAILED through the failure RPC'
 );
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
 select is(
   (select status::text from public.ai_quota_reservations where job_id = (select job_id from ai_test_jobs where label = 'processing-failure')),
   'RELEASED',
@@ -768,17 +789,26 @@ update public.ai_jobs
 set provider_reconciled_at = now(),
     provider_result_recoverable = false
 where id = (select job_id from ai_test_jobs where label = 'processing-expired');
-set local role authenticated;
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
 select is(
-  (select status::text from public.finalize_ai_job_failure(
+  (select lease_owner from public.claim_ai_syllabus_worker_job('expired-worker', 'expired-token', 60, 900)),
+  'expired-worker',
+  'worker claim replaces the legacy lease before expiry finalization'
+);
+select is(
+  (select status::text from public.finalize_ai_job_failure_with_lease(
     (select job_id from ai_test_jobs where label = 'processing-expired'),
     'EXPIRED',
     'LEASE_EXPIRED',
-    'processing lease expired'
+    'processing lease expired',
+    false, 'expired-worker', 'expired-token', 1
   )),
   'EXPIRED',
   'PROCESSING can transition to EXPIRED through the failure RPC'
 );
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
 select is(
   (select status::text from public.ai_quota_reservations where job_id = (select job_id from ai_test_jobs where label = 'processing-expired')),
   'RELEASED',
@@ -865,9 +895,9 @@ select throws_ok(
     'PROVIDER_ERROR',
     'failure requires provider reconciliation'
   )$$,
-  'P0001',
-  'PROVIDER_RECONCILIATION_REQUIRED',
-  'PROCESSING failure cannot release quota before provider reconciliation'
+  '42501',
+  null,
+  'legacy PROCESSING failure finalization is unavailable without a lease'
 );
 select throws_ok(
   $$select * from public.release_ai_job_reservation(

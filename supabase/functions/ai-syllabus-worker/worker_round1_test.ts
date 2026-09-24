@@ -116,6 +116,25 @@ Deno.test("does not start a provider execution after the processing deadline", a
   assert(jobs.events.some((event) => event.includes(":EXPIRED:false")));
 });
 
+Deno.test("checks the deadline again after a slow source read before starting the provider", async () => {
+  const jobs = fakeStore(job({ processingDeadlineAt: "2026-09-24T12:01:30Z" }));
+  let currentTime = new Date("2026-09-24T12:01:00Z");
+  let starts = 0;
+  await processSyllabusJob({
+    ...deps(jobs, provider(
+      async () => { starts += 1; throw new Error("provider must not start after the deadline"); },
+      async () => { throw new Error("retrieve must not run"); },
+    )),
+    now: () => currentTime,
+    source: async () => {
+      currentTime = new Date("2026-09-24T12:02:00Z");
+      return new Uint8Array([1, 2, 3]);
+    },
+  });
+  assertEquals(starts, 0);
+  assert(jobs.events.some((event) => event.includes(":PROCESSING_DEADLINE_EXCEEDED:EXPIRED:false")));
+});
+
 Deno.test("reconciles provider timeout and stops retrying at the retry limit", async () => {
   const jobs = fakeStore(job({ retryCount: 2 }));
   await processSyllabusJob(deps(jobs, provider(
