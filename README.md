@@ -4,7 +4,7 @@
 
 [![Android CI](https://github.com/OtavioClemente-bit/Estudario/actions/workflows/android.yml/badge.svg)](https://github.com/OtavioClemente-bit/Estudario/actions/workflows/android.yml)
 ![Versão](https://img.shields.io/badge/vers%C3%A3o-3.1.0-blue)
-![Kotlin](https://img.shields.io/badge/Kotlin-2.4.20-7F52FF?logo=kotlin&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-2.3.21-7F52FF?logo=kotlin&logoColor=white)
 ![minSdk](https://img.shields.io/badge/minSdk-26-brightgreen)
 ![Licença](https://img.shields.io/badge/licença-privada-lightgrey)
 
@@ -69,7 +69,7 @@ Motor de planejamento puro e determinístico
 
 ## Tecnologias
 
-- Kotlin 2.4.20 e Java 17
+- Kotlin 2.3.21 e Java 17
 - Jetpack Compose (BOM 2025.08.01) e Material 3
 - Room 2.8.5/SQLite, Flow, ViewModel e coroutines 1.11.0
 - DataStore Preferences 1.2.1
