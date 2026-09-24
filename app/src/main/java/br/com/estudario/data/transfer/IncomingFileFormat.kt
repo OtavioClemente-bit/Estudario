@@ -36,7 +36,7 @@ enum class IncomingFileFormat {
 /** Limpa o texto que chega de arquivos, da área de transferência ou de apps de IA antes do parse. */
 object IncomingText {
     fun clean(raw: String): String {
-        var text = raw.removePrefix("﻿").trim()
+        var text = raw.removePrefix("\uFEFF").trim()
         // Remove cercas de Markdown (```json ... ```), comuns quando a resposta é copiada da conversa.
         if (text.startsWith("```")) {
             text = text.substringAfter('\n', "").trim()
