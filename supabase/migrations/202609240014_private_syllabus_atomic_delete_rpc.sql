@@ -85,5 +85,5 @@ exception
 end;
 $$;
 
-revoke all on function public.delete_private_syllabus_atomic(uuid, text, uuid, text) from public;
+revoke all on function public.delete_private_syllabus_atomic(uuid, text, uuid, text) from public, anon;
 grant execute on function public.delete_private_syllabus_atomic(uuid, text, uuid, text) to authenticated, service_role;

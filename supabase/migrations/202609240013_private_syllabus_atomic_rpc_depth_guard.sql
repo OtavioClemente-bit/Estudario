@@ -25,7 +25,8 @@ begin
        select 1
        from jsonb_array_elements(p_syllabus->'subjects') subject
        where jsonb_typeof(subject) <> 'object'
-          or (subject ? 'topics' and jsonb_typeof(subject->'topics') <> 'array')
+          or not (subject ? 'topics')
+          or jsonb_typeof(subject->'topics') <> 'array'
      )
   then
     raise exception using message = 'INVALID_SYLLABUS', errcode = 'P0001';
@@ -51,7 +52,8 @@ begin
     select 1
     from topic_tree
     where jsonb_typeof(node) <> 'object'
-       or (node ? 'children' and jsonb_typeof(node->'children') <> 'array')
+       or not (node ? 'children')
+       or jsonb_typeof(node->'children') <> 'array'
   ) then
     raise exception using message = 'INVALID_SYLLABUS', errcode = 'P0001';
   end if;
@@ -86,6 +88,6 @@ begin
 end;
 $$;
 
-revoke all on function public.upsert_private_syllabus_atomic_v012_legacy(uuid, text, text, jsonb) from public, authenticated, service_role;
-revoke all on function public.upsert_private_syllabus_atomic(uuid, text, text, jsonb) from public;
+revoke all on function public.upsert_private_syllabus_atomic_v012_legacy(uuid, text, text, jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.upsert_private_syllabus_atomic(uuid, text, text, jsonb) from public, anon;
 grant execute on function public.upsert_private_syllabus_atomic(uuid, text, text, jsonb) to authenticated, service_role;

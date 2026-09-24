@@ -127,3 +127,21 @@ Sem deploy, URL/key, OAuth/OTP, credenciais reais, Google Drive ou OpenAI. Task 
 - `git diff --check` — PASS; `git diff 9c9c3a8 -- supabase/migrations/202609240012_private_syllabus_atomic_rpc.sql` vazio.
 
 Riscos residuais: a suíte Deno global continua com os três erros baseline de `ai-syllabus-jobs/index_test.ts` já documentados, fora da Task 12; o Gradle unitário global mantém o único failure baseline de `CopyStyleTest` em `InitialSetupScreen.kt`. A suíte direcionada, DB local, upgrade incremental e concorrência estão verdes. Configuration gate permanece fechado; nenhum deploy, segredo, URL/key, OAuth/OTP ou credencial real foi usado.
+
+## Correção dos últimos findings da revisão final
+
+- A migration 013 agora exige `topics` presente e array em cada subject e `children` presente e array em cada nó. A recursão usa fallback vazio somente para impedir erro bruto do PostgreSQL; o preflight detecta a ausência antes da delegação e retorna `INVALID_SYLLABUS`. pgTAP verifica topics ausente e children ausente, sem root nem claim no ledger.
+- As migrations 013 e 014 revogam explicitamente `anon` no RPC público de upsert, no delegate histórico renomeado e no RPC de DELETE. Os grants existentes para `authenticated`/`service_role` foram preservados; 012 não foi alterada. pgTAP verifica os três privilégios e executa chamadas como anon esperando `42501` antes do processamento do input.
+
+## Verificação desta correção
+
+- `npx --yes supabase db reset --workdir .` — PASS; migrations 012, 013 e 014 aplicadas.
+- `npx --yes supabase test db --workdir .` — PASS; 5 arquivos, 219 testes.
+- `npx --yes deno test --no-config supabase/functions/user-syllabi/index_test.ts supabase/functions/user-syllabi/atomic_store_test.ts` — PASS; 5/5.
+- `npx --yes deno check --no-config supabase/functions/user-syllabi/index.ts supabase/functions/user-syllabi/index_test.ts supabase/functions/user-syllabi/atomic_store_test.ts` — PASS.
+- `:app:testDebugUnitTest --tests br.com.estudario.data.remote.RemoteSyllabusMapperTest --tests br.com.estudario.data.remote.RemoteSyllabusSyncWorkerTest --no-daemon` — PASS.
+- `:app:compileDebugKotlin :app:compileDebugAndroidTestKotlin --no-daemon` — PASS.
+- `:app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.remote.PrivateSyllabusRepositoryTest" --no-daemon` — PASS; 2/2 instrumentados.
+- `git diff --check` — PASS; `git diff 19df09b -- supabase/migrations/202609240012_private_syllabus_atomic_rpc.sql` permanece vazio.
+
+Sem deploy, secrets, credenciais reais ou Task 13. Os bloqueios baseline globais de Deno/Gradle permanecem os mesmos e fora do escopo; os testes direcionados desta correção estão verdes.

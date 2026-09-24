@@ -24,6 +24,15 @@ select ok(
 );
 
 select ok(
+  not has_function_privilege(
+    'anon',
+    'public.upsert_private_syllabus_atomic(uuid, text, text, jsonb)',
+    'EXECUTE'
+  ),
+  'anon cannot execute the public upsert RPC'
+);
+
+select ok(
   exists (
     select 1
     from pg_proc
@@ -41,12 +50,30 @@ select ok(
 );
 
 select ok(
+  not has_function_privilege(
+    'anon',
+    'public.upsert_private_syllabus_atomic_v012_legacy(uuid, text, text, jsonb)',
+    'EXECUTE'
+  ),
+  'anon cannot execute the historical delegate'
+);
+
+select ok(
   has_function_privilege(
     'service_role',
     'public.delete_private_syllabus_atomic(uuid, text, uuid, text)',
     'EXECUTE'
   ),
   'the service role can call the atomic private syllabus delete RPC'
+);
+
+select ok(
+  not has_function_privilege(
+    'anon',
+    'public.delete_private_syllabus_atomic(uuid, text, uuid, text)',
+    'EXECUTE'
+  ),
+  'anon cannot execute the atomic delete RPC'
 );
 
 select ok(
@@ -109,6 +136,19 @@ select ok(
 
 begin;
 
+set local role anon;
+select throws_ok(
+  $$select public.upsert_private_syllabus_atomic(null, null, null, null)$$,
+  '42501', 'permission denied for function upsert_private_syllabus_atomic',
+  'anon execution of the public upsert RPC is denied before input processing'
+);
+select throws_ok(
+  $$select public.delete_private_syllabus_atomic(null, null, null, null)$$,
+  '42501', 'permission denied for function delete_private_syllabus_atomic',
+  'anon execution of the delete RPC is denied before input processing'
+);
+set local role service_role;
+
 set local role postgres;
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values ('00000000-0000-0000-0000-0000000000d1', 'authenticated', 'authenticated', 'private-syllabus-rpc@example.test', now(), now())
@@ -157,6 +197,26 @@ select throws_ok(
   )$$,
   'P0001', 'IDEMPOTENCY_KEY_CONFLICT', 'different hash is a deterministic mutation conflict'
 );
+
+select throws_ok(
+  $$select public.upsert_private_syllabus_atomic(
+    '00000000-0000-0000-0000-0000000000d1'::uuid, 'rpc-missing-topics', repeat('4', 64),
+    '{"remoteSyllabusId":"00000000-0000-4000-8000-0000000000e7","subjects":[{"remoteSubjectId":"00000000-0000-4000-8000-0000000000e8"}]}'::jsonb
+  )$$,
+  'P0001', 'INVALID_SYLLABUS', 'missing topics is rejected by the public contract'
+);
+select is((select count(*)::integer from public.user_syllabi where id = '00000000-0000-4000-8000-0000000000e7'), 0, 'missing topics rolls back without a root');
+select is((select count(*)::integer from public.user_syllabus_mutations where mutation_id = 'rpc-missing-topics'), 0, 'missing topics rolls back without a ledger claim');
+
+select throws_ok(
+  $$select public.upsert_private_syllabus_atomic(
+    '00000000-0000-0000-0000-0000000000d1'::uuid, 'rpc-missing-children', repeat('5', 64),
+    '{"remoteSyllabusId":"00000000-0000-4000-8000-0000000000e9","subjects":[{"remoteSubjectId":"00000000-0000-4000-8000-0000000000ea","topics":[{"remoteTopicId":"00000000-0000-4000-8000-0000000000eb"}]}]}'::jsonb
+  )$$,
+  'P0001', 'INVALID_SYLLABUS', 'missing children is rejected by the public contract'
+);
+select is((select count(*)::integer from public.user_syllabi where id = '00000000-0000-4000-8000-0000000000e9'), 0, 'missing children rolls back without a root');
+select is((select count(*)::integer from public.user_syllabus_mutations where mutation_id = 'rpc-missing-children'), 0, 'missing children rolls back without a ledger claim');
 
 select throws_ok(
   $$select public.upsert_private_syllabus_atomic(
