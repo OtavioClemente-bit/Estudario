@@ -10,7 +10,10 @@ import br.com.estudario.data.ai.AiTopicProposal
 import br.com.estudario.data.local.AppDatabase
 import br.com.estudario.data.local.CompetitionEntity
 import br.com.estudario.data.local.RemoteSyllabusSyncState
+import br.com.estudario.data.local.RemoteSyllabusSyncEntity
+import br.com.estudario.data.local.RemoteSyllabusSyncOperation
 import br.com.estudario.data.local.SubjectEntity
+import br.com.estudario.data.local.TopicEntity
 import br.com.estudario.domain.ai.AiSyllabusDraft
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -40,6 +43,7 @@ class SyllabusApplicationServiceTest {
             assertEquals("remote-41", outbox.remoteSyllabusId)
             assertEquals(RemoteSyllabusSyncState.PENDING, outbox.state)
             assertEquals(sha256(result.packageJson), outbox.payloadHash)
+            assertEquals(result.packageJson, outbox.payloadJson)
     }
 
     @Test
@@ -55,6 +59,28 @@ class SyllabusApplicationServiceTest {
             assertEquals(first.outboxId, second.outboxId)
             assertEquals(1, database.dao().pendingRemoteSyllabusSync(200L).size)
             assertEquals(1, database.dao().subjectsFor(targetId).size)
+            assertEquals(first.packageJson, second.packageJson)
+    }
+
+    @Test
+    fun sameSourceJobWithDifferentPayloadIsRejectedWithoutMutation() = runDatabase { database ->
+        val targetId = database.dao().insertCompetition(CompetitionEntity(name = "Edital local"))
+        val service = SyllabusApplicationService(database)
+        val first = service.applyReviewedSyllabus(targetId, draft(targetId, "Documento"), "job-conflict", now = 100L)
+        val beforeTarget = database.dao().competitionsOnce().single()
+        val beforeSubjects = database.dao().subjectsFor(targetId)
+        val beforeOutbox = database.dao().remoteSyllabusSyncById(first.outboxId)
+
+        assertThrows(SyllabusSourceJobConflictException::class.java) {
+            runBlocking {
+                service.applyReviewedSyllabus(targetId, draft(targetId, "Documento alterado"), "job-conflict", now = 200L)
+            }
+        }
+
+        assertEquals(beforeTarget, database.dao().competitionsOnce().single())
+        assertEquals(beforeSubjects, database.dao().subjectsFor(targetId))
+        assertEquals(beforeOutbox, database.dao().remoteSyllabusSyncById(first.outboxId))
+        assertEquals(1, database.dao().pendingRemoteSyllabusSync(200L).size)
     }
 
     @Test
@@ -93,6 +119,62 @@ class SyllabusApplicationServiceTest {
     }
 
     @Test
+    fun replacementRollsBackAfterRealLocalMutationInsideTransaction() = runDatabase { database ->
+        val target = CompetitionEntity(
+            name = "Edital local",
+            externalId = "competition-local",
+            remoteSyllabusId = "remote-existing",
+        )
+        val targetId = database.dao().insertCompetition(target)
+        val oldSubjectId = database.dao().insertSubject(
+            SubjectEntity(competitionId = targetId, name = "Conteúdo antigo", externalId = "old-subject"),
+        )
+        val oldTopicId = database.dao().insertTopic(
+            TopicEntity(subjectId = oldSubjectId, title = "Tópico antigo", externalId = "old-topic"),
+        )
+        val oldOutboxId = database.dao().enqueueRemoteSyllabusSync(
+            RemoteSyllabusSyncEntity(
+                operation = RemoteSyllabusSyncOperation.UPSERT,
+                localSyllabusId = targetId,
+                remoteSyllabusId = "remote-existing",
+                jobId = "old-job",
+                payloadHash = "old-hash",
+                payloadJson = "{\"version\":2,\"old\":true}",
+                nextAttemptAt = 0L,
+            ),
+        )
+        val beforeTarget = database.dao().competitionsOnce().single()
+        val beforeSubjects = database.dao().subjectsFor(targetId)
+        val beforeTopics = database.dao().topicsOnce()
+        val beforeOutbox = database.dao().remoteSyllabusSyncById(oldOutboxId)
+        var hookReached = false
+        val service = SyllabusApplicationService(database) {
+            hookReached = true
+            error("injected-after-local-mutation")
+        }
+
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking {
+                service.applyReviewedSyllabus(
+                    targetId,
+                    draft(targetId, "Novo"),
+                    "job-after-mutation-failure",
+                    replaceExisting = true,
+                    now = 300L,
+                )
+            }
+        }
+
+        assertTrue(hookReached)
+        assertEquals(beforeTarget, database.dao().competitionsOnce().single())
+        assertEquals(beforeSubjects, database.dao().subjectsFor(targetId))
+        assertEquals(beforeTopics, database.dao().topicsOnce())
+        assertEquals(oldTopicId, database.dao().topicsFor(oldSubjectId).single().id)
+        assertEquals(beforeOutbox, database.dao().remoteSyllabusSyncById(oldOutboxId))
+        assertEquals(1, database.dao().pendingRemoteSyllabusSync(300L).size)
+    }
+
+    @Test
     fun successfulLocalApplyStaysPendingUntilRemoteAcknowledgement() = runDatabase { database ->
             val targetId = database.dao().insertCompetition(CompetitionEntity(name = "Edital local", remoteSyllabusId = "remote-9"))
             val result = SyllabusApplicationService(database).applyReviewedSyllabus(targetId, draft(targetId, "Documento"), "job-pending")
@@ -100,6 +182,39 @@ class SyllabusApplicationServiceTest {
             val row = database.dao().remoteSyllabusSyncById(result.outboxId)
             assertEquals(RemoteSyllabusSyncState.PENDING, row?.state)
             assertNotEquals(RemoteSyllabusSyncState.SYNCED, row?.state)
+    }
+
+    @Test
+    fun canonicalPayloadSurvivesDatabaseRestart() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val databaseName = "task-11-canonical-payload-restart.db"
+        context.deleteDatabase(databaseName)
+        val firstDatabase = Room.databaseBuilder(context, AppDatabase::class.java, databaseName)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val targetId = firstDatabase.dao().insertCompetition(CompetitionEntity(name = "Edital local"))
+            val result = SyllabusApplicationService(firstDatabase).applyReviewedSyllabus(
+                targetId,
+                draft(targetId, "Documento persistido"),
+                "job-restart",
+            )
+            firstDatabase.close()
+
+            val reopened = Room.databaseBuilder(context, AppDatabase::class.java, databaseName)
+                .allowMainThreadQueries()
+                .build()
+            try {
+                val restored = reopened.dao().remoteSyllabusSyncById(result.outboxId)!!
+                assertEquals(result.packageJson, restored.payloadJson)
+                assertEquals(result.payloadHash, sha256(restored.payloadJson))
+            } finally {
+                reopened.close()
+            }
+        } finally {
+            if (firstDatabase.isOpen) firstDatabase.close()
+            context.deleteDatabase(databaseName)
+        }
     }
 
     private fun runDatabase(block: suspend (AppDatabase) -> Unit) = runBlocking {

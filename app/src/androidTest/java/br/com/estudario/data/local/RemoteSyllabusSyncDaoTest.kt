@@ -48,6 +48,17 @@ class RemoteSyllabusSyncDaoTest {
     }
 
     @Test
+    fun canonicalEstudoSnapshotRoundTripsWithExistingOutbox() = runBlocking {
+        val localId = dao.insertCompetition(CompetitionEntity(name = "Concurso"))
+        val snapshot = "{\"version\":2,\"documentTitle\":\"Concurso\"}"
+        val rowId = dao.enqueueRemoteSyllabusSync(
+            sync(localId, payloadHash = "hash-canonical", nextAttemptAt = 100L).copy(payloadJson = snapshot),
+        )
+
+        assertEquals(snapshot, dao.remoteSyllabusSyncById(rowId)!!.payloadJson)
+    }
+
+    @Test
     fun pendingRowsAreReturnedInRetryOrderAndFutureRowsWait() = runBlocking {
         val localId = dao.insertCompetition(CompetitionEntity(name = "Concurso"))
         dao.enqueueRemoteSyllabusSync(sync(localId, payloadHash = "late", nextAttemptAt = 300L, createdAt = 30L))

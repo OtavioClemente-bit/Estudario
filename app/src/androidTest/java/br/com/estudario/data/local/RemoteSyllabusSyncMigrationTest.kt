@@ -12,7 +12,7 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class RemoteSyllabusSyncMigrationTest {
-    private val databaseName = "migration-v14-v15-remote-syllabus-test"
+    private val databaseName = "migration-v14-v18-remote-syllabus-test"
 
     @get:Rule
     val helper = MigrationTestHelper(
@@ -22,7 +22,7 @@ class RemoteSyllabusSyncMigrationTest {
     )
 
     @Test
-    fun migrateFourteenToSixteenPreservesProgressHierarchyAndRemoteSyncStorage() {
+    fun migrateFourteenToEighteenPreservesProgressHierarchyAndRemoteSyncStorage() {
         helper.createDatabase(databaseName, 14).apply {
             execSQL("INSERT INTO competitions (id, name, isPrimary, createdAt, externalId) VALUES (41, 'Concurso local', 1, 10, 'local-competition-41')")
             execSQL("INSERT INTO subjects (id, competitionId, name, position, externalId) VALUES (51, 41, 'Direito', 0, 'subject-51')")
@@ -130,6 +130,20 @@ class RemoteSyllabusSyncMigrationTest {
                 assertEquals("NETWORK_ERROR", cursor.getString(2))
             }
             query("SELECT attemptToken FROM remote_syllabus_sync WHERE localSyllabusId = 41 AND payloadHash = 'same-payload'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("", cursor.getString(0))
+            }
+            close()
+        }
+
+        helper.runMigrationsAndValidate(databaseName, 18, true, AppDatabase.MIGRATION_17_18).apply {
+            query("PRAGMA table_info(remote_syllabus_sync)").use { cursor ->
+                val columns = buildSet {
+                    while (cursor.moveToNext()) add(cursor.getString(1))
+                }
+                assertTrue(columns.contains("payloadJson"))
+            }
+            query("SELECT payloadJson FROM remote_syllabus_sync WHERE localSyllabusId = 41 AND operation = 'UPSERT'").use { cursor ->
                 assertTrue(cursor.moveToFirst())
                 assertEquals("", cursor.getString(0))
             }

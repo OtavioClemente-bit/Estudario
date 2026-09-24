@@ -26,6 +26,8 @@ interface AppDao {
     suspend fun remoteSyllabusSyncByJobId(jobId: String): RemoteSyllabusSyncEntity?
     @Query("SELECT * FROM remote_syllabus_sync WHERE localSyllabusId = :localSyllabusId AND operation = :operation AND payloadHash = :payloadHash LIMIT 1")
     suspend fun remoteSyllabusSyncByPayload(localSyllabusId: Long, operation: RemoteSyllabusSyncOperation, payloadHash: String): RemoteSyllabusSyncEntity?
+    @Query("UPDATE remote_syllabus_sync SET payloadJson = :payloadJson WHERE id = :id AND payloadHash = :payloadHash AND payloadJson = ''")
+    suspend fun persistRemoteSyllabusPayloadIfMissing(id: Long, payloadHash: String, payloadJson: String): Int
     @Query("UPDATE remote_syllabus_sync SET attemptCount = attemptCount + 1, attemptToken = :attemptToken, nextAttemptAt = :nextAttemptAt, updatedAt = :updatedAt WHERE id = :id AND state = 'PENDING' AND attemptToken = :expectedAttemptToken AND :attemptToken != ''")
     suspend fun markRemoteSyncAttempt(id: Long, expectedAttemptToken: String, attemptToken: String, nextAttemptAt: Long, updatedAt: Long): Int
     @Query("UPDATE remote_syllabus_sync SET state = 'PENDING', attemptToken = :attemptToken, nextAttemptAt = :now, lastError = NULL, updatedAt = :updatedAt WHERE id = :id AND state = 'FAILED' AND nextAttemptAt <= :now AND attemptToken = :expectedAttemptToken AND :attemptToken != ''")

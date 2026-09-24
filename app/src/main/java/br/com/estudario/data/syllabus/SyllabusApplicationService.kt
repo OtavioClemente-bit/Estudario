@@ -14,6 +14,8 @@ import java.security.MessageDigest
 
 class ExistingSyllabusContentException(message: String) : IllegalStateException(message)
 
+class SyllabusSourceJobConflictException(message: String) : IllegalArgumentException(message)
+
 data class ApplyResult(
     val localSyllabusId: Long,
     val sourceJobId: String,
@@ -26,7 +28,10 @@ data class ApplyResult(
     val alreadyApplied: Boolean,
 )
 
-class SyllabusApplicationService(private val database: AppDatabase) {
+class SyllabusApplicationService(
+    private val database: AppDatabase,
+    private val afterLocalApply: suspend () -> Unit = {},
+) {
     private val dao = database.dao()
     private val packageService = EstudoPackageService(database)
 
@@ -55,7 +60,11 @@ class SyllabusApplicationService(private val database: AppDatabase) {
                 if (existing.localSyllabusId != target.id) {
                     throw IllegalArgumentException("sourceJobId is already associated with another syllabus.")
                 }
-                return@withTransaction existing.toResult(packageJson, normalizedJobId, alreadyApplied = true)
+                if (existing.payloadHash != payloadHash) {
+                    throw SyllabusSourceJobConflictException("sourceJobId was already applied with a different payload hash.")
+                }
+                return@withTransaction existing.ensureCanonicalPayload(packageJson)
+                    .toResult(normalizedJobId, alreadyApplied = true)
             }
 
             dao.remoteSyllabusSyncByPayload(
@@ -63,7 +72,8 @@ class SyllabusApplicationService(private val database: AppDatabase) {
                 operation = RemoteSyllabusSyncOperation.UPSERT,
                 payloadHash = payloadHash,
             )?.let { existing ->
-                return@withTransaction existing.toResult(packageJson, normalizedJobId, alreadyApplied = true)
+                return@withTransaction existing.ensureCanonicalPayload(packageJson)
+                    .toResult(existing.jobId ?: normalizedJobId, alreadyApplied = true)
             }
 
             if (dao.subjectsFor(target.id).isNotEmpty()) {
@@ -78,6 +88,7 @@ class SyllabusApplicationService(private val database: AppDatabase) {
                 mode = ImportMode.SKIP,
                 targetCompetitionId = target.id,
             )
+            afterLocalApply()
 
             val currentTarget = dao.competitionsOnce().first { it.id == target.id }
             val mutation = RemoteSyllabusSyncEntity(
@@ -86,6 +97,7 @@ class SyllabusApplicationService(private val database: AppDatabase) {
                 remoteSyllabusId = currentTarget.remoteSyllabusId,
                 jobId = normalizedJobId,
                 payloadHash = payloadHash,
+                payloadJson = packageJson,
                 state = RemoteSyllabusSyncState.PENDING,
                 nextAttemptAt = now,
                 createdAt = now,
@@ -98,8 +110,14 @@ class SyllabusApplicationService(private val database: AppDatabase) {
             } else {
                 dao.remoteSyllabusSyncById(insertedId) ?: error("The syllabus sync mutation was not persisted.")
             }
-            outbox.toResult(packageJson, normalizedJobId, alreadyApplied = false)
+            outbox.toResult(normalizedJobId, alreadyApplied = false)
         }
+    }
+
+    private suspend fun RemoteSyllabusSyncEntity.ensureCanonicalPayload(candidate: String): RemoteSyllabusSyncEntity {
+        if (payloadJson.isNotEmpty()) return this
+        dao.persistRemoteSyllabusPayloadIfMissing(id, payloadHash, candidate)
+        return dao.remoteSyllabusSyncById(id) ?: error("The syllabus sync mutation was not persisted.")
     }
 
     private suspend fun clearExistingContent(competitionId: Long) {
@@ -119,10 +137,10 @@ class SyllabusApplicationService(private val database: AppDatabase) {
         .digest(value.toByteArray(Charsets.UTF_8))
         .joinToString("") { "%02x".format(it) }
 
-    private fun RemoteSyllabusSyncEntity.toResult(packageJson: String, sourceJobId: String, alreadyApplied: Boolean) = ApplyResult(
+    private fun RemoteSyllabusSyncEntity.toResult(sourceJobId: String, alreadyApplied: Boolean) = ApplyResult(
         localSyllabusId = localSyllabusId,
         sourceJobId = sourceJobId,
-        packageJson = packageJson,
+        packageJson = payloadJson,
         payloadHash = payloadHash,
         outboxId = id,
         remoteSyllabusId = remoteSyllabusId,

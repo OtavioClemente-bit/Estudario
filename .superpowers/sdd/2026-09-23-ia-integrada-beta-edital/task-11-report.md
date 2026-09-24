@@ -5,6 +5,12 @@
 - `app/src/main/java/br/com/estudario/data/syllabus/SyllabusApplicationService.kt`
 - `app/src/androidTest/java/br/com/estudario/data/syllabus/SyllabusApplicationServiceTest.kt`
 - `app/src/main/java/br/com/estudario/data/local/AppDao.kt`
+- `app/src/main/java/br/com/estudario/data/local/Entities.kt`
+- `app/src/main/java/br/com/estudario/data/local/AppDatabase.kt`
+- `app/src/main/java/br/com/estudario/data/StudyRepository.kt`
+- `app/src/androidTest/java/br/com/estudario/data/local/RemoteSyllabusSyncDaoTest.kt`
+- `app/src/androidTest/java/br/com/estudario/data/local/RemoteSyllabusSyncMigrationTest.kt`
+- `app/schemas/br.com.estudario.data.local.AppDatabase/18.json`
 - `app/src/main/java/br/com/estudario/data/transfer/EstudoPackageService.kt`
 
 ## Implementação
@@ -13,28 +19,33 @@
 - Toda aplicação local, substituição explícita, associação remota conhecida, hash SHA-256 e inserção da mutação `UPSERT` na outbox ocorrem no mesmo `database.withTransaction`.
 - O alvo local mantém seu `id`, nome, identidade remota conhecida e demais campos de competição; não há criação de segundo edital.
 - Conteúdo existente bloqueia a operação por padrão; `replaceExisting = true` é necessário para limpar e substituir a árvore.
-- Deduplicação usa `sourceJobId` e a chave existente de `localSyllabusId + operation + payloadHash`; reaplicações não criam nova árvore nem nova linha.
+- A linha existente da outbox agora armazena `payloadJson`, o snapshot canônico serializado pelo formato oficial `.estudo`, além do hash. O snapshot é gravado junto do `PENDING`, sobrevive a restart e pode ser reconstruído sem rede ou credenciais.
+- Deduplicação por `sourceJobId` compara o hash antes de qualquer mutação: mesmo hash retorna o snapshot persistido; hash diferente lança `SyllabusSourceJobConflictException` sem alterar árvore, target, associação ou outbox. A chave existente de `localSyllabusId + operation + payloadHash` continua evitando duplicatas de payload.
+- A migration incremental `17→18` adiciona `payloadJson` com default vazio para linhas legadas; snapshots legados são preenchidos de forma idempotente quando a mesma aplicação é reapresentada.
 - A mutação sempre nasce `PENDING`, preservando `attemptCount`, `attemptToken` e os estados da fila da Task 2. Nenhum sucesso remoto é presumido.
 - `EstudoPackageService.importInTransaction` reutiliza exatamente o boundary oficial sem abrir uma segunda transação quando chamado pelo serviço.
+- O teste de rollback injeta uma falha depois do clear/import real, dentro do `database.withTransaction`, e compara target/associação, subjects/topics e outbox com o snapshot anterior.
 
 ## Testes e resultados
 
-- RED TDD: `:app:compileDebugAndroidTestKotlin` falhou inicialmente porque o serviço e `ExistingSyllabusContentException` ainda não existiam; depois da implementação a compilação passou.
-- `:app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.syllabus.SyllabusApplicationServiceTest"` — `BUILD SUCCESSFUL`; 5/5 testes instrumentados.
-- Casos instrumentados: aplicação bem-sucedida com identidade/remote association, PENDING sem ACK remoto, idempotência por job, bloqueio/substituição explícita e rollback após erro durante replacement.
+- RED TDD: `:app:compileDebugAndroidTestKotlin` falhou inicialmente nas novas expectativas de `payloadJson`, migration e conflito; depois da implementação a compilação passou.
+- `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.syllabus.SyllabusApplicationServiceTest` — `BUILD SUCCESSFUL`; 8/8 testes instrumentados.
+- `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.local.RemoteSyllabusSyncDaoTest` — `BUILD SUCCESSFUL`; 10/10 testes instrumentados.
+- `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.local.RemoteSyllabusSyncMigrationTest` — `BUILD SUCCESSFUL`; migration 14→18, 1/1 teste.
+- `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.RemoteSyllabusAssociationTest` — `BUILD SUCCESSFUL`; 1/1 teste do repository.
+- Casos instrumentados: aplicação com identidade/associação remota, snapshot canônico persistido após restart, PENDING sem ACK remoto, idempotência por job, conflito sem mutação, bloqueio/substituição explícita, rollback após mutação local real, round-trip DAO e migration incremental.
 - `:app:testDebugUnitTest --tests br.com.estudario.domain.ai.AiSyllabusProposalValidatorTest --tests br.com.estudario.domain.ai.AiSyllabusToEstudoMapperTest --tests br.com.estudario.data.transfer.EstudoPackageParserTest` — `BUILD SUCCESSFUL`.
 - `:app:compileDebugAndroidTestKotlin` — `BUILD SUCCESSFUL`.
-- Suíte JVM completa: `340 tests completed, 1 failed`; a única falha é `CopyStyleTest`, por travessões tipográficos preexistentes em `app/src/main/java/br/com/estudario/ui/setup/InitialSetupScreen.kt`, arquivo fora desta Task.
-- Suíte instrumentada completa: os 5 testes da Task 11 passaram; as 10 falhas restantes são preexistentes em backup/UI e não envolvem os arquivos alterados.
 - `git diff --check` — passou.
 - Nenhuma credencial, rede real, backend, UI ou arquivo da Task 12 foi alterado.
 
 ## Commit
 
-- `feat: apply AI syllabus atomically with sync outbox`
+- `fix: harden Task 11 atomic apply outbox` (commit separado do baseline `595d4da`)
 
 ## Riscos
 
 - O ACK remoto e a transição para `SYNCED` continuam deliberadamente fora desta Task e serão tratados pela Task 12.
 - A substituição explícita remove a árvore local existente e referências dependentes dentro da transação; falhas no import oficial restauram tudo por rollback Room.
-- O ambiente mantém falhas baseline já existentes na suíte completa; os testes focados da Task 11 e os testes JVM das dependências relevantes estão verdes.
+- Linhas de outbox anteriores à migration 17→18 recebem `payloadJson = ''`; na reaplicação idempotente com o mesmo hash o serviço faz backfill do snapshot candidato oficial antes de devolver o resultado canônico. Conflitos por hash diferente não fazem esse backfill.
+- O ambiente mantém falhas baseline já existentes na suíte completa; os testes focados desta correção estão verdes.

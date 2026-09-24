@@ -42,6 +42,7 @@ class StudyRepository(private val db: AppDatabase) {
         payloadHash: String,
         operation: RemoteSyllabusSyncOperation = RemoteSyllabusSyncOperation.UPSERT,
         now: Long = System.currentTimeMillis(),
+        payloadJson: String = "",
     ): Long = db.withTransaction {
         val competition = dao.competitionsOnce().firstOrNull { it.id == competitionId }
             ?: error("Competition $competitionId does not exist")
@@ -53,6 +54,7 @@ class StudyRepository(private val db: AppDatabase) {
                 remoteSyllabusId = remoteSyllabusId,
                 jobId = jobId,
                 payloadHash = payloadHash,
+                payloadJson = payloadJson,
                 nextAttemptAt = now,
                 createdAt = now,
                 updatedAt = now,
