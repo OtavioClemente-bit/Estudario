@@ -300,6 +300,32 @@ Deno.test("rejects impossible calendar dates in job and sync timestamps", async 
   }
 });
 
+Deno.test("matches Kotlin Instant.parse second and midnight boundaries", async () => {
+  const job = JSON.parse(await Deno.readTextFile(new URL("./fixtures/v1/job-reserved.json", import.meta.url))) as Record<string, any>;
+  const acknowledgement = JSON.parse(await Deno.readTextFile(new URL("./fixtures/v1/sync-pending.json", import.meta.url))) as Record<string, any>;
+
+  for (const parseInvalid of [
+    () => parseAiJob({ ...job, createdAt: "2026-02-28T00:00:60Z" }),
+    () => parseRemoteSyllabusSyncAcknowledgement({ ...acknowledgement, updatedAt: "2026-02-28T23:58:60Z" }),
+  ]) {
+    try {
+      parseInvalid();
+      throw new Error("expected unsupported second boundary to be rejected");
+    } catch (error) {
+      if (!(error instanceof ContractValidationError)) throw error;
+    }
+  }
+
+  const leapSecondJob = parseAiJob({ ...job, createdAt: "2026-02-28T23:59:60Z" });
+  const midnightAcknowledgement = parseRemoteSyllabusSyncAcknowledgement({
+    ...acknowledgement,
+    updatedAt: "2026-02-28T24:00:00.123456789+03:00",
+  });
+  if (leapSecondJob.createdAt !== "2026-02-28T23:59:60Z" || midnightAcknowledgement.updatedAt !== "2026-02-28T24:00:00.123456789+03:00") {
+    throw new Error("Kotlin-compatible boundary timestamps were not preserved");
+  }
+});
+
 Deno.test("parses every versioned shared fixture", async () => {
   const read = (name: string) => Deno.readTextFile(new URL(`./fixtures/v1/${name}`, import.meta.url));
   parseProviderAiSyllabusProposal(await read("ai-syllabus-proposal.json"));

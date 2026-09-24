@@ -237,7 +237,9 @@ function dateTime(value: unknown, path: string): string {
   if (
     month < 1 || month > 12 ||
     day < 1 || day > daysInMonth[month - 1] ||
-    hour > 23 || minute > 59 || second > 60 ||
+    hour > 24 || minute > 59 || second > 60 ||
+    (second === 60 && (hour !== 23 || minute !== 59)) ||
+    (hour === 24 && (minute !== 0 || second !== 0)) ||
     offsetMinute > 59 || offsetHour > 18 || (offsetHour === 18 && offsetMinute !== 0)
   ) {
     fail(path, "must be an ISO-8601 date-time");
