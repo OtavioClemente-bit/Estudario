@@ -2,6 +2,8 @@ package br.com.estudario.data.ai
 
 import java.io.ByteArrayInputStream
 import java.security.MessageDigest
+import java.io.File
+import java.nio.file.Files
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
@@ -49,6 +51,24 @@ class PdfSourceReaderTest {
 
         assertThrows(PdfSourcePreflightException::class.java) {
             reader.read("content://edital")
+        }
+    }
+
+    @Test
+    fun persistsPdfSnapshotPrivatelyAndReadsTheSameFingerprint() {
+        val bytes = "%PDF-durable".toByteArray()
+        val source = PdfSource("content://edital", "edital.pdf", "application/pdf", bytes, sha256(bytes))
+        val directory = Files.createTempDirectory("ai-source-test").toFile()
+        try {
+            val store = FilePdfSourceSnapshotStore(directory)
+            val path = store.save(source)
+            val restored = store.read(path, source.fileName)
+
+            assertEquals(source.mimeType, restored.mimeType)
+            assertEquals(source.sha256, restored.sha256)
+            assertArrayEquals(source.bytes, restored.bytes)
+        } finally {
+            directory.deleteRecursively()
         }
     }
 

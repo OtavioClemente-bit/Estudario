@@ -2,6 +2,7 @@ package br.com.estudario.data.ai
 
 import br.com.estudario.data.remote.AiAccessTokenProvider
 import java.time.Instant
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -35,7 +36,7 @@ class AiApiClientTest {
         val transport = FakeAiHttpTransport(
             AiHttpResponse(200, jobJson("PROCESSING")),
             AiHttpResponse(200, jobJson("PROCESSING")),
-            AiHttpResponse(200, jobJson("SUCCEEDED")),
+            AiHttpResponse(200, succeededJobJson()),
         )
         val delays = mutableListOf<Long>()
         val client = HttpAiApiClient(
@@ -56,6 +57,63 @@ class AiApiClientTest {
         assertTrue(transport.requests.all { it.path == "/functions/v1/ai-syllabus/jobs/job-1" })
     }
 
+    @Test
+    fun rejectsSucceededJobWhenProposalOrMetadataIsInvalid() = runTest {
+        val transport = FakeAiHttpTransport(AiHttpResponse(200, jobJson("SUCCEEDED")))
+        val client = HttpAiApiClient(
+            baseUrl = "",
+            publishableKey = "",
+            accessTokenProvider = AiAccessTokenProvider { "supabase-jwt" },
+            transport = transport,
+        )
+
+        assertTrue(runCatching { client.awaitJob("job-1") }.exceptionOrNull() is AiApiException)
+    }
+
+    @Test
+    fun boundsSleepAndRejectsTerminalResponseAfterPollingDeadline() = runTest {
+        var calls = 0
+        var now = 0L
+        val transport = AiHttpTransport {
+            calls += 1
+            if (calls == 2) now = 100
+            AiHttpResponse(200, if (calls == 1) jobJson("PROCESSING") else succeededJobJson())
+        }
+        val delays = mutableListOf<Long>()
+        val client = HttpAiApiClient(
+            baseUrl = "",
+            publishableKey = "",
+            accessTokenProvider = AiAccessTokenProvider { "supabase-jwt" },
+            transport = transport,
+        )
+
+        assertTrue(runCatching {
+            client.awaitJob(
+                "job-1",
+                policy = AiPollingPolicy(timeoutMillis = 100, initialDelayMillis = 500, maxDelayMillis = 500),
+                sleeper = { delayMillis -> delays += delayMillis; now += delayMillis - 1 },
+                clockMillis = { now },
+            )
+        }.exceptionOrNull() is AiProcessTimeoutException)
+        assertEquals(listOf(100L), delays)
+        assertEquals(2, calls)
+    }
+
+    @Test
+    fun appliesGlobalTimeoutToEachHttpCall() = runTest {
+        val transport = AiHttpTransport { delay(10_000); AiHttpResponse(202, "{}") }
+        val client = HttpAiApiClient(
+            baseUrl = "",
+            publishableKey = "",
+            accessTokenProvider = AiAccessTokenProvider { "supabase-jwt" },
+            transport = transport,
+            httpTimeoutMillis = 100,
+        )
+
+        val error = runCatching { client.processJob("job-1") }.exceptionOrNull() as AiApiException
+        assertEquals("HTTP_TIMEOUT", error.code)
+    }
+
     private fun jobJson(status: String): String = """
         {
           "jobId":"job-1","feature":"SYLLABUS_GENERATION","status":"$status",
@@ -63,6 +121,19 @@ class AiApiClientTest {
           "warnings":[],"errorCode":null,"errorMessage":null,
           "createdAt":"${Instant.parse("2026-09-24T10:00:00Z")}",
           "updatedAt":"2026-09-24T10:00:01Z","finishedAt":null,"providerExecutionStartedAt":null
+        }
+    """.trimIndent()
+
+    private fun succeededJobJson(): String = """
+        {
+          "jobId":"job-1","feature":"SYLLABUS_GENERATION","status":"SUCCEEDED",
+          "schemaVersion":1,"promptVersion":"syllabus-v1","modelVersion":"gpt-6-luna",
+          "proposal":{"schemaVersion":1,"promptVersion":"syllabus-v1","modelVersion":"gpt-6-luna","documentTitle":"Edital",
+            "subjects":[{"name":"Direito","position":0,"suggestedPriority":"NORMAL","topics":[{"name":"Constituição","position":0,"children":[],"sourcePages":[1]}],"sourcePages":[1]}],
+            "warnings":[],"ambiguities":[]},
+          "warnings":[],"errorCode":null,"errorMessage":null,
+          "createdAt":"2026-09-24T10:00:00Z","updatedAt":"2026-09-24T10:00:01Z",
+          "finishedAt":"2026-09-24T10:00:01Z","providerExecutionStartedAt":"2026-09-24T10:00:00Z"
         }
     """.trimIndent()
 }

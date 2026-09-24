@@ -157,6 +157,22 @@ private fun AiJob.validate() {
     requireContractInstant(updatedAt, "job.updatedAt")
     finishedAt?.let { requireContractInstant(it, "job.finishedAt") }
     providerExecutionStartedAt?.let { requireContractInstant(it, "job.providerExecutionStartedAt") }
+    if (status == AiJobStatus.SUCCEEDED) {
+        val completedProposal = proposal
+            ?: throw ContractValidationException("job.proposal: required for SUCCEEDED jobs")
+        if (schemaVersion != CURRENT_AI_SCHEMA_VERSION) {
+            throw ContractValidationException("job.schemaVersion: required for SUCCEEDED jobs")
+        }
+        if (promptVersion != completedProposal.promptVersion) {
+            throw ContractValidationException("job.promptVersion: does not match proposal")
+        }
+        if (modelVersion != completedProposal.modelVersion) {
+            throw ContractValidationException("job.modelVersion: does not match proposal")
+        }
+        if (finishedAt == null) {
+            throw ContractValidationException("job.finishedAt: required for SUCCEEDED jobs")
+        }
+    }
 }
 
 private fun AiSubjectProposal.validate(path: String) {

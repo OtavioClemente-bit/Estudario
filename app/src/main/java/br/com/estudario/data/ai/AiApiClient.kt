@@ -8,10 +8,12 @@ import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -85,7 +87,7 @@ interface AiApiClient {
 
     suspend fun processJob(jobId: String): AiJobStatus
 
-    suspend fun getJob(jobId: String): AiJob
+    suspend fun getJob(jobId: String, timeoutMillis: Long? = null): AiJob
 
     suspend fun awaitJob(
         jobId: String,
@@ -109,7 +111,12 @@ class HttpAiApiClient(
     private val publishableKey: String,
     private val accessTokenProvider: AiAccessTokenProvider,
     private val transport: AiHttpTransport = UrlConnectionAiHttpTransport(baseUrl),
+    private val httpTimeoutMillis: Long = DEFAULT_HTTP_TIMEOUT_MILLIS,
 ) : AiApiClient {
+    init {
+        require(httpTimeoutMillis > 0)
+    }
+
     override suspend fun createOrGetJob(
         idempotencyKey: String,
         source: AiSourceMetadata,
@@ -183,7 +190,7 @@ class HttpAiApiClient(
         return response.body.parseJsonObject().requiredStatus("status")
     }
 
-    override suspend fun getJob(jobId: String): AiJob {
+    override suspend fun getJob(jobId: String, timeoutMillis: Long?): AiJob {
         val response = execute(
             buildRequest(
                 method = "GET",
@@ -191,6 +198,7 @@ class HttpAiApiClient(
                 headers = authHeaders(),
             ),
             acceptedStatuses = setOf(200),
+            timeoutMillis = timeoutMillis,
         )
         return response.body.toAiJob()
     }
@@ -202,24 +210,39 @@ class HttpAiApiClient(
         clockMillis: () -> Long,
     ): AiJob {
         val startedAt = clockMillis()
+        val deadline = startedAt + policy.timeoutMillis
         var delayMillis = policy.initialDelayMillis
         while (true) {
-            val job = getJob(jobId)
+            val remainingBeforeRequest = deadline - clockMillis()
+            if (remainingBeforeRequest <= 0) throw AiProcessTimeoutException(jobId)
+            val job = getJob(jobId, remainingBeforeRequest.coerceAtMost(httpTimeoutMillis))
+            if (clockMillis() >= deadline) throw AiProcessTimeoutException(jobId)
             if (job.status.isTerminal()) return job
-            if (clockMillis() - startedAt >= policy.timeoutMillis) throw AiProcessTimeoutException(jobId)
-            sleeper(delayMillis)
+            val remainingBeforeSleep = deadline - clockMillis()
+            if (remainingBeforeSleep <= 0) throw AiProcessTimeoutException(jobId)
+            sleeper(delayMillis.coerceAtMost(remainingBeforeSleep))
             delayMillis = (delayMillis * policy.multiplier).toLong().coerceAtMost(policy.maxDelayMillis)
         }
     }
 
-    private suspend fun execute(request: AiHttpRequest, acceptedStatuses: Set<Int>): AiHttpResponse {
+    private suspend fun execute(
+        request: AiHttpRequest,
+        acceptedStatuses: Set<Int>,
+        timeoutMillis: Long? = null,
+    ): AiHttpResponse {
         if (baseUrl.isBlank() && request.path.startsWith("/")) {
             // Test doubles may exercise request construction without a project URL. The real
             // transport rejects an empty URL before any network call.
         }
         val response = try {
-            transport.execute(request)
+            withTimeout((timeoutMillis ?: httpTimeoutMillis).coerceAtMost(httpTimeoutMillis)) {
+                transport.execute(request)
+            }
+        } catch (_: TimeoutCancellationException) {
+            throw AiApiException("HTTP_TIMEOUT", 504)
         } catch (error: AiApiException) {
+            throw error
+        } catch (error: CancellationException) {
             throw error
         } catch (_: Throwable) {
             throw AiApiException("NETWORK_UNAVAILABLE", 503)
@@ -341,26 +364,16 @@ private fun AiHttpResponse.errorCode(): String = runCatching {
 }.getOrNull()?.takeIf(String::isNotBlank) ?: "AI_API_ERROR"
 
 private fun String.toAiJob(): AiJob {
-    val element = jsonForApiJobs.parseToJsonElement(this).jsonObject
-    val proposal = element["proposal"]?.let { runCatching { jsonForApiJobs.decodeFromJsonElement<AiSyllabusProposal>(it) }.getOrNull() }
-    val warnings = element["warnings"]?.let { runCatching { jsonForApiJobs.decodeFromJsonElement<List<AiWarning>>(it) }.getOrDefault(emptyList()) } ?: emptyList()
-    return AiJob(
-        jobId = element.requiredString("jobId"),
-        feature = runCatching { AiFeature.valueOf(element.requiredString("feature")) }.getOrElse { throw AiApiException("INVALID_RESPONSE", 502) },
-        status = element.requiredStatus("status"),
-        schemaVersion = element["schemaVersion"]?.jsonPrimitive?.intOrNull,
-        promptVersion = element.optionalString("promptVersion"),
-        modelVersion = element.optionalString("modelVersion"),
-        proposal = proposal,
-        warnings = warnings,
-        errorCode = element.optionalString("errorCode"),
-        errorMessage = element.optionalString("errorMessage"),
-        createdAt = element.requiredString("createdAt"),
-        updatedAt = element.requiredString("updatedAt"),
-        finishedAt = element.optionalString("finishedAt"),
-        providerExecutionStartedAt = element.optionalString("providerExecutionStartedAt"),
-    )
+    return try {
+        EstudarioContractJson.decodeJob(this).also { job ->
+            if (job.feature != AiFeature.SYLLABUS_GENERATION) throw ContractValidationException("job.feature: unsupported for syllabus client")
+        }
+    } catch (_: Throwable) {
+        throw AiApiException("INVALID_RESPONSE", 502)
+    }
 }
+
+private const val DEFAULT_HTTP_TIMEOUT_MILLIS = 30_000L
 
 private fun AiJobStatus.isTerminal(): Boolean = this in setOf(
     AiJobStatus.SUCCEEDED,

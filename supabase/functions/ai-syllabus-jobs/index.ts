@@ -1,4 +1,4 @@
-import type { AiFeature } from "../_shared/contracts.ts";
+import { parseAiJob, type AiFeature, type AiJob } from "../_shared/contracts.ts";
 import {
   authenticateSupabaseRequest,
   AuthError,
@@ -8,6 +8,7 @@ import {
   JobStoreError,
   requestFingerprint,
   SupabaseAiJobStore,
+  type AiJobRecord,
   type AiJobStore,
 } from "../_shared/job-finalizer.ts";
 import {
@@ -240,10 +241,49 @@ async function processJob(
   }
 }
 
+function publicJob(job: AiJobRecord): AiJob {
+  return parseAiJob({
+    jobId: job.id,
+    feature: job.feature,
+    status: job.status,
+    schemaVersion: job.schemaVersion,
+    promptVersion: job.promptVersion,
+    modelVersion: job.modelVersion,
+    proposal: job.proposal,
+    warnings: job.warnings,
+    errorCode: job.errorCode,
+    errorMessage: job.errorMessage,
+    createdAt: job.createdAt,
+    updatedAt: job.updatedAt,
+    finishedAt: job.finishedAt,
+    providerExecutionStartedAt: job.providerExecutionStartedAt ?? null,
+  });
+}
+
+async function getJob(
+  dependencies: AiSyllabusJobsDependencies,
+  user: AuthenticatedUser,
+  jobId: string,
+): Promise<Response> {
+  if (!jobId || jobId.includes("/")) return safeError("INVALID_REQUEST", 400);
+  let job: AiJobRecord | null;
+  try {
+    job = await dependencies.jobs.getJob(user.userId, jobId);
+  } catch (error) {
+    return error instanceof JobStoreError ? safeError(error.code, error.status) : safeError("AI_JOB_DATA_UNAVAILABLE", 503);
+  }
+  if (!job) return safeError("AI_JOB_NOT_FOUND", 404);
+  try {
+    return jsonResponse(publicJob(job));
+  } catch {
+    return safeError("AI_JOB_DATA_UNAVAILABLE", 503);
+  }
+}
+
 export function createAiSyllabusJobsHandler(dependencies: AiSyllabusJobsDependencies): (request: Request) => Promise<Response> {
   return async (request: Request): Promise<Response> => {
     if (!request.headers.get("authorization")) return safeError("AUTH_REQUIRED", 401);
-    if (request.method !== "POST") return jsonResponse({ error: { code: "METHOD_NOT_ALLOWED", message: "Only POST is supported" } }, 405, { allow: "POST" });
+    if (request.method !== "POST" && request.method !== "GET") return jsonResponse({ error: { code: "METHOD_NOT_ALLOWED", message: "Only GET and POST are supported" } }, 405, { allow: "GET, POST" });
 
     let user: AuthenticatedUser;
     try {
@@ -255,8 +295,10 @@ export function createAiSyllabusJobsHandler(dependencies: AiSyllabusJobsDependen
 
     const pathname = new URL(request.url).pathname.replace(/\/+$/, "");
     const processMatch = pathname.match(/\/ai-syllabus\/jobs\/([^/]+)\/process$/);
+    const getMatch = pathname.match(/\/ai-syllabus\/jobs\/([^/]+)$/);
     try {
       if (pathname.endsWith("/ai-syllabus/jobs")) return await createJob(request, dependencies, user);
+      if (request.method === "GET" && getMatch) return await getJob(dependencies, user, getMatch[1]);
       if (processMatch) return await processJob(request, dependencies, user, processMatch[1]);
       return safeError("NOT_FOUND", 404);
     } catch (error) {

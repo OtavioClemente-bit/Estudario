@@ -394,3 +394,19 @@ Deno.test("keeps job, access, and sync acknowledgment nullability explicit", () 
     throw new Error("nullable fields were not preserved");
   }
 });
+
+Deno.test("rejects a succeeded job without a valid proposal and expected versions", async () => {
+  const job = JSON.parse(await Deno.readTextFile(new URL("./fixtures/v1/job-reserved.json", import.meta.url))) as Record<string, unknown>;
+  job.status = "SUCCEEDED";
+  for (const invalid of [
+    { ...job },
+    { ...job, proposal: { schemaVersion: 1 }, schemaVersion: 1, promptVersion: "syllabus-v1", modelVersion: "gpt-6-luna" },
+  ]) {
+    try {
+      parseAiJob(invalid);
+      throw new Error("expected succeeded job contract to be rejected");
+    } catch (error) {
+      if (!(error instanceof ContractValidationError)) throw error;
+    }
+  }
+});

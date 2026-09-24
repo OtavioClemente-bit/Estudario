@@ -3,6 +3,9 @@ package br.com.estudario.data.ai
 import android.content.ContentResolver
 import android.net.Uri
 import android.provider.OpenableColumns
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.security.MessageDigest
@@ -25,6 +28,57 @@ data class PdfSource(
     val bytes: ByteArray,
     val sha256: String,
 )
+
+interface PdfSourceSnapshotStore {
+    fun save(source: PdfSource): String
+
+    fun read(path: String, fileName: String): PdfSource
+}
+
+class InMemoryPdfSourceSnapshotStore : PdfSourceSnapshotStore {
+    private val values = linkedMapOf<String, PdfSource>()
+
+    override fun save(source: PdfSource): String {
+        val path = "private/${source.sha256}.pdf"
+        values[path] = source.copy(bytes = source.bytes.copyOf())
+        return path
+    }
+
+    override fun read(path: String, fileName: String): PdfSource {
+        val value = values[path] ?: error("PDF source snapshot is unavailable.")
+        return value.copy(fileName = fileName, bytes = value.bytes.copyOf())
+    }
+}
+
+class FilePdfSourceSnapshotStore(
+    private val rootDirectory: File,
+) : PdfSourceSnapshotStore {
+    override fun save(source: PdfSource): String {
+        require(rootDirectory.mkdirs() || rootDirectory.isDirectory) { "Private PDF storage is unavailable." }
+        val target = File(rootDirectory, "${source.sha256}.pdf")
+        if (!target.exists()) {
+            val temporary = File(rootDirectory, ".${source.sha256}.tmp")
+            FileOutputStream(temporary).use { it.write(source.bytes) }
+            check(temporary.renameTo(target) || target.exists()) { "Private PDF snapshot could not be committed." }
+        }
+        return target.name
+    }
+
+    override fun read(path: String, fileName: String): PdfSource {
+        val root = rootDirectory.canonicalFile
+        val target = File(root, path).canonicalFile
+        require(target.parentFile == root && target.name.matches(Regex("[0-9a-f]{64}\\.pdf"))) {
+            "Private PDF snapshot path is invalid."
+        }
+        val bytes = FileInputStream(target).use { it.readBytes() }
+        return PdfSource(target.path, fileName, PdfSourceReader.PDF_MIME, bytes, sha256(bytes))
+    }
+}
+
+class PdfSourceChangedException(
+    val expectedHash: String,
+    val actualHash: String,
+) : IllegalStateException("Persisted PDF source no longer matches its fingerprint.")
 
 class PdfSourcePreflightException(
     val code: Code,
@@ -143,3 +197,7 @@ class PdfSourceReader(
 }
 
 private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
+
+private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+    .digest(bytes)
+    .toHex()

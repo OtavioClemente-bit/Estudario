@@ -38,6 +38,16 @@ export interface AiJobRecord {
   providerExecutionStartedAt?: string | null;
   providerReconciledAt?: string | null;
   providerResultRecoverable?: boolean | null;
+  promptVersion: string | null;
+  schemaVersion: number | null;
+  modelVersion: string | null;
+  proposal: Record<string, unknown> | null;
+  warnings: unknown[];
+  errorCode: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+  finishedAt: string | null;
   source?: BoundStorageSource;
 }
 
@@ -128,7 +138,7 @@ export class SupabaseAiJobStore implements AiJobStore {
 
   async getJob(userId: string, jobId: string): Promise<AiJobRecord | null> {
     const url = this.restUrl("ai_jobs");
-    url.searchParams.set("select", "id,user_id,feature,status,idempotency_key,request_fingerprint,request_payload,source_object_path,source_hash,source_bytes,source_pages,source_file_count,source_mime_type,source_metadata,openai_response_id,provider_execution_started_at,provider_reconciled_at,provider_result_recoverable");
+    url.searchParams.set("select", "id,user_id,feature,status,idempotency_key,request_fingerprint,request_payload,source_object_path,source_hash,source_bytes,source_pages,source_file_count,source_mime_type,source_metadata,openai_response_id,provider_execution_started_at,provider_reconciled_at,provider_result_recoverable,prompt_version,schema_version,model_version,proposal,warnings,error_code,error_message,created_at,updated_at,finished_at");
     url.searchParams.set("id", `eq.${jobId}`);
     url.searchParams.set("user_id", `eq.${userId}`);
     url.searchParams.set("limit", "1");
@@ -304,6 +314,16 @@ function parseJob(value: Record<string, unknown>): AiJobRecord {
     providerExecutionStartedAt: nullableString(value, "provider_execution_started_at"),
     providerReconciledAt: nullableString(value, "provider_reconciled_at"),
     providerResultRecoverable: nullableBoolean(value, "provider_result_recoverable"),
+    promptVersion: nullableString(value, "prompt_version"),
+    schemaVersion: nullableInteger(value, "schema_version"),
+    modelVersion: nullableString(value, "model_version"),
+    proposal: nullableObject(value, "proposal"),
+    warnings: arrayField(value, "warnings"),
+    errorCode: nullableString(value, "error_code"),
+    errorMessage: nullableString(value, "error_message"),
+    createdAt: stringField(value, "created_at"),
+    updatedAt: stringField(value, "updated_at"),
+    finishedAt: nullableString(value, "finished_at"),
     source,
   };
 }
@@ -374,6 +394,16 @@ function booleanField(row: Record<string, unknown>, key: string): boolean {
 
 function objectField(row: Record<string, unknown>, key: string): Record<string, unknown> {
   if (!isObject(row[key])) throw new JobStoreError("AI_JOB_DATA_UNAVAILABLE", 503);
+  return row[key];
+}
+
+function nullableObject(row: Record<string, unknown>, key: string): Record<string, unknown> | null {
+  if (row[key] === null || row[key] === undefined) return null;
+  return objectField(row, key);
+}
+
+function arrayField(row: Record<string, unknown>, key: string): unknown[] {
+  if (!Array.isArray(row[key])) throw new JobStoreError("AI_JOB_DATA_UNAVAILABLE", 503);
   return row[key];
 }
 

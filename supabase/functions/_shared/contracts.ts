@@ -380,7 +380,7 @@ export function parseAiJob(value: unknown): AiJob {
   exactKeys(item, ["jobId", "feature", "status", "schemaVersion", "promptVersion", "modelVersion", "proposal", "warnings", "errorCode", "errorMessage", "createdAt", "updatedAt", "finishedAt", "providerExecutionStartedAt"], "job");
   const schemaVersion = required(item, "schemaVersion", "job");
   const proposal = required(item, "proposal", "job");
-  return {
+  const job: AiJob = {
     jobId: stringValue(required(item, "jobId", "job"), "job.jobId"),
     feature: enumValue(required(item, "feature", "job"), AI_FEATURES, "job.feature"),
     status: enumValue(required(item, "status", "job"), AI_JOB_STATUSES, "job.status"),
@@ -396,6 +396,12 @@ export function parseAiJob(value: unknown): AiJob {
     finishedAt: required(item, "finishedAt", "job") === null ? null : dateTime(required(item, "finishedAt", "job"), "job.finishedAt"),
     providerExecutionStartedAt: required(item, "providerExecutionStartedAt", "job") === null ? null : dateTime(required(item, "providerExecutionStartedAt", "job"), "job.providerExecutionStartedAt"),
   };
+  if (job.status === "SUCCEEDED") {
+    if (job.proposal === null || job.schemaVersion !== CURRENT_AI_SCHEMA_VERSION || job.promptVersion !== job.proposal.promptVersion || job.modelVersion !== job.proposal.modelVersion || job.finishedAt === null) {
+      fail("job", "SUCCEEDED requires a valid proposal, matching versions, and finishedAt");
+    }
+  }
+  return job;
 }
 
 function hash(value: unknown, path: string): string | null {

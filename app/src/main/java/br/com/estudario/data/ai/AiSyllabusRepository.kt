@@ -23,6 +23,7 @@ data class PersistedAiJobRequest(
     val mimeType: String,
     val sourceHash: String,
     val sourceBytes: Long,
+    val sourcePath: String? = null,
     val jobId: String? = null,
     val uploadPath: String? = null,
     val sourceUploaded: Boolean = false,
@@ -36,6 +37,10 @@ interface AiJobRequestStore {
     suspend fun get(requestId: String): PersistedAiJobRequest?
 
     suspend fun list(): List<PersistedAiJobRequest>
+}
+
+interface AiJobRecoveryRepository {
+    suspend fun recoverPendingJobs(): List<AiJob>
 }
 
 private val Context.aiJobRequestDataStore by preferencesDataStore(name = "ai_job_requests")
@@ -71,10 +76,12 @@ class DefaultAiSyllabusRepository(
     private val requestStore: AiJobRequestStore,
     private val accessTokenProvider: AiAccessTokenProvider,
     private val pollingPolicy: AiPollingPolicy = AiPollingPolicy(),
-) {
+    private val sourceSnapshots: PdfSourceSnapshotStore,
+) : AiJobRecoveryRepository {
     suspend fun start(uri: String, fileName: String? = null): AiJob {
         requireAuthenticated()
         val source = sourceReader.read(uri, fileName)
+        val sourcePath = sourceSnapshots.save(source)
         val request = PersistedAiJobRequest(
             requestId = UUID.randomUUID().toString(),
             idempotencyKey = UUID.randomUUID().toString(),
@@ -83,6 +90,7 @@ class DefaultAiSyllabusRepository(
             mimeType = source.mimeType,
             sourceHash = source.sha256,
             sourceBytes = source.bytes.size.toLong(),
+            sourcePath = sourcePath,
         )
         requestStore.save(request)
         return continueRequest(request, source)
@@ -90,13 +98,10 @@ class DefaultAiSyllabusRepository(
 
     suspend fun recover(requestId: String): AiJob {
         requireAuthenticated()
-        val request = requestStore.get(requestId) ?: throw IllegalArgumentException("AI request not found.")
-        if (request.jobId != null && request.status != AiJobStatus.RESERVED.name) {
-            return awaitExisting(request, request.jobId)
-        }
-        val source = sourceReader.read(request.sourceUri, request.fileName)
-        if (request.jobId == null || request.status == AiJobStatus.RESERVED.name) return continueRequest(request, source)
-        return awaitExisting(request, request.jobId)
+        val stored = requestStore.get(requestId) ?: throw IllegalArgumentException("AI request not found.")
+        val (request, source) = durableSource(stored)
+        if (request.jobId != null && request.status != AiJobStatus.RESERVED.name) return awaitExisting(request, request.jobId)
+        return continueRequest(request, source)
     }
 
     suspend fun retryFailed(requestId: String): AiJob {
@@ -106,7 +111,7 @@ class DefaultAiSyllabusRepository(
         require(previousStatus == AiJobStatus.FAILED || previousStatus == AiJobStatus.EXPIRED || previousStatus == AiJobStatus.CANCELLED) {
             "Only a terminal failed AI job can be retried."
         }
-        val source = sourceReader.read(previous.sourceUri, previous.fileName)
+        val (durablePrevious, source) = durableSource(previous)
         val retry = previous.copy(
             idempotencyKey = UUID.randomUUID().toString(),
             jobId = null,
@@ -114,24 +119,42 @@ class DefaultAiSyllabusRepository(
             status = null,
             sourceHash = source.sha256,
             sourceBytes = source.bytes.size.toLong(),
+            sourcePath = durablePrevious.sourcePath,
             updatedAtEpochMillis = System.currentTimeMillis(),
         )
         requestStore.save(retry)
         return continueRequest(retry, source)
     }
 
-    suspend fun recoverPendingJobs(): List<AiJob> = buildList {
+    override suspend fun recoverPendingJobs(): List<AiJob> = buildList {
         requireAuthenticated()
         requestStore.list()
             .filter { it.status !in setOf(AiJobStatus.SUCCEEDED.name, AiJobStatus.FAILED.name, AiJobStatus.EXPIRED.name, AiJobStatus.CANCELLED.name) }
             .forEach { request ->
-                if (request.jobId != null && request.status != AiJobStatus.RESERVED.name) {
-                    add(awaitExisting(request, request.jobId))
+                val (durableRequest, source) = durableSource(request)
+                if (durableRequest.jobId != null && durableRequest.status != AiJobStatus.RESERVED.name) {
+                    add(awaitExisting(durableRequest, durableRequest.jobId))
                 } else {
-                    val source = sourceReader.read(request.sourceUri, request.fileName)
-                    add(continueRequest(request, source))
+                    add(continueRequest(durableRequest, source))
                 }
             }
+    }
+
+    private suspend fun durableSource(request: PersistedAiJobRequest): Pair<PersistedAiJobRequest, PdfSource> {
+        val path = request.sourcePath
+        val (durableRequest, source) = if (path == null) {
+            val read = sourceReader.read(request.sourceUri, request.fileName)
+            val snapshotPath = sourceSnapshots.save(read)
+            val migrated = request.copy(sourcePath = snapshotPath, updatedAtEpochMillis = System.currentTimeMillis())
+            requestStore.save(migrated)
+            migrated to read
+        } else {
+            request to sourceSnapshots.read(path, request.fileName)
+        }
+        if (source.mimeType != request.mimeType || source.bytes.size.toLong() != request.sourceBytes || source.sha256 != request.sourceHash) {
+            throw PdfSourceChangedException(request.sourceHash, source.sha256)
+        }
+        return durableRequest to source
     }
 
     private suspend fun continueRequest(request: PersistedAiJobRequest, source: PdfSource): AiJob {

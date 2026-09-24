@@ -16,18 +16,24 @@ import kotlinx.coroutines.CancellationException
 class AiJobRecoveryWorker(
     context: Context,
     parameters: WorkerParameters,
+    private val recoveryOverride: AiJobRecoveryRepository? = null,
 ) : CoroutineWorker(context, parameters) {
     override suspend fun doWork(): Result {
-        if (runAttemptCount >= MAX_ATTEMPTS) return Result.failure()
+        val recovery = recoveryOverride ?: (applicationContext as EstudarioApplication).aiSyllabusRepository
+        return execute(recovery, runAttemptCount)
+    }
+
+    private suspend fun execute(recovery: AiJobRecoveryRepository, attempt: Int): Result {
+        if (attempt >= MAX_ATTEMPTS) return Result.failure()
         return try {
-            (applicationContext as EstudarioApplication).aiSyllabusRepository.recoverPendingJobs()
+            recovery.recoverPendingJobs()
             Result.success()
         } catch (_: AiAuthenticationRequiredException) {
             Result.success()
         } catch (error: CancellationException) {
             throw error
         } catch (_: Throwable) {
-            if (shouldRetry(runAttemptCount)) Result.retry() else Result.failure()
+            if (shouldRetry(attempt)) Result.retry() else Result.failure()
         }
     }
 

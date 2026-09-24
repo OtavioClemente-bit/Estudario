@@ -1,6 +1,7 @@
 package br.com.estudario
 
 import android.app.Application
+import java.io.File
 import br.com.estudario.data.StudyRepository
 import br.com.estudario.data.FocusSessionRepository
 import br.com.estudario.data.local.AppDatabase
@@ -17,6 +18,7 @@ import br.com.estudario.data.ai.AiJobRecoveryWorker
 import br.com.estudario.data.ai.DataStoreAiJobRequestStore
 import br.com.estudario.data.ai.DefaultAiSyllabusRepository
 import br.com.estudario.data.ai.HttpAiApiClient
+import br.com.estudario.data.ai.FilePdfSourceSnapshotStore
 import br.com.estudario.data.ai.PdfSourceReader
 import br.com.estudario.data.remote.SupabaseAiTokenProvider
 import br.com.estudario.data.transfer.IncomingFileCoordinator
@@ -61,6 +63,7 @@ class EstudarioApplication : Application() {
             sourceReader = PdfSourceReader.fromContentResolver(contentResolver),
             requestStore = DataStoreAiJobRequestStore(this),
             accessTokenProvider = SupabaseAiTokenProvider(supabaseAuthRepository),
+            sourceSnapshots = FilePdfSourceSnapshotStore(File(filesDir, "ai-syllabus-sources")),
         )
     }
     lateinit var planTransferService: StudyPlanTransferService
