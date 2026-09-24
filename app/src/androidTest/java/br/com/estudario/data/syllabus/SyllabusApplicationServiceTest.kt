@@ -12,6 +12,7 @@ import br.com.estudario.data.local.CompetitionEntity
 import br.com.estudario.data.local.RemoteSyllabusSyncState
 import br.com.estudario.data.local.RemoteSyllabusSyncEntity
 import br.com.estudario.data.local.RemoteSyllabusSyncOperation
+import br.com.estudario.data.local.RemoteSyllabusSyncError
 import br.com.estudario.data.local.SubjectEntity
 import br.com.estudario.data.local.TopicEntity
 import br.com.estudario.domain.ai.AiSyllabusDraft
@@ -182,6 +183,57 @@ class SyllabusApplicationServiceTest {
             val row = database.dao().remoteSyllabusSyncById(result.outboxId)
             assertEquals(RemoteSyllabusSyncState.PENDING, row?.state)
             assertNotEquals(RemoteSyllabusSyncState.SYNCED, row?.state)
+    }
+
+    @Test
+    fun explicitReplacementSupersedesOlderPendingAndFailedOutboxRows() = runDatabase { database ->
+        val targetId = database.dao().insertCompetition(
+            CompetitionEntity(name = "Edital local", remoteSyllabusId = "remote-replacement"),
+        )
+        val service = SyllabusApplicationService(database)
+        val first = service.applyReviewedSyllabus(targetId, draft(targetId, "Documento antigo"), "job-old", now = 100L)
+        assertEquals(
+            1,
+            database.dao().markRemoteSyncAttempt(
+                first.outboxId,
+                expectedAttemptToken = "",
+                attemptToken = "old-pending-token",
+                nextAttemptAt = 200L,
+                updatedAt = 150L,
+            ),
+        )
+        val oldFailedId = database.dao().enqueueRemoteSyllabusSync(
+            RemoteSyllabusSyncEntity(
+                operation = RemoteSyllabusSyncOperation.UPSERT,
+                localSyllabusId = targetId,
+                remoteSyllabusId = "remote-replacement",
+                jobId = "job-old-failed",
+                payloadHash = "old-failed-hash",
+                payloadJson = "{\"version\":2,\"old\":\"failed\"}",
+                state = RemoteSyllabusSyncState.FAILED,
+                attemptToken = "old-failed-token",
+                lastError = RemoteSyllabusSyncError.NETWORK,
+                nextAttemptAt = 100L,
+            ),
+        )
+
+        val replacement = service.applyReviewedSyllabus(
+            targetId,
+            draft(targetId, "Documento novo"),
+            "job-replacement",
+            replaceExisting = true,
+            now = 300L,
+        )
+
+        assertEquals(listOf(replacement.outboxId), database.dao().pendingRemoteSyllabusSync(300L).map { it.id })
+        assertTrue(database.dao().failedRemoteSyllabusSync(300L).isEmpty())
+        assertEquals(0, database.dao().markRemoteSyncSynced(first.outboxId, "old-pending-token", 400L))
+        assertEquals(0, database.dao().requeueRemoteSync(oldFailedId, "old-failed-token", "late-retry", 500L, 500L))
+        assertEquals(RemoteSyllabusSyncState.PENDING, database.dao().remoteSyllabusSyncById(replacement.outboxId)?.state)
+        assertEquals(RemoteSyllabusSyncError.SUPERSEDED, database.dao().remoteSyllabusSyncById(first.outboxId)?.lastError)
+        assertEquals(RemoteSyllabusSyncError.SUPERSEDED, database.dao().remoteSyllabusSyncById(oldFailedId)?.lastError)
+        assertEquals(first.packageJson, database.dao().remoteSyllabusSyncById(first.outboxId)?.payloadJson)
+        assertEquals("{\"version\":2,\"old\":\"failed\"}", database.dao().remoteSyllabusSyncById(oldFailedId)?.payloadJson)
     }
 
     @Test

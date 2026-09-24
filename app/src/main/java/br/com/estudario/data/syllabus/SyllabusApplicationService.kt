@@ -11,6 +11,7 @@ import br.com.estudario.domain.ai.AiSyllabusDraft
 import br.com.estudario.domain.ai.AiSyllabusProposalValidator
 import br.com.estudario.domain.ai.AiSyllabusToEstudoMapper
 import java.security.MessageDigest
+import java.util.UUID
 
 class ExistingSyllabusContentException(message: String) : IllegalStateException(message)
 
@@ -91,6 +92,14 @@ class SyllabusApplicationService(
             afterLocalApply()
 
             val currentTarget = dao.competitionsOnce().first { it.id == target.id }
+            if (replaceExisting) {
+                dao.supersedeRemoteSyllabusSync(
+                    localSyllabusId = target.id,
+                    remoteSyllabusId = currentTarget.remoteSyllabusId,
+                    supersessionToken = "superseded-${UUID.randomUUID()}",
+                    updatedAt = now,
+                )
+            }
             val mutation = RemoteSyllabusSyncEntity(
                 operation = RemoteSyllabusSyncOperation.UPSERT,
                 localSyllabusId = target.id,

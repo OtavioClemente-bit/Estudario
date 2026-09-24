@@ -6,4 +6,5 @@ object RemoteSyllabusSyncError {
     const val TIMEOUT = "NETWORK_TIMEOUT"
     const val REMOTE = "REMOTE_ERROR"
     const val UNKNOWN = "SYNC_FAILED"
+    const val SUPERSEDED = "SUPERSEDED"
 }

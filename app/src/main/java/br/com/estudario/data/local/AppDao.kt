@@ -16,9 +16,9 @@ interface AppDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun enqueueRemoteSyllabusSync(value: RemoteSyllabusSyncEntity): Long
-    @Query("SELECT * FROM remote_syllabus_sync WHERE state = 'PENDING' AND nextAttemptAt <= :now ORDER BY nextAttemptAt, createdAt, id")
+    @Query("SELECT * FROM remote_syllabus_sync WHERE state = 'PENDING' AND (lastError IS NULL OR lastError != 'SUPERSEDED') AND nextAttemptAt <= :now ORDER BY nextAttemptAt, createdAt, id")
     suspend fun pendingRemoteSyllabusSync(now: Long): List<RemoteSyllabusSyncEntity>
-    @Query("SELECT * FROM remote_syllabus_sync WHERE state = 'FAILED' AND nextAttemptAt <= :now ORDER BY nextAttemptAt, createdAt, id")
+    @Query("SELECT * FROM remote_syllabus_sync WHERE state = 'FAILED' AND (lastError IS NULL OR lastError != 'SUPERSEDED') AND nextAttemptAt <= :now ORDER BY nextAttemptAt, createdAt, id")
     suspend fun failedRemoteSyllabusSync(now: Long): List<RemoteSyllabusSyncEntity>
     @Query("SELECT * FROM remote_syllabus_sync WHERE id = :id LIMIT 1")
     suspend fun remoteSyllabusSyncById(id: Long): RemoteSyllabusSyncEntity?
@@ -28,9 +28,15 @@ interface AppDao {
     suspend fun remoteSyllabusSyncByPayload(localSyllabusId: Long, operation: RemoteSyllabusSyncOperation, payloadHash: String): RemoteSyllabusSyncEntity?
     @Query("UPDATE remote_syllabus_sync SET payloadJson = :payloadJson WHERE id = :id AND payloadHash = :payloadHash AND payloadJson = ''")
     suspend fun persistRemoteSyllabusPayloadIfMissing(id: Long, payloadHash: String, payloadJson: String): Int
+    @Query(
+        "UPDATE remote_syllabus_sync SET state = 'FAILED', lastError = 'SUPERSEDED', attemptToken = :supersessionToken, nextAttemptAt = 0, updatedAt = :updatedAt " +
+            "WHERE localSyllabusId = :localSyllabusId AND (remoteSyllabusId = :remoteSyllabusId OR (remoteSyllabusId IS NULL AND :remoteSyllabusId IS NULL)) " +
+            "AND state IN ('PENDING', 'FAILED') AND (lastError IS NULL OR lastError != 'SUPERSEDED')",
+    )
+    suspend fun supersedeRemoteSyllabusSync(localSyllabusId: Long, remoteSyllabusId: String?, supersessionToken: String, updatedAt: Long): Int
     @Query("UPDATE remote_syllabus_sync SET attemptCount = attemptCount + 1, attemptToken = :attemptToken, nextAttemptAt = :nextAttemptAt, updatedAt = :updatedAt WHERE id = :id AND state = 'PENDING' AND attemptToken = :expectedAttemptToken AND :attemptToken != ''")
     suspend fun markRemoteSyncAttempt(id: Long, expectedAttemptToken: String, attemptToken: String, nextAttemptAt: Long, updatedAt: Long): Int
-    @Query("UPDATE remote_syllabus_sync SET state = 'PENDING', attemptToken = :attemptToken, nextAttemptAt = :now, lastError = NULL, updatedAt = :updatedAt WHERE id = :id AND state = 'FAILED' AND nextAttemptAt <= :now AND attemptToken = :expectedAttemptToken AND :attemptToken != ''")
+    @Query("UPDATE remote_syllabus_sync SET state = 'PENDING', attemptToken = :attemptToken, nextAttemptAt = :now, lastError = NULL, updatedAt = :updatedAt WHERE id = :id AND state = 'FAILED' AND (lastError IS NULL OR lastError != 'SUPERSEDED') AND nextAttemptAt <= :now AND attemptToken = :expectedAttemptToken AND :attemptToken != ''")
     suspend fun requeueRemoteSync(id: Long, expectedAttemptToken: String, attemptToken: String, now: Long, updatedAt: Long): Int
     @Query("UPDATE remote_syllabus_sync SET state = 'SYNCED', nextAttemptAt = 0, lastError = NULL, updatedAt = :updatedAt WHERE id = :id AND state = 'PENDING' AND attemptToken = :attemptToken AND :attemptToken != ''")
     suspend fun markRemoteSyncSynced(id: Long, attemptToken: String, updatedAt: Long): Int

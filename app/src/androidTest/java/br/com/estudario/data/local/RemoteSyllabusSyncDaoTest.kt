@@ -59,6 +59,65 @@ class RemoteSyllabusSyncDaoTest {
     }
 
     @Test
+    fun supersededRowsKeepSnapshotsAndRejectOldWorkerCas() = runBlocking {
+        val localId = dao.insertCompetition(CompetitionEntity(name = "Concurso"))
+        val pendingId = dao.enqueueRemoteSyllabusSync(
+            sync(localId, payloadHash = "old-pending", nextAttemptAt = 100L).copy(
+                payloadJson = "{\"payload\":\"pending\"}",
+            ),
+        )
+        assertEquals(
+            1,
+            dao.markRemoteSyncAttempt(
+                pendingId,
+                expectedAttemptToken = "",
+                attemptToken = "old-pending-token",
+                nextAttemptAt = 200L,
+                updatedAt = 150L,
+            ),
+        )
+        val failedId = dao.enqueueRemoteSyllabusSync(
+            sync(localId, payloadHash = "old-failed", nextAttemptAt = 100L).copy(
+                payloadJson = "{\"payload\":\"failed\"}",
+                state = RemoteSyllabusSyncState.FAILED,
+                attemptToken = "old-failed-token",
+                lastError = RemoteSyllabusSyncError.NETWORK,
+            ),
+        )
+
+        assertEquals(
+            2,
+            dao.supersedeRemoteSyllabusSync(
+                localSyllabusId = localId,
+                remoteSyllabusId = "remote-$localId",
+                supersessionToken = "replacement-token",
+                updatedAt = 300L,
+            ),
+        )
+
+        val replacementId = dao.enqueueRemoteSyllabusSync(
+            sync(localId, payloadHash = "replacement", nextAttemptAt = 300L).copy(
+                payloadJson = "{\"payload\":\"replacement\"}",
+            ),
+        )
+        assertEquals(listOf(replacementId), dao.pendingRemoteSyllabusSync(now = 300L).map { it.id })
+        assertTrue(dao.failedRemoteSyllabusSync(now = 300L).isEmpty())
+        assertEquals(0, dao.requeueRemoteSync(failedId, "old-failed-token", "late-retry", 400L, 400L))
+        assertEquals(0, dao.markRemoteSyncSynced(pendingId, "old-pending-token", 500L))
+        assertEquals(0, dao.markRemoteSyncFailed(pendingId, "old-pending-token", "late completion", 600L, 600L))
+
+        val supersededPending = dao.remoteSyllabusSyncById(pendingId)!!
+        val supersededFailed = dao.remoteSyllabusSyncById(failedId)!!
+        assertEquals(RemoteSyllabusSyncState.FAILED, supersededPending.state)
+        assertEquals(RemoteSyllabusSyncError.SUPERSEDED, supersededPending.lastError)
+        assertEquals("{\"payload\":\"pending\"}", supersededPending.payloadJson)
+        assertEquals("replacement-token", supersededPending.attemptToken)
+        assertEquals(RemoteSyllabusSyncState.FAILED, supersededFailed.state)
+        assertEquals(RemoteSyllabusSyncError.SUPERSEDED, supersededFailed.lastError)
+        assertEquals("{\"payload\":\"failed\"}", supersededFailed.payloadJson)
+    }
+
+    @Test
     fun pendingRowsAreReturnedInRetryOrderAndFutureRowsWait() = runBlocking {
         val localId = dao.insertCompetition(CompetitionEntity(name = "Concurso"))
         dao.enqueueRemoteSyllabusSync(sync(localId, payloadHash = "late", nextAttemptAt = 300L, createdAt = 30L))
