@@ -114,6 +114,9 @@ internal data class TopicPlan(
     val sources: List<SourcePlan> = emptyList(),
     val scopeCovers: String? = null,
     val scopeExcludes: String? = null,
+    val externalId: String = id,
+    val parentExternalId: String? = null,
+    val sourcePages: List<Int> = emptyList(),
 )
 internal data class SubjectPlan(
     val id: String,
@@ -121,6 +124,16 @@ internal data class SubjectPlan(
     val position: Int,
     val topics: List<TopicPlan>,
     val priorityAssessment: PriorityAssessment? = null,
+    val externalId: String = id,
+    val priority: Priority = Priority.NORMAL,
+    val sourcePages: List<Int> = emptyList(),
+)
+internal data class PackageWarning(
+    val code: String,
+    val severity: String,
+    val message: String,
+    val sourcePages: List<Int> = emptyList(),
+    val ambiguity: String? = null,
 )
 internal data class PackagePlan(
     val version: Int,
@@ -133,6 +146,10 @@ internal data class PackagePlan(
     val normalizedPriorityCount: Int = 0,
     /** Fontes declaradas no nível do pacote, quando não são de um tópico específico. */
     val sources: List<SourcePlan> = emptyList(),
+    val schemaVersion: Int = 1,
+    val packageVersion: String = "estudo-v$version",
+    val metadata: JSONObject? = null,
+    val warnings: List<PackageWarning> = emptyList(),
 )
 
 internal fun PackagePlan.allTopics(): List<TopicPlan> {
@@ -162,7 +179,7 @@ internal object EstudoPackageParser {
         if (root.optJSONArray("questions") != null && root.optJSONArray("questoes") == null) topicJson.put("questoes", root.optJSONArray("questions"))
         if (root.optJSONArray("theories") != null && root.optJSONArray("teorias") == null) topicJson.put("teorias", root.optJSONArray("theories"))
         val plan = parseTopic(topicJson, topic, 0, QuestionDefaults(tags = root.optJSONArray("tags")?.strings().orEmpty()), ids, false)
-        return PackagePlan(version, packageId, firstText(root, "competitionId", "concursoId") ?: "competition-${slug(competition)}", competition, root.optBoolean("primary", false), listOf(SubjectPlan("subject-${slug(subject)}", subject, 0, listOf(plan))), priorityAssessment = parsePriorityAssessment(root, "pacote", ids), sources = parseSources(root, packageId), normalizedPriorityCount = ids.normalizedPriorityCount)
+        return PackagePlan(version, packageId, firstText(root, "competitionId", "concursoId") ?: "competition-${slug(competition)}", competition, root.optBoolean("primary", false), listOf(SubjectPlan("subject-${slug(subject)}", subject, 0, listOf(plan))), priorityAssessment = parsePriorityAssessment(root, "pacote", ids), sources = parseSources(root, packageId), normalizedPriorityCount = ids.normalizedPriorityCount, schemaVersion = schemaVersion(root), packageVersion = packageVersion(root, version), metadata = copyMetadata(root), warnings = parseWarnings(root.optJSONArray("warnings") ?: root.optJSONObject("metadata")?.optJSONArray("warnings")))
     }
 
     private fun parseHierarchical(root: JSONObject): PackagePlan {
@@ -184,11 +201,13 @@ internal object EstudoPackageParser {
             val path = "matéria ${index + 1}"
             val id = requireText(item, "id", path)
             if (!ids.subjects.add(id)) throw EstudoPackageException("$path: id de matéria duplicado: $id.")
+            val externalId = firstText(item, "externalId") ?: id
+            if (!ids.subjectExternalIds.add(externalId)) throw EstudoPackageException("$path: externalId de matéria duplicado: $externalId.")
             val name = requireText(item, "nome", path)
             val topics = item.optJSONArray("topicos") ?: throw EstudoPackageException("$path: topicos deve ser uma lista.")
             SubjectPlan(id, name, item.optInt("ordem", index), topics.objects().mapIndexed { i, topic ->
                 parseTopic(topic, "$name › tópico ${i + 1}", i, defaults, ids, true)
-            }, parsePriorityAssessment(item, path, ids))
+            }, parsePriorityAssessment(item, path, ids), externalId, parsePriority(item, path), parseSourcePages(item))
         }
         val competitionName = requireText(competition, "nome", "concurso")
         return PackagePlan(
@@ -201,12 +220,18 @@ internal object EstudoPackageParser {
             priorityAssessment = parsePriorityAssessment(competition, "concurso", ids),
             normalizedPriorityCount = ids.normalizedPriorityCount,
             sources = parseSources(root, packageId),
+            schemaVersion = schemaVersion(root),
+            packageVersion = packageVersion(root, 2),
+            metadata = copyMetadata(root),
+            warnings = parseWarnings(root.optJSONArray("warnings") ?: root.optJSONObject("metadata")?.optJSONArray("warnings")),
         )
     }
 
     private fun parseTopic(item: JSONObject, path: String, defaultPosition: Int, defaults: QuestionDefaults, ids: IdSets, requireIds: Boolean): TopicPlan {
         val id = if (requireIds) requireText(item, "id", path) else item.optString("id", "topic-${slug(path)}")
         if (!ids.topics.add(id)) throw EstudoPackageException("$path: id de tópico duplicado: $id.")
+        val externalId = firstText(item, "externalId") ?: id
+        if (!ids.topicExternalIds.add(externalId)) throw EstudoPackageException("$path: externalId de tópico duplicado: $externalId.")
         val title = firstText(item, "titulo", "title", "topic", "topico") ?: throw EstudoPackageException("$path: título ausente.")
         val legacyPriorityProvided = item.has("prioridade")
         val priority = Priority.entries.firstOrNull { it.name == item.optString("prioridade", "NORMAL").uppercase() }
@@ -238,6 +263,9 @@ internal object EstudoPackageParser {
             sources = parseSources(item, id),
             scopeCovers = item.optJSONObject("escopo")?.let { firstText(it, "cobre", "covers") },
             scopeExcludes = item.optJSONObject("escopo")?.let { firstText(it, "naoCobre", "excludes") },
+            externalId = externalId,
+            parentExternalId = item.optNullableString("parentExternalId"),
+            sourcePages = parseSourcePages(item),
         )
     }
 
@@ -368,6 +396,23 @@ internal object EstudoPackageParser {
     }
 
     private fun firstText(json: JSONObject, vararg keys: String): String? = keys.firstNotNullOfOrNull { key -> json.optString(key).trim().takeIf { it.isNotBlank() && it != "null" } }
+    private fun parsePriority(json: JSONObject, path: String): Priority = Priority.entries.firstOrNull { it.name == json.optString("prioridade", "NORMAL").uppercase() }
+        ?: throw EstudoPackageException("$path: prioridade deve ser BAIXA, NORMAL ou ALTA.")
+    private fun parseSourcePages(json: JSONObject): List<Int> = json.optJSONArray("sourcePages")?.let { array -> (0 until array.length()).mapNotNull { array.optInt(it).takeIf { value -> value > 0 } } }.orEmpty()
+    private fun copyMetadata(root: JSONObject): JSONObject? = root.optJSONObject("metadata")?.let { JSONObject(it.toString()) }
+    private fun schemaVersion(root: JSONObject): Int = root.optInt("schemaVersion", root.optJSONObject("metadata")?.optInt("schemaVersion", 1) ?: 1)
+    private fun packageVersion(root: JSONObject, version: Int): String = firstText(root, "packageVersion")
+        ?: root.optJSONObject("metadata")?.let { firstText(it, "packageVersion") }
+        ?: "estudo-v$version"
+    private fun parseWarnings(array: JSONArray?): List<PackageWarning> = array?.objects()?.map { warning ->
+        PackageWarning(
+            code = firstText(warning, "code") ?: "UNKNOWN",
+            severity = firstText(warning, "severity") ?: "WARNING",
+            message = firstText(warning, "message") ?: "",
+            sourcePages = parseSourcePages(warning),
+            ambiguity = warning.optNullableString("ambiguity"),
+        )
+    }.orEmpty()
     private fun parsePriorityAssessment(item: JSONObject, path: String, ids: IdSets): PriorityAssessment? {
         val json = item.optJSONObject("priorityAssessment") ?: return null
         var normalized = false
@@ -407,7 +452,9 @@ internal object EstudoPackageParser {
     private data class QuestionDefaults(val board: String? = null, val agency: String? = null, val year: Int? = null, val difficulty: Difficulty? = null, val source: String? = null, val tags: List<String> = emptyList())
     private data class IdSets(
         val subjects: MutableSet<String> = mutableSetOf(),
+        val subjectExternalIds: MutableSet<String> = mutableSetOf(),
         val topics: MutableSet<String> = mutableSetOf(),
+        val topicExternalIds: MutableSet<String> = mutableSetOf(),
         val theories: MutableSet<String> = mutableSetOf(),
         val summaries: MutableSet<String> = mutableSetOf(),
         val snippets: MutableSet<String> = mutableSetOf(),
@@ -415,6 +462,57 @@ internal object EstudoPackageParser {
         val errorConcepts: MutableSet<String> = mutableSetOf(),
         var normalizedPriorityCount: Int = 0,
     )
+}
+
+/** Serializes the official .estudo v2 representation used by EstudoPackageParser/Service. */
+internal object EstudoPackageCodec {
+    fun encode(plan: PackagePlan): String {
+        val root = JSONObject()
+            .put("format", "estudario-estudo")
+            .put("version", plan.version)
+            .put("schemaVersion", plan.schemaVersion)
+            .put("packageVersion", plan.packageVersion)
+            .put("packageId", plan.packageId)
+            .put(
+                "concurso",
+                JSONObject()
+                    .put("id", plan.competitionId)
+                    .put("nome", plan.competitionName)
+                    .put("principal", plan.primary),
+            )
+            .put("materias", JSONArray().also { subjects -> plan.subjects.sortedBy { it.position }.forEach { subjects.put(subjectJson(it)) } })
+            .put("warnings", JSONArray().also { warnings -> plan.warnings.forEach { warnings.put(warningJson(it)) } })
+        plan.metadata?.let { root.put("metadata", JSONObject(it.toString())) }
+        return root.toString(2)
+    }
+
+    private fun subjectJson(subject: SubjectPlan): JSONObject = JSONObject()
+        .put("id", subject.id)
+        .put("externalId", subject.externalId)
+        .put("nome", subject.name)
+        .put("ordem", subject.position)
+        .put("prioridade", subject.priority.name)
+        .put("sourcePages", JSONArray(subject.sourcePages))
+        .put("topicos", JSONArray().also { topics -> subject.topics.sortedBy { it.position }.forEach { topics.put(topicJson(it)) } })
+
+    private fun topicJson(topic: TopicPlan): JSONObject = JSONObject()
+        .put("id", topic.id)
+        .put("externalId", topic.externalId)
+        .put("titulo", topic.title)
+        .put("descricao", topic.description)
+        .put("observacoes", topic.notes)
+        .put("ordem", topic.position)
+        .put("prioridade", topic.priority.name)
+        .put("parentExternalId", topic.parentExternalId ?: JSONObject.NULL)
+        .put("sourcePages", JSONArray(topic.sourcePages))
+        .put("subtopicos", JSONArray().also { children -> topic.children.sortedBy { it.position }.forEach { children.put(topicJson(it)) } })
+
+    private fun warningJson(warning: PackageWarning): JSONObject = JSONObject()
+        .put("code", warning.code)
+        .put("severity", warning.severity)
+        .put("message", warning.message)
+        .put("sourcePages", JSONArray(warning.sourcePages))
+        .put("ambiguity", warning.ambiguity ?: JSONObject.NULL)
 }
 
 class EstudoPackageService(private val db: AppDatabase) {
@@ -493,14 +591,14 @@ class EstudoPackageService(private val db: AppDatabase) {
         val importedTopicIds = linkedSetOf<Long>()
 
         plan.subjects.sortedBy { it.position }.forEach { subjectPlan ->
-            val currentSubject = dao.subjectByExternalId(subjectPlan.id)?.takeIf { it.competitionId == competitionId }
+            val currentSubject = dao.subjectByExternalId(subjectPlan.externalId)?.takeIf { it.competitionId == competitionId }
                 ?: dao.subjectsFor(competitionId).firstOrNull { it.name.equals(subjectPlan.name, true) }
             val subjectId = currentSubject?.id ?: dao.insertSubject(
                 SubjectEntity(
                     competitionId = competitionId,
                     name = subjectPlan.name,
                     position = subjectPlan.position,
-                    externalId = subjectPlan.id,
+                    externalId = subjectPlan.externalId,
                     assessedPriorityScore = subjectPlan.priorityAssessment?.score ?: 50,
                     assessedPrioritySource = subjectPlan.priorityAssessment?.source ?: PrioritySource.DEFAULT,
                     assessedPriorityConfidence = subjectPlan.priorityAssessment?.confidence ?: 0f,
@@ -515,7 +613,7 @@ class EstudoPackageService(private val db: AppDatabase) {
                     current.copy(
                         name = subjectPlan.name,
                         position = subjectPlan.position,
-                        externalId = current.externalId ?: subjectPlan.id,
+                        externalId = current.externalId ?: subjectPlan.externalId,
                         assessedPriorityScore = assessment?.score ?: current.assessedPriorityScore,
                         assessedPrioritySource = assessment?.source ?: current.assessedPrioritySource,
                         assessedPriorityConfidence = assessment?.confidence ?: current.assessedPriorityConfidence,
@@ -528,12 +626,13 @@ class EstudoPackageService(private val db: AppDatabase) {
             val knownTopics = dao.topicsFor(subjectId).toMutableList()
 
             suspend fun importTopic(p: TopicPlan, parentId: Long?) {
-                val oldTopic = dao.topicByExternalId(p.id)?.takeIf { it.subjectId == subjectId }
+                val externalId = p.externalId
+                val oldTopic = dao.topicByExternalId(externalId)?.takeIf { it.subjectId == subjectId }
                     ?: knownTopics.firstOrNull { it.parentTopicId == parentId && it.title.equals(p.title, true) }
                 val legacyAssessment = p.priorityAssessment ?: p.priority.takeIf { p.legacyPriorityProvided }?.asAssessment()
-                val topicId = oldTopic?.id ?: dao.insertTopic(TopicEntity(subjectId = subjectId, parentTopicId = parentId, title = p.title, description = p.description, position = p.position, notes = p.notes, priority = p.priority, externalId = p.id, contentOriginType = p.originType, scopeCovers = p.scopeCovers, scopeExcludes = p.scopeExcludes, assessedPriorityScore = legacyAssessment?.score ?: 50, assessedPrioritySource = legacyAssessment?.source ?: PrioritySource.DEFAULT, assessedPriorityConfidence = legacyAssessment?.confidence ?: 0f, assessedPriorityRationale = legacyAssessment?.rationale, assessedPriorityEvidenceJson = legacyAssessment?.evidenceJson() ?: "[]", hasAssessedPriority = legacyAssessment != null)).also { id ->
+                val topicId = oldTopic?.id ?: dao.insertTopic(TopicEntity(subjectId = subjectId, parentTopicId = parentId, title = p.title, description = p.description, position = p.position, notes = p.notes, priority = p.priority, externalId = externalId, contentOriginType = p.originType, scopeCovers = p.scopeCovers, scopeExcludes = p.scopeExcludes, assessedPriorityScore = legacyAssessment?.score ?: 50, assessedPrioritySource = legacyAssessment?.source ?: PrioritySource.DEFAULT, assessedPriorityConfidence = legacyAssessment?.confidence ?: 0f, assessedPriorityRationale = legacyAssessment?.rationale, assessedPriorityEvidenceJson = legacyAssessment?.evidenceJson() ?: "[]", hasAssessedPriority = legacyAssessment != null)).also { id ->
                     topicsCreated++
-                    knownTopics += TopicEntity(id = id, subjectId = subjectId, parentTopicId = parentId, title = p.title, description = p.description, position = p.position, notes = p.notes, priority = p.priority, externalId = p.id, contentOriginType = p.originType, assessedPriorityScore = legacyAssessment?.score ?: 50, assessedPrioritySource = legacyAssessment?.source ?: PrioritySource.DEFAULT, assessedPriorityConfidence = legacyAssessment?.confidence ?: 0f, assessedPriorityRationale = legacyAssessment?.rationale, assessedPriorityEvidenceJson = legacyAssessment?.evidenceJson() ?: "[]", hasAssessedPriority = legacyAssessment != null)
+                    knownTopics += TopicEntity(id = id, subjectId = subjectId, parentTopicId = parentId, title = p.title, description = p.description, position = p.position, notes = p.notes, priority = p.priority, externalId = externalId, contentOriginType = p.originType, assessedPriorityScore = legacyAssessment?.score ?: 50, assessedPrioritySource = legacyAssessment?.source ?: PrioritySource.DEFAULT, assessedPriorityConfidence = legacyAssessment?.confidence ?: 0f, assessedPriorityRationale = legacyAssessment?.rationale, assessedPriorityEvidenceJson = legacyAssessment?.evidenceJson() ?: "[]", hasAssessedPriority = legacyAssessment != null)
                 }
                 oldTopic?.let {
                     dao.updateTopic(
@@ -544,7 +643,7 @@ class EstudoPackageService(private val db: AppDatabase) {
                             position = p.position,
                             notes = p.notes.ifBlank { it.notes },
                             priority = if (p.legacyPriorityProvided) p.priority else it.priority,
-                            externalId = it.externalId ?: p.id,
+                            externalId = it.externalId ?: externalId,
                             contentOriginType = p.originType,
                             scopeCovers = p.scopeCovers ?: it.scopeCovers,
                             scopeExcludes = p.scopeExcludes ?: it.scopeExcludes,
@@ -668,4 +767,4 @@ private fun TopicPlan.flatten(): List<TopicPlan> = listOf(this) + children.flatM
 private fun TopicPlan.previewRows(depth: Int = 0): List<TopicImportPreview> = listOf(TopicImportPreview(title, depth, theories.size, summaries.size, questions.size, snippets.size)) + children.flatMap { it.previewRows(depth + 1) }
 internal fun JSONArray.objects(): List<JSONObject> = (0 until length()).map { getJSONObject(it) }
 internal fun JSONArray.strings(): List<String> = (0 until length()).map { getString(it) }
-internal fun JSONObject.optNullableString(key: String): String? = optString(key).takeIf { it.isNotBlank() }
+internal fun JSONObject.optNullableString(key: String): String? = optString(key).takeIf { it.isNotBlank() && it != "null" }

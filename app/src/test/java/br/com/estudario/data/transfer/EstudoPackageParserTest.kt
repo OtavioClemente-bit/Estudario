@@ -90,6 +90,48 @@ class EstudoPackageParserTest {
         assertEquals(PriorityLevel.MEDIUM, plan.subjects.single().topics.single().children.single().priorityAssessment?.level)
     }
 
+    @Test fun preservesOfficialMetadataExternalIdsParentLinksAndSourcePages() {
+        val source = """
+            {
+              "version":2,"schemaVersion":7,"packageVersion":"estudo-v-custom","packageId":"lossless",
+              "concurso":{"id":"target-1","nome":"Alvo"},
+              "warnings":[{"code":"DOCUMENT_MISMATCH","severity":"WARNING","message":"Confira","sourcePages":[4],"ambiguity":"capa"}],
+              "metadata":{"sourceVersion":"pdf-v9","modelVersion":"model-x","sourceFileName":"arquivo.pdf"},
+              "materias":[{"id":"subject-internal","externalId":"subject-stable","nome":"Matéria","ordem":2,"sourcePages":[3],
+                "topicos":[{"id":"topic-internal","externalId":"topic-stable","titulo":"Tópico","ordem":5,"sourcePages":[8],
+                  "subtopicos":[{"id":"child-internal","externalId":"child-stable","parentExternalId":"topic-stable","titulo":"Filho","ordem":1,"sourcePages":[9]}]}]}]
+            }
+        """.trimIndent()
+
+        val plan = EstudoPackageParser.parse(source)
+        val subject = plan.subjects.single()
+        val topic = subject.topics.single()
+
+        assertEquals(7, plan.schemaVersion)
+        assertEquals("estudo-v-custom", plan.packageVersion)
+        assertEquals("pdf-v9", plan.metadata?.getString("sourceVersion"))
+        assertEquals(listOf(4), plan.warnings.single().sourcePages)
+        assertEquals("subject-stable", subject.externalId)
+        assertEquals(listOf(3), subject.sourcePages)
+        assertEquals("topic-stable", topic.externalId)
+        assertEquals(listOf(8), topic.sourcePages)
+        assertEquals("child-stable", topic.children.single().externalId)
+        assertEquals("topic-stable", topic.children.single().parentExternalId)
+        assertEquals(listOf(9), topic.children.single().sourcePages)
+    }
+
+    @Test fun rejectsDuplicateTopicExternalIdsEvenWhenInternalIdsDiffer() {
+        val invalid = validV2.replace(
+            "\"id\":\"subtopico\",\"titulo\":\"Subtópico\"",
+            "\"id\":\"subtopico\",\"externalId\":\"topico\",\"titulo\":\"Subtópico\"",
+        )
+
+        val error = runCatching { EstudoPackageParser.parse(invalid) }.exceptionOrNull()
+
+        assertTrue(error is EstudoPackageException)
+        assertTrue(error?.message?.contains("externalId de tópico duplicado") == true)
+    }
+
     @Test fun invalidPriorityAssessmentIsNormalizedWithoutBreakingPackage() {
         val changed = validV2.replace(
             "\"nome\":\"Concurso Teste\"",

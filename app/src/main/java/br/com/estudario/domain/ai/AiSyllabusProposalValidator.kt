@@ -56,7 +56,7 @@ object AiSyllabusProposalValidator {
     fun bindToTarget(draft: AiSyllabusDraft, targetSyllabusId: Long, targetTitle: String): AiSyllabusDraft {
         if (targetSyllabusId <= 0) fail("targetSyllabusId must be positive")
         requireName(targetTitle, "targetTitle")
-        return draft.copy(targetSyllabusId = targetSyllabusId, targetTitle = targetTitle.trim())
+        return draft.copy(targetSyllabusId = targetSyllabusId, targetTitle = targetTitle.trim(), titleOverride = null)
     }
 
     private fun validateTopics(topics: List<AiSyllabusDraftTopic>, path: String, allTopicIds: MutableSet<String>) {

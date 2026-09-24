@@ -8,6 +8,7 @@ import br.com.estudario.data.ai.AiWarning
 import br.com.estudario.data.ai.AiWarningCode
 import br.com.estudario.data.ai.AiWarningSeverity
 import br.com.estudario.data.transfer.EstudoPackageParser
+import br.com.estudario.data.transfer.EstudoPackageCodec
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -60,6 +61,56 @@ class AiSyllabusToEstudoMapperTest {
         assertEquals("fonte.pdf", metadata.getString("sourceFileName"))
         assertEquals(listOf(8, 9), (0 until metadataWarning.getJSONArray("sourcePages").length()).map { metadataWarning.getJSONArray("sourcePages").getInt(it) })
         assertTrue(metadata.getJSONArray("warnings").length() == 1)
+    }
+
+    @Test fun `official boundary round trip preserves package metadata hierarchy ids and source pages`() {
+        val warning = AiWarning(AiWarningCode.UNREADABLE_PAGES, AiWarningSeverity.WARNING, "Página ilegível", listOf(8, 9), "anexo")
+        val draft = AiSyllabusDraft.fromProposal(
+            42L,
+            "Edital alvo",
+            proposal(warnings = listOf(warning)),
+            importedFileName = "fonte.pdf",
+            sourceVersion = "pdf-source-v2",
+            sourceHash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        )
+        val first = AiSyllabusToEstudoMapper.toOfficialPackage(draft)
+        val parsed = EstudoPackageParser.parse(first)
+
+        assertEquals(1, parsed.schemaVersion)
+        assertEquals("estudo-v2", parsed.packageVersion)
+        assertEquals(JSONObject(first).getJSONObject("metadata").toString(), parsed.metadata?.toString())
+        assertEquals(listOf(warning.sourcePages), parsed.warnings.map { it.sourcePages })
+        assertEquals(draft.subjects.sortedBy { it.position }.map { it.externalId }, parsed.subjects.sortedBy { it.position }.map { it.externalId })
+        val expectedSubject = draft.subjects.single { it.position == 0 }
+        val expectedRootTopic = expectedSubject.topics.single()
+        val rootTopic = parsed.subjects.single { it.externalId == expectedSubject.externalId }.topics.single()
+        assertEquals(expectedRootTopic.externalId, rootTopic.externalId)
+        assertEquals(null, rootTopic.parentExternalId)
+        assertEquals(listOf(2), rootTopic.sourcePages)
+        assertEquals(expectedRootTopic.children.single().externalId, rootTopic.children.single().externalId)
+        assertEquals(expectedRootTopic.externalId, rootTopic.children.single().parentExternalId)
+        assertEquals(listOf(4), rootTopic.children.single().sourcePages)
+
+        val restored = EstudoPackageParser.parse(EstudoPackageCodec.encode(parsed))
+        assertEquals(parsed.schemaVersion, restored.schemaVersion)
+        assertEquals(parsed.packageVersion, restored.packageVersion)
+        assertEquals(parsed.metadata?.toString(), restored.metadata?.toString())
+        assertEquals(parsed.warnings, restored.warnings)
+        assertEquals(parsed.subjects.map { it.externalId }, restored.subjects.map { it.externalId })
+        assertEquals(parsed.subjects.flatMap { flattenTopics(it.topics) }, restored.subjects.flatMap { flattenTopics(it.topics) })
+    }
+
+    @Test fun `selected target title wins over title override in official package`() {
+        val draft = AiSyllabusDraft.fromProposal(7L, "Edital selecionado", proposal(documentTitle = "Edital do arquivo"))
+            .copy(titleOverride = "Nome do modelo")
+
+        val bound = AiSyllabusProposalValidator.bindToTarget(draft, 7L, "Edital selecionado")
+
+        assertEquals("Edital selecionado", JSONObject(AiSyllabusToEstudoMapper.toOfficialPackage(bound)).getJSONObject("concurso").getString("nome"))
+    }
+
+    private fun flattenTopics(topics: List<br.com.estudario.data.transfer.TopicPlan>): List<String> = topics.flatMap { topic ->
+        listOf("${topic.externalId}|${topic.parentExternalId}|${topic.sourcePages}") + flattenTopics(topic.children)
     }
 
     private fun proposal(documentTitle: String = "Edital detectado", warnings: List<AiWarning> = emptyList()) = AiSyllabusProposal(
