@@ -61,6 +61,7 @@ export interface SupabaseJobEnvironment {
   supabaseUrl: string;
   publishableKey: string;
   accessToken: string;
+  serviceRoleKey: string;
   fetcher?: typeof fetch;
 }
 
@@ -104,6 +105,7 @@ export class SupabaseAiJobStore implements AiJobStore {
 
   async bindSource(userId: string, jobId: string, source: BoundStorageSource): Promise<AiJobRecord> {
     const row = firstRow(await this.rpc("bind_ai_job_source", {
+      p_user_id: userId,
       p_job_id: jobId,
       p_source_object_path: source.path,
       p_source_mime_type: source.mimeType,
@@ -112,7 +114,7 @@ export class SupabaseAiJobStore implements AiJobStore {
       p_source_pages: source.sourcePages,
       p_source_file_count: source.sourceFileCount,
       p_source_metadata: source.metadata,
-    }));
+    }, this.adminHeaders()));
     const job = parseJob(row);
     if (job.userId !== userId) throw new JobStoreError("AI_JOB_FORBIDDEN", 403);
     return job;
@@ -156,10 +158,10 @@ export class SupabaseAiJobStore implements AiJobStore {
     return (this.environment.fetcher ?? fetch)(input, init);
   }
 
-  private async rpc(name: string, body: Record<string, unknown>): Promise<unknown> {
+  private async rpc(name: string, body: Record<string, unknown>, headers = this.headers()): Promise<unknown> {
     const response = await this.fetch(`${this.environment.supabaseUrl.replace(/\/$/, "")}/rest/v1/rpc/${name}`, {
       method: "POST",
-      headers: { ...this.headers(), "content-type": "application/json" },
+      headers: { ...headers, "content-type": "application/json" },
       body: JSON.stringify(body),
     });
     if (!response.ok) throw await storeError(response);
@@ -168,6 +170,14 @@ export class SupabaseAiJobStore implements AiJobStore {
     } catch {
       throw new JobStoreError("AI_JOB_DATA_UNAVAILABLE", 503);
     }
+  }
+
+  private adminHeaders(): HeadersInit {
+    return {
+      apikey: this.environment.serviceRoleKey,
+      authorization: `Bearer ${this.environment.serviceRoleKey}`,
+      accept: "application/json",
+    };
   }
 }
 

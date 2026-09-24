@@ -435,7 +435,7 @@ create temp table ai_test_jobs (
   label text primary key,
   job_id uuid not null
 );
-grant all on ai_test_jobs to authenticated;
+grant all on ai_test_jobs to authenticated, service_role;
 
 insert into ai_test_jobs (label, job_id)
 select 'idempotent', job_id
@@ -497,8 +497,66 @@ select is(
 );
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a1', true);
 
+select ok(
+  not has_function_privilege(
+    'authenticated',
+    'public.bind_ai_job_source(uuid, uuid, text, text, text, bigint, integer, integer, jsonb)',
+    'EXECUTE'
+  ),
+  'authenticated cannot execute the backend-only source binding RPC'
+);
+select ok(
+  has_function_privilege(
+    'service_role',
+    'public.bind_ai_job_source(uuid, uuid, text, text, text, bigint, integer, integer, jsonb)',
+    'EXECUTE'
+  ),
+  'service_role can execute the source binding RPC'
+);
+select throws_ok(
+  $$select * from public.bind_ai_job_source(
+    '00000000-0000-0000-0000-0000000000a1'::uuid,
+    (select job_id from ai_test_jobs where label = 'idempotent'),
+    '00000000-0000-0000-0000-0000000000a1/account-a.pdf',
+    'application/pdf', repeat('a', 64), 1024, 1, 1, '{}'::jsonb
+  )$$,
+  '42501',
+  null,
+  'authenticated cannot invoke source binding even with user input'
+);
+
+select throws_ok(
+  $$select * from public.create_or_get_ai_job_and_reserve_quota(
+    'SYLLABUS_GENERATION',
+    'foundation-second-job',
+    'foundation-second-fingerprint',
+    '{}'::jsonb
+  )$$,
+  'P0001',
+  'AI_QUOTA_EXHAUSTED',
+  'a second job cannot reserve exhausted quota'
+);
+select is(
+  (select job_id from public.create_or_get_ai_job_and_reserve_quota(
+    'SYLLABUS_GENERATION',
+    'foundation-idempotency-key',
+    'foundation-fingerprint-v1',
+    '{}'::jsonb
+  )),
+  (select job_id from ai_test_jobs where label = 'idempotent'),
+  'idempotent retry returns the existing job after quota exhaustion'
+);
+select is(
+  (select reserved_count from public.ai_quota_usage where user_id = '00000000-0000-0000-0000-0000000000a1' and feature = 'SYLLABUS_GENERATION'),
+  1,
+  'idempotent retry does not consume another quota reservation'
+);
+
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
 select is(
   (select status::text from public.bind_ai_job_source(
+  '00000000-0000-0000-0000-0000000000a1'::uuid,
   (select job_id from ai_test_jobs where label = 'idempotent'),
     '00000000-0000-0000-0000-0000000000a1/account-a.pdf',
     'application/pdf',
@@ -523,6 +581,7 @@ select is(
 );
 select throws_ok(
   $$select * from public.bind_ai_job_source(
+    '00000000-0000-0000-0000-0000000000a1'::uuid,
     (select job_id from ai_test_jobs where label = 'idempotent'),
     '00000000-0000-0000-0000-0000000000a1/other.pdf',
     'application/pdf', repeat('b', 64), 1024, 1, 1, '{}'::jsonb
@@ -532,17 +591,21 @@ select throws_ok(
   'source binding cannot replace an existing binding'
 );
 
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000b1', true);
 select throws_ok(
   $$select * from public.bind_ai_job_source(
+    '00000000-0000-0000-0000-0000000000b1'::uuid,
     (select job_id from ai_test_jobs where label = 'idempotent'),
     '00000000-0000-0000-0000-0000000000a1/foreign.pdf',
     'application/pdf', repeat('b', 64), 1024, 1, 1, '{}'::jsonb
   )$$,
   '42501',
   'AI_JOB_FORBIDDEN',
-  'another account cannot bind the first account job'
+  'the backend binding RPC still validates the supplied owner'
 );
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000b1', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a1', true);
 
 select is(

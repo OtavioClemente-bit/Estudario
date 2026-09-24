@@ -40,8 +40,9 @@ export class StorageSourceError extends Error {
     | "SOURCE_TOO_LARGE"
     | "SOURCE_TOO_MANY_PAGES"
     | "SOURCE_TOO_MANY_FILES"
-    | "SOURCE_PAGE_COUNT_UNAVAILABLE",
-    public readonly status: 400 | 404 | 413 | 415 | 422,
+    | "SOURCE_PAGE_COUNT_UNAVAILABLE"
+    | "SOURCE_LOOKUP_UNAVAILABLE",
+    public readonly status: 400 | 404 | 413 | 415 | 422 | 503,
   ) {
     super(code);
     this.name = "StorageSourceError";
@@ -133,14 +134,68 @@ function maskPdfNonStructuralRegions(text: string): string | null {
 
 function countPdfPages(body: Uint8Array): number {
   const text = new TextDecoder("latin1").decode(body);
-  if (!/^%PDF-\d\.\d(?:\s|$)/.test(text) || !/%%EOF\s*$/.test(text)) return 0;
+  if (!/^%PDF-\d\.\d(?:\s|$)/.test(text)) return 0;
+  const eofIndex = text.lastIndexOf("%%EOF");
+  if (eofIndex < 0 || text.slice(eofIndex + "%%EOF".length).trim().length > 0) return 0;
+  const startxrefMatch = text.slice(0, eofIndex).match(/startxref\s+(\d+)\s*$/);
+  if (!startxrefMatch) return 0;
+  const xrefOffset = Number(startxrefMatch[1]);
+  if (!Number.isSafeInteger(xrefOffset) || !text.startsWith("xref", xrefOffset)) return 0;
+
   const masked = maskPdfNonStructuralRegions(text);
   if (masked === null) return 0;
-  const objects = [...masked.matchAll(/\b\d+\s+\d+\s+obj\b([\s\S]*?)\bendobj\b/g)];
+  const xrefHeader = text.slice(xrefOffset).match(/^xref(?:\r\n|\n|\r)0\s+(\d+)(?:\r\n|\n|\r)/);
+  if (!xrefHeader) return 0;
+  const xrefCount = Number(xrefHeader[1]);
+  if (!Number.isSafeInteger(xrefCount) || xrefCount < 2) return 0;
+  const xrefLines = text.slice(xrefOffset + xrefHeader[0].length).split(/\r\n|\n|\r/).slice(0, xrefCount);
+  if (xrefLines.length !== xrefCount || !/^\d{10}\s+\d{5}\s+f\s*$/.test(xrefLines[0])) return 0;
+  if (xrefLines.slice(1).some((line) => !/^\d{10}\s+\d{5}\s+n\s*$/.test(line))) return 0;
+
+  const trailerStart = text.indexOf("trailer", xrefOffset + xrefHeader[0].length);
+  const trailerEnd = trailerStart < 0 ? -1 : text.indexOf(">>", trailerStart);
+  if (trailerStart < 0 || trailerEnd < 0 || trailerEnd > eofIndex) return 0;
+  const trailer = text.slice(trailerStart, trailerEnd + 2);
+  const rootMatch = trailer.match(/\/Root\s+(\d+)\s+(\d+)\s+R/);
+  const sizeMatch = trailer.match(/\/Size\s+(\d+)/);
+  if (!rootMatch || !sizeMatch || Number(sizeMatch[1]) !== xrefCount) return 0;
+
+  const objects = [...masked.matchAll(/\b(\d+)\s+(\d+)\s+obj\b([\s\S]*?)\bendobj\b/g)];
   const objectStarts = masked.match(/\b\d+\s+\d+\s+obj\b/g) ?? [];
   const objectEnds = masked.match(/\bendobj\b/g) ?? [];
-  if (objects.length === 0 || objectStarts.length !== objects.length || objectEnds.length !== objects.length) return 0;
-  return objects.filter((match) => /\/Type\s*\/Page(?=\s|\/|>>)/.test(match[1])).length;
+  if (objects.length !== xrefCount - 1 || objectStarts.length !== objects.length || objectEnds.length !== objects.length) return 0;
+  const objectMap = new Map<number, { generation: number; body: string; offset: number }>();
+  for (const match of objects) {
+    const objectNumber = Number(match[1]);
+    if (objectMap.has(objectNumber)) return 0;
+    objectMap.set(objectNumber, {
+      generation: Number(match[2]),
+      body: match[3],
+      offset: match.index ?? -1,
+    });
+  }
+  for (let objectNumber = 1; objectNumber < xrefCount; objectNumber += 1) {
+    const object = objectMap.get(objectNumber);
+    if (!object || object.generation !== 0) return 0;
+    const expectedOffset = Number(xrefLines[objectNumber].slice(0, 10));
+    if (expectedOffset !== object.offset || !Number.isSafeInteger(expectedOffset)) return 0;
+  }
+
+  const catalog = objectMap.get(Number(rootMatch[1]));
+  const pagesRootMatch = catalog?.body.match(/\/Type\s*\/Catalog[\s\S]*?\/Pages\s+(\d+)\s+(\d+)\s+R/);
+  if (!catalog || !pagesRootMatch || Number(pagesRootMatch[2]) !== 0) return 0;
+  const pagesRoot = objectMap.get(Number(pagesRootMatch[1]));
+  const pageTreeMatch = pagesRoot?.body.match(/\/Type\s*\/Pages[\s\S]*?\/Kids\s*\[([^\]]*)\][\s\S]*?\/Count\s+(\d+)/);
+  if (!pagesRoot || !pageTreeMatch) return 0;
+  const pageRefs = [...pageTreeMatch[1].matchAll(/(\d+)\s+(\d+)\s+R/g)];
+  const declaredPages = Number(pageTreeMatch[2]);
+  if (pageRefs.length === 0 || pageRefs.length !== declaredPages) return 0;
+  for (const pageRef of pageRefs) {
+    const page = objectMap.get(Number(pageRef[1]));
+    if (!page || Number(pageRef[2]) !== 0 || !/\/Type\s*\/Page(?=\s|\/|>>)/.test(page.body)) return 0;
+    if (!new RegExp(`/Parent\\s+${Number(pagesRootMatch[1])}\\s+0\\s+R`).test(page.body)) return 0;
+  }
+  return declaredPages;
 }
 
 function hexDigest(bytes: ArrayBuffer): string {
@@ -234,7 +289,7 @@ export class SupabaseStorageSourceStore implements StorageSourceStore {
       headers: { ...this.headers(), "content-type": "application/json" },
       body: JSON.stringify({ p_path: path }),
     });
-    if (!metadataResponse.ok) throw new StorageSourceError("SOURCE_METADATA_INVALID", 422);
+    if (!metadataResponse.ok) throw await storageLookupError(metadataResponse);
     const payload = await metadataResponse.json() as unknown;
     const row = Array.isArray(payload) ? payload[0] as Record<string, unknown> : payload as Record<string, unknown>;
     if (!row || typeof row !== "object") return null;
@@ -270,6 +325,20 @@ export class SupabaseStorageSourceStore implements StorageSourceStore {
       accept: "application/json",
     };
   }
+}
+
+async function storageLookupError(response: Response): Promise<StorageSourceError> {
+  let message = "";
+  try {
+    const payload = await response.json() as Record<string, unknown>;
+    message = typeof payload.message === "string" ? payload.message : typeof payload.error === "string" ? payload.error : "";
+  } catch {
+    // Fall through to an unavailable lookup error when the gateway body is not JSON.
+  }
+  if (message === "SOURCE_NOT_FOUND") return new StorageSourceError("SOURCE_NOT_FOUND", 404);
+  if (message === "SOURCE_PATH_INVALID") return new StorageSourceError("SOURCE_PATH_INVALID", 400);
+  if (message === "SOURCE_METADATA_INVALID") return new StorageSourceError("SOURCE_METADATA_INVALID", 422);
+  return new StorageSourceError("SOURCE_LOOKUP_UNAVAILABLE", 503);
 }
 
 async function readBodyWithinLimit(response: Response, maxBytes: number): Promise<Uint8Array> {

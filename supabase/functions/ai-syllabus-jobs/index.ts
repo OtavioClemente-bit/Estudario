@@ -265,12 +265,13 @@ export function createAiSyllabusJobsHandler(dependencies: AiSyllabusJobsDependen
 function runtimeDependencies(request: Request): AiSyllabusJobsDependencies {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim();
   const publishableKey = (Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY"))?.trim();
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
   const accessToken = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? "";
-  if (!supabaseUrl || !publishableKey) throw new AuthError("AUTH_UNAVAILABLE", 503);
+  if (!supabaseUrl || !publishableKey || !serviceRoleKey) throw new AuthError("AUTH_UNAVAILABLE", 503);
   return {
     authenticate: authenticateSupabaseRequest,
     storage: new SupabaseStorageSourceStore({ supabaseUrl, publishableKey, accessToken }, runtimeLimits().maxBytes),
-    jobs: new SupabaseAiJobStore({ supabaseUrl, publishableKey, accessToken }),
+    jobs: new SupabaseAiJobStore({ supabaseUrl, publishableKey, accessToken, serviceRoleKey }),
     limits: runtimeLimits(),
     schedule: async () => {
       // The persisted PROCESSING lease is the durable queue consumed by the worker/Cron in Task 7.

@@ -15,6 +15,7 @@ import {
 } from "../../functions/_shared/job-finalizer.ts";
 import {
   SupabaseStorageSourceStore,
+  StorageSourceError,
   type StorageObject,
   type StorageSourceStore,
 } from "../../functions/_shared/storage-source.ts";
@@ -24,18 +25,39 @@ const USER_B = "00000000-0000-0000-0000-0000000000b1";
 const FEATURE = "SYLLABUS_GENERATION" as const;
 
 function pdf(pages: number, bytes = 0): Uint8Array {
-  const pageObjects = Array.from({ length: pages }, (_, index) =>
-    `${index + 1} 0 obj\n<< /Type /Page /Parent 99 0 R >>\nendobj\n`
-  ).join("");
-  const prelude = `%PDF-1.7\n${pageObjects}99 0 obj\n<< /Type /Pages /Count ${pages} >>\nendobj\n`;
-  const encoded = new TextEncoder().encode(`${prelude}%%EOF`);
-  if (bytes <= encoded.length) return encoded;
-  return new TextEncoder().encode(`${prelude}${" ".repeat(bytes - encoded.length)}%%EOF`);
+  const objects = [
+    `1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n`,
+    `2 0 obj\n<< /Type /Pages /Kids [${Array.from({ length: pages }, (_, index) => `${index + 3} 0 R`).join(" ")}] /Count ${pages} >>\nendobj\n`,
+    ...Array.from({ length: pages }, (_, index) =>
+      `${index + 3} 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n`
+    ),
+  ];
+  const header = "%PDF-1.7\n";
+  const render = (padding: number): Uint8Array => {
+    const offsets: number[] = [];
+    let cursor = new TextEncoder().encode(header).byteLength;
+    for (const object of objects) {
+      offsets.push(cursor);
+      cursor += new TextEncoder().encode(object).byteLength;
+    }
+    const xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map((offset) => `${offset.toString().padStart(10, "0")} 00000 n \n`).join("")}`;
+    const xrefOffset = cursor + padding;
+    const trailer = `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+    return new TextEncoder().encode(`${header}${objects.join("")}${" ".repeat(padding)}${xref}${trailer}`);
+  };
+  const base = render(0);
+  return bytes > base.byteLength ? render(bytes - base.byteLength) : base;
 }
 
 function fakePageInsideStream(): Uint8Array {
   return new TextEncoder().encode(
     "%PDF-1.7\n1 0 obj\n<< /Length 12 >>\nstream\n/Type /Page\nendstream\nendobj\n%%EOF",
+  );
+}
+
+function pageObjectWithoutPageTree(): Uint8Array {
+  return new TextEncoder().encode(
+    "%PDF-1.7\n1 0 obj\n<< /Type /Page >>\nendobj\n%%EOF",
   );
 }
 
@@ -370,7 +392,7 @@ Deno.test("binds exact path, server SHA-256, counts, and metadata before process
   assert.equal(job?.sourcePages, 2);
   assert.equal(job?.sourceFileCount, 1);
   assert.match(job?.sourceHash ?? "", /^[0-9a-f]{64}$/);
-  assert.equal(job?.sourceHash, "09e3a3ff63bc0d19f2d5c9be49482baad2b5bfac2ee80440e12bd624da1cb387");
+  assert.equal(job?.sourceHash, "389cf62a0642737aa031a176ff6204943ae4961740d27d37b28e350ad5a21066");
   assert.deepEqual(job?.source?.metadata, {
     bucket: "ai-syllabus-sources",
     path: source.path,
@@ -396,12 +418,24 @@ Deno.test("does not count a page-looking token inside a PDF stream", async () =>
   assert.equal(jobs.releaseCalls.length, 1);
 });
 
+Deno.test("rejects a page object without trailer, xref, and page tree", async () => {
+  const storage = new FakeStorage();
+  const jobs = new FakeJobStore();
+  const source = objectFor(USER_A, "adversarial-pdf", pageObjectWithoutPageTree());
+  storage.objects.set(source.path, source);
+  const handler = createAiSyllabusJobsHandler(dependencies(USER_A, storage, jobs));
+
+  const response = await postCreate(handler, "adversarial-pdf", { ready: true });
+  const body = await response.json();
+
+  assert.equal(response.status, 422);
+  assert.equal(body.error.code, "SOURCE_PAGE_COUNT_UNAVAILABLE");
+  assert.equal(jobs.releaseCalls.length, 1);
+});
+
 Deno.test("process is a short durable command and never calls a provider before committed binding", async () => {
   const storage = new FakeStorage();
   const jobs = new FakeJobStore();
-  const handler = createAiSyllabusJobsHandler(dependencies(USER_A, storage, jobs));
-  const createResponse = await postCreate(handler, "process-before-binding");
-  const created = await createResponse.json();
   const providerSpy = {
     calls: 0,
     start: async (jobId: string) => {
@@ -411,6 +445,11 @@ Deno.test("process is a short durable command and never calls a provider before 
       jobs.events.push(`provider:${jobId}`);
     },
   };
+  const handler = createAiSyllabusJobsHandler(dependencies(USER_A, storage, jobs, {
+    schedule: providerSpy.start,
+  }));
+  const createResponse = await postCreate(handler, "process-before-binding");
+  const created = await createResponse.json();
 
   const processResponse = await handler(new Request(`https://example.test/ai-syllabus/jobs/${created.jobId}/process`, {
     method: "POST",
@@ -425,12 +464,9 @@ Deno.test("process is a short durable command and never calls a provider before 
 
   const source = objectFor(USER_A, "process-after-binding");
   storage.objects.set(source.path, source);
-  const providerHandler = createAiSyllabusJobsHandler(dependencies(USER_A, storage, jobs, {
-    schedule: providerSpy.start,
-  }));
-  const boundResponse = await postCreate(providerHandler, "process-after-binding", { ready: true });
+  const boundResponse = await postCreate(handler, "process-after-binding", { ready: true });
   const bound = await boundResponse.json();
-  const process = await providerHandler(new Request(`https://example.test/ai-syllabus/jobs/${bound.jobId}/process`, {
+  const process = await handler(new Request(`https://example.test/ai-syllabus/jobs/${bound.jobId}/process`, {
     method: "POST",
     headers: { Authorization: "Bearer supabase-jwt" },
   }));
@@ -490,12 +526,41 @@ Deno.test("uses the Storage metadata RPC and Storage API, never the storage sche
   assert.equal(new URL(requests[1].url).pathname, `/storage/v1/object/ai-syllabus-sources/${path}`);
 });
 
+Deno.test("maps the source metadata RPC not-found error to SOURCE_NOT_FOUND", async () => {
+  const store = new SupabaseStorageSourceStore({
+    supabaseUrl: "http://127.0.0.1:54321",
+    publishableKey: "publishable-key",
+    accessToken: "supabase-jwt",
+    fetcher: async () => new Response(JSON.stringify({ code: "P0001", message: "SOURCE_NOT_FOUND" }), { status: 400 }),
+  }, 50_000);
+
+  await assert.rejects(
+    store.getObject(USER_A, sourcePathForJob(USER_A, "rpc-missing")),
+    (error: unknown) => error instanceof StorageSourceError && error.code === "SOURCE_NOT_FOUND" && error.status === 404,
+  );
+});
+
+Deno.test("does not mislabel an unexpected metadata RPC failure as SOURCE_METADATA_INVALID", async () => {
+  const store = new SupabaseStorageSourceStore({
+    supabaseUrl: "http://127.0.0.1:54321",
+    publishableKey: "publishable-key",
+    accessToken: "supabase-jwt",
+    fetcher: async () => new Response(JSON.stringify({ message: "upstream unavailable" }), { status: 500 }),
+  }, 50_000);
+
+  await assert.rejects(
+    store.getObject(USER_A, sourcePathForJob(USER_A, "rpc-error")),
+    (error: unknown) => error instanceof StorageSourceError && error.code === "SOURCE_LOOKUP_UNAVAILABLE" && error.status === 503,
+  );
+});
+
 Deno.test("persists source binding through the owner-checked RPC, not a client UPDATE", async () => {
   const requests: Request[] = [];
   const store = new SupabaseAiJobStore({
     supabaseUrl: "http://127.0.0.1:54321",
     publishableKey: "publishable-key",
     accessToken: "supabase-jwt",
+    serviceRoleKey: "service-role-key",
     fetcher: async (input, init) => {
       const request = new Request(input, init);
       requests.push(request);
@@ -531,7 +596,11 @@ Deno.test("persists source binding through the owner-checked RPC, not a client U
   assert.equal(requests.length, 1);
   assert.equal(requests[0].method, "POST");
   assert.equal(new URL(requests[0].url).pathname, "/rest/v1/rpc/bind_ai_job_source");
-  assert.equal((await requests[0].json()).p_job_id, "00000000-0000-0000-0000-0000000000c1");
+  const body = await requests[0].json();
+  assert.equal(body.p_job_id, "00000000-0000-0000-0000-0000000000c1");
+  assert.equal(body.p_user_id, USER_A);
+  assert.equal(requests[0].headers.get("apikey"), "service-role-key");
+  assert.equal(requests[0].headers.get("authorization"), "Bearer service-role-key");
 });
 
 Deno.test("requires the syllabus feature and a Supabase JWT", async () => {
