@@ -58,6 +58,7 @@ data class ImportResult(
     val downgradedQuestions: Int = 0,
     val sources: Int = 0,
     val normalizedPriorityAssessments: Int = 0,
+    val competitionId: Long = 0L,
 )
 
 class EstudoPackageException(message: String) : IllegalArgumentException(message)
@@ -779,7 +780,7 @@ class EstudoPackageService(private val db: AppDatabase) {
             )
         }
         dao.insertImportPackage(ImportPackageEntity(packageId = prefix, schemaVersion = plan.version, contentHash = contentHash, createdCount = theories + summaries + snippets + questions + concepts, updatedCount = updated, ignoredCount = skipped))
-        return ImportResult(subjectsCreated, topicsCreated, topicsUpdated, theories, summaries, questions, skipped, snippets, concepts, updated, importedTopicIds.toList(), plan.allTopics().sumOf { topico -> topico.questions.count { it.downgraded } }, plan.sourceCount(), plan.normalizedPriorityCount)
+        return ImportResult(subjectsCreated, topicsCreated, topicsUpdated, theories, summaries, questions, skipped, snippets, concepts, updated, importedTopicIds.toList(), plan.allTopics().sumOf { topico -> topico.questions.count { it.downgraded } }, plan.sourceCount(), plan.normalizedPriorityCount, competitionId)
     }
 }
 

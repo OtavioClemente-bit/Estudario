@@ -12,6 +12,7 @@ interface AppDao {
     @Delete suspend fun deleteCompetition(value: CompetitionEntity)
     @Query("UPDATE competitions SET isPrimary = CASE WHEN id = :id THEN 1 ELSE 0 END") suspend fun setPrimaryCompetition(id: Long)
     @Query("SELECT * FROM competitions WHERE externalId = :externalId LIMIT 1") suspend fun competitionByExternalId(externalId: String): CompetitionEntity?
+    @Query("SELECT * FROM competitions WHERE id = :id LIMIT 1") suspend fun competitionById(id: Long): CompetitionEntity?
     @Query("SELECT * FROM competitions WHERE remoteSyllabusId = :remoteSyllabusId LIMIT 1") suspend fun competitionByRemoteSyllabusId(remoteSyllabusId: String): CompetitionEntity?
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -40,6 +41,30 @@ interface AppDao {
     suspend fun requeueRemoteSync(id: Long, expectedAttemptToken: String, attemptToken: String, now: Long, updatedAt: Long): Int
     @Query("UPDATE remote_syllabus_sync SET state = 'SYNCED', nextAttemptAt = 0, lastError = NULL, updatedAt = :updatedAt WHERE id = :id AND state = 'PENDING' AND attemptToken = :attemptToken AND :attemptToken != ''")
     suspend fun markRemoteSyncSynced(id: Long, attemptToken: String, updatedAt: Long): Int
+    @Query(
+        "UPDATE competitions SET remoteSyllabusId = :remoteSyllabusId " +
+            "WHERE id = :localSyllabusId AND (remoteSyllabusId IS NULL OR remoteSyllabusId = :remoteSyllabusId)",
+    )
+    suspend fun associateRemoteSyllabus(localSyllabusId: Long, remoteSyllabusId: String): Int
+    @Query(
+        "UPDATE remote_syllabus_sync SET remoteSyllabusId = :remoteSyllabusId, state = 'SYNCED', nextAttemptAt = 0, lastError = NULL, updatedAt = :updatedAt " +
+            "WHERE id = :id AND state = 'PENDING' AND attemptToken = :attemptToken AND :attemptToken != '' " +
+            "AND (remoteSyllabusId IS NULL OR remoteSyllabusId = :remoteSyllabusId)",
+    )
+    suspend fun markRemoteSyncSyncedWithIdentity(id: Long, remoteSyllabusId: String, attemptToken: String, updatedAt: Long): Int
+    @Transaction
+    suspend fun markRemoteSyncSyncedAndAssociate(
+        id: Long,
+        localSyllabusId: Long,
+        remoteSyllabusId: String,
+        attemptToken: String,
+        updatedAt: Long,
+        associateCompetition: Boolean,
+    ): Boolean {
+        if (remoteSyllabusId.isBlank()) return false
+        if (associateCompetition && associateRemoteSyllabus(localSyllabusId, remoteSyllabusId) != 1) return false
+        return markRemoteSyncSyncedWithIdentity(id, remoteSyllabusId, attemptToken, updatedAt) == 1
+    }
     @Query(
         "UPDATE remote_syllabus_sync SET state = 'FAILED', nextAttemptAt = :nextAttemptAt, lastError = CASE " +
             "WHEN lower(:error) LIKE '%401%' OR lower(:error) LIKE '%unauthorized%' OR lower(:error) LIKE '%forbidden%' OR lower(:error) LIKE '%authorization%' OR lower(:error) LIKE '%bearer%' THEN 'AUTH_REQUIRED' " +

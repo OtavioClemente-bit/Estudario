@@ -126,16 +126,31 @@ class PrivateSyllabusRepository(
         val mutationId = row.jobId?.takeIf { it.isNotBlank() } ?: "local-mutation-${row.id}"
         return when (row.operation) {
             RemoteSyllabusSyncOperation.UPSERT -> {
-                val competition = dao.competitionsOnce().firstOrNull { it.id == row.localSyllabusId }
+                val competition = dao.competitionById(row.localSyllabusId)
                     ?: throw IllegalStateException("Local syllabus was deleted before synchronization.")
                 require(row.payloadJson.isNotBlank()) { "Canonical syllabus snapshot is required for synchronization." }
-                api.upsert(RemoteSyllabusMapper.fromLocal(competition, row.payloadJson, row.payloadHash), mutationId, row.payloadHash)
+                val remote = RemoteSyllabusMapper.fromLocal(competition, row.payloadJson, row.payloadHash)
+                check(row.remoteSyllabusId == null || row.remoteSyllabusId == remote.remoteSyllabusId) {
+                    "Outbox and local syllabus identities disagree."
+                }
+                api.upsert(remote, mutationId, row.payloadHash)
             }
             RemoteSyllabusSyncOperation.DELETE -> api.delete(
                 remoteSyllabusId = row.remoteSyllabusId ?: throw IllegalArgumentException("Remote syllabus identity is required for deletion."),
                 mutationId = mutationId,
                 payloadHash = row.payloadHash,
             )
+        }
+    }
+
+    suspend fun expectedRemoteSyllabusId(row: RemoteSyllabusSyncEntity): String = when (row.operation) {
+        RemoteSyllabusSyncOperation.DELETE -> row.remoteSyllabusId
+            ?: throw IllegalStateException("Remote syllabus identity is required for deletion.")
+        RemoteSyllabusSyncOperation.UPSERT -> {
+            val competition = dao.competitionById(row.localSyllabusId)
+                ?: throw IllegalStateException("Local syllabus was deleted before synchronization.")
+            require(row.payloadJson.isNotBlank()) { "Canonical syllabus snapshot is required for synchronization." }
+            RemoteSyllabusMapper.fromLocal(competition, row.payloadJson, row.payloadHash).remoteSyllabusId
         }
     }
 
@@ -149,15 +164,11 @@ class PrivateSyllabusRepository(
                 throw IllegalStateException("The local syllabus already has content; replacement must be explicit.")
             }
             if (existing != null && replaceExisting) dao.deleteSubjectsForCompetition(existing.id)
-            EstudoPackageService(database).importInTransaction(packageJson, ImportMode.SKIP, existing?.id)
-            val restored = dao.competitionByRemoteSyllabusId(remote.remoteSyllabusId)
-                ?: dao.competitionsOnce().firstOrNull {
-                    it.externalId == remote.metadata["localSyllabusExternalId"]?.toString()?.trim('"') ||
-                        it.externalId == remote.remoteSyllabusId
-                }
+            val importResult = EstudoPackageService(database).importInTransaction(packageJson, ImportMode.SKIP, existing?.id)
+            val restored = dao.competitionById(importResult.competitionId)
                 ?: throw IllegalStateException("Restored syllabus was not found after import.")
             dao.updateCompetition(restored.copy(remoteSyllabusId = remote.remoteSyllabusId))
-            restored.id
+            importResult.competitionId
         }
     }
 }

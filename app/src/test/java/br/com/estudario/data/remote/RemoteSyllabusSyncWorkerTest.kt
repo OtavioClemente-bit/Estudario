@@ -72,6 +72,18 @@ class RemoteSyllabusSyncWorkerTest {
         assertEquals("SYNC_FAILED", gateway.failed.single().error)
     }
 
+    @Test
+    fun anAcknowledgementWithoutIdentityCannotMarkTheMutationSynced() = runBlocking {
+        val row = row()
+        val gateway = FakeGateway(row, acknowledgement = gatewayAck(row, row.payloadHash).copy(remoteSyllabusId = null))
+
+        RemoteSyllabusSyncRunner(gateway, now = { 100L }, tokenFactory = { "token-1" }).run()
+
+        assertTrue(gateway.synced.isEmpty())
+        assertEquals(1, gateway.failed.size)
+        assertEquals("SYNC_FAILED", gateway.failed.single().error)
+    }
+
     private fun row() = RemoteSyllabusSyncEntity(
         operation = RemoteSyllabusSyncOperation.UPSERT,
         localSyllabusId = 41L,
@@ -99,11 +111,12 @@ class RemoteSyllabusSyncWorkerTest {
             claimed = row.copy(attemptToken = attemptToken, attemptCount = row.attemptCount + 1)
             return true
         }
+        override suspend fun expectedRemoteSyllabusId(row: RemoteSyllabusSyncEntity): String = row.remoteSyllabusId ?: "remote-1"
         override suspend fun sync(row: RemoteSyllabusSyncEntity): RemoteSyllabusSyncAcknowledgement {
             failure?.let { throw it }
             return acknowledgement
         }
-        override suspend fun markSynced(row: RemoteSyllabusSyncEntity, attemptToken: String, updatedAt: Long): Boolean {
+        override suspend fun markSynced(row: RemoteSyllabusSyncEntity, remoteSyllabusId: String, attemptToken: String, updatedAt: Long): Boolean {
             synced += row
             return true
         }

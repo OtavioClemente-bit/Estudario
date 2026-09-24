@@ -201,45 +201,22 @@ export class SupabasePrivateSyllabusStore implements UserSyllabiStore {
   }
 
   async upsert(input: { ownerId: string; mutationId: string; payloadHash: string; syllabus: PrivateSyllabus }): Promise<RemoteSyllabusSyncAcknowledgement> {
-    const existingOwner = await this.select("user_syllabi", { id: `eq.${input.syllabus.remoteSyllabusId}`, select: "owner_user_id", limit: "1" });
-    if (existingOwner.length > 0 && stringField(existingOwner[0], "owner_user_id") !== input.ownerId) throw new UserSyllabiStoreError("NOT_FOUND", 404);
-    const mutation = await this.findMutation(input.ownerId, input.mutationId);
-    if (mutation && stringField(mutation, "payload_hash") !== input.payloadHash) {
-      throw new UserSyllabiStoreError("IDEMPOTENCY_KEY_CONFLICT", 409);
+    const response = await this.fetch(this.rpcUrl("upsert_private_syllabus_atomic"), {
+      method: "POST",
+      headers: { ...this.headers(), "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({
+        p_owner_user_id: input.ownerId,
+        p_mutation_id: input.mutationId,
+        p_payload_hash: input.payloadHash,
+        p_syllabus: input.syllabus,
+      }),
+    });
+    if (!response.ok) throw await this.storeError(response);
+    try {
+      return parseRemoteSyllabusSyncAcknowledgement(await response.json());
+    } catch (_error) {
+      throw new UserSyllabiStoreError("PRIVATE_SYLLABUS_UNAVAILABLE", 503);
     }
-    if (mutation?.response !== null && mutation?.response !== undefined) return parseRemoteSyllabusSyncAcknowledgement(mutation.response);
-
-    await this.write("user_syllabi", {
-      id: input.syllabus.remoteSyllabusId,
-      owner_user_id: input.ownerId,
-      title: input.syllabus.title,
-      position: input.syllabus.position,
-      visibility: "PRIVATE",
-      source: input.syllabus.source,
-      source_job_id: uuidOrNull(input.syllabus.sourceJobId),
-      source_hash: input.syllabus.sourceHash,
-      schema_version: input.syllabus.schemaVersion,
-      status: input.syllabus.status,
-      metadata: input.syllabus.metadata,
-    }, "merge-duplicates");
-    await this.deleteChildren(input.syllabus.remoteSyllabusId);
-    for (const subject of input.syllabus.subjects) {
-      await this.write("user_syllabus_subjects", {
-        id: subject.remoteSubjectId,
-        syllabus_id: input.syllabus.remoteSyllabusId,
-        external_id: subject.externalId,
-        name: subject.name,
-        position: subject.position,
-        suggested_priority: subject.suggestedPriority,
-        package_version: subject.packageVersion,
-        schema_version: subject.schemaVersion,
-        metadata: subject.metadata,
-      });
-      await this.writeTopics(input.syllabus.remoteSyllabusId, subject.remoteSubjectId, subject.topics);
-    }
-    const response = acknowledgement(input.syllabus.remoteSyllabusId, input.payloadHash);
-    await this.recordMutation(input.ownerId, input.mutationId, input.syllabus.remoteSyllabusId, "UPSERT", input.payloadHash, response);
-    return response;
   }
 
   async delete(input: { ownerId: string; remoteSyllabusId: string; mutationId: string; payloadHash: string }): Promise<RemoteSyllabusSyncAcknowledgement> {
@@ -315,31 +292,6 @@ export class SupabasePrivateSyllabusStore implements UserSyllabiStore {
     return (byParent.get(null) ?? []).map(map);
   }
 
-  private async writeTopics(syllabusId: string, subjectId: string, topics: PrivateSyllabusTopic[]): Promise<void> {
-    for (const topic of topics) {
-      await this.write("user_syllabus_topics", {
-        id: topic.remoteTopicId,
-        subject_id: subjectId,
-        external_id: topic.externalId,
-        parent_topic_id: topic.parentRemoteTopicId,
-        name: topic.name,
-        position: topic.position,
-        package_version: topic.packageVersion,
-        schema_version: topic.schemaVersion,
-        metadata: topic.metadata,
-      });
-      await this.writeTopics(syllabusId, subjectId, topic.children);
-    }
-  }
-
-  private async deleteChildren(syllabusId: string): Promise<void> {
-    const subjects = await this.select("user_syllabus_subjects", { syllabus_id: `eq.${syllabusId}`, select: "id" });
-    for (const subject of subjects) {
-      const response = await this.fetch(this.restUrl("user_syllabus_subjects", { id: `eq.${stringField(subject, "id")}` }), { method: "DELETE", headers: this.headers() });
-      if (!response.ok) throw await this.storeError(response);
-    }
-  }
-
   private async findMutation(ownerId: string, mutationId: string): Promise<{ payload_hash: string; response: Record<string, unknown> | null } | null> {
     const rows = await this.select("user_syllabus_mutations", { owner_user_id: `eq.${ownerId}`, mutation_id: `eq.${mutationId}`, limit: "1" });
     if (rows.length === 0) return null;
@@ -368,6 +320,16 @@ export class SupabasePrivateSyllabusStore implements UserSyllabiStore {
     return value.filter(isObject);
   }
 
+  private restUrl(table: string, filters: Record<string, string> = {}): string {
+    const url = new URL(`${this.environment.supabaseUrl.replace(/\/$/, "")}/rest/v1/${table}`);
+    for (const [key, value] of Object.entries(filters)) url.searchParams.set(key, value);
+    return url.toString();
+  }
+
+  private rpcUrl(functionName: string): string {
+    return `${this.environment.supabaseUrl.replace(/\/$/, "")}/rest/v1/rpc/${functionName}`;
+  }
+
   private async write(table: string, body: Record<string, unknown>, resolution?: string): Promise<void> {
     const response = await this.fetch(this.restUrl(table), {
       method: "POST",
@@ -375,12 +337,6 @@ export class SupabasePrivateSyllabusStore implements UserSyllabiStore {
       body: JSON.stringify(body),
     });
     if (!response.ok) throw await this.storeError(response);
-  }
-
-  private restUrl(table: string, filters: Record<string, string> = {}): string {
-    const url = new URL(`${this.environment.supabaseUrl.replace(/\/$/, "")}/rest/v1/${table}`);
-    for (const [key, value] of Object.entries(filters)) url.searchParams.set(key, value);
-    return url.toString();
   }
 
   private headers(): HeadersInit {
@@ -394,8 +350,13 @@ export class SupabasePrivateSyllabusStore implements UserSyllabiStore {
   private async storeError(response: Response): Promise<UserSyllabiStoreError> {
     let message = "";
     try { message = String((await response.json() as Record<string, unknown>).message ?? ""); } catch { /* safe fallback */ }
-    const code = message === "IDEMPOTENCY_KEY_CONFLICT" ? message : response.status === 404 ? "NOT_FOUND" : "PRIVATE_SYLLABUS_UNAVAILABLE";
-    return new UserSyllabiStoreError(code, code === "NOT_FOUND" ? 404 : response.status >= 400 && response.status < 500 ? response.status : 503);
+    const code = message === "IDEMPOTENCY_KEY_CONFLICT" ? message
+      : message === "INVALID_SYLLABUS" ? message
+      : message === "CROSS_ACCOUNT" ? "NOT_FOUND"
+      : response.status === 404 ? "NOT_FOUND"
+      : "PRIVATE_SYLLABUS_UNAVAILABLE";
+    const status = code === "NOT_FOUND" ? 404 : code === "IDEMPOTENCY_KEY_CONFLICT" ? 409 : code === "INVALID_SYLLABUS" ? 400 : response.status >= 400 && response.status < 500 ? response.status : 503;
+    return new UserSyllabiStoreError(code, status);
   }
 }
 
@@ -404,9 +365,6 @@ function acknowledgement(remoteSyllabusId: string, payloadHash: string): RemoteS
   return { remoteSyllabusId, jobId: null, payloadHash, state: "SYNCED", attemptCount: 1, nextAttemptAt: null, safeError: null, createdAt: now, updatedAt: now, attemptToken: null };
 }
 
-function uuidOrNull(value: string | null): string | null {
-  return value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value) ? value : null;
-}
 
 function stringField(row: Record<string, unknown>, key: string): string {
   const value = row[key];

@@ -21,8 +21,11 @@ import java.util.UUID
 object RemoteSyllabusMapper {
     fun fromLocal(competition: CompetitionEntity, packageJson: String, payloadHash: String): PrivateSyllabus {
         val plan = EstudoPackageParser.parse(packageJson)
-        val remoteSyllabusId = competition.remoteSyllabusId ?: stableId("syllabus", competition.externalId ?: competition.id.toString())
+        val stableIdentity = JSONObject(plan.metadata?.toString() ?: "{}").optString("stableIdentity").takeIf { it.isNotBlank() && it != "null" }
+            ?: "competition:${competition.externalId ?: plan.competitionId}"
+        val remoteSyllabusId = competition.remoteSyllabusId ?: stableId("syllabus", stableIdentity)
         val rootMetadata = JSONObject(plan.metadata?.toString() ?: "{}")
+            .put("stableIdentity", stableIdentity)
             .put("payloadHash", payloadHash)
             .put("remoteSyllabusId", remoteSyllabusId)
             .put("localSyllabusId", competition.id)
