@@ -255,6 +255,9 @@ fun InitialSetupFlow(
                         editalAttachment = editalAttachment,
                         onPickEditalAttachment = { editalAttach.launch(arrayOf("application/pdf", "image/*", "text/plain")) },
                         onClearEditalAttachment = { editalAttachment = null },
+                        onOpenIntegratedAi = {
+                            viewModel.selectedAiTarget()?.let { appViewModel.openAiReview(it.id, it.title) }
+                        },
                     )
                     InitialSetupStep.SYLLABUS_REVIEW -> SyllabusReviewStep(
                         uiState = uiState,
@@ -548,6 +551,7 @@ private fun SyllabusMethodStep(
     editalAttachment: PromptAttachment?,
     onPickEditalAttachment: () -> Unit,
     onClearEditalAttachment: () -> Unit,
+    onOpenIntegratedAi: () -> Unit,
 ) {
     var pastedText by rememberSaveable { mutableStateOf("") }
     val method = when (snapshot.syllabusMethod) {
@@ -590,6 +594,10 @@ private fun SyllabusMethodStep(
                     onClearAttachment = onClearEditalAttachment,
                     onImport = { picker.launch(arrayOf("application/json", "text/plain", "*/*")) },
                 )
+                OutlinedButton(onClick = onOpenIntegratedAi, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.AutoAwesome, null, Modifier.padding(end = 8.dp))
+                    Text("Gerar com IA do Estudário (beta)")
+                }
             }
             SyllabusMethod.IMPORT_ESTUDO -> {
                 ImportActionCard(

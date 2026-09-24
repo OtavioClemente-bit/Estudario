@@ -40,6 +40,7 @@ import br.com.estudario.domain.setup.PlanCoverageValidator
 import br.com.estudario.domain.setup.PlanCreationMethod
 import br.com.estudario.domain.setup.SyllabusMethod
 import br.com.estudario.domain.setup.SubjectVariety
+import br.com.estudario.ui.ai.AiReviewTarget
 import br.com.estudario.domain.planner.ExamPriority
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -118,6 +119,8 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
 
     private val _operation = MutableStateFlow<SetupOperation>(SetupOperation.Idle)
     val operation: StateFlow<SetupOperation> = _operation.asStateFlow()
+
+    fun selectedAiTarget(): AiReviewTarget? = state.value.competition?.let { AiReviewTarget(it.id, it.name) }
 
     fun begin(reopen: Boolean = false) = viewModelScope.launch {
         app.preferences.updateInitialSetup { current ->

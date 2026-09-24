@@ -64,6 +64,7 @@ import br.com.estudario.ui.onboarding.OnboardingFlow
 import br.com.estudario.ui.setup.InitialSetupFlow
 import br.com.estudario.ui.setup.InitialSetupViewModel
 import br.com.estudario.domain.setup.InitialSetupStatus
+import br.com.estudario.ui.ai.AiReviewEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -78,6 +79,7 @@ fun EstudarioApp(viewModel: AppViewModel) {
         val seenTours by viewModel.seenTours.collectAsState()
         val initialSetup by viewModel.initialSetup.collectAsState()
         val hasExistingWorkspace by viewModel.hasExistingWorkspace.collectAsState()
+        val aiReviewTarget by viewModel.aiReviewTarget.collectAsState()
         val setupViewModel: InitialSetupViewModel = viewModel()
         LaunchedEffect(initialSetup?.status, hasExistingWorkspace) {
             if (initialSetup?.status == InitialSetupStatus.NOT_STARTED && hasExistingWorkspace == true) {
@@ -85,6 +87,10 @@ fun EstudarioApp(viewModel: AppViewModel) {
             }
         }
         when {
+            aiReviewTarget != null -> AiReviewEntryPoint(
+                target = aiReviewTarget!!,
+                onClose = viewModel::closeAiReview,
+            )
             // null: a splash do sistema ainda cobre a tela enquanto a preferência carrega.
             onboardingConcluido == null || seenTours == null || initialSetup == null || hasExistingWorkspace == null -> Unit
             // Primeira instalação: apresentação e escolha de conta antes de qualquer tela do app.

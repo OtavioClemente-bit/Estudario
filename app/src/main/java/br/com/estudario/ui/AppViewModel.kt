@@ -30,6 +30,8 @@ import br.com.estudario.domain.performance.StudyPerformanceInput
 import br.com.estudario.domain.performance.StudyPerformancePeriod
 import br.com.estudario.ui.screens.performance.StudyPerformanceInputMapper
 import br.com.estudario.ui.screens.performance.StudyPerformanceUiState
+import br.com.estudario.ui.ai.AiReviewTarget
+import br.com.estudario.ui.ai.DataStoreAiReviewSessionStore
 import br.com.estudario.domain.DailyActivity
 import br.com.estudario.domain.DailyGoal
 import br.com.estudario.domain.StreakEngine
@@ -62,6 +64,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val estudoService = EstudoPackageService(app.database)
     private val backupService = BackupService(app.database)
     private val drive = GoogleDriveBackupService()
+
+    private val _aiReviewTarget = MutableStateFlow<AiReviewTarget?>(null)
+    val aiReviewTarget: StateFlow<AiReviewTarget?> = _aiReviewTarget.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            DataStoreAiReviewSessionStore(application).loadLatest()?.let { saved ->
+                _aiReviewTarget.value = AiReviewTarget(saved.targetId, saved.targetTitle)
+            }
+        }
+    }
+
+    fun openAiReview(targetId: Long, targetTitle: String) {
+        if (targetId > 0L && targetTitle.isNotBlank()) _aiReviewTarget.value = AiReviewTarget(targetId, targetTitle)
+    }
+
+    fun closeAiReview() { _aiReviewTarget.value = null }
 
     val competitions = repository.competitions.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val subjects = repository.subjects.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
