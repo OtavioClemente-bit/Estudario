@@ -95,7 +95,6 @@ class SyllabusApplicationService(
             if (replaceExisting) {
                 dao.supersedeRemoteSyllabusSync(
                     localSyllabusId = target.id,
-                    remoteSyllabusId = currentTarget.remoteSyllabusId,
                     supersessionToken = "superseded-${UUID.randomUUID()}",
                     updatedAt = now,
                 )

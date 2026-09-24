@@ -24,19 +24,20 @@
 - Deduplicação por `sourceJobId` compara o hash antes de qualquer mutação: mesmo hash retorna o snapshot persistido; hash diferente lança `SyllabusSourceJobConflictException` sem alterar árvore, target, associação ou outbox. A chave existente de `localSyllabusId + operation + payloadHash` continua evitando duplicatas de payload.
 - A migration incremental `17→18` adiciona `payloadJson` com default vazio para linhas legadas; snapshots legados são preenchidos de forma idempotente quando a mesma aplicação é reapresentada.
 - A mutação sempre nasce `PENDING`, preservando `attemptCount`, `attemptToken` e os estados da fila da Task 2. Nenhum sucesso remoto é presumido.
-- Replacement explícito marca atomicamente as mutações anteriores `PENDING`/`FAILED` do mesmo target e `remoteSyllabusId` como `FAILED/SUPERSEDED`, troca o `attemptToken` e mantém o snapshot para auditoria. Consultas de pending/failed e requeue ignoram superseded; CAS antigo não consegue concluir nem reencaminhar a linha.
+- Replacement explícito marca atomicamente as mutações anteriores `PENDING`/`FAILED` do mesmo `localSyllabusId`, independentemente do `remoteSyllabusId` antigo, como `FAILED/SUPERSEDED`, troca o `attemptToken` e mantém o snapshot para auditoria. Isso cobre associação `NULL→remote-x` e `remote-old→remote-new`; consultas de pending/failed e requeue ignoram superseded, e CAS antigo não consegue concluir nem reencaminhar a linha.
 - `EstudoPackageService.importInTransaction` reutiliza exatamente o boundary oficial sem abrir uma segunda transação quando chamado pelo serviço.
 - O teste de rollback injeta uma falha depois do clear/import real, dentro do `database.withTransaction`, e compara target/associação, subjects/topics e outbox com o snapshot anterior.
 
 ## Testes e resultados
 
 - RED TDD: `:app:compileDebugAndroidTestKotlin` falhou inicialmente nas novas expectativas de `payloadJson`, migration e conflito; depois da implementação a compilação passou.
-- `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.syllabus.SyllabusApplicationServiceTest` — `BUILD SUCCESSFUL`; 8/8 testes instrumentados.
-- `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.local.RemoteSyllabusSyncDaoTest` — `BUILD SUCCESSFUL`; 10/10 testes instrumentados.
+- `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.syllabus.SyllabusApplicationServiceTest` — `BUILD SUCCESSFUL`; 10/10 testes instrumentados.
+- `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.local.RemoteSyllabusSyncDaoTest` — `BUILD SUCCESSFUL`; 12/12 testes instrumentados.
 - `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.local.RemoteSyllabusSyncMigrationTest` — `BUILD SUCCESSFUL`; migration 14→18, 1/1 teste.
 - `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.estudario.data.RemoteSyllabusAssociationTest` — `BUILD SUCCESSFUL`; 1/1 teste do repository.
 - Casos instrumentados: aplicação com identidade/associação remota, snapshot canônico persistido após restart, PENDING sem ACK remoto, idempotência por job, conflito sem mutação, bloqueio/substituição explícita, rollback após mutação local real, round-trip DAO e migration incremental.
 - Caso adicional desta rodada: replacement com outbox antiga `PENDING` e `FAILED`, preservação de ambos os `payloadJson`, exclusão da antiga do retry e rejeição de completion/requeue com `attemptToken` antigo.
+- Casos desta rodada: supersession por target com associação `NULL→remote-x` e `remote-old→remote-new`, mantendo somente a nova versão `PENDING` elegível.
 - `:app:testDebugUnitTest --tests br.com.estudario.domain.ai.AiSyllabusProposalValidatorTest --tests br.com.estudario.domain.ai.AiSyllabusToEstudoMapperTest --tests br.com.estudario.data.transfer.EstudoPackageParserTest` — `BUILD SUCCESSFUL`.
 - `:app:compileDebugAndroidTestKotlin` — `BUILD SUCCESSFUL`.
 - `git diff --check` — passou.
@@ -46,6 +47,7 @@
 
 - `fix: harden Task 11 atomic apply outbox` (commit separado do baseline `595d4da`)
 - `fix: supersede stale Task 11 outbox mutations` (commit separado desta rodada)
+- `fix: supersede Task 11 outbox by target` (commit separado desta rodada)
 
 ## Riscos
 

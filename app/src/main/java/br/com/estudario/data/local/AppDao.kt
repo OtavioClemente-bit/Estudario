@@ -30,10 +30,10 @@ interface AppDao {
     suspend fun persistRemoteSyllabusPayloadIfMissing(id: Long, payloadHash: String, payloadJson: String): Int
     @Query(
         "UPDATE remote_syllabus_sync SET state = 'FAILED', lastError = 'SUPERSEDED', attemptToken = :supersessionToken, nextAttemptAt = 0, updatedAt = :updatedAt " +
-            "WHERE localSyllabusId = :localSyllabusId AND (remoteSyllabusId = :remoteSyllabusId OR (remoteSyllabusId IS NULL AND :remoteSyllabusId IS NULL)) " +
+            "WHERE localSyllabusId = :localSyllabusId " +
             "AND state IN ('PENDING', 'FAILED') AND (lastError IS NULL OR lastError != 'SUPERSEDED')",
     )
-    suspend fun supersedeRemoteSyllabusSync(localSyllabusId: Long, remoteSyllabusId: String?, supersessionToken: String, updatedAt: Long): Int
+    suspend fun supersedeRemoteSyllabusSync(localSyllabusId: Long, supersessionToken: String, updatedAt: Long): Int
     @Query("UPDATE remote_syllabus_sync SET attemptCount = attemptCount + 1, attemptToken = :attemptToken, nextAttemptAt = :nextAttemptAt, updatedAt = :updatedAt WHERE id = :id AND state = 'PENDING' AND attemptToken = :expectedAttemptToken AND :attemptToken != ''")
     suspend fun markRemoteSyncAttempt(id: Long, expectedAttemptToken: String, attemptToken: String, nextAttemptAt: Long, updatedAt: Long): Int
     @Query("UPDATE remote_syllabus_sync SET state = 'PENDING', attemptToken = :attemptToken, nextAttemptAt = :now, lastError = NULL, updatedAt = :updatedAt WHERE id = :id AND state = 'FAILED' AND (lastError IS NULL OR lastError != 'SUPERSEDED') AND nextAttemptAt <= :now AND attemptToken = :expectedAttemptToken AND :attemptToken != ''")

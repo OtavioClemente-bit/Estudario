@@ -89,7 +89,6 @@ class RemoteSyllabusSyncDaoTest {
             2,
             dao.supersedeRemoteSyllabusSync(
                 localSyllabusId = localId,
-                remoteSyllabusId = "remote-$localId",
                 supersessionToken = "replacement-token",
                 updatedAt = 300L,
             ),
@@ -115,6 +114,39 @@ class RemoteSyllabusSyncDaoTest {
         assertEquals(RemoteSyllabusSyncState.FAILED, supersededFailed.state)
         assertEquals(RemoteSyllabusSyncError.SUPERSEDED, supersededFailed.lastError)
         assertEquals("{\"payload\":\"failed\"}", supersededFailed.payloadJson)
+    }
+
+    @Test
+    fun supersessionMatchesTargetAcrossNullAndChangedRemoteAssociations() = runBlocking {
+        val nullTargetId = dao.insertCompetition(CompetitionEntity(name = "Sem associação"))
+        val nullOldId = dao.enqueueRemoteSyllabusSync(
+            sync(nullTargetId, payloadHash = "null-old", nextAttemptAt = 100L).copy(
+                remoteSyllabusId = null,
+                payloadJson = "{\"payload\":\"null-old\"}",
+                attemptToken = "null-old-token",
+            ),
+        )
+        val changedTargetId = dao.insertCompetition(CompetitionEntity(name = "Associação antiga", remoteSyllabusId = "remote-new"))
+        val changedOldId = dao.enqueueRemoteSyllabusSync(
+            sync(changedTargetId, payloadHash = "remote-old", nextAttemptAt = 100L).copy(
+                remoteSyllabusId = "remote-old",
+                payloadJson = "{\"payload\":\"remote-old\"}",
+                state = RemoteSyllabusSyncState.FAILED,
+                attemptToken = "remote-old-token",
+                lastError = RemoteSyllabusSyncError.NETWORK,
+            ),
+        )
+
+        assertEquals(1, dao.supersedeRemoteSyllabusSync(nullTargetId, "null-replacement-token", 200L))
+        assertEquals(1, dao.supersedeRemoteSyllabusSync(changedTargetId, "remote-replacement-token", 200L))
+        assertEquals(0, dao.markRemoteSyncSynced(nullOldId, "null-old-token", 300L))
+        assertEquals(0, dao.requeueRemoteSync(changedOldId, "remote-old-token", "late-retry", 300L, 300L))
+        assertTrue(dao.pendingRemoteSyllabusSync(300L).isEmpty())
+        assertTrue(dao.failedRemoteSyllabusSync(300L).isEmpty())
+        assertEquals(RemoteSyllabusSyncError.SUPERSEDED, dao.remoteSyllabusSyncById(nullOldId)!!.lastError)
+        assertEquals(RemoteSyllabusSyncError.SUPERSEDED, dao.remoteSyllabusSyncById(changedOldId)!!.lastError)
+        assertEquals("{\"payload\":\"null-old\"}", dao.remoteSyllabusSyncById(nullOldId)!!.payloadJson)
+        assertEquals("{\"payload\":\"remote-old\"}", dao.remoteSyllabusSyncById(changedOldId)!!.payloadJson)
     }
 
     @Test
