@@ -53,6 +53,7 @@ function safeError(code: string, status: number): Response {
     INVALID_REQUEST: "Invalid request",
     INVALID_FEATURE: "Unsupported AI feature",
     SOURCE_NOT_BOUND: "Source must be uploaded and validated before processing",
+    IDEMPOTENCY_KEY_CONFLICT: "Idempotency key conflicts with the source fingerprint",
   };
   return jsonResponse({ error: { code, message: messages[code] ?? "AI job request could not be completed" } }, status);
 }
@@ -122,7 +123,36 @@ function sourcePath(userId: string, key: string, source: Record<string, unknown>
 function clientMime(source: Record<string, unknown>): string | null {
   if (source.mimeType === undefined) return null;
   if (typeof source.mimeType !== "string") throw new JobStoreError("INVALID_REQUEST", 400);
-  return source.mimeType;
+  return source.mimeType.split(";", 1)[0].trim().toLowerCase();
+}
+
+function clientSourceHash(source: Record<string, unknown>): string | null {
+  if (source.sourceHash === undefined) return null;
+  if (typeof source.sourceHash !== "string" || !/^[0-9a-f]{64}$/i.test(source.sourceHash)) {
+    throw new JobStoreError("INVALID_REQUEST", 400);
+  }
+  return source.sourceHash.toLowerCase();
+}
+
+function clientSourceBytes(source: Record<string, unknown>): number | null {
+  if (source.sourceBytes === undefined) return null;
+  if (typeof source.sourceBytes !== "number" || !Number.isSafeInteger(source.sourceBytes) || source.sourceBytes < 1) {
+    throw new JobStoreError("INVALID_REQUEST", 400);
+  }
+  return source.sourceBytes;
+}
+
+function assertBoundSourceMatches(job: AiJobRecord, source: Record<string, unknown>): void {
+  if (job.sourceObjectPath === null) return;
+  const requested = {
+    mimeType: clientMime(source),
+    sourceHash: clientSourceHash(source),
+    sourceBytes: clientSourceBytes(source),
+  };
+  const boundMime = job.sourceMimeType?.split(";", 1)[0].trim().toLowerCase() ?? null;
+  if (boundMime !== requested.mimeType || job.sourceHash !== requested.sourceHash || job.sourceBytes !== requested.sourceBytes) {
+    throw new JobStoreError("IDEMPOTENCY_KEY_CONFLICT", 409);
+  }
 }
 
 async function releaseQuietly(dependencies: AiSyllabusJobsDependencies, userId: string, jobId: string): Promise<void> {
@@ -144,11 +174,15 @@ async function createJob(
   const source = sourceInput(body);
   const path = sourcePath(user.userId, key, source);
   const mimeType = clientMime(source);
+  const sourceHash = clientSourceHash(source);
+  const sourceBytes = clientSourceBytes(source);
   const payload = {
     feature: SYLLABUS_FEATURE,
     sourcePath: path,
     fileName: typeof source.fileName === "string" ? source.fileName : null,
     mimeType,
+    sourceHash,
+    sourceBytes,
   } satisfies Record<string, unknown>;
   const fingerprint = await requestFingerprint(payload);
 
@@ -168,6 +202,7 @@ async function createJob(
 
   let job = await dependencies.jobs.getJob(user.userId, created.jobId);
   if (!job) return safeError("AI_JOB_NOT_FOUND", 503);
+  assertBoundSourceMatches(job, source);
   const ready = source.ready === true || source.objectPath !== undefined;
   if (ready && job.status === "RESERVED" && job.sourceObjectPath === null) {
     try {
@@ -178,6 +213,10 @@ async function createJob(
         dependencies.limits,
         mimeType,
       );
+      if (sourceHash !== null && sourceHash !== bound.sourceHash || sourceBytes !== null && sourceBytes !== bound.sourceBytes) {
+        await releaseQuietly(dependencies, user.userId, created.jobId);
+        throw new JobStoreError("IDEMPOTENCY_KEY_CONFLICT", 409);
+      }
       job = await dependencies.jobs.bindSource(user.userId, created.jobId, bound);
     } catch (error) {
       if (error instanceof StorageSourceError) {
@@ -297,8 +336,12 @@ export function createAiSyllabusJobsHandler(dependencies: AiSyllabusJobsDependen
     const processMatch = pathname.match(/\/ai-syllabus\/jobs\/([^/]+)\/process$/);
     const getMatch = pathname.match(/\/ai-syllabus\/jobs\/([^/]+)$/);
     try {
-      if (pathname.endsWith("/ai-syllabus/jobs")) return await createJob(request, dependencies, user);
-      if (request.method === "GET" && getMatch) return await getJob(dependencies, user, getMatch[1]);
+      const rootPath = pathname.endsWith("/ai-syllabus/jobs");
+      if (rootPath && request.method !== "POST") return jsonResponse({ error: { code: "METHOD_NOT_ALLOWED", message: "POST is required for job creation" } }, 405, { allow: "POST" });
+      if (processMatch && request.method !== "POST") return jsonResponse({ error: { code: "METHOD_NOT_ALLOWED", message: "POST is required to process a job" } }, 405, { allow: "POST" });
+      if (getMatch && request.method !== "GET") return jsonResponse({ error: { code: "METHOD_NOT_ALLOWED", message: "GET is required to read a job" } }, 405, { allow: "GET" });
+      if (rootPath) return await createJob(request, dependencies, user);
+      if (getMatch) return await getJob(dependencies, user, getMatch[1]);
       if (processMatch) return await processJob(request, dependencies, user, processMatch[1]);
       return safeError("NOT_FOUND", 404);
     } catch (error) {

@@ -359,6 +359,8 @@ async function storeError(response: Response): Promise<JobStoreError> {
   }
   const status = code === "SOURCE_NOT_FOUND"
     ? 404
+    : code === "IDEMPOTENCY_KEY_CONFLICT" || code === "IDEMPOTENCY_CONFLICT"
+    ? 409
     : response.status >= 400 && response.status < 500
     ? response.status
     : 503;

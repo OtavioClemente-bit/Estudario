@@ -44,6 +44,16 @@ function job(overrides: Partial<AiJobRecord> = {}): AiJobRecord {
     providerExecutionStartedAt: null,
     providerReconciledAt: null,
     providerResultRecoverable: null,
+    promptVersion: null,
+    schemaVersion: null,
+    modelVersion: null,
+    proposal: null,
+    warnings: [],
+    errorCode: null,
+    errorMessage: null,
+    createdAt: "2026-09-24T12:00:00Z",
+    updatedAt: "2026-09-24T12:00:00Z",
+    finishedAt: null,
     ...overrides,
   };
 }
@@ -280,6 +290,16 @@ Deno.test("uses the server role for provider reconciliation and success finaliza
     provider_execution_started_at: "started",
     provider_reconciled_at: "reconciled",
     provider_result_recoverable: false,
+    prompt_version: null,
+    schema_version: null,
+    model_version: null,
+    proposal: null,
+    warnings: [],
+    error_code: null,
+    error_message: null,
+    created_at: "2026-09-24T12:00:00Z",
+    updated_at: "2026-09-24T12:01:00Z",
+    finished_at: null,
   };
   const store = new SupabaseAiJobStore({
     supabaseUrl: "https://supabase.example.test",

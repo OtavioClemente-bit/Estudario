@@ -1,6 +1,6 @@
 import { assert, assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { createAiSyllabusJobsHandler } from "./index.ts";
-import type { AiJobStore, AiJobRecord } from "../_shared/job-finalizer.ts";
+import { JobStoreError, type AiJobStore, type AiJobRecord, type CreateAiJobInput } from "../_shared/job-finalizer.ts";
 
 const validProposal = {
   schemaVersion: 1,
@@ -94,4 +94,128 @@ Deno.test("GET does not reveal another owner's job", async () => {
   );
 
   assertEquals(response.status, 404);
+});
+
+Deno.test("GET root is rejected without reserving quota", async () => {
+  let createCalls = 0;
+  const jobs = {
+    async createOrGet() {
+      createCalls += 1;
+      throw new Error("GET root must not create a job");
+    },
+    async getJob() { return null; },
+  } as unknown as AiJobStore;
+  const handler = createAiSyllabusJobsHandler({
+    authenticate: async () => ({ userId: "user-1" }),
+    storage: {} as never,
+    jobs,
+    limits: { maxBytes: 50, maxPages: 1, maxFiles: 1 },
+    schedule: async () => { throw new Error("GET root must not schedule"); },
+  });
+
+  const response = await handler(new Request("https://example.test/functions/v1/ai-syllabus/jobs", {
+    method: "GET",
+    headers: { authorization: "Bearer supabase-jwt" },
+  }));
+
+  assertEquals(response.status, 405);
+  assertEquals(response.headers.get("allow"), "POST");
+  assertEquals(createCalls, 0);
+});
+
+Deno.test("GET process is rejected without claiming or starting processing", async () => {
+  let claimCalls = 0;
+  const jobs = {
+    async getJob() { return record(); },
+    async claimForProcessing() {
+      claimCalls += 1;
+      throw new Error("GET process must not claim a job");
+    },
+  } as unknown as AiJobStore;
+  const handler = createAiSyllabusJobsHandler({
+    authenticate: async () => ({ userId: "user-1" }),
+    storage: {} as never,
+    jobs,
+    limits: { maxBytes: 50, maxPages: 1, maxFiles: 1 },
+    schedule: async () => { throw new Error("GET process must not schedule"); },
+  });
+
+  const response = await handler(new Request("https://example.test/functions/v1/ai-syllabus/jobs/job-1/process", {
+    method: "GET",
+    headers: { authorization: "Bearer supabase-jwt" },
+  }));
+
+  assertEquals(response.status, 405);
+  assertEquals(response.headers.get("allow"), "POST");
+  assertEquals(claimCalls, 0);
+});
+
+Deno.test("POST fingerprint includes normalized MIME, SHA-256, and byte count", async () => {
+  let captured: CreateAiJobInput | null = null;
+  const reserved = record();
+  reserved.status = "RESERVED";
+  reserved.sourceObjectPath = null;
+  reserved.sourceHash = null;
+  reserved.sourceBytes = null;
+  reserved.sourceMimeType = null;
+  reserved.proposal = null;
+  reserved.finishedAt = null;
+  const jobs = {
+    async createOrGet(input: CreateAiJobInput) {
+      captured = input;
+      return { jobId: reserved.id, status: reserved.status, reservationId: "reservation-1", quotaPeriod: "2026-09", quotaRemaining: 1, reused: false, requestPayload: input.requestPayload };
+    },
+    async getJob() { return reserved; },
+  } as unknown as AiJobStore;
+  const handler = createAiSyllabusJobsHandler({
+    authenticate: async () => ({ userId: "user-1" }),
+    storage: {} as never,
+    jobs,
+    limits: { maxBytes: 50, maxPages: 1, maxFiles: 1 },
+    schedule: async () => {},
+  });
+
+  const response = await handler(new Request("https://example.test/functions/v1/ai-syllabus/jobs", {
+    method: "POST",
+    headers: { authorization: "Bearer supabase-jwt", "idempotency-key": "idem-1", "content-type": "application/json" },
+    body: JSON.stringify({ source: { fileName: "edital.pdf", mimeType: "Application/PDF; charset=binary", sourceHash: "a".repeat(64), sourceBytes: 123 } }),
+  }));
+
+  assertEquals(response.status, 201);
+  assert(captured !== null);
+  assertEquals(captured.requestPayload.mimeType, "application/pdf");
+  assertEquals(captured.requestPayload.sourceHash, "a".repeat(64));
+  assertEquals(captured.requestPayload.sourceBytes, 123);
+});
+
+Deno.test("same idempotency key cannot reuse a bound job for a different source fingerprint", async () => {
+  const bound = record();
+  const calls = { bind: 0 };
+  const jobs = {
+    async createOrGet(input: CreateAiJobInput) {
+      return { jobId: bound.id, status: bound.status, reservationId: "reservation-1", quotaPeriod: "2026-09", quotaRemaining: 1, reused: true, requestPayload: input.requestPayload };
+    },
+    async getJob() { return bound; },
+    async bindSource() {
+      calls.bind += 1;
+      throw new JobStoreError("SOURCE_ALREADY_BOUND", 409);
+    },
+  } as unknown as AiJobStore;
+  const handler = createAiSyllabusJobsHandler({
+    authenticate: async () => ({ userId: "user-1" }),
+    storage: {} as never,
+    jobs,
+    limits: { maxBytes: 50, maxPages: 1, maxFiles: 1 },
+    schedule: async () => {},
+  });
+
+  const response = await handler(new Request("https://example.test/functions/v1/ai-syllabus/jobs", {
+    method: "POST",
+    headers: { authorization: "Bearer supabase-jwt", "idempotency-key": "idem-1", "content-type": "application/json" },
+    body: JSON.stringify({ source: { fileName: "edital.pdf", mimeType: "application/pdf", sourceHash: "c".repeat(64), sourceBytes: 99 } }),
+  }));
+
+  assertEquals(response.status, 409);
+  assertEquals((await response.json()).error.code, "IDEMPOTENCY_KEY_CONFLICT");
+  assertEquals(calls.bind, 0);
 });

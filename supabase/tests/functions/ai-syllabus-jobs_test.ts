@@ -112,6 +112,20 @@ class FakeJobStore implements AiJobStore {
       sourcePages: null,
       sourceFileCount: null,
       sourceMimeType: null,
+      openaiResponseId: null,
+      providerExecutionStartedAt: null,
+      providerReconciledAt: null,
+      providerResultRecoverable: null,
+      promptVersion: null,
+      schemaVersion: null,
+      modelVersion: null,
+      proposal: null,
+      warnings: [],
+      errorCode: null,
+      errorMessage: null,
+      createdAt: "2026-09-24T12:00:00Z",
+      updatedAt: "2026-09-24T12:00:00Z",
+      finishedAt: null,
     };
     this.records.set(id, record);
     this.events.push(`create:${id}`);
@@ -252,8 +266,8 @@ Deno.test("rejects conflicting reuse of an idempotency key", async () => {
   const jobs = new FakeJobStore();
   const handler = createAiSyllabusJobsHandler(dependencies(USER_A, storage, jobs));
 
-  assert.equal((await postCreate(handler, "conflict", { fileName: "a.pdf" })).status, 201);
-  const response = await postCreate(handler, "conflict", { fileName: "b.pdf" });
+  assert.equal((await postCreate(handler, "conflict", { fileName: "a.pdf", mimeType: "application/pdf", sourceHash: "a".repeat(64), sourceBytes: 10 })).status, 201);
+  const response = await postCreate(handler, "conflict", { fileName: "b.pdf", mimeType: "application/pdf", sourceHash: "b".repeat(64), sourceBytes: 11 });
   const body = await response.json();
 
   assert.equal(response.status, 409);
@@ -504,6 +518,40 @@ Deno.test("process is a short durable command and never calls a provider before 
   assert.equal(providerSpy.calls, 1);
   assert.ok(jobs.events.indexOf(`bind:${bound.jobId}`) < jobs.events.indexOf(`claim:${bound.jobId}`));
   assert.ok(jobs.events.indexOf(`claim:${bound.jobId}`) < jobs.events.indexOf(`provider:${bound.jobId}`));
+});
+
+Deno.test("GET root returns 405 without reserving quota", async () => {
+  const storage = new FakeStorage();
+  const jobs = new FakeJobStore();
+  const handler = createAiSyllabusJobsHandler(dependencies(USER_A, storage, jobs));
+
+  const response = await handler(new Request("https://example.test/ai-syllabus/jobs", {
+    method: "GET",
+    headers: { Authorization: "Bearer supabase-jwt" },
+  }));
+
+  assert.equal(response.status, 405);
+  assert.equal(response.headers.get("allow"), "POST");
+  assert.equal(jobs.createInputs.length, 0);
+  assert.equal(jobs.records.size, 0);
+});
+
+Deno.test("GET process returns 405 without claiming or scheduling a job", async () => {
+  const storage = new FakeStorage();
+  const jobs = new FakeJobStore();
+  const handler = createAiSyllabusJobsHandler(dependencies(USER_A, storage, jobs));
+  const created = await postCreate(handler, "get-process");
+  const body = await created.json();
+
+  const response = await handler(new Request(`https://example.test/ai-syllabus/jobs/${body.jobId}/process`, {
+    method: "GET",
+    headers: { Authorization: "Bearer supabase-jwt" },
+  }));
+
+  assert.equal(response.status, 405);
+  assert.equal(response.headers.get("allow"), "POST");
+  assert.deepEqual(jobs.events, [`create:${body.jobId}`]);
+  assert.equal(jobs.records.get(body.jobId)?.status, "RESERVED");
 });
 
 Deno.test("allows an idempotent retry to bind the existing job even when quota is no longer available", async () => {
