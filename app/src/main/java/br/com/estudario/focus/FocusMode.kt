@@ -1,6 +1,7 @@
 package br.com.estudario.focus
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -64,6 +65,8 @@ object FocusMode {
         runCatching { manager.setInterruptionFilter(previousFilter) }
     }
 
+    // Lint não reconhece canPost() (abaixo) como guarda válida para o notify().
+    @SuppressLint("MissingPermission")
     fun showOngoing(context: Context, title: String, startedAt: Long, dndOn: Boolean) {
         if (!canPost(context)) return
         val open = Intent(context, MainActivity::class.java).apply {
@@ -98,6 +101,7 @@ object FocusMode {
     fun clearOngoing(context: Context) = NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
 
     /** Avisa que uma sessão esquecida foi encerrada sozinha — a pessoa precisa saber. */
+    @SuppressLint("MissingPermission")
     fun notifyAutoClosed(context: Context, minutes: Int) {
         if (!canPost(context)) return
         val notification = NotificationCompat.Builder(context, CHANNEL)

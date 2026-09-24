@@ -1,6 +1,7 @@
 package br.com.estudario.notifications
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -88,6 +89,8 @@ object StudyNotificationCoordinator {
         "Seu lembrete está funcionando. Abra o app e continue de onde parou.",
     )
 
+    // Lint não reconhece a checagem de permissão logo abaixo como guarda válida para o notify().
+    @SuppressLint("MissingPermission")
     internal fun post(context: Context, channel: String, id: Int, title: String, body: String) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val intent = Intent(context, MainActivity::class.java).apply {
