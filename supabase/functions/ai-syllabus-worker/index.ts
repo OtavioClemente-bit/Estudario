@@ -283,6 +283,10 @@ function row(value: unknown): Record<string, unknown> {
   throw new Error("AI_WORKER_DATA_UNAVAILABLE");
 }
 
+function noCompositeRow(value: unknown): boolean {
+  return value === null || (Array.isArray(value) && (value.length === 0 || value[0] === null));
+}
+
 function stringField(value: Record<string, unknown>, key: string): string {
   if (typeof value[key] !== "string" || value[key].trim().length === 0) throw new Error("AI_WORKER_DATA_UNAVAILABLE");
   return value[key] as string;
@@ -318,7 +322,7 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
   }
   async claimNext(_now: Date, leaseSeconds: number, processingSeconds: number): Promise<SyllabusWorkerJob | null> {
     const value = await this.rpc("claim_ai_syllabus_worker_job", { p_lease_owner: this.workerOwner, p_lease_token: crypto.randomUUID(), p_lease_seconds: leaseSeconds, p_processing_seconds: processingSeconds });
-    if (value === null || (Array.isArray(value) && value.length === 0)) return null;
+    if (noCompositeRow(value)) return null;
     return parseJob(row(value));
   }
   async assertLease(jobId: string, lease: Lease): Promise<void> { await this.rpc("assert_ai_job_lease", { p_job_id: jobId, ...lease }); }
@@ -346,7 +350,7 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
     for (let index = 0; index < limit; index += 1) {
       const owner = `${this.workerOwner}:cleanup`, token = crypto.randomUUID();
       const value = await this.rpc("claim_ai_job_source_cleanup", { p_lease_owner: owner, p_lease_token: token, p_lease_seconds: 300 });
-      if (value === null || (Array.isArray(value) && value.length === 0)) return;
+      if (noCompositeRow(value)) return;
       const cleanup = row(value), jobId = stringField(cleanup, "job_id"), path = stringField(cleanup, "source_object_path");
       const cleanupLease = { p_lease_owner: owner, p_lease_token: token, p_lease_generation: integerField(cleanup, "lease_generation") };
       try {

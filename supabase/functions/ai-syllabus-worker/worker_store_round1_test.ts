@@ -63,3 +63,22 @@ Deno.test("worker endpoint accepts only the exact backend token", () => {
   assert(!authorizeWorkerRequest(request(), "worker-token"));
   assert(!authorizeWorkerRequest(request("Bearer worker-token"), undefined));
 });
+
+Deno.test("treats a nullable composite cleanup claim returned as [null] as empty", async () => {
+  const fetcher: typeof fetch = async (input) => {
+    if (String(input).includes("claim_ai_job_source_cleanup")) return Response.json([null]);
+    throw new Error(`unexpected request ${String(input)}`);
+  };
+  const store = new SupabaseSyllabusWorkerStore({ supabaseUrl: "https://supabase.test", serviceRoleKey: "service-test", fetcher }, {} as never, "worker-a");
+  await store.cleanupPendingSources();
+});
+
+Deno.test("treats a nullable composite worker claim returned as [null] as no job", async () => {
+  const fetcher: typeof fetch = async (input) => {
+    if (String(input).includes("claim_ai_syllabus_worker_job")) return Response.json([null]);
+    throw new Error(`unexpected request ${String(input)}`);
+  };
+  const store = new SupabaseSyllabusWorkerStore({ supabaseUrl: "https://supabase.test", serviceRoleKey: "service-test", fetcher }, {} as never, "worker-a");
+  const claimed = await store.claimNext(new Date("2026-09-25T00:00:00Z"), 300, 900);
+  assert(claimed === null);
+});
