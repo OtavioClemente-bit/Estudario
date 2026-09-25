@@ -376,7 +376,7 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
 function environmentNumber(name: string, fallback: number): number { const value = Number(Deno.env.get(name)); return Number.isSafeInteger(value) && value > 0 ? value : fallback; }
 function runtimeEnvironment(): WorkerRuntimeEnvironment {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim(), serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
-  const serviceRoleJwt = Deno.env.get("SUPABASE_SERVICE_ROLE_JWT")?.trim();
+  const serviceRoleJwt = Deno.env.get("AI_SERVICE_ROLE_JWT")?.trim();
   const endpointAuthToken = Deno.env.get("AI_WORKER_AUTH_TOKEN")?.trim();
   if (!supabaseUrl || !serviceRoleKey || !endpointAuthToken) throw new Error("AI_WORKER_NOT_CONFIGURED");
   return { supabaseUrl, serviceRoleKey, serviceRoleJwt, endpointAuthToken };

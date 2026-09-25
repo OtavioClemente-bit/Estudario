@@ -375,7 +375,7 @@ function runtimeDependencies(request: Request): AiSyllabusJobsDependencies {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim();
   const publishableKey = (Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY"))?.trim();
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
-  const serviceRoleJwt = Deno.env.get("SUPABASE_SERVICE_ROLE_JWT")?.trim();
+  const serviceRoleJwt = Deno.env.get("AI_SERVICE_ROLE_JWT")?.trim();
   const accessToken = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? "";
   if (!supabaseUrl || !publishableKey || !serviceRoleKey) throw new AuthError("AUTH_UNAVAILABLE", 503);
   return {
