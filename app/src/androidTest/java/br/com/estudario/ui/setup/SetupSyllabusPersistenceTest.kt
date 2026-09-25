@@ -18,7 +18,7 @@ import org.junit.Test
 
 class SetupSyllabusPersistenceTest {
     @Test
-    fun reviewEditsPersistAndAdvancementRequiresAllCurrentSubjects() = runBlocking {
+    fun reviewEditsPersistAndAdvancementUsesCurrentSubjects() = runBlocking {
         val app = ApplicationProvider.getApplicationContext<EstudarioApplication>()
         val previous = app.preferences.initialSetup.first()
         val dao = app.database.dao()
@@ -44,8 +44,8 @@ class SetupSyllabusPersistenceTest {
             assertTrue(app.preferences.initialSetup.first().manualTopics["Português"].orEmpty().isEmpty())
             viewModel.addReviewTopic(portuguese.id, "Ortografia").join()
             assertEquals(listOf("Ortografia"), dao.topicsFor(portuguese.id).map { it.title })
-            viewModel.advance(InitialSetupStep.SYLLABUS_REVIEW, InitialSetupStep.PROFILE).join()
-            assertEquals(InitialSetupStep.PROFILE, app.preferences.initialSetup.first().step)
+            viewModel.advance(InitialSetupStep.SYLLABUS_REVIEW, InitialSetupStep.SUBJECT_PRIORITY).join()
+            assertEquals(InitialSetupStep.SUBJECT_PRIORITY, app.preferences.initialSetup.first().step)
 
             app.preferences.updateInitialSetup { it.copy(step = InitialSetupStep.SUBJECT_DIFFICULTY) }
             viewModel.advance(InitialSetupStep.SUBJECT_DIFFICULTY, InitialSetupStep.AVAILABILITY).join()

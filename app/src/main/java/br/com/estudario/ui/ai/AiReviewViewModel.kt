@@ -13,6 +13,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import br.com.estudario.EstudarioApplication
 import br.com.estudario.data.ai.AiJob
+import br.com.estudario.data.ai.AiApiException
 import br.com.estudario.data.ai.AiJobRequestStore
 import br.com.estudario.data.ai.AiProcessTimeoutException
 import br.com.estudario.data.ai.DataStoreAiJobRequestStore
@@ -498,7 +499,14 @@ class AiReviewViewModel(
 
     private fun fail(message: String) { _state.value = _state.value.copy(content = AiReviewContent.Failure(message)) }
 
-    private fun safeMessage(error: Throwable): String = error.message?.takeIf { it.isNotBlank() } ?: "Não foi possível processar este edital."
+    private fun safeMessage(error: Throwable): String = when (error) {
+        is AiApiException -> if (error.code == "AI_RATE_LIMIT_EXCEEDED") {
+            error.retryAfterSeconds?.takeIf { it > 0 }?.let { seconds ->
+                "Muitas tentativas em pouco tempo. Tente novamente em ${seconds.coerceAtLeast(1)} segundos."
+            } ?: "Muitas tentativas em pouco tempo. Tente novamente em alguns minutos."
+        } else error.message?.takeIf { it.isNotBlank() } ?: "Não foi possível processar este edital."
+        else -> error.message?.takeIf { it.isNotBlank() } ?: "Não foi possível processar este edital."
+    }
 
     private companion object {
         val RETRYABLE_TERMINAL_STATUSES = setOf(AiJobStatus.FAILED, AiJobStatus.EXPIRED, AiJobStatus.CANCELLED)

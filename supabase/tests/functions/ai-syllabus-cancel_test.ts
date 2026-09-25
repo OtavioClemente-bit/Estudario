@@ -3,7 +3,7 @@ import {
   createAiSyllabusCancelHandler,
   type AiSyllabusCancelDependencies,
 } from "../../functions/ai-syllabus-cancel/index.ts";
-import type { AiJobRecord, AiJobCancellationStore, CancellationReconciliation } from "../../functions/_shared/job-finalizer.ts";
+import type { AiJobRecord, AiJobCancellationStore, CancellationReconciliation, TerminalAiTelemetry } from "../../functions/_shared/job-finalizer.ts";
 import { JobStoreError, SupabaseAiJobStore } from "../../functions/_shared/job-finalizer.ts";
 import type { OpenAiProvider, ProviderResponse } from "../../functions/_shared/openai-provider.ts";
 
@@ -163,7 +163,7 @@ Deno.test("cancels RESERVED atomically and releases quota before provider execut
 
 Deno.test("logs newly finalized cancellation once with safe terminal fields", async () => {
   const store = new FakeCancellationStore(job());
-  const events: Record<string, unknown>[] = [];
+  const events: TerminalAiTelemetry[] = [];
   const deps = dependencies(store, provider(async () => { throw new Error(); }, async () => { throw new Error(); }));
   deps.telemetry = (event) => events.push(event);
   const handler = createAiSyllabusCancelHandler(deps);

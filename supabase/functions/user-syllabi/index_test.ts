@@ -167,6 +167,35 @@ Deno.test("upserts the complete tree and acknowledges the exact payload hash ide
   assert.equal((await conflict.json()).error.code, "IDEMPOTENCY_KEY_CONFLICT");
 });
 
+Deno.test("accepts a private syllabus PUT at the configured request byte limit", async () => {
+  const store = new FakeStore();
+  const body = JSON.stringify(syllabus());
+  const maxPayloadBytes = new TextEncoder().encode(body).byteLength;
+  const handler = createUserSyllabiHandler({ ...dependencies(store), maxPayloadBytes });
+
+  const response = await handler(request("/user-syllabi/remote-a", {
+    method: "PUT", headers: { "idempotency-key": "at-limit" }, body,
+  }));
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(store.calls, [`upsert:${USER_A}:remote-a`]);
+});
+
+Deno.test("rejects an oversized private syllabus PUT before parsing or storing it", async () => {
+  const store = new FakeStore();
+  const body = JSON.stringify(syllabus());
+  const maxPayloadBytes = new TextEncoder().encode(body).byteLength - 1;
+  const handler = createUserSyllabiHandler({ ...dependencies(store), maxPayloadBytes });
+
+  const response = await handler(request("/user-syllabi/remote-a", {
+    method: "PUT", headers: { "idempotency-key": "over-limit" }, body,
+  }));
+
+  assert.equal(response.status, 413);
+  assert.equal((await response.json()).error.code, "PRIVATE_SYLLABUS_TOO_LARGE");
+  assert.deepEqual(store.calls, []);
+});
+
 Deno.test("rejects invalid parent relationships and cross-account upserts/deletes", async () => {
   const store = new FakeStore();
   const handler = createUserSyllabiHandler(dependencies(store));

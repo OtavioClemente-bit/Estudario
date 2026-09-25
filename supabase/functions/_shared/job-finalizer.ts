@@ -129,7 +129,7 @@ export interface AiJobCancellationStore {
 }
 
 export class JobStoreError extends Error {
-  constructor(public readonly code: string, public readonly status: number) {
+  constructor(public readonly code: string, public readonly status: number, public readonly retryAfterSeconds?: number) {
     super(code);
     this.name = "JobStoreError";
   }
@@ -388,21 +388,31 @@ async function jsonArray(response: Response): Promise<Record<string, unknown>[]>
 
 async function storeError(response: Response): Promise<JobStoreError> {
   let code = "AI_JOB_DATA_UNAVAILABLE";
+  let retryAfterSeconds: number | undefined;
   try {
     const body = await response.json() as Record<string, unknown>;
     const message = typeof body.message === "string" ? body.message : typeof body.error === "string" ? body.error : "";
     if (/^[A-Z][A-Z0-9_]{2,63}$/.test(message)) code = message;
+    if (code === "AI_RATE_LIMIT_EXCEEDED" && typeof body.details === "string") {
+      const match = /^retry_after_seconds=(\d+)$/.exec(body.details);
+      if (match) {
+        const parsed = Number(match[1]);
+        if (Number.isSafeInteger(parsed)) retryAfterSeconds = parsed;
+      }
+    }
   } catch {
     // Keep the response safe when PostgREST does not return JSON.
   }
-  const status = code === "SOURCE_NOT_FOUND"
+  const status = code === "AI_RATE_LIMIT_EXCEEDED"
+    ? 429
+    : code === "SOURCE_NOT_FOUND"
     ? 404
     : code === "IDEMPOTENCY_KEY_CONFLICT" || code === "IDEMPOTENCY_CONFLICT"
     ? 409
     : response.status >= 400 && response.status < 500
     ? response.status
     : 503;
-  return new JobStoreError(code, status);
+  return new JobStoreError(code, status, retryAfterSeconds);
 }
 
 function stringField(row: Record<string, unknown>, key: string): string {

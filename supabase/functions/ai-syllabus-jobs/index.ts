@@ -45,7 +45,7 @@ function jsonResponse(body: unknown, status = 200, headers: Record<string, strin
   });
 }
 
-function safeError(code: string, status: number): Response {
+function safeError(code: string, status: number, retryAfterSeconds?: number): Response {
   const messages: Record<string, string> = {
     AUTH_REQUIRED: "Authentication required",
     AUTH_INVALID: "Authentication required",
@@ -54,7 +54,12 @@ function safeError(code: string, status: number): Response {
     INVALID_FEATURE: "Unsupported AI feature",
     SOURCE_NOT_BOUND: "Source must be uploaded and validated before processing",
     IDEMPOTENCY_KEY_CONFLICT: "Idempotency key conflicts with the source fingerprint",
+    AI_RATE_LIMIT_EXCEEDED: "Too many syllabus attempts; retry later",
   };
+  if (code === "AI_RATE_LIMIT_EXCEEDED") {
+    const retry = Number.isSafeInteger(retryAfterSeconds) && retryAfterSeconds! >= 0 ? retryAfterSeconds! : 0;
+    return jsonResponse({ error: { code, message: messages[code], retryAfterSeconds: retry } }, 429, { "Retry-After": String(retry) });
+  }
   return jsonResponse({ error: { code, message: messages[code] ?? "AI job request could not be completed" } }, status);
 }
 
@@ -196,7 +201,7 @@ async function createJob(
       requestPayload: payload,
     });
   } catch (error) {
-    if (error instanceof JobStoreError) return safeError(error.code, error.status);
+    if (error instanceof JobStoreError) return safeError(error.code, error.status, error.retryAfterSeconds);
     return safeError("AI_JOB_DATA_UNAVAILABLE", 503);
   }
 

@@ -182,10 +182,11 @@ Deno.test("POST fingerprint includes normalized MIME, SHA-256, and byte count", 
   }));
 
   assertEquals(response.status, 201);
-  assert(captured !== null);
-  assertEquals(captured.requestPayload.mimeType, "application/pdf");
-  assertEquals(captured.requestPayload.sourceHash, "a".repeat(64));
-  assertEquals(captured.requestPayload.sourceBytes, 123);
+  const requestPayload = (captured as CreateAiJobInput | null)?.requestPayload;
+  assert(requestPayload);
+  assertEquals(requestPayload.mimeType, "application/pdf");
+  assertEquals(requestPayload.sourceHash, "a".repeat(64));
+  assertEquals(requestPayload.sourceBytes, 123);
 });
 
 Deno.test("same idempotency key cannot reuse a bound job for a different source fingerprint", async () => {

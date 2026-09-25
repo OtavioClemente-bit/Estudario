@@ -691,6 +691,9 @@ Deno.test("persists source binding through the owner-checked RPC, not a client U
         source_file_count: 1,
         source_mime_type: "application/pdf",
         source_metadata: { bucket: "ai-syllabus-sources" },
+        warnings: [],
+        created_at: "2026-09-24T12:00:00Z",
+        updated_at: "2026-09-24T12:00:00Z",
       }), { status: 200, headers: { "content-type": "application/json" } });
     },
   });
@@ -748,4 +751,30 @@ Deno.test("requires the syllabus feature and a Supabase JWT", async () => {
 
   const noAuth = await handler(new Request("https://example.test/ai-syllabus/jobs", { method: "POST" }));
   assert.equal(noAuth.status, 401);
+});
+
+Deno.test("rate rejection has stable 429 body and nonnegative retry headers", async () => {
+  const jobs = new FakeJobStore();
+  jobs.createOrGet = async () => { throw new JobStoreError("AI_RATE_LIMIT_EXCEEDED", 429, 37); };
+  const handler = createAiSyllabusJobsHandler(dependencies(USER_A, new FakeStorage(), jobs));
+  const response = await postCreate(handler, "fourth");
+  assert.equal(response.status, 429);
+  assert.equal(response.headers.get("Retry-After"), "37");
+  const body = await response.json();
+  assert.equal(body.error.code, "AI_RATE_LIMIT_EXCEEDED");
+  assert.equal(body.error.retryAfterSeconds, 37);
+  assert.equal(JSON.stringify(body).includes(USER_A), false);
+});
+
+Deno.test("database rate error details map to stable retry metadata", async () => {
+  const store = new SupabaseAiJobStore({
+    supabaseUrl: "http://127.0.0.1:54321",
+    publishableKey: "publishable-key",
+    accessToken: "supabase-jwt",
+    serviceRoleKey: "service-role-key",
+    fetcher: async () => new Response(JSON.stringify({ code: "P0001", message: "AI_RATE_LIMIT_EXCEEDED", details: "retry_after_seconds=19" }), { status: 400 }),
+  });
+  await assert.rejects(store.createOrGet({
+    userId: USER_A, feature: FEATURE, idempotencyKey: "fourth", requestFingerprint: "f".repeat(64), requestPayload: {},
+  }), (error: unknown) => error instanceof JobStoreError && error.status === 429 && error.retryAfterSeconds === 19);
 });

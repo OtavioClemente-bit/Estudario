@@ -114,6 +114,24 @@ class AiApiClientTest {
         assertEquals("HTTP_TIMEOUT", error.code)
     }
 
+    @Test
+    fun preservesRateLimitCodeAndServerRetryAfter() = runTest {
+        val transport = FakeAiHttpTransport(
+            AiHttpResponse(
+                status = 429,
+                body = "{\"error\":{\"code\":\"AI_RATE_LIMIT_EXCEEDED\",\"retryAfterSeconds\":347}}",
+                headers = mapOf("Retry-After" to "347"),
+            ),
+        )
+        val client = HttpAiApiClient("", "", AiAccessTokenProvider { "jwt" }, transport)
+
+        val error = runCatching { client.processJob("job-1") }.exceptionOrNull() as AiApiException
+
+        assertEquals(429, error.status)
+        assertEquals("AI_RATE_LIMIT_EXCEEDED", error.code)
+        assertEquals(347L, error.retryAfterSeconds)
+    }
+
     private fun jobJson(status: String): String = """
         {
           "jobId":"job-1","feature":"SYLLABUS_GENERATION","status":"$status",

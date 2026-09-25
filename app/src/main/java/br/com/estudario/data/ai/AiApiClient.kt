@@ -22,6 +22,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -104,6 +105,7 @@ class AiProcessTimeoutException(val jobId: String) : IllegalStateException("AI j
 class AiApiException(
     val code: String,
     val status: Int,
+    val retryAfterSeconds: Long? = null,
 ) : IllegalStateException("AI API request failed: $code")
 
 class HttpAiApiClient(
@@ -247,7 +249,16 @@ class HttpAiApiClient(
         } catch (_: Throwable) {
             throw AiApiException("NETWORK_UNAVAILABLE", 503)
         }
-        if (response.status !in acceptedStatuses) throw AiApiException(response.errorCode(), response.status)
+        if (response.status !in acceptedStatuses) {
+            val error = response.errorDetails()
+            throw AiApiException(
+                code = error.code,
+                status = response.status,
+                retryAfterSeconds = error.retryAfterSeconds
+                    ?: response.headers.entries.firstOrNull { it.key.equals("Retry-After", ignoreCase = true) }
+                        ?.value?.toLongOrNull()?.coerceAtLeast(0),
+            )
+        }
         return response
     }
 
@@ -359,9 +370,15 @@ private fun JsonObject.requiredStatus(name: String): AiJobStatus = runCatching {
     AiJobStatus.valueOf(requiredString(name).uppercase(Locale.US))
 }.getOrElse { throw AiApiException("INVALID_RESPONSE", 502) }
 
-private fun AiHttpResponse.errorCode(): String = runCatching {
-    body.parseJsonObject()["error"]?.jsonObject?.get("code")?.jsonPrimitive?.content
-}.getOrNull()?.takeIf(String::isNotBlank) ?: "AI_API_ERROR"
+private data class AiErrorDetails(val code: String, val retryAfterSeconds: Long?)
+
+private fun AiHttpResponse.errorDetails(): AiErrorDetails {
+    val error = runCatching { body.parseJsonObject()["error"]?.jsonObject }.getOrNull()
+    return AiErrorDetails(
+        code = error?.get("code")?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank) ?: "AI_API_ERROR",
+        retryAfterSeconds = error?.get("retryAfterSeconds")?.jsonPrimitive?.longOrNull?.coerceAtLeast(0),
+    )
+}
 
 private fun String.toAiJob(): AiJob {
     return try {

@@ -22,7 +22,7 @@ class StudyFocusCardTest {
                 StudyFocusCard(sampleTaskUi(), onStart = {}, onOpenPlan = {})
             }
         }
-        compose.onNodeWithText("Estudar agora").assertIsDisplayed()
+        compose.onNodeWithText("ESTUDAR AGORA").assertIsDisplayed()
         compose.onNodeWithText("Direito Constitucional").assertIsDisplayed()
         compose.onNodeWithText("Começar").assertIsDisplayed()
     }

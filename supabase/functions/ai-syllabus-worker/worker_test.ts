@@ -1,6 +1,7 @@
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { processSyllabusJob, type SyllabusWorkerJob, type SyllabusWorkerStore } from "./index.ts";
 import type { OpenAiProvider, ProviderResponse } from "../_shared/openai-provider.ts";
+import type { TerminalAiTelemetry } from "../_shared/job-finalizer.ts";
 
 const validOutput = JSON.stringify({
   schemaVersion: 1,
@@ -103,7 +104,7 @@ Deno.test("fails terminally on empty provider output without publishing a propos
 });
 
 Deno.test("emits structured safe telemetry only after terminal success or failure", async () => {
-  const events: Record<string, unknown>[] = [];
+  const events: TerminalAiTelemetry[] = [];
   const success = store(job());
   await processSyllabusJob({
     jobs: success,
@@ -131,7 +132,7 @@ Deno.test("emits structured safe telemetry only after terminal success or failur
 });
 
 Deno.test("retains provider usage for terminal provider and proposal validation failures", async () => {
-  const events: Record<string, unknown>[] = [];
+  const events: TerminalAiTelemetry[] = [];
   for (const output of [
     { status: "failed" as const, outputText: null },
     { status: "completed" as const, outputText: "invalid proposal" },
@@ -156,7 +157,7 @@ Deno.test("retains provider usage for terminal provider and proposal validation 
 
 Deno.test("measures first-attempt telemetry duration from provider start", async () => {
   const jobs = store(job({ openaiResponseId: null, providerExecutionStartedAt: null }));
-  const events: Record<string, unknown>[] = [];
+  const events: TerminalAiTelemetry[] = [];
   jobs.markProviderStarted = async () => {};
   const moments = [0, 1, 2, 3, 6, 7].map((seconds) => new Date(`2026-09-24T12:00:0${seconds}Z`));
   let tick = 0;

@@ -36,7 +36,7 @@ class TodayPlanScreenTest {
         }
         compose.onNodeWithText("SEGURANÇA").assertIsDisplayed()
         compose.onNodeWithText("Criptografia").assertIsDisplayed()
-        compose.onNodeWithText("60 min").assertIsDisplayed()
+        compose.onNodeWithText("1h").assertIsDisplayed()
         compose.onNodeWithText("20 qts").assertIsDisplayed()
         compose.onNodeWithText("Começar").performClick()
         assertEquals("task", focado)

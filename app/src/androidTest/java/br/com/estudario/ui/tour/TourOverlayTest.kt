@@ -30,6 +30,6 @@ class TourOverlayTest {
             }
         }
 
-        compose.onNodeWithText("Monte a sessão").assertIsDisplayed()
+        compose.onNodeWithText("Configure a sessão").assertIsDisplayed()
     }
 }

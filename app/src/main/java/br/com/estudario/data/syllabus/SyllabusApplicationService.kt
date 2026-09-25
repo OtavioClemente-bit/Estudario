@@ -32,6 +32,7 @@ data class ApplyResult(
 class SyllabusApplicationService(
     private val database: AppDatabase,
     private val afterLocalApply: suspend () -> Unit = {},
+    private val beforeTransaction: suspend () -> Unit = {},
 ) {
     private val dao = database.dao()
     private val packageService = EstudoPackageService(database)
@@ -64,6 +65,7 @@ class SyllabusApplicationService(
             "draft.targetSyllabusId must match targetSyllabusId"
         }
 
+        beforeTransaction()
         return database.withTransaction {
             val target = dao.competitionsOnce().firstOrNull { it.id == targetSyllabusId }
                 ?: throw IllegalArgumentException("The selected syllabus was not found.")

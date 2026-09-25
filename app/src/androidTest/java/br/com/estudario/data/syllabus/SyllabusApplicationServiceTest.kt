@@ -16,6 +16,10 @@ import br.com.estudario.data.local.RemoteSyllabusSyncError
 import br.com.estudario.data.local.SubjectEntity
 import br.com.estudario.data.local.TopicEntity
 import br.com.estudario.domain.ai.AiSyllabusDraft
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -24,6 +28,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(AndroidJUnit4::class)
 class SyllabusApplicationServiceTest {
@@ -61,6 +66,38 @@ class SyllabusApplicationServiceTest {
             assertEquals(1, database.dao().pendingRemoteSyllabusSync(200L).size)
             assertEquals(1, database.dao().subjectsFor(targetId).size)
             assertEquals(first.packageJson, second.packageJson)
+    }
+
+    @Test
+    fun concurrentDoubleTapAppliesOneOfficialTreeAndOnePendingMutation() = runDatabase { database ->
+        val targetId = database.dao().insertCompetition(CompetitionEntity(name = "Edital local"))
+        val arrived = AtomicInteger(0)
+        val bothAtGate = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val service = SyllabusApplicationService(database, beforeTransaction = {
+            if (arrived.incrementAndGet() == 2) bothAtGate.complete(Unit)
+            release.await()
+        })
+        val reviewed = draft(targetId, "Documento")
+
+        val results = coroutineScope {
+            val first = async(Dispatchers.Default) {
+                service.applyReviewedSyllabus(targetId, reviewed, "job-double-tap", now = 100L)
+            }
+            val second = async(Dispatchers.Default) {
+                service.applyReviewedSyllabus(targetId, reviewed, "job-double-tap", now = 100L)
+            }
+            bothAtGate.await()
+            assertEquals(2, arrived.get())
+            release.complete(Unit)
+            listOf(first.await(), second.await())
+        }
+
+        assertEquals(1, results.count { it.created })
+        assertEquals(1, results.count { it.alreadyApplied })
+        assertEquals(results[0].outboxId, results[1].outboxId)
+        assertEquals(1, database.dao().subjectsFor(targetId).size)
+        assertEquals(1, database.dao().pendingRemoteSyllabusSync(100L).size)
     }
 
     @Test

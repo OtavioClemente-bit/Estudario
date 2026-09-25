@@ -14,14 +14,21 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
@@ -141,7 +148,13 @@ class SetupSyllabusStepsTest {
         compose.onNodeWithTag("knowledge_1_NONE").assertIsSelected()
         compose.onNodeWithTag("difficulty_3_NORMAL").performScrollTo().assertIsSelected()
         saveScreenshot("setup-subject-profile-compact")
-        compose.onNodeWithTag("difficulty_3_HARD").performScrollTo().performClick().assertIsSelected()
+        repeat(3) { compose.onNodeWithTag("setup_scroll_content").performTouchInput { swipeUp() } }
+        compose.onAllNodes(hasScrollAction() and hasAnyDescendant(hasTestTag("difficulty_3_HARD"))).onLast()
+            .performScrollToNode(hasTestTag("difficulty_3_HARD"))
+        compose.onNodeWithTag("difficulty_3_HARD").assertIsDisplayed().performClick()
+        compose.waitForIdle()
+        compose.runOnIdle { assertEquals(PersonalDifficulty.HARD, snapshot.value.subjectDifficulties["3"]) }
+        compose.onNodeWithTag("difficulty_3_HARD").assertIsSelected()
         compose.onNodeWithText("Continuar").performClick()
         compose.runOnIdle { assertTrue(continued) }
     }
@@ -158,7 +171,7 @@ class SetupSyllabusStepsTest {
         compose.onNodeWithText("Continuar").assertIsEnabled()
         compose.runOnIdle { subjects.value += SubjectEntity(id = 2, competitionId = 1, name = "Matemática") }
         compose.onNodeWithText("Continuar").assertIsEnabled()
-        compose.onNodeWithText("Você pode seguir sem mexer em nada.").assertIsDisplayed()
+        compose.onNodeWithText("1 matéria(s) com resposta sua.").assertIsDisplayed()
         compose.onNodeWithTag("difficulty_1_EASY").assertIsSelected()
         compose.onNodeWithTag("difficulty_2_NORMAL").assertIsSelected()
     }

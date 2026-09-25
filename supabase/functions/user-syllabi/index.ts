@@ -33,7 +33,11 @@ export interface UserSyllabiStore {
 export interface UserSyllabiDependencies {
   authenticate: (request: Request) => Promise<AuthenticatedUser>;
   store: UserSyllabiStore;
+  maxPayloadBytes?: number;
 }
+
+// Match the existing default MAX_PDF_BYTES ceiling until a separate library policy is configured.
+const DEFAULT_MAX_PRIVATE_SYLLABUS_BYTES = 50 * 1024 * 1024;
 
 class UserSyllabiStoreError extends Error {
   constructor(public readonly code: string, public readonly status: number) {
@@ -59,6 +63,7 @@ function errorResponse(code: string, status: number): Response {
     AUTH_INVALID: "Authentication required",
     INVALID_REQUEST: "Invalid request",
     INVALID_SYLLABUS: "The syllabus tree is invalid",
+    PRIVATE_SYLLABUS_TOO_LARGE: "The private syllabus request is too large",
     IDEMPOTENCY_KEY_REQUIRED: "An idempotency key is required",
     IDEMPOTENCY_KEY_CONFLICT: "The idempotency key was reused with a different payload",
     NOT_FOUND: "Private syllabus not found",
@@ -109,13 +114,34 @@ async function requestPayloadHash(request: Request, value: unknown): Promise<str
   return sha256(stableJson(value));
 }
 
-async function requestJson(request: Request): Promise<Record<string, unknown>> {
+async function requestJson(request: Request, maxPayloadBytes: number): Promise<Record<string, unknown>> {
+  const declaredLength = Number(request.headers.get("content-length"));
+  if (declaredLength > maxPayloadBytes) throw new UserSyllabiStoreError("PRIVATE_SYLLABUS_TOO_LARGE", 413);
+  const reader = request.body?.getReader();
+  if (!reader) throw new UserSyllabiStoreError("INVALID_REQUEST", 400);
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let text = "";
+  let bytes = 0;
   try {
-    const value: unknown = await request.json();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxPayloadBytes) {
+        await reader.cancel().catch(() => {});
+        throw new UserSyllabiStoreError("PRIVATE_SYLLABUS_TOO_LARGE", 413);
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    const value: unknown = JSON.parse(text);
     if (!isObject(value)) throw new Error();
     return value;
-  } catch {
+  } catch (error) {
+    if (error instanceof UserSyllabiStoreError) throw error;
     throw new UserSyllabiStoreError("INVALID_REQUEST", 400);
+  } finally {
+    reader.releaseLock();
   }
 }
 
@@ -153,7 +179,7 @@ export function createUserSyllabiHandler(dependencies: UserSyllabiDependencies):
       }
       if (request.method === "PUT" && remoteSyllabusId !== null) {
         const id = mutationId(request);
-        const body = await requestJson(request);
+        const body = await requestJson(request, dependencies.maxPayloadBytes ?? DEFAULT_MAX_PRIVATE_SYLLABUS_BYTES);
         const rawSyllabus = syllabusBody(body);
         const syllabus = parsePrivateSyllabus(rawSyllabus);
         if (syllabus.remoteSyllabusId !== remoteSyllabusId) throw new UserSyllabiStoreError("INVALID_SYLLABUS", 400);
@@ -360,9 +386,14 @@ function runtimeEnvironment(): SupabasePrivateSyllabusEnvironment {
   return { supabaseUrl, serviceRoleKey };
 }
 
+function runtimeMaxPayloadBytes(): number {
+  const value = Number(Deno.env.get("MAX_PRIVATE_SYLLABUS_BYTES"));
+  return Number.isSafeInteger(value) && value > 0 ? value : DEFAULT_MAX_PRIVATE_SYLLABUS_BYTES;
+}
+
 async function handleUserSyllabi(request: Request): Promise<Response> {
   const store = new SupabasePrivateSyllabusStore(runtimeEnvironment());
-  return createUserSyllabiHandler({ authenticate: authenticateSupabaseRequest, store })(request);
+  return createUserSyllabiHandler({ authenticate: authenticateSupabaseRequest, store, maxPayloadBytes: runtimeMaxPayloadBytes() })(request);
 }
 
 if (import.meta.main) Deno.serve(handleUserSyllabi);

@@ -49,7 +49,7 @@ class FocusNavigationTest {
         }
 
         compose.onNodeWithContentDescription("Foco ativo, 12 min").assertIsDisplayed()
-        compose.onNodeWithTag("focus-active-outline").assertIsDisplayed()
+        compose.onNodeWithTag("focus-active-outline", useUnmergedTree = true).assertIsDisplayed()
     }
 
     @Test
