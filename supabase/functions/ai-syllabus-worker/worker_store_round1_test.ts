@@ -82,3 +82,33 @@ Deno.test("treats a nullable composite worker claim returned as [null] as no job
   const claimed = await store.claimNext(new Date("2026-09-25T00:00:00Z"), 300, 900);
   assert(claimed === null);
 });
+
+Deno.test("treats the cloud all-null composite cleanup claim as empty", async () => {
+  const fetcher: typeof fetch = async (input) => {
+    if (String(input).includes("claim_ai_job_source_cleanup")) return Response.json([{
+      job_id: null,
+      status: null,
+      created_at: null,
+      last_error: null,
+      updated_at: null,
+      lease_owner: null,
+      lease_token: null,
+      attempt_count: null,
+      lease_expires_at: null,
+      lease_generation: null,
+      source_object_path: null,
+    }]);
+    throw new Error(`unexpected request ${String(input)}`);
+  };
+  const store = new SupabaseSyllabusWorkerStore({ supabaseUrl: "https://supabase.test", serviceRoleKey: "service-test", fetcher }, {} as never, "worker-a");
+  await store.cleanupPendingSources();
+});
+
+Deno.test("does not treat a partially populated composite claim as empty", async () => {
+  const fetcher: typeof fetch = async (input) => {
+    if (String(input).includes("claim_ai_syllabus_worker_job")) return Response.json([{ job_id: "job-1", status: null }]);
+    throw new Error(`unexpected request ${String(input)}`);
+  };
+  const store = new SupabaseSyllabusWorkerStore({ supabaseUrl: "https://supabase.test", serviceRoleKey: "service-test", fetcher }, {} as never, "worker-a");
+  await assertRejects(() => store.claimNext(new Date("2026-09-25T00:00:00Z"), 300, 900), Error, "AI_WORKER_DATA_UNAVAILABLE");
+});

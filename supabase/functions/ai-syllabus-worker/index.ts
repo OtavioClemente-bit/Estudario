@@ -284,7 +284,14 @@ function row(value: unknown): Record<string, unknown> {
 }
 
 function noCompositeRow(value: unknown): boolean {
-  return value === null || (Array.isArray(value) && (value.length === 0 || value[0] === null));
+  if (value === null) return true;
+  if (Array.isArray(value)) {
+    if (value.length === 0 || value.length !== 1) return false;
+    return noCompositeRow(value[0]);
+  }
+  if (typeof value !== "object" || value === null) return false;
+  const fields = Object.values(value as Record<string, unknown>);
+  return fields.length === 0 || fields.every((field) => field === null);
 }
 
 function stringField(value: Record<string, unknown>, key: string): string {
