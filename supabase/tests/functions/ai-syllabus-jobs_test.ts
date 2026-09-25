@@ -828,6 +828,42 @@ Deno.test("persists source binding through the owner-checked RPC, not a client U
   assert.equal(requests[0].headers.get("authorization"), "Bearer service-role-key");
 });
 
+Deno.test("claims processing with backend credentials and still rejects another owner's job", async () => {
+  const requests: Request[] = [];
+  const store = new SupabaseAiJobStore({
+    supabaseUrl: "http://127.0.0.1:54321",
+    publishableKey: "publishable-key",
+    accessToken: "user-a-jwt",
+    serviceRoleKey: "service-role-key",
+    fetcher: async (input, init) => {
+      const request = new Request(input, init);
+      requests.push(request);
+      return new Response(JSON.stringify({
+        id: "00000000-0000-0000-0000-0000000000c1",
+        user_id: USER_B,
+        feature: FEATURE,
+        status: "PROCESSING",
+        idempotency_key: "key",
+        request_fingerprint: "fingerprint",
+        request_payload: {},
+        warnings: [],
+        created_at: "2026-09-24T12:00:00Z",
+        updated_at: "2026-09-24T12:00:00Z",
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+
+  await assert.rejects(
+    store.claimForProcessing(USER_A, "00000000-0000-0000-0000-0000000000c1"),
+    (error: unknown) => error instanceof JobStoreError && error.code === "AI_JOB_FORBIDDEN" && error.status === 403,
+  );
+  assert.equal(requests.length, 1);
+  assert.equal(new URL(requests[0].url).pathname, "/rest/v1/rpc/claim_ai_job");
+  assert.equal(requests[0].headers.get("apikey"), "service-role-key");
+  assert.equal(requests[0].headers.get("authorization"), "Bearer service-role-key");
+  assert.notEqual(requests[0].headers.get("authorization"), "Bearer user-a-jwt");
+});
+
 Deno.test("normalizes SOURCE_NOT_FOUND from the real binding RPC path to HTTP 404", async () => {
   const store = new SupabaseAiJobStore({
     supabaseUrl: "http://127.0.0.1:54321",

@@ -209,7 +209,7 @@ export class SupabaseAiJobStore implements AiJobStore {
       p_job_id: jobId,
       p_lease_owner: `edge:${crypto.randomUUID()}`,
       p_lease_seconds: 300,
-    }));
+    }, this.adminHeaders()));
     const job = parseJob(row);
     if (job.userId !== userId) throw new JobStoreError("AI_JOB_FORBIDDEN", 403);
     return job;

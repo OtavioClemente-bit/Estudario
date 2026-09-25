@@ -1,5 +1,5 @@
 begin;
-select plan(30);
+select plan(33);
 
 select ok(has_function_privilege('authenticated', 'public.create_or_get_ai_job_and_reserve_quota(public.ai_feature, text, text, jsonb)', 'EXECUTE'), 'authenticated can create and reserve an AI job');
 select ok(not has_function_privilege('anon', 'public.create_or_get_ai_job_and_reserve_quota(public.ai_feature, text, text, jsonb)', 'EXECUTE'), 'anon cannot create and reserve an AI job');
@@ -16,6 +16,9 @@ select ok(not has_function_privilege('authenticated', 'public.get_ai_syllabus_so
 select ok(to_regprocedure('public.get_ai_syllabus_source_metadata(text)') is null, 'legacy source metadata signature is removed');
 select ok(has_function_privilege('service_role', 'public.bind_ai_job_source(uuid, uuid, text, text, text, bigint, integer, integer, jsonb)', 'EXECUTE'), 'service_role can bind source metadata');
 select ok(not has_function_privilege('authenticated', 'public.bind_ai_job_source(uuid, uuid, text, text, text, bigint, integer, integer, jsonb)', 'EXECUTE'), 'authenticated cannot call source binding backend RPC');
+select ok(has_function_privilege('service_role', 'public.claim_ai_job(uuid, text, integer)', 'EXECUTE'), 'service_role can claim an AI job');
+select ok(not has_function_privilege('authenticated', 'public.claim_ai_job(uuid, text, integer)', 'EXECUTE'), 'authenticated cannot claim an AI job');
+select ok(not has_function_privilege('anon', 'public.claim_ai_job(uuid, text, integer)', 'EXECUTE'), 'anon cannot claim an AI job');
 
 select ok(has_function_privilege('service_role', 'public.claim_ai_syllabus_worker_job(text, text, integer, integer)', 'EXECUTE'), 'service_role can claim worker jobs');
 select ok(not has_function_privilege('authenticated', 'public.claim_ai_syllabus_worker_job(text, text, integer, integer)', 'EXECUTE'), 'authenticated cannot claim worker jobs');
