@@ -56,6 +56,10 @@ function fakePageInsideStream(): Uint8Array {
   );
 }
 
+function fakeDeclaredPagesOnly(): Uint8Array {
+  return new TextEncoder().encode("%PDF-1.7\n/Type /Pages /Count 2\nnot a PDF structure\n%%EOF");
+}
+
 function pageObjectWithoutPageTree(): Uint8Array {
   return new TextEncoder().encode(
     "%PDF-1.7\n1 0 obj\n<< /Type /Page >>\nendobj\n%%EOF",
@@ -433,6 +437,20 @@ Deno.test("accepts a valid object-stream PDF and counts its page tree", async ()
   assert.equal(response.status, 201);
   assert.equal(body.sourceBound, true);
   assert.equal(jobs.records.get(body.jobId)?.sourcePages, 2);
+});
+
+Deno.test("rejects malformed PDF text that only declares a page count", async () => {
+  const storage = new FakeStorage();
+  const jobs = new FakeJobStore();
+  const source = objectFor(USER_A, "fake-declared-pages", fakeDeclaredPagesOnly());
+  storage.objects.set(source.path, source);
+  const handler = createAiSyllabusJobsHandler(dependencies(USER_A, storage, jobs));
+
+  const response = await postCreate(handler, "fake-declared-pages", { ready: true });
+  const body = await response.json();
+
+  assert.equal(response.status, 422);
+  assert.equal(body.error.code, "SOURCE_PAGE_COUNT_UNAVAILABLE");
 });
 
 Deno.test("binds exact path, server SHA-256, counts, and metadata before processing", async () => {

@@ -208,12 +208,9 @@ async function countPdfPages(body: Uint8Array): Promise<number> {
     return document.getPageCount();
   } catch {
     // Keep the strict legacy parser as a conservative compatibility fallback
-    // for small PDFs that PDF.js cannot initialize in an Edge runtime.
+    // for small PDFs that pdf-lib cannot initialize in an Edge runtime.
     const legacyPages = countPdfPagesLegacy(body);
-    if (legacyPages > 0) return legacyPages;
-    const text = new TextDecoder("latin1").decode(body);
-    const declared = text.match(/\/Type\s*\/Pages[\s\S]*?\/Count\s+(\d+)/)?.[1];
-    return declared && Number.isSafeInteger(Number(declared)) ? Number(declared) : 0;
+    return legacyPages > 0 ? legacyPages : 0;
   }
 }
 
