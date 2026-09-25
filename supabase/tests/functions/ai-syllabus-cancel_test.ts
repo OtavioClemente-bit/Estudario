@@ -161,6 +161,21 @@ Deno.test("cancels RESERVED atomically and releases quota before provider execut
   assert.deepEqual(store.events, ["request", "cancel-without-provider"]);
 });
 
+Deno.test("logs newly finalized cancellation once with safe terminal fields", async () => {
+  const store = new FakeCancellationStore(job());
+  const events: Record<string, unknown>[] = [];
+  const deps = dependencies(store, provider(async () => { throw new Error(); }, async () => { throw new Error(); }));
+  deps.telemetry = (event) => events.push(event);
+  const handler = createAiSyllabusCancelHandler(deps);
+  await cancel(handler);
+  await cancel(handler);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].terminalStatus, "CANCELLED");
+  assert.equal(events[0].feature, "SYLLABUS_GENERATION");
+  assert(events[0].userPseudonym !== USER_ID);
+  assert(!JSON.stringify(events[0]).includes("supabase-jwt"));
+});
+
 Deno.test("does not use the pre-provider path when RESERVED has provider-start evidence", async () => {
   const store = new FakeCancellationStore(job({ providerExecutionStartedAt: "started" }));
   const handler = createAiSyllabusCancelHandler(dependencies(store, provider(async () => { throw new Error(); }, async () => { throw new Error(); })));

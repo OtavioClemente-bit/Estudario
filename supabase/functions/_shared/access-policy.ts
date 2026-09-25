@@ -165,6 +165,19 @@ export function quotaPeriodStart(feature: AiFeature, now: Date): string {
   return feature === DAILY_FEATURE ? dateInSaoPaulo(now) : "1970-01-01";
 }
 
+function nextDailyReset(now: Date): string {
+  const [year, month, day] = dateInSaoPaulo(now).split("-").map(Number);
+  const nextMidnightUtc = new Date(Date.UTC(year, month - 1, day + 1));
+  const offset = new Intl.DateTimeFormat("en-US", {
+    timeZone: TIME_ZONE,
+    timeZoneName: "shortOffset",
+  }).formatToParts(nextMidnightUtc).find((part) => part.type === "timeZoneName")?.value ?? "GMT";
+  const match = /^GMT(?:(\+|-)(\d{1,2})(?::(\d{2}))?)?$/.exec(offset);
+  if (!match) throw new AccessDataError();
+  const offsetMinutes = match[1] ? (match[1] === "+" ? 1 : -1) * (Number(match[2]) * 60 + Number(match[3] ?? 0)) : 0;
+  return new Date(nextMidnightUtc.getTime() - offsetMinutes * 60_000).toISOString();
+}
+
 export class ClosedBetaAiPolicy {
   private readonly now: () => Date;
 
@@ -194,15 +207,15 @@ export class ClosedBetaAiPolicy {
     const successfulCount = usage?.successfulCount ?? 0;
     const reservedCount = usage?.reservedCount ?? 0;
     const remaining = Math.max(LIMIT - successfulCount - reservedCount, 0);
-    const quota: AiQuota | null = successfulCount >= LIMIT
-      ? null
-      : {
+    const quota: AiQuota = {
         feature,
         limit: LIMIT,
         successfulCount,
         reservedCount,
+        used: successfulCount + reservedCount,
         remaining,
         periodStart,
+        resetAt: feature === DAILY_FEATURE ? nextDailyReset(this.now()) : null,
       };
 
     let reasonCode: string | null = null;

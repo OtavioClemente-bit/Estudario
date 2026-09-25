@@ -57,8 +57,10 @@ export interface AiQuota {
   limit: number;
   successfulCount: number;
   reservedCount: number;
+  used: number;
   remaining: number;
   periodStart: string;
+  resetAt: string | null;
 }
 
 export interface AiAccess {
@@ -345,19 +347,23 @@ export function parseProviderAiSyllabusProposal(raw: string): AiSyllabusProposal
 
 function quota(value: unknown, path: string): AiQuota {
   const item = object(value, path);
-  exactKeys(item, ["feature", "limit", "successfulCount", "reservedCount", "remaining", "periodStart"], path);
+  exactKeys(item, ["feature", "limit", "successfulCount", "reservedCount", "used", "remaining", "periodStart", "resetAt"], path);
   const limit = integer(required(item, "limit", path), `${path}.limit`, 1);
   const successfulCount = integer(required(item, "successfulCount", path), `${path}.successfulCount`);
   const reservedCount = integer(required(item, "reservedCount", path), `${path}.reservedCount`);
   const remaining = integer(required(item, "remaining", path), `${path}.remaining`);
   if (successfulCount + reservedCount + remaining !== limit) fail(path, "successfulCount + reservedCount + remaining must equal limit");
+  const used = item.used === undefined ? successfulCount + reservedCount : integer(item.used, `${path}.used`);
+  if (used !== successfulCount + reservedCount) fail(`${path}.used`, "must equal successfulCount + reservedCount");
   return {
     feature: enumValue(required(item, "feature", path), AI_FEATURES, `${path}.feature`),
     limit,
     successfulCount,
     reservedCount,
+    used,
     remaining,
     periodStart: stringValue(required(item, "periodStart", path), `${path}.periodStart`),
+    resetAt: item.resetAt === undefined || item.resetAt === null ? null : dateTime(item.resetAt, `${path}.resetAt`),
   };
 }
 

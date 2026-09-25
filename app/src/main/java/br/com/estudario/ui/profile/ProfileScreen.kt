@@ -41,6 +41,11 @@ import br.com.estudario.domain.ProgressEngine
 import br.com.estudario.domain.StreakDay
 import br.com.estudario.domain.StreakSummary
 import br.com.estudario.ui.AppViewModel
+import br.com.estudario.EstudarioApplication
+import br.com.estudario.ui.ai.AiAccessSummary
+import br.com.estudario.ui.ai.AiAccessUiState
+import br.com.estudario.ui.ai.AiAccessViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import br.com.estudario.ui.components.ActivityHeatmap
 import br.com.estudario.ui.components.ConfirmDialog
 import br.com.estudario.ui.components.LoadingDialog
@@ -81,6 +86,9 @@ fun ProfileScreen(
     val streak by viewModel.streak.collectAsState()
     val progress by viewModel.progress.collectAsState()
     val context = LocalContext.current
+    val aiAccessViewModel: AiAccessViewModel = viewModel(factory = AiAccessViewModel.Factory((context.applicationContext as EstudarioApplication).aiAccessRepository))
+    val aiAccessState by aiAccessViewModel.state.collectAsState()
+    LaunchedEffect(aiAccessViewModel) { aiAccessViewModel.refresh() }
     val scope = rememberCoroutineScope()
 
     var editName by remember { mutableStateOf(false) }
@@ -127,6 +135,7 @@ fun ProfileScreen(
         progress = progress,
         streak = streak,
         driveLastBackupAt = driveLastBackupAt,
+        aiAccessState = aiAccessState,
         showTopBar = showInternalTopBar,
         onBack = onBack,
         onEditName = { editName = true },
@@ -152,6 +161,7 @@ private fun ProfileContent(
     progress: ProgressEngine.ProgressSummary?,
     streak: StreakSummary?,
     driveLastBackupAt: Long,
+    aiAccessState: AiAccessUiState? = null,
     onBack: () -> Unit,
     onEditName: () -> Unit,
     onChangePhoto: () -> Unit,
@@ -242,6 +252,11 @@ private fun ProfileContent(
                 )
             }
             item { Band { Divider() } }
+
+            if (aiAccessState != null) {
+                item { AiAccessSummary(aiAccessState) }
+                item { Band { Divider() } }
+            }
 
             item {
                 Band {

@@ -69,6 +69,27 @@ class AiModelsSerializationTest {
     }
 
     @Test
+    fun decodesNewQuotaUsageAndResetWhileAcceptingLegacyMissingReset() {
+        val updated = accessWithQuotaJson.replace(
+            "\"reservedCount\": 1,",
+            "\"reservedCount\": 1, \"used\": 1, \"resetAt\": \"2026-09-24T03:00:00Z\",",
+        )
+        val quota = EstudarioContractJson.decodeAccess(updated).quota!!
+        assertEquals(1, quota.used)
+        assertEquals("2026-09-24T03:00:00Z", quota.resetAt)
+        assertEquals(null, EstudarioContractJson.decodeAccess(accessWithQuotaJson).quota?.resetAt)
+    }
+
+    @Test
+    fun rejectsQuotaUsageThatDisagreesWithCounts() {
+        val invalid = accessWithQuotaJson.replace(
+            "\"reservedCount\": 1,",
+            "\"reservedCount\": 1, \"used\": 0,",
+        )
+        assertThrows(ContractValidationException::class.java) { EstudarioContractJson.decodeAccess(invalid) }
+    }
+
+    @Test
     fun rejectsBlankJobIdsAndMalformedJobTimestamps() {
         val blankId = reservedJobJson.replace("\"jobId\": \"job-1\"", "\"jobId\": \" \"")
         val malformedTimestamp = reservedJobJson.replace("2026-09-23T12:00:00Z", "not-a-timestamp")

@@ -1,5 +1,5 @@
 import { authenticateSupabaseRequest, AuthError, type AuthenticatedUser } from "../_shared/auth.ts";
-import { JobStoreError, SupabaseAiJobStore, type AiJobRecord, type AiJobCancellationStore } from "../_shared/job-finalizer.ts";
+import { emitAiTerminalTelemetry, JobStoreError, SupabaseAiJobStore, type AiJobRecord, type AiJobCancellationStore, type TerminalAiTelemetry } from "../_shared/job-finalizer.ts";
 import {
   createOpenAiProvider,
   resolveOpenAiModel,
@@ -14,6 +14,19 @@ export interface AiSyllabusCancelDependencies {
   authenticate: (request: Request) => Promise<AuthenticatedUser>;
   jobs: AiJobCancellationStore;
   provider: OpenAiProvider;
+  telemetry?: (event: TerminalAiTelemetry) => void;
+}
+
+async function reportFinalized(dependencies: AiSyllabusCancelDependencies, job: AiJobRecord, response?: ProviderResponse): Promise<void> {
+  if (!terminal(job.status)) return;
+  await emitAiTerminalTelemetry({
+    feature: job.feature, userId: job.userId, jobId: job.id,
+    modelVersion: job.modelVersion ?? resolveOpenAiModel(),
+    promptVersion: job.promptVersion ?? SYLLABUS_PROMPT_VERSION,
+    schemaVersion: job.schemaVersion ?? AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION,
+    usage: response?.usage, startedAt: job.providerExecutionStartedAt,
+    terminalStatus: job.status as TerminalAiTelemetry["terminalStatus"], sink: dependencies.telemetry,
+  });
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -87,6 +100,7 @@ async function finalizeCompleted(
   try {
     const proposal = await completedProposal(response);
     const job = await dependencies.jobs.finalizeCancellationSuccess(userId, jobId, response, proposal);
+    await reportFinalized(dependencies, job, response);
     return jobResponse(job);
   } catch (error) {
     if (error instanceof JobStoreError) throw error;
@@ -98,6 +112,7 @@ async function finalizeCompleted(
     });
     if (terminal(reconciled.status)) return jobResponse(reconciled);
     const job = await dependencies.jobs.cancelAfterReconciliation(userId, jobId, "PROVIDER_RESULT_INVALID", "The provider result was not valid", "FAILED");
+    await reportFinalized(dependencies, job, response);
     return jobResponse(job);
   }
 }
@@ -124,7 +139,9 @@ async function reconcileWithProvider(
       resultRecoverable: false,
     });
     if (terminal(reconciled.status)) return jobResponse(reconciled);
-    return jobResponse(await dependencies.jobs.cancelAfterReconciliation(userId, job.id, "PROVIDER_CANCELLED", "Provider confirmed that no result is recoverable"));
+    const finalized = await dependencies.jobs.cancelAfterReconciliation(userId, job.id, "PROVIDER_CANCELLED", "Provider confirmed that no result is recoverable");
+    await reportFinalized(dependencies, finalized, response);
+    return jobResponse(finalized);
   }
 
   let cancellation: ProviderResponse;
@@ -141,7 +158,9 @@ async function reconcileWithProvider(
       resultRecoverable: false,
     });
     if (terminal(reconciled.status)) return jobResponse(reconciled);
-    return jobResponse(await dependencies.jobs.cancelAfterReconciliation(userId, job.id, "PROVIDER_CANCELLED", "Provider confirmed cancellation without a result"));
+    const finalized = await dependencies.jobs.cancelAfterReconciliation(userId, job.id, "PROVIDER_CANCELLED", "Provider confirmed cancellation without a result");
+    await reportFinalized(dependencies, finalized, cancellation);
+    return jobResponse(finalized);
   }
   return recordUnknown(dependencies, userId, job.id, cancellation.id, "PROVIDER_CANCEL_PENDING");
 }
@@ -160,7 +179,9 @@ async function cancelJob(
 
   if (!job.openaiResponseId && !job.providerExecutionStartedAt) {
     try {
-      return jobResponse(await dependencies.jobs.cancelWithoutProvider(userId, jobId));
+      const finalized = await dependencies.jobs.cancelWithoutProvider(userId, jobId);
+      await reportFinalized(dependencies, finalized);
+      return jobResponse(finalized);
     } catch (error) {
       if (!(error instanceof JobStoreError) || error.code !== "CANCELLATION_RECONCILIATION_REQUIRED") throw error;
       job = await dependencies.jobs.getJob(userId, jobId) ?? job;

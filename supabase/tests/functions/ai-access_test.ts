@@ -91,8 +91,10 @@ Deno.test("allows a beta-enabled account with available syllabus quota", async (
     limit: 1,
     successfulCount: 0,
     reservedCount: 0,
+    used: 0,
     remaining: 1,
     periodStart: "1970-01-01",
+    resetAt: null,
   });
 });
 
@@ -132,7 +134,9 @@ Deno.test("reports exhausted and reserved quota without trusting client-provided
 
   assert.equal(exhausted.canUse, false);
   assert.equal(exhausted.reasonCode, "QUOTA_EXHAUSTED");
-  assert.equal(exhausted.quota, null);
+  assert.equal(exhausted.quota?.used, 1);
+  assert.equal(exhausted.quota?.remaining, 0);
+  assert.equal(exhausted.quota?.resetAt, null);
   assert.equal(reserved.canUse, false);
   assert.equal(reserved.reasonCode, "QUOTA_RESERVED");
   assert.equal(reserved.quota?.reservedCount, 1);
@@ -163,6 +167,15 @@ Deno.test("uses America/Sao_Paulo when selecting a daily quota period", async ()
 
   assert.equal(access.canUse, true);
   assert.equal(access.quota?.periodStart, "2026-09-22");
+  assert.equal(access.quota?.resetAt, "2026-09-23T03:00:00.000Z");
+});
+
+Deno.test("plan has no reset and exhausted content has the next Sao Paulo midnight", async () => {
+  const plan = await policyFor().getAccess(USER_A, "PLAN_GENERATION");
+  const content = await policyFor({ quotas: [quota(USER_A, "CONTENT_GENERATION", 1, 0, "2026-09-23")] }).getAccess(USER_A, "CONTENT_GENERATION");
+  assert.equal(plan.quota?.resetAt, null);
+  assert.equal(content.quota?.remaining, 0);
+  assert.equal(content.quota?.resetAt, "2026-09-24T03:00:00.000Z");
 });
 
 Deno.test("GET access is read-only, ignores Android account/quota claims, and ignores Drive authorization", async () => {
@@ -191,6 +204,9 @@ Deno.test("GET access is read-only, ignores Android account/quota claims, and ig
   assert.equal(body.authenticated, true);
   assert.equal(body.canUse, false);
   assert.equal(body.reasonCode, "QUOTA_EXHAUSTED");
+  assert.equal(body.quota.used, 1);
+  assert.equal(body.quota.remaining, 0);
+  assert.equal(body.quota.resetAt, null);
 
   const postResponse = await handler(new Request("https://example.test/functions/v1/ai-access", { method: "POST" }));
   assert.equal(postResponse.status, 405);

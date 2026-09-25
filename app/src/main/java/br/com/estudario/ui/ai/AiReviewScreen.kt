@@ -159,6 +159,7 @@ private fun AiGate(
                     Button(onClick = onPickSource, Modifier.fillMaxWidth()) { Text("Selecionar PDF do edital") }
                 }
             }
+            access.access?.let { Text(it.toDisplay().quotaCopy) }
         }
     }
 }

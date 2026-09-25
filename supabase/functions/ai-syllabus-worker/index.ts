@@ -1,4 +1,5 @@
 import type { AiSyllabusProposal, AiWarning } from "../_shared/contracts.ts";
+import { emitAiTerminalTelemetry, type TerminalAiTelemetry } from "../_shared/job-finalizer.ts";
 import { validateAiSyllabusProposal, type ProposalValidationLimits, type ProposalValidationOptions } from "../_shared/proposal-validator.ts";
 import {
   createOpenAiProvider,
@@ -63,6 +64,24 @@ export interface SyllabusWorkerDependencies {
   maxProcessingSeconds?: number;
   model?: string;
   validationLimits?: ProposalValidationLimits;
+  telemetry?: (event: TerminalAiTelemetry) => void;
+}
+
+async function emitTerminalTelemetry(
+  dependencies: SyllabusWorkerDependencies,
+  job: SyllabusWorkerJob,
+  terminalStatus: TerminalAiTelemetry["terminalStatus"],
+  usage: ProviderUsage | null = null,
+  proposal: AiSyllabusProposal | null = null,
+): Promise<void> {
+  await emitAiTerminalTelemetry({
+    feature: "SYLLABUS_GENERATION", userId: job.userId,
+    modelVersion: proposal?.modelVersion ?? job.modelVersion ?? resolveOpenAiModel(dependencies.model),
+    promptVersion: proposal?.promptVersion ?? job.promptVersion ?? SYLLABUS_PROMPT_VERSION,
+    schemaVersion: proposal?.schemaVersion ?? AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION,
+    jobId: job.id, usage, startedAt: job.providerExecutionStartedAt, terminalStatus,
+    now: dependencies.now, sink: dependencies.telemetry,
+  });
 }
 
 function leaseOf(job: SyllabusWorkerJob): Lease {
@@ -104,9 +123,11 @@ async function finalizeFailure(
   code: string,
   status: "FAILED" | "EXPIRED" | "CANCELLED",
   providerReconciled: boolean,
+  usage: ProviderUsage | null = null,
 ): Promise<void> {
   await cleanupBestEffort(dependencies, job, lease);
   await dependencies.jobs.finalizeFailure(job.id, lease, code, "The AI job did not complete", status, providerReconciled);
+  await emitTerminalTelemetry(dependencies, job, status, usage);
 }
 
 function validationOptions(dependencies: SyllabusWorkerDependencies): ProposalValidationOptions {
@@ -132,11 +153,11 @@ async function processResponse(
     if (response.status === "queued" || response.status === "in_progress") {
       const cancellation = await dependencies.provider.cancel(response.id);
       await dependencies.jobs.assertLease(job.id, lease);
-      if (terminalProviderStatus(cancellation.status)) await finalizeFailure(dependencies, job, lease, "PROCESSING_DEADLINE_EXCEEDED", "EXPIRED", false);
+      if (terminalProviderStatus(cancellation.status)) await finalizeFailure(dependencies, job, lease, "PROCESSING_DEADLINE_EXCEEDED", "EXPIRED", false, cancellation.usage);
       else await dependencies.jobs.reconcileProvider(job.id, lease, true);
       return;
     }
-    await finalizeFailure(dependencies, job, lease, "PROCESSING_DEADLINE_EXCEEDED", "EXPIRED", false);
+    await finalizeFailure(dependencies, job, lease, "PROCESSING_DEADLINE_EXCEEDED", "EXPIRED", false, response.usage);
     return;
   }
   if (response.status === "queued" || response.status === "in_progress") {
@@ -145,7 +166,7 @@ async function processResponse(
     return;
   }
   if (terminalProviderStatus(response.status)) {
-    await finalizeFailure(dependencies, job, lease, "PROVIDER_RESULT_UNAVAILABLE", "FAILED", false);
+    await finalizeFailure(dependencies, job, lease, "PROVIDER_RESULT_UNAVAILABLE", "FAILED", false, response.usage);
     return;
   }
 
@@ -156,12 +177,13 @@ async function processResponse(
     const code = error instanceof Error && error.message.startsWith("EMPTY_OUTPUT") ? "EMPTY_OUTPUT" :
       error instanceof Error && error.message.startsWith("OUTPUT_LIMIT_EXCEEDED") ? "OUTPUT_LIMIT_EXCEEDED" :
       error instanceof Error && error.message.startsWith("VERSION_MISMATCH") ? "VERSION_MISMATCH" : "SCHEMA_MISMATCH";
-    await finalizeFailure(dependencies, job, lease, code, "FAILED", false);
+    await finalizeFailure(dependencies, job, lease, code, "FAILED", false, response.usage);
     return;
   }
   await dependencies.jobs.captureUsage(job.id, lease, response.usage);
   await cleanupBestEffort(dependencies, job, lease);
   await dependencies.jobs.finalizeSuccess(job.id, lease, proposal, proposal.warnings, response.id);
+  await emitTerminalTelemetry(dependencies, job, "SUCCEEDED", response.usage, proposal);
 }
 
 export async function processSyllabusJob(dependencies: SyllabusWorkerDependencies): Promise<boolean> {
@@ -188,6 +210,7 @@ export async function processSyllabusJob(dependencies: SyllabusWorkerDependencie
         return true;
       }
       if (dependencies.jobs.markProviderStarted) await dependencies.jobs.markProviderStarted(job.id, lease);
+      const providerStartedAt = now().toISOString();
       response = await dependencies.provider.start({
         jobId: job.id,
         idempotencyKey: job.id,
@@ -203,6 +226,7 @@ export async function processSyllabusJob(dependencies: SyllabusWorkerDependencie
         maxOutputTokens: dependencies.maxOutputTokens,
       });
       providerStarted = true;
+      job.providerExecutionStartedAt = providerStartedAt;
       await dependencies.jobs.persistResponseId(job.id, response.id, lease);
     }
     await processResponse(dependencies, job, lease, response, now());

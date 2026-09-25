@@ -341,10 +341,12 @@
 
 **Steps:**
 
-- [ ] Write failing tests for quota remaining/exhausted, disabled feature, non-beta account, reset date formatting, provider failure, and offline fallback.
-- [ ] Implement a read-only quota/availability display with no billing, premium, or buy flows. Keep server decisions authoritative.
-- [ ] Add structured telemetry for feature, user pseudonymous ID, model/prompt/schema versions, request/job ID, token usage, duration, and terminal status. Never log source documents, provider secrets, raw auth tokens, or full prompts.
-- [ ] Make fallback behavior explicit: local editing/import remains available when AI access is unavailable. Commit as `feat: add beta quota UI and safe fallbacks`.
+- [x] Write failing tests for quota remaining/exhausted (quota object is present for configured features), disabled feature, non-beta account, nullable server-computed reset semantics, legacy responses without `resetAt`, provider failure, and offline fallback. Cover syllabus available/exhausted (`resetAt: null`), plan (`resetAt: null`), daily content with a future reset, exhausted quota `remaining: 0`, and Android safe rendering that never treats missing quota/resetAt or `1970-01-01` as a reset date.
+- [x] Implement a read-only quota/availability display with no billing, premium, or buy flows. Keep server decisions authoritative.
+- [x] Add structured telemetry for feature, user pseudonymous ID, model/prompt/schema versions, request/job ID, token usage, duration, and terminal status. Never log source documents, provider secrets, raw auth tokens, or full prompts.
+- [x] Make fallback behavior explicit: local editing/import remains available when AI access is unavailable. Commit as `feat: add beta quota UI and safe fallbacks`.
+
+For configured quota policies, the server always returns a quota object even when exhausted (`remaining: 0`); `quota: null` is reserved for features without an applicable quota policy. The response includes `used = successfulCount + reservedCount` and additive nullable `resetAt`. Syllabus and plan quotas have no renewal (`resetAt: null`); daily content quota returns the next Sao Paulo midnight. Android uses only `resetAt` for renewal copy, tolerates older responses that omit it, never infers from `periodStart`, and shows “1 geração disponível no Beta” or “Geração do Beta utilizada” for non-renewing syllabus quota.
 
 **Dependency:** Tasks 5, 7, 8, 13, and 14.
 

@@ -67,6 +67,8 @@ data class AiQuota(
     val reservedCount: Int,
     val remaining: Int,
     val periodStart: String,
+    val used: Int = successfulCount + reservedCount,
+    val resetAt: String? = null,
 )
 
 @Serializable
@@ -205,6 +207,8 @@ private fun AiQuota.validate(path: String) {
         throw ContractValidationException("$path: invalid quota counts")
     }
     requireContractText(periodStart, "$path.periodStart")
+    if (used != successfulCount + reservedCount) throw ContractValidationException("$path.used: does not match counts")
+    resetAt?.let { requireContractInstant(it, "$path.resetAt") }
 }
 
 private fun requireText(value: String, path: String) {

@@ -166,6 +166,8 @@ Referências: [File inputs](https://developers.openai.com/api/docs/guides/file-i
 
 Os nomes podem virar funções roteadas sem mudar o contrato Android. Cada endpoint exige JWT. Erros retornam código estável e fallback, nunca secret, prompt interno, stack trace ou PDF em analytics.
 
+`GET /ai-access` retorna um objeto `quota` sempre que a feature tiver política de quota, inclusive quando esgotada (`remaining: 0`); `quota: null` significa apenas que nenhuma política de quota se aplica. A quota mantém `limit`, `successfulCount`, `reservedCount`, `remaining` e `periodStart`, e expõe `used` (`successfulCount + reservedCount`) e `resetAt` (`string` ISO-8601 ou `null`). `resetAt` é aditivo/opcional para consumidores compatíveis com respostas antigas; o servidor atual sempre o inclui. `SYLLABUS_GENERATION` e `PLAN_GENERATION` usam `resetAt: null`; `CONTENT_GENERATION` informa o próximo reset diário às 00:00 em `America/Sao_Paulo`, calculado no servidor. O cliente nunca infere renovação de `periodStart`.
+
 ### Processamento assíncrono durável
 
 `POST /process` não mantém a conexão HTTP aberta aguardando a OpenAI. Depois de validar que o upload existe, ele reclama o job em operação curta, inicia uma resposta do Responses API em background quando esse modo estiver disponível para o modelo/projeto, grava `openai_response_id` e devolve `202 Accepted` com `jobId` e estado `PROCESSING`.

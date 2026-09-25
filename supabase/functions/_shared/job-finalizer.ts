@@ -1,5 +1,43 @@
 import type { AiFeature, AiJobStatus } from "./contracts.ts";
-import type { ProviderResponse } from "./openai-provider.ts";
+import type { ProviderResponse, ProviderUsage } from "./openai-provider.ts";
+
+export interface TerminalAiTelemetry {
+  feature: AiFeature;
+  userPseudonym: string;
+  modelVersion: string;
+  promptVersion: string;
+  schemaVersion: number;
+  jobId: string;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  durationMs: number;
+  terminalStatus: "SUCCEEDED" | "FAILED" | "EXPIRED" | "CANCELLED";
+  timestamp: string;
+}
+
+export async function emitAiTerminalTelemetry(input: {
+  feature: AiFeature; userId: string; modelVersion: string; promptVersion: string;
+  schemaVersion: number; jobId: string; usage?: ProviderUsage | null;
+  startedAt?: string | null; terminalStatus: TerminalAiTelemetry["terminalStatus"];
+  now?: () => Date; sink?: (event: TerminalAiTelemetry) => void;
+}): Promise<void> {
+  try {
+    const timestamp = (input.now ?? (() => new Date()))();
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`estudario-ai-telemetry-v1:${input.userId}`));
+    const userPseudonym = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+    const started = input.startedAt ? Date.parse(input.startedAt) : timestamp.getTime();
+    const event: TerminalAiTelemetry = {
+      feature: input.feature, userPseudonym, modelVersion: input.modelVersion,
+      promptVersion: input.promptVersion, schemaVersion: input.schemaVersion, jobId: input.jobId,
+      inputTokens: input.usage?.inputTokens ?? null, outputTokens: input.usage?.outputTokens ?? null,
+      totalTokens: input.usage?.totalTokens ?? null,
+      durationMs: Number.isFinite(started) ? Math.max(0, timestamp.getTime() - started) : 0,
+      terminalStatus: input.terminalStatus, timestamp: timestamp.toISOString(),
+    };
+    (input.sink ?? ((value) => console.info(JSON.stringify(value))))(event);
+  } catch { /* logging must not change a finalized job */ }
+}
 import type { BoundStorageSource } from "./storage-source.ts";
 
 export interface CreateAiJobInput {

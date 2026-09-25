@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import br.com.estudario.data.local.RemoteSyllabusSyncState
+import br.com.estudario.ui.ai.AiAccessPanel
 
 @Composable
 fun MySyllabiScreen(viewModel: MySyllabiViewModel) {
@@ -34,6 +35,7 @@ fun MySyllabiScreen(viewModel: MySyllabiViewModel) {
 
     Column(Modifier.fillMaxSize().testTag("my-syllabi-screen")) {
         Text("Meus editais", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(16.dp))
+        AiAccessPanel()
         if (state.remoteUnavailable) {
             Text(
                 "Biblioteca da conta indisponível. Os dados locais continuam neste dispositivo.",

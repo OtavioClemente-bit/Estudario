@@ -629,6 +629,7 @@ internal fun SyllabusMethodStep(
                     Icon(Icons.Outlined.AutoAwesome, null, Modifier.padding(end = 8.dp))
                     Text("Gerar com IA do Estudário (beta)")
                 }
+                br.com.estudario.ui.ai.AiAccessPanel()
             }
             SyllabusMethod.IMPORT_ESTUDO -> {
                 ImportActionCard(

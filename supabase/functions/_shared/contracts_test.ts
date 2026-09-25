@@ -395,6 +395,18 @@ Deno.test("keeps job, access, and sync acknowledgment nullability explicit", () 
   }
 });
 
+Deno.test("access quota accepts legacy missing resetAt and validates new usage", () => {
+  const base = {
+    authenticated: true, betaAccess: true, feature: "CONTENT_GENERATION", featureEnabled: true,
+    canUse: false, reasonCode: "QUOTA_EXHAUSTED",
+    quota: { feature: "CONTENT_GENERATION", limit: 1, successfulCount: 1, reservedCount: 0, used: 1, remaining: 0, periodStart: "2026-09-23", resetAt: "2026-09-24T03:00:00.000Z" },
+  };
+  const parsed = parseAiAccess(base);
+  if (parsed.quota?.used !== 1 || parsed.quota.resetAt !== "2026-09-24T03:00:00.000Z") throw new Error("quota fields lost");
+  const legacy = parseAiAccess({ ...base, quota: { ...base.quota, resetAt: undefined } });
+  if (legacy.quota?.resetAt !== null) throw new Error("legacy missing resetAt must mean unknown reset");
+});
+
 Deno.test("rejects a succeeded job without a valid proposal and expected versions", async () => {
   const job = JSON.parse(await Deno.readTextFile(new URL("./fixtures/v1/job-reserved.json", import.meta.url))) as Record<string, unknown>;
   job.status = "SUCCEEDED";

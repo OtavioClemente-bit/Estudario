@@ -101,3 +101,72 @@ Deno.test("fails terminally on empty provider output without publishing a propos
   assert(jobs.events.some((event) => event === "failure:job-1:EMPTY_OUTPUT"));
   assert(!jobs.events.some((event) => event.startsWith("success:")));
 });
+
+Deno.test("emits structured safe telemetry only after terminal success or failure", async () => {
+  const events: Record<string, unknown>[] = [];
+  const success = store(job());
+  await processSyllabusJob({
+    jobs: success,
+    provider: provider({ id: "resp-1", status: "completed", outputText: validOutput, usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 } }),
+    source: async () => new Uint8Array([1]),
+    now: () => new Date("2026-09-24T12:01:00Z"),
+    telemetry: (event) => events.push(event),
+  });
+  assertEquals(events.length, 1);
+  assertEquals(events[0].terminalStatus, "SUCCEEDED");
+  assertEquals(events[0].feature, "SYLLABUS_GENERATION");
+  assertEquals(events[0].jobId, "job-1");
+  assertEquals(events[0].totalTokens, 30);
+  assert(events[0].userPseudonym !== "user-1");
+  assert(!JSON.stringify(events[0]).includes("Constituição"));
+  assert(!JSON.stringify(events[0]).includes("source.pdf"));
+  const failed = store(job());
+  await processSyllabusJob({
+    jobs: failed, provider: provider({ id: "resp-1", status: "completed", outputText: "", usage: null }),
+    source: async () => new Uint8Array([1]), now: () => new Date("2026-09-24T12:01:00Z"),
+    telemetry: (event) => events.push(event),
+  });
+  assertEquals(events[1].terminalStatus, "FAILED");
+  assertEquals(events[1].totalTokens, null);
+});
+
+Deno.test("retains provider usage for terminal provider and proposal validation failures", async () => {
+  const events: Record<string, unknown>[] = [];
+  for (const output of [
+    { status: "failed" as const, outputText: null },
+    { status: "completed" as const, outputText: "invalid proposal" },
+  ]) {
+    const jobs = store(job());
+    await processSyllabusJob({
+      jobs,
+      provider: provider({ id: "resp-1", ...output, usage: { inputTokens: 11, outputTokens: 7, totalTokens: 18 } }),
+      source: async () => new Uint8Array([1]),
+      now: () => new Date("2026-09-24T12:01:00Z"),
+      telemetry: (event) => events.push(event),
+    });
+  }
+  assertEquals(events.length, 2);
+  for (const event of events) {
+    assertEquals(event.terminalStatus, "FAILED");
+    assertEquals(event.inputTokens, 11);
+    assertEquals(event.outputTokens, 7);
+    assertEquals(event.totalTokens, 18);
+  }
+});
+
+Deno.test("measures first-attempt telemetry duration from provider start", async () => {
+  const jobs = store(job({ openaiResponseId: null, providerExecutionStartedAt: null }));
+  const events: Record<string, unknown>[] = [];
+  jobs.markProviderStarted = async () => {};
+  const moments = [0, 1, 2, 3, 6, 7].map((seconds) => new Date(`2026-09-24T12:00:0${seconds}Z`));
+  let tick = 0;
+  await processSyllabusJob({
+    jobs,
+    provider: provider({ id: "resp-1", status: "completed", outputText: validOutput, usage: null }),
+    source: async () => new Uint8Array([1]),
+    now: () => moments[Math.min(tick++, moments.length - 1)],
+    telemetry: (event) => events.push(event),
+  });
+  assertEquals(events.length, 1);
+  assertEquals(events[0].durationMs, 4000);
+});
