@@ -15,6 +15,14 @@ import { AI_SYLLABUS_SOURCE_BUCKET, SupabaseStorageSourceStore, type StorageSour
 
 export interface Lease { owner: string; token: string; generation: number; }
 
+function leaseRpcArgs(lease: Lease): { p_lease_owner: string; p_lease_token: string; p_lease_generation: number } {
+  return {
+    p_lease_owner: lease.owner,
+    p_lease_token: lease.token,
+    p_lease_generation: lease.generation,
+  };
+}
+
 export class LeaseLostError extends Error {
   constructor() { super("AI_JOB_LEASE_LOST"); this.name = "LeaseLostError"; }
 }
@@ -332,24 +340,24 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
     if (noCompositeRow(value)) return null;
     return parseJob(row(value));
   }
-  async assertLease(jobId: string, lease: Lease): Promise<void> { await this.rpc("assert_ai_job_lease", { p_job_id: jobId, ...lease }); }
-  async markProviderStarted(jobId: string, lease: Lease): Promise<void> { await this.rpc("mark_ai_job_provider_execution_started", { p_job_id: jobId, ...lease }); }
-  async persistResponseId(jobId: string, responseId: string, lease: Lease): Promise<void> { await this.rpc("persist_ai_job_provider_response", { p_job_id: jobId, p_response_id: responseId, ...lease }); }
-  async reconcileProvider(jobId: string, lease: Lease, recoverable: boolean): Promise<void> { await this.rpc("record_ai_job_provider_reconciliation", { p_job_id: jobId, p_recoverable: recoverable, ...lease }); }
-  async markRetry(jobId: string, lease: Lease): Promise<void> { await this.rpc("increment_ai_job_retry", { p_job_id: jobId, ...lease }); }
-  async captureUsage(jobId: string, lease: Lease, usage: ProviderUsage | null): Promise<void> { await this.rpc("record_ai_job_usage", { p_job_id: jobId, p_input_tokens: usage?.inputTokens ?? null, p_output_tokens: usage?.outputTokens ?? null, p_total_tokens: usage?.totalTokens ?? null, ...lease }); }
-  async finalizeSuccess(jobId: string, lease: Lease, proposal: AiSyllabusProposal, warnings: AiWarning[], responseId: string | null): Promise<void> { await this.rpc("finalize_ai_job_success_with_lease", { p_job_id: jobId, p_proposal: proposal, p_warnings: warnings, p_openai_response_id: responseId, p_prompt_version: proposal.promptVersion, p_schema_version: proposal.schemaVersion, p_model_version: proposal.modelVersion, ...lease }); }
-  async finalizeFailure(jobId: string, lease: Lease, code: string, message: string, terminalStatus: "FAILED" | "EXPIRED" | "CANCELLED", providerReconciled: boolean): Promise<void> { await this.rpc("finalize_ai_job_failure_with_lease", { p_job_id: jobId, p_terminal_status: terminalStatus, p_error_code: code, p_error_message: message, p_provider_reconciled: providerReconciled, ...lease }); }
+  async assertLease(jobId: string, lease: Lease): Promise<void> { await this.rpc("assert_ai_job_lease", { p_job_id: jobId, ...leaseRpcArgs(lease) }); }
+  async markProviderStarted(jobId: string, lease: Lease): Promise<void> { await this.rpc("mark_ai_job_provider_execution_started", { p_job_id: jobId, ...leaseRpcArgs(lease) }); }
+  async persistResponseId(jobId: string, responseId: string, lease: Lease): Promise<void> { await this.rpc("persist_ai_job_provider_response", { p_job_id: jobId, p_response_id: responseId, ...leaseRpcArgs(lease) }); }
+  async reconcileProvider(jobId: string, lease: Lease, recoverable: boolean): Promise<void> { await this.rpc("record_ai_job_provider_reconciliation", { p_job_id: jobId, p_recoverable: recoverable, ...leaseRpcArgs(lease) }); }
+  async markRetry(jobId: string, lease: Lease): Promise<void> { await this.rpc("increment_ai_job_retry", { p_job_id: jobId, ...leaseRpcArgs(lease) }); }
+  async captureUsage(jobId: string, lease: Lease, usage: ProviderUsage | null): Promise<void> { await this.rpc("record_ai_job_usage", { p_job_id: jobId, p_input_tokens: usage?.inputTokens ?? null, p_output_tokens: usage?.outputTokens ?? null, p_total_tokens: usage?.totalTokens ?? null, ...leaseRpcArgs(lease) }); }
+  async finalizeSuccess(jobId: string, lease: Lease, proposal: AiSyllabusProposal, warnings: AiWarning[], responseId: string | null): Promise<void> { await this.rpc("finalize_ai_job_success_with_lease", { p_job_id: jobId, p_proposal: proposal, p_warnings: warnings, p_openai_response_id: responseId, p_prompt_version: proposal.promptVersion, p_schema_version: proposal.schemaVersion, p_model_version: proposal.modelVersion, ...leaseRpcArgs(lease) }); }
+  async finalizeFailure(jobId: string, lease: Lease, code: string, message: string, terminalStatus: "FAILED" | "EXPIRED" | "CANCELLED", providerReconciled: boolean): Promise<void> { await this.rpc("finalize_ai_job_failure_with_lease", { p_job_id: jobId, p_terminal_status: terminalStatus, p_error_code: code, p_error_message: message, p_provider_reconciled: providerReconciled, ...leaseRpcArgs(lease) }); }
   async cleanupSource(jobId: string, lease: Lease): Promise<void> {
-    const cleanup = row(await this.rpc("prepare_ai_job_source_cleanup", { p_job_id: jobId, ...lease }));
+    const cleanup = row(await this.rpc("prepare_ai_job_source_cleanup", { p_job_id: jobId, ...leaseRpcArgs(lease) }));
     if (cleanup.status === "DELETED") return;
     const path = stringField(cleanup, "source_object_path");
     try {
       const response = await this.fetcher(`${this.environment.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/${AI_SYLLABUS_SOURCE_BUCKET}/${path}`, { method: "DELETE", headers: workerBackendHeaders(this.environment) });
       if (!response.ok && response.status !== 404) throw new Error("AI_SOURCE_CLEANUP_FAILED");
-      await this.rpc("complete_ai_job_source_cleanup", { p_job_id: jobId, ...lease });
+      await this.rpc("complete_ai_job_source_cleanup", { p_job_id: jobId, ...leaseRpcArgs(lease) });
     } catch (error) {
-      await this.rpc("fail_ai_job_source_cleanup", { p_job_id: jobId, p_error: error instanceof Error ? error.message : "AI_SOURCE_CLEANUP_FAILED", ...lease });
+      await this.rpc("fail_ai_job_source_cleanup", { p_job_id: jobId, p_error: error instanceof Error ? error.message : "AI_SOURCE_CLEANUP_FAILED", ...leaseRpcArgs(lease) });
       throw error;
     }
   }
@@ -359,7 +367,7 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
       const value = await this.rpc("claim_ai_job_source_cleanup", { p_lease_owner: owner, p_lease_token: token, p_lease_seconds: 300 });
       if (noCompositeRow(value)) return;
       const cleanup = row(value), jobId = stringField(cleanup, "job_id"), path = stringField(cleanup, "source_object_path");
-      const cleanupLease = { p_lease_owner: owner, p_lease_token: token, p_lease_generation: integerField(cleanup, "lease_generation") };
+      const cleanupLease = leaseRpcArgs({ owner, token, generation: integerField(cleanup, "lease_generation") });
       try {
         const response = await this.fetcher(`${this.environment.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/${AI_SYLLABUS_SOURCE_BUCKET}/${path}`, { method: "DELETE", headers: workerBackendHeaders(this.environment) });
         if (!response.ok && response.status !== 404) throw new Error("AI_SOURCE_CLEANUP_FAILED");
