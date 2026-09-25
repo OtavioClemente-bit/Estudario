@@ -137,7 +137,7 @@ function dependencies(store: FakeCancellationStore, openAi: OpenAiProvider): AiS
 }
 
 async function cancel(handler: (request: Request) => Promise<Response>): Promise<Response> {
-  return handler(new Request("https://example.test/ai-syllabus/jobs/job-1/cancel", {
+  return handler(new Request("https://example.test/functions/v1/ai-syllabus-cancel/job-1", {
     method: "POST",
     headers: { authorization: "Bearer supabase-jwt" },
   }));

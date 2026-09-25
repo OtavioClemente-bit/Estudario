@@ -338,10 +338,11 @@ export function createAiSyllabusJobsHandler(dependencies: AiSyllabusJobsDependen
     }
 
     const pathname = new URL(request.url).pathname.replace(/\/+$/, "");
-    const processMatch = pathname.match(/\/ai-syllabus\/jobs\/([^/]+)\/process$/);
-    const getMatch = pathname.match(/\/ai-syllabus\/jobs\/([^/]+)$/);
+    const routePath = pathname.match(/\/functions\/v1\/ai-syllabus-jobs(\/.*)?$/)?.[1] ?? "";
+    const processMatch = routePath.match(/^\/([^/]+)\/process$/);
+    const getMatch = routePath.match(/^\/([^/]+)$/);
     try {
-      const rootPath = pathname.endsWith("/ai-syllabus/jobs");
+      const rootPath = routePath === "";
       if (rootPath && request.method !== "POST") return jsonResponse({ error: { code: "METHOD_NOT_ALLOWED", message: "POST is required for job creation" } }, 405, { allow: "POST" });
       if (processMatch && request.method !== "POST") return jsonResponse({ error: { code: "METHOD_NOT_ALLOWED", message: "POST is required to process a job" } }, 405, { allow: "POST" });
       if (getMatch && request.method !== "GET") return jsonResponse({ error: { code: "METHOD_NOT_ALLOWED", message: "GET is required to read a job" } }, 405, { allow: "GET" });

@@ -64,7 +64,7 @@ function dependencies(job: AiJobRecord): Parameters<typeof createAiSyllabusJobsH
 
 Deno.test("GET returns only the authenticated owner's AiJob contract", async () => {
   const response = await createAiSyllabusJobsHandler(dependencies(record()))(
-    new Request("https://example.test/functions/v1/ai-syllabus/jobs/job-1", {
+    new Request("https://example.test/functions/v1/ai-syllabus-jobs/job-1", {
       method: "GET",
       headers: { authorization: "Bearer supabase-jwt" },
     }),
@@ -87,7 +87,7 @@ Deno.test("GET returns only the authenticated owner's AiJob contract", async () 
 Deno.test("GET does not reveal another owner's job", async () => {
   const job = record("user-2");
   const response = await createAiSyllabusJobsHandler(dependencies(job))(
-    new Request("https://example.test/functions/v1/ai-syllabus/jobs/job-1", {
+    new Request("https://example.test/functions/v1/ai-syllabus-jobs/job-1", {
       method: "GET",
       headers: { authorization: "Bearer supabase-jwt" },
     }),
@@ -113,7 +113,7 @@ Deno.test("GET root is rejected without reserving quota", async () => {
     schedule: async () => { throw new Error("GET root must not schedule"); },
   });
 
-  const response = await handler(new Request("https://example.test/functions/v1/ai-syllabus/jobs", {
+  const response = await handler(new Request("https://example.test/functions/v1/ai-syllabus-jobs", {
     method: "GET",
     headers: { authorization: "Bearer supabase-jwt" },
   }));
@@ -140,7 +140,7 @@ Deno.test("GET process is rejected without claiming or starting processing", asy
     schedule: async () => { throw new Error("GET process must not schedule"); },
   });
 
-  const response = await handler(new Request("https://example.test/functions/v1/ai-syllabus/jobs/job-1/process", {
+  const response = await handler(new Request("https://example.test/functions/v1/ai-syllabus-jobs/job-1/process", {
     method: "GET",
     headers: { authorization: "Bearer supabase-jwt" },
   }));
@@ -175,7 +175,7 @@ Deno.test("POST fingerprint includes normalized MIME, SHA-256, and byte count", 
     schedule: async () => {},
   });
 
-  const response = await handler(new Request("https://example.test/functions/v1/ai-syllabus/jobs", {
+  const response = await handler(new Request("https://example.test/functions/v1/ai-syllabus-jobs", {
     method: "POST",
     headers: { authorization: "Bearer supabase-jwt", "idempotency-key": "idem-1", "content-type": "application/json" },
     body: JSON.stringify({ source: { fileName: "edital.pdf", mimeType: "Application/PDF; charset=binary", sourceHash: "a".repeat(64), sourceBytes: 123 } }),
@@ -210,7 +210,7 @@ Deno.test("same idempotency key cannot reuse a bound job for a different source 
     schedule: async () => {},
   });
 
-  const response = await handler(new Request("https://example.test/functions/v1/ai-syllabus/jobs", {
+  const response = await handler(new Request("https://example.test/functions/v1/ai-syllabus-jobs", {
     method: "POST",
     headers: { authorization: "Bearer supabase-jwt", "idempotency-key": "idem-1", "content-type": "application/json" },
     body: JSON.stringify({ source: { fileName: "edital.pdf", mimeType: "application/pdf", sourceHash: "c".repeat(64), sourceBytes: 99 } }),

@@ -204,7 +204,7 @@ export function createAiSyllabusCancelHandler(dependencies: AiSyllabusCancelDepe
       if (error instanceof AuthError) return safeError(error.code, error.status);
       return safeError("AUTH_UNAVAILABLE", 503);
     }
-    const match = new URL(request.url).pathname.replace(/\/+$/, "").match(/\/ai-syllabus\/jobs\/([^/]+)\/cancel$/);
+    const match = new URL(request.url).pathname.replace(/\/+$/, "").match(/\/functions\/v1\/ai-syllabus-cancel\/([^/]+)$/);
     if (!match || !match[1]) return safeError("NOT_FOUND", 404);
     try {
       return await cancelJob(dependencies, user.userId, match[1]);

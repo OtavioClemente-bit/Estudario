@@ -221,7 +221,7 @@ async function postCreate(
   source: Record<string, unknown> = {},
   feature: AiFeature = FEATURE,
 ): Promise<Response> {
-  return handler(new Request("https://example.test/ai-syllabus/jobs", {
+  return handler(new Request("https://example.test/functions/v1/ai-syllabus-jobs", {
     method: "POST",
     headers: { "content-type": "application/json", "Idempotency-Key": key, Authorization: "Bearer supabase-jwt" },
     body: JSON.stringify({ feature, source }),
@@ -492,7 +492,7 @@ Deno.test("process is a short durable command and never calls a provider before 
   const createResponse = await postCreate(handler, "process-before-binding");
   const created = await createResponse.json();
 
-  const processResponse = await handler(new Request(`https://example.test/ai-syllabus/jobs/${created.jobId}/process`, {
+  const processResponse = await handler(new Request(`https://example.test/functions/v1/ai-syllabus-jobs/${created.jobId}/process`, {
     method: "POST",
     headers: { Authorization: "Bearer supabase-jwt" },
   }));
@@ -507,7 +507,7 @@ Deno.test("process is a short durable command and never calls a provider before 
   storage.objects.set(source.path, source);
   const boundResponse = await postCreate(handler, "process-after-binding", { ready: true });
   const bound = await boundResponse.json();
-  const process = await handler(new Request(`https://example.test/ai-syllabus/jobs/${bound.jobId}/process`, {
+  const process = await handler(new Request(`https://example.test/functions/v1/ai-syllabus-jobs/${bound.jobId}/process`, {
     method: "POST",
     headers: { Authorization: "Bearer supabase-jwt" },
   }));
@@ -525,7 +525,7 @@ Deno.test("GET root returns 405 without reserving quota", async () => {
   const jobs = new FakeJobStore();
   const handler = createAiSyllabusJobsHandler(dependencies(USER_A, storage, jobs));
 
-  const response = await handler(new Request("https://example.test/ai-syllabus/jobs", {
+  const response = await handler(new Request("https://example.test/functions/v1/ai-syllabus-jobs", {
     method: "GET",
     headers: { Authorization: "Bearer supabase-jwt" },
   }));
@@ -543,7 +543,7 @@ Deno.test("GET process returns 405 without claiming or scheduling a job", async 
   const created = await postCreate(handler, "get-process");
   const body = await created.json();
 
-  const response = await handler(new Request(`https://example.test/ai-syllabus/jobs/${body.jobId}/process`, {
+  const response = await handler(new Request(`https://example.test/functions/v1/ai-syllabus-jobs/${body.jobId}/process`, {
     method: "GET",
     headers: { Authorization: "Bearer supabase-jwt" },
   }));
@@ -749,7 +749,7 @@ Deno.test("requires the syllabus feature and a Supabase JWT", async () => {
   const invalidFeature = await postCreate(handler, "invalid-feature", {}, "PLAN_GENERATION");
   assert.equal(invalidFeature.status, 400);
 
-  const noAuth = await handler(new Request("https://example.test/ai-syllabus/jobs", { method: "POST" }));
+  const noAuth = await handler(new Request("https://example.test/functions/v1/ai-syllabus-jobs", { method: "POST" }));
   assert.equal(noAuth.status, 401);
 });
 

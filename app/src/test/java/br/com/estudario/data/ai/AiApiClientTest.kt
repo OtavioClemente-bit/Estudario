@@ -54,7 +54,7 @@ class AiApiClientTest {
 
         assertEquals(AiJobStatus.SUCCEEDED, result.status)
         assertEquals(listOf(1000L, 2000L), delays)
-        assertTrue(transport.requests.all { it.path == "/functions/v1/ai-syllabus/jobs/job-1" })
+        assertTrue(transport.requests.all { it.path == "/functions/v1/ai-syllabus-jobs/job-1" })
     }
 
     @Test

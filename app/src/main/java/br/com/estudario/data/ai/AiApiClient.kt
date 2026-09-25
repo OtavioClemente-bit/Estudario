@@ -302,7 +302,7 @@ class HttpAiApiClient(
     companion object {
         private const val AI_FEATURE = "SYLLABUS_GENERATION"
         private const val JSON_CONTENT_TYPE = "application/json; charset=utf-8"
-        private const val FUNCTIONS_JOBS_PATH = "/functions/v1/ai-syllabus/jobs"
+        private const val FUNCTIONS_JOBS_PATH = "/functions/v1/ai-syllabus-jobs"
         private const val STORAGE_BUCKET = "ai-syllabus-sources"
     }
 }

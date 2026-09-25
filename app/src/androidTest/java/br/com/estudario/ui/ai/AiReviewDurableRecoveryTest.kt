@@ -364,7 +364,7 @@ class AiReviewDurableRecoveryTest {
         private var createCount = 0
 
         override suspend fun execute(request: AiHttpRequest): AiHttpResponse {
-            val createPath = request.method == "POST" && request.path == "/functions/v1/ai-syllabus/jobs"
+            val createPath = request.method == "POST" && request.path == "/functions/v1/ai-syllabus-jobs"
             if (createPath) {
                 createRequests += request
                 createdJobIds += "job-1"
