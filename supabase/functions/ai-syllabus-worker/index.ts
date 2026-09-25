@@ -367,7 +367,7 @@ function runtimeEnvironment(): WorkerRuntimeEnvironment {
 }
 function runtimeDependencies(): SyllabusWorkerDependencies & { runtimeStore: SupabaseSyllabusWorkerStore } {
   const environment = runtimeEnvironment();
-  const storage = new SupabaseStorageSourceStore({ supabaseUrl: environment.supabaseUrl, publishableKey: environment.serviceRoleKey, accessToken: environment.serviceRoleKey }, environmentNumber("MAX_PDF_BYTES", 50 * 1024 * 1024));
+  const storage = new SupabaseStorageSourceStore({ supabaseUrl: environment.supabaseUrl, publishableKey: environment.serviceRoleKey, accessToken: environment.serviceRoleKey, serviceRoleKey: environment.serviceRoleKey }, environmentNumber("MAX_PDF_BYTES", 50 * 1024 * 1024));
   const runtimeStore = new SupabaseSyllabusWorkerStore(environment, storage);
   return {
     runtimeStore, jobs: runtimeStore,

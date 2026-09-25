@@ -272,6 +272,7 @@ export interface SupabaseStorageEnvironment {
   supabaseUrl: string;
   publishableKey: string;
   accessToken: string;
+  serviceRoleKey: string;
   fetcher?: typeof fetch;
 }
 
@@ -288,7 +289,7 @@ export class SupabaseStorageSourceStore implements StorageSourceStore {
     try {
       metadataResponse = await fetcher(`${baseUrl}/rest/v1/rpc/get_ai_syllabus_source_metadata`, {
         method: "POST",
-        headers: { ...this.headers(), "content-type": "application/json" },
+        headers: { ...this.rpcHeaders(), "content-type": "application/json" },
         body: JSON.stringify({ p_path: path }),
       });
     } catch {
@@ -338,6 +339,14 @@ export class SupabaseStorageSourceStore implements StorageSourceStore {
     return {
       apikey: this.environment.publishableKey,
       authorization: `Bearer ${this.environment.accessToken}`,
+      accept: "application/json",
+    };
+  }
+
+  private rpcHeaders(): HeadersInit {
+    return {
+      apikey: this.environment.publishableKey,
+      authorization: `Bearer ${this.environment.serviceRoleKey}`,
       accept: "application/json",
     };
   }

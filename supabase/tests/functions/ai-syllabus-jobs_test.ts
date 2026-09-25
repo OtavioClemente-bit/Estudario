@@ -578,6 +578,7 @@ Deno.test("uses the Storage metadata RPC and Storage API, never the storage sche
     supabaseUrl: "http://127.0.0.1:54321",
     publishableKey: "publishable-key",
     accessToken: "supabase-jwt",
+    serviceRoleKey: "service-role-key",
     fetcher: async (input, init) => {
       const request = new Request(input, init);
       requests.push(request);
@@ -598,7 +599,10 @@ Deno.test("uses the Storage metadata RPC and Storage API, never the storage sche
   assert.equal(object?.ownerId, USER_A);
   assert.equal(requests[0].url.includes("/rest/v1/storage.objects"), false);
   assert.equal(requests[0].url.includes("/rest/v1/rpc/get_ai_syllabus_source_metadata"), true);
+  assert.equal(requests[0].headers.get("authorization"), "Bearer service-role-key");
+  assert.equal(requests[0].headers.get("apikey"), "publishable-key");
   assert.equal(new URL(requests[1].url).pathname, `/storage/v1/object/ai-syllabus-sources/${path}`);
+  assert.equal(requests[1].headers.get("authorization"), "Bearer supabase-jwt");
 });
 
 Deno.test("maps the source metadata RPC not-found error to SOURCE_NOT_FOUND", async () => {
@@ -606,6 +610,7 @@ Deno.test("maps the source metadata RPC not-found error to SOURCE_NOT_FOUND", as
     supabaseUrl: "http://127.0.0.1:54321",
     publishableKey: "publishable-key",
     accessToken: "supabase-jwt",
+    serviceRoleKey: "service-role-key",
     fetcher: async () => new Response(JSON.stringify({ code: "P0001", message: "SOURCE_NOT_FOUND" }), { status: 400 }),
   }, 50_000);
 
@@ -620,6 +625,7 @@ Deno.test("does not mislabel an unexpected metadata RPC failure as SOURCE_METADA
     supabaseUrl: "http://127.0.0.1:54321",
     publishableKey: "publishable-key",
     accessToken: "supabase-jwt",
+    serviceRoleKey: "service-role-key",
     fetcher: async () => new Response(JSON.stringify({ message: "upstream unavailable" }), { status: 500 }),
   }, 50_000);
 
@@ -642,6 +648,7 @@ Deno.test("maps Storage download 5xx and timeout failures to SOURCE_LOOKUP_UNAVA
     supabaseUrl: "http://127.0.0.1:54321",
     publishableKey: "publishable-key",
     accessToken: "supabase-jwt",
+    serviceRoleKey: "service-role-key",
     fetcher: async (input) => input.toString().includes("get_ai_syllabus_source_metadata")
       ? metadataResponse()
       : new Response("storage unavailable", { status: 502 }),
@@ -655,6 +662,7 @@ Deno.test("maps Storage download 5xx and timeout failures to SOURCE_LOOKUP_UNAVA
     supabaseUrl: "http://127.0.0.1:54321",
     publishableKey: "publishable-key",
     accessToken: "supabase-jwt",
+    serviceRoleKey: "service-role-key",
     fetcher: async (input) => {
       if (input.toString().includes("get_ai_syllabus_source_metadata")) return metadataResponse();
       throw new TypeError("fetch failed");

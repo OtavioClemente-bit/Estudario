@@ -504,6 +504,8 @@ class AiReviewViewModel(
             error.retryAfterSeconds?.takeIf { it > 0 }?.let { seconds ->
                 "Muitas tentativas em pouco tempo. Tente novamente em ${seconds.coerceAtLeast(1)} segundos."
             } ?: "Muitas tentativas em pouco tempo. Tente novamente em alguns minutos."
+        } else if (error.status >= 500) {
+            "Não foi possível vincular o PDF agora. Tente novamente."
         } else error.message?.takeIf { it.isNotBlank() } ?: "Não foi possível processar este edital."
         else -> error.message?.takeIf { it.isNotBlank() } ?: "Não foi possível processar este edital."
     }

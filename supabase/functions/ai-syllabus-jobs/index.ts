@@ -365,7 +365,7 @@ function runtimeDependencies(request: Request): AiSyllabusJobsDependencies {
   if (!supabaseUrl || !publishableKey || !serviceRoleKey) throw new AuthError("AUTH_UNAVAILABLE", 503);
   return {
     authenticate: authenticateSupabaseRequest,
-    storage: new SupabaseStorageSourceStore({ supabaseUrl, publishableKey, accessToken }, runtimeLimits().maxBytes),
+    storage: new SupabaseStorageSourceStore({ supabaseUrl, publishableKey, accessToken, serviceRoleKey }, runtimeLimits().maxBytes),
     jobs: new SupabaseAiJobStore({ supabaseUrl, publishableKey, accessToken, serviceRoleKey }),
     limits: runtimeLimits(),
     schedule: async () => {
