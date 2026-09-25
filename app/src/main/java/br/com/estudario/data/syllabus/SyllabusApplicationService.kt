@@ -36,6 +36,20 @@ class SyllabusApplicationService(
     private val dao = database.dao()
     private val packageService = EstudoPackageService(database)
 
+    suspend fun findAppliedSyllabus(targetSyllabusId: Long, sourceJobId: String): ApplyResult? {
+        require(targetSyllabusId > 0L) { "targetSyllabusId must be positive" }
+        val normalizedJobId = sourceJobId.trim()
+        if (normalizedJobId.isEmpty()) return null
+        val existing = dao.remoteSyllabusSyncByJobId(normalizedJobId) ?: return null
+        if (existing.jobId != normalizedJobId ||
+            existing.localSyllabusId != targetSyllabusId ||
+            existing.operation != RemoteSyllabusSyncOperation.UPSERT
+        ) {
+            return null
+        }
+        return existing.toResult(normalizedJobId, alreadyApplied = true)
+    }
+
     suspend fun applyReviewedSyllabus(
         targetSyllabusId: Long,
         draft: AiSyllabusDraft,

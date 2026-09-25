@@ -1,6 +1,7 @@
 package br.com.estudario.ui.ai
 
 import br.com.estudario.data.ai.AiAccess
+import br.com.estudario.data.ai.AiJobStatus
 import br.com.estudario.data.local.RemoteSyllabusSyncState
 import br.com.estudario.domain.ai.AiSyllabusDraft
 import br.com.estudario.domain.ai.AiSyllabusDraftTopic
@@ -63,7 +64,11 @@ sealed interface AiReviewContent {
         val validationError: String? = null,
         val confirmReplacement: Boolean = false,
     ) : AiReviewContent
-    data class Failure(val message: String, val canRetry: Boolean = true) : AiReviewContent
+    data class Failure(
+        val message: String,
+        val canRetry: Boolean = true,
+        val terminalStatus: AiJobStatus? = null,
+    ) : AiReviewContent
     data class Applied(val syncState: RemoteSyllabusSyncState) : AiReviewContent
 }
 

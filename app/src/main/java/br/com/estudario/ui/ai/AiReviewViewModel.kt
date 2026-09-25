@@ -66,6 +66,7 @@ class AiReviewStartException(
 interface AiReviewJobs {
     suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted
     suspend fun recover(requestId: String): AiReviewStarted
+    suspend fun retryFailed(requestId: String): AiReviewStarted
     suspend fun recoverPending(): List<AiReviewStarted>
     suspend fun identityForJob(jobId: String): AiReviewRequestIdentity?
 }
@@ -94,6 +95,8 @@ class DefaultAiReviewJobs(
 
     override suspend fun recover(requestId: String): AiReviewStarted = started(repository.recover(requestId))
 
+    override suspend fun retryFailed(requestId: String): AiReviewStarted = started(repository.retryFailed(requestId))
+
     override suspend fun recoverPending(): List<AiReviewStarted> = repository.recoverPendingJobs().map { started(it) }
 
     override suspend fun identityForJob(jobId: String): AiReviewRequestIdentity? = requestStore.list()
@@ -109,6 +112,8 @@ class DefaultAiReviewJobs(
 
 fun interface AiReviewApplier {
     suspend fun apply(targetId: Long, draft: AiSyllabusDraft, jobId: String, replaceExisting: Boolean): ApplyResult
+
+    suspend fun findApplied(targetId: Long, sourceJobId: String): ApplyResult? = null
 }
 
 interface AiReviewSessionStore {
@@ -126,6 +131,8 @@ data class AiReviewPersistedSession(
     val jobId: String = "",
     val idempotencyKey: String,
     val draftJson: String? = null,
+    val applied: Boolean = false,
+    val outboxId: Long? = null,
 )
 
 private val Context.aiReviewSessionDataStore: DataStore<Preferences> by preferencesDataStore(name = "ai_review_sessions")
@@ -214,6 +221,9 @@ class AiReviewViewModel(
     private var pendingIdentity: AiReviewPendingRequestIdentity? = null
     private var pendingSource: AiReviewSource? = null
     private val startMutex = Mutex()
+    private val sessionMutex = Mutex()
+    private var hasAppliedLocally = false
+    private var appliedReconciliationRequired = false
 
     init {
         viewModelScope.launch { refreshAccessAndRestore() }
@@ -250,17 +260,35 @@ class AiReviewViewModel(
     }
 
     fun retry() {
+        if (appliedReconciliationRequired) {
+            viewModelScope.launch { refreshAccessAndRestore() }
+            return
+        }
         val requestId = identity?.requestId ?: pendingIdentity?.requestId ?: return
+        val terminalStatus = (_state.value.content as? AiReviewContent.Failure)?.terminalStatus
         viewModelScope.launch {
-            runCatching { jobs.recover(requestId) }
+            runCatching {
+                if (terminalStatus in RETRYABLE_TERMINAL_STATUSES) jobs.retryFailed(requestId)
+                else jobs.recover(requestId)
+            }
                 .onSuccess { started -> identity = started.identity; render(started.job, started.identity) }
-                .onFailure { fail(safeMessage(it)) }
+                .onFailure { error ->
+                    _state.value = _state.value.copy(
+                        content = AiReviewContent.Failure(
+                            message = safeMessage(error),
+                            terminalStatus = terminalStatus,
+                        ),
+                    )
+                }
         }
     }
 
     fun useFallback() {
         viewModelScope.launch {
-            sessions.clear(targetId)
+            sessionMutex.withLock {
+                sessions.clear(targetId)
+                hasAppliedLocally = false
+            }
             identity = null
             pendingIdentity = null
             _state.value = AiReviewUiState.gate(targetId, targetTitle, _state.value.access)
@@ -269,10 +297,11 @@ class AiReviewViewModel(
 
     private fun apply(replaceExisting: Boolean) {
         val current = _state.value.content as? AiReviewContent.Review ?: return
-        val source = identity?.jobId ?: return
+        val requestIdentity = identity ?: return
         viewModelScope.launch {
             try {
-                val result = applier.apply(targetId, current.draft, source, replaceExisting)
+                val result = applier.apply(targetId, current.draft, requestIdentity.jobId, replaceExisting)
+                saveApplied(requestIdentity, current.draft, result.outboxId)
                 _state.value = _state.value.copy(content = AiReviewContent.Applied(result.state))
                 watchSync(result.outboxId)
             } catch (_: ExistingSyllabusContentException) {
@@ -289,7 +318,47 @@ class AiReviewViewModel(
         _state.value = _state.value.copy(access = access)
         if (access.kind != AiReviewAccessKind.READY) return
         val saved = sessions.load(targetId)
+        if (saved?.applied == true) {
+            appliedReconciliationRequired = false
+            hasAppliedLocally = true
+            val outboxId = saved.outboxId
+            val restoredSyncState = outboxId?.let { runCatching { syncState(it) }.getOrNull() }
+                ?: RemoteSyllabusSyncState.PENDING
+            _state.value = _state.value.copy(content = AiReviewContent.Applied(restoredSyncState))
+            if (outboxId != null && restoredSyncState == RemoteSyllabusSyncState.PENDING) watchSync(outboxId)
+            return
+        }
         if (saved != null) {
+            val savedJobId = saved.jobId.takeIf { it.isNotBlank() }
+            if (savedJobId != null) {
+                appliedReconciliationRequired = true
+                val appliedResult = try {
+                    applier.findApplied(targetId, savedJobId)
+                } catch (error: Throwable) {
+                    fail(safeMessage(error))
+                    return
+                }
+                if (appliedResult != null) {
+                    if (appliedResult.localSyllabusId != targetId ||
+                        appliedResult.sourceJobId != savedJobId ||
+                        appliedResult.outboxId <= 0L
+                    ) {
+                        fail("Não foi possível validar a aplicação local deste edital.")
+                        return
+                    }
+                    sessionMutex.withLock {
+                        sessions.save(saved.copy(applied = true, outboxId = appliedResult.outboxId))
+                        hasAppliedLocally = true
+                    }
+                    appliedReconciliationRequired = false
+                    val restoredSyncState = runCatching { syncState(appliedResult.outboxId) }.getOrNull()
+                        ?: appliedResult.state
+                    _state.value = _state.value.copy(content = AiReviewContent.Applied(restoredSyncState))
+                    if (restoredSyncState == RemoteSyllabusSyncState.PENDING) watchSync(appliedResult.outboxId)
+                    return
+                }
+                appliedReconciliationRequired = false
+            }
             pendingIdentity = AiReviewPendingRequestIdentity(saved.requestId, saved.idempotencyKey, saved.jobId.takeIf { it.isNotBlank() })
             identity = pendingIdentity?.asStartedIdentity()
             if (identity != null) {
@@ -362,7 +431,10 @@ class AiReviewViewModel(
             job.status == AiJobStatus.SUCCEEDED && job.proposal != null -> AiReviewContent.Review(
                 persistedDraftJson?.let { AiReviewDraftCodec.decode(it) } ?: AiSyllabusDraft.fromProposal(targetId, targetTitle, job.proposal),
             )
-            job.status in setOf(AiJobStatus.FAILED, AiJobStatus.EXPIRED, AiJobStatus.CANCELLED) -> AiReviewContent.Failure(job.errorMessage ?: "Não foi possível processar este edital.")
+            job.status in RETRYABLE_TERMINAL_STATUSES -> AiReviewContent.Failure(
+                job.errorMessage ?: "Não foi possível processar este edital.",
+                terminalStatus = job.status,
+            )
             else -> AiReviewContent.Processing(job.jobId, requestIdentity.idempotencyKey)
         }
         _state.value = _state.value.copy(content = content, access = AiReviewAccessState.READY)
@@ -378,16 +450,37 @@ class AiReviewViewModel(
     }
 
     private suspend fun savePending(requestIdentity: AiReviewPendingRequestIdentity, draftJson: String? = null) {
-        sessions.save(
-            AiReviewPersistedSession(
-                targetId = targetId,
-                targetTitle = targetTitle,
-                requestId = requestIdentity.requestId,
-                jobId = requestIdentity.jobId.orEmpty(),
-                idempotencyKey = requestIdentity.idempotencyKey,
-                draftJson = draftJson,
-            ),
-        )
+        sessionMutex.withLock {
+            if (hasAppliedLocally) return@withLock
+            sessions.save(
+                AiReviewPersistedSession(
+                    targetId = targetId,
+                    targetTitle = targetTitle,
+                    requestId = requestIdentity.requestId,
+                    jobId = requestIdentity.jobId.orEmpty(),
+                    idempotencyKey = requestIdentity.idempotencyKey,
+                    draftJson = draftJson,
+                ),
+            )
+        }
+    }
+
+    private suspend fun saveApplied(requestIdentity: AiReviewRequestIdentity, draft: AiSyllabusDraft, outboxId: Long) {
+        sessionMutex.withLock {
+            sessions.save(
+                AiReviewPersistedSession(
+                    targetId = targetId,
+                    targetTitle = targetTitle,
+                    requestId = requestIdentity.requestId,
+                    jobId = requestIdentity.jobId,
+                    idempotencyKey = requestIdentity.idempotencyKey,
+                    draftJson = AiReviewDraftCodec.encode(draft),
+                    applied = true,
+                    outboxId = outboxId,
+                ),
+            )
+            hasAppliedLocally = true
+        }
     }
 
     private fun watchSync(outboxId: Long) {
@@ -406,6 +499,10 @@ class AiReviewViewModel(
     private fun fail(message: String) { _state.value = _state.value.copy(content = AiReviewContent.Failure(message)) }
 
     private fun safeMessage(error: Throwable): String = error.message?.takeIf { it.isNotBlank() } ?: "Não foi possível processar este edital."
+
+    private companion object {
+        val RETRYABLE_TERMINAL_STATUSES = setOf(AiJobStatus.FAILED, AiJobStatus.EXPIRED, AiJobStatus.CANCELLED)
+    }
 }
 
 class AiReviewViewModelFactory(
@@ -423,7 +520,13 @@ class AiReviewViewModelFactory(
             targetId = targetId,
             targetTitle = targetTitle,
             jobs = DefaultAiReviewJobs(app.aiSyllabusRepository, requestStore),
-            applier = AiReviewApplier { id, draft, jobId, replace -> service.applyReviewedSyllabus(id, draft, jobId, replace) },
+            applier = object : AiReviewApplier {
+                override suspend fun apply(targetId: Long, draft: AiSyllabusDraft, jobId: String, replaceExisting: Boolean) =
+                    service.applyReviewedSyllabus(targetId, draft, jobId, replaceExisting)
+
+                override suspend fun findApplied(targetId: Long, sourceJobId: String) =
+                    service.findAppliedSyllabus(targetId, sourceJobId)
+            },
             sessions = DataStoreAiReviewSessionStore(app),
             targetStore = DataStoreAiReviewTargetStore(app),
             accessGateway = DefaultAiReviewAccessGateway(app.aiAccessRepository),

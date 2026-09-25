@@ -133,6 +133,69 @@ class AiReviewViewModelTest {
     }
 
     @Test
+    fun retryingTerminalJobsStartsANewAttemptWhileNonterminalRecoveryKeepsIdentity() {
+        listOf(AiJobStatus.FAILED, AiJobStatus.EXPIRED, AiJobStatus.CANCELLED).forEach { terminalStatus ->
+            val requestId = "request-${terminalStatus.name.lowercase()}"
+            val sessions = FakeSessionStore(
+                AiReviewPersistedSession(42L, "TRT-3", requestId, "job-original", "idem-original"),
+            )
+            val jobs = RetryDispatchJobs(terminalStatus)
+            val viewModel = createViewModel(jobs = jobs, sessions = sessions)
+            await { viewModel.state.value.content is AiReviewContent.Failure }
+
+            viewModel.retry()
+            await { jobs.retryFailedRequests.isNotEmpty() || jobs.recoveredRequests.size > 1 }
+            assertEquals(listOf(requestId), jobs.retryFailedRequests)
+            await { viewModel.state.value.content is AiReviewContent.Processing }
+            await { sessions.saved.lastOrNull()?.idempotencyKey == "idem-retry" }
+
+            assertEquals(listOf(requestId), jobs.recoveredRequests)
+            assertEquals("job-retry", (viewModel.state.value.content as AiReviewContent.Processing).jobId)
+            assertEquals(requestId, sessions.saved.last().requestId)
+            assertEquals("idem-retry", sessions.saved.last().idempotencyKey)
+        }
+
+        val requestId = "request-processing"
+        val sessions = FakeSessionStore(
+            AiReviewPersistedSession(42L, "TRT-3", requestId, "job-original", "idem-original"),
+        )
+        val jobs = NonterminalRetryJobs()
+        val viewModel = createViewModel(jobs = jobs, sessions = sessions)
+        await { jobs.recoveredRequests.size == 1 }
+
+        viewModel.retry()
+        await { jobs.recoveredRequests.size == 2 }
+
+        assertEquals(emptyList<String>(), jobs.retryFailedRequests)
+        assertEquals(listOf(requestId, requestId), jobs.recoveredRequests)
+        assertEquals("job-original", (viewModel.state.value.content as AiReviewContent.Processing).jobId)
+        assertEquals("idem-original", (viewModel.state.value.content as AiReviewContent.Processing).idempotencyKey)
+    }
+
+    @Test
+    fun retryFailedErrorRetainsTerminalRetryPathAndRequestIdentity() {
+        val requestId = "request-terminal-retry"
+        val sessions = FakeSessionStore(
+            AiReviewPersistedSession(42L, "TRT-3", requestId, "job-original", "idem-original"),
+        )
+        val jobs = FailOnceTerminalRetryJobs()
+        val viewModel = createViewModel(jobs = jobs, sessions = sessions)
+        await { viewModel.state.value.content is AiReviewContent.Failure }
+
+        viewModel.retry()
+        await { (viewModel.state.value.content as? AiReviewContent.Failure)?.message == "temporary retry failure" }
+        assertEquals(listOf(requestId), jobs.retryFailedRequests)
+
+        viewModel.retry()
+        await { jobs.retryFailedRequests.size > 1 || jobs.recoveredRequests.size > 1 }
+        assertEquals(listOf(requestId, requestId), jobs.retryFailedRequests)
+        assertEquals(listOf(requestId), jobs.recoveredRequests)
+        await { viewModel.state.value.content is AiReviewContent.Processing }
+        await { sessions.saved.lastOrNull()?.idempotencyKey == "idem-retry" }
+        assertEquals(requestId, sessions.saved.last().requestId)
+    }
+
+    @Test
     fun applyUsesSyllabusApplicationServiceAndPollsUntilAcknowledged() {
         val context = ApplicationProvider.getApplicationContext<Application>()
         val database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
@@ -239,6 +302,8 @@ class AiReviewViewModelTest {
             return AiReviewStarted(job(AiJobStatus.PROCESSING), AiReviewRequestIdentity(requestId, "job-1", "idem-1"))
         }
 
+        override suspend fun retryFailed(requestId: String): AiReviewStarted = error("terminal retry not expected")
+
         override suspend fun recoverPending(): List<AiReviewStarted> = emptyList()
         override suspend fun identityForJob(jobId: String): AiReviewRequestIdentity? = AiReviewRequestIdentity("request-1", jobId, "idem-1")
     }
@@ -261,6 +326,8 @@ class AiReviewViewModelTest {
             return AiReviewStarted(job(AiJobStatus.SUCCEEDED), identity)
         }
 
+        override suspend fun retryFailed(requestId: String): AiReviewStarted = error("terminal retry not expected")
+
         override suspend fun recoverPending(): List<AiReviewStarted> = emptyList()
         override suspend fun identityForJob(jobId: String): AiReviewRequestIdentity? = identity.takeIf { it.jobId == jobId }
     }
@@ -281,6 +348,73 @@ class AiReviewViewModelTest {
         override suspend fun recover(requestId: String): AiReviewStarted {
             recoveredRequests += requestId
             return AiReviewStarted(job(AiJobStatus.SUCCEEDED), pending.asStartedIdentity() ?: AiReviewRequestIdentity(requestId, "job-recovered", pending.idempotencyKey))
+        }
+
+        override suspend fun retryFailed(requestId: String): AiReviewStarted = error("terminal retry not expected")
+
+        override suspend fun recoverPending(): List<AiReviewStarted> = emptyList()
+        override suspend fun identityForJob(jobId: String): AiReviewRequestIdentity? = null
+    }
+
+    private inner class RetryDispatchJobs(
+        private val terminalStatus: AiJobStatus,
+    ) : AiReviewJobs {
+        val recoveredRequests = mutableListOf<String>()
+        val retryFailedRequests = mutableListOf<String>()
+
+        override suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted = error("not expected")
+
+        override suspend fun recover(requestId: String): AiReviewStarted {
+            recoveredRequests += requestId
+            val status = if (recoveredRequests.size == 1) terminalStatus else AiJobStatus.PROCESSING
+            return AiReviewStarted(job(status).copy(jobId = "job-original"), AiReviewRequestIdentity(requestId, "job-original", "idem-original"))
+        }
+
+        override suspend fun retryFailed(requestId: String): AiReviewStarted {
+            retryFailedRequests += requestId
+            return AiReviewStarted(job(AiJobStatus.PROCESSING).copy(jobId = "job-retry"), AiReviewRequestIdentity(requestId, "job-retry", "idem-retry"))
+        }
+
+        override suspend fun recoverPending(): List<AiReviewStarted> = emptyList()
+        override suspend fun identityForJob(jobId: String): AiReviewRequestIdentity? = null
+    }
+
+    private inner class NonterminalRetryJobs : AiReviewJobs {
+        val recoveredRequests = mutableListOf<String>()
+        val retryFailedRequests = mutableListOf<String>()
+
+        override suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted = error("not expected")
+
+        override suspend fun recover(requestId: String): AiReviewStarted {
+            recoveredRequests += requestId
+            return AiReviewStarted(job(AiJobStatus.PROCESSING).copy(jobId = "job-original"), AiReviewRequestIdentity(requestId, "job-original", "idem-original"))
+        }
+
+        override suspend fun retryFailed(requestId: String): AiReviewStarted {
+            retryFailedRequests += requestId
+            error("nonterminal job must be recovered")
+        }
+
+        override suspend fun recoverPending(): List<AiReviewStarted> = emptyList()
+        override suspend fun identityForJob(jobId: String): AiReviewRequestIdentity? = null
+    }
+
+    private inner class FailOnceTerminalRetryJobs : AiReviewJobs {
+        val recoveredRequests = mutableListOf<String>()
+        val retryFailedRequests = mutableListOf<String>()
+
+        override suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted = error("not expected")
+
+        override suspend fun recover(requestId: String): AiReviewStarted {
+            recoveredRequests += requestId
+            val status = if (recoveredRequests.size == 1) AiJobStatus.FAILED else AiJobStatus.PROCESSING
+            return AiReviewStarted(job(status).copy(jobId = "job-original"), AiReviewRequestIdentity(requestId, "job-original", "idem-original"))
+        }
+
+        override suspend fun retryFailed(requestId: String): AiReviewStarted {
+            retryFailedRequests += requestId
+            if (retryFailedRequests.size == 1) throw IllegalStateException("temporary retry failure")
+            return AiReviewStarted(job(AiJobStatus.PROCESSING).copy(jobId = "job-retry"), AiReviewRequestIdentity(requestId, "job-retry", "idem-retry"))
         }
 
         override suspend fun recoverPending(): List<AiReviewStarted> = emptyList()

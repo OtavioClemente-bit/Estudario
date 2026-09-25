@@ -127,3 +127,31 @@ As correções desta rodada permanecem restritas ao commit separado atual da Tas
 - Os três bloqueios acima são testes de setup existentes fora do fluxo IA alterado; corrigi exclusivamente os seis findings da Task 13 e não alterei a máquina de estados nem a implementação do planner para mascará-los.
 - A configuração Supabase/Auth continua fechada; todos os testes usam fakes/fixtures sintéticos.
 - Não avancei para Task 14.
+
+## P1 da revisão independente — reconciliar aplicação Room/outbox no restore
+
+**Reprodução TDD (RED, antes da implementação):** o novo teste instrumentado monta o intervalo entre o commit transacional de `SyllabusApplicationService.applyReviewedSyllabus()` e `saveApplied()`: DataStore contém uma sessão com `applied=false`; o serviço já aplicou a árvore no Room e criou a outbox `PENDING`; um ViewModel novo é então instanciado. Com o código anterior, `AiReviewDurableRecoveryTest` executou 3 testes e falhou apenas no novo cenário: esperava `Applied(PENDING)`, recebeu `Review`; `recover()` foi chamado. A primeira tentativa usando o APK de teste antigo reportou `OK (0 tests)` e foi descartada como não evidência; a reprodução válida ocorreu depois de `:app:assembleDebugAndroidTest` e reinstalação no AVD.
+
+**Resolução:** `SyllabusApplicationService.findAppliedSyllabus(targetSyllabusId, sourceJobId)` usa somente o lookup Room existente `remoteSyllabusSyncByJobId`, aceitando apenas outbox `UPSERT` que corresponda exatamente ao job e target. `AiReviewApplier` expõe esse lookup read-only e a factory o conecta à mesma instância do serviço. Durante restore, uma sessão não marcada como aplicada consulta primeiro a outbox; um resultado coerente grava `applied=true` e `outboxId` no DataStore, apresenta o estado real da sync e chama `watchSync` se ainda estiver `PENDING`. Essa ramificação retorna antes de `jobs.recover()` e não reaplica o edital. Erro de lookup deixa a reconciliação pendente para que Retry consulte novamente; não converte falha de leitura em “não aplicado”. Nenhuma tabela, migration, DAO novo, API ou política foi adicionada.
+
+**Cobertura:** `restoreReconcilesRoomApplyWhenDataStoreMarkerWasNotWrittenBeforeCrash` usa DataStore real, Room in-memory real, `SyllabusApplicationService` e um novo ViewModel. Verifica `applied=false` antes da janela, reconciliação do marcador/outbox ID, UI `Applied(PENDING)`, zero `recover`/reapply, árvore local única, outbox ainda `PENDING` e rejeição de lookup para target/job divergente.
+
+**Verificação desta alteração:**
+
+```powershell
+adb -s emulator-5554 shell am instrument -w -r -e class br.com.estudario.ui.ai.AiReviewDurableRecoveryTest br.com.estudario.test/androidx.test.runner.AndroidJUnitRunner
+adb -s emulator-5554 shell am instrument -w -r -e class br.com.estudario.ui.ai.AiReviewViewModelTest br.com.estudario.test/androidx.test.runner.AndroidJUnitRunner
+.\gradlew.bat :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest --tests br.com.estudario.ui.ai.AiReviewRecoveryTest --no-daemon
+.\gradlew.bat :app:testDebugUnitTest --tests br.com.estudario.ui.ai.AiReviewRecoveryTest --rerun-tasks --no-daemon
+git diff --check
+```
+
+Os dois testes instrumentados passaram no AVD: recovery `OK (3 tests)` e ViewModel `OK (9 tests)`. Compile/assemble e unit recovery passaram; a execução forçada dos unit tests terminou `BUILD SUCCESSFUL` (30 tasks executadas). `git diff --check` passou (exit 0; apenas avisos Git de conversão LF/CRLF).
+
+## Fixes dos dois P2 e revisão final
+
+- Falha terminal `FAILED`/`EXPIRED`/`CANCELLED` agora usa `retryFailed(requestId)`; estados não terminais seguem `recover(requestId)`. Se `retryFailed` falhar, o status terminal permanece no estado para que o próximo retry não volte a `recover`. Os testes `retryingTerminalJobsStartsANewAttemptWhileNonterminalRecoveryKeepsIdentity` e `retryFailedErrorRetainsTerminalRetryPathAndRequestIdentity` verificam chamada, estado, `requestId`, `jobId` e nova idempotency key.
+- A sessão local salva `applied` e `outboxId`; no restart ela restaura `Applied` sem recuperar ou reaplicar, mantendo `PENDING` até ACK. A cobertura de persistência com DataStore/Room reais inclui o crash-window corrigido acima.
+- Verificação final executada no worktree após a última correção: `:app:compileDebugKotlin`, `:app:compileDebugAndroidTestKotlin`, `:app:assembleDebug`, `:app:assembleDebugAndroidTest`, `:app:testDebugUnitTest --tests br.com.estudario.ui.ai.AiReviewRecoveryTest`; depois, `:app:connectedDebugAndroidTest` no `emulator-5554` para `AiReviewDurableRecoveryTest` (3 testes) e `AiReviewViewModelTest` (9 testes). Todos passaram. Revisão independente final: nenhum achado acionável.
+- Nenhum backend, endpoint, política, segredo, migration ou schema foi alterado. Os três failures baseline de setup permanecem sem mudança.
+- Esta entrega é um commit de correção isolado da Task 13; Task 14 ainda não começou.

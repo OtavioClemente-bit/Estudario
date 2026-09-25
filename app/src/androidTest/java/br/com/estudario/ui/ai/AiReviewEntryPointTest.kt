@@ -147,6 +147,7 @@ class AiReviewEntryPointTest {
         }
 
         override suspend fun recover(requestId: String): AiReviewStarted = error("not expected")
+        override suspend fun retryFailed(requestId: String): AiReviewStarted = error("not expected")
         override suspend fun recoverPending(): List<AiReviewStarted> = emptyList()
         override suspend fun identityForJob(jobId: String): AiReviewRequestIdentity? = null
     }

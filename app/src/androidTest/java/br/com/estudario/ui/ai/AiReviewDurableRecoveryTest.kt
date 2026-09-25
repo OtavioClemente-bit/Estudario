@@ -1,17 +1,24 @@
 package br.com.estudario.ui.ai
 
 import android.app.Application
+import androidx.room.Room
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.test.core.app.ApplicationProvider
 import br.com.estudario.data.remote.AiAccessTokenProvider
+import br.com.estudario.data.ai.AiFeature
 import br.com.estudario.data.ai.AiHttpRequest
 import br.com.estudario.data.ai.AiHttpResponse
 import br.com.estudario.data.ai.AiHttpTransport
+import br.com.estudario.data.ai.AiJob
 import br.com.estudario.data.ai.AiJobRequestStore
 import br.com.estudario.data.ai.AiJobStatus
+import br.com.estudario.data.ai.AiPriority
 import br.com.estudario.data.ai.AiPollingPolicy
+import br.com.estudario.data.ai.AiSubjectProposal
+import br.com.estudario.data.ai.AiSyllabusProposal
+import br.com.estudario.data.ai.AiTopicProposal
 import br.com.estudario.data.ai.DefaultAiSyllabusRepository
 import br.com.estudario.data.ai.DataStoreAiJobRequestStore
 import br.com.estudario.data.ai.InMemoryPdfSourceSnapshotStore
@@ -19,7 +26,11 @@ import br.com.estudario.data.ai.PdfSourceInput
 import br.com.estudario.data.ai.PdfSourceProvider
 import br.com.estudario.data.ai.PdfSourceReader
 import br.com.estudario.data.ai.HttpAiApiClient
+import br.com.estudario.data.local.AppDatabase
+import br.com.estudario.data.local.CompetitionEntity
 import br.com.estudario.data.local.RemoteSyllabusSyncState
+import br.com.estudario.data.syllabus.SyllabusApplicationService
+import br.com.estudario.domain.ai.AiSyllabusDraft
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -34,6 +45,155 @@ import java.io.File
 import java.io.IOException
 
 class AiReviewDurableRecoveryTest {
+    @Test
+    fun restoreReconcilesRoomApplyWhenDataStoreMarkerWasNotWrittenBeforeCrash() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        val file = File(context.filesDir, "ai-review-crash-window-${System.nanoTime()}.preferences_pb")
+        val dataStoreScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val dataStore: DataStore<Preferences> = PreferenceDataStoreFactory.create(
+            scope = dataStoreScope,
+            produceFile = { file },
+        )
+        val sessions = DataStoreAiReviewSessionStore(dataStore)
+        val database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+
+        try {
+            database.dao().insertCompetition(CompetitionEntity(id = 42L, name = "TRT-3"))
+            val service = SyllabusApplicationService(database)
+            val firstViewModel = createAppliedViewModel(
+                context = context,
+                jobs = PersistedAppliedTestJobs(),
+                sessions = sessions,
+                applier = AiReviewApplier { _, _, _, _ -> error("simulated process died before marker write") },
+                database = database,
+            )
+            await { firstViewModel.state.value.access.kind == AiReviewAccessKind.READY }
+            firstViewModel.start("content://fixture/applied.pdf", "applied.pdf")
+            await { firstViewModel.state.value.content is AiReviewContent.Review }
+
+            val review = firstViewModel.state.value.content as AiReviewContent.Review
+            val unappliedSession = sessions.load(42L)
+            assertNotNull(unappliedSession)
+            assertEquals("job-applied", unappliedSession?.jobId)
+            assertEquals(false, unappliedSession?.applied)
+
+            // This is the crash window: the Room transaction committed but DataStore still says unapplied.
+            val outbox = service.applyReviewedSyllabus(42L, review.draft, "job-applied")
+            assertEquals(RemoteSyllabusSyncState.PENDING, outbox.state)
+            assertEquals(RemoteSyllabusSyncState.PENDING, database.dao().remoteSyllabusSyncById(outbox.outboxId)?.state)
+            assertEquals(false, sessions.load(42L)?.applied)
+            assertEquals(null, service.findAppliedSyllabus(43L, "job-applied"))
+            assertEquals(null, service.findAppliedSyllabus(42L, "another-job"))
+
+            val restoredJobs = PersistedAppliedTestJobs()
+            var reapplyCalls = 0
+            val restoredViewModel = createAppliedViewModel(
+                context = context,
+                jobs = restoredJobs,
+                sessions = DataStoreAiReviewSessionStore(dataStore),
+                applier = object : AiReviewApplier {
+                    override suspend fun apply(
+                        targetId: Long,
+                        draft: AiSyllabusDraft,
+                        jobId: String,
+                        replaceExisting: Boolean,
+                    ): br.com.estudario.data.syllabus.ApplyResult {
+                        reapplyCalls += 1
+                        error("restore must not reapply")
+                    }
+
+                    override suspend fun findApplied(targetId: Long, sourceJobId: String) =
+                        service.findAppliedSyllabus(targetId, sourceJobId)
+                },
+                database = database,
+            )
+            await {
+                restoredViewModel.state.value.content is AiReviewContent.Review ||
+                    restoredViewModel.state.value.content is AiReviewContent.Applied
+            }
+
+            assertEquals(AiReviewContent.Applied(RemoteSyllabusSyncState.PENDING), restoredViewModel.state.value.content)
+            assertEquals(true, sessions.load(42L)?.applied)
+            assertEquals(outbox.outboxId, sessions.load(42L)?.outboxId)
+            assertEquals(0, restoredJobs.recoverCalls)
+            assertEquals(0, reapplyCalls)
+            assertEquals(RemoteSyllabusSyncState.PENDING, database.dao().remoteSyllabusSyncById(outbox.outboxId)?.state)
+            assertEquals(1, database.dao().subjectsFor(42L).size)
+        } finally {
+            database.close()
+            dataStoreScope.cancel()
+            file.delete()
+        }
+    }
+
+    @Test
+    fun appliedReviewSurvivesRestartWithoutReopeningAndOutboxRemainsPending() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        val file = File(context.filesDir, "ai-review-applied-${System.nanoTime()}.preferences_pb")
+        val dataStoreScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val dataStore: DataStore<Preferences> = PreferenceDataStoreFactory.create(
+            scope = dataStoreScope,
+            produceFile = { file },
+        )
+        val sessions = DataStoreAiReviewSessionStore(dataStore)
+        val database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+
+        try {
+            database.dao().insertCompetition(CompetitionEntity(id = 42L, name = "TRT-3"))
+            val service = SyllabusApplicationService(database)
+            var outboxId: Long? = null
+            val firstJobs = PersistedAppliedTestJobs()
+            val firstViewModel = createAppliedViewModel(
+                context = context,
+                jobs = firstJobs,
+                sessions = sessions,
+                applier = AiReviewApplier { targetId, draft, jobId, replace ->
+                    service.applyReviewedSyllabus(targetId, draft, jobId, replace).also { outboxId = it.outboxId }
+                },
+                database = database,
+            )
+
+            await { firstViewModel.state.value.access.kind == AiReviewAccessKind.READY }
+            firstViewModel.start("content://fixture/applied.pdf", "applied.pdf")
+            await { firstViewModel.state.value.content is AiReviewContent.Review }
+            firstViewModel.apply()
+            await { firstViewModel.state.value.content == AiReviewContent.Applied(RemoteSyllabusSyncState.PENDING) }
+            assertNotNull(outboxId)
+            assertTrue(sessions.load(42L)?.applied == true)
+            assertEquals(outboxId, sessions.load(42L)?.outboxId)
+            assertEquals(RemoteSyllabusSyncState.PENDING, database.dao().remoteSyllabusSyncById(outboxId!!)?.state)
+
+            val restoredJobs = PersistedAppliedTestJobs()
+            val restoredViewModel = createAppliedViewModel(
+                context = context,
+                jobs = restoredJobs,
+                sessions = DataStoreAiReviewSessionStore(dataStore),
+                applier = AiReviewApplier { targetId, draft, jobId, replace ->
+                    service.applyReviewedSyllabus(targetId, draft, jobId, replace)
+                },
+                database = database,
+            )
+            await {
+                restoredViewModel.state.value.content is AiReviewContent.Review ||
+                    restoredViewModel.state.value.content is AiReviewContent.Applied
+            }
+
+            assertEquals(AiReviewContent.Applied(RemoteSyllabusSyncState.PENDING), restoredViewModel.state.value.content)
+            assertEquals(0, restoredJobs.recoverCalls)
+            restoredViewModel.apply()
+            assertEquals(RemoteSyllabusSyncState.PENDING, database.dao().remoteSyllabusSyncById(outboxId!!)?.state)
+            assertEquals(1, database.dao().subjectsFor(42L).size)
+        } finally {
+            database.close()
+            dataStoreScope.cancel()
+            file.delete()
+        }
+    }
+
     @Test
     fun datastoreRestartRecoversPostUploadFailureWithoutCreatingNewJobOrKey() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Application>()
@@ -122,6 +282,71 @@ class AiReviewDurableRecoveryTest {
         pollingPolicy = AiPollingPolicy(timeoutMillis = 5_000L, initialDelayMillis = 1L, maxDelayMillis = 1L),
         sourceSnapshots = snapshots,
     )
+
+    private fun createAppliedViewModel(
+        context: Application,
+        jobs: PersistedAppliedTestJobs,
+        sessions: AiReviewSessionStore,
+        applier: AiReviewApplier,
+        database: AppDatabase,
+    ) = AiReviewViewModel(
+        application = context,
+        targetId = 42L,
+        targetTitle = "TRT-3",
+        jobs = jobs,
+        applier = applier,
+        sessions = sessions,
+        accessGateway = object : AiReviewAccessGateway {
+            override suspend fun check() = AiReviewAccessResult(true, true)
+        },
+        syncState = { id -> database.dao().remoteSyllabusSyncById(id)?.state },
+        syncPollDelayMillis = 60_000L,
+    )
+
+    private class PersistedAppliedTestJobs : AiReviewJobs {
+        var recoverCalls = 0
+
+        override suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted = started()
+
+        override suspend fun recover(requestId: String): AiReviewStarted {
+            recoverCalls += 1
+            return started(requestId)
+        }
+
+        override suspend fun retryFailed(requestId: String): AiReviewStarted = error("terminal retry not expected")
+
+        override suspend fun recoverPending(): List<AiReviewStarted> = emptyList()
+        override suspend fun identityForJob(jobId: String): AiReviewRequestIdentity? =
+            AiReviewRequestIdentity("request-applied", jobId, "idem-applied")
+
+        private fun started(requestId: String = "request-applied") = AiReviewStarted(
+            AiJob(
+                jobId = "job-applied",
+                feature = AiFeature.SYLLABUS_GENERATION,
+                status = AiJobStatus.SUCCEEDED,
+                schemaVersion = 1,
+                promptVersion = "syllabus-v1",
+                modelVersion = "fixture-model",
+                proposal = AiSyllabusProposal(
+                    1,
+                    "syllabus-v1",
+                    "fixture-model",
+                    "Edital",
+                    listOf(AiSubjectProposal("Direito", 0, AiPriority.NORMAL, listOf(AiTopicProposal("Constituição", 0, emptyList(), listOf(1))), listOf(1))),
+                    emptyList(),
+                    emptyList(),
+                ),
+                warnings = emptyList(),
+                errorCode = null,
+                errorMessage = null,
+                createdAt = "2026-09-24T10:00:00Z",
+                updatedAt = "2026-09-24T10:00:01Z",
+                finishedAt = "2026-09-24T10:00:01Z",
+                providerExecutionStartedAt = null,
+            ),
+            AiReviewRequestIdentity(requestId, "job-applied", "idem-applied"),
+        )
+    }
 
     private fun await(condition: () -> Boolean) {
         repeat(400) {
