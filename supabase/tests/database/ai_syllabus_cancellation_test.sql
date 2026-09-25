@@ -83,7 +83,8 @@ set local role postgres;
 update public.ai_jobs
 set source_object_path = '00000000-0000-0000-0000-0000000000c2/processing-lease.pdf', source_hash = repeat('a', 64), source_bytes = 10, source_pages = 1, source_file_count = 1
 where id = (select job_id from cancellation_jobs where label = 'processing-lease');
-set local role authenticated;
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
 select is(
   (select status::text from public.claim_ai_job((select job_id from cancellation_jobs where label = 'processing-lease'), 'cancel-worker', 300)),
   'PROCESSING',
@@ -100,7 +101,7 @@ set local role postgres;
 update public.ai_jobs
 set lease_expires_at = now() - interval '1 second'
 where id = (select job_id from cancellation_jobs where label = 'processing-lease');
-set local role authenticated;
+set local role service_role;
 select is(
   (select status::text from public.cancel_ai_job_without_provider((select job_id from cancellation_jobs where label = 'processing-lease'))),
   'CANCELLED',
@@ -194,12 +195,13 @@ set local role postgres;
 update public.ai_jobs
 set source_object_path = '00000000-0000-0000-0000-0000000000c3/late-completion.pdf', source_hash = repeat('d', 64), source_bytes = 10, source_pages = 1, source_file_count = 1
 where id = (select job_id from cancellation_jobs where label = 'late-completion');
-set local role authenticated;
+set local role service_role;
 select is(
   (select status::text from public.claim_ai_job((select job_id from cancellation_jobs where label = 'late-completion'), 'cancel-late-worker', 300)),
   'PROCESSING',
   'late completion fixture enters PROCESSING'
 );
+set local role authenticated;
 set local role service_role;
 select is(
   (select status::text from public.finalize_ai_job_success_after_cancellation(

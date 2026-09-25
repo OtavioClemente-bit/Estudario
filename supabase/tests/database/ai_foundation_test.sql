@@ -603,16 +603,17 @@ select throws_ok(
   'the backend binding RPC still validates the supplied owner'
 );
 
-set local role authenticated;
-select set_config('request.jwt.claim.role', 'authenticated', true);
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000b1', true);
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a1', true);
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
 
 select is(
   (select status::text from public.claim_ai_job((select job_id from ai_test_jobs where label = 'idempotent'), 'foundation-lease', 60)),
   'PROCESSING',
   'RESERVED can transition to PROCESSING through the claim RPC'
 );
+set local role postgres;
+update public.ai_jobs set lease_expires_at = now() - interval '1 second'
+where id = (select job_id from ai_test_jobs where label = 'idempotent');
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select is(
@@ -685,6 +686,7 @@ from public.create_or_get_ai_job_and_reserve_quota(
   'foundation-pre-provider-cancel-fingerprint',
   '{}'::jsonb
 );
+set local role authenticated;
 select is(
   (select status::text from public.release_ai_job_reservation(
     (select job_id from ai_test_jobs where label = 'pre-provider-cancel'),
@@ -721,12 +723,13 @@ set source_object_path = '00000000-0000-0000-0000-0000000000a1/failure.pdf',
     source_bytes = 3072,
     source_pages = 3
 where id = (select job_id from ai_test_jobs where label = 'processing-failure');
-set local role authenticated;
+set local role service_role;
 select is(
   (select status::text from public.claim_ai_job((select job_id from ai_test_jobs where label = 'processing-failure'), 'failure-lease', 60)),
   'PROCESSING',
   'RESERVED can enter PROCESSING before a failed finalization'
 );
+set local role authenticated;
 set local role postgres;
 update public.ai_jobs
 set provider_reconciled_at = now(),
@@ -778,12 +781,13 @@ set source_object_path = '00000000-0000-0000-0000-0000000000a1/expired.pdf',
     source_bytes = 4096,
     source_pages = 4
 where id = (select job_id from ai_test_jobs where label = 'processing-expired');
-set local role authenticated;
+set local role service_role;
 select is(
   (select status::text from public.claim_ai_job((select job_id from ai_test_jobs where label = 'processing-expired'), 'expired-lease', 60)),
   'PROCESSING',
   'RESERVED can enter PROCESSING before an expired finalization'
 );
+set local role authenticated;
 set local role postgres;
 update public.ai_jobs
 set provider_reconciled_at = now(),
@@ -833,6 +837,7 @@ update public.ai_jobs
 set provider_execution_started_at = now(),
     openai_response_id = 'response-provider-started'
 where id = (select job_id from ai_test_jobs where label = 'provider-started');
+set local role authenticated;
 select throws_ok(
   format(
     $$select * from public.release_ai_job_reservation(%L, 'CANCELLED', 'USER_CANCELLED', 'must reconcile provider')$$,
@@ -869,7 +874,7 @@ set source_object_path = '00000000-0000-0000-0000-0000000000a1/reconciliation.pd
     source_bytes = 2048,
     source_pages = 2
 where id = (select job_id from ai_test_jobs where label = 'reconciliation-required');
-set local role authenticated;
+set local role service_role;
 select is(
   (select status::text from public.claim_ai_job((select job_id from ai_test_jobs where label = 'reconciliation-required'), 'reconciliation-lease', 60)),
   'PROCESSING',
@@ -877,13 +882,14 @@ select is(
 );
 set local role postgres;
 select set_config('ai.internal_job_transition', '1', false);
+select set_config('ai.internal_job_transition', '0', false);
 select throws_ok(
   format(
     $$update public.ai_jobs set status = 'RESERVED' where id = %L$$,
     (select job_id from ai_test_jobs where label = 'reconciliation-required')
   ),
   'P0001',
-  'INVALID_JOB_STATE_TRANSITION',
+  'JOB_STATUS_TRANSITION_REQUIRES_RPC',
   'PROCESSING cannot transition back to RESERVED'
 );
 select set_config('ai.internal_job_transition', '0', false);

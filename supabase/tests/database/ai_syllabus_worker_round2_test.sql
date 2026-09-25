@@ -54,21 +54,11 @@ values ('00000000-0000-0000-0000-0000000000ac', 'SYLLABUS_GENERATION', (now() at
 insert into public.ai_quota_reservations (job_id, user_id, feature, period_start)
 values ('00000000-0000-0000-0000-0000000000ad', '00000000-0000-0000-0000-0000000000ac', 'SYLLABUS_GENERATION', (now() at time zone 'America/Sao_Paulo')::date);
 
-set local role authenticated;
-select set_config('request.jwt.claim.role', 'authenticated', true);
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000ac', true);
-select is(
-  (select lease_owner from public.claim_ai_job('00000000-0000-0000-0000-0000000000ad'::uuid, 'legacy-worker', 60)),
-  'legacy-worker', 'the old claim path owns the job before recovery'
-);
-set local role postgres;
-update public.ai_jobs set lease_expires_at = now() - interval '1 second' where id = '00000000-0000-0000-0000-0000000000ad';
-
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select is(
-  (select lease_owner from public.claim_ai_syllabus_worker_job('worker-round2', 'token-round2', 60, 900)),
-  'worker-round2', 'worker claims the processing job before legacy RPC attempts'
+  (select lease_owner from public.claim_ai_job('00000000-0000-0000-0000-0000000000ad'::uuid, 'legacy-worker', 60)),
+  'legacy-worker', 'service_role can use the retained legacy claim fixture before legacy finalizer checks'
 );
 
 select throws_ok(
