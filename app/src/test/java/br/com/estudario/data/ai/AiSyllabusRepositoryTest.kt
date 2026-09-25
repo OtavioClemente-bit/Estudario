@@ -149,6 +149,73 @@ class AiSyllabusRepositoryTest {
         assertEquals(AiJobStatus.FAILED, failed.status)
     }
 
+    @Test
+    fun retryAfterTerminalRetryPartiallyPersistsRecoversTheNewReservedJob() = runTest {
+        val api = StatefulFakeAiApiClient(nextJob = job(AiJobStatus.CANCELLED))
+        val store = InMemoryAiJobRequestStore()
+        val repository = repository(api, store, snapshots = InMemoryPdfSourceSnapshotStore())
+        repository.start("content://edital", "edital.pdf")
+        val oldRequest = store.values.values.single()
+        val oldKey = oldRequest.idempotencyKey
+
+        api.nextJob = job(AiJobStatus.SUCCEEDED)
+        api.processFailure = AiApiException("TEMPORARY", 503)
+        assertTrue(runCatching { repository.resumeOrRetry(oldRequest.requestId) }.isFailure)
+        val partiallyRetried = store.values.getValue(oldRequest.requestId)
+        assertEquals(AiJobStatus.RESERVED.name, partiallyRetried.status)
+        assertNotEquals(oldKey, partiallyRetried.idempotencyKey)
+        val newJobId = partiallyRetried.jobId
+        val retryKey = partiallyRetried.idempotencyKey
+
+        api.processFailure = null
+        val recovered = repository.resumeOrRetry(oldRequest.requestId)
+
+        assertEquals(AiJobStatus.SUCCEEDED, recovered.status)
+        assertEquals(oldRequest.requestId, store.values.values.single().requestId)
+        assertEquals(newJobId, store.values.getValue(oldRequest.requestId).jobId)
+        assertEquals(retryKey, store.values.getValue(oldRequest.requestId).idempotencyKey)
+        assertEquals(2, api.uniqueJobIds.size)
+        assertEquals(2, api.idempotencyKeys.distinct().size)
+    }
+
+    @Test
+    fun resumeOrRetryCreatesNewAttemptOnlyForCurrentRetryableTerminalStatus() = runTest {
+        listOf(AiJobStatus.FAILED, AiJobStatus.EXPIRED, AiJobStatus.CANCELLED).forEach { terminal ->
+            val api = StatefulFakeAiApiClient(nextJob = job(terminal))
+            val store = InMemoryAiJobRequestStore()
+            val repository = repository(api, store)
+            repository.start("content://edital", "edital.pdf")
+            val requestId = store.values.values.single().requestId
+            api.nextJob = job(AiJobStatus.SUCCEEDED)
+
+            repository.resumeOrRetry(requestId)
+
+            assertEquals("$terminal should create one fresh job", 2, api.uniqueJobIds.size)
+            assertEquals("$terminal should use one fresh idempotency key", 2, api.idempotencyKeys.distinct().size)
+            assertEquals(requestId, store.values.getValue(requestId).requestId)
+        }
+    }
+
+    @Test
+    fun resumeOrRetryRecoversReservedProcessingAndSucceededJobsWithoutNewAttempt() = runTest {
+        listOf<AiJobStatus?>(AiJobStatus.RESERVED, AiJobStatus.PROCESSING, AiJobStatus.SUCCEEDED, null).forEach { status ->
+            val api = StatefulFakeAiApiClient(nextJob = job(status ?: AiJobStatus.PROCESSING))
+            val store = InMemoryAiJobRequestStore()
+            val repository = repository(api, store)
+            repository.start("content://edital", "edital.pdf")
+            val saved = store.values.values.single()
+            if (status == AiJobStatus.RESERVED || status == null) {
+                store.save(saved.copy(status = status?.name))
+            }
+            api.nextJob = job(AiJobStatus.SUCCEEDED)
+
+            repository.resumeOrRetry(saved.requestId)
+
+            assertEquals("$status must reuse the existing job", 1, api.uniqueJobIds.size)
+            assertEquals("$status must reuse the existing idempotency key", 1, api.idempotencyKeys.distinct().size)
+        }
+    }
+
     private fun repository(
         api: AiApiClient,
         store: InMemoryAiJobRequestStore,
@@ -277,6 +344,7 @@ private class FakeAiApiClient(
 private class StatefulFakeAiApiClient(
     var nextJob: AiJob = fakeJob(AiJobStatus.PROCESSING),
 ) : AiApiClient {
+    var processFailure: Throwable? = null
     val idempotencyKeys = mutableListOf<String>()
     val uniqueJobIds = linkedSetOf<String>()
     private val jobsByFingerprint = linkedMapOf<Pair<String, String>, String>()
@@ -295,7 +363,10 @@ private class StatefulFakeAiApiClient(
     }
 
     override suspend fun uploadSource(target: AiUploadTarget, source: PdfSource) = Unit
-    override suspend fun processJob(jobId: String): AiJobStatus = AiJobStatus.PROCESSING
+    override suspend fun processJob(jobId: String): AiJobStatus {
+        processFailure?.let { throw it }
+        return AiJobStatus.PROCESSING
+    }
     override suspend fun getJob(jobId: String, timeoutMillis: Long?): AiJob = nextJob.copy(jobId = jobId)
     override suspend fun awaitJob(jobId: String, policy: AiPollingPolicy, sleeper: suspend (Long) -> Unit, clockMillis: () -> Long): AiJob = nextJob.copy(jobId = jobId)
 }

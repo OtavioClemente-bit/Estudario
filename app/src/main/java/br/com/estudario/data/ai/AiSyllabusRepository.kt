@@ -126,6 +126,14 @@ class DefaultAiSyllabusRepository(
         return continueRequest(retry, source)
     }
 
+    /** Resumes the latest persisted attempt, retrying only when that attempt is terminal. */
+    suspend fun resumeOrRetry(requestId: String): AiJob {
+        requireAuthenticated()
+        val request = requestStore.get(requestId) ?: throw IllegalArgumentException("AI request not found.")
+        val status = request.status?.let { runCatching { AiJobStatus.valueOf(it) }.getOrNull() }
+        return if (status in RETRYABLE_TERMINAL_STATUSES) retryFailed(requestId) else recover(requestId)
+    }
+
     override suspend fun recoverPendingJobs(): List<AiJob> = buildList {
         requireAuthenticated()
         requestStore.list()
@@ -236,6 +244,11 @@ class DefaultAiSyllabusRepository(
     )
 
     private companion object {
+        val RETRYABLE_TERMINAL_STATUSES = setOf(
+            AiJobStatus.FAILED,
+            AiJobStatus.EXPIRED,
+            AiJobStatus.CANCELLED,
+        )
         val TERMINAL_STATUSES = setOf(
             AiJobStatus.SUCCEEDED.name,
             AiJobStatus.FAILED.name,

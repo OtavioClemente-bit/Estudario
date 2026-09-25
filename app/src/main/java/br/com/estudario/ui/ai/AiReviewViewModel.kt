@@ -68,6 +68,7 @@ interface AiReviewJobs {
     suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted
     suspend fun recover(requestId: String): AiReviewStarted
     suspend fun retryFailed(requestId: String): AiReviewStarted
+    suspend fun resumeOrRetry(requestId: String): AiReviewStarted = recover(requestId)
     suspend fun recoverPending(): List<AiReviewStarted>
     suspend fun identityForJob(jobId: String): AiReviewRequestIdentity?
 }
@@ -97,6 +98,8 @@ class DefaultAiReviewJobs(
     override suspend fun recover(requestId: String): AiReviewStarted = started(repository.recover(requestId))
 
     override suspend fun retryFailed(requestId: String): AiReviewStarted = started(repository.retryFailed(requestId))
+
+    override suspend fun resumeOrRetry(requestId: String): AiReviewStarted = started(repository.resumeOrRetry(requestId))
 
     override suspend fun recoverPending(): List<AiReviewStarted> = repository.recoverPendingJobs().map { started(it) }
 
@@ -266,7 +269,6 @@ class AiReviewViewModel(
             return
         }
         val requestId = identity?.requestId ?: pendingIdentity?.requestId ?: return
-        val terminalStatus = (_state.value.content as? AiReviewContent.Failure)?.terminalStatus
         val retryJobId = identity?.jobId ?: pendingIdentity?.jobId
         val retryIdempotencyKey = identity?.idempotencyKey ?: pendingIdentity?.idempotencyKey
         if (retryJobId != null && retryIdempotencyKey != null) {
@@ -276,15 +278,14 @@ class AiReviewViewModel(
         }
         viewModelScope.launch {
             runCatching {
-                if (terminalStatus in RETRYABLE_TERMINAL_STATUSES) jobs.retryFailed(requestId)
-                else jobs.recover(requestId)
+                jobs.resumeOrRetry(requestId)
             }
                 .onSuccess { started -> identity = started.identity; render(started.job, started.identity) }
                 .onFailure { error ->
                     _state.value = _state.value.copy(
                         content = AiReviewContent.Failure(
                             message = safeMessage(error),
-                            terminalStatus = terminalStatus,
+                            terminalStatus = null,
                         ),
                     )
                 }
