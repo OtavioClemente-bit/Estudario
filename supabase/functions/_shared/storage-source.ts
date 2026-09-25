@@ -273,6 +273,7 @@ export interface SupabaseStorageEnvironment {
   publishableKey: string;
   accessToken: string;
   serviceRoleKey: string;
+  serviceRoleJwt?: string;
   fetcher?: typeof fetch;
 }
 
@@ -344,6 +345,14 @@ export class SupabaseStorageSourceStore implements StorageSourceStore {
   }
 
   private rpcHeaders(): HeadersInit {
+    const serviceRoleJwt = this.environment.serviceRoleJwt?.trim();
+    if (serviceRoleJwt) {
+      return {
+        apikey: serviceRoleJwt,
+        authorization: `Bearer ${serviceRoleJwt}`,
+        accept: "application/json",
+      };
+    }
     if (this.environment.serviceRoleKey.startsWith("sb_secret_")) {
       return {
         apikey: this.environment.serviceRoleKey,

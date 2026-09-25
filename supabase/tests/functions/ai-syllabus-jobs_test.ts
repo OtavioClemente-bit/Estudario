@@ -637,6 +637,37 @@ Deno.test("uses a Supabase secret key only as apikey for metadata while keeping 
   assert.equal(requests[1].headers.get("authorization"), "Bearer supabase-jwt");
 });
 
+Deno.test("uses an explicitly configured legacy service-role JWT for backend-only metadata RPCs", async () => {
+  const body = pdf(1);
+  const path = sourcePathForJob(USER_A, "storage-legacy-jwt");
+  const requests: Request[] = [];
+  const store = new SupabaseStorageSourceStore({
+    supabaseUrl: "http://127.0.0.1:54321",
+    publishableKey: "publishable-key",
+    accessToken: "supabase-jwt",
+    serviceRoleKey: "sb_secret_backend-key",
+    serviceRoleJwt: "legacy-service-role-jwt",
+    fetcher: async (input, init) => {
+      const request = new Request(input, init);
+      requests.push(request);
+      if (request.url.includes("/rpc/get_ai_syllabus_source_metadata")) {
+        return new Response(JSON.stringify([{
+          bucket_id: "ai-syllabus-sources",
+          name: path,
+          owner: USER_A,
+          metadata: { mimetype: "application/pdf", size: body.byteLength },
+        }]), { status: 200 });
+      }
+      return new Response(body.buffer as ArrayBuffer, { status: 200 });
+    },
+  }, 50_000);
+
+  await store.getObject(USER_A, path);
+  assert.equal(requests[0].headers.get("apikey"), "legacy-service-role-jwt");
+  assert.equal(requests[0].headers.get("authorization"), "Bearer legacy-service-role-jwt");
+  assert.equal(requests[1].headers.get("authorization"), "Bearer supabase-jwt");
+});
+
 Deno.test("maps the source metadata RPC not-found error to SOURCE_NOT_FOUND", async () => {
   const store = new SupabaseStorageSourceStore({
     supabaseUrl: "http://127.0.0.1:54321",
