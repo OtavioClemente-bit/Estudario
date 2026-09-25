@@ -324,10 +324,10 @@
 
 **Steps:**
 
-- [ ] Write failing tests for one combined local/remote row, remote-only download, local-only offline state, deletion of local data while retaining the private remote copy, and deletion from the account.
-- [ ] Implement list merging by stable local/remote syllabus identity, not by display name. A selected target plus imported file must render as one edital.
-- [ ] Add restore/download actions that use the lossless mapper from Task 12 and show pending/failed synchronization honestly.
-- [ ] Make tests pass and commit as `feat: add private syllabus library UI`.
+- [x] Write failing tests for one combined local/remote row, remote-only download, local-only offline state, deletion of local data while retaining the private remote copy, and deletion from the account.
+- [x] Implement list merging by stable local/remote syllabus identity, not by display name. A selected target plus imported file must render as one edital.
+- [x] Add restore/download actions that use the lossless mapper from Task 12 and show pending/failed synchronization honestly.
+- [x] Make tests pass and commit as `feat: add private syllabus library UI`.
 
 **Dependency:** Tasks 2, 11, and 12.
 

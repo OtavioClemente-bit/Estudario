@@ -11,6 +11,9 @@ import br.com.estudario.data.local.RemoteSyllabusSyncOperation
 import br.com.estudario.data.local.RemoteSyllabusSyncState as LocalRemoteSyllabusSyncState
 import br.com.estudario.data.transfer.EstudoPackageService
 import br.com.estudario.data.transfer.ImportMode
+import br.com.estudario.data.StudyRepository
+import br.com.estudario.ui.library.DefaultMySyllabiLibrary
+import br.com.estudario.data.remote.PrivateSyllabusLibraryRepository
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -138,6 +141,107 @@ class PrivateSyllabusRepositoryTest {
         assertTrue(backend.remote != null)
         repository.syncOutbox(deleteRow)
         assertTrue(backend.remote == null)
+    }
+
+    @Test
+    fun deletingFromAccountUsesAcknowledgedRemoteDeleteAndKeepsLocalCopy() = runDatabase { database ->
+        val packageJson = officialPackage()
+        val remote = RemoteSyllabusMapper.fromLocal(
+            CompetitionEntity(id = 52L, name = "Edital privado", externalId = "competition-private"),
+            packageJson,
+            sha256(packageJson),
+        )
+        val backend = TransactionalPrivateSyllabusBackend(remote)
+        val localId = database.dao().insertCompetition(
+            CompetitionEntity(name = "Cópia local", externalId = "competition-private", remoteSyllabusId = remote.remoteSyllabusId),
+        )
+        val repository = PrivateSyllabusRepository(database, backend)
+
+        repository.deleteRemote(remote.remoteSyllabusId)
+
+        assertEquals(null, backend.remote)
+        assertEquals("Cópia local", database.dao().competitionById(localId)?.name)
+
+        backend.upsert(remote, "re-upload-after-delete", sha256(packageJson))
+        repository.deleteRemote(remote.remoteSyllabusId)
+        assertEquals(null, backend.remote)
+    }
+
+    @Test
+    fun libraryDownloadRestoresRemoteOnlySyllabusThroughOfficialMapper() = runDatabase { database ->
+        val packageJson = officialPackage()
+        val expectedRemote = RemoteSyllabusMapper.fromLocal(
+            CompetitionEntity(id = 63L, name = "Edital restaurável", externalId = "competition-restore"),
+            packageJson,
+            sha256(packageJson),
+        )
+        val backend = TransactionalPrivateSyllabusBackend(expectedRemote)
+        val library = DefaultMySyllabiLibrary(StudyRepository(database), PrivateSyllabusRepository(database, backend))
+
+        val restoredId = library.download(expectedRemote.remoteSyllabusId)
+
+        val restored = database.dao().competitionById(restoredId)!!
+        assertEquals(expectedRemote.remoteSyllabusId, restored.remoteSyllabusId)
+        assertEquals("competition-official", restored.externalId)
+        val subjects = database.dao().subjectsFor(restoredId)
+        assertEquals(listOf("subject-official", "subject-second"), subjects.map { it.externalId })
+        val topics = subjects.flatMap { database.dao().topicsFor(it.id) }
+        assertEquals(setOf("topic-sibling", "topic-official", "child-official", "child-second", "topic-second", "child-third"), topics.mapNotNull { it.externalId }.toSet())
+        assertEquals("topic-official", topics.single { it.externalId == "child-official" }.let { child ->
+            topics.single { it.id == child.parentTopicId }.externalId
+        })
+        assertEquals(packageJson, RemoteSyllabusMapper.toOfficialPackage(backend.remote!!))
+    }
+
+    @Test
+    fun downloadWithoutCanonicalPayloadFailsBeforeAnyRoomWrite() = runDatabase { database ->
+        val packageJson = officialPackage()
+        val remote = RemoteSyllabusMapper.fromLocal(
+            CompetitionEntity(id = 84L, name = "Edital sem snapshot", externalId = "competition-missing-canonical"),
+            packageJson,
+            sha256(packageJson),
+        ).let { it.copy(metadata = withoutCanonicalPayload(it.metadata)) }
+        val repository = PrivateSyllabusRepository(database, TransactionalPrivateSyllabusBackend(remote))
+
+        val failure = runCatching { repository.download(remote.remoteSyllabusId) }.exceptionOrNull()
+
+        assertTrue("A restore without canonicalPayload must fail with a typed error.", failure is PrivateSyllabusCanonicalPayloadMissingException)
+        assertTrue(database.dao().competitionsOnce().isEmpty())
+        assertTrue(database.dao().subjectsOnce().isEmpty())
+        assertTrue(database.dao().topicsOnce().isEmpty())
+    }
+
+    @Test
+    fun removeFromDeviceDeletesRoomCopyWithoutDeletingPrivateRemoteCopy() = runDatabase { database ->
+        val packageJson = officialPackage()
+        val remote = RemoteSyllabusMapper.fromLocal(
+            CompetitionEntity(id = 76L, name = "Edital privado", externalId = "competition-local-remove"),
+            packageJson,
+            sha256(packageJson),
+        )
+        val localId = database.dao().insertCompetition(
+            CompetitionEntity(name = "Cópia local", externalId = "competition-local-remove", remoteSyllabusId = remote.remoteSyllabusId),
+        )
+        val fakeRepository = FakePrivateSyllabusLibraryRepository(remote)
+        val library = DefaultMySyllabiLibrary(StudyRepository(database), fakeRepository)
+
+        library.removeFromDevice(localId)
+
+        assertEquals(null, database.dao().competitionById(localId))
+        assertEquals(remote, fakeRepository.remoteCopy)
+        assertEquals(0, fakeRepository.deleteRequests)
+    }
+
+    private class FakePrivateSyllabusLibraryRepository(
+        val remoteCopy: PrivateSyllabus,
+    ) : PrivateSyllabusLibraryRepository {
+        var deleteRequests = 0
+
+        override suspend fun listRemote(): List<PrivateSyllabus> = listOf(remoteCopy)
+        override suspend fun download(remoteSyllabusId: String): Long = error("Not used by this test")
+        override suspend fun deleteRemote(remoteSyllabusId: String) {
+            deleteRequests++
+        }
     }
 
     private suspend fun tree(database: AppDatabase, competitionId: Long): TreeSnapshot {

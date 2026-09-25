@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FactCheck
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.NotificationsActive
@@ -191,10 +192,12 @@ fun estudarioDrawerSections(
     onSyncCalendar: () -> Unit,
     onHelp: () -> Unit,
     onFocusHistory: () -> Unit = onFocus,
+    onMySyllabi: () -> Unit = {},
 ): List<DrawerSection> = listOf(
     DrawerSection(
         "Estudos",
         listOf(
+            DrawerEntry("Meus editais", Icons.Outlined.FolderOpen, onMySyllabi, "my-syllabi"),
             DrawerEntry("Edital", Icons.Outlined.Checklist, onSyllabus, "syllabus"),
             DrawerEntry("Plano de estudos", Icons.Outlined.CalendarMonth, onPlan, "plan"),
             DrawerEntry("Treinar questões", Icons.Outlined.School, onTrain, "train"),

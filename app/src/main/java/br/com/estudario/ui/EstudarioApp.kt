@@ -57,6 +57,9 @@ import br.com.estudario.ui.tour.tourKeyForRoute
 import br.com.estudario.ui.tour.tourSteps
 import br.com.estudario.ui.tour.tourTarget
 import br.com.estudario.ui.navigation.EstudarioDrawerContent
+import br.com.estudario.ui.library.MySyllabiScreen
+import br.com.estudario.ui.library.MySyllabiViewModel
+import br.com.estudario.ui.library.MySyllabiViewModelFactory
 import br.com.estudario.ui.navigation.EstudarioTopBar
 import br.com.estudario.ui.navigation.estudarioDrawerSections
 import br.com.estudario.ui.navigation.FocusNavigationIcon
@@ -257,6 +260,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     totalXp = progress?.totalXp,
                     currentRoute = currentRoute,
                     sections = estudarioDrawerSections(
+                        onMySyllabi = { abrirDoMenu("my-syllabi") },
                         onSyllabus = { abrirAbaDoMenu("syllabus") },
                         onPlan = { abrirAbaDoMenu("plan") },
                         onTrain = { abrirAbaDoMenu("train") },
@@ -290,6 +294,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     }),
                     title = when {
                         currentRoute == "profile" -> "Perfil"
+                        currentRoute == "my-syllabi" -> "Meus editais"
                         currentRoute == "badges" -> "Emblemas"
                         currentRoute == "sources" -> "Histórico e fontes"
                         currentRoute == "focus-history" -> "Histórico de foco"
@@ -361,6 +366,11 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     )
                 }
                 composable("syllabus") { EditalScreen(viewModel, onTopic = { navController.navigate("topic/$it") }, onHelp = { showHelpGuidePicker = true }) }
+                composable("my-syllabi") {
+                    val application = LocalContext.current.applicationContext as EstudarioApplication
+                    val libraryViewModel: MySyllabiViewModel = viewModel(factory = MySyllabiViewModelFactory(application))
+                    MySyllabiScreen(libraryViewModel)
+                }
                 composable("focus") {
                     // Migra aberturas antigas da rota para a janela sobreposta sem deixar a aba no histórico.
                     LaunchedEffect(Unit) {

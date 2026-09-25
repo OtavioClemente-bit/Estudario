@@ -17,6 +17,8 @@ interface AppDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun enqueueRemoteSyllabusSync(value: RemoteSyllabusSyncEntity): Long
+    @Query("SELECT * FROM remote_syllabus_sync ORDER BY localSyllabusId, updatedAt DESC")
+    fun observeRemoteSyllabusSync(): Flow<List<RemoteSyllabusSyncEntity>>
     @Query("SELECT * FROM remote_syllabus_sync WHERE state = 'PENDING' AND (lastError IS NULL OR lastError != 'SUPERSEDED') AND nextAttemptAt <= :now ORDER BY nextAttemptAt, createdAt, id")
     suspend fun pendingRemoteSyllabusSync(now: Long): List<RemoteSyllabusSyncEntity>
     @Query("SELECT * FROM remote_syllabus_sync WHERE state = 'FAILED' AND (lastError IS NULL OR lastError != 'SUPERSEDED') AND nextAttemptAt <= :now ORDER BY nextAttemptAt, createdAt, id")

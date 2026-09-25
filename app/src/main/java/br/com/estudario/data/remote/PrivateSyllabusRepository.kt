@@ -13,18 +13,32 @@ import br.com.estudario.data.transfer.ImportMode
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import java.util.UUID
 
 open class PrivateSyllabusApiException(val code: String, val status: Int) : IllegalStateException("Private syllabus API failed: $code")
 
 class PrivateSyllabusNotFoundException(remoteSyllabusId: String) : PrivateSyllabusApiException("NOT_FOUND", 404)
+
+class PrivateSyllabusCanonicalPayloadMissingException(remoteSyllabusId: String) :
+    IllegalStateException("Private syllabus $remoteSyllabusId has no canonical package snapshot.")
 
 interface PrivateSyllabusRemoteApi {
     suspend fun list(): List<PrivateSyllabus>
     suspend fun get(remoteSyllabusId: String): PrivateSyllabus?
     suspend fun upsert(syllabus: PrivateSyllabus, mutationId: String, payloadHash: String): RemoteSyllabusSyncAcknowledgement
     suspend fun delete(remoteSyllabusId: String, mutationId: String, payloadHash: String): RemoteSyllabusSyncAcknowledgement
+}
+
+/** Narrow boundary for library operations; keeps UI tests independent of HTTP/auth. */
+interface PrivateSyllabusLibraryRepository {
+    suspend fun listRemote(): List<PrivateSyllabus>
+    suspend fun download(remoteSyllabusId: String): Long
+    suspend fun deleteRemote(remoteSyllabusId: String)
 }
 
 class HttpPrivateSyllabusRemoteApi(
@@ -115,12 +129,33 @@ class HttpPrivateSyllabusRemoteApi(
 class PrivateSyllabusRepository(
     private val database: AppDatabase,
     private val api: PrivateSyllabusRemoteApi,
-) {
+) : PrivateSyllabusLibraryRepository {
     private val dao = database.dao()
 
-    suspend fun listRemote(): List<PrivateSyllabus> = api.list()
+    override suspend fun listRemote(): List<PrivateSyllabus> = api.list()
 
     suspend fun getRemote(remoteSyllabusId: String): PrivateSyllabus? = api.get(remoteSyllabusId)
+
+    /** Explicitly deletes only the private account copy; local Room data is untouched. */
+    override suspend fun deleteRemote(remoteSyllabusId: String) {
+        require(remoteSyllabusId.isNotBlank()) { "Remote syllabus identity is required for deletion." }
+        val payloadHash = MessageDigest.getInstance("SHA-256")
+            .digest("delete:$remoteSyllabusId".toByteArray(StandardCharsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        val acknowledgement = try {
+            api.delete(
+                remoteSyllabusId = remoteSyllabusId,
+                mutationId = "library-delete-${UUID.randomUUID()}",
+                payloadHash = payloadHash,
+            )
+        } catch (error: PrivateSyllabusApiException) {
+            if (error.code == "NOT_FOUND") return
+            throw error
+        }
+        check(acknowledgement.state == RemoteSyllabusSyncState.SYNCED && acknowledgement.remoteSyllabusId == remoteSyllabusId) {
+            "The remote account deletion was not acknowledged."
+        }
+    }
 
     suspend fun syncOutbox(row: RemoteSyllabusSyncEntity): RemoteSyllabusSyncAcknowledgement {
         val mutationId = row.jobId?.takeIf { it.isNotBlank() } ?: "local-mutation-${row.id}"
@@ -155,8 +190,14 @@ class PrivateSyllabusRepository(
     }
 
     /** Downloads without AI and associates the same remote identity with the restored local row. */
-    suspend fun download(remoteSyllabusId: String, replaceExisting: Boolean = false): Long {
+    override suspend fun download(remoteSyllabusId: String): Long = download(remoteSyllabusId, replaceExisting = false)
+
+    suspend fun download(remoteSyllabusId: String, replaceExisting: Boolean): Long {
         val remote = api.get(remoteSyllabusId) ?: throw PrivateSyllabusNotFoundException(remoteSyllabusId)
+        val canonicalPayload = (remote.metadata["canonicalPayload"] as? JsonPrimitive)?.contentOrNull
+        if (canonicalPayload.isNullOrBlank() || canonicalPayload == "null") {
+            throw PrivateSyllabusCanonicalPayloadMissingException(remote.remoteSyllabusId)
+        }
         val packageJson = RemoteSyllabusMapper.toOfficialPackage(remote)
         return database.withTransaction {
             val existing = dao.competitionByRemoteSyllabusId(remote.remoteSyllabusId)

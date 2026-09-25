@@ -75,6 +75,9 @@ class StudyRepository(private val db: AppDatabase) {
             dao.setPrimaryCompetition(remaining.first().id)
         }
     }
+    suspend fun removeCompetition(competitionId: Long) {
+        dao.competitionById(competitionId)?.let { deleteCompetition(it) }
+    }
     suspend fun addSubject(competitionId: Long, name: String) = dao.insertSubject(SubjectEntity(competitionId = competitionId, name = name.trim(), position = dao.subjectsFor(competitionId).size))
     suspend fun setSubjectPriorityOverride(id: Long, override: PriorityLevel?) {
         dao.subjectsOnce().firstOrNull { it.id == id }?.let { dao.updateSubject(it.copy(userPriorityOverride = override)) }
