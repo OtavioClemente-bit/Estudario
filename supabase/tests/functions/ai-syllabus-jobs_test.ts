@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { PDFDocument } from "npm:pdf-lib@1.17.1";
 import {
   createAiSyllabusJobsHandler,
   sourcePathForJob,
@@ -413,6 +414,25 @@ Deno.test("enforces server-side byte, page, and file limits", async () => {
     assert.equal(body.error.code, item.code);
     assert.equal(jobs.releaseCalls.length, 1);
   }
+});
+
+Deno.test("accepts a valid object-stream PDF and counts its page tree", async () => {
+  const document = await PDFDocument.create();
+  document.addPage();
+  document.addPage();
+  const modernPdf = new Uint8Array(await document.save({ useObjectStreams: true }));
+  const storage = new FakeStorage();
+  const jobs = new FakeJobStore();
+  const source = objectFor(USER_A, "modern-object-stream", modernPdf);
+  storage.objects.set(source.path, source);
+  const handler = createAiSyllabusJobsHandler(dependencies(USER_A, storage, jobs));
+
+  const response = await postCreate(handler, "modern-object-stream", { ready: true });
+  const body = await response.json();
+
+  assert.equal(response.status, 201);
+  assert.equal(body.sourceBound, true);
+  assert.equal(jobs.records.get(body.jobId)?.sourcePages, 2);
 });
 
 Deno.test("binds exact path, server SHA-256, counts, and metadata before processing", async () => {

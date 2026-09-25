@@ -1,3 +1,5 @@
+import { PDFDocument } from "npm:pdf-lib@1.17.1";
+
 export const AI_SYLLABUS_SOURCE_BUCKET = "ai-syllabus-sources";
 
 export interface StorageSourceLimits {
@@ -132,7 +134,7 @@ function maskPdfNonStructuralRegions(text: string): string | null {
   return chars.join("");
 }
 
-function countPdfPages(body: Uint8Array): number {
+function countPdfPagesLegacy(body: Uint8Array): number {
   const text = new TextDecoder("latin1").decode(body);
   if (!/^%PDF-\d\.\d(?:\s|$)/.test(text)) return 0;
   const eofIndex = text.lastIndexOf("%%EOF");
@@ -198,6 +200,23 @@ function countPdfPages(body: Uint8Array): number {
   return declaredPages;
 }
 
+async function countPdfPages(body: Uint8Array): Promise<number> {
+  const header = new TextDecoder("latin1").decode(body.subarray(0, 8));
+  if (!/^%PDF-\d\.\d/.test(header)) return 0;
+  try {
+    const document = await PDFDocument.load(body, { ignoreEncryption: true, updateMetadata: false });
+    return document.getPageCount();
+  } catch {
+    // Keep the strict legacy parser as a conservative compatibility fallback
+    // for small PDFs that PDF.js cannot initialize in an Edge runtime.
+    const legacyPages = countPdfPagesLegacy(body);
+    if (legacyPages > 0) return legacyPages;
+    const text = new TextDecoder("latin1").decode(body);
+    const declared = text.match(/\/Type\s*\/Pages[\s\S]*?\/Count\s+(\d+)/)?.[1];
+    return declared && Number.isSafeInteger(Number(declared)) ? Number(declared) : 0;
+  }
+}
+
 function hexDigest(bytes: ArrayBuffer): string {
   return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
@@ -244,7 +263,7 @@ export async function validateAndBindStorageSource(
   }
   if (object.body.byteLength > limits.maxBytes) throw new StorageSourceError("SOURCE_TOO_LARGE", 413);
 
-  const pages = countPdfPages(object.body);
+  const pages = await countPdfPages(object.body);
   if (pages < 1) throw new StorageSourceError("SOURCE_PAGE_COUNT_UNAVAILABLE", 422);
   if (pages > limits.maxPages) throw new StorageSourceError("SOURCE_TOO_MANY_PAGES", 413);
 
