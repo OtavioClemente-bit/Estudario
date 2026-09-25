@@ -1,5 +1,5 @@
 begin;
-select plan(28);
+select plan(30);
 
 select ok(has_function_privilege('authenticated', 'public.create_or_get_ai_job_and_reserve_quota(public.ai_feature, text, text, jsonb)', 'EXECUTE'), 'authenticated can create and reserve an AI job');
 select ok(not has_function_privilege('anon', 'public.create_or_get_ai_job_and_reserve_quota(public.ai_feature, text, text, jsonb)', 'EXECUTE'), 'anon cannot create and reserve an AI job');
@@ -10,8 +10,10 @@ select ok(has_function_privilege('authenticated', 'public.delete_private_syllabu
 select ok(not has_function_privilege('anon', 'public.request_ai_job_cancellation(uuid)', 'EXECUTE'), 'anon cannot request cancellation');
 select ok(not has_function_privilege('anon', 'public.upsert_private_syllabus_atomic(uuid, text, text, jsonb)', 'EXECUTE'), 'anon cannot mutate private syllabus');
 
-select ok(has_function_privilege('service_role', 'public.get_ai_syllabus_source_metadata(text)', 'EXECUTE'), 'service_role can read source metadata');
-select ok(not has_function_privilege('authenticated', 'public.get_ai_syllabus_source_metadata(text)', 'EXECUTE'), 'authenticated cannot call source metadata backend RPC');
+select ok(has_function_privilege('service_role', 'public.get_ai_syllabus_source_metadata(uuid, text)', 'EXECUTE'), 'service_role can read source metadata for an explicit owner');
+select ok(not has_function_privilege('anon', 'public.get_ai_syllabus_source_metadata(uuid, text)', 'EXECUTE'), 'anon cannot call source metadata backend RPC');
+select ok(not has_function_privilege('authenticated', 'public.get_ai_syllabus_source_metadata(uuid, text)', 'EXECUTE'), 'authenticated cannot call source metadata backend RPC');
+select ok(to_regprocedure('public.get_ai_syllabus_source_metadata(text)') is null, 'legacy source metadata signature is removed');
 select ok(has_function_privilege('service_role', 'public.bind_ai_job_source(uuid, uuid, text, text, text, bigint, integer, integer, jsonb)', 'EXECUTE'), 'service_role can bind source metadata');
 select ok(not has_function_privilege('authenticated', 'public.bind_ai_job_source(uuid, uuid, text, text, text, bigint, integer, integer, jsonb)', 'EXECUTE'), 'authenticated cannot call source binding backend RPC');
 

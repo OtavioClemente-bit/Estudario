@@ -291,7 +291,7 @@ export class SupabaseStorageSourceStore implements StorageSourceStore {
       metadataResponse = await fetcher(`${baseUrl}/rest/v1/rpc/get_ai_syllabus_source_metadata`, {
         method: "POST",
         headers: { ...this.rpcHeaders(), "content-type": "application/json" },
-        body: JSON.stringify({ p_path: path }),
+        body: JSON.stringify({ p_user_id: userId, p_path: path }),
       });
     } catch {
       throw new StorageSourceError("SOURCE_LOOKUP_UNAVAILABLE", 503);

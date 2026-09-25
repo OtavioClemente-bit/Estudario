@@ -601,6 +601,7 @@ Deno.test("uses the Storage metadata RPC and Storage API, never the storage sche
   assert.equal(requests[0].url.includes("/rest/v1/rpc/get_ai_syllabus_source_metadata"), true);
   assert.equal(requests[0].headers.get("authorization"), "Bearer service-role-key");
   assert.equal(requests[0].headers.get("apikey"), "publishable-key");
+  assert.deepEqual(await requests[0].clone().json(), { p_user_id: USER_A, p_path: path });
   assert.equal(new URL(requests[1].url).pathname, `/storage/v1/object/ai-syllabus-sources/${path}`);
   assert.equal(requests[1].headers.get("authorization"), "Bearer supabase-jwt");
 });
