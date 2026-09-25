@@ -13,7 +13,7 @@ import br.com.estudario.data.remote.DataStoreSupabaseSessionStore
 import br.com.estudario.data.remote.DefaultSupabaseAuthRepository
 import br.com.estudario.data.remote.SupabaseAuthRepository
 import br.com.estudario.data.remote.SupabaseClientConfig
-import br.com.estudario.data.remote.UnavailableSupabaseAuthClient
+import br.com.estudario.data.remote.HttpSupabaseAuthClient
 import br.com.estudario.data.ai.AiJobRecoveryWorker
 import br.com.estudario.data.ai.DataStoreAiJobRequestStore
 import br.com.estudario.data.ai.DefaultAiSyllabusRepository
@@ -53,7 +53,7 @@ class EstudarioApplication : Application() {
         private set
     val supabaseAuthRepository: SupabaseAuthRepository by lazy {
         DefaultSupabaseAuthRepository(
-            client = UnavailableSupabaseAuthClient(supabaseClientConfig),
+            client = HttpSupabaseAuthClient(supabaseClientConfig),
             sessionStore = DataStoreSupabaseSessionStore(this, applicationScope),
         )
     }

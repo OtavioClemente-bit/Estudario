@@ -4,6 +4,11 @@ import br.com.estudario.BuildConfig
 import java.net.URI
 import java.util.Base64
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 
 @JvmInline
 value class SupabaseGoogleCredential(val idToken: String) {
@@ -104,7 +109,7 @@ interface SupabaseAuthClient {
 
     suspend fun verifyEmailOtp(email: String, token: String): SupabaseSession
 
-    suspend fun signOut()
+    suspend fun signOut(accessToken: String)
 }
 
 interface SupabaseAuthRepository {
@@ -125,6 +130,7 @@ interface SupabaseAuthRepository {
 class DefaultSupabaseAuthRepository(
     private val client: SupabaseAuthClient,
     private val sessionStore: SupabaseSessionStore,
+    private val clockSeconds: () -> Long = { System.currentTimeMillis() / 1_000 },
 ) : SupabaseAuthRepository {
     override suspend fun signInWithGoogle(credential: SupabaseGoogleCredential): SupabaseSession {
         val session = client.signInWithGoogle(credential)
@@ -148,7 +154,7 @@ class DefaultSupabaseAuthRepository(
     override suspend fun signOut() {
         var failure: Throwable? = null
         try {
-            client.signOut()
+            accessToken()?.let { client.signOut(it) }
         } catch (error: Throwable) {
             failure = error
         } finally {
@@ -157,10 +163,38 @@ class DefaultSupabaseAuthRepository(
         failure?.let { throw it }
     }
 
-    override fun observeSession(): Flow<SupabaseSessionState> = sessionStore.observe()
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeSession(): Flow<SupabaseSessionState> = sessionStore.observe().flatMapLatest { state ->
+        val session = (state as? SupabaseSessionState.Ready)?.session
+        val expiry = session?.expiresAtEpochSeconds
+        if (session == null) {
+            flowOf(state)
+        } else if (expiry == null || expiry <= clockSeconds()) {
+            flowOf(SupabaseSessionState.Ready(null))
+        } else {
+            flow {
+                emit(state)
+                while (true) {
+                    val now = clockSeconds()
+                    if (now >= expiry) break
+                    // Bound each wait before converting seconds to milliseconds. Recheck the
+                    // clock so even an unusually large expiry eventually becomes unauthenticated.
+                    val maxCheckSeconds = 86_400L
+                    val waitSeconds = if (now <= Long.MAX_VALUE - maxCheckSeconds &&
+                        expiry > now + maxCheckSeconds
+                    ) maxCheckSeconds else expiry - now
+                    delay(waitSeconds * 1_000)
+                }
+                emit(SupabaseSessionState.Ready(null))
+            }
+        }
+    }
 
-    override fun accessToken(): String? =
-        (sessionStore.current() as? SupabaseSessionState.Ready)?.session?.accessToken
+    override fun accessToken(): String? {
+        val session = (sessionStore.current() as? SupabaseSessionState.Ready)?.session ?: return null
+        val expiry = session.expiresAtEpochSeconds ?: return null
+        return session.accessToken.takeIf { expiry > clockSeconds() }
+    }
 }
 
 fun interface AiAccessTokenProvider {
@@ -208,5 +242,5 @@ class UnavailableSupabaseAuthClient(
 
     override suspend fun verifyEmailOtp(email: String, token: String): SupabaseSession = unavailable()
 
-    override suspend fun signOut(): Unit = unavailable()
+    override suspend fun signOut(accessToken: String): Unit = unavailable()
 }
