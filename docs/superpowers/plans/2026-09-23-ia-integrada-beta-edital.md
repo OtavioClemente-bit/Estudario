@@ -149,10 +149,11 @@
 
 - [ ] Write tests proving that the Supabase JWT is the only token exposed to AI API calls, Google Drive tokens remain in the Drive path, sign-out clears the Supabase session, and a missing session produces an unauthenticated state.
 - [ ] Add the minimal client-safe Supabase configuration and repository interface: `signInWithGoogle`, `sendEmailOtp`, `verifyEmailOtp`, `signOut`, `observeSession`, and `accessToken`.
+- [ ] Implement and wire a concrete transport behind this existing `SupabaseAuthClient`/`SupabaseAuthRepository` boundary for email OTP send/verify, Google ID-token exchange, and current-session sign-out. Task 13 and other UI callers must consume only the repository; do not add a parallel auth client or expose Auth URLs/endpoints to UI. Use only the configured project URL and client-safe publishable/anon key; absent configuration remains closed and errors stay safe. Keep session observation/token access in the existing repository/store and preserve the no-refresh-token-at-rest constraint.
 - [ ] Keep the Supabase URL and publishable/anon key client-safe; reject accidental service-role/OpenAI key configuration at build-time or startup tests.
-- [ ] Make auth tests pass and commit as `feat: add separate Supabase account session`.
+- [ ] Test the concrete request/response mapping with a fake HTTP transport (OTP, verification session, Google ID-token exchange, local sign-out, malformed/error responses, and no request when configuration is closed); make auth tests pass and commit the transport correction separately from the original Task 4 implementation.
 
-**Configuration gate:** The user must provide the Supabase project URL, publishable/anon key, Google provider configuration, OTP sender configuration, and the Android redirect/deep-link values before device testing. Do not place any service-role or OpenAI secret in the app.
+**Configuration gate:** The user must provide the Supabase project URL and publishable/anon key before device testing. Google provider and OTP sender configuration remain external Supabase/project setup; do not invent or commit their values, redirect/deep-link URIs, service-role credentials, or OpenAI secrets. The transport implementation and fake-based tests must compile with the existing blank-by-default configuration.
 
 ### Task 5: Implement server access policy and quota-read endpoint
 
