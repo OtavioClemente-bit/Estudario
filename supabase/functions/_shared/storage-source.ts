@@ -344,6 +344,12 @@ export class SupabaseStorageSourceStore implements StorageSourceStore {
   }
 
   private rpcHeaders(): HeadersInit {
+    if (this.environment.serviceRoleKey.startsWith("sb_secret_")) {
+      return {
+        apikey: this.environment.serviceRoleKey,
+        accept: "application/json",
+      };
+    }
     return {
       apikey: this.environment.publishableKey,
       authorization: `Bearer ${this.environment.serviceRoleKey}`,
