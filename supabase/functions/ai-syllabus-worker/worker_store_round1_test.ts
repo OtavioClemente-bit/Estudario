@@ -1,5 +1,5 @@
 import { assert, assertRejects, assertStringIncludes } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { LeaseLostError, SupabaseSyllabusWorkerStore, type Lease, workerBackendHeaders } from "./index.ts";
+import { authorizeWorkerRequest, LeaseLostError, SupabaseSyllabusWorkerStore, type Lease, workerBackendHeaders } from "./index.ts";
 
 const lease: Lease = { owner: "worker-a", token: "token-a", generation: 7 };
 
@@ -52,4 +52,14 @@ Deno.test("uses a legacy JWT for worker RPCs and never sends a secret key as Bea
   const secret = workerBackendHeaders({ serviceRoleKey: "sb_secret_backend-key" }) as Record<string, string | undefined>;
   assert(secret.apikey === "sb_secret_backend-key");
   assert(secret.authorization === undefined);
+});
+
+Deno.test("worker endpoint accepts only the exact backend token", () => {
+  const request = (authorization?: string) => new Request("https://example.test/functions/v1/ai-syllabus-worker", {
+    method: "POST", headers: authorization ? { authorization } : undefined,
+  });
+  assert(authorizeWorkerRequest(request("Bearer worker-token"), "worker-token"));
+  assert(!authorizeWorkerRequest(request("Bearer wrong-token"), "worker-token"));
+  assert(!authorizeWorkerRequest(request(), "worker-token"));
+  assert(!authorizeWorkerRequest(request("Bearer worker-token"), undefined));
 });

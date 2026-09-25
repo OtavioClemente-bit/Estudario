@@ -272,6 +272,11 @@ export function workerBackendHeaders(environment: Pick<WorkerRuntimeEnvironment,
   return { apikey: environment.serviceRoleKey, authorization: `Bearer ${environment.serviceRoleKey}`, accept: "application/json" };
 }
 
+export function authorizeWorkerRequest(request: Request, expectedToken: string | undefined): boolean {
+  const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
+  return Boolean(expectedToken && bearer && bearer === expectedToken);
+}
+
 function row(value: unknown): Record<string, unknown> {
   if (Array.isArray(value) && value.length > 0 && typeof value[0] === "object" && value[0] !== null) return value[0] as Record<string, unknown>;
   if (typeof value === "object" && value !== null && !Array.isArray(value)) return value as Record<string, unknown>;
@@ -373,7 +378,7 @@ function runtimeEnvironment(): WorkerRuntimeEnvironment {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim(), serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
   const serviceRoleJwt = Deno.env.get("SUPABASE_SERVICE_ROLE_JWT")?.trim();
   const endpointAuthToken = Deno.env.get("AI_WORKER_AUTH_TOKEN")?.trim();
-  if (!supabaseUrl || !serviceRoleKey) throw new Error("AI_WORKER_NOT_CONFIGURED");
+  if (!supabaseUrl || !serviceRoleKey || !endpointAuthToken) throw new Error("AI_WORKER_NOT_CONFIGURED");
   return { supabaseUrl, serviceRoleKey, serviceRoleJwt, endpointAuthToken };
 }
 function runtimeDependencies(): SyllabusWorkerDependencies & { runtimeStore: SupabaseSyllabusWorkerStore } {
@@ -407,9 +412,8 @@ if (import.meta.main) {
   Deno.serve(async (request) => {
     if (request.method !== "POST") return new Response(null, { status: 405, headers: { allow: "POST" } });
     try {
-      const environment = runtimeEnvironment(), bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
-      const endpointAuth = environment.endpointAuthToken ?? environment.serviceRoleJwt ?? (!environment.serviceRoleKey.startsWith("sb_secret_") ? environment.serviceRoleKey : undefined);
-      if (!endpointAuth || bearer !== endpointAuth) return Response.json({ error: { code: "AI_WORKER_UNAUTHORIZED", message: "AI worker authorization required" } }, { status: 401 });
+      const environment = runtimeEnvironment();
+      if (!authorizeWorkerRequest(request, environment.endpointAuthToken)) return Response.json({ error: { code: "AI_WORKER_UNAUTHORIZED", message: "AI worker authorization required" } }, { status: 401 });
       const dependencies = runtimeDependencies(); await dependencies.runtimeStore.cleanupPendingSources();
       const processed = await runSyllabusWorker(dependencies, environmentNumber("AI_WORKER_BATCH_SIZE", 1));
       return Response.json({ processed }, { headers: { "cache-control": "no-store" } });
