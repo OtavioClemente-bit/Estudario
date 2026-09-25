@@ -1,5 +1,5 @@
 import { assert, assertRejects, assertStringIncludes } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { LeaseLostError, SupabaseSyllabusWorkerStore, type Lease } from "./index.ts";
+import { LeaseLostError, SupabaseSyllabusWorkerStore, type Lease, workerBackendHeaders } from "./index.ts";
 
 const lease: Lease = { owner: "worker-a", token: "token-a", generation: 7 };
 
@@ -42,4 +42,14 @@ Deno.test("maps a PostgREST lease error to a non-mutating lease loss", async () 
   const store = new SupabaseSyllabusWorkerStore({ supabaseUrl: "https://supabase.test", serviceRoleKey: "service-test", fetcher }, {} as never, "worker-a");
   const error = await assertRejects(() => store.assertLease("job-cleanup", lease));
   assert(error instanceof LeaseLostError);
+});
+
+Deno.test("uses a legacy JWT for worker RPCs and never sends a secret key as Bearer", () => {
+  const jwt = workerBackendHeaders({ serviceRoleKey: "sb_secret_backend-key", serviceRoleJwt: "legacy-service-role-jwt" }) as Record<string, string | undefined>;
+  assert(jwt.apikey === "legacy-service-role-jwt");
+  assert(jwt.authorization === "Bearer legacy-service-role-jwt");
+
+  const secret = workerBackendHeaders({ serviceRoleKey: "sb_secret_backend-key" }) as Record<string, string | undefined>;
+  assert(secret.apikey === "sb_secret_backend-key");
+  assert(secret.authorization === undefined);
 });

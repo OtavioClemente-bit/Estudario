@@ -257,10 +257,19 @@ export async function runSyllabusWorker(dependencies: SyllabusWorkerDependencies
   return processed;
 }
 
-interface WorkerRuntimeEnvironment { supabaseUrl: string; serviceRoleKey: string; fetcher?: typeof fetch; }
+interface WorkerRuntimeEnvironment {
+  supabaseUrl: string;
+  serviceRoleKey: string;
+  serviceRoleJwt?: string;
+  endpointAuthToken?: string;
+  fetcher?: typeof fetch;
+}
 
-function workerHeaders(serviceRoleKey: string): HeadersInit {
-  return { apikey: serviceRoleKey, authorization: `Bearer ${serviceRoleKey}`, accept: "application/json" };
+export function workerBackendHeaders(environment: Pick<WorkerRuntimeEnvironment, "serviceRoleKey" | "serviceRoleJwt">): HeadersInit {
+  const jwt = environment.serviceRoleJwt?.trim();
+  if (jwt) return { apikey: jwt, authorization: `Bearer ${jwt}`, accept: "application/json" };
+  if (environment.serviceRoleKey.startsWith("sb_secret_")) return { apikey: environment.serviceRoleKey, accept: "application/json" };
+  return { apikey: environment.serviceRoleKey, authorization: `Bearer ${environment.serviceRoleKey}`, accept: "application/json" };
 }
 
 function row(value: unknown): Record<string, unknown> {
@@ -320,7 +329,7 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
     if (cleanup.status === "DELETED") return;
     const path = stringField(cleanup, "source_object_path");
     try {
-      const response = await this.fetcher(`${this.environment.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/${AI_SYLLABUS_SOURCE_BUCKET}/${path}`, { method: "DELETE", headers: workerHeaders(this.environment.serviceRoleKey) });
+      const response = await this.fetcher(`${this.environment.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/${AI_SYLLABUS_SOURCE_BUCKET}/${path}`, { method: "DELETE", headers: workerBackendHeaders(this.environment) });
       if (!response.ok && response.status !== 404) throw new Error("AI_SOURCE_CLEANUP_FAILED");
       await this.rpc("complete_ai_job_source_cleanup", { p_job_id: jobId, ...lease });
     } catch (error) {
@@ -336,7 +345,7 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
       const cleanup = row(value), jobId = stringField(cleanup, "job_id"), path = stringField(cleanup, "source_object_path");
       const cleanupLease = { p_lease_owner: owner, p_lease_token: token, p_lease_generation: integerField(cleanup, "lease_generation") };
       try {
-        const response = await this.fetcher(`${this.environment.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/${AI_SYLLABUS_SOURCE_BUCKET}/${path}`, { method: "DELETE", headers: workerHeaders(this.environment.serviceRoleKey) });
+        const response = await this.fetcher(`${this.environment.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/${AI_SYLLABUS_SOURCE_BUCKET}/${path}`, { method: "DELETE", headers: workerBackendHeaders(this.environment) });
         if (!response.ok && response.status !== 404) throw new Error("AI_SOURCE_CLEANUP_FAILED");
         await this.rpc("complete_ai_job_source_cleanup", { p_job_id: jobId, ...cleanupLease });
       } catch (error) {
@@ -345,7 +354,7 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
     }
   }
   private async rpc(name: string, body: Record<string, unknown>): Promise<unknown> {
-    const response = await this.fetcher(`${this.environment.supabaseUrl.replace(/\/$/, "")}/rest/v1/rpc/${name}`, { method: "POST", headers: { ...workerHeaders(this.environment.serviceRoleKey), "content-type": "application/json" }, body: JSON.stringify(body) });
+    const response = await this.fetcher(`${this.environment.supabaseUrl.replace(/\/$/, "")}/rest/v1/rpc/${name}`, { method: "POST", headers: { ...workerBackendHeaders(this.environment), "content-type": "application/json" }, body: JSON.stringify(body) });
     if (!response.ok) {
       let providerMessage = "";
       try {
@@ -362,12 +371,15 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
 function environmentNumber(name: string, fallback: number): number { const value = Number(Deno.env.get(name)); return Number.isSafeInteger(value) && value > 0 ? value : fallback; }
 function runtimeEnvironment(): WorkerRuntimeEnvironment {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim(), serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
+  const serviceRoleJwt = Deno.env.get("SUPABASE_SERVICE_ROLE_JWT")?.trim();
+  const endpointAuthToken = Deno.env.get("AI_WORKER_AUTH_TOKEN")?.trim();
   if (!supabaseUrl || !serviceRoleKey) throw new Error("AI_WORKER_NOT_CONFIGURED");
-  return { supabaseUrl, serviceRoleKey };
+  return { supabaseUrl, serviceRoleKey, serviceRoleJwt, endpointAuthToken };
 }
 function runtimeDependencies(): SyllabusWorkerDependencies & { runtimeStore: SupabaseSyllabusWorkerStore } {
   const environment = runtimeEnvironment();
-  const storage = new SupabaseStorageSourceStore({ supabaseUrl: environment.supabaseUrl, publishableKey: environment.serviceRoleKey, accessToken: environment.serviceRoleKey, serviceRoleKey: environment.serviceRoleKey }, environmentNumber("MAX_PDF_BYTES", 50 * 1024 * 1024));
+  const backendKey = environment.serviceRoleJwt ?? environment.serviceRoleKey;
+  const storage = new SupabaseStorageSourceStore({ supabaseUrl: environment.supabaseUrl, publishableKey: backendKey, accessToken: backendKey, serviceRoleKey: environment.serviceRoleKey, serviceRoleJwt: environment.serviceRoleJwt }, environmentNumber("MAX_PDF_BYTES", 50 * 1024 * 1024));
   const runtimeStore = new SupabaseSyllabusWorkerStore(environment, storage);
   return {
     runtimeStore, jobs: runtimeStore,
@@ -396,7 +408,8 @@ if (import.meta.main) {
     if (request.method !== "POST") return new Response(null, { status: 405, headers: { allow: "POST" } });
     try {
       const environment = runtimeEnvironment(), bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
-      if (bearer !== environment.serviceRoleKey) return Response.json({ error: { code: "AI_WORKER_UNAUTHORIZED", message: "AI worker authorization required" } }, { status: 401 });
+      const endpointAuth = environment.endpointAuthToken ?? environment.serviceRoleJwt ?? (!environment.serviceRoleKey.startsWith("sb_secret_") ? environment.serviceRoleKey : undefined);
+      if (!endpointAuth || bearer !== endpointAuth) return Response.json({ error: { code: "AI_WORKER_UNAUTHORIZED", message: "AI worker authorization required" } }, { status: 401 });
       const dependencies = runtimeDependencies(); await dependencies.runtimeStore.cleanupPendingSources();
       const processed = await runSyllabusWorker(dependencies, environmentNumber("AI_WORKER_BATCH_SIZE", 1));
       return Response.json({ processed }, { headers: { "cache-control": "no-store" } });
