@@ -337,8 +337,8 @@ export function createAiSyllabusJobsHandler(dependencies: AiSyllabusJobsDependen
       return safeError("AUTH_UNAVAILABLE", 503);
     }
 
-    const pathname = new URL(request.url).pathname.replace(/\/+$/, "");
-    const routePath = pathname.match(/\/functions\/v1\/ai-syllabus-jobs(\/.*)?$/)?.[1] ?? "";
+    const routePath = extractRoutePath(request);
+    if (routePath === null) return safeError("NOT_FOUND", 404);
     const processMatch = routePath.match(/^\/([^/]+)\/process$/);
     const getMatch = routePath.match(/^\/([^/]+)$/);
     try {
@@ -355,6 +355,20 @@ export function createAiSyllabusJobsHandler(dependencies: AiSyllabusJobsDependen
       return safeError("AI_JOB_UNAVAILABLE", 503);
     }
   };
+}
+
+function extractRoutePath(request: Request): string | null {
+  const pathname = new URL(request.url).pathname.replace(/\/+$/, "") || "/";
+  const prefixes = [
+    "/functions/v1/ai-syllabus-jobs",
+    "/ai-syllabus-jobs",
+    "ai-syllabus-jobs",
+  ];
+  for (const prefix of prefixes) {
+    if (pathname === prefix) return "";
+    if (pathname.startsWith(`${prefix}/`)) return pathname.slice(prefix.length);
+  }
+  return null;
 }
 
 function runtimeDependencies(request: Request): AiSyllabusJobsDependencies {

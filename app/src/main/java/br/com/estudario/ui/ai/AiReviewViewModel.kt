@@ -267,6 +267,13 @@ class AiReviewViewModel(
         }
         val requestId = identity?.requestId ?: pendingIdentity?.requestId ?: return
         val terminalStatus = (_state.value.content as? AiReviewContent.Failure)?.terminalStatus
+        val retryJobId = identity?.jobId ?: pendingIdentity?.jobId
+        val retryIdempotencyKey = identity?.idempotencyKey ?: pendingIdentity?.idempotencyKey
+        if (retryJobId != null && retryIdempotencyKey != null) {
+            _state.value = _state.value.copy(
+                content = AiReviewContent.Processing(retryJobId, retryIdempotencyKey),
+            )
+        }
         viewModelScope.launch {
             runCatching {
                 if (terminalStatus in RETRYABLE_TERMINAL_STATUSES) jobs.retryFailed(requestId)

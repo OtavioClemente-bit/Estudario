@@ -84,6 +84,59 @@ Deno.test("GET returns only the authenticated owner's AiJob contract", async () 
   assert(body.idempotencyKey === undefined);
 });
 
+Deno.test("routes hosted, local, and relative path formats to GET job", async () => {
+  const paths = [
+    "/functions/v1/ai-syllabus-jobs/job-1",
+    "/ai-syllabus-jobs/job-1",
+    "ai-syllabus-jobs/job-1",
+  ];
+  for (const path of paths) {
+    const response = await createAiSyllabusJobsHandler(dependencies(record()))(
+      new Request(`https://example.test/${path.replace(/^\//, "")}`, {
+        method: "GET",
+        headers: { authorization: "Bearer supabase-jwt" },
+      }),
+    );
+    assertEquals(response.status, 200, path);
+    assertEquals((await response.json()).jobId, "job-1", path);
+  }
+});
+
+Deno.test("routes hosted and local process paths and rejects unknown paths", async () => {
+  const paths = [
+    "/functions/v1/ai-syllabus-jobs/job-1/process",
+    "/ai-syllabus-jobs/job-1/process",
+    "ai-syllabus-jobs/job-1/process",
+  ];
+  for (const path of paths) {
+    const calls = { claim: 0 };
+    const reserved = record();
+    reserved.status = "RESERVED";
+    const jobs = {
+      async getJob() { return reserved; },
+      async claimForProcessing() { calls.claim += 1; return { ...reserved, status: "PROCESSING" }; },
+    } as unknown as AiJobStore;
+    const response = await createAiSyllabusJobsHandler({
+      authenticate: async () => ({ userId: "user-1" }),
+      storage: {} as never,
+      jobs,
+      limits: { maxBytes: 50, maxPages: 1, maxFiles: 1 },
+      schedule: async () => {},
+    })(new Request(`https://example.test/${path.replace(/^\//, "")}`, {
+      method: "POST",
+      headers: { authorization: "Bearer supabase-jwt" },
+    }));
+    assertEquals(response.status, 202, path);
+    assertEquals(calls.claim, 1, path);
+  }
+
+  const unknown = await createAiSyllabusJobsHandler(dependencies(record()))(new Request(
+    "https://example.test/functions/v1/other-route/job-1",
+    { method: "POST", headers: { authorization: "Bearer supabase-jwt" } },
+  ));
+  assertEquals(unknown.status, 404);
+});
+
 Deno.test("GET does not reveal another owner's job", async () => {
   const job = record("user-2");
   const response = await createAiSyllabusJobsHandler(dependencies(job))(
