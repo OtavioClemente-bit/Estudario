@@ -56,6 +56,9 @@ export interface SyllabusWorkerJob {
 }
 
 export interface SyllabusWorkerStore {
+  claimReconciliation(now: Date, leaseSeconds: number, reconciliationSeconds: number): Promise<SyllabusWorkerJob | null>;
+  completeReconciliation(jobId: string, lease: Lease): Promise<void>;
+  failReconciliation(jobId: string, lease: Lease, code: string): Promise<void>;
   claimNext(now: Date, leaseSeconds: number, processingSeconds: number): Promise<SyllabusWorkerJob | null>;
   assertLease(jobId: string, lease: Lease): Promise<void>;
   markProviderStarted?(jobId: string, lease: Lease): Promise<void>;
@@ -205,8 +208,49 @@ async function processResponse(
   await emitTerminalTelemetry(dependencies, job, "SUCCEEDED", response.usage, proposal);
 }
 
+async function processReconciliation(
+  dependencies: SyllabusWorkerDependencies,
+  job: SyllabusWorkerJob,
+  now: () => Date,
+): Promise<void> {
+  const lease = leaseOf(job);
+  try {
+    if (!job.openaiResponseId || !job.cancellationRequestedAt) throw new Error("AI_RECONCILIATION_DATA_UNAVAILABLE");
+    await dependencies.jobs.assertLease(job.id, lease);
+    let response = await dependencies.provider.retrieve(job.openaiResponseId);
+    if (response.id !== job.openaiResponseId) throw new Error("AI_PROVIDER_RESPONSE_ID_MISMATCH");
+    await dependencies.jobs.assertLease(job.id, lease);
+    if (response.status === "queued" || response.status === "in_progress") {
+      response = await dependencies.provider.cancel(job.openaiResponseId);
+      if (response.id !== job.openaiResponseId) throw new Error("AI_PROVIDER_RESPONSE_ID_MISMATCH");
+      await dependencies.jobs.assertLease(job.id, lease);
+    }
+    if (response.status === "queued" || response.status === "in_progress") {
+      await dependencies.jobs.failReconciliation(job.id, lease, "PROVIDER_CANCELLATION_PENDING");
+      return;
+    }
+    if (response.status === "completed") {
+      await processResponse(dependencies, { ...job, processingDeadlineAt: null }, lease, response, now());
+    } else {
+      const terminalStatus = response.status === "cancelled" ? "CANCELLED" : response.status === "expired" ? "EXPIRED" : "FAILED";
+      const code = response.status === "incomplete" ? "PROVIDER_INCOMPLETE" : "PROVIDER_RESULT_UNAVAILABLE";
+      await finalizeFailure(dependencies, job, lease, code, terminalStatus, false, response.usage);
+    }
+    await dependencies.jobs.completeReconciliation(job.id, lease);
+  } catch (error) {
+    if (error instanceof LeaseLostError) return;
+    try { await dependencies.jobs.failReconciliation(job.id, lease, errorCode(error)); }
+    catch (leaseError) { if (!(leaseError instanceof LeaseLostError)) throw leaseError; }
+  }
+}
+
 export async function processSyllabusJob(dependencies: SyllabusWorkerDependencies): Promise<boolean> {
   const now = dependencies.now ?? (() => new Date());
+  const reconciliation = await dependencies.jobs.claimReconciliation(now(), dependencies.leaseSeconds ?? 300, dependencies.maxProcessingSeconds ?? 900);
+  if (reconciliation) {
+    await processReconciliation(dependencies, reconciliation, now);
+    return true;
+  }
   const job = await dependencies.jobs.claimNext(now(), dependencies.leaseSeconds ?? 300, dependencies.maxProcessingSeconds ?? 900);
   if (!job) return false;
   const lease = leaseOf(job);
@@ -380,6 +424,20 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
     const value = await this.rpc("claim_ai_syllabus_worker_job", { p_lease_owner: this.workerOwner, p_lease_token: crypto.randomUUID(), p_lease_seconds: leaseSeconds, p_processing_seconds: processingSeconds });
     if (noCompositeRow(value)) return null;
     return parseJob(row(value));
+  }
+  async claimReconciliation(_now: Date, leaseSeconds: number, reconciliationSeconds: number): Promise<SyllabusWorkerJob | null> {
+    const value = await this.rpc("claim_ai_job_provider_reconciliation", {
+      p_lease_owner: this.workerOwner, p_lease_token: crypto.randomUUID(),
+      p_lease_seconds: leaseSeconds, p_reconciliation_seconds: reconciliationSeconds,
+    });
+    if (noCompositeRow(value)) return null;
+    return parseJob(row(value));
+  }
+  async completeReconciliation(jobId: string, lease: Lease): Promise<void> {
+    await this.rpc("complete_ai_job_provider_reconciliation", { p_job_id: jobId, ...leaseRpcArgs(lease) });
+  }
+  async failReconciliation(jobId: string, lease: Lease, code: string): Promise<void> {
+    await this.rpc("fail_ai_job_provider_reconciliation", { p_job_id: jobId, p_error_code: code, ...leaseRpcArgs(lease) });
   }
   async assertLease(jobId: string, lease: Lease): Promise<void> { await this.rpc("assert_ai_job_lease", { p_job_id: jobId, ...leaseRpcArgs(lease) }); }
   async markProviderStarted(jobId: string, lease: Lease): Promise<void> { await this.rpc("mark_ai_job_provider_execution_started", { p_job_id: jobId, ...leaseRpcArgs(lease) }); }

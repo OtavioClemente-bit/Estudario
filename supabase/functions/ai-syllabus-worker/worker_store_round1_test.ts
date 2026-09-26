@@ -172,18 +172,52 @@ Deno.test("worker lease RPCs serialize every lease field with its PostgREST para
 });
 
 Deno.test("provider outcome classification uses the backend lease-bound RPC contract", async () => {
-  let request: { url: string; body: Record<string, unknown> } | null = null;
+  const requests: Array<{ url: string; body: Record<string, unknown> }> = [];
   const fetcher: typeof fetch = async (input, init) => {
-    request = { url: String(input), body: JSON.parse(String(init?.body ?? "{}")) };
+    requests.push({ url: String(input), body: JSON.parse(String(init?.body ?? "{}")) });
     return Response.json([{ provider_start_outcome: "PROVIDER_REJECTED" }]);
   };
   const store = new SupabaseSyllabusWorkerStore(
     { supabaseUrl: "https://supabase.test", serviceRoleKey: "service-test", fetcher }, {} as never, "worker-a",
   );
   await store.recordProviderStartOutcome("job-1", lease, "PROVIDER_REJECTED");
-  assertEquals(request?.url, "https://supabase.test/rest/v1/rpc/record_ai_job_provider_start_outcome");
-  assertEquals(request?.body, {
+  assertEquals(requests[0].url, "https://supabase.test/rest/v1/rpc/record_ai_job_provider_start_outcome");
+  assertEquals(requests[0].body, {
     p_job_id: "job-1", p_outcome: "PROVIDER_REJECTED",
     p_lease_owner: lease.owner, p_lease_token: lease.token, p_lease_generation: lease.generation,
   });
+});
+
+Deno.test("reconciliation lease store uses dedicated claim complete and fail RPCs", async () => {
+  const calls: Array<{ name: string; body: Record<string, unknown> }> = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    const url = String(input);
+    const name = url.split("/").at(-1)!;
+    const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+    calls.push({ name, body });
+    if (name === "claim_ai_job_provider_reconciliation") {
+      return Response.json([{
+        id: "job-1", user_id: "user-1", status: "PROCESSING", source_object_path: "user/source.pdf",
+        source_hash: "a".repeat(64), source_bytes: 3, source_pages: 1, source_file_count: 1,
+        openai_response_id: "resp-1", provider_execution_started_at: "2026-09-24T12:00:00Z",
+        provider_start_outcome: "ACCEPTED", provider_quarantined_at: null,
+        cancellation_requested_at: "2026-09-24T12:00:00Z", lease_expires_at: "2026-09-24T12:05:00Z",
+        lease_owner: "worker-a", lease_token: "token-a", lease_generation: 9,
+        processing_deadline_at: null, retry_count: 0, prompt_version: null, model_version: null,
+      }]);
+    }
+    return Response.json([{ status: name === "complete_ai_job_provider_reconciliation" ? "DONE" : "PENDING" }]);
+  };
+  const store = new SupabaseSyllabusWorkerStore({ supabaseUrl: "https://supabase.test", serviceRoleKey: "service-test", fetcher }, {} as never, "worker-a");
+  const claimed = await store.claimReconciliation(new Date(), 300, 900);
+  assertEquals(claimed?.openaiResponseId, "resp-1");
+  assertEquals(claimed?.leaseGeneration, 9);
+  const activeLease = { owner: "worker-a", token: "token-a", generation: 9 };
+  await store.completeReconciliation("job-1", activeLease);
+  await store.failReconciliation("job-1", activeLease, "PROVIDER_TIMEOUT");
+  assertEquals(calls.map(({ name }) => name), [
+    "claim_ai_job_provider_reconciliation", "complete_ai_job_provider_reconciliation", "fail_ai_job_provider_reconciliation",
+  ]);
+  assertEquals(calls[1].body, { p_job_id: "job-1", p_lease_owner: "worker-a", p_lease_token: "token-a", p_lease_generation: 9 });
+  assertEquals(calls[2].body, { p_job_id: "job-1", p_error_code: "PROVIDER_TIMEOUT", p_lease_owner: "worker-a", p_lease_token: "token-a", p_lease_generation: 9 });
 });

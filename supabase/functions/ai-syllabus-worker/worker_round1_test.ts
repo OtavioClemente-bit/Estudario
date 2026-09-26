@@ -49,6 +49,9 @@ function fakeStore(initial: SyllabusWorkerJob, options: { loseLeaseAfterRetrieve
   return {
     events,
     proposals,
+    async claimReconciliation() { return null; },
+    async completeReconciliation() {},
+    async failReconciliation(id, activeLease, code) { events.push(`reconciliation-failed:${id}:${activeLease.token}:${code}`); },
     async claimNext() { return initial; },
     async assertLease(id, activeLease) {
       events.push(`assert:${id}:${activeLease.owner}:${activeLease.token}:${activeLease.generation}`);

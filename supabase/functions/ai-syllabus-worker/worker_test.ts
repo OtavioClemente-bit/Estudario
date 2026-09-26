@@ -46,6 +46,9 @@ function store(initial: SyllabusWorkerJob): SyllabusWorkerStore & { events: stri
   const events: string[] = [];
   return {
     events,
+    async claimReconciliation() { return null; },
+    async completeReconciliation(id) { events.push(`reconciliation-complete:${id}`); },
+    async failReconciliation(id, _lease, code) { events.push(`reconciliation-failed:${id}:${code}`); },
     async claimNext() { return initial; },
     async assertLease() {},
     async recordProviderStartOutcome(id, _lease, outcome) { events.push(`provider-outcome:${id}:${outcome}`); },
@@ -227,11 +230,126 @@ Deno.test("cancellation winning mark-start prevents provider call and retry", as
   assertEquals(jobs.events, []);
 });
 
+Deno.test("worker drains a known-ID cancellation reconciliation before generation", async () => {
+  const jobs = store(job({ openaiResponseId: "resp-cancel", providerStartOutcome: "ACCEPTED", cancellationRequestedAt: "2026-09-24T12:00:00Z" }));
+  jobs.claimReconciliation = async () => {
+    jobs.events.push("reconciliation-claim");
+    return job({ openaiResponseId: "resp-cancel", providerStartOutcome: "ACCEPTED", cancellationRequestedAt: "2026-09-24T12:00:00Z" });
+  };
+  jobs.completeReconciliation = async (id) => { jobs.events.push(`reconciliation-complete:${id}`); };
+  let starts = 0;
+  await processSyllabusJob({
+    jobs,
+    provider: { ...provider({ id: "resp-cancel", status: "completed", outputText: validOutput, usage: null }),
+      async start() { starts++; throw new Error("reconciliation cannot start a new response"); } },
+    source: async () => new Uint8Array([1]),
+    now: () => new Date("2026-09-24T12:01:00Z"),
+  });
+  assertEquals(starts, 0);
+  assertEquals(jobs.events[0], "reconciliation-claim");
+  assert(jobs.events.includes("reconciliation-complete:job-1"));
+});
+
+Deno.test("ambiguous reconciliation transport stays pending and never starts another response", async () => {
+  const jobs = store(job({ openaiResponseId: "resp-cancel", providerStartOutcome: "ACCEPTED", cancellationRequestedAt: "2026-09-24T12:00:00Z" }));
+  jobs.claimReconciliation = async () => job({ openaiResponseId: "resp-cancel", providerStartOutcome: "ACCEPTED", cancellationRequestedAt: "2026-09-24T12:00:00Z" });
+  let starts = 0, retrieves = 0, cancels = 0;
+  await processSyllabusJob({
+    jobs,
+    provider: {
+      async start() { starts++; throw new Error("reconciliation must never start"); },
+      async retrieve() { retrieves++; throw new OpenAiProviderError("OPENAI_TIMEOUT", "TRANSPORT_AMBIGUOUS"); },
+      async cancel() { cancels++; throw new Error("cancel must not follow failed retrieve"); },
+    },
+    source: async () => new Uint8Array([1]),
+    now: () => new Date("2026-09-24T12:01:00Z"),
+  });
+  assertEquals({ starts, retrieves, cancels }, { starts: 0, retrieves: 1, cancels: 0 });
+  assert(jobs.events.some((event) => event === "reconciliation-failed:job-1:PROVIDER_TIMEOUT"));
+  assert(!jobs.events.some((event) => event.startsWith("success:") || event.startsWith("failure:")));
+});
+
+Deno.test("reconciliation rejects a response whose ID differs from the claimed ID", async () => {
+  const jobs = store(job({ openaiResponseId: "resp-expected", providerStartOutcome: "ACCEPTED", cancellationRequestedAt: "2026-09-24T12:00:00Z" }));
+  jobs.claimReconciliation = async () => job({ openaiResponseId: "resp-expected", providerStartOutcome: "ACCEPTED", cancellationRequestedAt: "2026-09-24T12:00:00Z" });
+  let starts = 0;
+  await processSyllabusJob({
+    jobs,
+    provider: {
+      async start() { starts++; throw new Error("reconciliation cannot start"); },
+      async retrieve() { return { id: "resp-other", status: "completed", outputText: validOutput, usage: null }; },
+      async cancel() { throw new Error("unexpected cancellation"); },
+    },
+    source: async () => new Uint8Array([1]), now: () => new Date("2026-09-24T12:01:00Z"),
+  });
+  assertEquals(starts, 0);
+  assert(jobs.events.includes("reconciliation-failed:job-1:AI_PROVIDER_RESPONSE_ID_MISMATCH"));
+  assert(!jobs.events.some((event) => event.startsWith("success:") || event.startsWith("failure:")));
+});
+
+Deno.test("active provider response is cancelled and terminal result is finalized once", async () => {
+  const jobs = store(job({ openaiResponseId: "resp-cancel", providerStartOutcome: "ACCEPTED", cancellationRequestedAt: "2026-09-24T12:00:00Z" }));
+  jobs.claimReconciliation = async () => job({ openaiResponseId: "resp-cancel", providerStartOutcome: "ACCEPTED", cancellationRequestedAt: "2026-09-24T12:00:00Z" });
+  jobs.finalizeFailure = async (id, _lease, code, _message, status) => { jobs.events.push(`failure:${id}:${code}:${status}`); };
+  let starts = 0, retrieves = 0, cancels = 0;
+  await processSyllabusJob({
+    jobs,
+    provider: {
+      async start() { starts++; throw new Error("reconciliation cannot start"); },
+      async retrieve() { retrieves++; return { id: "resp-cancel", status: "in_progress", outputText: null, usage: null }; },
+      async cancel() { cancels++; return { id: "resp-cancel", status: "cancelled", outputText: null, usage: null }; },
+    },
+    source: async () => new Uint8Array([1]),
+    now: () => new Date("2026-09-24T12:01:00Z"),
+  });
+  assertEquals({ starts, retrieves, cancels }, { starts: 0, retrieves: 1, cancels: 1 });
+  assert(jobs.events.some((event) => event === "failure:job-1:PROVIDER_RESULT_UNAVAILABLE:CANCELLED"));
+  assert(jobs.events.includes("reconciliation-complete:job-1"));
+});
+
+Deno.test("empty reconciliation queue falls through to normal generation claim", async () => {
+  const jobs = store(job());
+  jobs.claimReconciliation = async () => { jobs.events.push("reconciliation-claim"); return null; };
+  jobs.claimNext = async () => { jobs.events.push("generation-claim"); return null; };
+  assertEquals(await processSyllabusJob({
+    jobs, provider: provider({ id: "unused", status: "failed", outputText: null, usage: null }),
+    source: async () => new Uint8Array([1]),
+  }), false);
+  assertEquals(jobs.events, ["reconciliation-claim", "generation-claim"]);
+});
+
+Deno.test("maps confirmed provider terminal statuses exactly during reconciliation", async () => {
+  const cases = [
+    { provider: "cancelled" as const, expected: "CANCELLED" },
+    { provider: "expired" as const, expected: "EXPIRED" },
+    { provider: "failed" as const, expected: "FAILED" },
+    { provider: "incomplete" as const, expected: "FAILED" },
+  ];
+  for (const item of cases) {
+    const jobs = store(job({ openaiResponseId: "resp-cancel", providerStartOutcome: "ACCEPTED", cancellationRequestedAt: "2026-09-24T12:00:00Z" }));
+    jobs.claimReconciliation = async () => job({ openaiResponseId: "resp-cancel", providerStartOutcome: "ACCEPTED", cancellationRequestedAt: "2026-09-24T12:00:00Z" });
+    let terminalStatus: string | null = null, starts = 0;
+    jobs.finalizeFailure = async (_id, _lease, _code, _message, status) => { terminalStatus = status; };
+    await processSyllabusJob({
+      jobs,
+      provider: {
+        async start() { starts++; throw new Error("terminal reconciliation cannot start a response"); },
+        async retrieve() { return { id: "resp-cancel", status: item.provider, outputText: null, usage: null }; },
+        async cancel() { throw new Error("terminal response does not need cancellation"); },
+      },
+      source: async () => new Uint8Array([1]), now: () => new Date("2026-09-24T12:01:00Z"),
+    });
+    assertEquals(terminalStatus, item.expected, `${item.provider} maps to ${item.expected}`);
+    assertEquals(starts, 0);
+    assert(jobs.events.includes("reconciliation-complete:job-1"));
+  }
+});
+
 Deno.test("measures first-attempt telemetry duration from provider start", async () => {
   const jobs = store(job({ openaiResponseId: null, providerExecutionStartedAt: null }));
   const events: TerminalAiTelemetry[] = [];
   jobs.markProviderStarted = async () => {};
-  const moments = [0, 1, 2, 3, 6, 7].map((seconds) => new Date(`2026-09-24T12:00:0${seconds}Z`));
+  const moments = [0, 0, 1, 2, 3, 6, 7].map((seconds) => new Date(`2026-09-24T12:00:0${seconds}Z`));
   let tick = 0;
   await processSyllabusJob({
     jobs,
