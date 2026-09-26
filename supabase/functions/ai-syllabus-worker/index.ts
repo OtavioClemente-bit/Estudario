@@ -59,6 +59,7 @@ export interface SyllabusWorkerStore {
   claimNext(now: Date, leaseSeconds: number, processingSeconds: number): Promise<SyllabusWorkerJob | null>;
   assertLease(jobId: string, lease: Lease): Promise<void>;
   markProviderStarted?(jobId: string, lease: Lease): Promise<void>;
+  recordProviderStartOutcome(jobId: string, lease: Lease, outcome: "PROVIDER_REJECTED" | "TRANSPORT_AMBIGUOUS" | "RESPONSE_AMBIGUOUS"): Promise<void>;
   persistResponseId(jobId: string, responseId: string, lease: Lease): Promise<void>;
   recoverResponseId?(jobId: string, responseId: string): Promise<void>;
   finalizeNotSent?(jobId: string, lease: Lease, code: string): Promise<void>;
@@ -269,6 +270,13 @@ export async function processSyllabusJob(dependencies: SyllabusWorkerDependencie
       catch (notSentError) { if (!(notSentError instanceof LeaseLostError)) throw notSentError; }
       return true;
     }
+    if (providerStarted && error instanceof OpenAiProviderError && job.openaiResponseId === null) {
+      if (error.outcome !== "NOT_SENT") {
+        try { await dependencies.jobs.recordProviderStartOutcome(job.id, lease, error.outcome); }
+        catch { /* retain IN_FLIGHT quarantine if classification cannot be persisted */ }
+      }
+      return true;
+    }
     if (error instanceof LeaseLostError) return true;
     const code = errorCode(error);
     if (preProviderDefinitive(code, providerStarted, job)) {
@@ -375,6 +383,9 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
   }
   async assertLease(jobId: string, lease: Lease): Promise<void> { await this.rpc("assert_ai_job_lease", { p_job_id: jobId, ...leaseRpcArgs(lease) }); }
   async markProviderStarted(jobId: string, lease: Lease): Promise<void> { await this.rpc("mark_ai_job_provider_execution_started", { p_job_id: jobId, ...leaseRpcArgs(lease) }); }
+  async recordProviderStartOutcome(jobId: string, lease: Lease, outcome: "PROVIDER_REJECTED" | "TRANSPORT_AMBIGUOUS" | "RESPONSE_AMBIGUOUS"): Promise<void> {
+    await this.rpc("record_ai_job_provider_start_outcome", { p_job_id: jobId, p_outcome: outcome, ...leaseRpcArgs(lease) });
+  }
   async persistResponseId(jobId: string, responseId: string, lease: Lease): Promise<void> { await this.rpc("persist_ai_job_provider_response", { p_job_id: jobId, p_response_id: responseId, ...leaseRpcArgs(lease) }); }
   async recoverResponseId(jobId: string, responseId: string): Promise<void> { await this.rpc("recover_ai_job_provider_response", { p_job_id: jobId, p_response_id: responseId }); }
   async finalizeNotSent(jobId: string, lease: Lease, code: string): Promise<void> { await this.rpc("finalize_ai_job_not_sent", { p_job_id: jobId, p_error_code: code, ...leaseRpcArgs(lease) }); }

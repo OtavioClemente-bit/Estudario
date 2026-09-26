@@ -54,6 +54,7 @@ function fakeStore(initial: SyllabusWorkerJob, options: { loseLeaseAfterRetrieve
       events.push(`assert:${id}:${activeLease.owner}:${activeLease.token}:${activeLease.generation}`);
       if (leaseLost) throw new LeaseLostError();
     },
+    async recordProviderStartOutcome(id, activeLease, outcome) { events.push(`provider-outcome:${id}:${activeLease.token}:${outcome}`); },
     async persistResponseId(id, responseId, activeLease) { events.push(`response:${id}:${responseId}:${activeLease.token}`); },
     async finalizeNotSent(id, activeLease, code) { events.push(`not-sent:${id}:${activeLease.token}:${code}`); },
     async reconcileProvider(id, activeLease, recoverable) { events.push(`reconcile:${id}:${activeLease.token}:${recoverable}`); },

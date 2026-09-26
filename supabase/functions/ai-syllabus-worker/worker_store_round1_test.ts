@@ -170,3 +170,20 @@ Deno.test("worker lease RPCs serialize every lease field with its PostgREST para
     assert(!("generation" in body), `${name} must not send generation`);
   }
 });
+
+Deno.test("provider outcome classification uses the backend lease-bound RPC contract", async () => {
+  let request: { url: string; body: Record<string, unknown> } | null = null;
+  const fetcher: typeof fetch = async (input, init) => {
+    request = { url: String(input), body: JSON.parse(String(init?.body ?? "{}")) };
+    return Response.json([{ provider_start_outcome: "PROVIDER_REJECTED" }]);
+  };
+  const store = new SupabaseSyllabusWorkerStore(
+    { supabaseUrl: "https://supabase.test", serviceRoleKey: "service-test", fetcher }, {} as never, "worker-a",
+  );
+  await store.recordProviderStartOutcome("job-1", lease, "PROVIDER_REJECTED");
+  assertEquals(request?.url, "https://supabase.test/rest/v1/rpc/record_ai_job_provider_start_outcome");
+  assertEquals(request?.body, {
+    p_job_id: "job-1", p_outcome: "PROVIDER_REJECTED",
+    p_lease_owner: lease.owner, p_lease_token: lease.token, p_lease_generation: lease.generation,
+  });
+});

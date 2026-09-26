@@ -48,6 +48,7 @@ function store(initial: SyllabusWorkerJob): SyllabusWorkerStore & { events: stri
     events,
     async claimNext() { return initial; },
     async assertLease() {},
+    async recordProviderStartOutcome(id, _lease, outcome) { events.push(`provider-outcome:${id}:${outcome}`); },
     async persistResponseId(id, responseId) { events.push(`response:${id}:${responseId}`); },
     async finalizeSuccess(id) { events.push(`success:${id}`); },
     async finalizeFailure(id, _lease, code) { events.push(`failure:${id}:${code}`); },
@@ -189,6 +190,26 @@ Deno.test("known response ID is recovered after lease-bound persistence fails", 
   assertEquals(starts, 1);
   assertEquals(jobs.events.slice(0, 2), ["persist-failed", "recover:job-1:resp-recovered"]);
   assert(!jobs.events.some((event) => event.startsWith("retry:") || event.startsWith("failure:")));
+});
+
+Deno.test("persists provider delivery classes without retrying or releasing quarantine", async () => {
+  for (const outcome of ["PROVIDER_REJECTED", "TRANSPORT_AMBIGUOUS", "RESPONSE_AMBIGUOUS"] as const) {
+    const jobs = store(job({ openaiResponseId: null, providerExecutionStartedAt: null }));
+    jobs.markProviderStarted = async () => {};
+    const outcomes: string[] = [];
+    (jobs as SyllabusWorkerStore & { recordProviderStartOutcome: (id: string, lease: Lease, outcome: string) => Promise<void> }).recordProviderStartOutcome = async (_id, _lease, value) => { outcomes.push(value); };
+    let starts = 0;
+    await processSyllabusJob({
+      jobs,
+      provider: { ...provider({ id: "unused", status: "failed", outputText: null, usage: null }),
+        async start() { starts++; throw new OpenAiProviderError("OPENAI_PROVIDER_ERROR", outcome); } },
+      source: async () => new Uint8Array([1]),
+      now: () => new Date("2026-09-24T12:01:00Z"),
+    });
+    assertEquals(starts, 1, `${outcome} cannot replay generation`);
+    assertEquals(outcomes, [outcome], `${outcome} is persisted exactly once`);
+    assert(!jobs.events.some((event) => event.startsWith("retry:") || event.startsWith("failure:")));
+  }
 });
 
 Deno.test("cancellation winning mark-start prevents provider call and retry", async () => {
