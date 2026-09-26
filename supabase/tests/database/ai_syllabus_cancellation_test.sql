@@ -125,7 +125,8 @@ select is(
 );
 set local role postgres;
 update public.ai_jobs
-set openai_response_id = 'response-cancel-1', provider_execution_started_at = now()
+set openai_response_id = 'response-cancel-1', provider_execution_started_at = now(),
+    provider_start_outcome = 'ACCEPTED'
 where id = (select job_id from cancellation_jobs where label = 'processing-response');
 set local role service_role;
 select is(
@@ -167,7 +168,8 @@ select is(
 );
 set local role postgres;
 update public.ai_jobs
-set openai_response_id = 'response-unknown-1', provider_execution_started_at = now()
+set openai_response_id = 'response-unknown-1', provider_execution_started_at = now(),
+    provider_start_outcome = 'ACCEPTED'
 where id = (select job_id from cancellation_jobs where label = 'processing-unknown');
 set local role service_role;
 select is(
@@ -201,6 +203,12 @@ select is(
   'PROCESSING',
   'late completion fixture enters PROCESSING'
 );
+set local role postgres;
+update public.ai_jobs
+set openai_response_id = 'response-late-completion',
+    provider_execution_started_at = now(),
+    provider_start_outcome = 'ACCEPTED'
+where id = (select job_id from cancellation_jobs where label = 'late-completion');
 set local role authenticated;
 set local role service_role;
 select is(

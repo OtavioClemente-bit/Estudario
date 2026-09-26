@@ -72,6 +72,12 @@ select throws_ok(
   'P0001', 'AI_JOB_LEASE_LOST', 'the old worker cannot persist after recovery'
 );
 select is(
+  (select provider_start_outcome from public.mark_ai_job_provider_execution_started(
+    '00000000-0000-0000-0000-0000000000ab'::uuid, 'worker-b', 'token-b', 2
+  )),
+  'IN_FLIGHT', 'current worker marks the attempt before persisting a response'
+);
+select is(
   (select openai_response_id from public.persist_ai_job_provider_response(
     '00000000-0000-0000-0000-0000000000ab'::uuid, 'response-new', 'worker-b', 'token-b', 2
   )),

@@ -233,24 +233,18 @@ select ok(
       begin
         perform set_config('request.jwt.claim.role', 'authenticated', false);
         perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000c1', false);
-        perform 1
-        from public.ai_quota_usage
-        where user_id = '00000000-0000-0000-0000-0000000000c1'
-          and feature = 'CONTENT_GENERATION'
-          and period_start = (now() at time zone 'America/Sao_Paulo')::date
-        for update;
-        perform pg_sleep(1);
         perform public.create_or_get_ai_job_and_reserve_quota(
           'CONTENT_GENERATION',
           'foundation-concurrent-key',
           'foundation-concurrent-fingerprint',
           '{}'::jsonb
         );
+        perform pg_sleep(1);
       end;
       $remote$;
     $race$
   ) = 1,
-  'first concurrent call locks the quota row before sleeping'
+  'first concurrent call starts before the second caller'
 );
 select is(
   (select count(*) from public.create_or_get_ai_job_and_reserve_quota(
@@ -624,6 +618,22 @@ select is(
   'worker claim replaces the legacy lease before success finalization'
 );
 select is(
+  (select provider_start_outcome from public.mark_ai_job_provider_execution_started(
+    (select job_id from ai_test_jobs where label = 'idempotent'),
+    'foundation-worker', 'foundation-token', 1
+  )),
+  'IN_FLIGHT',
+  'provider attempt is marked before accepting a response'
+);
+select is(
+  (select provider_start_outcome from public.persist_ai_job_provider_response(
+    (select job_id from ai_test_jobs where label = 'idempotent'),
+    'response-foundation-1', 'foundation-worker', 'foundation-token', 1
+  )),
+  'ACCEPTED',
+  'response ID is persisted before success finalization'
+);
+select is(
   (select status::text from public.finalize_ai_job_success_with_lease(
     (select job_id from ai_test_jobs where label = 'idempotent'),
     '{"schemaVersion":1,"subjects":[]}'::jsonb,
@@ -835,7 +845,8 @@ from public.create_or_get_ai_job_and_reserve_quota(
 set local role postgres;
 update public.ai_jobs
 set provider_execution_started_at = now(),
-    openai_response_id = 'response-provider-started'
+    openai_response_id = 'response-provider-started',
+    provider_start_outcome = 'ACCEPTED'
 where id = (select job_id from ai_test_jobs where label = 'provider-started');
 set local role authenticated;
 select throws_ok(
