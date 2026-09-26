@@ -55,6 +55,7 @@ function fakeStore(initial: SyllabusWorkerJob, options: { loseLeaseAfterRetrieve
       if (leaseLost) throw new LeaseLostError();
     },
     async persistResponseId(id, responseId, activeLease) { events.push(`response:${id}:${responseId}:${activeLease.token}`); },
+    async finalizeNotSent(id, activeLease, code) { events.push(`not-sent:${id}:${activeLease.token}:${code}`); },
     async reconcileProvider(id, activeLease, recoverable) { events.push(`reconcile:${id}:${activeLease.token}:${recoverable}`); },
     async markRetry(id, activeLease) { events.push(`retry:${id}:${activeLease.token}`); },
     async captureUsage(id, activeLease) { events.push(`usage:${id}:${activeLease.token}`); },
@@ -84,11 +85,22 @@ Deno.test("finalizes deterministic pre-provider failures without retry or ambigu
   for (const failure of ["OPENAI_API_KEY_MISSING", "SOURCE_NOT_FOUND", "SOURCE_HASH_MISMATCH"]) {
     const jobs = fakeStore(job());
     const openAi = provider(
-      async () => { throw failure === "OPENAI_API_KEY_MISSING" ? new OpenAiProviderError("OPENAI_API_KEY_MISSING") : new Error(failure); },
+      async () => { throw new OpenAiProviderError("OPENAI_API_KEY_MISSING", "NOT_SENT"); },
       async () => { throw new Error("retrieve must not run"); },
     );
-    await processSyllabusJob(deps(jobs, openAi));
-    assert(jobs.events.some((event) => event.includes(`failure:job-round1:${lease.token}:${failure}:FAILED:false`)));
+    await processSyllabusJob({
+      ...deps(jobs, openAi),
+      source: async () => {
+        if (failure !== "OPENAI_API_KEY_MISSING") throw new Error(failure);
+        return new Uint8Array([1, 2, 3]);
+      },
+    });
+    if (failure === "OPENAI_API_KEY_MISSING") {
+      assert(jobs.events.some((event) => event === `not-sent:job-round1:${lease.token}:${failure}`));
+      assert(!jobs.events.some((event) => event.startsWith("failure:")));
+    } else {
+      assert(jobs.events.some((event) => event.includes(`failure:job-round1:${lease.token}:${failure}:FAILED:false`)));
+    }
     assert(!jobs.events.some((event) => event.startsWith("retry:")));
     assert(!jobs.events.some((event) => event.startsWith("reconcile:")));
   }
@@ -151,13 +163,13 @@ Deno.test("records provider-start evidence before invoking the provider", async 
   assert(jobs.events.indexOf("provider-started:job-round1:lease-token-a") < jobs.events.indexOf("provider:start"));
 });
 
-Deno.test("reconciles provider timeout and stops retrying at the retry limit", async () => {
+Deno.test("quarantines provider timeout without retrying generation", async () => {
   const jobs = fakeStore(job({ retryCount: 2 }));
   await processSyllabusJob(deps(jobs, provider(
-    async () => { throw new OpenAiProviderError("OPENAI_TIMEOUT"); },
+    async () => { throw new OpenAiProviderError("OPENAI_TIMEOUT", "TRANSPORT_AMBIGUOUS"); },
     async () => { throw new Error("retrieve must not run"); },
   )));
-  assert(jobs.events.some((event) => event.endsWith(":true")));
+  assert(!jobs.events.some((event) => event.startsWith("reconcile:")));
   assert(!jobs.events.some((event) => event.startsWith("retry:")));
   assert(!jobs.events.some((event) => event.startsWith("failure:")));
 });

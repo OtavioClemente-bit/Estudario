@@ -62,16 +62,15 @@ update public.ai_jobs
 set provider_execution_started_at = now()
 where id = (select job_id from cancellation_jobs where label = 'reserved-started');
 set local role authenticated;
-select throws_ok(
-  format('select * from public.cancel_ai_job_without_provider(%L)', (select job_id from cancellation_jobs where label = 'reserved-started')),
-  'P0001',
-  'CANCELLATION_RECONCILIATION_REQUIRED',
-  'provider-start evidence blocks the RESERVED pre-provider cancellation path'
+select is(
+  (select status::text from public.cancel_ai_job_without_provider((select job_id from cancellation_jobs where label = 'reserved-started'))),
+  'CANCELLED',
+  'audit timestamp alone does not block RESERVED pre-provider cancellation'
 );
 select is(
   (select reserved_count from public.ai_quota_usage where user_id = '00000000-0000-0000-0000-0000000000c2' and feature = 'CONTENT_GENERATION'),
-  1,
-  'provider-start evidence keeps quota reserved'
+  0,
+  'audit-only cancellation releases the reservation'
 );
 
 insert into cancellation_jobs(label, job_id)

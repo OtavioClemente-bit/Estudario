@@ -27,6 +27,10 @@ export class LeaseLostError extends Error {
   constructor() { super("AI_JOB_LEASE_LOST"); this.name = "LeaseLostError"; }
 }
 
+class CancellationPendingError extends Error {
+  constructor() { super("AI_JOB_CANCELLATION_PENDING"); }
+}
+
 export interface SyllabusWorkerJob {
   id: string;
   userId: string;
@@ -38,6 +42,9 @@ export interface SyllabusWorkerJob {
   sourceFileCount: number;
   openaiResponseId: string | null;
   providerExecutionStartedAt: string | null;
+  providerStartOutcome?: string;
+  providerQuarantinedAt?: string | null;
+  cancellationRequestedAt?: string | null;
   leaseExpiresAt: string | null;
   leaseOwner: string;
   leaseToken: string;
@@ -53,6 +60,8 @@ export interface SyllabusWorkerStore {
   assertLease(jobId: string, lease: Lease): Promise<void>;
   markProviderStarted?(jobId: string, lease: Lease): Promise<void>;
   persistResponseId(jobId: string, responseId: string, lease: Lease): Promise<void>;
+  recoverResponseId?(jobId: string, responseId: string): Promise<void>;
+  finalizeNotSent?(jobId: string, lease: Lease, code: string): Promise<void>;
   reconcileProvider(jobId: string, lease: Lease, recoverable: boolean): Promise<void>;
   markRetry(jobId: string, lease: Lease): Promise<void>;
   captureUsage(jobId: string, lease: Lease, usage: ProviderUsage | null): Promise<void>;
@@ -108,7 +117,8 @@ function errorCode(error: unknown): string {
 }
 
 function preProviderDefinitive(code: string, providerStarted: boolean, job: SyllabusWorkerJob): boolean {
-  if (providerStarted || job.openaiResponseId !== null || job.providerExecutionStartedAt !== null) return false;
+  if (providerStarted || job.openaiResponseId !== null || job.providerQuarantinedAt != null ||
+      (job.providerStartOutcome !== undefined && job.providerStartOutcome !== "NOT_STARTED")) return false;
   return code === "OPENAI_API_KEY_MISSING" || code === "SOURCE_NOT_FOUND" || code === "SOURCE_HASH_MISMATCH" || code.startsWith("SOURCE_");
 }
 
@@ -199,9 +209,11 @@ export async function processSyllabusJob(dependencies: SyllabusWorkerDependencie
   const job = await dependencies.jobs.claimNext(now(), dependencies.leaseSeconds ?? 300, dependencies.maxProcessingSeconds ?? 900);
   if (!job) return false;
   const lease = leaseOf(job);
-  let providerStarted = job.providerExecutionStartedAt !== null || job.openaiResponseId !== null;
+  let providerStarted = job.openaiResponseId !== null || job.providerQuarantinedAt != null ||
+    (job.providerStartOutcome !== undefined && job.providerStartOutcome !== "NOT_STARTED");
   try {
     await dependencies.jobs.assertLease(job.id, lease);
+    if (job.cancellationRequestedAt != null || job.providerQuarantinedAt != null) return true;
     if (deadlineExceeded(job, now()) && !providerStarted) {
       await finalizeFailure(dependencies, job, lease, "PROCESSING_DEADLINE_EXCEEDED", "EXPIRED", false);
       return true;
@@ -219,6 +231,10 @@ export async function processSyllabusJob(dependencies: SyllabusWorkerDependencie
       }
       if (dependencies.jobs.markProviderStarted) await dependencies.jobs.markProviderStarted(job.id, lease);
       const providerStartedAt = now().toISOString();
+      providerStarted = true;
+      job.providerStartOutcome = "IN_FLIGHT";
+      job.providerQuarantinedAt = providerStartedAt;
+      job.providerExecutionStartedAt = providerStartedAt;
       response = await dependencies.provider.start({
         jobId: job.id,
         idempotencyKey: job.id,
@@ -233,18 +249,33 @@ export async function processSyllabusJob(dependencies: SyllabusWorkerDependencie
         store: true,
         maxOutputTokens: dependencies.maxOutputTokens,
       });
-      providerStarted = true;
-      job.providerExecutionStartedAt = providerStartedAt;
-      await dependencies.jobs.persistResponseId(job.id, response.id, lease);
+      try {
+        await dependencies.jobs.persistResponseId(job.id, response.id, lease);
+      } catch {
+        if (dependencies.jobs.recoverResponseId) {
+          try { await dependencies.jobs.recoverResponseId(job.id, response.id); } catch { /* quarantine remains for resolution */ }
+        }
+        return true;
+      }
+      job.providerStartOutcome = "ACCEPTED";
+      job.providerQuarantinedAt = null;
     }
     await processResponse(dependencies, job, lease, response, now());
   } catch (error) {
+    if (error instanceof CancellationPendingError || (error instanceof Error && error.message === "AI_JOB_CANCELLATION_PENDING")) return true;
+    if (providerStarted && error instanceof OpenAiProviderError && error.outcome === "NOT_SENT") {
+      if (!dependencies.jobs.finalizeNotSent) throw new Error("AI_WORKER_DATA_UNAVAILABLE");
+      try { await dependencies.jobs.finalizeNotSent(job.id, lease, errorCode(error)); }
+      catch (notSentError) { if (!(notSentError instanceof LeaseLostError)) throw notSentError; }
+      return true;
+    }
     if (error instanceof LeaseLostError) return true;
     const code = errorCode(error);
     if (preProviderDefinitive(code, providerStarted, job)) {
       await finalizeFailure(dependencies, job, lease, code, "FAILED", false);
       return true;
     }
+    if (providerStarted && job.openaiResponseId === null) return true;
     try {
       await dependencies.jobs.assertLease(job.id, lease);
       await dependencies.jobs.reconcileProvider(job.id, lease, true);
@@ -322,6 +353,8 @@ function parseJob(value: Record<string, unknown>): SyllabusWorkerJob {
     sourceObjectPath: stringField(value, "source_object_path"), sourceHash: stringField(value, "source_hash"),
     sourceBytes: integerField(value, "source_bytes"), sourcePages: integerField(value, "source_pages"), sourceFileCount: integerField(value, "source_file_count"),
     openaiResponseId: nullableString(value, "openai_response_id"), providerExecutionStartedAt: nullableString(value, "provider_execution_started_at"),
+    providerStartOutcome: stringField(value, "provider_start_outcome"), providerQuarantinedAt: nullableString(value, "provider_quarantined_at"),
+    cancellationRequestedAt: nullableString(value, "cancellation_requested_at"),
     leaseExpiresAt: nullableString(value, "lease_expires_at"), leaseOwner: stringField(value, "lease_owner"), leaseToken: stringField(value, "lease_token"),
     leaseGeneration: integerField(value, "lease_generation"), processingDeadlineAt: nullableString(value, "processing_deadline_at"), retryCount: integerField(value, "retry_count"),
     promptVersion: nullableString(value, "prompt_version"), modelVersion: nullableString(value, "model_version"),
@@ -343,6 +376,8 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
   async assertLease(jobId: string, lease: Lease): Promise<void> { await this.rpc("assert_ai_job_lease", { p_job_id: jobId, ...leaseRpcArgs(lease) }); }
   async markProviderStarted(jobId: string, lease: Lease): Promise<void> { await this.rpc("mark_ai_job_provider_execution_started", { p_job_id: jobId, ...leaseRpcArgs(lease) }); }
   async persistResponseId(jobId: string, responseId: string, lease: Lease): Promise<void> { await this.rpc("persist_ai_job_provider_response", { p_job_id: jobId, p_response_id: responseId, ...leaseRpcArgs(lease) }); }
+  async recoverResponseId(jobId: string, responseId: string): Promise<void> { await this.rpc("recover_ai_job_provider_response", { p_job_id: jobId, p_response_id: responseId }); }
+  async finalizeNotSent(jobId: string, lease: Lease, code: string): Promise<void> { await this.rpc("finalize_ai_job_not_sent", { p_job_id: jobId, p_error_code: code, ...leaseRpcArgs(lease) }); }
   async reconcileProvider(jobId: string, lease: Lease, recoverable: boolean): Promise<void> { await this.rpc("record_ai_job_provider_reconciliation", { p_job_id: jobId, p_recoverable: recoverable, ...leaseRpcArgs(lease) }); }
   async markRetry(jobId: string, lease: Lease): Promise<void> { await this.rpc("increment_ai_job_retry", { p_job_id: jobId, ...leaseRpcArgs(lease) }); }
   async captureUsage(jobId: string, lease: Lease, usage: ProviderUsage | null): Promise<void> { await this.rpc("record_ai_job_usage", { p_job_id: jobId, p_input_tokens: usage?.inputTokens ?? null, p_output_tokens: usage?.outputTokens ?? null, p_total_tokens: usage?.totalTokens ?? null, ...leaseRpcArgs(lease) }); }
@@ -386,6 +421,7 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
         providerMessage = [payload.code, payload.message, payload.error].filter((value) => typeof value === "string").join(" ");
       } catch { /* retain the safe generic error */ }
       if (response.status === 409 || response.status === 412 || /AI_JOB_LEASE_LOST|LEASE_LOST/.test(providerMessage)) throw new LeaseLostError();
+      if (providerMessage.includes("AI_JOB_CANCELLATION_PENDING")) throw new CancellationPendingError();
       throw new Error("AI_WORKER_DATA_UNAVAILABLE");
     }
     return await response.json();

@@ -13,6 +13,22 @@ select ok(not has_function_privilege('anon', 'public.claim_ai_syllabus_worker_jo
 select ok(not has_function_privilege('authenticated', 'public.claim_ai_syllabus_worker_job(text, text, integer, integer)', 'EXECUTE'), 'authenticated cannot execute the current lease-bound worker claim');
 select ok(not has_function_privilege('anon', 'public.persist_ai_job_provider_response(uuid, text, text, text, bigint)', 'EXECUTE'), 'anon cannot execute the current lease-bound response-persist RPC');
 select ok(not has_function_privilege('authenticated', 'public.persist_ai_job_provider_response(uuid, text, text, text, bigint)', 'EXECUTE'), 'authenticated cannot execute the current lease-bound response-persist RPC');
+select ok(not has_function_privilege('anon', 'public.recover_ai_job_provider_response(uuid, text)', 'EXECUTE'), 'anon cannot execute provider response recovery');
+select ok(not has_function_privilege('authenticated', 'public.recover_ai_job_provider_response(uuid, text)', 'EXECUTE'), 'authenticated cannot execute provider response recovery');
+select ok(has_function_privilege('service_role', 'public.recover_ai_job_provider_response(uuid, text)', 'EXECUTE'), 'service_role can execute provider response recovery');
+select ok(not has_function_privilege('anon', 'public.finalize_ai_job_not_sent(uuid, text, text, bigint, text)', 'EXECUTE'), 'anon cannot execute atomic NOT_SENT finalization');
+select ok(not has_function_privilege('authenticated', 'public.finalize_ai_job_not_sent(uuid, text, text, bigint, text)', 'EXECUTE'), 'authenticated cannot execute atomic NOT_SENT finalization');
+select ok(has_function_privilege('service_role', 'public.finalize_ai_job_not_sent(uuid, text, text, bigint, text)', 'EXECUTE'), 'service_role can execute atomic NOT_SENT finalization');
+select ok((select bool_and(p.proconfig @> array['search_path=""'])
+  from pg_catalog.pg_proc p
+  where p.oid in (
+    'public.recover_ai_job_provider_response(uuid, text)'::regprocedure,
+    'public.finalize_ai_job_not_sent(uuid, text, text, bigint, text)'::regprocedure,
+    'public.cancel_ai_job_without_provider(uuid)'::regprocedure,
+    'public.release_ai_job_reservation(uuid, public.ai_job_status, text, text)'::regprocedure,
+    'public.record_ai_job_provider_reconciliation(uuid, text, text, bigint, boolean)'::regprocedure,
+    'public.finalize_ai_job_failure_with_lease(uuid, public.ai_job_status, text, text, boolean, text, text, bigint)'::regprocedure
+  )), 'Task 4 security definer functions use an empty search_path');
 select ok(not has_function_privilege('anon', 'public.ai_backfill_provider_start_outcome()', 'EXECUTE') and not has_function_privilege('authenticated', 'public.ai_backfill_provider_start_outcome()', 'EXECUTE') and not has_function_privilege('service_role', 'public.ai_backfill_provider_start_outcome()', 'EXECUTE'), 'backfill helper has no runtime execution grant');
 select ok(not has_table_privilege('anon', 'public.ai_job_provider_resolution_audit', 'SELECT') and not has_table_privilege('authenticated', 'public.ai_job_provider_resolution_audit', 'SELECT') and not has_table_privilege('service_role', 'public.ai_job_provider_resolution_audit', 'SELECT'), 'audit table has no direct runtime read');
 select ok(not has_table_privilege('anon', 'public.ai_job_provider_reconciliation_queue', 'SELECT') and not has_table_privilege('authenticated', 'public.ai_job_provider_reconciliation_queue', 'SELECT') and not has_table_privilege('service_role', 'public.ai_job_provider_reconciliation_queue', 'SELECT'), 'reconciliation queue has no direct runtime read');

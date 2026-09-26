@@ -1,7 +1,8 @@
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { processSyllabusJob, type SyllabusWorkerJob, type SyllabusWorkerStore } from "./index.ts";
+import { LeaseLostError, processSyllabusJob, type Lease, type SyllabusWorkerJob, type SyllabusWorkerStore } from "./index.ts";
 import type { OpenAiProvider, ProviderResponse } from "../_shared/openai-provider.ts";
 import type { TerminalAiTelemetry } from "../_shared/job-finalizer.ts";
+import { OpenAiProviderError } from "../_shared/openai-provider.ts";
 
 const validOutput = JSON.stringify({
   schemaVersion: 1,
@@ -153,6 +154,56 @@ Deno.test("retains provider usage for terminal provider and proposal validation 
     assertEquals(event.outputTokens, 7);
     assertEquals(event.totalTokens, 18);
   }
+});
+
+Deno.test("local NOT_SENT after mark-start uses one atomic terminal operation", async () => {
+  const jobs = store(job({ openaiResponseId: null, providerExecutionStartedAt: null }));
+  jobs.markProviderStarted = async () => { jobs.events.push("marked"); };
+  (jobs as SyllabusWorkerStore & { finalizeNotSent: (id: string, lease: Lease, code: string) => Promise<void> }).finalizeNotSent = async (id, _lease, code) => { jobs.events.push(`not-sent:${id}:${code}`); };
+  let starts = 0;
+  await processSyllabusJob({
+    jobs,
+    provider: { ...provider({ id: "unused", status: "failed", outputText: null, usage: null }),
+      async start() { starts++; throw new OpenAiProviderError("OPENAI_API_KEY_MISSING", "NOT_SENT"); } },
+    source: async () => new Uint8Array([1]),
+    now: () => new Date("2026-09-24T12:01:00Z"),
+  });
+  assertEquals(starts, 1);
+  assertEquals(jobs.events.filter((event) => event.startsWith("not-sent:")), ["not-sent:job-1:OPENAI_API_KEY_MISSING"]);
+  assert(!jobs.events.some((event) => event.startsWith("failure:") || event.startsWith("retry:") || event.startsWith("reconcile:")));
+});
+
+Deno.test("known response ID is recovered after lease-bound persistence fails", async () => {
+  const jobs = store(job({ openaiResponseId: null, providerExecutionStartedAt: null }));
+  let starts = 0;
+  jobs.markProviderStarted = async () => {};
+  jobs.persistResponseId = async () => { jobs.events.push("persist-failed"); throw new LeaseLostError(); };
+  (jobs as SyllabusWorkerStore & { recoverResponseId: (id: string, responseId: string) => Promise<void> }).recoverResponseId = async (id, responseId) => { jobs.events.push(`recover:${id}:${responseId}`); };
+  await processSyllabusJob({
+    jobs,
+    provider: { ...provider({ id: "resp-recovered", status: "in_progress", outputText: null, usage: null }),
+      async start() { starts++; return { id: "resp-recovered", status: "in_progress", outputText: null, usage: null }; } },
+    source: async () => new Uint8Array([1]),
+    now: () => new Date("2026-09-24T12:01:00Z"),
+  });
+  assertEquals(starts, 1);
+  assertEquals(jobs.events.slice(0, 2), ["persist-failed", "recover:job-1:resp-recovered"]);
+  assert(!jobs.events.some((event) => event.startsWith("retry:") || event.startsWith("failure:")));
+});
+
+Deno.test("cancellation winning mark-start prevents provider call and retry", async () => {
+  const jobs = store(job({ openaiResponseId: null, providerExecutionStartedAt: null, providerStartOutcome: "NOT_STARTED", providerQuarantinedAt: null }));
+  jobs.markProviderStarted = async () => { throw new Error("AI_JOB_CANCELLATION_PENDING"); };
+  let starts = 0;
+  await processSyllabusJob({
+    jobs,
+    provider: { ...provider({ id: "unused", status: "failed", outputText: null, usage: null }),
+      async start() { starts++; throw new Error("unexpected start"); } },
+    source: async () => new Uint8Array([1]),
+    now: () => new Date("2026-09-24T12:01:00Z"),
+  });
+  assertEquals(starts, 0);
+  assertEquals(jobs.events, []);
 });
 
 Deno.test("measures first-attempt telemetry duration from provider start", async () => {
