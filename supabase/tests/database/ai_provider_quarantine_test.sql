@@ -22,6 +22,9 @@ select throws_ok($$update public.ai_jobs set provider_start_outcome = 'IN_FLIGHT
 select throws_ok($$update public.ai_jobs set provider_start_outcome = 'ACCEPTED' where id = '10000000-0000-0000-0000-000000000005'$$, '23514', null, 'ACCEPTED without ID is rejected');
 select throws_ok($$update public.ai_jobs set provider_start_outcome = 'ACCEPTED', openai_response_id = 'resp-invalid', provider_quarantined_at = now() where id = '10000000-0000-0000-0000-000000000005'$$, '23514', null, 'ACCEPTED with quarantine is rejected');
 select throws_ok($$insert into public.ai_jobs (user_id, feature, status, idempotency_key, request_fingerprint, provider_start_outcome) values ('10000000-0000-0000-0000-000000000001', 'PLAN_GENERATION', 'PROCESSING', 'invalid-not-sent', 'invalid-not-sent', 'NOT_SENT')$$, '23514', null, 'PROCESSING NOT_SENT without quarantine is rejected');
+insert into public.ai_jobs (id, user_id, feature, status, idempotency_key, request_fingerprint, provider_start_outcome, provider_quarantined_at)
+values ('10000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000001', 'PLAN_GENERATION', 'FAILED', 'valid-not-sent', 'valid-not-sent', 'NOT_SENT', null);
+select ok((select status = 'FAILED' and provider_start_outcome = 'NOT_SENT' and provider_quarantined_at is null and openai_response_id is null from public.ai_jobs where id = '10000000-0000-0000-0000-000000000007'), 'terminal NOT_SENT without quarantine or response ID is valid');
 select throws_ok($$update public.ai_jobs set provider_start_outcome = 'UNKNOWN' where id = '10000000-0000-0000-0000-000000000005'$$, '23514', null, 'unknown outcome is rejected');
 select is((select count(*) from pg_constraint where conrelid = 'public.ai_jobs'::regclass and conname in ('ai_jobs_provider_start_outcome_check', 'ai_jobs_provider_state_check', 'ai_jobs_provider_recoverable_id_check') and convalidated), 3::bigint, 'provider state constraints are validated after backfill');
 

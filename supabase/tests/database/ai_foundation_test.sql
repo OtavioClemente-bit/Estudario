@@ -217,49 +217,81 @@ select set_config('request.jwt.claim.role', 'authenticated', false);
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000c1', false);
 select ok(
   dblink_connect(
-    'race_hold',
+    'race_lock',
     format(
-      'host=supabase_db_estudario-local port=5432 dbname=%s user=postgres password=postgres options=-csearch_path=',
+      'host=supabase_db_estudario-local port=5432 dbname=%s user=postgres password=postgres application_name=foundation_quota_lock options=-csearch_path=',
       current_database()
     )
   ) = 'OK',
-  'concurrent quota connection opens'
+  'quota lock connection opens'
 );
+select is(dblink_exec('race_lock', 'begin'), 'BEGIN', 'quota lock transaction begins');
 select ok(
   dblink_send_query(
-    'race_hold',
-    $race$
-      do $remote$
-      begin
-        perform set_config('request.jwt.claim.role', 'authenticated', false);
-        perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000c1', false);
-        perform public.create_or_get_ai_job_and_reserve_quota(
-          'CONTENT_GENERATION',
-          'foundation-concurrent-key',
-          'foundation-concurrent-fingerprint',
-          '{}'::jsonb
-        );
-        perform pg_sleep(1);
-      end;
-      $remote$;
-    $race$
+    'race_lock',
+    format(
+      'select reserved_count from public.ai_quota_usage where user_id = %L and feature = %L and period_start = public.ai_quota_period(%L::public.ai_feature) for update',
+      '00000000-0000-0000-0000-0000000000c1', 'CONTENT_GENERATION', 'CONTENT_GENERATION'
+    )
   ) = 1,
-  'first concurrent call starts before the second caller'
-);
-select is(
-  (select count(*) from public.create_or_get_ai_job_and_reserve_quota(
-    'CONTENT_GENERATION',
-    'foundation-concurrent-key',
-    'foundation-concurrent-fingerprint',
-    '{}'::jsonb
-  )),
-  1::bigint,
-  'second concurrent call returns one idempotent result after the row lock'
+  'quota lock is requested explicitly before competing calls'
 );
 select ok(
-  (select count(*) from dblink_get_result('race_hold') as result(value text)) >= 0,
-  'first concurrent call completes'
+  (select reserved_count is not null from dblink_get_result('race_lock') as result(reserved_count integer)),
+  'quota row lock is held before either competing request starts'
 );
+select is((select count(*) from dblink_get_result('race_lock') as result(reserved_count integer)), 0::bigint, 'quota lock query result is fully consumed');
+select ok(dblink_connect(
+  'race_a',
+  format('host=supabase_db_estudario-local port=5432 dbname=%s user=postgres password=postgres application_name=foundation_quota_race_a options=-csearch_path=', current_database())
+) = 'OK', 'first competing connection opens');
+select ok(dblink_connect(
+  'race_b',
+  format('host=supabase_db_estudario-local port=5432 dbname=%s user=postgres password=postgres application_name=foundation_quota_race_b options=-csearch_path=', current_database())
+) = 'OK', 'second competing connection opens');
+select is(dblink_exec('race_a', 'set request.jwt.claim.role = authenticated'), 'SET', 'first caller receives authenticated database context');
+select is(dblink_exec('race_a', 'set request.jwt.claim.sub = ''00000000-0000-0000-0000-0000000000c1'''), 'SET', 'first caller receives the fixture user identity');
+select is(dblink_exec('race_b', 'set request.jwt.claim.role = authenticated'), 'SET', 'second caller receives authenticated database context');
+select is(dblink_exec('race_b', 'set request.jwt.claim.sub = ''00000000-0000-0000-0000-0000000000c1'''), 'SET', 'second caller receives the fixture user identity');
+select ok(dblink_send_query(
+  'race_a',
+  $race$select count(*) from public.create_or_get_ai_job_and_reserve_quota('CONTENT_GENERATION', 'foundation-concurrent-key', 'foundation-concurrent-fingerprint', '{}'::jsonb)$race$
+) = 1, 'first create/reserve request starts while quota row is locked');
+select ok(dblink_send_query(
+  'race_b',
+  $race$select count(*) from public.create_or_get_ai_job_and_reserve_quota('CONTENT_GENERATION', 'foundation-concurrent-key', 'foundation-concurrent-fingerprint', '{}'::jsonb)$race$
+) = 1, 'second create/reserve request starts while quota row is locked');
+do $$
+declare
+  v_attempt integer := 0;
+  v_waiters integer;
+begin
+  loop
+    select count(*) into v_waiters
+    from pg_stat_activity
+    where application_name in ('foundation_quota_race_a', 'foundation_quota_race_b')
+      and wait_event_type = 'Lock';
+    exit when v_waiters = 2 or v_attempt >= 500;
+    v_attempt := v_attempt + 1;
+    perform pg_sleep(0.01);
+  end loop;
+end;
+$$;
+select is(
+  (select count(*) from pg_stat_activity
+   where application_name in ('foundation_quota_race_a', 'foundation_quota_race_b')
+     and wait_event_type = 'Lock'),
+  2::bigint,
+  'both competing requests are blocked on database locks before quota lock release'
+);
+select is(dblink_exec('race_lock', 'commit'), 'COMMIT', 'explicit quota lock releases after both requests wait');
+select is((select count(*) from dblink_get_result('race_a') as result(value bigint)), 1::bigint, 'first competing request completes');
+select is((select count(*) from dblink_get_result('race_a') as result(value bigint)), 0::bigint, 'first competing query result is fully consumed');
+select is((select count(*) from dblink_get_result('race_b') as result(value bigint)), 1::bigint, 'second competing request completes idempotently');
+select is((select count(*) from dblink_get_result('race_b') as result(value bigint)), 0::bigint, 'second competing query result is fully consumed');
+select ok(dblink_disconnect('race_a') = 'OK', 'first competing connection closes');
+select ok(dblink_disconnect('race_b') = 'OK', 'second competing connection closes');
+select ok(dblink_disconnect('race_lock') = 'OK', 'quota lock connection closes');
 select is(
   (select count(*) from public.ai_jobs
    where user_id = '00000000-0000-0000-0000-0000000000c1'
@@ -286,7 +318,6 @@ select is(
   1,
   'concurrent calls reserve exactly one quota unit'
 );
-select ok(dblink_disconnect('race_hold') = 'OK', 'concurrent quota connection closes');
 
 begin;
 
