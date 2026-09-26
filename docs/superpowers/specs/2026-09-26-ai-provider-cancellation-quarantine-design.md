@@ -60,15 +60,26 @@ Invariantes:
 - `IN_FLIGHT` marca o job como em quarentena atomicamente antes de chamar a OpenAI. Isso cobre queda do worker entre o marcador e o request.
 - Uma resposta `ACCEPTED` com `response_id` persistido limpa a quarentena na mesma RPC que grava o ID. Se o provider devolver 2xx com ID válido, mas a persistência inicial falhar, o worker conserva esse ID em memória e tenta a RPC backend de recuperação de persistência definida abaixo; nunca chama `provider.start()` novamente.
 - `PROVIDER_REJECTED`, `TRANSPORT_AMBIGUOUS` e `RESPONSE_AMBIGUOUS` mantêm a quarentena e a reserva.
-- `NOT_SENT` limpa a quarentena somente quando o adapter provar que nenhum request foi enviado; o worker então pode encerrar como `FAILED` ou `CANCELLED`, liberando a reserva na transação de finalização.
+- `NOT_SENT` é terminalizado atomicamente, nunca em duas etapas. A mesma RPC lease-bound valida status/lease/outcome, registra `NOT_SENT` e reconciliação negativa, escolhe `CANCELLED` se `cancellation_requested_at IS NOT NULL` ou `FAILED` caso contrário, libera a reserva, limpa lease e quarentena, e torna o job terminal. Não existe estado durável `PROCESSING + NOT_SENT + provider_quarantined_at IS NULL`; a transação inteira confirma ou reverte. Depois de `NOT_SENT`, o worker nunca chama provider novamente para esse job.
 - Resolução administrativa válida limpa a quarentena sob lock transacional, vinculando a decisão à auditoria.
 - `provider_result_recoverable` só significa resultado realmente recuperável confirmado; não será definido como `true` apenas porque uma chamada ficou incerta.
+
+### Invariantes persistentes do banco
+
+A migration deve expressar estes invariantes por CHECK/constraints e/ou RPCs transacionais com cobertura pgTAP, sem criar combinação intermediária durável inválida:
+
+- `NOT_STARTED`: `openai_response_id IS NULL` e sem quarentena ativa.
+- `IN_FLIGHT`, `TRANSPORT_AMBIGUOUS`, `PROVIDER_REJECTED`, `RESPONSE_AMBIGUOUS` ou `LEGACY_AMBIGUOUS` em job não terminal: quarentena obrigatória enquanto não resolvido.
+- `ACCEPTED`: `openai_response_id IS NOT NULL` e sem quarentena de criação.
+- `NOT_SENT`: só pode existir associado a terminalização atômica; nunca pode permanecer em job `PROCESSING` com quarentena nula. Em caso de falha transacional, estado e quota revertem ao estado anterior em quarentena.
+- Jobs terminais não são elegíveis nem à claim normal nem à claim de reconciliação.
+- O backfill deve satisfazer estas regras na própria migration: `LEGACY_AMBIGUOUS` não terminal recebe quarentena; `ACCEPTED` tem ID e não tem quarentena; `NOT_STARTED` não tem ID/quarentena; nenhum backfill muda status/reserva/quota.
 
 ```text
 NOT_STARTED
     └─ marcar antes do HTTP → IN_FLIGHT + provider_quarantined_at
           ├─ response_id persistido → ACCEPTED + limpar quarentena
-          ├─ falha comprovadamente antes do envio → NOT_SENT + limpar quarentena
+          ├─ falha comprovadamente antes do envio → RPC única NOT_SENT + terminalização + RELEASE
           ├─ HTTP não-2xx → PROVIDER_REJECTED + manter quarentena
           ├─ timeout/transporte → TRANSPORT_AMBIGUOUS + manter quarentena
           ├─ resposta sem ID → RESPONSE_AMBIGUOUS + manter quarentena
@@ -111,7 +122,7 @@ O ID retornado por uma resposta 2xx válida é evidência mais forte que `RESPON
 
 ### Continuação backend para cancelamento pendente
 
-`ATTACH_RESPONSE_ID` em job com `cancellation_requested_at IS NOT NULL` deve disparar/registrar uma continuação backend determinística, sem depender de o Android repetir a chamada após o 202 original. Usar uma claim/fila de reconciliação separada, `service_role`-only, que seleciona somente jobs `PROCESSING` com cancelamento solicitado e `openai_response_id` conhecido. Ela executa exclusivamente retrieve/cancel/reconcile do ID conhecido e **nunca** `provider.start()`; não é a claim normal de geração. A resolução administrativa e a persistência de recuperação de ID conhecido devem acionar essa rota de forma durável/idempotente. Enquanto retrieve/cancel permanecer ambíguo, o job fica `PROCESSING`/reconciliação pendente e a reserva permanece `RESERVED`, sem release. Somente resultado terminal confirmado autoriza a transição e o efeito de quota correspondentes.
+`ATTACH_RESPONSE_ID` em job com `cancellation_requested_at IS NOT NULL` deve deixar trabalho pendente determinístico, sem depender de o Android repetir a chamada após o 202 original. O executor concreto será o `ai-syllabus-worker` existente: em cada invocação, após autenticação backend, verifica primeiro a claim de reconciliação; se não houver item, segue para a claim de geração normal. A fila/claim separada é `service_role`-only e seleciona somente jobs `PROCESSING` com cancelamento solicitado e `openai_response_id` conhecido. Cada item recebe lease exclusivo com token/generation/expiração (ou mecanismo transacional equivalente), impedindo dois workers de executar retrieve/cancel simultaneamente. O executor faz exclusivamente retrieve/cancel/reconcile do ID conhecido e **nunca** `provider.start()`; não é a claim normal de geração. A resolução administrativa e a persistência de recuperação de ID conhecido devem deixar o item durável e claimable de forma idempotente. Reconciliar usa deadline próprio, distinto de `processing_deadline_at`, com bounded retry/backoff; expiração do lease torna o item novamente pendente, não libera quota. Falha de transporte ou retrieve/cancel ambíguo mantém `PROCESSING`, reconciliação pendente e reserva `RESERVED`. Resultado terminal confirmado finaliza e aplica o efeito de quota uma única vez. Essa solução reutiliza o cron/worker já existente quando futuramente reativado; esta especificação não o reativa nem altera sua configuração.
 
 ### `processing_deadline_at` e quarentena
 
@@ -133,6 +144,10 @@ Decisões aceitas:
 
 Auditoria proposta em `ai_job_provider_resolution_audit`: os campos definidos acima, mais status/ID de provider quando aplicáveis (somente ID e estado, nunca body). Tabela sem acesso runtime direto por `anon`/`authenticated`; escrita via RPC `SECURITY DEFINER`. Lock na linha do job serializa resolução com worker/cancelamento; decisões incompatíveis posteriores não podem mudar jobs terminais. A RPC deve verificar replay por `resolution_id`/fingerprint antes de tentar aplicar nova transição, mantendo a operação idempotente em concorrência. Ao executar `ATTACH_RESPONSE_ID` com cancelamento pendente, a mesma transação também registra/enfileira a continuação de reconciliação backend durável, sem depender do cliente.
 
+**Precedência contra worker/lease ativo:** decisões destrutivas (`CONFIRM_NOT_CREATED` e `CONFIRM_TERMINAL_NO_RESULT`) não podem terminalizar/liberar quota enquanto houver executor potencialmente ativo. A RPC locka o job e exige lease de processamento ausente ou expirado, salvo a exceção abaixo. Com lease ainda válido, retorna `PENDING/CONFLICT` estável sem alteração de job, auditoria decisória ou quota; a operação pode ser tentada de novo com o mesmo `resolution_id` após expiração, desde que nenhum resultado tenha sido gravado. Exceção: `CONFIRM_TERMINAL_NO_RESULT` pode prosseguir com lease válido somente quando apresenta evidência terminal do próprio provider para o mesmo response ID já conhecido e o mapeamento terminal desta especificação; o fato terminal torna irrelevante qualquer resposta concorrente para aquela Response. `CONFIRM_NOT_CREATED` nunca tem essa exceção. `ATTACH_RESPONSE_ID` pode concorrer com worker: mesmo ID converge idempotentemente, ID divergente conflita sem sobrescrever, e o worker ao retomar deve observar estado terminal/accepted e não substituir evidência.
+
+Ordenamentos obrigatórios: (A) resolução destrutiva após lease expirado pode aplicar a decisão comprovada; (B) resolução destrutiva com lease ativo é pendente/rejeitada sem mutação de quota, exceto a exceção estrita de provider-terminal acima; (C) resposta do worker e `ATTACH_RESPONSE_ID` com mesmo ID convergem, IDs diferentes geram conflito sem sobrescrita.
+
 A RPC revoga `PUBLIC`, `anon` e `authenticated`; concede execução explicitamente só a `service_role` para Data API. Não há abertura de RPCs atuais para cliente.
 
 ## 5. Quota e idempotência
@@ -150,12 +165,14 @@ Uma migration aditiva é necessária; não há configuração/deploy automático
 - Colunas/checks para `provider_start_outcome` e `provider_quarantined_at`, sem expor diagnóstico privado no DTO Android.
 - Atualizar `mark_ai_job_provider_execution_started` para ser ponto de linearização sob lock compartilhado com cancelamento, validar status/lease/cancelamento/ID/estado e gravar `IN_FLIGHT` + quarentena antes da rede; atualizar `persist_ai_job_provider_response` para gravar `ACCEPTED` e limpar quarentena atomicamente.
 - Nova RPC lease-bound para registrar `NOT_SENT`/`PROVIDER_REJECTED`/`TRANSPORT_AMBIGUOUS`/`RESPONSE_AMBIGUOUS`, sem liberar quota por categoria incerta.
+- Implementar `NOT_SENT` como operação única lease-bound que grava outcome/reconciliação negativa, terminaliza conforme cancelamento, libera quota e limpa lease/quarentena atomicamente; não expor uma RPC que apenas limpe quarentena para posterior terminalização.
 - Inventariar todas as assinaturas de `claim_ai_syllabus_worker_job`; garantir em cada overload mantido a exclusão de cancelamento/quarentena; revogar/remover overload legado somente se a busca de consumidores confirmar que está sem uso. Manter todos backend-only.
 - Fazer backfill idempotente de `provider_start_outcome`, `provider_quarantined_at` e `provider_result_recoverable` segundo a tabela acima, sem qualquer transição pública/terminal e sem efeito de quota.
 - Adicionar RPC backend idempotente para persistir o mesmo `response_id` conhecido após falha/expiração do lease normal, com as precondições, conflito, proteção terminal e semântica de quota especificadas acima.
-- Adicionar claim/fila separada backend-only para continuar cancelamento/reconciliação após `ATTACH_RESPONSE_ID` ou recuperação de persistência com cancelamento pendente; nunca executar provider start nessa rota.
+- Adicionar claim/fila separada backend-only, com lease/token/generation e deadline/retry próprios, para continuar cancelamento/reconciliação após `ATTACH_RESPONSE_ID` ou recuperação de persistência com cancelamento pendente; o `ai-syllabus-worker` existente reivindica essa fila primeiro em cada invocação e, sem item de reconciliação, segue para geração normal. Nunca executar provider start nessa rota; a configuração do cron não muda e ele permanece pausado.
 - Atualizar `ATTACH_RESPONSE_ID` e a persistência de recuperação para limpar o deadline vencido e assegurar nova janela limitada na próxima reconciliação; cancelamento pendente continua fora da claim normal.
 - Atualizar release/finalização para impedir release comum de job em quarentena; RPC administrativa limpa/reconcilia e chama release dentro da mesma transação.
+- Adicionar constraints/invariantes persistentes para combinações válidas de `provider_start_outcome`, status, ID e quarentena, incluindo proibição de `PROCESSING + NOT_SENT + quarantine NULL`; claims de geração e reconciliação excluem terminais.
 - Criar tabela de auditoria privada e a RPC administrativa idempotente de resolução; revogar runtime público/autenticado e conceder somente ao papel backend previsto.
 - Preservar todos os overloads e grants não explicitamente afetados por esta mudança. Um overload legado de claim pode ser revogado/removido somente após prova de ausência de consumidor e com cobertura pgTAP. Não alterar scheduler/cron (permanece pausado), modelo, bucket, auth, RLS de usuário ou contratos públicos.
 
@@ -179,6 +196,7 @@ Uma migration aditiva é necessária; não há configuração/deploy automático
 - job normal sem cancelamento/quarentena continua processando e leases permanecem obrigatórios.
 - erro ao persistir ID depois de resposta aceita não chama `start` novamente; tenta somente persistir/reconciliar o mesmo ID e, se inconclusivo, fica em quarentena.
 - resposta válida + falha da persistência inicial + persistência de recuperação bem-sucedida grava o mesmo ID; replay do mesmo ID é idempotente, ID diferente dá conflito, job terminal rejeita e lease expirado nunca causa outro POST.
+- `NOT_SENT` transaciona outcome, reconciliação negativa, terminalização, release e limpeza de lease/quarentena como uma unidade; simular erro/crash antes do commit deixa estado anterior protegido em quarentena, e após commit o job é terminal e quota foi liberada uma única vez. Nunca há estado durável reclamável `PROCESSING + NOT_SENT + quarantine NULL`.
 - POST inclui metadata de correlação allowlisted e sem PII/segredos/conteúdo do arquivo.
 - `ATTACH_RESPONSE_ID` com cancelamento pendente aciona a continuação backend; teste prova que ela só chama retrieve/cancel/reconcile do ID e nunca `provider.start()`, e que ambiguidade mantém reserva e estado pendente.
 
@@ -190,6 +208,8 @@ Uma migration aditiva é necessária; não há configuração/deploy automático
 - backfill interno controlado do job legado de referência é permitido: define apenas estado/quarentena/evidência previstos, mantendo PROCESSING e reserva RESERVED; não conta como reparo manual.
 - teste concorrente determinístico cobre ambos os ordenamentos: cancelamento obtém lock antes de mark-start (mark falha e start não é chamado); mark-start obtém lock antes do cancelamento (grava quarentena e cancelamento posterior só reconcilia, sem segundo start).
 - `NOT_SENT` após `provider_execution_started_at` estar preenchido ainda pode terminalizar/liberar corretamente, pois o timestamp isolado não bloqueia a transição.
+- resolução destrutiva com lease ativo é rejeitada/pending sem mutação de quota; após expiração pode resolver. Provider-terminal com mesmo response ID só usa a exceção formal definida; `CONFIRM_NOT_CREATED` não pode usá-la.
+- corrida worker-response x `ATTACH_RESPONSE_ID`: mesmo ID converge idempotentemente; ID divergente gera conflito e não sobrescreve evidência.
 - iniciar marca `IN_FLIGHT`/quarentena; persistir ID limpa ambos atomicamente.
 - persistência de recuperação aceita o mesmo ID sem lease ativo, rejeita ID divergente/job terminal e não altera quota; cancelamento pendente enfileira continuação de reconciliação backend.
 - release comum falha para quarentena.
@@ -198,6 +218,8 @@ Uma migration aditiva é necessária; não há configuração/deploy automático
 - `ATTACH_RESPONSE_ID` preserva `PROCESSING`, reserva, job e chave; posteriormente permite a rota normal de retrieve ou cancelamento.
 - `ATTACH_RESPONSE_ID` após o deadline antigo vencer limpa/resetta o deadline; sem cancelamento, a próxima claim/reconciliação recebe janela nova e não expira imediatamente; com cancelamento, a claim normal continua excluída e a rota de cancelamento reconcilia o ID.
 - `ATTACH_RESPONSE_ID` com cancelamento pendente aciona automaticamente a rota backend durável de reconciliação; ela nunca chama start e, se retrieve/cancel ficar ambíguo, mantém PROCESSING e quota RESERVED.
+- dois workers disputando o mesmo item de reconciliação: exatamente um lease ganha; o executor faz retrieve/cancel/reconcile e zero chamadas start. Retrieve ambíguo mantém reserva; provider terminal finaliza uma vez; o worker invocado pelo cron existente drena reconciliação antes da claim de geração normal.
+- constraints rejeitam `NOT_STARTED` com ID/quarentena, estado ambíguo não-terminal sem quarentena, `ACCEPTED` sem ID/com quarentena e `PROCESSING + NOT_SENT + quarantine NULL`; backfill termina satisfazendo constraints; terminais não entram em nenhuma claim.
 - `resolution_id` replay idêntico retorna o resultado original; replay divergente dá conflito sem mutação. Testar também concorrência de resolução administrativa contra worker/cancelamento.
 - erros, chamadas duplicadas e concorrência não consomem quota; somente finalização de sucesso consome uma vez.
 - `CONFIRM_TERMINAL_NO_RESULT` mapeia exatamente `failed→FAILED`, `cancelled→CANCELLED`, `expired→EXPIRED` e `incomplete→FAILED/PROVIDER_INCOMPLETE`, liberando uma única reserva.
