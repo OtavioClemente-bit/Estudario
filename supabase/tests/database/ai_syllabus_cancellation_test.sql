@@ -204,9 +204,9 @@ select is(
 );
 set local role postgres;
 update public.ai_jobs
-set openai_response_id = 'response-late-completion',
-    provider_execution_started_at = now(),
-    provider_start_outcome = 'ACCEPTED'
+set openai_response_id = null,
+    provider_execution_started_at = null,
+    provider_start_outcome = 'NOT_STARTED', provider_quarantined_at = null
 where id = (select job_id from cancellation_jobs where label = 'late-completion');
 set local role authenticated;
 set local role service_role;
@@ -220,6 +220,8 @@ select is(
   'SUCCEEDED',
   'completed provider result wins and consumes quota'
 );
+select is((select provider_start_outcome from public.ai_jobs where id = (select job_id from cancellation_jobs where label = 'late-completion')), 'ACCEPTED', 'late-completion finalizer records the accepted response ID');
+select ok((select openai_response_id = 'response-late-completion' and provider_quarantined_at is null from public.ai_jobs where id = (select job_id from cancellation_jobs where label = 'late-completion')), 'late-completion finalizer clears quarantine while preserving accepted provider identity');
 set local role authenticated;
 select is(
   (select status::text from public.ai_quota_reservations where job_id = (select job_id from cancellation_jobs where label = 'late-completion')),

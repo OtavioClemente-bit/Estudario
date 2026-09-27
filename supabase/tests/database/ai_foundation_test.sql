@@ -664,6 +664,12 @@ select is(
   'ACCEPTED',
   'response ID is persisted before success finalization'
 );
+set local role postgres;
+update public.ai_jobs
+set openai_response_id = null, provider_execution_started_at = null,
+    provider_start_outcome = 'NOT_STARTED', provider_quarantined_at = null
+where id = (select job_id from ai_test_jobs where label = 'idempotent');
+set local role service_role;
 select is(
   (select status::text from public.finalize_ai_job_success_with_lease(
     (select job_id from ai_test_jobs where label = 'idempotent'),
@@ -678,6 +684,8 @@ select is(
   'SUCCEEDED',
   'PROCESSING can transition to SUCCEEDED through the success RPC'
 );
+select is((select provider_start_outcome from public.ai_jobs where id = (select job_id from ai_test_jobs where label = 'idempotent')), 'ACCEPTED', 'success finalization records the response as accepted for compatibility with the deployed pre-state-machine worker');
+select ok((select openai_response_id = 'response-foundation-1' and provider_quarantined_at is null from public.ai_jobs where id = (select job_id from ai_test_jobs where label = 'idempotent')), 'success finalization atomically stores the accepted ID and clears quarantine');
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select is(

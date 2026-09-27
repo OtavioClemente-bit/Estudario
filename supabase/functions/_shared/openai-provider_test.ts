@@ -339,6 +339,20 @@ Deno.test("drops unallowlisted provider fields and malformed request IDs", async
   }
 });
 
+Deno.test("retains a valid response ID when a 2xx response has an unknown status", async () => {
+  const provider = createOpenAiProvider({
+    apiKey: "test-key",
+    fetcher: async () =>
+      Response.json({ id: "resp-recoverable-1", status: "future_status" }),
+  });
+  const error = await assertRejects(
+    () => provider.start(source),
+    OpenAiProviderError,
+  );
+  assertEquals(error.outcome, "RESPONSE_AMBIGUOUS");
+  assertEquals(error.responseId, "resp-recoverable-1");
+});
+
 Deno.test("classifies transport timeout and network failures as ambiguous", async () => {
   const timeoutProvider = createOpenAiProvider({
     apiKey: "test-key",

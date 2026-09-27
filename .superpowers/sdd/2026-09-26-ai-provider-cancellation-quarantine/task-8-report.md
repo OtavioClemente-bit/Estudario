@@ -1,6 +1,6 @@
 # Task 8 — Administrative provider-quarantine resolution
 
-Status: implementation and local verification complete; commit pending.
+Status: complete; commit `42667a1` (`feat(db): add audited provider quarantine resolution`).
 
 ## Files
 

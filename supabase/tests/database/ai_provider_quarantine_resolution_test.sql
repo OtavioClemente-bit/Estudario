@@ -3,6 +3,7 @@ begin;
 
 select ok(has_function_privilege('service_role', 'public.resolve_ai_job_provider_quarantine(uuid, uuid, text, jsonb, text, text)', 'EXECUTE'), 'service_role can invoke administrative resolution');
 select ok(not has_function_privilege('anon', 'public.resolve_ai_job_provider_quarantine(uuid, uuid, text, jsonb, text, text)', 'EXECUTE') and not has_function_privilege('authenticated', 'public.resolve_ai_job_provider_quarantine(uuid, uuid, text, jsonb, text, text)', 'EXECUTE') and not exists (select 1 from pg_proc p cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where p.oid = 'public.resolve_ai_job_provider_quarantine(uuid, uuid, text, jsonb, text, text)'::regprocedure and a.grantee = 0 and a.privilege_type = 'EXECUTE'), 'administrative resolution is closed to all client/public roles');
+select ok(not has_function_privilege('service_role', 'public.resolve_ai_job_provider_quarantine_internal(uuid, uuid, text, jsonb, text, text)', 'EXECUTE') and not has_function_privilege('anon', 'public.resolve_ai_job_provider_quarantine_internal(uuid, uuid, text, jsonb, text, text)', 'EXECUTE') and not has_function_privilege('authenticated', 'public.resolve_ai_job_provider_quarantine_internal(uuid, uuid, text, jsonb, text, text)', 'EXECUTE'), 'full-row internal resolver is not directly executable by any runtime role');
 select ok(not has_table_privilege('anon', 'public.ai_job_provider_resolution_audit', 'SELECT') and not has_table_privilege('authenticated', 'public.ai_job_provider_resolution_audit', 'SELECT') and not has_table_privilege('service_role', 'public.ai_job_provider_resolution_audit', 'SELECT'), 'resolution audit has no direct runtime table read');
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
@@ -73,12 +74,13 @@ update public.ai_jobs j set provider_execution_started_at = now(), provider_star
   cancellation_requested_at = case when r.label = 'terminal-cancelled-active-lease' then now() else null end,
   provider_result_recoverable = true,
   processing_deadline_at = case when r.label = 'attach-same-worker-id' then now() + interval '10 minutes' else processing_deadline_at end,
-  lease_owner = case when r.label in ('terminal-cancelled-active-lease', 'attach-same-worker-id') then j.lease_owner else null end,
-  lease_token = case when r.label in ('terminal-cancelled-active-lease', 'attach-same-worker-id') then j.lease_token else null end,
-  lease_expires_at = case when r.label in ('terminal-cancelled-active-lease', 'attach-same-worker-id') then j.lease_expires_at else now() - interval '1 second' end
+  lease_owner = case when r.label = 'terminal-cancelled-active-lease' then 'worker-race' when r.label = 'attach-same-worker-id' then j.lease_owner else null end,
+  lease_token = case when r.label = 'terminal-cancelled-active-lease' then 'worker-race-token' when r.label = 'attach-same-worker-id' then j.lease_token else null end,
+  lease_generation = case when r.label = 'terminal-cancelled-active-lease' then 7 else j.lease_generation end,
+  lease_expires_at = case when r.label = 'terminal-cancelled-active-lease' then now() + interval '1 hour' when r.label = 'attach-same-worker-id' then j.lease_expires_at else now() - interval '1 second' end
 from resolution_jobs r where j.id = r.job_id and r.label in ('terminal-failed', 'terminal-cancelled-active-lease', 'terminal-expired', 'terminal-incomplete', 'attach-same-worker-id', 'attach-conflict');
 insert into public.ai_job_provider_reconciliation_queue (job_id, lease_owner, lease_token, lease_generation, lease_expires_at)
-select job_id, 'reconcile-worker', 'reconcile-token', 1, now() + interval '5 minutes'
+select job_id, 'worker-race', 'worker-race-token', 7, now() + interval '5 minutes'
 from resolution_jobs where label = 'terminal-cancelled-active-lease';
 
 set request.jwt.claim.role = 'service_role';
@@ -93,6 +95,8 @@ select is((select status from public.ai_quota_reservations where job_id = (selec
 select is((select reserved_count from public.ai_quota_usage where user_id = '33000000-0000-0000-0000-000000000001' and feature = 'SYLLABUS_GENERATION'), 0, 'CONFIRM_NOT_CREATED decrements reserved quota once');
 set role postgres;
 select ok((select technical_actor = 'service_role' and evidence_reference = 'evidence:case-1' and operator_reference = 'operator:one' and result_status = 'CANCELLED' and created_at <= now() and result_snapshot ->> 'status' = 'CANCELLED' from public.ai_job_provider_resolution_audit where resolution_id = '44000000-0000-0000-0000-000000000001'), 'audit captures backend identity, references, original result, and server timestamp');
+select ok((select result_snapshot ?& array['job_id', 'status', 'openai_response_id', 'provider_start_outcome', 'provider_reconciled_at', 'finished_at'] and not (result_snapshot ?| array['proposal', 'warnings', 'request_payload', 'source_object_path', 'source_hash']) from public.ai_job_provider_resolution_audit where resolution_id = '44000000-0000-0000-0000-000000000001'), 'stored audit snapshot contains only the allowlisted state fields, never proposal or source data');
+select ok((select result ?& array['job_id', 'status', 'openai_response_id', 'provider_start_outcome', 'provider_reconciled_at', 'finished_at'] and not (result ?| array['proposal', 'warnings', 'request_payload', 'source_object_path', 'source_hash']) from resolution_results where label = 'not-created-cancel'), 'RPC response returns only the allowlisted result snapshot');
 set role service_role;
 select is(public.resolve_ai_job_provider_quarantine(
   (select job_id from resolution_jobs where label = 'not-created-cancel'),
@@ -133,6 +137,9 @@ select is((public.resolve_ai_job_provider_quarantine((select job_id from resolut
 select is((select error_code from public.ai_jobs where id = (select job_id from resolution_jobs where label = 'terminal-failed')), 'PROVIDER_RESULT_UNAVAILABLE', 'provider failed retains stable internal error code');
 select is((select status from public.ai_quota_reservations where job_id = (select job_id from resolution_jobs where label = 'terminal-failed')), 'RELEASED', 'provider terminal result releases quota once');
 
+set role postgres;
+select ok(exists(select 1 from public.ai_jobs j join public.ai_job_provider_reconciliation_queue q on q.job_id = j.id where j.id = (select job_id from resolution_jobs where label = 'terminal-cancelled-active-lease') and j.lease_owner = q.lease_owner and j.lease_token = q.lease_token and j.lease_generation = q.lease_generation and j.lease_expires_at > now() and q.lease_expires_at > now()), 'active reconciliation lease is atomically paired with its generation lease');
+set role service_role;
 select is((public.resolve_ai_job_provider_quarantine((select job_id from resolution_jobs where label = 'terminal-cancelled-active-lease'), '44000000-0000-0000-0000-000000000006', 'CONFIRM_TERMINAL_NO_RESULT', jsonb_build_object('response_id', 'resp-admin-terminal-cancelled-active-lease', 'provider_status', 'cancelled'), 'operator:six', 'evidence:provider-6') ->> 'status'), 'CANCELLED', 'same-ID provider terminal evidence is the only destructive active-lease exception');
 select is((select lease_token from public.ai_jobs where id = (select job_id from resolution_jobs where label = 'terminal-cancelled-active-lease')), null, 'terminal provider resolution revokes the generation lease');
 select is((select status from public.ai_quota_reservations where job_id = (select job_id from resolution_jobs where label = 'terminal-cancelled-active-lease')), 'RELEASED', 'same-ID terminal exception releases quota atomically');

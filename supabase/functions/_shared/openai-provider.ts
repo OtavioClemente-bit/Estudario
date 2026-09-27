@@ -80,6 +80,7 @@ export class OpenAiProviderError extends Error {
       | "OPENAI_RESPONSE_INVALID",
     public readonly outcome: Exclude<ProviderStartOutcome, "ACCEPTED">,
     public readonly diagnostics?: OpenAiProviderDiagnostics,
+    public readonly responseId?: string,
   ) {
     super("Unable to start AI provider request");
     this.name = "OpenAiProviderError";
@@ -258,7 +259,10 @@ function outputText(value: unknown): string | null {
   return null;
 }
 
-function responseStatus(value: unknown): ProviderResponseStatus {
+function responseStatus(
+  value: unknown,
+  responseId?: string,
+): ProviderResponseStatus {
   if (
     [
       "queued",
@@ -275,6 +279,8 @@ function responseStatus(value: unknown): ProviderResponseStatus {
   throw new OpenAiProviderError(
     "OPENAI_RESPONSE_INVALID",
     "RESPONSE_AMBIGUOUS",
+    undefined,
+    responseId,
   );
 }
 
@@ -286,16 +292,18 @@ function parseResponse(value: unknown): ProviderResponse {
     );
   }
   const row = value as Record<string, unknown>;
-  if (typeof row.id !== "string" || row.id.trim().length === 0) {
+  if (
+    typeof row.id !== "string" || !/^[A-Za-z0-9_-]{1,256}$/.test(row.id.trim())
+  ) {
     throw new OpenAiProviderError(
       "OPENAI_RESPONSE_INVALID",
       "RESPONSE_AMBIGUOUS",
     );
   }
   return {
-    id: row.id,
+    id: row.id.trim(),
     outcome: "ACCEPTED",
-    status: responseStatus(row.status),
+    status: responseStatus(row.status, row.id.trim()),
     outputText: outputText(row.output_text ?? row.output),
     usage: usage(row.usage),
   };
@@ -397,7 +405,8 @@ export function createOpenAiProvider(
       }
       try {
         return parseResponse(payload);
-      } catch {
+      } catch (error) {
+        if (error instanceof OpenAiProviderError) throw error;
         throw new OpenAiProviderError(
           "OPENAI_RESPONSE_INVALID",
           "RESPONSE_AMBIGUOUS",
