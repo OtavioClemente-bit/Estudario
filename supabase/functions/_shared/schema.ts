@@ -51,7 +51,7 @@ const proposalSchemaV1: JsonSchema = {
   additionalProperties: false,
   required: ["schemaVersion", "promptVersion", "modelVersion", "documentTitle", "subjects", "warnings", "ambiguities"],
   properties: {
-    schemaVersion: { const: CURRENT_AI_SCHEMA_VERSION },
+    schemaVersion: { type: "integer", enum: [CURRENT_AI_SCHEMA_VERSION] },
     promptVersion: { type: "string", minLength: 1, pattern: "\\S" },
     modelVersion: { type: "string", minLength: 1, pattern: "\\S" },
     documentTitle: { type: "string", minLength: 1, pattern: "\\S" },
@@ -81,7 +81,8 @@ const proposalSchemaV1: JsonSchema = {
     ambiguities: { type: "array", items: { type: "string", minLength: 1, pattern: "\\S" } },
   },
   $defs: {
-    sourcePages: { type: "array", minItems: 1, uniqueItems: true, items: { type: "integer", minimum: 1 } },
+    // Source page uniqueness is enforced locally by the proposal parser.
+    sourcePages: { type: "array", minItems: 1, items: { type: "integer", minimum: 1 } },
     warning: warningSchema,
     topic: topicSchema,
   },
