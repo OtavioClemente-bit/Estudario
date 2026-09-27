@@ -1,5 +1,7 @@
 export interface AuthenticatedUser {
   userId: string;
+  /** Validated bearer token for internal user-scoped requests; never log or serialize. */
+  accessToken?: string;
 }
 
 export interface AuthEnvironment {
@@ -21,7 +23,8 @@ export class AuthError extends Error {
 function environmentFromRuntime(): AuthEnvironment {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim();
   const publishableKey = (
-    Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")
+    Deno.env.get("SUPABASE_ANON_KEY") ??
+      Deno.env.get("SUPABASE_PUBLISHABLE_KEY")
   )?.trim();
   if (!supabaseUrl || !publishableKey) {
     throw new AuthError("AUTH_UNAVAILABLE", 503);
@@ -67,11 +70,12 @@ export async function authenticateSupabaseRequest(
   } catch {
     throw new AuthError("AUTH_INVALID", 401);
   }
-  const userId = typeof payload === "object" && payload !== null && "id" in payload
-    ? (payload as { id?: unknown }).id
-    : null;
+  const userId =
+    typeof payload === "object" && payload !== null && "id" in payload
+      ? (payload as { id?: unknown }).id
+      : null;
   if (typeof userId !== "string" || userId.trim().length === 0) {
     throw new AuthError("AUTH_INVALID", 401);
   }
-  return { userId };
+  return { userId, accessToken: token };
 }

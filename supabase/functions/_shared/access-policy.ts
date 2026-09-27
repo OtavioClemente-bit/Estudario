@@ -49,51 +49,30 @@ export class AccessDataError extends Error {
   }
 }
 
-interface SupabaseAccessEnvironment {
+export interface SupabaseAccessEnvironment {
   supabaseUrl: string;
-  serviceRoleKey: string;
+  authenticatedUserId: string;
+  accessToken: string;
+  publishableKey: string;
   fetcher?: typeof fetch;
 }
 
-export function resolveAccessServiceRoleKey(
-  secretKeysJson: string | null | undefined,
-  legacyServiceRoleKey: string | null | undefined,
-): string | null {
-  if (secretKeysJson?.trim()) {
-    try {
-      const parsed: unknown = JSON.parse(secretKeysJson);
-      if (
-        typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
-      ) {
-        const defaultKey = (parsed as Record<string, unknown>).default;
-        if (typeof defaultKey === "string" && defaultKey.trim()) {
-          return defaultKey.trim();
-        }
-      }
-    } catch {
-      // Keep compatibility with projects that only expose the legacy key.
+export class SupabaseAccessDataSource implements AccessDataSource {
+  constructor(private readonly environment: SupabaseAccessEnvironment) {
+    if (
+      !environment.authenticatedUserId.trim() ||
+      !environment.accessToken.trim() ||
+      !environment.publishableKey.trim() || !environment.supabaseUrl.trim()
+    ) {
+      throw new AccessDataError();
     }
   }
-  return legacyServiceRoleKey?.trim() || null;
-}
-
-function runtimeEnvironment(): SupabaseAccessEnvironment {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim();
-  const serviceRoleKey = resolveAccessServiceRoleKey(
-    Deno.env.get("SUPABASE_SECRET_KEYS"),
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
-  );
-  if (!supabaseUrl || !serviceRoleKey) throw new AccessDataError();
-  return { supabaseUrl, serviceRoleKey };
-}
-
-export class SupabaseAccessDataSource implements AccessDataSource {
-  constructor(private readonly environment?: SupabaseAccessEnvironment) {}
 
   async findProfile(userId: string): Promise<ProfileRecord | null> {
+    this.assertOwner(userId);
     const rows = await this.select("profiles", {
       select: "user_id,beta_access",
-      user_id: `eq.${userId}`,
+      user_id: `eq.${this.environment.authenticatedUserId}`,
       limit: "1",
     });
     const row = rows[0];
@@ -122,9 +101,10 @@ export class SupabaseAccessDataSource implements AccessDataSource {
     feature: AiFeature,
     periodStart: string,
   ): Promise<QuotaUsageRecord | null> {
+    this.assertOwner(userId);
     const rows = await this.select("ai_quota_usage", {
       select: "user_id,feature,successful_count,reserved_count,period_start",
-      user_id: `eq.${userId}`,
+      user_id: `eq.${this.environment.authenticatedUserId}`,
       feature: `eq.${feature}`,
       period_start: `eq.${periodStart}`,
       limit: "1",
@@ -144,21 +124,18 @@ export class SupabaseAccessDataSource implements AccessDataSource {
     table: string,
     filters: Record<string, string>,
   ): Promise<Record<string, unknown>[]> {
-    const environment = this.environment ?? runtimeEnvironment();
     const url = new URL(
-      `${environment.supabaseUrl.replace(/\/$/, "")}/rest/v1/${table}`,
+      `${this.environment.supabaseUrl.replace(/\/$/, "")}/rest/v1/${table}`,
     );
     Object.entries(filters).forEach(([key, value]) =>
       url.searchParams.set(key, value)
     );
-    const fetcher = environment.fetcher ?? fetch;
+    const fetcher = this.environment.fetcher ?? fetch;
     const headers: Record<string, string> = {
-      apikey: environment.serviceRoleKey,
+      apikey: this.environment.publishableKey,
+      authorization: `Bearer ${this.environment.accessToken}`,
       accept: "application/json",
     };
-    if (!environment.serviceRoleKey.startsWith("sb_secret_")) {
-      headers.authorization = `Bearer ${environment.serviceRoleKey}`;
-    }
     let response: Response;
     try {
       response = await fetcher(url, {
@@ -178,6 +155,12 @@ export class SupabaseAccessDataSource implements AccessDataSource {
     return payload.filter((row): row is Record<string, unknown> =>
       typeof row === "object" && row !== null
     );
+  }
+
+  private assertOwner(userId: string): void {
+    if (userId !== this.environment.authenticatedUserId) {
+      throw new AccessDataError();
+    }
   }
 }
 

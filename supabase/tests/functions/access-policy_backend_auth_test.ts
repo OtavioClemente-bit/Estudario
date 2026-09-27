@@ -1,15 +1,15 @@
 import { strict as assert } from "node:assert";
 import {
   AccessDataError,
-  resolveAccessServiceRoleKey,
   SupabaseAccessDataSource,
 } from "../../functions/_shared/access-policy.ts";
 
 const USER_ID = "5e5ac836-8f7b-4de9-8e89-afc6a7983901";
+const OTHER_USER_ID = "00000000-0000-0000-0000-0000000000b1";
 const BASE_URL = "https://project.supabase.test";
-const MODERN_KEY = "sb_secret_test_only_not_a_real_secret";
-const LEGACY_JWT =
-  "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature";
+const PUBLISHABLE_KEY = "sb_publishable_test_client_key";
+const USER_JWT = "user-scoped-test-jwt";
+const SECRET_KEY_SENTINEL = "sb_secret_never_used_by_ai_access";
 
 function responseFor(url: URL): Response {
   if (url.pathname.endsWith("/profiles")) {
@@ -30,11 +30,13 @@ function responseFor(url: URL): Response {
   return Response.json({ code: "unexpected_path" }, { status: 404 });
 }
 
-async function readAllAccessTables(serviceRoleKey: string) {
+async function readAllAccessTables() {
   const requests: Request[] = [];
   const source = new SupabaseAccessDataSource({
     supabaseUrl: BASE_URL,
-    serviceRoleKey,
+    authenticatedUserId: USER_ID,
+    accessToken: USER_JWT,
+    publishableKey: PUBLISHABLE_KEY,
     fetcher: async (input, init) => {
       const request = new Request(input, init);
       requests.push(request);
@@ -62,8 +64,8 @@ async function readAllAccessTables(serviceRoleKey: string) {
   return requests;
 }
 
-Deno.test("opaque secret key authenticates each access-table read only through apikey", async () => {
-  const requests = await readAllAccessTables(MODERN_KEY);
+Deno.test("all access-table reads use the authenticated JWT and client apikey", async () => {
+  const requests = await readAllAccessTables();
 
   assert.deepEqual(
     requests.map((request) => new URL(request.url).pathname.split("/").at(-1)),
@@ -74,46 +76,52 @@ Deno.test("opaque secret key authenticates each access-table read only through a
     ],
   );
   for (const request of requests) {
-    assert.equal(request.headers.get("apikey"), MODERN_KEY);
-    assert.equal(request.headers.has("authorization"), false);
+    assert.equal(request.headers.get("apikey"), PUBLISHABLE_KEY);
+    assert.equal(request.headers.get("authorization"), `Bearer ${USER_JWT}`);
+    assert.notEqual(request.headers.get("apikey"), SECRET_KEY_SENTINEL);
+    assert.notEqual(
+      request.headers.get("authorization"),
+      `Bearer ${SECRET_KEY_SENTINEL}`,
+    );
   }
 });
 
-Deno.test("legacy service-role JWT remains in both apikey and Bearer authorization", async () => {
-  const requests = await readAllAccessTables(LEGACY_JWT);
-
-  assert.equal(requests.length, 3);
-  for (const request of requests) {
-    assert.equal(request.headers.get("apikey"), LEGACY_JWT);
-    assert.equal(request.headers.get("authorization"), `Bearer ${LEGACY_JWT}`);
-  }
-});
-
-Deno.test("runtime key resolution prefers modern default key and falls back to legacy", () => {
-  assert.equal(
-    resolveAccessServiceRoleKey(
-      JSON.stringify({ default: MODERN_KEY }),
-      LEGACY_JWT,
-    ),
-    MODERN_KEY,
-  );
-  assert.equal(resolveAccessServiceRoleKey("not-json", LEGACY_JWT), LEGACY_JWT);
-  assert.equal(
-    resolveAccessServiceRoleKey(
-      JSON.stringify({ other: MODERN_KEY }),
-      LEGACY_JWT,
-    ),
-    LEGACY_JWT,
-  );
-  assert.equal(resolveAccessServiceRoleKey(null, "  "), null);
-});
-
-Deno.test("HTTP errors become sanitized AccessDataError without exposing either credential", async () => {
+Deno.test("user-scoped data source refuses profile or quota queries for another user", async () => {
+  const requests: Request[] = [];
   const source = new SupabaseAccessDataSource({
     supabaseUrl: BASE_URL,
-    serviceRoleKey: MODERN_KEY,
+    authenticatedUserId: USER_ID,
+    accessToken: USER_JWT,
+    publishableKey: PUBLISHABLE_KEY,
+    fetcher: async (input, init) => {
+      requests.push(new Request(input, init));
+      return responseFor(new URL(String(input)));
+    },
+  });
+
+  await assert.rejects(
+    () => source.findProfile(OTHER_USER_ID),
+    AccessDataError,
+  );
+  await assert.rejects(
+    () =>
+      source.findQuotaUsage(OTHER_USER_ID, "SYLLABUS_GENERATION", "1970-01-01"),
+    AccessDataError,
+  );
+  assert.equal(requests.length, 0);
+});
+
+Deno.test("HTTP errors become sanitized AccessDataError without exposing credentials", async () => {
+  const source = new SupabaseAccessDataSource({
+    supabaseUrl: BASE_URL,
+    authenticatedUserId: USER_ID,
+    accessToken: USER_JWT,
+    publishableKey: PUBLISHABLE_KEY,
     fetcher: async () =>
-      new Response(JSON.stringify({ message: MODERN_KEY }), { status: 401 }),
+      new Response(
+        JSON.stringify({ message: `${SECRET_KEY_SENTINEL} ${USER_JWT}` }),
+        { status: 401 },
+      ),
   });
 
   await assert.rejects(
@@ -121,8 +129,9 @@ Deno.test("HTTP errors become sanitized AccessDataError without exposing either 
     (error: unknown) => {
       assert.ok(error instanceof AccessDataError);
       assert.equal(error.message, "AI_ACCESS_DATA_UNAVAILABLE");
-      assert.equal(error.message.includes(MODERN_KEY), false);
-      assert.equal(error.message.includes(LEGACY_JWT), false);
+      assert.equal(error.message.includes(SECRET_KEY_SENTINEL), false);
+      assert.equal(error.message.includes(USER_JWT), false);
+      assert.equal(error.message.includes(PUBLISHABLE_KEY), false);
       return true;
     },
   );

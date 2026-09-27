@@ -1,15 +1,16 @@
 import { strict as assert } from "node:assert";
 import {
-  ClosedBetaAiPolicy,
   type AccessDataSource,
+  ClosedBetaAiPolicy,
   type FeatureFlagRecord,
   type ProfileRecord,
   type QuotaUsageRecord,
+  SupabaseAccessDataSource,
 } from "../../functions/_shared/access-policy.ts";
 import {
   authenticateSupabaseRequest,
-  AuthError,
   type AuthEnvironment,
+  AuthError,
 } from "../../functions/_shared/auth.ts";
 import { createAiAccessHandler } from "../../functions/ai-access/index.ts";
 
@@ -28,23 +29,38 @@ class FakeAccessDataSource implements AccessDataSource {
     return this.profiles.find((profile) => profile.userId === userId) ?? null;
   }
 
-  async listFeatureFlags(keys: readonly string[]): Promise<FeatureFlagRecord[]> {
+  async listFeatureFlags(
+    keys: readonly string[],
+  ): Promise<FeatureFlagRecord[]> {
     return this.flags.filter((flag) => keys.includes(flag.flagKey));
   }
 
-  async findQuotaUsage(userId: string, feature: string, periodStart: string): Promise<QuotaUsageRecord | null> {
+  async findQuotaUsage(
+    userId: string,
+    feature: string,
+    periodStart: string,
+  ): Promise<QuotaUsageRecord | null> {
     return this.quotas.find((quota) =>
-      quota.userId === userId && quota.feature === feature && quota.periodStart === periodStart
+      quota.userId === userId && quota.feature === feature &&
+      quota.periodStart === periodStart
     ) ?? null;
   }
 }
 
-function flags(overrides: Partial<Record<string, boolean>> = {}): FeatureFlagRecord[] {
+function flags(
+  overrides: Partial<Record<string, boolean>> = {},
+): FeatureFlagRecord[] {
   return [
     { flagKey: "AI_BETA_ENABLED", enabled: overrides.AI_BETA_ENABLED ?? true },
-    { flagKey: "SYLLABUS_AI_ENABLED", enabled: overrides.SYLLABUS_AI_ENABLED ?? true },
+    {
+      flagKey: "SYLLABUS_AI_ENABLED",
+      enabled: overrides.SYLLABUS_AI_ENABLED ?? true,
+    },
     { flagKey: "PLAN_AI_ENABLED", enabled: overrides.PLAN_AI_ENABLED ?? true },
-    { flagKey: "CONTENT_AI_ENABLED", enabled: overrides.CONTENT_AI_ENABLED ?? true },
+    {
+      flagKey: "CONTENT_AI_ENABLED",
+      enabled: overrides.CONTENT_AI_ENABLED ?? true,
+    },
   ];
 }
 
@@ -172,7 +188,9 @@ Deno.test("uses America/Sao_Paulo when selecting a daily quota period", async ()
 
 Deno.test("plan has no reset and exhausted content has the next Sao Paulo midnight", async () => {
   const plan = await policyFor().getAccess(USER_A, "PLAN_GENERATION");
-  const content = await policyFor({ quotas: [quota(USER_A, "CONTENT_GENERATION", 1, 0, "2026-09-23")] }).getAccess(USER_A, "CONTENT_GENERATION");
+  const content = await policyFor({
+    quotas: [quota(USER_A, "CONTENT_GENERATION", 1, 0, "2026-09-23")],
+  }).getAccess(USER_A, "CONTENT_GENERATION");
   assert.equal(plan.quota?.resetAt, null);
   assert.equal(content.quota?.remaining, 0);
   assert.equal(content.quota?.resetAt, "2026-09-24T03:00:00.000Z");
@@ -189,15 +207,18 @@ Deno.test("GET access is read-only, ignores Android account/quota claims, and ig
       quotas: [quota(USER_A, FEATURE, 1, 0), quota(USER_B, FEATURE, 0, 0)],
     }),
   });
-  const response = await handler(new Request(
-    "https://example.test/functions/v1/ai-access?feature=SYLLABUS_GENERATION&accountId=" + USER_B + "&remaining=999",
-    {
-      headers: {
-        Authorization: "Bearer supabase-jwt",
-        "X-Goog-Drive-Token": "drive-token-that-must-not-authorize-ai",
+  const response = await handler(
+    new Request(
+      "https://example.test/functions/v1/ai-access?feature=SYLLABUS_GENERATION&accountId=" +
+        USER_B + "&remaining=999",
+      {
+        headers: {
+          Authorization: "Bearer supabase-jwt",
+          "X-Goog-Drive-Token": "drive-token-that-must-not-authorize-ai",
+        },
       },
-    },
-  ));
+    ),
+  );
   const body = await response.json();
 
   assert.equal(response.status, 200);
@@ -207,8 +228,21 @@ Deno.test("GET access is read-only, ignores Android account/quota claims, and ig
   assert.equal(body.quota.used, 1);
   assert.equal(body.quota.remaining, 0);
   assert.equal(body.quota.resetAt, null);
+  assert.deepEqual(Object.keys(body).sort(), [
+    "authenticated",
+    "betaAccess",
+    "canUse",
+    "feature",
+    "featureEnabled",
+    "quota",
+    "reasonCode",
+  ]);
 
-  const postResponse = await handler(new Request("https://example.test/functions/v1/ai-access", { method: "POST" }));
+  const postResponse = await handler(
+    new Request("https://example.test/functions/v1/ai-access", {
+      method: "POST",
+    }),
+  );
   assert.equal(postResponse.status, 405);
   assert.equal(postResponse.headers.get("allow"), "GET");
 });
@@ -224,19 +258,157 @@ Deno.test("authenticates the Supabase bearer token server-side and returns safe 
     },
   };
   const user = await authenticateSupabaseRequest(
-    new Request("https://example.test", { headers: { Authorization: "Bearer verified-jwt" } }),
+    new Request("https://example.test", {
+      headers: { Authorization: "Bearer verified-jwt" },
+    }),
     environment,
   );
 
   assert.equal(user.userId, USER_A);
+  assert.equal(user.accessToken, "verified-jwt");
   assert.equal(requests.length, 1);
   assert.equal(requests[0].headers.get("authorization"), "Bearer verified-jwt");
-  assert.equal(requests[0].headers.get("apikey"), "publishable-key-from-server-environment");
+  assert.equal(
+    requests[0].headers.get("apikey"),
+    "publishable-key-from-server-environment",
+  );
 
   await assert.rejects(
-    () => authenticateSupabaseRequest(new Request("https://example.test"), environment),
-    (error: unknown) => error instanceof AuthError && error.code === "AUTH_REQUIRED" && error.status === 401,
+    () =>
+      authenticateSupabaseRequest(
+        new Request("https://example.test"),
+        environment,
+      ),
+    (error: unknown) =>
+      error instanceof AuthError && error.code === "AUTH_REQUIRED" &&
+      error.status === 401,
   );
+
+  await assert.rejects(
+    () =>
+      authenticateSupabaseRequest(
+        new Request("https://example.test", {
+          headers: { Authorization: "Bearer invalid-jwt" },
+        }),
+        {
+          ...environment,
+          fetcher: async () => new Response("{}", { status: 401 }),
+        },
+      ),
+    (error: unknown) =>
+      error instanceof AuthError && error.code === "AUTH_INVALID" &&
+      error.status === 401,
+  );
+});
+
+Deno.test("authenticated ai-access propagates one user JWT to all RLS-protected reads", async () => {
+  const userJwt = "verified-user-jwt-for-access";
+  const publishableKey = "sb_publishable_test_client_key";
+  const dataRequests: Request[] = [];
+  const handler = createAiAccessHandler({
+    authenticate: async () => ({ userId: USER_A, accessToken: userJwt }),
+    policyForUser: (user) =>
+      new ClosedBetaAiPolicy(
+        new SupabaseAccessDataSource({
+          supabaseUrl: "https://project.supabase.test",
+          authenticatedUserId: user.userId,
+          accessToken: user.accessToken!,
+          publishableKey,
+          fetcher: async (input, init) => {
+            const request = new Request(input, init);
+            dataRequests.push(request);
+            const url = new URL(request.url);
+            if (url.pathname.endsWith("/profiles")) {
+              return Response.json([{ user_id: USER_A, beta_access: true }]);
+            }
+            if (url.pathname.endsWith("/ai_feature_flags")) {
+              return Response.json([
+                { flag_key: "AI_BETA_ENABLED", enabled: true },
+                { flag_key: "SYLLABUS_AI_ENABLED", enabled: true },
+              ]);
+            }
+            if (url.pathname.endsWith("/ai_quota_usage")) {
+              return Response.json([{
+                user_id: USER_A,
+                feature: FEATURE,
+                successful_count: 0,
+                reserved_count: 0,
+                period_start: "1970-01-01",
+              }]);
+            }
+            return Response.json({}, { status: 404 });
+          },
+        }),
+      ),
+  });
+
+  const response = await handler(
+    new Request(
+      `https://example.test/functions/v1/ai-access?feature=${FEATURE}&userId=${USER_B}`,
+      { headers: { Authorization: `Bearer ${userJwt}` } },
+    ),
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.canUse, true);
+  assert.equal(body.quota.remaining, 1);
+  assert.equal("accessToken" in body, false);
+  assert.equal("userId" in body, false);
+  assert.equal(dataRequests.length, 3);
+  for (const request of dataRequests) {
+    assert.equal(request.headers.get("apikey"), publishableKey);
+    assert.equal(request.headers.get("authorization"), `Bearer ${userJwt}`);
+    assert.notEqual(
+      request.headers.get("apikey")?.startsWith("sb_secret_"),
+      true,
+    );
+    const url = new URL(request.url);
+    if (
+      url.pathname.endsWith("/profiles") ||
+      url.pathname.endsWith("/ai_quota_usage")
+    ) {
+      assert.equal(url.searchParams.get("user_id"), `eq.${USER_A}`);
+      assert.notEqual(url.searchParams.get("user_id"), `eq.${USER_B}`);
+    }
+  }
+});
+
+Deno.test("Data API failures return sanitized AI_ACCESS_UNAVAILABLE", async () => {
+  const userJwt = "user-jwt-must-not-appear-in-errors";
+  const publishableKey = "sb_publishable-must-not-appear-in-errors";
+  const secretSentinel = "sb_secret-must-not-appear-in-errors";
+  const handler = createAiAccessHandler({
+    authenticate: async () => ({ userId: USER_A, accessToken: userJwt }),
+    policyForUser: (user) =>
+      new ClosedBetaAiPolicy(
+        new SupabaseAccessDataSource({
+          supabaseUrl: "https://project.supabase.test",
+          authenticatedUserId: user.userId,
+          accessToken: user.accessToken!,
+          publishableKey,
+          fetcher: async () =>
+            new Response(
+              JSON.stringify({ message: `${secretSentinel} ${userJwt}` }),
+              { status: 401 },
+            ),
+        }),
+      ),
+  });
+
+  const response = await handler(
+    new Request(
+      `https://example.test/functions/v1/ai-access?feature=${FEATURE}`,
+      { headers: { Authorization: `Bearer ${userJwt}` } },
+    ),
+  );
+  const body = await response.text();
+
+  assert.equal(response.status, 503);
+  assert.match(body, /AI_ACCESS_UNAVAILABLE/);
+  assert.equal(body.includes(secretSentinel), false);
+  assert.equal(body.includes(userJwt), false);
+  assert.equal(body.includes(publishableKey), false);
 });
 
 Deno.test("does not expose server or provider errors in the access response", async () => {
@@ -248,7 +420,9 @@ Deno.test("does not expose server or provider errors in the access response", as
       },
     },
   });
-  const response = await handler(new Request("https://example.test/functions/v1/ai-access"));
+  const response = await handler(
+    new Request("https://example.test/functions/v1/ai-access"),
+  );
   const body = await response.text();
 
   assert.equal(response.status, 503);
