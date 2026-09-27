@@ -31,7 +31,11 @@ export interface QuotaUsageRecord {
 export interface AccessDataSource {
   findProfile(userId: string): Promise<ProfileRecord | null>;
   listFeatureFlags(keys: readonly string[]): Promise<FeatureFlagRecord[]>;
-  findQuotaUsage(userId: string, feature: AiFeature, periodStart: string): Promise<QuotaUsageRecord | null>;
+  findQuotaUsage(
+    userId: string,
+    feature: AiFeature,
+    periodStart: string,
+  ): Promise<QuotaUsageRecord | null>;
 }
 
 export interface AccessPolicyOptions {
@@ -51,9 +55,34 @@ interface SupabaseAccessEnvironment {
   fetcher?: typeof fetch;
 }
 
+export function resolveAccessServiceRoleKey(
+  secretKeysJson: string | null | undefined,
+  legacyServiceRoleKey: string | null | undefined,
+): string | null {
+  if (secretKeysJson?.trim()) {
+    try {
+      const parsed: unknown = JSON.parse(secretKeysJson);
+      if (
+        typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+      ) {
+        const defaultKey = (parsed as Record<string, unknown>).default;
+        if (typeof defaultKey === "string" && defaultKey.trim()) {
+          return defaultKey.trim();
+        }
+      }
+    } catch {
+      // Keep compatibility with projects that only expose the legacy key.
+    }
+  }
+  return legacyServiceRoleKey?.trim() || null;
+}
+
 function runtimeEnvironment(): SupabaseAccessEnvironment {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim();
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
+  const serviceRoleKey = resolveAccessServiceRoleKey(
+    Deno.env.get("SUPABASE_SECRET_KEYS"),
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+  );
   if (!supabaseUrl || !serviceRoleKey) throw new AccessDataError();
   return { supabaseUrl, serviceRoleKey };
 }
@@ -75,7 +104,9 @@ export class SupabaseAccessDataSource implements AccessDataSource {
     };
   }
 
-  async listFeatureFlags(keys: readonly string[]): Promise<FeatureFlagRecord[]> {
+  async listFeatureFlags(
+    keys: readonly string[],
+  ): Promise<FeatureFlagRecord[]> {
     const rows = await this.select("ai_feature_flags", {
       select: "flag_key,enabled",
       flag_key: `in.(${keys.join(",")})`,
@@ -86,7 +117,11 @@ export class SupabaseAccessDataSource implements AccessDataSource {
     }));
   }
 
-  async findQuotaUsage(userId: string, feature: AiFeature, periodStart: string): Promise<QuotaUsageRecord | null> {
+  async findQuotaUsage(
+    userId: string,
+    feature: AiFeature,
+    periodStart: string,
+  ): Promise<QuotaUsageRecord | null> {
     const rows = await this.select("ai_quota_usage", {
       select: "user_id,feature,successful_count,reserved_count,period_start",
       user_id: `eq.${userId}`,
@@ -105,19 +140,29 @@ export class SupabaseAccessDataSource implements AccessDataSource {
     };
   }
 
-  private async select(table: string, filters: Record<string, string>): Promise<Record<string, unknown>[]> {
+  private async select(
+    table: string,
+    filters: Record<string, string>,
+  ): Promise<Record<string, unknown>[]> {
     const environment = this.environment ?? runtimeEnvironment();
-    const url = new URL(`${environment.supabaseUrl.replace(/\/$/, "")}/rest/v1/${table}`);
-    Object.entries(filters).forEach(([key, value]) => url.searchParams.set(key, value));
+    const url = new URL(
+      `${environment.supabaseUrl.replace(/\/$/, "")}/rest/v1/${table}`,
+    );
+    Object.entries(filters).forEach(([key, value]) =>
+      url.searchParams.set(key, value)
+    );
     const fetcher = environment.fetcher ?? fetch;
+    const headers: Record<string, string> = {
+      apikey: environment.serviceRoleKey,
+      accept: "application/json",
+    };
+    if (!environment.serviceRoleKey.startsWith("sb_secret_")) {
+      headers.authorization = `Bearer ${environment.serviceRoleKey}`;
+    }
     let response: Response;
     try {
       response = await fetcher(url, {
-        headers: {
-          apikey: environment.serviceRoleKey,
-          authorization: `Bearer ${environment.serviceRoleKey}`,
-          accept: "application/json",
-        },
+        headers,
       });
     } catch {
       throw new AccessDataError();
@@ -130,13 +175,17 @@ export class SupabaseAccessDataSource implements AccessDataSource {
       throw new AccessDataError();
     }
     if (!Array.isArray(payload)) throw new AccessDataError();
-    return payload.filter((row): row is Record<string, unknown> => typeof row === "object" && row !== null);
+    return payload.filter((row): row is Record<string, unknown> =>
+      typeof row === "object" && row !== null
+    );
   }
 }
 
 function stringField(row: Record<string, unknown>, key: string): string {
   const value = row[key];
-  if (typeof value !== "string" || value.trim().length === 0) throw new AccessDataError();
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new AccessDataError();
+  }
   return value;
 }
 
@@ -146,7 +195,9 @@ function booleanField(row: Record<string, unknown>, key: string): boolean {
 }
 
 function integerField(row: Record<string, unknown>, key: string): number {
-  if (typeof row[key] !== "number" || !Number.isInteger(row[key])) throw new AccessDataError();
+  if (typeof row[key] !== "number" || !Number.isInteger(row[key])) {
+    throw new AccessDataError();
+  }
   return row[key] as number;
 }
 
@@ -157,7 +208,9 @@ function dateInSaoPaulo(now: Date): string {
     month: "2-digit",
     day: "2-digit",
   }).formatToParts(now);
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const values = Object.fromEntries(
+    parts.map((part) => [part.type, part.value]),
+  );
   return `${values.year}-${values.month}-${values.day}`;
 }
 
@@ -171,11 +224,16 @@ function nextDailyReset(now: Date): string {
   const offset = new Intl.DateTimeFormat("en-US", {
     timeZone: TIME_ZONE,
     timeZoneName: "shortOffset",
-  }).formatToParts(nextMidnightUtc).find((part) => part.type === "timeZoneName")?.value ?? "GMT";
+  }).formatToParts(nextMidnightUtc).find((part) => part.type === "timeZoneName")
+    ?.value ?? "GMT";
   const match = /^GMT(?:(\+|-)(\d{1,2})(?::(\d{2}))?)?$/.exec(offset);
   if (!match) throw new AccessDataError();
-  const offsetMinutes = match[1] ? (match[1] === "+" ? 1 : -1) * (Number(match[2]) * 60 + Number(match[3] ?? 0)) : 0;
-  return new Date(nextMidnightUtc.getTime() - offsetMinutes * 60_000).toISOString();
+  const offsetMinutes = match[1]
+    ? (match[1] === "+" ? 1 : -1) *
+      (Number(match[2]) * 60 + Number(match[3] ?? 0))
+    : 0;
+  return new Date(nextMidnightUtc.getTime() - offsetMinutes * 60_000)
+    .toISOString();
 }
 
 export class ClosedBetaAiPolicy {
@@ -208,15 +266,15 @@ export class ClosedBetaAiPolicy {
     const reservedCount = usage?.reservedCount ?? 0;
     const remaining = Math.max(LIMIT - successfulCount - reservedCount, 0);
     const quota: AiQuota = {
-        feature,
-        limit: LIMIT,
-        successfulCount,
-        reservedCount,
-        used: successfulCount + reservedCount,
-        remaining,
-        periodStart,
-        resetAt: feature === DAILY_FEATURE ? nextDailyReset(this.now()) : null,
-      };
+      feature,
+      limit: LIMIT,
+      successfulCount,
+      reservedCount,
+      used: successfulCount + reservedCount,
+      remaining,
+      periodStart,
+      resetAt: feature === DAILY_FEATURE ? nextDailyReset(this.now()) : null,
+    };
 
     let reasonCode: string | null = null;
     if (!betaAccess) reasonCode = "BETA_ACCESS_REQUIRED";
