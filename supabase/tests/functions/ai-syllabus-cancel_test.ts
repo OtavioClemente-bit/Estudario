@@ -1,11 +1,22 @@
 import { strict as assert } from "node:assert";
 import {
-  createAiSyllabusCancelHandler,
   type AiSyllabusCancelDependencies,
+  createAiSyllabusCancelHandler,
 } from "../../functions/ai-syllabus-cancel/index.ts";
-import type { AiJobRecord, AiJobCancellationStore, CancellationReconciliation, TerminalAiTelemetry } from "../../functions/_shared/job-finalizer.ts";
-import { JobStoreError, SupabaseAiJobStore } from "../../functions/_shared/job-finalizer.ts";
-import type { OpenAiProvider, ProviderResponse } from "../../functions/_shared/openai-provider.ts";
+import type {
+  AiJobCancellationStore,
+  AiJobRecord,
+  CancellationReconciliation,
+  TerminalAiTelemetry,
+} from "../../functions/_shared/job-finalizer.ts";
+import {
+  JobStoreError,
+  SupabaseAiJobStore,
+} from "../../functions/_shared/job-finalizer.ts";
+import type {
+  OpenAiProvider,
+  ProviderResponse,
+} from "../../functions/_shared/openai-provider.ts";
 
 const USER_ID = "00000000-0000-0000-0000-0000000000a1";
 
@@ -19,14 +30,22 @@ const validOutput = JSON.stringify({
     position: 0,
     suggestedPriority: "NORMAL",
     sourcePages: [1],
-    topics: [{ name: "Constituição", position: 0, sourcePages: [1], children: [] }],
+    topics: [{
+      name: "Constituição",
+      position: 0,
+      sourcePages: [1],
+      children: [],
+    }],
   }],
   warnings: [],
   ambiguities: [],
 });
 
 function job(overrides: Partial<AiJobRecord> = {}): AiJobRecord {
-  return {
+  return Object.assign({
+    providerStartOutcome: "NOT_STARTED",
+    providerQuarantinedAt: null,
+    leaseExpiresAt: null,
     id: "job-1",
     userId: USER_ID,
     feature: "SYLLABUS_GENERATION",
@@ -55,7 +74,7 @@ function job(overrides: Partial<AiJobRecord> = {}): AiJobRecord {
     updatedAt: "2026-09-24T12:00:00Z",
     finishedAt: null,
     ...overrides,
-  };
+  }) as AiJobRecord;
 }
 
 class FakeCancellationStore implements AiJobCancellationStore {
@@ -69,7 +88,9 @@ class FakeCancellationStore implements AiJobCancellationStore {
   }
 
   async getJob(userId: string, jobId: string): Promise<AiJobRecord | null> {
-    return this.current.userId === userId && this.current.id === jobId ? structuredClone(this.current) : null;
+    return this.current.userId === userId && this.current.id === jobId
+      ? structuredClone(this.current)
+      : null;
   }
 
   async requestCancellation(): Promise<AiJobRecord> {
@@ -79,7 +100,21 @@ class FakeCancellationStore implements AiJobCancellationStore {
 
   async cancelWithoutProvider(): Promise<AiJobRecord> {
     this.events.push("cancel-without-provider");
-    if (this.current.providerExecutionStartedAt || this.current.openaiResponseId) {
+    const state = this.current as AiJobRecord & {
+      providerStartOutcome?: string | null;
+      providerQuarantinedAt?: string | null;
+      leaseExpiresAt?: string | null;
+    };
+    const leaseExpiry =
+      state.leaseExpiresAt === null || state.leaseExpiresAt === undefined
+        ? NaN
+        : Date.parse(state.leaseExpiresAt);
+    if (
+      state.providerStartOutcome !== "NOT_STARTED" ||
+      state.providerQuarantinedAt != null ||
+      this.current.openaiResponseId != null ||
+      (Number.isFinite(leaseExpiry) && leaseExpiry > Date.now())
+    ) {
       throw new JobStoreError("CANCELLATION_RECONCILIATION_REQUIRED", 409);
     }
     this.current.status = "CANCELLED";
@@ -87,28 +122,48 @@ class FakeCancellationStore implements AiJobCancellationStore {
     return structuredClone(this.current);
   }
 
-  async recordCancellationReconciliation(_userId: string, _jobId: string, reconciliation: CancellationReconciliation): Promise<AiJobRecord> {
-    this.events.push(`reconcile:${reconciliation.providerStatus}:${reconciliation.resultRecoverable}`);
+  async recordCancellationReconciliation(
+    _userId: string,
+    _jobId: string,
+    reconciliation: CancellationReconciliation,
+  ): Promise<AiJobRecord> {
+    this.events.push(
+      `reconcile:${reconciliation.providerStatus}:${reconciliation.resultRecoverable}`,
+    );
     if (this.reconciliationTerminal) {
       this.current.status = this.reconciliationTerminal;
       this.quota = "CONSUMED";
       return structuredClone(this.current);
     }
-    this.current.openaiResponseId = reconciliation.responseId ?? this.current.openaiResponseId;
-    this.current.providerExecutionStartedAt = this.current.providerExecutionStartedAt ?? (reconciliation.responseId ? "started" : null);
+    this.current.openaiResponseId = reconciliation.responseId ??
+      this.current.openaiResponseId;
+    this.current.providerExecutionStartedAt =
+      this.current.providerExecutionStartedAt ??
+        (reconciliation.responseId ? "started" : null);
     this.current.providerReconciledAt = "reconciled";
     this.current.providerResultRecoverable = reconciliation.resultRecoverable;
     return structuredClone(this.current);
   }
 
-  async cancelAfterReconciliation(_userId: string, _jobId: string, _code: string, _message: string, terminalStatus: "CANCELLED" | "FAILED" = "CANCELLED"): Promise<AiJobRecord> {
+  async cancelAfterReconciliation(
+    _userId: string,
+    _jobId: string,
+    _code: string,
+    _message: string,
+    terminalStatus: "CANCELLED" | "FAILED" = "CANCELLED",
+  ): Promise<AiJobRecord> {
     this.events.push("cancel-after-reconciliation");
     this.current.status = terminalStatus;
     this.quota = "RELEASED";
     return structuredClone(this.current);
   }
 
-  async finalizeCancellationSuccess(_userId: string, _jobId: string, response: ProviderResponse, _output: Record<string, unknown>): Promise<AiJobRecord> {
+  async finalizeCancellationSuccess(
+    _userId: string,
+    _jobId: string,
+    response: ProviderResponse,
+    _output: Record<string, unknown>,
+  ): Promise<AiJobRecord> {
     this.events.push(`success:${response.id}`);
     this.current.status = "SUCCEEDED";
     this.current.openaiResponseId = response.id;
@@ -120,15 +175,23 @@ class FakeCancellationStore implements AiJobCancellationStore {
   }
 }
 
-function provider(retrieve: () => Promise<ProviderResponse>, cancel: () => Promise<ProviderResponse>): OpenAiProvider {
+function provider(
+  retrieve: () => Promise<ProviderResponse>,
+  cancel: () => Promise<ProviderResponse>,
+): OpenAiProvider {
   return {
-    async start() { throw new Error("start must not be called by cancellation"); },
+    async start() {
+      throw new Error("start must not be called by cancellation");
+    },
     retrieve,
     cancel,
   };
 }
 
-function dependencies(store: FakeCancellationStore, openAi: OpenAiProvider): AiSyllabusCancelDependencies {
+function dependencies(
+  store: FakeCancellationStore,
+  openAi: OpenAiProvider,
+): AiSyllabusCancelDependencies {
   return {
     authenticate: async () => ({ userId: USER_ID }),
     jobs: store,
@@ -136,11 +199,15 @@ function dependencies(store: FakeCancellationStore, openAi: OpenAiProvider): AiS
   };
 }
 
-async function cancel(handler: (request: Request) => Promise<Response>): Promise<Response> {
-  return handler(new Request("https://example.test/functions/v1/ai-syllabus-cancel/job-1", {
-    method: "POST",
-    headers: { authorization: "Bearer supabase-jwt" },
-  }));
+async function cancel(
+  handler: (request: Request) => Promise<Response>,
+): Promise<Response> {
+  return handler(
+    new Request("https://example.test/functions/v1/ai-syllabus-cancel/job-1", {
+      method: "POST",
+      headers: { authorization: "Bearer supabase-jwt" },
+    }),
+  );
 }
 
 function responseBody(response: Response): Promise<Record<string, unknown>> {
@@ -153,7 +220,16 @@ function errorCode(body: Record<string, unknown>): string {
 
 Deno.test("cancels RESERVED atomically and releases quota before provider execution", async () => {
   const store = new FakeCancellationStore(job());
-  const handler = createAiSyllabusCancelHandler(dependencies(store, provider(async () => { throw new Error(); }, async () => { throw new Error(); })));
+  const handler = createAiSyllabusCancelHandler(
+    dependencies(
+      store,
+      provider(async () => {
+        throw new Error();
+      }, async () => {
+        throw new Error();
+      }),
+    ),
+  );
   const response = await cancel(handler);
   assert.equal(response.status, 200);
   assert.equal((await responseBody(response)).status, "CANCELLED");
@@ -164,7 +240,14 @@ Deno.test("cancels RESERVED atomically and releases quota before provider execut
 Deno.test("logs newly finalized cancellation once with safe terminal fields", async () => {
   const store = new FakeCancellationStore(job());
   const events: TerminalAiTelemetry[] = [];
-  const deps = dependencies(store, provider(async () => { throw new Error(); }, async () => { throw new Error(); }));
+  const deps = dependencies(
+    store,
+    provider(async () => {
+      throw new Error();
+    }, async () => {
+      throw new Error();
+    }),
+  );
   deps.telemetry = (event) => events.push(event);
   const handler = createAiSyllabusCancelHandler(deps);
   await cancel(handler);
@@ -177,19 +260,129 @@ Deno.test("logs newly finalized cancellation once with safe terminal fields", as
 });
 
 Deno.test("does not use the pre-provider path when RESERVED has provider-start evidence", async () => {
-  const store = new FakeCancellationStore(job({ providerExecutionStartedAt: "started" }));
-  const handler = createAiSyllabusCancelHandler(dependencies(store, provider(async () => { throw new Error(); }, async () => { throw new Error(); })));
+  const ambiguous = Object.assign(
+    job({ providerExecutionStartedAt: "started" }),
+    {
+      providerStartOutcome: "LEGACY_AMBIGUOUS",
+      providerQuarantinedAt: "quarantined",
+    },
+  );
+  const store = new FakeCancellationStore(ambiguous);
+  const handler = createAiSyllabusCancelHandler(
+    dependencies(
+      store,
+      provider(async () => {
+        throw new Error();
+      }, async () => {
+        throw new Error();
+      }),
+    ),
+  );
   const response = await cancel(handler);
   assert.equal(response.status, 202);
   assert.equal((await responseBody(response)).status, "RESERVED");
   assert.equal(store.current.status, "RESERVED");
   assert.equal(store.quota, "RESERVED");
-  assert.deepEqual(store.events, ["request", "reconcile:unknown:true"]);
+  assert.deepEqual(store.events, ["request"]);
+});
+
+Deno.test("keeps every provider-start outcome without a response ID pending without releasing quota", async () => {
+  for (
+    const outcome of [
+      "IN_FLIGHT",
+      "TRANSPORT_AMBIGUOUS",
+      "RESPONSE_AMBIGUOUS",
+      "PROVIDER_REJECTED",
+      "LEGACY_AMBIGUOUS",
+    ]
+  ) {
+    const started = Object.assign(
+      job({ providerExecutionStartedAt: "started" }),
+      {
+        providerStartOutcome: outcome,
+        providerQuarantinedAt: "quarantined",
+      },
+    );
+    const store = new FakeCancellationStore(started);
+    const handler = createAiSyllabusCancelHandler(dependencies(
+      store,
+      provider(
+        async () => {
+          throw new Error("retrieve must not run without an ID");
+        },
+        async () => {
+          throw new Error("provider cancel must not run without an ID");
+        },
+      ),
+    ));
+    const response = await cancel(handler);
+    assert.equal(response.status, 202, `${outcome} remains pending`);
+    assert.equal((await responseBody(response)).status, "RESERVED");
+    assert.equal(store.current.status, "RESERVED");
+    assert.equal(store.quota, "RESERVED");
+    assert.deepEqual(
+      store.events,
+      ["request"],
+      `${outcome} skips destructive cancellation and false reconciliation`,
+    );
+  }
+});
+
+Deno.test("does not use pre-provider cancellation while a generation lease is active", async () => {
+  const leased = Object.assign(job({ status: "PROCESSING" }), {
+    leaseExpiresAt: "2099-01-01T00:00:00Z",
+  });
+  const store = new FakeCancellationStore(leased);
+  const handler = createAiSyllabusCancelHandler(dependencies(
+    store,
+    provider(
+      async () => {
+        throw new Error("retrieve must not run without an ID");
+      },
+      async () => {
+        throw new Error("provider cancel must not run without an ID");
+      },
+    ),
+  ));
+  const response = await cancel(handler);
+  assert.equal(response.status, 202);
+  assert.equal((await responseBody(response)).status, "PROCESSING");
+  assert.equal(store.current.status, "PROCESSING");
+  assert.equal(store.quota, "RESERVED");
+  assert.deepEqual(store.events, ["request"]);
+});
+
+Deno.test("returns not found for a cancellation request from a non-owner", async () => {
+  const store = new FakeCancellationStore(job({ userId: "another-user" }));
+  const handler = createAiSyllabusCancelHandler(dependencies(
+    store,
+    provider(
+      async () => {
+        throw new Error("must not retrieve another user's job");
+      },
+      async () => {
+        throw new Error("must not cancel another user's job");
+      },
+    ),
+  ));
+  const response = await cancel(handler);
+  assert.equal(response.status, 404);
+  assert.deepEqual(store.events, []);
+  assert.equal(store.quota, "RESERVED");
 });
 
 Deno.test("cancels PROCESSING without a response id only when no provider evidence exists", async () => {
   const store = new FakeCancellationStore(job({ status: "PROCESSING" }));
-  const handler = createAiSyllabusCancelHandler(dependencies(store, provider(async () => { throw new Error(); }, async () => { throw new Error(); })));
+  const handler = createAiSyllabusCancelHandler(
+    dependencies(
+      store,
+      provider(async () => {
+        throw new Error();
+      }, async () => {
+        throw new Error();
+      }),
+    ),
+  );
   const response = await cancel(handler);
   assert.equal(response.status, 200);
   assert.equal((await responseBody(response)).status, "CANCELLED");
@@ -197,12 +390,37 @@ Deno.test("cancels PROCESSING without a response id only when no provider eviden
 });
 
 Deno.test("queries and cancels a provider response before releasing quota", async () => {
-  const store = new FakeCancellationStore(job({ status: "PROCESSING", openaiResponseId: "resp-1", providerExecutionStartedAt: "started" }));
+  const store = new FakeCancellationStore(
+    job({
+      status: "PROCESSING",
+      openaiResponseId: "resp-1",
+      providerExecutionStartedAt: "started",
+    }),
+  );
   const calls: string[] = [];
-  const handler = createAiSyllabusCancelHandler(dependencies(store, provider(
-    async () => { calls.push("retrieve"); return { id: "resp-1", status: "in_progress", outputText: null, usage: null }; },
-    async () => { calls.push("cancel"); return { id: "resp-1", status: "cancelled", outputText: null, usage: null }; },
-  )));
+  const handler = createAiSyllabusCancelHandler(dependencies(
+    store,
+    provider(
+      async () => {
+        calls.push("retrieve");
+        return {
+          id: "resp-1",
+          status: "in_progress",
+          outputText: null,
+          usage: null,
+        };
+      },
+      async () => {
+        calls.push("cancel");
+        return {
+          id: "resp-1",
+          status: "cancelled",
+          outputText: null,
+          usage: null,
+        };
+      },
+    ),
+  ));
   const response = await cancel(handler);
   assert.equal(response.status, 200);
   assert.equal((await responseBody(response)).status, "CANCELLED");
@@ -211,11 +429,27 @@ Deno.test("queries and cancels a provider response before releasing quota", asyn
 });
 
 Deno.test("lets a completed provider result win and consume quota", async () => {
-  const store = new FakeCancellationStore(job({ status: "PROCESSING", openaiResponseId: "resp-1", providerExecutionStartedAt: "started" }));
-  const handler = createAiSyllabusCancelHandler(dependencies(store, provider(
-    async () => ({ id: "resp-1", status: "completed", outputText: validOutput, usage: null }),
-    async () => { throw new Error("cancel must not run after completion"); },
-  )));
+  const store = new FakeCancellationStore(
+    job({
+      status: "PROCESSING",
+      openaiResponseId: "resp-1",
+      providerExecutionStartedAt: "started",
+    }),
+  );
+  const handler = createAiSyllabusCancelHandler(dependencies(
+    store,
+    provider(
+      async () => ({
+        id: "resp-1",
+        status: "completed",
+        outputText: validOutput,
+        usage: null,
+      }),
+      async () => {
+        throw new Error("cancel must not run after completion");
+      },
+    ),
+  ));
   const response = await cancel(handler);
   assert.equal(response.status, 200);
   assert.equal((await responseBody(response)).status, "SUCCEEDED");
@@ -223,11 +457,27 @@ Deno.test("lets a completed provider result win and consume quota", async () => 
 });
 
 Deno.test("releases quota as FAILED when a completed provider result is invalid", async () => {
-  const store = new FakeCancellationStore(job({ status: "PROCESSING", openaiResponseId: "resp-1", providerExecutionStartedAt: "started" }));
-  const handler = createAiSyllabusCancelHandler(dependencies(store, provider(
-    async () => ({ id: "resp-1", status: "completed", outputText: "not-a-proposal", usage: null }),
-    async () => { throw new Error("cancel must not run after completion"); },
-  )));
+  const store = new FakeCancellationStore(
+    job({
+      status: "PROCESSING",
+      openaiResponseId: "resp-1",
+      providerExecutionStartedAt: "started",
+    }),
+  );
+  const handler = createAiSyllabusCancelHandler(dependencies(
+    store,
+    provider(
+      async () => ({
+        id: "resp-1",
+        status: "completed",
+        outputText: "not-a-proposal",
+        usage: null,
+      }),
+      async () => {
+        throw new Error("cancel must not run after completion");
+      },
+    ),
+  ));
   const response = await cancel(handler);
   assert.equal(response.status, 200);
   assert.equal((await responseBody(response)).status, "FAILED");
@@ -235,11 +485,30 @@ Deno.test("releases quota as FAILED when a completed provider result is invalid"
 });
 
 Deno.test("lets a late completion returned by provider cancellation win", async () => {
-  const store = new FakeCancellationStore(job({ status: "PROCESSING", openaiResponseId: "resp-1", providerExecutionStartedAt: "started" }));
-  const handler = createAiSyllabusCancelHandler(dependencies(store, provider(
-    async () => ({ id: "resp-1", status: "in_progress", outputText: null, usage: null }),
-    async () => ({ id: "resp-1", status: "completed", outputText: validOutput, usage: null }),
-  )));
+  const store = new FakeCancellationStore(
+    job({
+      status: "PROCESSING",
+      openaiResponseId: "resp-1",
+      providerExecutionStartedAt: "started",
+    }),
+  );
+  const handler = createAiSyllabusCancelHandler(dependencies(
+    store,
+    provider(
+      async () => ({
+        id: "resp-1",
+        status: "in_progress",
+        outputText: null,
+        usage: null,
+      }),
+      async () => ({
+        id: "resp-1",
+        status: "completed",
+        outputText: validOutput,
+        usage: null,
+      }),
+    ),
+  ));
   const response = await cancel(handler);
   assert.equal(response.status, 200);
   assert.equal((await responseBody(response)).status, "SUCCEEDED");
@@ -247,12 +516,28 @@ Deno.test("lets a late completion returned by provider cancellation win", async 
 });
 
 Deno.test("does not overwrite a worker success that wins while cancellation is reconciling", async () => {
-  const store = new FakeCancellationStore(job({ status: "PROCESSING", openaiResponseId: "resp-1", providerExecutionStartedAt: "started" }));
+  const store = new FakeCancellationStore(
+    job({
+      status: "PROCESSING",
+      openaiResponseId: "resp-1",
+      providerExecutionStartedAt: "started",
+    }),
+  );
   store.reconciliationTerminal = "SUCCEEDED";
-  const handler = createAiSyllabusCancelHandler(dependencies(store, provider(
-    async () => ({ id: "resp-1", status: "failed", outputText: null, usage: null }),
-    async () => { throw new Error("cancel must not run after the worker wins"); },
-  )));
+  const handler = createAiSyllabusCancelHandler(dependencies(
+    store,
+    provider(
+      async () => ({
+        id: "resp-1",
+        status: "failed",
+        outputText: null,
+        usage: null,
+      }),
+      async () => {
+        throw new Error("cancel must not run after the worker wins");
+      },
+    ),
+  ));
   const response = await cancel(handler);
   assert.equal(response.status, 200);
   assert.equal((await responseBody(response)).status, "SUCCEEDED");
@@ -260,11 +545,24 @@ Deno.test("does not overwrite a worker success that wins while cancellation is r
 });
 
 Deno.test("keeps PROCESSING recoverable when provider state is unknown", async () => {
-  const store = new FakeCancellationStore(job({ status: "PROCESSING", openaiResponseId: "resp-1", providerExecutionStartedAt: "started" }));
-  const handler = createAiSyllabusCancelHandler(dependencies(store, provider(
-    async () => { throw new Error("provider unavailable"); },
-    async () => { throw new Error("provider unavailable"); },
-  )));
+  const store = new FakeCancellationStore(
+    job({
+      status: "PROCESSING",
+      openaiResponseId: "resp-1",
+      providerExecutionStartedAt: "started",
+    }),
+  );
+  const handler = createAiSyllabusCancelHandler(dependencies(
+    store,
+    provider(
+      async () => {
+        throw new Error("provider unavailable");
+      },
+      async () => {
+        throw new Error("provider unavailable");
+      },
+    ),
+  ));
   const response = await cancel(handler);
   assert.equal(response.status, 202);
   assert.equal((await responseBody(response)).status, "PROCESSING");
@@ -274,10 +572,19 @@ Deno.test("keeps PROCESSING recoverable when provider state is unknown", async (
 Deno.test("repeated cancellation of a terminal job is deterministic and does not call provider", async () => {
   const store = new FakeCancellationStore(job({ status: "CANCELLED" }));
   let calls = 0;
-  const handler = createAiSyllabusCancelHandler(dependencies(store, provider(
-    async () => { calls += 1; throw new Error(); },
-    async () => { calls += 1; throw new Error(); },
-  )));
+  const handler = createAiSyllabusCancelHandler(dependencies(
+    store,
+    provider(
+      async () => {
+        calls += 1;
+        throw new Error();
+      },
+      async () => {
+        calls += 1;
+        throw new Error();
+      },
+    ),
+  ));
   const response = await cancel(handler);
   assert.equal(response.status, 200);
   assert.equal((await responseBody(response)).status, "CANCELLED");
@@ -337,5 +644,63 @@ Deno.test("uses the server role for provider reconciliation and success finaliza
     outputText: validOutput,
     usage: null,
   }, JSON.parse(validOutput));
-  assert.deepEqual(authHeaders, ["Bearer service-role-key", "Bearer service-role-key"]);
+  assert.deepEqual(authHeaders, [
+    "Bearer service-role-key",
+    "Bearer service-role-key",
+  ]);
+});
+
+Deno.test("job lookup selects and parses canonical cancellation state and generation lease", async () => {
+  const requestedUrls: URL[] = [];
+  const store = new SupabaseAiJobStore({
+    supabaseUrl: "https://supabase.example.test",
+    publishableKey: "publishable-key",
+    accessToken: "user-token",
+    serviceRoleKey: "service-role-key",
+    fetcher: async (input) => {
+      requestedUrls.push(new URL(String(input)));
+      return Response.json([{
+        id: "job-1",
+        user_id: USER_ID,
+        feature: "SYLLABUS_GENERATION",
+        status: "PROCESSING",
+        idempotency_key: "idempotency-1",
+        request_fingerprint: "fingerprint-1",
+        request_payload: {},
+        source_object_path: null,
+        source_hash: null,
+        source_bytes: null,
+        source_pages: null,
+        source_file_count: null,
+        source_mime_type: null,
+        source_metadata: {},
+        openai_response_id: null,
+        provider_start_outcome: "LEGACY_AMBIGUOUS",
+        provider_quarantined_at: "2026-09-27T12:00:00Z",
+        provider_execution_started_at: "2026-09-27T11:59:00Z",
+        provider_reconciled_at: null,
+        provider_result_recoverable: null,
+        lease_expires_at: "2026-09-27T12:05:00Z",
+        prompt_version: null,
+        schema_version: null,
+        model_version: null,
+        proposal: null,
+        warnings: [],
+        error_code: null,
+        error_message: null,
+        created_at: "2026-09-27T11:00:00Z",
+        updated_at: "2026-09-27T12:00:00Z",
+        finished_at: null,
+      }]);
+    },
+  });
+
+  const result = await store.getJob(USER_ID, "job-1");
+  assert.equal(result?.providerStartOutcome, "LEGACY_AMBIGUOUS");
+  assert.equal(result?.providerQuarantinedAt, "2026-09-27T12:00:00Z");
+  assert.equal(result?.leaseExpiresAt, "2026-09-27T12:05:00Z");
+  const select = requestedUrls[0]?.searchParams.get("select") ?? "";
+  assert(select.includes("provider_start_outcome"));
+  assert(select.includes("provider_quarantined_at"));
+  assert(select.includes("lease_expires_at"));
 });

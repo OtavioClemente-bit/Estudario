@@ -3,7 +3,6 @@ import { createAiSyllabusCancelHandler } from "./index.ts";
 import {
   type AiJobCancellationStore,
   type AiJobRecord,
-  JobStoreError,
 } from "../_shared/job-finalizer.ts";
 import type {
   OpenAiProvider,
@@ -47,9 +46,12 @@ function job(overrides: Partial<AiJobRecord> = {}): AiJobRecord {
     sourceFileCount: null,
     sourceMimeType: null,
     openaiResponseId: null,
+    providerStartOutcome: "NOT_STARTED",
+    providerQuarantinedAt: null,
     providerExecutionStartedAt: null,
     providerReconciledAt: null,
     providerResultRecoverable: null,
+    leaseExpiresAt: null,
     promptVersion: null,
     schemaVersion: null,
     modelVersion: null,
@@ -79,7 +81,6 @@ function response(
 function harness(
   initial: AiJobRecord,
   providerResponses: ProviderResponse[] = [],
-  cancelLocallyRejects = false,
   providerCancelRejects = false,
 ) {
   let current = initial;
@@ -95,9 +96,6 @@ function harness(
     },
     async cancelWithoutProvider() {
       calls.push("cancelWithoutProvider");
-      if (cancelLocallyRejects) {
-        throw new JobStoreError("CANCELLATION_RECONCILIATION_REQUIRED", 409);
-      }
       current = { ...current, status: "CANCELLED" } as AiJobRecord;
       return current;
     },
@@ -165,11 +163,7 @@ Deno.test("pre-provider cancellation uses the atomic local cancellation path", a
 
 Deno.test("already terminalized NOT_SENT cancellation is idempotent and does not contact provider", async () => {
   const { handler, calls } = harness(
-    job(
-      { status: "CANCELLED", providerStartOutcome: "NOT_SENT" } as Partial<
-        AiJobRecord
-      >,
-    ),
+    job({ status: "CANCELLED", providerStartOutcome: "NOT_SENT" }),
   );
   const result = await handler(request());
   assertEquals(result.status, 200);
@@ -179,7 +173,10 @@ Deno.test("already terminalized NOT_SENT cancellation is idempotent and does not
 
 Deno.test("audit timestamp alone does not divert a NOT_STARTED job from local cancellation", async () => {
   const { handler, calls } = harness(
-    job({ providerExecutionStartedAt: "old-audit-time" }),
+    job({
+      providerExecutionStartedAt: "old-audit-time",
+      providerStartOutcome: "NOT_STARTED",
+    }),
   );
   const result = await handler(request());
   assertEquals(result.status, 200);
@@ -193,20 +190,36 @@ Deno.test("quarantine without response ID remains pending without false reconcil
         providerExecutionStartedAt: "started",
         providerStartOutcome: "TRANSPORT_AMBIGUOUS",
         providerQuarantinedAt: "quarantined",
-      } as Partial<AiJobRecord>,
+      },
     ),
-    [],
-    true,
   );
   const result = await handler(request());
   assertEquals(result.status, 202);
   assertEquals((await result.json()).status, "PROCESSING");
-  assertEquals(calls, ["request", "cancelWithoutProvider"]);
+  assertEquals(calls, ["request"]);
+});
+
+Deno.test("active generation lease prevents provider actions even when a response ID is known", async () => {
+  const { handler, calls } = harness(
+    job({
+      openaiResponseId: "resp-1",
+      providerStartOutcome: "ACCEPTED",
+      leaseExpiresAt: "2099-01-01T00:00:00Z",
+    }),
+    [response("in_progress")],
+  );
+  const result = await handler(request());
+  assertEquals(result.status, 202);
+  assertEquals(calls, ["request"]);
 });
 
 Deno.test("known response active then pending cancellation records ambiguity and retains job", async () => {
   const { handler, calls } = harness(
-    job({ openaiResponseId: "resp-1", providerExecutionStartedAt: "started" }),
+    job({
+      openaiResponseId: "resp-1",
+      providerStartOutcome: "ACCEPTED",
+      providerExecutionStartedAt: "started",
+    }),
     [response("in_progress"), response("in_progress")],
   );
   const result = await handler(request());
@@ -221,7 +234,11 @@ Deno.test("known response active then pending cancellation records ambiguity and
 
 Deno.test("known response completed during cancellation preserves successful result", async () => {
   const { handler, calls } = harness(
-    job({ openaiResponseId: "resp-1", providerExecutionStartedAt: "started" }),
+    job({
+      openaiResponseId: "resp-1",
+      providerStartOutcome: "ACCEPTED",
+      providerExecutionStartedAt: "started",
+    }),
     [response("completed")],
   );
   const result = await handler(request());
@@ -232,7 +249,11 @@ Deno.test("known response completed during cancellation preserves successful res
 
 Deno.test("known response terminal without result is reconciled then cancelled", async () => {
   const { handler, calls } = harness(
-    job({ openaiResponseId: "resp-1", providerExecutionStartedAt: "started" }),
+    job({
+      openaiResponseId: "resp-1",
+      providerStartOutcome: "ACCEPTED",
+      providerExecutionStartedAt: "started",
+    }),
     [response("cancelled")],
   );
   const result = await handler(request());
@@ -248,7 +269,11 @@ Deno.test("known response terminal without result is reconciled then cancelled",
 
 Deno.test("ambiguous retrieve stays pending and does not release reservation", async () => {
   const { handler, calls } = harness(
-    job({ openaiResponseId: "resp-1", providerExecutionStartedAt: "started" }),
+    job({
+      openaiResponseId: "resp-1",
+      providerStartOutcome: "ACCEPTED",
+      providerExecutionStartedAt: "started",
+    }),
     [],
   );
   const result = await handler(request());
@@ -258,9 +283,12 @@ Deno.test("ambiguous retrieve stays pending and does not release reservation", a
 
 Deno.test("ambiguous provider cancellation stays pending and records the known response ID", async () => {
   const { handler, calls } = harness(
-    job({ openaiResponseId: "resp-1", providerExecutionStartedAt: "started" }),
+    job({
+      openaiResponseId: "resp-1",
+      providerStartOutcome: "ACCEPTED",
+      providerExecutionStartedAt: "started",
+    }),
     [response("in_progress")],
-    false,
     true,
   );
   const result = await handler(request());
