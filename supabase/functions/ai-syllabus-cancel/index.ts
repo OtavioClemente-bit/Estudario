@@ -177,7 +177,7 @@ async function cancelJob(
   job = await dependencies.jobs.requestCancellation(userId, jobId);
   if (terminal(job.status)) return jobResponse(job);
 
-  if (!job.openaiResponseId && !job.providerExecutionStartedAt) {
+  if (!job.openaiResponseId) {
     try {
       const finalized = await dependencies.jobs.cancelWithoutProvider(userId, jobId);
       await reportFinalized(dependencies, finalized);
@@ -189,7 +189,7 @@ async function cancelJob(
     }
   }
 
-  if (!job.openaiResponseId) return recordUnknown(dependencies, userId, job.id, null, "PROVIDER_RESPONSE_ID_MISSING");
+  if (!job.openaiResponseId) return jobResponse(job, 202);
   return reconcileWithProvider(dependencies, userId, job);
 }
 
