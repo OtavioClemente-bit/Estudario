@@ -471,6 +471,7 @@ Deno.test("emits allowlisted structured provider diagnostics for start rejection
               type: "rate_limit_error",
               code: "rate_limit_exceeded",
               requestId: "req_safe_12345678",
+              model: "gpt-6-luna",
               message: "Provider rejected the request",
             },
           );
@@ -494,6 +495,7 @@ Deno.test("emits allowlisted structured provider diagnostics for start rejection
     type: "rate_limit_error",
     providerCode: "rate_limit_exceeded",
     requestId: "req_safe_12345678",
+    model: "gpt-6-luna",
     message: "Provider rejected the request",
   }]);
 });

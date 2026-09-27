@@ -180,7 +180,7 @@ Deno.test("bounds and times out diagnostic error-body reads", async () => {
   );
   assertEquals(error.outcome, "PROVIDER_REJECTED");
   assertEquals(error.diagnostics?.status, 429);
-  assertEquals(error.diagnostics?.type, undefined);
+  assertEquals(error.diagnostics?.type, null);
 });
 
 Deno.test("bounds diagnostic streams that emit only empty chunks", async () => {
@@ -212,7 +212,7 @@ Deno.test("bounds diagnostic streams that emit only empty chunks", async () => {
     OpenAiProviderError,
   );
   assertEquals(error.outcome, "PROVIDER_REJECTED");
-  assertEquals(error.diagnostics?.type, undefined);
+  assertEquals(error.diagnostics?.type, null);
   assert(pulls <= 130, `diagnostic reader consumed ${pulls} chunks`);
 });
 
@@ -243,7 +243,7 @@ Deno.test("skips diagnostic body reads when Content-Length exceeds the cap", asy
     () => provider.start(source),
     OpenAiProviderError,
   );
-  assertEquals(error.diagnostics?.type, undefined);
+  assertEquals(error.diagnostics?.type, null);
   assertEquals(pulls, 0);
 });
 
@@ -256,7 +256,8 @@ Deno.test("classifies HTTP rejection and retains only safe diagnostics", async (
           error: {
             type: "invalid_request_error",
             code: "rate_limit_exceeded",
-            message: "BODY_SENTINEL",
+            message:
+              "Invalid request:\n unsupported parameter max_output_tokens.",
           },
         }),
         {
@@ -278,12 +279,12 @@ Deno.test("classifies HTTP rejection and retains only safe diagnostics", async (
     type: "invalid_request_error",
     code: "rate_limit_exceeded",
     requestId: "req_1234567890abcdef",
-    message: "Provider rejected the request",
+    model: "gpt-test",
+    message: "Invalid request: unsupported parameter max_output_tokens.",
   });
   assertEquals(error.message, "Unable to start AI provider request");
   for (
     const sentinel of [
-      "BODY_SENTINEL",
       "HEADER_SENTINEL",
       "AUTH_HEADER_SENTINEL",
     ]
@@ -292,6 +293,33 @@ Deno.test("classifies HTTP rejection and retains only safe diagnostics", async (
     assert(!error.message.includes(sentinel));
     assert(!JSON.stringify(error.diagnostics).includes(sentinel));
   }
+});
+
+Deno.test("records the model ID actually sent after input-level resolution", async () => {
+  let sentModel: unknown;
+  const provider = createOpenAiProvider({
+    apiKey: "test-key",
+    model: "gpt-configured",
+    fetcher: async (_input, init) => {
+      sentModel = (JSON.parse(String(init?.body)) as Record<string, unknown>)
+        .model;
+      return Response.json({
+        error: {
+          type: "invalid_request_error",
+          code: "unsupported_parameter",
+          message: "The request contains an unsupported parameter.",
+        },
+      }, { status: 400 });
+    },
+  });
+
+  const error = await assertRejects(
+    () => provider.start({ ...source, model: "gpt-runtime-resolved" }),
+    OpenAiProviderError,
+  );
+
+  assertEquals(sentModel, "gpt-runtime-resolved");
+  assertEquals(error.diagnostics?.model, "gpt-runtime-resolved");
 });
 
 Deno.test("drops unallowlisted provider fields and malformed request IDs", async () => {
@@ -303,7 +331,7 @@ Deno.test("drops unallowlisted provider fields and malformed request IDs", async
           error: {
             type: "TYPE_SENTINEL",
             code: "CODE_SENTINEL",
-            message: "BODY_SENTINEL",
+            message: "Provider rejected an unrecognized request field.",
           },
         }),
         {
@@ -322,20 +350,148 @@ Deno.test("drops unallowlisted provider fields and malformed request IDs", async
   assertEquals(error.outcome, "PROVIDER_REJECTED");
   assertEquals(error.diagnostics, {
     status: 400,
-    message: "Provider rejected the request",
+    type: "UNRECOGNIZED_PROVIDER_TYPE",
+    code: "UNRECOGNIZED_PROVIDER_CODE",
+    model: "gpt-test",
+    message: "Provider rejected an unrecognized request field.",
   });
   assertEquals(error.message, "Unable to start AI provider request");
   for (
     const sentinel of [
       "TYPE_SENTINEL",
       "CODE_SENTINEL",
-      "BODY_SENTINEL",
       "REQUEST_ID_SENTINEL",
       "HEADER_SENTINEL",
     ]
   ) {
     assert(!JSON.stringify(error).includes(sentinel));
     assert(!JSON.stringify(error.diagnostics).includes(sentinel));
+  }
+});
+
+Deno.test("distinguishes an omitted provider error code from an unknown code", async () => {
+  const provider = createOpenAiProvider({
+    apiKey: "test-key",
+    fetcher: async () =>
+      Response.json({
+        error: {
+          type: "invalid_request_error",
+          message: "Invalid request parameter.",
+        },
+      }, { status: 400 }),
+  });
+
+  const error = await assertRejects(
+    () => provider.start(source),
+    OpenAiProviderError,
+  );
+
+  assertEquals(error.diagnostics?.code, null);
+  assertEquals(error.diagnostics?.type, "invalid_request_error");
+});
+
+Deno.test("falls back when provider message contains request content or credentials", async () => {
+  const input = {
+    ...source,
+    userPrompt: "PRIVATE_PROMPT_SENTINEL",
+    source: {
+      filename: "PRIVATE_FILENAME_SENTINEL.pdf",
+      bytes: new TextEncoder().encode("synthetic PDF bytes"),
+    },
+  };
+  const provider = createOpenAiProvider({
+    apiKey: "PRIVATE_API_KEY_SENTINEL",
+    fetcher: async () =>
+      Response.json({
+        error: {
+          type: "invalid_request_error",
+          code: "unsupported_parameter",
+          message:
+            "Rejected PRIVATE_PROMPT_SENTINEL Authorization: Bearer PRIVATE_API_KEY_SENTINEL data:application/pdf;base64,QUJDREVGR0hJSktMTU5PUA==",
+        },
+      }, {
+        status: 400,
+        headers: {
+          "x-request-id": "req_sensitive_12345678",
+          "x-private-header": "PRIVATE_HEADER_SENTINEL",
+        },
+      }),
+  });
+
+  const error = await assertRejects(
+    () => provider.start(input),
+    OpenAiProviderError,
+  );
+
+  assertEquals(error.diagnostics?.message, "Provider rejected the request");
+  const serialized = JSON.stringify(error.diagnostics);
+  for (
+    const value of [
+      "PRIVATE_PROMPT_SENTINEL",
+      "PRIVATE_FILENAME_SENTINEL",
+      "PRIVATE_API_KEY_SENTINEL",
+      "PRIVATE_HEADER_SENTINEL",
+      "Authorization",
+      "Bearer",
+    ]
+  ) {
+    assert(!serialized.includes(value), `diagnostics exposed ${value}`);
+  }
+});
+
+Deno.test("bounds long provider error messages before they reach diagnostics", async () => {
+  const provider = createOpenAiProvider({
+    apiKey: "test-key",
+    fetcher: async () =>
+      Response.json({
+        error: {
+          type: "invalid_request_error",
+          code: "unsupported_parameter",
+          message: `Invalid request: ${"x".repeat(2_000)}`,
+        },
+      }, { status: 400 }),
+  });
+
+  const error = await assertRejects(
+    () => provider.start(source),
+    OpenAiProviderError,
+  );
+
+  assertEquals(error.diagnostics?.message.length, 240);
+  assertEquals(
+    error.diagnostics?.message.startsWith("Invalid request: "),
+    true,
+  );
+});
+
+Deno.test("uses safe fallbacks for malformed error bodies and missing error objects", async () => {
+  for (
+    const body of [
+      "RAW_MALFORMED_BODY_SENTINEL",
+      JSON.stringify({ message: "RAW_TOP_LEVEL_MESSAGE_SENTINEL" }),
+    ]
+  ) {
+    const provider = createOpenAiProvider({
+      apiKey: "test-key",
+      fetcher: async () =>
+        new Response(body, {
+          status: 400,
+          headers: { "x-request-id": "req_safe_12345678" },
+        }),
+    });
+    const error = await assertRejects(
+      () => provider.start(source),
+      OpenAiProviderError,
+    );
+
+    assertEquals(error.diagnostics?.status, 400);
+    assertEquals(error.diagnostics?.type, null);
+    assertEquals(error.diagnostics?.code, null);
+    assertEquals(error.diagnostics?.requestId, "req_safe_12345678");
+    assertEquals(error.diagnostics?.message, "Provider rejected the request");
+    const serialized = JSON.stringify(error.diagnostics);
+    assert(!serialized.includes("RAW_MALFORMED_BODY_SENTINEL"));
+    assert(!serialized.includes("RAW_TOP_LEVEL_MESSAGE_SENTINEL"));
   }
 });
 

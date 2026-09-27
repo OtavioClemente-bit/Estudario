@@ -166,9 +166,10 @@ export interface AiProviderDiagnostic {
   outcome: string;
   code: string;
   status?: number;
-  type?: string;
-  providerCode?: string;
+  type?: string | null;
+  providerCode?: string | null;
   requestId?: string;
+  model?: string;
   message: string;
 }
 
@@ -200,6 +201,9 @@ async function providerCall<T>(
         ...(error.diagnostics?.requestId === undefined
           ? {}
           : { requestId: error.diagnostics.requestId }),
+        ...(error.diagnostics?.model === undefined
+          ? {}
+          : { model: error.diagnostics.model }),
         message: error.diagnostics?.message ??
           "Provider request could not be completed",
       };
