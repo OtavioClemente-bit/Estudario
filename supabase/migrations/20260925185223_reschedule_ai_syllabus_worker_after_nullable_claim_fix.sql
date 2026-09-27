@@ -1,0 +1,13 @@
+-- This migration version is recorded as applied in the remote Supabase
+-- migration history. The original SQL is not available in this repository.
+-- Searches of Git history, reflog, branches, stashes, unreachable commits and
+-- blobs, documentation, reports, and local deployment artifacts did not
+-- recover reliable source SQL for this migration.
+--
+-- This file is a historical reconciliation bridge only. It deliberately does
+-- not reproduce or infer any original effects. At reconciliation time
+-- (2026-09-27), the known remote worker Cron job was paused.
+--
+-- Any future scheduler change must be introduced through a new, explicit,
+-- auditable migration. Do not treat this bridge as evidence of the original
+-- SQL or of effects beyond the separately documented remote observations.
