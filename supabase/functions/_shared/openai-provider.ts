@@ -389,6 +389,32 @@ function openAiCompatibleSchema(value: JsonSchema): JsonSchema {
   return clone(value) as JsonSchema;
 }
 
+function specializedProposalSchema(
+  input: ProviderStartInput,
+  resolvedModel: string,
+): JsonSchema {
+  const schema = openAiCompatibleSchema(input.schema);
+  const properties = schema.properties as Record<string, JsonSchema>;
+  return {
+    ...schema,
+    properties: {
+      ...properties,
+      schemaVersion: {
+        ...properties.schemaVersion,
+        enum: [input.schemaVersion],
+      },
+      promptVersion: {
+        ...properties.promptVersion,
+        enum: [input.promptVersion],
+      },
+      modelVersion: {
+        ...properties.modelVersion,
+        enum: [resolvedModel],
+      },
+    },
+  };
+}
+
 export function createOpenAiProvider(
   options: OpenAiProviderOptions = {},
 ): OpenAiProvider {
@@ -489,14 +515,15 @@ export function createOpenAiProvider(
   };
 
   return {
-    start: (input) =>
-      request(
+    start: (input) => {
+      const resolvedModel = input.model ?? model;
+      return request(
         "/responses",
         {
           method: "POST",
           headers: { "Idempotency-Key": input.idempotencyKey },
           body: JSON.stringify({
-            model: input.model ?? model,
+            model: resolvedModel,
             metadata: {
               estudario_job_id: input.jobId,
               feature: "SYLLABUS_GENERATION",
@@ -537,7 +564,7 @@ export function createOpenAiProvider(
                 type: "json_schema",
                 name: `ai_syllabus_proposal_v${input.schemaVersion}`,
                 strict: true,
-                schema: openAiCompatibleSchema(input.schema),
+                schema: specializedProposalSchema(input, resolvedModel),
               },
             },
             ...((input.maxOutputTokens ?? maxOutputTokens) === undefined
@@ -547,7 +574,7 @@ export function createOpenAiProvider(
               }),
           }),
         },
-        input.model ?? model,
+        resolvedModel,
         [
           apiKey ?? "",
           input.source.filename,
@@ -556,7 +583,8 @@ export function createOpenAiProvider(
           input.userPrompt ?? input.prompt ??
             "Extract the supported syllabus structure.",
         ],
-      ),
+      );
+    },
     retrieve: (responseId) =>
       request(`/responses/${encodeURIComponent(responseId)}`, {
         method: "GET",

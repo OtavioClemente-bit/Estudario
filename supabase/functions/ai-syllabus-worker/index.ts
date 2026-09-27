@@ -4,6 +4,7 @@ import {
   type TerminalAiTelemetry,
 } from "../_shared/job-finalizer.ts";
 import {
+  ProposalValidationError,
   type ProposalValidationLimits,
   type ProposalValidationOptions,
   validateAiSyllabusProposal,
@@ -162,7 +163,7 @@ export interface SyllabusWorkerDependencies {
 export interface AiProviderDiagnostic {
   event: "ai_provider_diagnostic";
   jobId: string;
-  stage: "start" | "retrieve" | "cancel";
+  stage: "start" | "retrieve" | "cancel" | "validation";
   outcome: string;
   code: string;
   status?: number;
@@ -429,6 +430,26 @@ async function processResponse(
       validationOptions(dependencies),
     );
   } catch (error) {
+    if (error instanceof ProposalValidationError) {
+      for (const code of error.diagnosticCodes) {
+        const event: AiProviderDiagnostic = {
+          event: "ai_provider_diagnostic",
+          jobId: job.id,
+          stage: "validation",
+          outcome: "VALIDATION_REJECTED",
+          code,
+          message:
+            "Structured proposal versions did not match the effective worker configuration",
+        };
+        try {
+          if (dependencies.providerDiagnostics) {
+            dependencies.providerDiagnostics(event);
+          } else console.error(JSON.stringify(event));
+        } catch {
+          // Diagnostic delivery must not affect terminal job handling.
+        }
+      }
+    }
     const code =
       error instanceof Error && error.message.startsWith("EMPTY_OUTPUT")
         ? "EMPTY_OUTPUT"

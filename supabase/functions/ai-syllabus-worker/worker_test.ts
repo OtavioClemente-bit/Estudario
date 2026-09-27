@@ -140,6 +140,78 @@ Deno.test("persists response id before finalizing a valid result and captures us
   assertEquals(jobs.events[3], "success:job-1");
 });
 
+Deno.test("uses the configured model for both provider request and output validation", async () => {
+  const jobs = store(
+    job({ openaiResponseId: null, providerExecutionStartedAt: null }),
+  );
+  const configuredModel = "gpt-configured-default";
+  const output = JSON.parse(validOutput);
+  output.modelVersion = configuredModel;
+  let requestedModel: string | undefined;
+
+  await processSyllabusJob({
+    jobs,
+    provider: {
+      ...provider({
+        id: "resp-configured-model",
+        status: "queued",
+        outputText: null,
+        usage: null,
+      }),
+      async start(input) {
+        requestedModel = input.model;
+        return {
+          id: "resp-configured-model",
+          status: "completed",
+          outputText: JSON.stringify(output),
+          usage: null,
+        };
+      },
+    },
+    source: async () => new Uint8Array([1]),
+    model: configuredModel,
+    now: () => new Date("2026-09-24T12:01:00Z"),
+  });
+
+  assertEquals(requestedModel, configuredModel);
+  assert(jobs.events.includes("success:job-1"));
+});
+
+Deno.test("logs a safe version mismatch marker without changing the public error code", async () => {
+  const jobs = store(job());
+  const output = JSON.parse(validOutput);
+  output.promptVersion = "PROVIDER_PROMPT_VALUE_SENTINEL";
+  const diagnostics: Record<string, unknown>[] = [];
+
+  await processSyllabusJob({
+    jobs,
+    provider: provider({
+      id: "resp-1",
+      status: "completed",
+      outputText: JSON.stringify(output),
+      usage: null,
+    }),
+    source: async () => new Uint8Array([1]),
+    providerDiagnostics: (event) =>
+      diagnostics.push(event as unknown as Record<string, unknown>),
+    now: () => new Date("2026-09-24T12:01:00Z"),
+  });
+
+  assert(jobs.events.includes("failure:job-1:VERSION_MISMATCH"));
+  assertEquals(diagnostics, [{
+    event: "ai_provider_diagnostic",
+    jobId: "job-1",
+    stage: "validation",
+    outcome: "VALIDATION_REJECTED",
+    code: "VERSION_MISMATCH_PROMPT",
+    message:
+      "Structured proposal versions did not match the effective worker configuration",
+  }]);
+  assert(
+    !JSON.stringify(diagnostics).includes("PROVIDER_PROMPT_VALUE_SENTINEL"),
+  );
+});
+
 Deno.test("reconciles an expired lease before retrying a recoverable provider response", async () => {
   const jobs = store(
     job({ leaseExpiresAt: "2026-09-24T11:00:00Z", openaiResponseId: "resp-1" }),

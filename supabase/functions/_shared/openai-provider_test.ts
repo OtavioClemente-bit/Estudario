@@ -116,6 +116,72 @@ Deno.test("defaults the server-side model to gpt-6-luna", async () => {
   assertEquals(body?.model, "gpt-6-luna");
 });
 
+Deno.test("specializes version enums per request without mutating the canonical schema", async () => {
+  const bodies: Record<string, unknown>[] = [];
+  const originalSchema = structuredClone(source.schema);
+  const provider = createOpenAiProvider({
+    apiKey: "test-key",
+    fetcher: async (_input, init) => {
+      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return Response.json({ id: `resp-${bodies.length}`, status: "queued" });
+    },
+  });
+
+  await provider.start({
+    ...source,
+    promptVersion: "syllabus-prompt-a",
+    model: "gpt-effective-a",
+  });
+  await provider.start({
+    ...source,
+    promptVersion: "syllabus-prompt-b",
+    model: "gpt-effective-b",
+  });
+
+  const firstSchema = (bodies[0].text as Record<string, unknown>)
+    .format as Record<string, unknown>;
+  const firstProperties = (firstSchema.schema as Record<string, unknown>)
+    .properties as Record<string, Record<string, unknown>>;
+  const secondSchema = (bodies[1].text as Record<string, unknown>)
+    .format as Record<string, unknown>;
+  const secondProperties = (secondSchema.schema as Record<string, unknown>)
+    .properties as Record<string, Record<string, unknown>>;
+
+  assertEquals(bodies[0].model, "gpt-effective-a");
+  assertEquals(firstProperties.schemaVersion.enum, [source.schemaVersion]);
+  assertEquals(firstProperties.promptVersion.enum, ["syllabus-prompt-a"]);
+  assertEquals(firstProperties.modelVersion.enum, ["gpt-effective-a"]);
+  assertEquals(bodies[1].model, "gpt-effective-b");
+  assertEquals(secondProperties.schemaVersion.enum, [source.schemaVersion]);
+  assertEquals(secondProperties.promptVersion.enum, ["syllabus-prompt-b"]);
+  assertEquals(secondProperties.modelVersion.enum, ["gpt-effective-b"]);
+  assertEquals(source.schema, originalSchema);
+});
+
+Deno.test("configured AI_DEFAULT_MODEL alternative aligns request model and modelVersion enum", async () => {
+  let body: Record<string, unknown> | undefined;
+  const configuredDefaultModel = "gpt-configured-default";
+  const provider = createOpenAiProvider({
+    apiKey: "test-key",
+    model: configuredDefaultModel,
+    fetcher: async (_input, init) => {
+      body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return Response.json({ id: "resp-configured-model", status: "queued" });
+    },
+  });
+
+  await provider.start({ ...source, model: undefined });
+
+  const format = (body?.text as Record<string, unknown>).format as Record<
+    string,
+    unknown
+  >;
+  const properties = (format.schema as Record<string, unknown>)
+    .properties as Record<string, Record<string, unknown>>;
+  assertEquals(body?.model, configuredDefaultModel);
+  assertEquals(properties.modelVersion.enum, [configuredDefaultModel]);
+});
+
 Deno.test("fails closed when OPENAI_API_KEY is absent", async () => {
   const provider = createOpenAiProvider({ apiKey: "" });
   const error = await assertRejects(
