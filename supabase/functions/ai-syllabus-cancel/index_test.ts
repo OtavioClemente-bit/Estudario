@@ -1,5 +1,8 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { createAiSyllabusCancelHandler } from "./index.ts";
+import {
+  createAiSyllabusCancelHandler,
+  extractAiSyllabusCancelJobId,
+} from "./index.ts";
 import {
   type AiJobCancellationStore,
   type AiJobRecord,
@@ -32,7 +35,7 @@ const proposal = {
 
 function job(overrides: Partial<AiJobRecord> = {}): AiJobRecord {
   return {
-    id: "job-1",
+    id: "11111111-1111-4111-8111-111111111111",
     userId: "user-1",
     feature: "SYLLABUS_GENERATION",
     status: "PROCESSING",
@@ -149,7 +152,7 @@ function harness(
 
 function request() {
   return new Request(
-    "https://example.test/functions/v1/ai-syllabus-cancel/job-1",
+    "https://example.test/functions/v1/ai-syllabus-cancel/11111111-1111-4111-8111-111111111111",
     { method: "POST", headers: { authorization: "Bearer jwt" } },
   );
 }
@@ -299,4 +302,72 @@ Deno.test("ambiguous provider cancellation stays pending and records the known r
     "providerCancel",
     "record:resp-1",
   ]);
+});
+
+Deno.test("runtime-relative path reaches terminal cancellation idempotently", async () => {
+  const id = "d46b1061-cabe-4e7b-b984-80b457d4d1a3";
+  const terminalJob = job({
+    id,
+    status: "SUCCEEDED",
+    openaiResponseId: "resp-existing",
+  });
+  const { handler, calls } = harness(terminalJob);
+  const result = await handler(
+    new Request(
+      `https://example.test/ai-syllabus-cancel/${id}/?source=runtime`,
+      { method: "POST", headers: { authorization: "Bearer jwt" } },
+    ),
+  );
+  assertEquals(result.status, 200);
+  assertEquals((await result.json()).status, "SUCCEEDED");
+  assertEquals(calls, []);
+});
+
+Deno.test("extracts only supported cancel function paths and UUIDs", () => {
+  const id = "d46b1061-cabe-4e7b-b984-80b457d4d1a3";
+  assertEquals(extractAiSyllabusCancelJobId(`/ai-syllabus-cancel/${id}`), id);
+  assertEquals(
+    extractAiSyllabusCancelJobId(`/functions/v1/ai-syllabus-cancel/${id}`),
+    id,
+  );
+  assertEquals(extractAiSyllabusCancelJobId(`/ai-syllabus-cancel/${id}/`), id);
+});
+
+Deno.test("unknown cancel paths, missing IDs, invalid UUIDs, and extra segments are not found", async () => {
+  const id = "d46b1061-cabe-4e7b-b984-80b457d4d1a3";
+  const terminalJob = job({ id, status: "SUCCEEDED" });
+  const { handler, calls } = harness(terminalJob);
+  for (
+    const pathname of [
+      "/ai-syllabus-cancel/",
+      "/ai-syllabus-cancel/not-a-uuid",
+      `/ai-syllabus-cancel/${id}/extra`,
+      `/other-function/${id}`,
+      `/functions/v1/other-function/${id}`,
+    ]
+  ) {
+    const result = await handler(
+      new Request(`https://example.test${pathname}`, {
+        method: "POST",
+        headers: { authorization: "Bearer jwt" },
+      }),
+    );
+    assertEquals(result.status, 404, pathname);
+    assertEquals((await result.json()).error.code, "NOT_FOUND", pathname);
+  }
+  assertEquals(calls, []);
+});
+
+Deno.test("external gateway-prefixed path remains supported for terminal jobs", async () => {
+  const id = "d46b1061-cabe-4e7b-b984-80b457d4d1a3";
+  const { handler, calls } = harness(job({ id, status: "SUCCEEDED" }));
+  const result = await handler(
+    new Request(
+      `https://example.test/functions/v1/ai-syllabus-cancel/${id}?source=gateway`,
+      { method: "POST", headers: { authorization: "Bearer jwt" } },
+    ),
+  );
+  assertEquals(result.status, 200);
+  assertEquals((await result.json()).status, "SUCCEEDED");
+  assertEquals(calls, []);
 });

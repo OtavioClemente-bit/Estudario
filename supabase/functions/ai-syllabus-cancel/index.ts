@@ -315,6 +315,24 @@ function hasActiveGenerationLease(
   return !Number.isFinite(expiresAt) || expiresAt > Date.now();
 }
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function extractAiSyllabusCancelJobId(pathname: string): string | null {
+  const withoutOneTrailingSlash = pathname.endsWith("/")
+    ? pathname.slice(0, -1)
+    : pathname;
+  const functionPrefix = "/functions/v1";
+  const routePath = withoutOneTrailingSlash.startsWith(
+      `${functionPrefix}/ai-syllabus-cancel/`,
+    )
+    ? withoutOneTrailingSlash.slice(functionPrefix.length)
+    : withoutOneTrailingSlash;
+  const match = /^\/ai-syllabus-cancel\/([^/]+)$/.exec(routePath);
+  if (!match || !UUID_PATTERN.test(match[1])) return null;
+  return match[1];
+}
+
 export function createAiSyllabusCancelHandler(
   dependencies: AiSyllabusCancelDependencies,
 ): (request: Request) => Promise<Response> {
@@ -339,12 +357,10 @@ export function createAiSyllabusCancelHandler(
       }
       return safeError("AUTH_UNAVAILABLE", 503);
     }
-    const match = new URL(request.url).pathname.replace(/\/+$/, "").match(
-      /\/functions\/v1\/ai-syllabus-cancel\/([^/]+)$/,
-    );
-    if (!match || !match[1]) return safeError("NOT_FOUND", 404);
+    const jobId = extractAiSyllabusCancelJobId(new URL(request.url).pathname);
+    if (!jobId) return safeError("NOT_FOUND", 404);
     try {
-      return await cancelJob(dependencies, user.userId, match[1]);
+      return await cancelJob(dependencies, user.userId, jobId);
     } catch (error) {
       if (error instanceof JobStoreError) {
         return safeError(error.code, error.status);

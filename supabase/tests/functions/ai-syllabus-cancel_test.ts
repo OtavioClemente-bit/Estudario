@@ -46,7 +46,7 @@ function job(overrides: Partial<AiJobRecord> = {}): AiJobRecord {
     providerStartOutcome: "NOT_STARTED",
     providerQuarantinedAt: null,
     leaseExpiresAt: null,
-    id: "job-1",
+    id: "11111111-1111-4111-8111-111111111111",
     userId: USER_ID,
     feature: "SYLLABUS_GENERATION",
     status: "RESERVED",
@@ -203,10 +203,13 @@ async function cancel(
   handler: (request: Request) => Promise<Response>,
 ): Promise<Response> {
   return handler(
-    new Request("https://example.test/functions/v1/ai-syllabus-cancel/job-1", {
-      method: "POST",
-      headers: { authorization: "Bearer supabase-jwt" },
-    }),
+    new Request(
+      "https://example.test/ai-syllabus-cancel/11111111-1111-4111-8111-111111111111",
+      {
+        method: "POST",
+        headers: { authorization: "Bearer supabase-jwt" },
+      },
+    ),
   );
 }
 
