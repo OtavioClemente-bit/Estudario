@@ -1,3 +1,9 @@
+import com.android.build.api.dsl.ApplicationExtension
+import java.util.Base64
+import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,9 +11,6 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("org.jetbrains.kotlin.kapt")
 }
-
-import java.util.Base64
-import java.util.Properties
 
 fun String.toBuildConfigLiteral(): String =
     "\"${replace("\\", "\\\\").replace("\"", "\\\"").replace("\r", "\\r").replace("\n", "\\n")}\""
@@ -59,14 +62,13 @@ check(forbiddenAndroidSecretProperty == null) {
     "Server-only service-role/OpenAI properties are not allowed in Android configuration."
 }
 
-val signingProperties = Properties().apply {
-    val propertiesFile = rootProject.file("keystore.properties")
-    if (propertiesFile.exists()) {
-        propertiesFile.inputStream().use(::load)
-    }
+val signingProperties = Properties()
+val propertiesFile = rootProject.file("keystore.properties")
+if (propertiesFile.exists()) {
+    propertiesFile.inputStream().use { signingProperties.load(it) }
 }
 
-android {
+extensions.configure<ApplicationExtension> {
     namespace = "br.com.estudario"
     compileSdk = 36
 
@@ -87,17 +89,16 @@ android {
         buildConfig = true
     }
 
-    sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    sourceSets.getByName("androidTest").assets.directories.add("$projectDir/schemas")
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
 
     signingConfigs {
         create("release") {
-            storeFile = signingProperties.getProperty("storeFile")?.let(rootProject::file)
+            storeFile = signingProperties.getProperty("storeFile")?.let { rootProject.file(it) }
             storePassword = signingProperties.getProperty("storePassword")
             keyAlias = signingProperties.getProperty("keyAlias")
             keyPassword = signingProperties.getProperty("keyPassword")
@@ -113,10 +114,15 @@ android {
     packaging.resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}")
 }
 
+tasks.withType<KotlinCompile>().configureEach {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+    }
+}
+
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2025.08.01")
-    implementation(composeBom)
-    androidTestImplementation(composeBom)
+    implementation(platform("androidx.compose:compose-bom:2025.08.01"))
+    androidTestImplementation(platform("androidx.compose:compose-bom:2025.08.01"))
 
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.core:core-splashscreen:1.0.1")

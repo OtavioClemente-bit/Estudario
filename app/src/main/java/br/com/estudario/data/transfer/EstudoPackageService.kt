@@ -807,4 +807,6 @@ private fun TopicPlan.flatten(): List<TopicPlan> = listOf(this) + children.flatM
 private fun TopicPlan.previewRows(depth: Int = 0): List<TopicImportPreview> = listOf(TopicImportPreview(title, depth, theories.size, summaries.size, questions.size, snippets.size)) + children.flatMap { it.previewRows(depth + 1) }
 internal fun JSONArray.objects(): List<JSONObject> = (0 until length()).map { getJSONObject(it) }
 internal fun JSONArray.strings(): List<String> = (0 until length()).map { getString(it) }
-internal fun JSONObject.optNullableString(key: String): String? = optString(key).takeIf { it.isNotBlank() && it != "null" }
+// optString devolve o texto "null" para JSON null; sem o isNull, todo externalId nulo virava "null"
+// e colidia no índice único, e a restauração do backup substituía um tópico pelo outro.
+internal fun JSONObject.optNullableString(key: String): String? = if (isNull(key)) null else optString(key).takeIf { it.isNotBlank() }
