@@ -98,6 +98,7 @@ class AiReviewEntryPointTest {
         accessGateway = object : AiReviewAccessGateway {
             override suspend fun check() = AiReviewAccessResult(true, true)
         },
+        userIdProvider = { "entrypoint-test-user" },
     )
 
     private class CapturingPdfPicker : AiReviewPdfPicker {
@@ -142,7 +143,7 @@ class AiReviewEntryPointTest {
                     finishedAt = null,
                     providerExecutionStartedAt = null,
                 ),
-                identity = AiReviewRequestIdentity("request-entrypoint", "job-entrypoint", "idem-entrypoint"),
+                identity = AiReviewRequestIdentity("request-entrypoint", "job-entrypoint", "idem-entrypoint", "entrypoint-test-user"),
             )
         }
 

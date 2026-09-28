@@ -71,10 +71,40 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch {
+            val sessionState = app.supabaseAuthRepository.observeSession().first {
+                it !is br.com.estudario.data.remote.SupabaseSessionState.Loading
+            }
+            val ownerUserId = (sessionState as? br.com.estudario.data.remote.SupabaseSessionState.Ready)
+                ?.session?.userId?.takeIf(String::isNotBlank) ?: return@launch
             val targetStore = DataStoreAiReviewTargetStore(application)
-            val session = DataStoreAiReviewSessionStore(application).loadLatest()
-            _aiReviewTarget.value = targetStore.load()
+            val session = DataStoreAiReviewSessionStore(application).loadLatest(ownerUserId)
+            val ownedTarget = targetStore.load(ownerUserId)
                 ?: session?.let { AiReviewTarget(it.targetId, it.targetTitle) }
+            if (ownedTarget != null) {
+                _aiReviewTarget.value = ownedTarget
+                return@launch
+            }
+
+            // Pre-owner DataStore records are exposed only after the authenticated public GET
+            // proves that their known server job belongs to this account.
+            val legacyTarget = targetStore.loadUnownedLegacy() ?: return@launch
+            runCatching {
+                app.aiSyllabusRepository.recoverLegacyPending(legacyTarget.id, legacyTarget.title) { request ->
+                    if (request.ownerUserId != ownerUserId || request.targetSyllabusId != legacyTarget.id) return@recoverLegacyPending
+                    DataStoreAiReviewSessionStore(application).save(
+                        br.com.estudario.ui.ai.AiReviewPersistedSession(
+                            targetId = legacyTarget.id,
+                            targetTitle = legacyTarget.title,
+                            requestId = request.requestId,
+                            jobId = request.jobId.orEmpty(),
+                            idempotencyKey = request.idempotencyKey,
+                            ownerUserId = ownerUserId,
+                        ),
+                    )
+                    targetStore.saveAfterOwnershipProof(legacyTarget, ownerUserId)
+                    _aiReviewTarget.value = legacyTarget
+                }
+            }
         }
     }
 
@@ -82,13 +112,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (targetId > 0L && targetTitle.isNotBlank()) {
             val target = AiReviewTarget(targetId, targetTitle, sourceUri, sourceName)
             _aiReviewTarget.value = target
-            viewModelScope.launch { DataStoreAiReviewTargetStore(app).save(target) }
+            app.supabaseAuthRepository.currentUserId()?.let { ownerUserId ->
+                viewModelScope.launch { DataStoreAiReviewTargetStore(app).save(target, ownerUserId) }
+            }
         }
     }
 
     fun closeAiReview() {
         _aiReviewTarget.value = null
-        viewModelScope.launch { DataStoreAiReviewTargetStore(app).clear() }
+        app.supabaseAuthRepository.currentUserId()?.let { ownerUserId ->
+            viewModelScope.launch { DataStoreAiReviewTargetStore(app).clear(ownerUserId) }
+        }
     }
 
     val competitions = repository.competitions.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

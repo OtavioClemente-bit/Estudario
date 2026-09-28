@@ -6,11 +6,121 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AiSyllabusRepositoryTest {
+    @Test
+    fun requestContextIsPersistedBeforeAnyRemoteJobCall() = runTest {
+        val api = FakeAiApiClient()
+        val store = InMemoryAiJobRequestStore()
+        val repository = repository(api, store, userId = "user-a")
+        val callbacks = mutableListOf<PersistedAiJobRequest>()
+
+        repository.start(
+            uri = "content://edital",
+            fileName = "edital.pdf",
+            targetSyllabusId = 73L,
+            targetTitle = "TRT-3",
+        ) { request ->
+            callbacks += request
+            assertEquals("user-a", request.ownerUserId)
+            assertEquals(73L, request.targetSyllabusId)
+            assertEquals("TRT-3", request.targetTitle)
+            assertEquals("SYLLABUS_GENERATION", request.feature)
+            assertEquals(request, store.values[request.requestId])
+            if (callbacks.size == 1) assertEquals(0, api.createCalls)
+        }
+
+        assertEquals(store.values.values.single().requestId, callbacks.last().requestId)
+        assertEquals("job-1", callbacks.first { it.jobId != null }.jobId)
+        assertTrue(callbacks.first().createdAtEpochMillis > 0L)
+    }
+
+    @Test
+    fun recoveryNeverTouchesRequestsOwnedByAnotherAuthenticatedUser() = runTest {
+        val api = FakeAiApiClient()
+        val store = InMemoryAiJobRequestStore()
+        val foreign = PersistedAiJobRequest(
+            requestId = "request-user-a",
+            idempotencyKey = "idempotency-user-a",
+            sourceUri = "content://private-a",
+            fileName = "edital.pdf",
+            mimeType = "application/pdf",
+            sourceHash = "a".repeat(64),
+            sourceBytes = 123L,
+            jobId = "job-user-a",
+            status = AiJobStatus.PROCESSING.name,
+            ownerUserId = "user-a",
+            targetSyllabusId = 73L,
+            targetTitle = "TRT-3",
+        )
+        store.save(foreign)
+        val repository = repository(api, store, userId = "user-b")
+
+        val recovered = repository.recoverPendingJobs()
+
+        assertTrue(recovered.isEmpty())
+        assertTrue(api.awaitedJobIds.isEmpty())
+        assertEquals(foreign, store.get(foreign.requestId))
+    }
+
+    @Test
+    fun legacyRequestIsAdoptedOnlyAfterOwnerScopedGetAndDoesNotNeedLocalPdf() = runTest {
+        val api = FakeAiApiClient(nextJob = fakeJob(AiJobStatus.SUCCEEDED, "legacy-job"))
+        val store = InMemoryAiJobRequestStore()
+        val legacy = PersistedAiJobRequest(
+            requestId = "legacy-request",
+            idempotencyKey = "legacy-idempotency",
+            sourceUri = "content://expired-permission",
+            fileName = "edital.pdf",
+            mimeType = "application/pdf",
+            sourceHash = "a".repeat(64),
+            sourceBytes = 123L,
+            jobId = "legacy-job",
+            status = AiJobStatus.PROCESSING.name,
+        )
+        store.save(legacy)
+        val repository = repository(api, store, userId = "user-current")
+        val updates = mutableListOf<PersistedAiJobRequest>()
+
+        repository.recoverLegacyPending(73L, "TRT-3", updates::add)
+
+        val adopted = store.get(legacy.requestId)!!
+        assertEquals("user-current", adopted.ownerUserId)
+        assertEquals(73L, adopted.targetSyllabusId)
+        assertEquals("TRT-3", adopted.targetTitle)
+        assertEquals("legacy-job", adopted.jobId)
+        assertEquals(1, api.getJobCalls)
+        assertTrue(api.awaitedJobIds.isEmpty())
+        assertEquals(0, api.createCalls)
+        assertTrue(updates.any { it.ownerUserId == "user-current" })
+    }
+
+    @Test
+    fun legacyRequestWithoutKnownJobCannotBeAdopted() = runTest {
+        val api = FakeAiApiClient()
+        val store = InMemoryAiJobRequestStore()
+        val legacy = PersistedAiJobRequest(
+            requestId = "legacy-request",
+            idempotencyKey = "legacy-idempotency",
+            sourceUri = "content://private-old-account",
+            fileName = "edital.pdf",
+            mimeType = "application/pdf",
+            sourceHash = "a".repeat(64),
+            sourceBytes = 123L,
+        )
+        store.save(legacy)
+        val repository = repository(api, store, userId = "user-current")
+
+        val error = runCatching { repository.recoverLegacyPending(73L, "TRT-3") }.exceptionOrNull()
+
+        assertTrue(error is AiLegacyRecoveryBlockedException)
+        assertEquals(legacy, store.get(legacy.requestId))
+        assertEquals(0, api.getJobCalls)
+        assertEquals(0, api.createCalls)
+    }
+
     @Test
     fun processTimeoutKeepsJobMetadataForLaterRecovery() = runTest {
         val api = FakeAiApiClient()
@@ -111,7 +221,7 @@ class AiSyllabusRepositoryTest {
     }
 
     @Test
-    fun recoveryUsesPrivateSnapshotAndRejectsChangedBytesBeforeReusingKey() = runTest {
+    fun existingProcessingJobRecoversWithoutReopeningOrRevalidatingLocalPdf() = runTest {
         val provider = MutablePdfSourceProvider()
         val snapshots = InMemoryPdfSourceSnapshotStore()
         val api = StatefulFakeAiApiClient()
@@ -123,7 +233,11 @@ class AiSyllabusRepositoryTest {
         assertEquals(1, provider.opens)
 
         snapshots.replace(saved.sourcePath!!, PdfSource(saved.sourcePath, saved.fileName, "application/pdf", "%PDF-changed".toByteArray(), "f".repeat(64)))
-        assertTrue(runCatching { repository.recover(saved.requestId) }.exceptionOrNull() is PdfSourceChangedException)
+        api.nextJob = job(AiJobStatus.SUCCEEDED, api.uniqueJobIds.single())
+
+        val recovered = repository.recover(saved.requestId)
+
+        assertEquals(AiJobStatus.SUCCEEDED, recovered.status)
         assertEquals(1, provider.opens)
         assertEquals(1, api.uniqueJobIds.size)
         assertEquals(1, api.idempotencyKeys.distinct().size)
@@ -221,6 +335,7 @@ class AiSyllabusRepositoryTest {
         store: InMemoryAiJobRequestStore,
         provider: PdfSourceProvider = CountingPdfSourceProvider(),
         snapshots: PdfSourceSnapshotStore = InMemoryPdfSourceSnapshotStore(),
+        userId: String = "user-test",
     ): DefaultAiSyllabusRepository =
         DefaultAiSyllabusRepository(
             api = api,
@@ -228,6 +343,7 @@ class AiSyllabusRepositoryTest {
             requestStore = store,
             accessTokenProvider = AiAccessTokenProvider { "supabase-jwt" },
             sourceSnapshots = snapshots,
+            userIdProvider = { userId },
         )
 
     private fun job(status: AiJobStatus, id: String = "job-1"): AiJob = AiJob(
@@ -300,6 +416,7 @@ private class FakeAiApiClient(
     var uploadFailure = false
     var createCalls = 0
     var uploadCalls = 0
+    var getJobCalls = 0
     private var existingJobId: String? = null
     val idempotencyKeys = mutableListOf<String>()
     val awaitedJobIds = mutableListOf<String>()
@@ -327,7 +444,10 @@ private class FakeAiApiClient(
         return AiJobStatus.PROCESSING
     }
 
-    override suspend fun getJob(jobId: String, timeoutMillis: Long?): AiJob = nextJob.copy(jobId = jobId)
+    override suspend fun getJob(jobId: String, timeoutMillis: Long?): AiJob {
+        getJobCalls += 1
+        return nextJob.copy(jobId = jobId)
+    }
 
     override suspend fun awaitJob(
         jobId: String,

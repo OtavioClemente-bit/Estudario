@@ -58,6 +58,7 @@ class AiJobRecoveryWorkerTest {
                 override fun save(source: PdfSource): String = "private/${source.sha256}.pdf"
                 override fun read(path: String, fileName: String): PdfSource = error("not reached")
             },
+            userIdProvider = { "user-worker" },
         )
         val worker = AiJobRecoveryWorker(Application(), workerParameters(), repository)
 
@@ -87,6 +88,7 @@ class AiJobRecoveryWorkerTest {
             sourceBytes = source.bytes.size.toLong(),
             sourcePath = sourcePath,
             status = AiJobStatus.RESERVED.name,
+            ownerUserId = "user-worker",
         )
         val store = MutableRequestStore(pending)
         val api = StatefulRecoveryApi()
@@ -96,6 +98,7 @@ class AiJobRecoveryWorkerTest {
             requestStore = store,
             accessTokenProvider = br.com.estudario.data.remote.AiAccessTokenProvider { "supabase-jwt" },
             sourceSnapshots = snapshots,
+            userIdProvider = { "user-worker" },
         )
 
         val first = AiJobRecoveryWorker(Application(), workerParameters(), repository).doWork()

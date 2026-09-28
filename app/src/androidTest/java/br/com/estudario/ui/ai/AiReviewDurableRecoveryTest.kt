@@ -5,7 +5,10 @@ import androidx.room.Room
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.core.app.ApplicationProvider
+import androidx.lifecycle.viewModelScope
 import br.com.estudario.data.remote.AiAccessTokenProvider
 import br.com.estudario.data.ai.AiFeature
 import br.com.estudario.data.ai.AiHttpRequest
@@ -30,11 +33,14 @@ import br.com.estudario.data.local.AppDatabase
 import br.com.estudario.data.local.CompetitionEntity
 import br.com.estudario.data.local.RemoteSyllabusSyncState
 import br.com.estudario.data.syllabus.SyllabusApplicationService
+import br.com.estudario.data.syllabus.ApplyResult
 import br.com.estudario.domain.ai.AiSyllabusDraft
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -45,6 +51,172 @@ import java.io.File
 import java.io.IOException
 
 class AiReviewDurableRecoveryTest {
+    @Test
+    fun recreatedViewModelResumesPersistedJobAfterStartCoroutineIsCancelled() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        val file = File(context.filesDir, "ai-review-cancelled-start-${System.nanoTime()}.preferences_pb")
+        val dataStoreScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val dataStore: DataStore<Preferences> = PreferenceDataStoreFactory.create(
+            scope = dataStoreScope,
+            produceFile = { file },
+        )
+        val requestStore = DataStoreAiJobRequestStore(dataStore)
+        val sessions = DataStoreAiReviewSessionStore(dataStore)
+        val targetStore = DataStoreAiReviewTargetStore(dataStore)
+        val snapshots = InMemoryPdfSourceSnapshotStore()
+        val firstTransport = ScriptedTransport(phase = Phase.BLOCK_GET)
+        val firstJobs = DefaultAiReviewJobs(repository(firstTransport, requestStore, snapshots), requestStore) { TEST_USER }
+        val firstViewModel = createViewModel(context, firstJobs, sessions, targetStore)
+
+        try {
+            await { firstViewModel.state.value.access.kind == AiReviewAccessKind.READY }
+            firstViewModel.provideSource("content://fixture/edital.pdf", "edital.pdf")
+            awaitSuspend {
+                sessions.load(42L, TEST_USER)?.jobId == "job-1" &&
+                    requestStore.list().singleOrNull()?.status == AiJobStatus.PROCESSING.name
+            }
+
+            firstViewModel.viewModelScope.cancel()
+
+            val secondTransport = ScriptedTransport(phase = Phase.RECOVER)
+            val secondJobs = DefaultAiReviewJobs(repository(secondTransport, requestStore, snapshots), requestStore) { TEST_USER }
+            var autoApplyCalls = 0
+            val recreatedViewModel = createViewModel(
+                context,
+                secondJobs,
+                sessions,
+                targetStore,
+                applier = AiReviewApplier { targetId, _, jobId, _ ->
+                    autoApplyCalls += 1
+                    appliedResult(targetId, jobId)
+                },
+            )
+            await { recreatedViewModel.state.value.content is AiReviewContent.Applied }
+
+            val persisted = requestStore.list().single()
+            assertEquals("job-1", persisted.jobId)
+            assertEquals(AiJobStatus.SUCCEEDED.name, persisted.status)
+            assertEquals(TEST_USER, persisted.ownerUserId)
+            assertEquals(1, firstTransport.createdJobIds.distinct().size)
+            assertTrue(secondTransport.createRequests.isEmpty())
+            assertEquals("job-1", sessions.load(42L, TEST_USER)?.jobId)
+            assertEquals(true, sessions.load(42L, TEST_USER)?.applied)
+            assertEquals(1, autoApplyCalls)
+        } finally {
+            firstTransport.releaseProcess.complete(Unit)
+            dataStoreScope.cancel()
+            file.delete()
+        }
+    }
+
+    @Test
+    fun requestSavedBeforeSessionCallbackIsRecoveredWithoutCreatingAnotherJob() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        val file = File(context.filesDir, "ai-review-request-only-${System.nanoTime()}.preferences_pb")
+        val dataStoreScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val dataStore: DataStore<Preferences> = PreferenceDataStoreFactory.create(
+            scope = dataStoreScope,
+            produceFile = { file },
+        )
+        val requestStore = DataStoreAiJobRequestStore(dataStore)
+        val sessions = DataStoreAiReviewSessionStore(dataStore)
+        val targetStore = DataStoreAiReviewTargetStore(dataStore)
+        val snapshots = InMemoryPdfSourceSnapshotStore()
+        val transport = ScriptedTransport(phase = Phase.RECOVER)
+        try {
+            requestStore.save(
+                br.com.estudario.data.ai.PersistedAiJobRequest(
+                    requestId = "persisted-before-session",
+                    idempotencyKey = "same-idempotency-key",
+                    sourceUri = "content://expired-permission",
+                    fileName = "edital.pdf",
+                    mimeType = "application/pdf",
+                    sourceHash = "a".repeat(64),
+                    sourceBytes = 123L,
+                    jobId = "job-1",
+                    status = AiJobStatus.PROCESSING.name,
+                    ownerUserId = TEST_USER,
+                    targetSyllabusId = 42L,
+                    targetTitle = "TRT-3",
+                ),
+            )
+            targetStore.save(AiReviewTarget(42L, "TRT-3", "content://expired-permission", "edital.pdf"), TEST_USER)
+            val jobs = DefaultAiReviewJobs(repository(transport, requestStore, snapshots), requestStore) { TEST_USER }
+            var autoApplyCalls = 0
+            val viewModel = createViewModel(
+                context,
+                jobs,
+                sessions,
+                targetStore,
+                applier = AiReviewApplier { targetId, _, jobId, _ ->
+                    autoApplyCalls += 1
+                    appliedResult(targetId, jobId)
+                },
+            )
+
+            await { viewModel.state.value.content is AiReviewContent.Applied }
+
+            assertTrue(transport.createRequests.isEmpty())
+            assertEquals("job-1", requestStore.list().single().jobId)
+            assertEquals("same-idempotency-key", sessions.load(42L, TEST_USER)?.idempotencyKey)
+            assertEquals(true, sessions.load(42L, TEST_USER)?.applied)
+            assertEquals(1, autoApplyCalls)
+        } finally {
+            dataStoreScope.cancel()
+            file.delete()
+        }
+    }
+
+    @Test
+    fun reviewSessionAndTargetAreInvisibleToAnotherAccount() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        val file = File(context.filesDir, "ai-review-owner-scope-${System.nanoTime()}.preferences_pb")
+        val dataStoreScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val dataStore: DataStore<Preferences> = PreferenceDataStoreFactory.create(
+            scope = dataStoreScope,
+            produceFile = { file },
+        )
+        val sessions = DataStoreAiReviewSessionStore(dataStore)
+        val targets = DataStoreAiReviewTargetStore(dataStore)
+        try {
+            sessions.save(AiReviewPersistedSession(42L, "TRT-3", "request-a", "job-a", "idem-a", ownerUserId = "user-a"))
+            targets.save(AiReviewTarget(42L, "TRT-3", "content://private-a", "a.pdf"), "user-a")
+
+            assertEquals("job-a", sessions.load(42L, "user-a")?.jobId)
+            assertEquals(null, sessions.load(42L, "user-b"))
+            assertEquals(null, sessions.loadLatest("user-b"))
+            assertEquals(null, targets.load("user-b"))
+            assertEquals("content://private-a", targets.load("user-a")?.sourceUri)
+        } finally {
+            dataStoreScope.cancel()
+            file.delete()
+        }
+    }
+
+    @Test
+    fun legacyTargetIsNotAssignedToAnAccountBeforeJobOwnershipIsVerified() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        val file = File(context.filesDir, "ai-review-legacy-target-${System.nanoTime()}.preferences_pb")
+        val dataStoreScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val dataStore: DataStore<Preferences> = PreferenceDataStoreFactory.create(
+            scope = dataStoreScope,
+            produceFile = { file },
+        )
+        val targets = DataStoreAiReviewTargetStore(dataStore)
+        try {
+            dataStore.edit { preferences ->
+                preferences[stringPreferencesKey("target")] =
+                    """{"id":42,"title":"TRT-3","sourceUri":"content://legacy","sourceName":"edital.pdf"}"""
+            }
+
+            assertEquals(null, targets.load("user-a"))
+            assertEquals(AiReviewTarget(42L, "TRT-3", "content://legacy", "edital.pdf"), targets.loadUnownedLegacy())
+        } finally {
+            dataStoreScope.cancel()
+            file.delete()
+        }
+    }
+
     @Test
     fun restoreReconcilesRoomApplyWhenDataStoreMarkerWasNotWrittenBeforeCrash() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Application>()
@@ -74,7 +246,7 @@ class AiReviewDurableRecoveryTest {
             await { firstViewModel.state.value.content is AiReviewContent.Review }
 
             val review = firstViewModel.state.value.content as AiReviewContent.Review
-            val unappliedSession = sessions.load(42L)
+            val unappliedSession = sessions.load(42L, TEST_USER)
             assertNotNull(unappliedSession)
             assertEquals("job-applied", unappliedSession?.jobId)
             assertEquals(false, unappliedSession?.applied)
@@ -83,7 +255,7 @@ class AiReviewDurableRecoveryTest {
             val outbox = service.applyReviewedSyllabus(42L, review.draft, "job-applied")
             assertEquals(RemoteSyllabusSyncState.PENDING, outbox.state)
             assertEquals(RemoteSyllabusSyncState.PENDING, database.dao().remoteSyllabusSyncById(outbox.outboxId)?.state)
-            assertEquals(false, sessions.load(42L)?.applied)
+            assertEquals(false, sessions.load(42L, TEST_USER)?.applied)
             assertEquals(null, service.findAppliedSyllabus(43L, "job-applied"))
             assertEquals(null, service.findAppliedSyllabus(42L, "another-job"))
 
@@ -115,8 +287,8 @@ class AiReviewDurableRecoveryTest {
             }
 
             assertEquals(AiReviewContent.Applied(RemoteSyllabusSyncState.PENDING), restoredViewModel.state.value.content)
-            assertEquals(true, sessions.load(42L)?.applied)
-            assertEquals(outbox.outboxId, sessions.load(42L)?.outboxId)
+            assertEquals(true, sessions.load(42L, TEST_USER)?.applied)
+            assertEquals(outbox.outboxId, sessions.load(42L, TEST_USER)?.outboxId)
             assertEquals(0, restoredJobs.recoverCalls)
             assertEquals(0, reapplyCalls)
             assertEquals(RemoteSyllabusSyncState.PENDING, database.dao().remoteSyllabusSyncById(outbox.outboxId)?.state)
@@ -163,8 +335,8 @@ class AiReviewDurableRecoveryTest {
             firstViewModel.apply()
             await { firstViewModel.state.value.content == AiReviewContent.Applied(RemoteSyllabusSyncState.PENDING) }
             assertNotNull(outboxId)
-            assertTrue(sessions.load(42L)?.applied == true)
-            assertEquals(outboxId, sessions.load(42L)?.outboxId)
+            assertTrue(sessions.load(42L, TEST_USER)?.applied == true)
+            assertEquals(outboxId, sessions.load(42L, TEST_USER)?.outboxId)
             assertEquals(RemoteSyllabusSyncState.PENDING, database.dao().remoteSyllabusSyncById(outboxId!!)?.state)
 
             val restoredJobs = PersistedAppliedTestJobs()
@@ -208,7 +380,7 @@ class AiReviewDurableRecoveryTest {
         val targetStore = DataStoreAiReviewTargetStore(dataStore)
         val snapshots = InMemoryPdfSourceSnapshotStore()
         val firstTransport = ScriptedTransport(phase = Phase.FAIL_AFTER_UPLOAD)
-        val firstJobs = DefaultAiReviewJobs(repository(firstTransport, requestStore, snapshots), requestStore)
+        val firstJobs = DefaultAiReviewJobs(repository(firstTransport, requestStore, snapshots), requestStore) { TEST_USER }
         val firstViewModel = createViewModel(context, firstJobs, sessions, targetStore)
 
         try {
@@ -217,7 +389,7 @@ class AiReviewDurableRecoveryTest {
             await { firstViewModel.state.value.content is AiReviewContent.Processing }
 
             val persisted = requestStore.list().single()
-            val savedSession = sessions.load(42L)
+            val savedSession = sessions.load(42L, TEST_USER)
             assertNotNull(persisted.jobId)
             assertNotNull(savedSession)
             assertEquals(persisted.requestId, savedSession?.requestId)
@@ -225,9 +397,9 @@ class AiReviewDurableRecoveryTest {
             assertEquals(1, firstTransport.createdJobIds.distinct().size)
 
             val secondTransport = ScriptedTransport(phase = Phase.RECOVER)
-            val secondJobs = DefaultAiReviewJobs(repository(secondTransport, requestStore, snapshots), requestStore)
+            val secondJobs = DefaultAiReviewJobs(repository(secondTransport, requestStore, snapshots), requestStore) { TEST_USER }
             val recreatedViewModel = createViewModel(context, secondJobs, sessions, targetStore)
-            await { recreatedViewModel.state.value.content is AiReviewContent.Review }
+            await { recreatedViewModel.state.value.content is AiReviewContent.Applied }
 
             val allCreateHeaders = (firstTransport.createRequests + secondTransport.createRequests)
                 .map { it.headers["Idempotency-Key"] }
@@ -236,6 +408,7 @@ class AiReviewDurableRecoveryTest {
             assertEquals(setOf("job-1"), (firstTransport.createdJobIds + secondTransport.createdJobIds).toSet())
             assertEquals(1, requestStore.list().size)
             assertEquals(AiJobStatus.SUCCEEDED.name, requestStore.list().single().status)
+            assertEquals(true, sessions.load(42L, TEST_USER)?.applied)
         } finally {
             dataStoreScope.cancel()
             file.delete()
@@ -247,12 +420,13 @@ class AiReviewDurableRecoveryTest {
         jobs: AiReviewJobs,
         sessions: AiReviewSessionStore,
         targetStore: AiReviewTargetStore,
+        applier: AiReviewApplier = AiReviewApplier { targetId, _, jobId, _ -> appliedResult(targetId, jobId) },
     ) = AiReviewViewModel(
         application = context,
         targetId = 42L,
         targetTitle = "TRT-3",
         jobs = jobs,
-        applier = AiReviewApplier { _, _, _, _ -> error("not used") },
+        applier = applier,
         sessions = sessions,
         targetStore = targetStore,
         accessGateway = object : AiReviewAccessGateway {
@@ -260,6 +434,7 @@ class AiReviewDurableRecoveryTest {
         },
         syncState = { RemoteSyllabusSyncState.SYNCED },
         syncPollDelayMillis = 1L,
+        userIdProvider = { TEST_USER },
     )
 
     private fun repository(
@@ -281,6 +456,7 @@ class AiReviewDurableRecoveryTest {
         accessTokenProvider = AiAccessTokenProvider { "supabase-jwt" },
         pollingPolicy = AiPollingPolicy(timeoutMillis = 5_000L, initialDelayMillis = 1L, maxDelayMillis = 1L),
         sourceSnapshots = snapshots,
+        userIdProvider = { TEST_USER },
     )
 
     private fun createAppliedViewModel(
@@ -301,6 +477,7 @@ class AiReviewDurableRecoveryTest {
         },
         syncState = { id -> database.dao().remoteSyllabusSyncById(id)?.state },
         syncPollDelayMillis = 60_000L,
+        userIdProvider = { TEST_USER },
     )
 
     private class PersistedAppliedTestJobs : AiReviewJobs {
@@ -317,7 +494,7 @@ class AiReviewDurableRecoveryTest {
 
         override suspend fun recoverPending(): List<AiReviewStarted> = emptyList()
         override suspend fun identityForJob(jobId: String): AiReviewRequestIdentity? =
-            AiReviewRequestIdentity("request-applied", jobId, "idem-applied")
+            AiReviewRequestIdentity("request-applied", jobId, "idem-applied", TEST_USER)
 
         private fun started(requestId: String = "request-applied") = AiReviewStarted(
             AiJob(
@@ -344,7 +521,7 @@ class AiReviewDurableRecoveryTest {
                 finishedAt = "2026-09-24T10:00:01Z",
                 providerExecutionStartedAt = null,
             ),
-            AiReviewRequestIdentity(requestId, "job-applied", "idem-applied"),
+            AiReviewRequestIdentity(requestId, "job-applied", "idem-applied", TEST_USER),
         )
     }
 
@@ -356,11 +533,34 @@ class AiReviewDurableRecoveryTest {
         error("Condition was not reached")
     }
 
-    private enum class Phase { FAIL_AFTER_UPLOAD, RECOVER }
+    private suspend fun awaitSuspend(condition: suspend () -> Boolean) {
+        repeat(400) {
+            if (condition()) return
+            delay(10)
+        }
+        error("Condition was not reached")
+    }
+
+    private fun appliedResult(targetId: Long, jobId: String) = ApplyResult(
+        localSyllabusId = targetId,
+        sourceJobId = jobId,
+        packageJson = "{}",
+        payloadHash = "a".repeat(64),
+        outboxId = 1L,
+        remoteSyllabusId = null,
+        state = RemoteSyllabusSyncState.PENDING,
+        created = true,
+        alreadyApplied = false,
+    )
+
+    private enum class Phase { FAIL_AFTER_UPLOAD, RECOVER, BLOCK_GET }
+
+    private companion object { const val TEST_USER = "recovery-test-user" }
 
     private class ScriptedTransport(private val phase: Phase) : AiHttpTransport {
         val createRequests = mutableListOf<AiHttpRequest>()
         val createdJobIds = mutableListOf<String>()
+        val releaseProcess = CompletableDeferred<Unit>()
         private var createCount = 0
 
         override suspend fun execute(request: AiHttpRequest): AiHttpResponse {
@@ -383,6 +583,7 @@ class AiReviewDurableRecoveryTest {
                 return AiHttpResponse(202, """{"status":"PROCESSING"}""")
             }
             if (request.method == "GET" && request.path.endsWith("/job-1")) {
+                if (phase == Phase.BLOCK_GET) releaseProcess.await()
                 return AiHttpResponse(200, succeededJobJson())
             }
             error("Unexpected fake transport request: ${request.method} ${request.path}")

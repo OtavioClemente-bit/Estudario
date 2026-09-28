@@ -28,6 +28,11 @@ data class PersistedAiJobRequest(
     val uploadPath: String? = null,
     val sourceUploaded: Boolean = false,
     val status: String? = null,
+    val ownerUserId: String? = null,
+    val feature: String = "SYLLABUS_GENERATION",
+    val createdAtEpochMillis: Long = System.currentTimeMillis(),
+    val targetSyllabusId: Long? = null,
+    val targetTitle: String? = null,
     val updatedAtEpochMillis: Long = System.currentTimeMillis(),
 )
 
@@ -77,9 +82,16 @@ class DefaultAiSyllabusRepository(
     private val accessTokenProvider: AiAccessTokenProvider,
     private val pollingPolicy: AiPollingPolicy = AiPollingPolicy(),
     private val sourceSnapshots: PdfSourceSnapshotStore,
+    private val userIdProvider: () -> String? = { null },
 ) : AiJobRecoveryRepository {
-    suspend fun start(uri: String, fileName: String? = null): AiJob {
-        requireAuthenticated()
+    suspend fun start(
+        uri: String,
+        fileName: String? = null,
+        targetSyllabusId: Long? = null,
+        targetTitle: String? = null,
+        onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit = {},
+    ): AiJob {
+        val ownerUserId = requireAuthenticatedUser()
         val source = sourceReader.read(uri, fileName)
         val sourcePath = sourceSnapshots.save(source)
         val request = PersistedAiJobRequest(
@@ -91,22 +103,36 @@ class DefaultAiSyllabusRepository(
             sourceHash = source.sha256,
             sourceBytes = source.bytes.size.toLong(),
             sourcePath = sourcePath,
+            ownerUserId = ownerUserId,
+            targetSyllabusId = targetSyllabusId,
+            targetTitle = targetTitle,
         )
         requestStore.save(request)
-        return continueRequest(request, source)
+        onRequestPersisted(request)
+        return continueRequest(request, source, onRequestPersisted)
     }
 
-    suspend fun recover(requestId: String): AiJob {
+    suspend fun recover(
+        requestId: String,
+        onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit = {},
+    ): AiJob {
         requireAuthenticated()
         val stored = requestStore.get(requestId) ?: throw IllegalArgumentException("AI request not found.")
+        requireOwnedByCurrentUser(stored)
+        stored.jobId?.takeIf { stored.status != AiJobStatus.RESERVED.name }?.let { jobId ->
+            return awaitExisting(stored, jobId, onRequestPersisted)
+        }
         val (request, source) = durableSource(stored)
-        if (request.jobId != null && request.status != AiJobStatus.RESERVED.name) return awaitExisting(request, request.jobId)
-        return continueRequest(request, source)
+        return continueRequest(request, source, onRequestPersisted)
     }
 
-    suspend fun retryFailed(requestId: String): AiJob {
+    suspend fun retryFailed(
+        requestId: String,
+        onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit = {},
+    ): AiJob {
         requireAuthenticated()
         val previous = requestStore.get(requestId) ?: throw IllegalArgumentException("AI request not found.")
+        requireOwnedByCurrentUser(previous)
         val previousStatus = previous.status?.let { runCatching { AiJobStatus.valueOf(it) }.getOrNull() }
         require(previousStatus == AiJobStatus.FAILED || previousStatus == AiJobStatus.EXPIRED || previousStatus == AiJobStatus.CANCELLED) {
             "Only a terminal failed AI job can be retried."
@@ -123,20 +149,64 @@ class DefaultAiSyllabusRepository(
             updatedAtEpochMillis = System.currentTimeMillis(),
         )
         requestStore.save(retry)
-        return continueRequest(retry, source)
+        onRequestPersisted(retry)
+        return continueRequest(retry, source, onRequestPersisted)
     }
 
     /** Resumes the latest persisted attempt, retrying only when that attempt is terminal. */
-    suspend fun resumeOrRetry(requestId: String): AiJob {
+    suspend fun resumeOrRetry(
+        requestId: String,
+        onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit = {},
+    ): AiJob {
         requireAuthenticated()
         val request = requestStore.get(requestId) ?: throw IllegalArgumentException("AI request not found.")
+        requireOwnedByCurrentUser(request)
         val status = request.status?.let { runCatching { AiJobStatus.valueOf(it) }.getOrNull() }
-        return if (status in RETRYABLE_TERMINAL_STATUSES) retryFailed(requestId) else recover(requestId)
+        return if (status in RETRYABLE_TERMINAL_STATUSES) {
+            retryFailed(requestId, onRequestPersisted)
+        } else {
+            recover(requestId, onRequestPersisted)
+        }
+    }
+
+    /** Adopts one legacy local request only after the current JWT can read its known job ID. */
+    suspend fun recoverLegacyPending(
+        targetSyllabusId: Long,
+        targetTitle: String,
+        onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit = {},
+    ): AiJob? {
+        require(targetSyllabusId > 0L)
+        val ownerUserId = requireAuthenticatedUser()
+        val legacy = requestStore.list().filter {
+            it.ownerUserId == null && it.feature == "SYLLABUS_GENERATION" && it.targetSyllabusId == null
+        }
+        if (legacy.isEmpty()) return null
+        if (legacy.size != 1) throw AiLegacyRecoveryBlockedException()
+        val request = legacy.single()
+        val jobId = request.jobId ?: throw AiLegacyRecoveryBlockedException()
+
+        // The public owner-scoped GET is the proof that this legacy ID belongs to this JWT.
+        val visibleJob = api.getJob(jobId)
+        if (visibleJob.jobId != jobId || visibleJob.feature != AiFeature.SYLLABUS_GENERATION) {
+            throw AiLegacyRecoveryBlockedException()
+        }
+
+        val adopted = request.copy(
+            ownerUserId = ownerUserId,
+            targetSyllabusId = targetSyllabusId,
+            targetTitle = targetTitle,
+            status = visibleJob.status.name,
+            updatedAtEpochMillis = System.currentTimeMillis(),
+        )
+        requestStore.save(adopted)
+        onRequestPersisted(adopted)
+        return visibleJob
     }
 
     override suspend fun recoverPendingJobs(): List<AiJob> = buildList {
-        requireAuthenticated()
+        val ownerUserId = requireAuthenticatedUser()
         requestStore.list()
+            .filter { it.ownerUserId == ownerUserId }
             .filter { it.status !in setOf(AiJobStatus.SUCCEEDED.name, AiJobStatus.FAILED.name, AiJobStatus.EXPIRED.name, AiJobStatus.CANCELLED.name) }
             .forEach { request ->
                 val (durableRequest, source) = durableSource(request)
@@ -165,7 +235,11 @@ class DefaultAiSyllabusRepository(
         return durableRequest to source
     }
 
-    private suspend fun continueRequest(request: PersistedAiJobRequest, source: PdfSource): AiJob {
+    private suspend fun continueRequest(
+        request: PersistedAiJobRequest,
+        source: PdfSource,
+        onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit = {},
+    ): AiJob {
         var current = request
         val sourceMetadata = source.toMetadata()
         val sourceReady = current.sourceUploaded && current.uploadPath != null
@@ -182,11 +256,13 @@ class DefaultAiSyllabusRepository(
             updatedAtEpochMillis = System.currentTimeMillis(),
         )
         requestStore.save(current)
+        onRequestPersisted(current)
 
         if (!created.sourceBound) {
             api.uploadSource(created.uploadTarget, source)
             current = current.copy(sourceUploaded = true, updatedAtEpochMillis = System.currentTimeMillis())
             requestStore.save(current)
+            onRequestPersisted(current)
             val bound = api.createOrGetJob(
                 current.idempotencyKey,
                 sourceMetadata.copy(objectPath = created.uploadTarget.path),
@@ -200,39 +276,64 @@ class DefaultAiSyllabusRepository(
                 updatedAtEpochMillis = System.currentTimeMillis(),
             )
             requestStore.save(current)
+            onRequestPersisted(current)
         }
         if (current.status in TERMINAL_STATUSES) {
-            return awaitExisting(current, current.jobId ?: error("AI job id is missing."))
+            return awaitExisting(current, current.jobId ?: error("AI job id is missing."), onRequestPersisted)
         }
-        return processAndAwait(current)
+        return processAndAwait(current, onRequestPersisted)
     }
 
-    private suspend fun processAndAwait(request: PersistedAiJobRequest): AiJob {
+    private suspend fun processAndAwait(
+        request: PersistedAiJobRequest,
+        onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit,
+    ): AiJob {
         val jobId = request.jobId ?: error("AI job id must be persisted before processing.")
         try {
             val acceptedStatus = api.processJob(jobId)
             val processing = request.copy(status = acceptedStatus.name, updatedAtEpochMillis = System.currentTimeMillis())
             requestStore.save(processing)
-            return awaitExisting(processing, jobId)
+            onRequestPersisted(processing)
+            return awaitExisting(processing, jobId, onRequestPersisted)
         } catch (error: AiProcessTimeoutException) {
-            requestStore.save(request.copy(jobId = jobId, status = AiJobStatus.PROCESSING.name, updatedAtEpochMillis = System.currentTimeMillis()))
+            val pending = request.copy(jobId = jobId, status = AiJobStatus.PROCESSING.name, updatedAtEpochMillis = System.currentTimeMillis())
+            requestStore.save(pending)
+            onRequestPersisted(pending)
             throw error
         }
     }
 
-    private suspend fun awaitExisting(request: PersistedAiJobRequest, jobId: String): AiJob {
+    private suspend fun awaitExisting(
+        request: PersistedAiJobRequest,
+        jobId: String,
+        onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit = {},
+    ): AiJob {
         return try {
             val job = api.awaitJob(jobId, pollingPolicy)
-            requestStore.save(request.copy(jobId = job.jobId, status = job.status.name, updatedAtEpochMillis = System.currentTimeMillis()))
+            val updated = request.copy(jobId = job.jobId, status = job.status.name, updatedAtEpochMillis = System.currentTimeMillis())
+            requestStore.save(updated)
+            onRequestPersisted(updated)
             job
         } catch (error: AiProcessTimeoutException) {
-            requestStore.save(request.copy(jobId = jobId, status = AiJobStatus.PROCESSING.name, updatedAtEpochMillis = System.currentTimeMillis()))
+            val pending = request.copy(jobId = jobId, status = AiJobStatus.PROCESSING.name, updatedAtEpochMillis = System.currentTimeMillis())
+            requestStore.save(pending)
+            onRequestPersisted(pending)
             throw error
         }
     }
 
     private fun requireAuthenticated() {
         if (accessTokenProvider.accessToken().isNullOrBlank()) throw AiAuthenticationRequiredException()
+    }
+
+    private fun requireAuthenticatedUser(): String {
+        requireAuthenticated()
+        return userIdProvider()?.takeIf(String::isNotBlank) ?: throw AiAuthenticationRequiredException()
+    }
+
+    private fun requireOwnedByCurrentUser(request: PersistedAiJobRequest) {
+        val ownerUserId = requireAuthenticatedUser()
+        if (request.ownerUserId != ownerUserId) throw AiJobOwnershipException()
     }
 
     private fun PdfSource.toMetadata(objectPath: String? = null): AiSourceMetadata = AiSourceMetadata(
@@ -257,3 +358,9 @@ class DefaultAiSyllabusRepository(
         )
     }
 }
+
+class AiJobOwnershipException : SecurityException("This AI request does not belong to the authenticated user.")
+
+class AiLegacyRecoveryBlockedException : IllegalStateException(
+    "A prior AI request cannot be safely matched to this account and syllabus.",
+)

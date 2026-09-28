@@ -39,14 +39,16 @@ data class AiReviewRequestIdentity(
     val requestId: String,
     val jobId: String,
     val idempotencyKey: String,
+    val ownerUserId: String? = null,
 )
 
 data class AiReviewPendingRequestIdentity(
     val requestId: String,
     val idempotencyKey: String,
     val jobId: String? = null,
+    val ownerUserId: String? = null,
 ) {
-    fun asStartedIdentity(): AiReviewRequestIdentity? = jobId?.let { AiReviewRequestIdentity(requestId, it, idempotencyKey) }
+    fun asStartedIdentity(): AiReviewRequestIdentity? = jobId?.let { AiReviewRequestIdentity(requestId, it, idempotencyKey, ownerUserId) }
 }
 
 object AiReviewRecovery {

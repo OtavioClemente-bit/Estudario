@@ -58,6 +58,28 @@ class AiApiClientTest {
     }
 
     @Test
+    fun stopsPollingAsSoonAsFailedTerminalStatusIsReturned() = runTest {
+        val transport = FakeAiHttpTransport(
+            AiHttpResponse(200, jobJson("PROCESSING")),
+            AiHttpResponse(200, failedJobJson()),
+            AiHttpResponse(200, jobJson("PROCESSING")),
+        )
+        val delays = mutableListOf<Long>()
+        val client = HttpAiApiClient("", "", AiAccessTokenProvider { "supabase-jwt" }, transport)
+
+        val result = client.awaitJob(
+            "job-1",
+            policy = AiPollingPolicy(timeoutMillis = 30_000, initialDelayMillis = 1000, maxDelayMillis = 4000),
+            sleeper = { delays += it },
+        )
+
+        assertEquals(AiJobStatus.FAILED, result.status)
+        assertEquals("PROVIDER_RESULT_UNAVAILABLE", result.errorCode)
+        assertEquals(2, transport.requests.size)
+        assertEquals(listOf(1000L), delays)
+    }
+
+    @Test
     fun rejectsSucceededJobWhenProposalOrMetadataIsInvalid() = runTest {
         val transport = FakeAiHttpTransport(AiHttpResponse(200, jobJson("SUCCEEDED")))
         val client = HttpAiApiClient(
@@ -152,6 +174,16 @@ class AiApiClientTest {
           "warnings":[],"errorCode":null,"errorMessage":null,
           "createdAt":"2026-09-24T10:00:00Z","updatedAt":"2026-09-24T10:00:01Z",
           "finishedAt":"2026-09-24T10:00:01Z","providerExecutionStartedAt":"2026-09-24T10:00:00Z"
+        }
+    """.trimIndent()
+
+    private fun failedJobJson(): String = """
+        {
+          "jobId":"job-1","feature":"SYLLABUS_GENERATION","status":"FAILED",
+          "schemaVersion":null,"promptVersion":null,"modelVersion":null,"proposal":null,
+          "warnings":[],"errorCode":"PROVIDER_RESULT_UNAVAILABLE","errorMessage":"The AI job did not complete",
+          "createdAt":"2026-09-24T10:00:00Z","updatedAt":"2026-09-24T10:00:03Z",
+          "finishedAt":"2026-09-24T10:00:03Z","providerExecutionStartedAt":"2026-09-24T10:00:00Z"
         }
     """.trimIndent()
 }

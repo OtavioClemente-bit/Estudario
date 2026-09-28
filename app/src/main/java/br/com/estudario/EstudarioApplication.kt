@@ -68,6 +68,7 @@ class EstudarioApplication : Application() {
             requestStore = DataStoreAiJobRequestStore(this),
             accessTokenProvider = SupabaseAiTokenProvider(supabaseAuthRepository),
             sourceSnapshots = FilePdfSourceSnapshotStore(File(filesDir, "ai-syllabus-sources")),
+            userIdProvider = { supabaseAuthRepository.currentUserId() },
         )
     }
     /** Read-only access boundary shared with the AI review gate and future quota UI. */

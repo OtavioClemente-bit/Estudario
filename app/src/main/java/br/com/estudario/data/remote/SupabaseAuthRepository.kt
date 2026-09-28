@@ -125,6 +125,9 @@ interface SupabaseAuthRepository {
 
     /** Returns a JWT only for a ready authenticated session; loading, empty, and read-error states return null. */
     fun accessToken(): String?
+
+    /** Returns the user ID for the same ready, unexpired session that supplies [accessToken]. */
+    fun currentUserId(): String? = null
 }
 
 class DefaultSupabaseAuthRepository(
@@ -194,6 +197,12 @@ class DefaultSupabaseAuthRepository(
         val session = (sessionStore.current() as? SupabaseSessionState.Ready)?.session ?: return null
         val expiry = session.expiresAtEpochSeconds ?: return null
         return session.accessToken.takeIf { expiry > clockSeconds() }
+    }
+
+    override fun currentUserId(): String? {
+        val session = (sessionStore.current() as? SupabaseSessionState.Ready)?.session ?: return null
+        val expiry = session.expiresAtEpochSeconds ?: return null
+        return session.userId?.takeIf { it.isNotBlank() && expiry > clockSeconds() }
     }
 }
 

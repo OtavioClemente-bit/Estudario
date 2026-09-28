@@ -55,6 +55,7 @@ class SupabaseAuthRepositoryTest {
         assertEquals("google-drive-access-token", driveTokenSource.accessToken())
         assertNotEquals(driveTokenSource.accessToken(), SupabaseAiTokenProvider(repository).accessToken())
         assertEquals("google-id-token", client.googleCredentials.single().idToken)
+        assertEquals("user-1", repository.currentUserId())
     }
 
     @Test
@@ -128,6 +129,8 @@ class SupabaseAuthRepositoryTest {
 
         assertNull(SupabaseAiTokenProvider(expired).accessToken())
         assertNull(SupabaseAiTokenProvider(unknown).accessToken())
+        assertNull(expired.currentUserId())
+        assertNull(unknown.currentUserId())
     }
 
     @Test
