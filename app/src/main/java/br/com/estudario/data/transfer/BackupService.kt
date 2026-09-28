@@ -1,6 +1,8 @@
 package br.com.estudario.data.transfer
 
+import android.util.Log
 import androidx.room.withTransaction
+import androidx.sqlite.db.SupportSQLiteDatabase
 import br.com.estudario.data.local.*
 import br.com.estudario.domain.PriorityLevel
 import br.com.estudario.domain.PrioritySource
@@ -114,9 +116,32 @@ class BackupService(private val db: AppDatabase) {
         val tags = root.array("tags").objects().map { TagEntity(it.getLong("id"), it.getString("name")) }
         val questionTags = root.array("questionTags").objects().map { QuestionTagCrossRef(it.getLong("questionId"), it.getLong("tagId")) }
 
+        // A ordem do arquivo não garante pai antes de filho (subtópico antes do tópico-pai, por
+        // exemplo). Adiar a checagem das chaves estrangeiras para o commit faz a ordem de
+        // gravação deixar de importar; o PRAGMA vale só para esta transação.
+        val sql = db.openHelper.writableDatabase
+        sql.execSQL("PRAGMA defer_foreign_keys = ON")
         dao.clearContentSources(); dao.clearQuestionTags(); dao.clearTags(); dao.clearNotes(); dao.clearImportPackages(); dao.clearFocusSessions(); dao.clearQuestionSessions(); dao.clearQueueEvents(); dao.clearSessions(); dao.clearQueue(); dao.clearReviewHistory(); dao.clearReviewSessions(); dao.clearReviews(); dao.clearErrorConceptEntries(); dao.clearErrorConcepts(); dao.clearErrors(); dao.clearAttempts(); dao.clearQuestions(); dao.clearSnippets(); dao.clearSummaries(); dao.clearTheoryMarks(); dao.clearTheories(); dao.clearTopics(); dao.clearSubjects(); dao.clearCompetitions()
         dao.restoreCompetitions(competitions); dao.restoreSubjects(subjects); dao.restoreTopics(topics); dao.restoreSummaries(summaries); dao.restoreSnippets(snippets); dao.restoreTheories(theories); dao.restoreTheoryMarks(theoryMarks); dao.restoreQuestions(questions); dao.restoreOptions(options); dao.restoreAttempts(attempts); dao.restoreErrors(errors); dao.restoreErrorConcepts(errorConcepts); dao.restoreErrorConceptEntries(errorConceptEntries); dao.restoreReviews(reviews); dao.restoreReviewHistory(history); dao.restoreReviewSessions(reviewSessions); dao.restoreQueue(queue); dao.restoreSessions(sessions); dao.restoreFocusSessions(focusSessions); dao.restoreQueueEvents(queueEvents); dao.restoreQuestionSessions(questionSessions); dao.restoreImportPackages(importPackages); dao.restoreNotes(notes); dao.restoreTags(tags); dao.restoreQuestionTags(questionTags); dao.restoreContentSources(contentSources)
         if (root.optInt("version") >= 5) PlannerBackupCodec.restore(db, root)
+        purgeOrphans(sql)
+    }
+
+    /**
+     * Um registro que aponta para algo inexistente no backup derrubaria o commit inteiro e a
+     * pessoa perderia a restauração toda por causa de uma linha. Descarta só essas linhas; apagar
+     * uma pode deixar outra órfã via cascata, por isso repete até a checagem sair limpa.
+     */
+    private fun purgeOrphans(sql: SupportSQLiteDatabase) {
+        repeat(10) {
+            val orphans = mutableListOf<Pair<String, Long>>()
+            sql.query("PRAGMA foreign_key_check").use { c ->
+                while (c.moveToNext()) if (!c.isNull(1)) orphans += c.getString(0) to c.getLong(1)
+            }
+            if (orphans.isEmpty()) return
+            Log.w("BackupService", "Restauração descartou ${orphans.size} registro(s) órfão(s): ${orphans.groupingBy { it.first }.eachCount()}")
+            orphans.forEach { (table, rowId) -> sql.execSQL("DELETE FROM `$table` WHERE rowid = ?", arrayOf<Any>(rowId)) }
+        }
     }
 }
 

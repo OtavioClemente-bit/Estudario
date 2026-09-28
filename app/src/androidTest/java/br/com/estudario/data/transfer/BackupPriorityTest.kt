@@ -39,7 +39,7 @@ class BackupPriorityTest {
         dao.insertTopic(TopicEntity(subjectId = subjectId, title = "Tópico", externalId = "t", assessedPriorityScore = 50, hasAssessedPriority = true))
 
         val exported = BackupService(database).export()
-        assertEquals(6, JSONObject(exported).getInt("version"))
+        assertEquals(7, JSONObject(exported).getInt("version"))
         database.dao().clearCompetitions()
         database.dao().clearSubjects()
         database.dao().clearTopics()
