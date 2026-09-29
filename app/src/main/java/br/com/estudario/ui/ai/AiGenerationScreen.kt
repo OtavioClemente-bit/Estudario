@@ -101,11 +101,12 @@ fun AiGenerationScreen(
                             stageMillis = copy.stageMillis,
                             footer = {
                                 Text(
-                                    "${copy.durationHint} Pode sair desta tela: a geração continua e aparece aqui quando você voltar.",
+                                    "${copy.durationHint} Pode fechar e continuar usando o app: a geração segue em segundo plano e avisamos quando estiver pronta.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center,
                                 )
+                                androidx.compose.material3.OutlinedButton(onClick = onClose, modifier = Modifier.padding(top = 8.dp)) { Text("Continuar em segundo plano") }
                             },
                         )
                         else -> {

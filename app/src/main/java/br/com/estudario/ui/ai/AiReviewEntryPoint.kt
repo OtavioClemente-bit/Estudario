@@ -1,5 +1,6 @@
 package br.com.estudario.ui.ai
 
+import kotlinx.coroutines.flow.first
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -61,6 +62,7 @@ fun AiReviewEntryPoint(
     reviewViewModel: AiReviewViewModel? = null,
     pdfPicker: AiReviewPdfPicker? = null,
     pdfPermission: AiPdfUriPermission? = null,
+    onReopen: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val application = context.applicationContext as EstudarioApplication
@@ -96,7 +98,20 @@ fun AiReviewEntryPoint(
     val state by actualReviewViewModel.state.collectAsState()
     val preferences by actualReviewViewModel.preferences.collectAsState()
     // Voltar do sistema fecha a tela da IA e devolve ao passo de onde ela foi aberta.
-    androidx.activity.compose.BackHandler(enabled = !loginOpen) { onClose() }
+    // Fechar durante a análise não perde nada: ela segue em segundo plano e o aviso do topo reabre a revisão.
+    val closeOrBackground: () -> Unit = {
+        if (state.content is AiReviewContent.Processing && onReopen != null) {
+            val id = "edital:${target.id}"
+            BackgroundAiTasks.start(id, target.title, "Edital", null, open = onReopen) {
+                val done = actualReviewViewModel.state.first { it.content is AiReviewContent.Review || it.content is AiReviewContent.Failure }.content
+                if (done is AiReviewContent.Failure) throw IllegalStateException(done.message)
+                ""
+            }
+            BackgroundAiTasks.sendToBackground(id)
+        }
+        onClose()
+    }
+    androidx.activity.compose.BackHandler(enabled = !loginOpen) { closeOrBackground() }
     LaunchedEffect(target.sourceUri, target.sourceName) {
         // Preferências antes da fonte: a fonte pode disparar a geração, que já leva as respostas.
         target.preferences?.let(actualReviewViewModel::updatePreferences)
@@ -125,8 +140,8 @@ fun AiReviewEntryPoint(
         onConfirmReplacement = actualReviewViewModel::confirmReplacement,
         onCancelReplacement = actualReviewViewModel::cancelReplacement,
         onRetry = actualReviewViewModel::retry,
-        onFallback = onClose,
-        onClose = onClose,
+        onFallback = closeOrBackground,
+        onClose = closeOrBackground,
         onLocalApplied = onLocalApplied,
         onSyncAck = onSyncAck,
         preferences = preferences,

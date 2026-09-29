@@ -429,11 +429,27 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         )
     }
     serverTarget?.let { target ->
+        // A geração roda no escopo do app: fechar a janela não cancela, só manda para segundo plano.
+        val taskId = "content:${target.id}"
+        LaunchedEffect(taskId) {
+            br.com.estudario.ui.ai.BackgroundAiTasks.start(taskId, target.title, "Material", competition.id) {
+                var result: String? = null
+                application.aiContentGenerator.generate(competition, subject, topics, target, options).collect { value ->
+                    when (value) {
+                        is AiContentProgress.Done -> result = value.estudo
+                        is AiContentProgress.Failed -> throw IllegalStateException(value.message)
+                        else -> Unit
+                    }
+                }
+                result ?: throw IllegalStateException("A geração terminou sem resultado. Tente de novo.")
+            }
+        }
         ServerContentGenerationDialog(
             topicTitle = target.title,
-            progress = remember(target) { application.aiContentGenerator.generate(competition, subject, topics, target, options) },
-            onDone = { estudo -> serverTarget = null; onDismiss(); viewModel.openIncomingText(estudo, competition.id) },
-            onClose = { serverTarget = null },
+            taskId = taskId,
+            onDone = { estudo -> serverTarget = null; br.com.estudario.ui.ai.BackgroundAiTasks.dismiss(taskId); onDismiss(); viewModel.openIncomingText(estudo, competition.id) },
+            onBackground = { br.com.estudario.ui.ai.BackgroundAiTasks.sendToBackground(taskId); serverTarget = null; onDismiss() },
+            onClose = { br.com.estudario.ui.ai.BackgroundAiTasks.dismiss(taskId); serverTarget = null },
         )
     }
 }
@@ -454,17 +470,16 @@ private val ContentGenerationStages = listOf(
  * edital). Ao terminar, entrega o pacote para a revisão de importação; se falhar, explica e volta.
  */
 @Composable
-private fun ServerContentGenerationDialog(topicTitle: String, progress: Flow<AiContentProgress>, onDone: (String) -> Unit, onClose: () -> Unit) {
-    var state by remember(progress) { mutableStateOf<AiContentProgress>(AiContentProgress.Sending) }
-    LaunchedEffect(progress) {
-        progress.collect { value ->
-            state = value
-            if (value is AiContentProgress.Done) onDone(value.estudo)
-        }
+private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, onDone: (String) -> Unit, onBackground: () -> Unit, onClose: () -> Unit) {
+    val tasks by br.com.estudario.ui.ai.BackgroundAiTasks.tasks.collectAsState()
+    val status = tasks.firstOrNull { it.id == taskId }?.status
+    LaunchedEffect(status) {
+        (status as? br.com.estudario.ui.ai.BackgroundAiTasks.Status.Ready)?.let { onDone(it.result) }
     }
-    val failed = state as? AiContentProgress.Failed
+    val failed = status as? br.com.estudario.ui.ai.BackgroundAiTasks.Status.Failed
     androidx.compose.ui.window.Dialog(
-        onDismissRequest = { if (failed != null) onClose() },
+        // Voltar ou fechar durante a geração não perde nada: ela segue em segundo plano.
+        onDismissRequest = { if (failed != null) onClose() else onBackground() },
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = true, dismissOnClickOutside = false),
     ) {
         androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -481,8 +496,9 @@ private fun ServerContentGenerationDialog(topicTitle: String, progress: Flow<AiC
                         stageMillis = 14_000L,
                         footer = {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("Costuma levar de 1 a 3 minutos. No fim, você revisa tudo antes de salvar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                                TextButton(onClick = onClose) { Text("Fechar") }
+                                Text("Costuma levar de 1 a 3 minutos. Pode continuar usando o app: avisamos quando estiver pronto para você revisar e salvar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                androidx.compose.material3.OutlinedButton(onClick = onBackground) { Text("Continuar em segundo plano") }
+                                TextButton(onClick = onClose) { Text("Cancelar geração", color = MaterialTheme.colorScheme.error) }
                             }
                         },
                     )
@@ -846,6 +862,7 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
             onPlano = { plano -> studioPlan = false; onDismiss(); viewModel.openIncomingText(plano) },
             onFallback = { studioPlan = false },
             onClose = { studioPlan = false },
+            onBackground = { studioPlan = false; onDismiss() },
         )
     }
 }

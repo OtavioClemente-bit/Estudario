@@ -1,5 +1,6 @@
 package br.com.estudario.ui.ai
 
+import kotlinx.coroutines.flow.first
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Rule
@@ -50,6 +51,7 @@ fun StudyPlanAiScreen(
     onPlano: (String) -> Unit,
     onFallback: () -> Unit,
     onClose: () -> Unit,
+    onBackground: () -> Unit = onClose,
 ) {
     val app = LocalContext.current.applicationContext as EstudarioApplication
     val jobs: AiTextJobViewModel = viewModel(
@@ -71,6 +73,21 @@ fun StudyPlanAiScreen(
         onGenerate = { prepare()?.let { jobs.start(it.input, it.context) } },
         onRefresh = jobs::refresh,
         onFallback = onFallback,
-        onClose = onClose,
+        onClose = {
+            // Fechar no meio da geração não perde o plano: o job segue no servidor e no ViewModel
+            // da Activity, e o aviso global entrega o .plano quando ficar pronto.
+            if (state is AiTextJobState.Generating) {
+                BackgroundAiTasks.start("plan:$competitionExternalId", competitionName, "Plano", null) {
+                    val finished = jobs.state.first { it is AiTextJobState.Done || it is AiTextJobState.Failed }
+                    if (finished is AiTextJobState.Failed) throw IllegalStateException(finished.message)
+                    val done = finished as AiTextJobState.Done
+                    val plano = StudyPlanAi.toPlano(done.context ?: throw IllegalStateException("Resposta sem contexto."), done.proposal)
+                    jobs.consumeResult()
+                    plano
+                }
+                BackgroundAiTasks.sendToBackground("plan:$competitionExternalId")
+                onBackground()
+            } else onClose()
+        },
     )
 }

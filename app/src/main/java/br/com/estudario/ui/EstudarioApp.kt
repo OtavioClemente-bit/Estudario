@@ -93,6 +93,7 @@ fun EstudarioApp(viewModel: AppViewModel) {
             aiReviewTarget != null -> AiReviewEntryPoint(
                 target = aiReviewTarget!!,
                 onClose = viewModel::closeAiReview,
+                onReopen = aiReviewTarget!!.let { t -> { viewModel.openAiReview(t.id, t.title) } },
                 onLocalApplied = {
                     setupViewModel.onAiSyllabusApplied().invokeOnCompletion { viewModel.closeAiReview() }
                 },
@@ -284,7 +285,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
         ) {
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
-            topBar = {
+            topBar = { Column {
                 if (currentRoute != null) EstudarioTopBar(
                     profile = profile,
                     onOpenMenu = { drawerScope.launch { drawerState.open() } },
@@ -306,7 +307,9 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     profileModifier = if (showBottom) Modifier.tourTarget(TourKey.HOME_PROFILE, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.HOME_PROFILE, it) } else Modifier,
                     menuModifier = Modifier.tourTarget(TourKey.NAV_MENU, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.NAV_MENU, it) },
                 )
-            },
+                // Gerações da IA que seguem em segundo plano, visíveis em qualquer tela.
+                br.com.estudario.ui.ai.BackgroundAiBanner(onOpen = { text, competitionId -> viewModel.openIncomingText(text, competitionId) })
+            } },
             bottomBar = {
                 if (showBottom) NavigationBar(windowInsets = WindowInsets.navigationBars, modifier = Modifier.testTag("main-bottom-navigation")) {
                     destinations.forEach { destination ->
@@ -622,47 +625,13 @@ private fun TransferDialog(viewModel: AppViewModel) {
     when (val current = state) {
         TransferState.Idle -> Unit
         TransferState.Loading -> LoadingDialog("Processando o arquivo", "Arquivos grandes da IA podem levar alguns segundos.")
-        is TransferState.Preview -> AlertDialog(
-            onDismissRequest = viewModel::clearTransfer,
-            title = { Text("Confirmar importação") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(current.value.competition, style = MaterialTheme.typography.titleMedium)
-                    Text("Formato v${current.value.version} • ${current.value.subjects.size} matéria(s) • ${current.value.topicCount} tópico(s) • ${current.value.subtopicCount} subtópico(s)")
-                    current.value.subjects.take(6).forEach { subject ->
-                        Text("• ${subject.name}: ${subject.topicCount} tópico(s), ${subject.subtopicCount} subtópico(s), ${subject.theoryCount} teoria(s), ${subject.questionCount} questão(ões)", style = MaterialTheme.typography.bodySmall)
-                        subject.topics.filter { it.theoryCount + it.summaryCount + it.questionCount + it.snippetCount > 0 }.take(8).forEach { topic ->
-                            Text("${"  ".repeat(topic.depth + 1)}✓ ${topic.title}: +${topic.theoryCount} teoria, +${topic.summaryCount} resumo, +${topic.questionCount} questões", style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                    if (current.value.subjects.size > 6) Text("… e mais ${current.value.subjects.size - 6} matéria(s)", style = MaterialTheme.typography.bodySmall)
-                    HorizontalDivider()
-                    Text("${current.value.theoryCount} teoria(s) • ${current.value.summaryCount} resumo(s) • ${current.value.questionCount} questão(ões)")
-                    Text("${current.value.snippetCount} item(ns) de memorização • ${current.value.errorConceptCount} conceito(s) de erro")
-                    if (current.value.sourceCount > 0) Text("${current.value.sourceCount} fonte(s) declarada(s), ficam salvas para você conferir depois.", color = MaterialTheme.colorScheme.secondary)
-                    if (current.value.downgradedQuestions > 0) {
-                        // A IA marcou como prova real sem apontar origem. O app não exibe procedência
-                        // que ninguém consegue conferir, então trata como autoral e avisa.
-                        Text(
-                            "${current.value.downgradedQuestions} questão(ões) vieram marcadas como de prova real sem apontar a origem. Elas entram como autorais, sem banca nem ano.",
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                    if (current.value.packageAlreadyImported || current.value.duplicateCount > 0) {
-                        Text("Este pacote já foi importado. Você pode atualizar o conteúdo preservando o histórico ou criar uma cópia independente.", color = MaterialTheme.colorScheme.primary)
-                    }
-                }
+        is TransferState.Preview -> ImportReviewScreen(
+            state = current,
+            onConfirm = { mode, studied ->
+                if (mode != null) viewModel.confirmImport(current.raw, mode, targetCompetitionId = current.targetCompetitionId)
+                else viewModel.confirmImport(current.raw, markAsStudied = studied, targetCompetitionId = current.targetCompetitionId)
             },
-            confirmButton = {
-                if (current.value.packageAlreadyImported || current.value.duplicateCount > 0) Row {
-                    TextButton(onClick = { viewModel.confirmImport(current.raw, ImportMode.UPDATE, targetCompetitionId = current.targetCompetitionId) }) { Text("Atualizar") }
-                    TextButton(onClick = { viewModel.confirmImport(current.raw, ImportMode.COPY, targetCompetitionId = current.targetCompetitionId) }) { Text("Criar cópia") }
-                } else Row {
-                    TextButton(onClick = { viewModel.confirmImport(current.raw, targetCompetitionId = current.targetCompetitionId) }) { Text("Importar") }
-                    TextButton(onClick = { viewModel.confirmImport(current.raw, markAsStudied = true, targetCompetitionId = current.targetCompetitionId) }) { Text("Importar e marcar estudado") }
-                }
-            },
-            dismissButton = { TextButton(onClick = viewModel::clearTransfer) { Text("Cancelar") } },
+            onCancel = viewModel::clearTransfer,
         )
         is TransferState.Success -> AlertDialog(onDismissRequest = viewModel::clearTransfer, title = { Text("Concluído") }, text = { Text(current.message) }, confirmButton = { TextButton(onClick = viewModel::clearTransfer) { Text("OK") } })
         is TransferState.Error -> AlertDialog(onDismissRequest = viewModel::clearTransfer, title = { Text("Não foi possível concluir") }, text = { Text(current.message) }, confirmButton = { TextButton(onClick = viewModel::clearTransfer) { Text("Entendi") } })
