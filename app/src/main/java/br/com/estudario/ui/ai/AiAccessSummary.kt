@@ -18,18 +18,24 @@ import br.com.estudario.data.ai.AiFeature
 import br.com.estudario.EstudarioApplication
 
 @Composable
-fun AiAccessPanel() {
+fun AiAccessPanel(showTitle: Boolean = true) {
     val app = LocalContext.current.applicationContext as EstudarioApplication
     val accessViewModel: AiAccessViewModel = viewModel(factory = AiAccessViewModel.Factory(app.aiAccessRepository))
     val state by accessViewModel.state.collectAsState()
     LaunchedEffect(accessViewModel) { accessViewModel.refresh() }
-    AiAccessSummary(state)
+    AiAccessSummary(state, showTitle)
 }
 
 @Composable
-fun AiAccessSummary(state: AiAccessUiState) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("IA do Estudário · Beta", style = MaterialTheme.typography.titleMedium)
+fun AiAccessSummary(state: AiAccessUiState, showTitle: Boolean = true) {
+    // Sem conta (ou sem internet) as três linhas diriam a mesma coisa: uma frase basta.
+    val unavailable = state.items.isNotEmpty() && state.items.values.all { !it.canUse && it.quotaCopy.isEmpty() }
+    Column(Modifier.fillMaxWidth().padding(vertical = if (showTitle) 12.dp else 0.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (showTitle) Text("IA do Estudário · Beta", style = MaterialTheme.typography.titleMedium)
+        if (unavailable) {
+            Text("Entre na sua conta e confira a internet para usar a IA do Estudário.", style = MaterialTheme.typography.bodySmall)
+            return@Column
+        }
         AiFeature.entries.forEach { feature ->
             val display = state.items[feature] ?: return@forEach
             val label = when (feature) {

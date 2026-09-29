@@ -641,7 +641,7 @@ internal fun SyllabusMethodStep(
                             Icon(Icons.Outlined.AutoAwesome, null, Modifier.padding(end = 8.dp))
                             Text("Gerar com a IA do Estudário")
                         }
-                        br.com.estudario.ui.ai.AiAccessPanel()
+                        br.com.estudario.ui.ai.AiAccessPanel(showTitle = false)
                     }
                 }
                 Text("Ou use a sua IA", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
