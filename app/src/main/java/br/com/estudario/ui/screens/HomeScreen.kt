@@ -12,6 +12,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material3.IconButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
@@ -135,13 +141,15 @@ fun HomeScreen(
         }
     }
 
+    val homePrefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
+    var setupCtaDismissed by remember { mutableStateOf(homePrefs.getBoolean("setup_cta_dismissed", false)) }
     LazyColumn(
         Modifier.fillMaxSize(),
         // O espaço da barra inferior já chega aqui pelo padding do Scaffold; não duplicar com um
         // valor fixo evita que a Home fique com um rodapé diferente em cada modo de navegação.
         contentPadding = PaddingValues(top = EstudarioSpacing.small),
     ) {
-        if (showSetupCta) {
+        if (showSetupCta && !setupCtaDismissed) {
             item {
                 Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
                     ElevatedCard {
@@ -152,6 +160,10 @@ fun HomeScreen(
                                 Text("Retome a configuração quando quiser e deixe a Home trabalhar a seu favor.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Button(onClick = onSetup) { Text("Continuar") }
+                            // Quem não quer retomar agora pode fechar; a configuração continua em Ajustes.
+                            IconButton(onClick = { setupCtaDismissed = true; homePrefs.edit().putBoolean("setup_cta_dismissed", true).apply() }, modifier = Modifier.size(32.dp)) {
+                                Icon(Icons.Outlined.Close, "Fechar aviso", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                 }
