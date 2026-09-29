@@ -593,7 +593,12 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
         val topicSnippets = snippets.filter { it.topicId == topicId }
         if (selectedTab == 1 || selectedTab == 2) {
         val visibleSnippets = topicSnippets.filter { if (selectedTab == 1) it.kind == SnippetKind.RECUPERACAO else it.kind != SnippetKind.RECUPERACAO }
-        if (visibleSnippets.isNotEmpty()) item { Text(if (selectedTab == 1) "Memorização ativa" else "Dicas e pegadinhas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+        if (visibleSnippets.isNotEmpty()) item {
+            Column {
+                Text(if (selectedTab == 1) "Memorização ativa" else "Dicas e pegadinhas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                if (selectedTab != 1) Text("Toque na ☆ para guardar a dica no Caderno de estudo, na aba Dicas.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         visibleSnippets.groupBy { it.kind }.forEach { (kind, values) ->
             item(key = "snippet-title-$kind") { Text(when (kind) { SnippetKind.BIZU -> "Dicas"; SnippetKind.PEGADINHA -> "Pegadinhas"; SnippetKind.RECUPERACAO -> "Perguntas para lembrar" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             values.forEach { snippet ->
@@ -607,7 +612,11 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                     ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = when (kind) { SnippetKind.PEGADINHA -> MaterialTheme.colorScheme.errorContainer; SnippetKind.BIZU -> MaterialTheme.colorScheme.tertiaryContainer; else -> MaterialTheme.colorScheme.secondaryContainer })) {
                         Row(Modifier.padding(14.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                             Text(snippet.text, Modifier.weight(1f))
-                            IconButton(onClick = { viewModel.saveSnippet(snippet.copy(isFavorite = !snippet.isFavorite)) }) { Icon(if (snippet.isFavorite) Icons.Outlined.Star else Icons.Outlined.StarBorder, "Favoritar") }
+                            val tipContext = androidx.compose.ui.platform.LocalContext.current
+                            IconButton(onClick = {
+                                viewModel.saveSnippet(snippet.copy(isFavorite = !snippet.isFavorite))
+                                android.widget.Toast.makeText(tipContext, if (snippet.isFavorite) "Tirada do Caderno" else "Salva no Caderno › Dicas", android.widget.Toast.LENGTH_SHORT).show()
+                            }) { Icon(if (snippet.isFavorite) Icons.Outlined.Star else Icons.Outlined.StarBorder, if (snippet.isFavorite) "Tirar do caderno" else "Salvar no caderno", tint = if (snippet.isFavorite) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Unspecified) }
                         }
                     }
                 }

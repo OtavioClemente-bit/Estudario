@@ -190,12 +190,10 @@ fun FlashcardDeckDialog(title: String, cards: List<Flashcard>, saved: Boolean, o
                                     Spacer(Modifier.height(12.dp))
                                     StudyMarkdown(card.front, Modifier.fillMaxWidth(), textSizeSp = if (card.back.isNotBlank()) 22f else 17f)
                                     if (card.back.isNotBlank()) {
-                                        Spacer(Modifier.height(20.dp))
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Outlined.TouchApp, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            Spacer(Modifier.width(6.dp))
-                                            Text("Tente lembrar e toque para virar", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-                                        }
+                                        Spacer(Modifier.height(28.dp))
+                                        Text("Tente lembrar a resposta antes de virar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                                        Spacer(Modifier.height(10.dp))
+                                        FlipHint("Toque no cartão para ver a resposta")
                                     }
                                 }
                             } else {
@@ -203,6 +201,8 @@ fun FlashcardDeckDialog(title: String, cards: List<Flashcard>, saved: Boolean, o
                                     Text("VERSO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                                     Text(card.front.replace("**", ""), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                                     StudyMarkdown(card.back, Modifier.fillMaxWidth())
+                                    Spacer(Modifier.height(8.dp))
+                                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { FlipHint("Toque no cartão para voltar à pergunta") }
                                 }
                             }
                         }
@@ -210,13 +210,33 @@ fun FlashcardDeckDialog(title: String, cards: List<Flashcard>, saved: Boolean, o
                 }
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = { scope.launch { pager.animateScrollToPage((pager.currentPage - 1).coerceAtLeast(0)) } }, enabled = pager.currentPage > 0, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, null); Spacer(Modifier.width(6.dp)); Text("Anterior")
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Anterior")
+                    }
+                    // Virar também por botão: nem todo mundo percebe que o cartão inteiro é tocável.
+                    val current = pager.currentPage
+                    if (cards.getOrNull(current)?.back?.isNotBlank() == true) {
+                        androidx.compose.material3.Button(onClick = { flipped[current] = !(flipped[current] ?: false) }, modifier = Modifier.weight(2f)) {
+                            Icon(Icons.Outlined.TouchApp, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
+                            Text(if (flipped[current] == true) "Pergunta" else "Resposta")
+                        }
                     }
                     OutlinedButton(onClick = { scope.launch { pager.animateScrollToPage((pager.currentPage + 1).coerceAtMost(cards.lastIndex)) } }, enabled = pager.currentPage < cards.lastIndex, modifier = Modifier.weight(1f)) {
-                        Text("Próximo"); Spacer(Modifier.width(6.dp)); Icon(Icons.AutoMirrored.Outlined.ArrowForward, null)
+                        Icon(Icons.AutoMirrored.Outlined.ArrowForward, "Próximo")
                     }
                 }
             }
+        }
+    }
+}
+
+/** Indica, sem deixar dúvida, que o cartão vira com um toque. */
+@Composable
+private fun FlipHint(text: String) {
+    Surface(shape = androidx.compose.foundation.shape.CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)) {
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.TouchApp, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(8.dp))
+            Text(text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         }
     }
 }

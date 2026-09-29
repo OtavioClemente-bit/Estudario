@@ -64,7 +64,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private enum class NotebookTab(val label: String) { MARKS("Marcados"), FLASHCARDS("Flashcards"), NOTES("Anotações"), FAVORITES("Favoritos") }
+private enum class NotebookTab(val label: String) { MARKS("Marcados"), FLASHCARDS("Flashcards"), TIPS("Dicas"), NOTES("Anotações"), FAVORITES("Favoritos") }
 
 /**
  * Caderno de estudo: o que a pessoa guardou enquanto estudava, num lugar só. Trechos marcados
@@ -92,7 +92,8 @@ fun StudyNotebookScreen(
     val topicById = remember(topics) { topics.associateBy { it.id } }
     val theoryById = remember(theories) { theories.associateBy { it.id } }
     val favoriteQuestions = questions.filter { it.question.isFavorite }
-    val favoriteSnippets = snippets.filter { it.isFavorite }
+    val favoriteSnippets = snippets.filter { it.isFavorite && it.kind == SnippetKind.RECUPERACAO }
+    val starredTips = snippets.filter { it.isFavorite && it.kind != SnippetKind.RECUPERACAO }
 
     deckFor?.let { deck ->
         val current = summaries.firstOrNull { it.id == deck.id } ?: deck
@@ -126,6 +127,7 @@ fun StudyNotebookScreen(
                             val count = when (value) {
                                 NotebookTab.MARKS -> marks.size
                                 NotebookTab.FLASHCARDS -> savedDecks.size
+                                NotebookTab.TIPS -> starredTips.size
                                 NotebookTab.NOTES -> notes.size
                                 NotebookTab.FAVORITES -> favoriteQuestions.size + favoriteSnippets.size
                             }
@@ -175,6 +177,31 @@ fun StudyNotebookScreen(
                         }
                     }
                 }
+                NotebookTab.TIPS -> {
+                    if (starredTips.isEmpty()) item { EmptyHint(Icons.Outlined.Star, "Nenhuma dica salva", "Nos tópicos, na aba DICAS, toque na estrela ao lado de uma dica ou pegadinha. Ela vem para cá para você revisar tudo de uma vez antes da prova.") }
+                    else item {
+                        Text("${starredTips.size} dica(s) e pegadinha(s) que você marcou. Leia em voz alta: é o que costuma decidir questão.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    starredTips.groupBy { it.topicId }.forEach { (topicId, values) ->
+                        item(key = "tips-topic-$topicId") { TopicHeader(topicById[topicId]?.title ?: "Tópico removido") }
+                        items(values.sortedBy { it.kind }, key = { "tip-${it.id}" }) { snippet ->
+                            val trap = snippet.kind == SnippetKind.PEGADINHA
+                            ElevatedCard(
+                                onClick = { onOpenTopic(snippet.topicId) },
+                                colors = CardDefaults.elevatedCardColors(containerColor = if (trap) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.tertiaryContainer),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Row(Modifier.padding(start = 14.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(if (trap) "PEGADINHA" else "DICA", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                        Text(snippet.text)
+                                    }
+                                    IconButton(onClick = { viewModel.saveSnippet(snippet.copy(isFavorite = false)) }) { Icon(Icons.Outlined.Star, "Tirar do caderno") }
+                                }
+                            }
+                        }
+                    }
+                }
                 NotebookTab.NOTES -> {
                     if (notes.isEmpty()) item { EmptyHint(Icons.Outlined.EditNote, "Nenhuma anotação ainda", "Escreva resumos com suas palavras, macetes e dúvidas. Ligue cada anotação a um tópico para achar depois.") }
                     items(notes, key = { "note-${it.id}" }) { note ->
@@ -213,7 +240,7 @@ fun StudyNotebookScreen(
                             }
                         }
                     }
-                    if (favoriteSnippets.isEmpty() && favoriteQuestions.isEmpty()) item { EmptyHint(Icons.Outlined.Star, "Nada favoritado ainda", "Toque na estrela das dicas, pegadinhas e perguntas de memorização, ou no coração das questões, para juntar aqui o que mais importa.") }
+                    if (favoriteSnippets.isEmpty() && favoriteQuestions.isEmpty()) item { EmptyHint(Icons.Outlined.Star, "Nada favoritado ainda", "Toque na estrela das perguntas de memorização, ou no coração das questões, para juntar aqui o que mais importa. As dicas marcadas ficam na aba Dicas.") }
                     favoriteSnippets.groupBy { it.kind }.forEach { (kind, values) ->
                         item(key = "fav-kind-$kind") { TopicHeader(when (kind) { SnippetKind.BIZU -> "Dicas"; SnippetKind.PEGADINHA -> "Pegadinhas"; SnippetKind.RECUPERACAO -> "Memorização" }) }
                         items(values, key = { "fav-snippet-${it.id}" }) { snippet ->
