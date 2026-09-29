@@ -41,6 +41,8 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
     var textScale by rememberSaveable { mutableFloatStateOf(1f) }
     var editingIndex by remember { mutableStateOf<Int?>(null) }
     val snackbar = remember { SnackbarHostState() }
+    val readerPrefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
+    var markHintSeen by remember { mutableStateOf(readerPrefs.getBoolean(MARK_HINT_SEEN, false)) }
     val scope = rememberCoroutineScope()
     val reachedEnd by remember { derivedStateOf { listState.layoutInfo.totalItemsCount > 0 && !listState.canScrollForward } }
     val currentBlock by remember { derivedStateOf { if (reachedEnd) blocks.lastIndex.coerceAtLeast(0) else (listState.firstVisibleItemIndex - headerOffset).coerceIn(0, blocks.lastIndex.coerceAtLeast(0)) } }
@@ -119,7 +121,18 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
             )
         },
     ) { padding ->
-        LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            // Explica o gesto uma única vez; some ao fechar ou na primeira marcação.
+        if (!markHintSeen && blocks.isNotEmpty()) {
+            Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Row(Modifier.padding(start = 14.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(Icons.Outlined.TouchApp, null, tint = MaterialTheme.colorScheme.primary)
+                    Text("Dica: segure o dedo sobre um trecho para marcá-lo e anotar. Os marcados ficam no Caderno de estudo.", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    IconButton(onClick = { markHintSeen = true; readerPrefs.edit().putBoolean(MARK_HINT_SEEN, true).apply() }) { Icon(Icons.Outlined.Close, "Fechar dica") }
+                }
+            }
+        }
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (!showInternalTopBar) item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -136,8 +149,14 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                 item(key = index) {
                     val mark = marks.firstOrNull { it.blockIndex == index }
                     Row(Modifier.fillMaxWidth().background(if (mark != null) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = .55f) else MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp)).padding(start = 12.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.Top) {
-                        br.com.estudario.ui.components.StudyMarkdown(block, Modifier.weight(1f), textSizeSp = MaterialTheme.typography.bodyLarge.fontSize.value * textScale)
-                        IconButton(onClick = { editingIndex = index }) { Icon(if (mark == null) Icons.Outlined.BookmarkAdd else Icons.Outlined.Bookmark, if (mark == null) "Marcar" else "Editar observação", tint = if (mark == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.tertiary) }
+                        br.com.estudario.ui.components.StudyMarkdown(
+                            block,
+                            Modifier.weight(1f).padding(end = 12.dp),
+                            textSizeSp = MaterialTheme.typography.bodyLarge.fontSize.value * textScale,
+                            onLongPress = { editingIndex = index; markHintSeen = true; readerPrefs.edit().putBoolean(MARK_HINT_SEEN, true).apply() },
+                        )
+                        // Sem ícone em cada trecho (poluía teorias longas): só o marcado ganha um sinal.
+                        if (mark != null) Icon(Icons.Outlined.Bookmark, "Trecho marcado", Modifier.padding(end = 8.dp).size(18.dp), tint = MaterialTheme.colorScheme.tertiary)
                     }
                     if (!mark?.note.isNullOrBlank()) Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(8.dp), modifier = Modifier.padding(start = 12.dp, top = 4.dp)) { Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { Icon(Icons.Outlined.EditNote, null); Text(mark!!.note, Modifier.weight(1f)) } }
                 }
@@ -153,5 +172,8 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
             }
             item { Spacer(Modifier.height(70.dp)) }
         }
+        }
     }
 }
+
+private const val MARK_HINT_SEEN = "reader_mark_hint_seen"

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
@@ -63,7 +64,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private enum class NotebookTab(val label: String) { MARKS("Marcados"), NOTES("Anotações"), FAVORITES("Favoritos") }
+private enum class NotebookTab(val label: String) { MARKS("Marcados"), FLASHCARDS("Flashcards"), NOTES("Anotações"), FAVORITES("Favoritos") }
 
 /**
  * Caderno de estudo: o que a pessoa guardou enquanto estudava, num lugar só. Trechos marcados
@@ -83,6 +84,9 @@ fun StudyNotebookScreen(
     val notes by viewModel.notes.collectAsState()
     val snippets by viewModel.snippets.collectAsState()
     val questions by viewModel.questions.collectAsState()
+    val summaries by viewModel.summaries.collectAsState()
+    val savedDecks = summaries.filter { it.kind == br.com.estudario.data.local.SummaryKind.RAPIDO && it.isFavorite }
+    var deckFor by remember { mutableStateOf<br.com.estudario.data.local.SummaryEntity?>(null) }
     var tab by rememberSaveable { mutableStateOf(NotebookTab.MARKS) }
     var editingNote by remember { mutableStateOf<UserNoteEntity?>(null) }
     val topicById = remember(topics) { topics.associateBy { it.id } }
@@ -90,6 +94,16 @@ fun StudyNotebookScreen(
     val favoriteQuestions = questions.filter { it.question.isFavorite }
     val favoriteSnippets = snippets.filter { it.isFavorite }
 
+    deckFor?.let { deck ->
+        val current = summaries.firstOrNull { it.id == deck.id } ?: deck
+        br.com.estudario.ui.components.FlashcardDeckDialog(
+            title = topicById[current.topicId]?.title ?: current.title,
+            cards = remember(current.markdown) { br.com.estudario.ui.components.FlashcardParser.parse(current.markdown) },
+            saved = current.isFavorite,
+            onToggleSave = { viewModel.updateSummary(current.copy(isFavorite = !current.isFavorite)) },
+            onDismiss = { deckFor = null },
+        )
+    }
     editingNote?.let { note ->
         NoteEditor(note, topics, onDismiss = { editingNote = null }, onSave = { viewModel.saveNote(it); editingNote = null }, onDelete = { viewModel.deleteNote(note); editingNote = null })
     }
@@ -111,6 +125,7 @@ fun StudyNotebookScreen(
                         NotebookTab.entries.forEach { value ->
                             val count = when (value) {
                                 NotebookTab.MARKS -> marks.size
+                                NotebookTab.FLASHCARDS -> savedDecks.size
                                 NotebookTab.NOTES -> notes.size
                                 NotebookTab.FAVORITES -> favoriteQuestions.size + favoriteSnippets.size
                             }
@@ -140,6 +155,22 @@ fun StudyNotebookScreen(
                                         IconButton(onClick = { viewModel.deleteTheoryMark(mark) }) { Icon(Icons.Outlined.DeleteOutline, "Remover marcação") }
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+                NotebookTab.FLASHCARDS -> {
+                    if (savedDecks.isEmpty()) item { EmptyHint(Icons.Outlined.Style, "Nenhum baralho salvo", "Nos tópicos, abra os Flashcards na aba REVISÃO e toque no marcador para salvar o baralho aqui.") }
+                    items(savedDecks, key = { "deck-${it.id}" }) { deck ->
+                        val count = remember(deck.markdown) { br.com.estudario.ui.components.FlashcardParser.parse(deck.markdown).size }
+                        ElevatedCard(onClick = { deckFor = deck }, modifier = Modifier.fillMaxWidth()) {
+                            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Icon(Icons.Outlined.Style, null, tint = MaterialTheme.colorScheme.primary)
+                                Column(Modifier.weight(1f)) {
+                                    Text(topicById[deck.topicId]?.title ?: deck.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text("$count cartões", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Icon(Icons.Outlined.PlayArrow, "Praticar", tint = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }

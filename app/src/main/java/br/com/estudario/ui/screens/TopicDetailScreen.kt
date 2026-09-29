@@ -105,6 +105,17 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
     val sessionAttempts = attempts.filter { it.questionId in questionIds && it.answeredAt >= studyStartedAt }
     var showContentPrompt by remember { mutableStateOf(false) }
     var editingNote by remember { mutableStateOf<br.com.estudario.data.local.UserNoteEntity?>(null) }
+    var deckFor by remember { mutableStateOf<br.com.estudario.data.local.SummaryEntity?>(null) }
+    deckFor?.let { deck ->
+        val current = summaries.firstOrNull { it.id == deck.id } ?: deck
+        br.com.estudario.ui.components.FlashcardDeckDialog(
+            title = topics.firstOrNull { it.id == current.topicId }?.title ?: current.title,
+            cards = remember(current.markdown) { br.com.estudario.ui.components.FlashcardParser.parse(current.markdown) },
+            saved = current.isFavorite,
+            onToggleSave = { viewModel.updateSummary(current.copy(isFavorite = !current.isFavorite)) },
+            onDismiss = { deckFor = null },
+        )
+    }
     editingNote?.let { note ->
         NoteEditor(note, topics, onDismiss = { editingNote = null }, onSave = { viewModel.saveNote(it); editingNote = null }, onDelete = { viewModel.deleteNote(note); editingNote = null })
     }
@@ -463,9 +474,16 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
             }
         }
         item {
-            val unreadTheory = theories.filter { it.topicId == topicId }.sortedByDescending { it.updatedAt }.firstOrNull { it.lastReadBlock < 0 }
+            // Retoma de verdade: primeiro a teoria que ficou pela metade (no ponto em que parou),
+            // depois a que ainda não foi aberta, e só então as questões.
+            val topicTheoryList = theories.filter { it.topicId == topicId }.sortedByDescending { it.updatedAt }
+            val inProgressTheory = topicTheoryList.firstOrNull { theory ->
+                theory.lastReadBlock >= 0 && theory.lastReadBlock < br.com.estudario.ui.components.studyBlocks(theory.markdown).lastIndex
+            }
+            val unreadTheory = topicTheoryList.firstOrNull { it.lastReadBlock < 0 }
+            val resumeTheory = inProgressTheory ?: unreadTheory
             Button(
-                onClick = { if (unreadTheory != null) onTheory(unreadTheory.id) else if (topicQuestions.isNotEmpty()) onQuiz() else finishStudy = true },
+                onClick = { if (resumeTheory != null) onTheory(resumeTheory.id) else if (topicQuestions.isNotEmpty()) onQuiz() else finishStudy = true },
                 modifier = Modifier.fillMaxWidth(),
             ) { Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Continuar de onde parei") }
         }
@@ -547,7 +565,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
         if (selectedTab == 1) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Resumo completo e rápido", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Resumo e flashcards", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 TextButton(onClick = { creating = true }) { Icon(Icons.Outlined.Add, null); Text("Novo") }
             }
         }
@@ -555,10 +573,14 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
         if (topicSummaries.isEmpty()) item { EmptyState("Sem resumos", "Adicione Markdown ou importe um pacote .estudo.") }
         topicSummaries.forEach { summary ->
             item(key = "summary-${summary.id}") {
-                ElevatedCard(onClick = { expandedSummary = summary }) {
+                // A revisão rápida vira baralho de flashcards; o resumo completo segue como leitura.
+                val isDeck = summary.kind == SummaryKind.RAPIDO
+                val deckSize = if (isDeck) remember(summary.markdown) { br.com.estudario.ui.components.FlashcardParser.parse(summary.markdown).size } else 0
+                ElevatedCard(onClick = { if (isDeck) deckFor = summary else expandedSummary = summary }) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(Modifier.fillMaxWidth()) {
-                            Column(Modifier.weight(1f)) { Text(summary.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold); Text(if (summary.kind == SummaryKind.RAPIDO) "REVISÃO RÁPIDA" else "RESUMO COMPLETO", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary) }
+                            Column(Modifier.weight(1f)) { Text(if (isDeck && summary.title.equals("Revisão rápida", ignoreCase = true)) "Flashcards" else summary.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold); Text(if (isDeck) "FLASHCARDS · $deckSize cartões · toque para praticar" else "RESUMO COMPLETO", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary) }
+                            if (isDeck) IconButton(onClick = { viewModel.updateSummary(summary.copy(isFavorite = !summary.isFavorite)) }) { Icon(if (summary.isFavorite) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder, if (summary.isFavorite) "Remover dos flashcards salvos" else "Salvar flashcards") }
                             IconButton(onClick = { editor = summary }) { Icon(Icons.Outlined.Edit, "Editar") }
                             IconButton(onClick = { viewModel.deleteSummary(summary) }) { Icon(Icons.Outlined.Delete, "Excluir") }
                         }

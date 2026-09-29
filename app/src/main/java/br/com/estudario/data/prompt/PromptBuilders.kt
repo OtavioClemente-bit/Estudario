@@ -391,7 +391,7 @@ object ContentPromptBuilder {
                 },
             )
             if (ContentBlock.SUMMARY in blocks) appendLine("- summary: resumo completo em Markdown que consolida toda a teoria, detalhado o bastante para estudar só por ele.")
-            if (ContentBlock.QUICK_REVIEW in blocks) appendLine("- quickReview: revisão de poucos minutos em Markdown, conceitos-chave, diferenças, regras e números que caem.")
+            if (ContentBlock.QUICK_REVIEW in blocks) appendLine("- quickReview: vira FLASHCARDS no app. Escreva uma lista, um cartão por item, no formato \"- **termo ou pergunta curta**: explicação objetiva\" (frente em negrito, verso depois dos dois-pontos), cobrindo conceitos-chave, diferenças, regras e números que caem. Comparações podem vir em tabela: a 1ª coluna vira a frente do cartão.")
             if (blocks.any { it == ContentBlock.THEORY || it == ContentBlock.SUMMARY || it == ContentBlock.QUICK_REVIEW }) appendLine(STUDY_FORMATTING_RULE)
             if (ContentBlock.TIPS_TRAPS in blocks) appendLine("- tips: dicas objetivas de prova. traps: pegadinhas e confusões típicas de prova.")
             if (ContentBlock.ACTIVE_RECALL in blocks) appendLine("- activeRecall: perguntas curtas para responder sem olhar (recuperação ativa), cada uma com a resposta correta e objetiva em \"resposta\", de 1 a 3 frases.")

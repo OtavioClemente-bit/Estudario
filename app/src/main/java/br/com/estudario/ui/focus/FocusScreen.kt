@@ -184,6 +184,16 @@ fun FocusScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text("Você está estudando", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    // A dúvida de quem acabou de ligar o foco: "e agora, fico nesta tela?". Não precisa.
+                    Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), shape = MaterialTheme.shapes.medium) {
+                        Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.Icon(Icons.Outlined.Lightbulb, null, tint = MaterialTheme.colorScheme.primary)
+                            Text(
+                                "Pode fechar esta janela e ir estudar. O cronômetro continua sozinho e o tempo é salvo quando você encerrar a sessão.",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
                     // Autoajuste: o relógio fica grande, mas encolhe o quanto for preciso para caber em
                     // uma linha (com fonte maior "01:23:45" quebrava no meio em celular estreito).
                     BasicText(
