@@ -11,10 +11,12 @@ import type {
   OpenAiProvider,
   ProviderResponse,
 } from "../_shared/openai-provider.ts";
+import { validateAiSyllabusProposal } from "../_shared/proposal-validator.ts";
 
 const proposal = {
-  schemaVersion: 1,
-  promptVersion: "syllabus-v1",
+  schemaVersion: 2,
+  targetMatch: "MATCHED",
+  promptVersion: "syllabus-v2",
   modelVersion: "gpt-6-luna",
   documentTitle: "Edital",
   subjects: [{
@@ -32,6 +34,15 @@ const proposal = {
   warnings: [],
   ambiguities: [],
 };
+const legacyProposal = {
+  schemaVersion: 1,
+  promptVersion: "syllabus-v1",
+  modelVersion: "gpt-6-luna",
+  documentTitle: "Edital legado",
+  subjects: [{ name: "Direito", position: 0, suggestedPriority: "NORMAL", topics: [{ name: "Constituição", position: 0, children: [], sourcePages: [1] }], sourcePages: [1] }],
+  warnings: [],
+  ambiguities: [],
+};
 
 function job(overrides: Partial<AiJobRecord> = {}): AiJobRecord {
   return {
@@ -41,7 +52,7 @@ function job(overrides: Partial<AiJobRecord> = {}): AiJobRecord {
     status: "PROCESSING",
     idempotencyKey: "idem",
     requestFingerprint: "a".repeat(64),
-    requestPayload: {},
+    requestPayload: { target: { title: "TRT-3 Técnico Judiciário TI" } },
     sourceObjectPath: null,
     sourceHash: null,
     sourceBytes: null,
@@ -92,9 +103,9 @@ function harness(
     async getJob(userId: string, jobId: string) {
       return userId === current.userId && jobId === current.id ? current : null;
     },
-    async requestCancellation() {
+    async requestCancellation(_userId: string, _jobId: string) {
       calls.push("request");
-      current = { ...current, cancellationRequestedAt: "now" } as AiJobRecord;
+      current = { ...current, cancellationRequestedAt: "now", leaseExpiresAt: current.testKeepLease ? current.leaseExpiresAt : new Date(Date.now() - 1000).toISOString() } as AiJobRecord;
       return current;
     },
     async cancelWithoutProvider() {
@@ -121,9 +132,9 @@ function harness(
       current = { ...current, status } as AiJobRecord;
       return current;
     },
-    async finalizeCancellationSuccess() {
+    async finalizeCancellationSuccess(_userId: string, _jobId: string, _providerResponse: ProviderResponse, result: Record<string, unknown>) {
       calls.push("finalizeSuccess");
-      current = { ...current, status: "SUCCEEDED" } as AiJobRecord;
+      current = { ...current, status: "SUCCEEDED", proposal: result } as AiJobRecord;
       return current;
     },
   } as unknown as AiJobCancellationStore;
@@ -150,9 +161,9 @@ function harness(
   return { handler, calls };
 }
 
-function request() {
+function request(jobId = "11111111-1111-4111-8111-111111111111") {
   return new Request(
-    "https://example.test/functions/v1/ai-syllabus-cancel/11111111-1111-4111-8111-111111111111",
+    `https://example.test/functions/v1/ai-syllabus-cancel/${jobId}`,
     { method: "POST", headers: { authorization: "Bearer jwt" } },
   );
 }
@@ -208,6 +219,7 @@ Deno.test("active generation lease prevents provider actions even when a respons
       openaiResponseId: "resp-1",
       providerStartOutcome: "ACCEPTED",
       leaseExpiresAt: "2099-01-01T00:00:00Z",
+      testKeepLease: true,
     }),
     [response("in_progress")],
   );
@@ -248,6 +260,36 @@ Deno.test("known response completed during cancellation preserves successful res
   assertEquals(result.status, 200);
   assertEquals((await result.json()).status, "SUCCEEDED");
   assertEquals(calls, ["request", "retrieve", "finalizeSuccess"]);
+});
+
+Deno.test("completed response for a pre-v2 job is validated with the legacy contract", async () => {
+  const parsed = await validateAiSyllabusProposal(JSON.stringify(legacyProposal), {
+    expected: { schemaVersion: 1, promptVersion: "syllabus-v1", modelVersion: "gpt-6-luna" },
+  });
+  assertEquals(parsed.schemaVersion, 1);
+  const legacyJobId = "22222222-2222-4222-8222-222222222222";
+  const activeLease = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  const { handler, calls } = harness(
+    job({ id: legacyJobId, requestPayload: {}, openaiResponseId: "resp-legacy", providerStartOutcome: "ACCEPTED", leaseExpiresAt: activeLease }),
+    [{ ...response("completed"), id: "resp-legacy", outputText: JSON.stringify(legacyProposal) }],
+  );
+  const result = await handler(request(legacyJobId));
+  assertEquals(calls, ["request", "retrieve", "finalizeSuccess"]);
+  assertEquals(result.status, 200);
+  assertEquals((await result.json()).status, "SUCCEEDED");
+  assertEquals(calls, ["request", "retrieve", "finalizeSuccess"]);
+});
+
+Deno.test("completed response with a non-matching target becomes terminal failure", async () => {
+  const output = { ...proposal, targetMatch: "NOT_FOUND", subjects: [] };
+  const { handler, calls } = harness(
+    job({ openaiResponseId: "resp-1", providerStartOutcome: "ACCEPTED" }),
+    [{ ...response("completed"), outputText: JSON.stringify(output) }],
+  );
+  const result = await handler(request());
+  assertEquals(result.status, 200);
+  assertEquals((await result.json()).status, "FAILED");
+  assertEquals(calls, ["request", "retrieve", "record:resp-1", "finalizeCancel"]);
 });
 
 Deno.test("known response terminal without result is reconciled then cancelled", async () => {

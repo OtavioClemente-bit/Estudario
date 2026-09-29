@@ -17,12 +17,21 @@ class AiModelsSerializationTest {
     }
 
     @Test
-    fun rejectsUnsupportedSchemaVersion() {
-        val json = validProposalJson.replace("\"schemaVersion\": 1", "\"schemaVersion\": 2")
+    fun decodesV2MatchResultsAndRejectsInconsistentSubjects() {
+        val matched = validProposalJson.replace("\"schemaVersion\": 1", "\"schemaVersion\": 2")
+            .replace("\"schemaVersion\": 2,", "\"schemaVersion\": 2,\n  \"targetMatch\": \"MATCHED\",")
+        assertEquals(AiTargetMatch.MATCHED, EstudarioContractJson.decodeProposal(matched).targetMatch)
 
-        assertThrows(ContractValidationException::class.java) {
-            EstudarioContractJson.decodeProposal(json)
-        }
+        val emptySubjects = matched.replace(
+            Regex("\"subjects\": \\[.*?\\],\\s*\"warnings\"", RegexOption.DOT_MATCHES_ALL),
+            "\"subjects\": [],\n  \"warnings\"",
+        )
+        val notFound = emptySubjects.replace("\"MATCHED\"", "\"NOT_FOUND\"")
+        assertEquals(AiTargetMatch.NOT_FOUND, EstudarioContractJson.decodeProposal(notFound).targetMatch)
+        assertThrows(ContractValidationException::class.java) { EstudarioContractJson.decodeProposal(emptySubjects) }
+
+        val invalidVersion = validProposalJson.replace("\"schemaVersion\": 1", "\"schemaVersion\": 3")
+        assertThrows(ContractValidationException::class.java) { EstudarioContractJson.decodeProposal(invalidVersion) }
     }
 
     @Test

@@ -1,4 +1,6 @@
-import type { AiSyllabusProposal, AiWarning } from "../_shared/contracts.ts";
+import type { AiFeature } from "../_shared/contracts.ts";
+import type { JsonSchema } from "../_shared/schema.ts";
+import type { ExpectedVersions } from "../_shared/text-job-validators.ts";
 import {
   emitAiTerminalTelemetry,
   type TerminalAiTelemetry,
@@ -6,7 +8,6 @@ import {
 import {
   ProposalValidationError,
   type ProposalValidationLimits,
-  type ProposalValidationOptions,
   validateAiSyllabusProposal,
 } from "../_shared/proposal-validator.ts";
 import {
@@ -69,11 +70,15 @@ export interface SyllabusWorkerJob {
   id: string;
   userId: string;
   status: "PROCESSING";
+  /** Campos do PDF: sempre presentes no edital; nulos em conteúdo e plano, que são só texto. */
   sourceObjectPath: string;
   sourceHash: string;
   sourceBytes: number;
   sourcePages: number;
   sourceFileCount: number;
+  /** Entrada validada do job (dados do tópico ou do plano); vazia no edital. */
+  requestPayload?: Record<string, unknown>;
+  feature?: AiFeature;
   openaiResponseId: string | null;
   providerExecutionStartedAt: string | null;
   providerStartOutcome?: string;
@@ -130,8 +135,8 @@ export interface SyllabusWorkerStore {
   finalizeSuccess(
     jobId: string,
     lease: Lease,
-    proposal: AiSyllabusProposal,
-    warnings: AiWarning[],
+    proposal: WorkerProposal,
+    warnings: unknown[],
     responseId: string | null,
   ): Promise<void>;
   finalizeFailure(
@@ -158,6 +163,63 @@ export interface SyllabusWorkerDependencies {
   validationLimits?: ProposalValidationLimits;
   telemetry?: (event: TerminalAiTelemetry) => void;
   providerDiagnostics?: (event: AiProviderDiagnostic) => void;
+  /** Recurso processado; sem ele, o worker é o do edital, como sempre foi. */
+  spec?: AiJobSpec;
+  /** Escolhe a especificação pelo job (worker que atende mais de um recurso). */
+  specForJob?: (job: SyllabusWorkerJob) => AiJobSpec;
+  /** Modelo por recurso; sem ele, vale [model]. */
+  modelForJob?: (job: SyllabusWorkerJob) => string | undefined;
+}
+
+/** O que o worker finaliza: qualquer proposta versionada com seus avisos. */
+export interface WorkerProposal {
+  promptVersion: string;
+  schemaVersion: number;
+  modelVersion: string;
+  warnings: unknown[];
+}
+
+/**
+ * O que muda de um recurso de IA para outro. O ciclo de lease, conciliação com o provedor e
+ * finalização é o mesmo; só prompt, formato, validação e o uso de PDF variam.
+ */
+export interface AiJobSpec {
+  feature: AiFeature;
+  promptVersion: string;
+  schemaVersion: number;
+  schema: JsonSchema;
+  schemaName: string;
+  /** Edital lê o PDF do Storage e limpa depois; conteúdo e plano são só texto. */
+  usesSource: boolean;
+  tools?: unknown[];
+  prompts(job: SyllabusWorkerJob): { systemPrompt: string; userPrompt: string };
+  validate(
+    raw: string,
+    expected: ExpectedVersions,
+    job: SyllabusWorkerJob,
+    dependencies: SyllabusWorkerDependencies,
+  ): Promise<WorkerProposal>;
+}
+
+export const SYLLABUS_JOB_SPEC: AiJobSpec = {
+  feature: "SYLLABUS_GENERATION",
+  promptVersion: SYLLABUS_PROMPT_VERSION,
+  schemaVersion: AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION,
+  schema: AI_SYLLABUS_PROPOSAL_SCHEMA,
+  schemaName: `ai_syllabus_proposal_v${AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION}`,
+  usesSource: true,
+  prompts: () => ({ systemPrompt: SYLLABUS_SYSTEM_PROMPT, userPrompt: syllabusUserPrompt() }),
+  validate: (raw, expected, _job, dependencies) =>
+    validateAiSyllabusProposal(raw, { ...dependencies.validationLimits, expected }),
+};
+
+function modelOf(dependencies: SyllabusWorkerDependencies, job: SyllabusWorkerJob): string {
+  return resolveOpenAiModel(dependencies.modelForJob?.(job) ?? dependencies.model);
+}
+
+function specOf(dependencies: SyllabusWorkerDependencies, job: SyllabusWorkerJob): AiJobSpec {
+  // O worker de texto atende dois recursos: a especificação sai do tipo de cada job.
+  return dependencies.specForJob?.(job) ?? dependencies.spec ?? SYLLABUS_JOB_SPEC;
 }
 
 export interface AiProviderDiagnostic {
@@ -249,17 +311,17 @@ async function emitTerminalTelemetry(
   job: SyllabusWorkerJob,
   terminalStatus: TerminalAiTelemetry["terminalStatus"],
   usage: ProviderUsage | null = null,
-  proposal: AiSyllabusProposal | null = null,
+  proposal: WorkerProposal | null = null,
 ): Promise<void> {
+  const spec = specOf(dependencies, job);
   await emitAiTerminalTelemetry({
-    feature: "SYLLABUS_GENERATION",
+    feature: spec.feature,
     userId: job.userId,
     modelVersion: proposal?.modelVersion ?? job.modelVersion ??
-      resolveOpenAiModel(dependencies.model),
+      modelOf(dependencies, job),
     promptVersion: proposal?.promptVersion ?? job.promptVersion ??
-      SYLLABUS_PROMPT_VERSION,
-    schemaVersion: proposal?.schemaVersion ??
-      AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION,
+      spec.promptVersion,
+    schemaVersion: proposal?.schemaVersion ?? spec.schemaVersion,
     jobId: job.id,
     usage,
     startedAt: job.providerExecutionStartedAt,
@@ -305,7 +367,8 @@ function preProviderDefinitive(
       job.providerStartOutcome !== "NOT_STARTED")
   ) return false;
   return code === "OPENAI_API_KEY_MISSING" || code === "SOURCE_NOT_FOUND" ||
-    code === "SOURCE_HASH_MISMATCH" || code.startsWith("SOURCE_");
+    code === "SOURCE_HASH_MISMATCH" || code.startsWith("SOURCE_") ||
+    code === "TEXT_JOB_INPUT_INVALID";
 }
 
 function deadlineExceeded(job: SyllabusWorkerJob, now: Date): boolean {
@@ -323,6 +386,8 @@ async function cleanupBestEffort(
   job: SyllabusWorkerJob,
   lease: Lease,
 ): Promise<void> {
+  // Só o edital tem PDF no Storage para apagar.
+  if (!specOf(dependencies, job).usesSource) return;
   try {
     await dependencies.jobs.cleanupSource(job.id, lease);
   } catch { /* cleanup store persists a retryable pending record */ }
@@ -349,16 +414,15 @@ async function finalizeFailure(
   await emitTerminalTelemetry(dependencies, job, status, usage);
 }
 
-function validationOptions(
+function expectedVersions(
   dependencies: SyllabusWorkerDependencies,
-): ProposalValidationOptions {
+  job: SyllabusWorkerJob,
+): ExpectedVersions {
+  const spec = specOf(dependencies, job);
   return {
-    ...dependencies.validationLimits,
-    expected: {
-      schemaVersion: AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION,
-      promptVersion: SYLLABUS_PROMPT_VERSION,
-      modelVersion: resolveOpenAiModel(dependencies.model),
-    },
+    schemaVersion: spec.schemaVersion,
+    promptVersion: spec.promptVersion,
+    modelVersion: modelOf(dependencies, job),
   };
 }
 
@@ -423,11 +487,13 @@ async function processResponse(
     return;
   }
 
-  let proposal: AiSyllabusProposal;
+  let proposal: WorkerProposal;
   try {
-    proposal = await validateAiSyllabusProposal(
+    proposal = await specOf(dependencies, job).validate(
       response.outputText ?? "",
-      validationOptions(dependencies),
+      expectedVersions(dependencies, job),
+      job,
+      dependencies,
     );
   } catch (error) {
     if (error instanceof ProposalValidationError) {
@@ -621,7 +687,11 @@ export async function processSyllabusJob(
       );
       await dependencies.jobs.assertLease(job.id, lease);
     } else {
-      const bytes = await dependencies.source(job);
+      const spec = specOf(dependencies, job);
+      // Monta o pedido antes de marcar o provedor como iniciado: entrada inválida falha limpa,
+      // com a cota devolvida, sem chegar a gastar tokens.
+      const prompts = spec.prompts(job);
+      const bytes = spec.usesSource ? await dependencies.source(job) : null;
       await dependencies.jobs.assertLease(job.id, lease);
       if (deadlineExceeded(job, now())) {
         await finalizeFailure(
@@ -651,16 +721,21 @@ export async function processSyllabusJob(
             dependencies.provider.start({
               jobId: job.id,
               idempotencyKey: job.id,
-              source: {
-                filename: job.sourceObjectPath.split("/").pop() ?? "source.pdf",
-                bytes,
-              },
-              systemPrompt: SYLLABUS_SYSTEM_PROMPT,
-              userPrompt: syllabusUserPrompt(),
-              promptVersion: SYLLABUS_PROMPT_VERSION,
-              schemaVersion: AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION,
-              schema: AI_SYLLABUS_PROPOSAL_SCHEMA,
-              model: resolveOpenAiModel(dependencies.model),
+              ...(bytes === null ? {} : {
+                source: {
+                  filename: job.sourceObjectPath.split("/").pop() ?? "source.pdf",
+                  bytes,
+                },
+              }),
+              feature: spec.feature,
+              schemaName: spec.schemaName,
+              ...(spec.tools ? { tools: spec.tools } : {}),
+              systemPrompt: prompts.systemPrompt,
+              userPrompt: prompts.userPrompt,
+              promptVersion: spec.promptVersion,
+              schemaVersion: spec.schemaVersion,
+              schema: spec.schema,
+              model: modelOf(dependencies, job),
               background: true,
               store: true,
               maxOutputTokens: dependencies.maxOutputTokens,
@@ -768,7 +843,7 @@ export async function runSyllabusWorker(
   return processed;
 }
 
-interface WorkerRuntimeEnvironment {
+export interface WorkerRuntimeEnvironment {
   supabaseUrl: string;
   serviceRoleKey: string;
   serviceRoleJwt?: string;
@@ -856,16 +931,26 @@ function integerField(value: Record<string, unknown>, key: string): number {
   return value[key] as number;
 }
 
-function parseJob(value: Record<string, unknown>): SyllabusWorkerJob {
+function parseJob(
+  value: Record<string, unknown>,
+  requireSource = true,
+): SyllabusWorkerJob {
+  // Jobs de texto não têm PDF; nesse caso os campos de fonte chegam nulos e ficam vazios.
+  const source = requireSource || value.source_object_path != null;
+  const payload = value.request_payload;
   return {
     id: stringField(value, "id"),
     userId: stringField(value, "user_id"),
     status: "PROCESSING",
-    sourceObjectPath: stringField(value, "source_object_path"),
-    sourceHash: stringField(value, "source_hash"),
-    sourceBytes: integerField(value, "source_bytes"),
-    sourcePages: integerField(value, "source_pages"),
-    sourceFileCount: integerField(value, "source_file_count"),
+    sourceObjectPath: source ? stringField(value, "source_object_path") : "",
+    sourceHash: source ? stringField(value, "source_hash") : "",
+    sourceBytes: source ? integerField(value, "source_bytes") : 0,
+    sourcePages: source ? integerField(value, "source_pages") : 0,
+    sourceFileCount: source ? integerField(value, "source_file_count") : 0,
+    requestPayload: payload !== null && typeof payload === "object" && !Array.isArray(payload)
+      ? payload as Record<string, unknown>
+      : {},
+    feature: typeof value.feature === "string" ? value.feature as AiFeature : undefined,
     openaiResponseId: nullableString(value, "openai_response_id"),
     providerExecutionStartedAt: nullableString(
       value,
@@ -885,13 +970,33 @@ function parseJob(value: Record<string, unknown>): SyllabusWorkerJob {
   };
 }
 
+/** Qual fila o worker consome: a do edital (com PDF) ou a de texto (conteúdo e plano). */
+export interface WorkerQueue {
+  claimRpc: string;
+  reconciliationRpc: string;
+  requireSource: boolean;
+}
+
+export const SYLLABUS_QUEUE: WorkerQueue = {
+  claimRpc: "claim_ai_syllabus_worker_job",
+  reconciliationRpc: "claim_ai_job_provider_reconciliation",
+  requireSource: true,
+};
+
+export const TEXT_QUEUE: WorkerQueue = {
+  claimRpc: "claim_ai_text_worker_job",
+  reconciliationRpc: "claim_ai_text_job_provider_reconciliation",
+  requireSource: false,
+};
+
 export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
   private readonly fetcher: typeof fetch;
   private readonly workerOwner: string;
   constructor(
     private readonly environment: WorkerRuntimeEnvironment,
-    private readonly storage: StorageSourceStore,
+    private readonly storage: StorageSourceStore | null,
     workerOwner = `worker:${crypto.randomUUID()}`,
+    private readonly queue: WorkerQueue = SYLLABUS_QUEUE,
   ) {
     this.fetcher = environment.fetcher ?? fetch;
     this.workerOwner = workerOwner;
@@ -901,28 +1006,28 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
     leaseSeconds: number,
     processingSeconds: number,
   ): Promise<SyllabusWorkerJob | null> {
-    const value = await this.rpc("claim_ai_syllabus_worker_job", {
+    const value = await this.rpc(this.queue.claimRpc, {
       p_lease_owner: this.workerOwner,
       p_lease_token: crypto.randomUUID(),
       p_lease_seconds: leaseSeconds,
       p_processing_seconds: processingSeconds,
     });
     if (noCompositeRow(value)) return null;
-    return parseJob(row(value));
+    return parseJob(row(value), this.queue.requireSource);
   }
   async claimReconciliation(
     _now: Date,
     leaseSeconds: number,
     reconciliationSeconds: number,
   ): Promise<SyllabusWorkerJob | null> {
-    const value = await this.rpc("claim_ai_job_provider_reconciliation", {
+    const value = await this.rpc(this.queue.reconciliationRpc, {
       p_lease_owner: this.workerOwner,
       p_lease_token: crypto.randomUUID(),
       p_lease_seconds: leaseSeconds,
       p_reconciliation_seconds: reconciliationSeconds,
     });
     if (noCompositeRow(value)) return null;
-    return parseJob(row(value));
+    return parseJob(row(value), this.queue.requireSource);
   }
   async completeReconciliation(jobId: string, lease: Lease): Promise<void> {
     await this.rpc("complete_ai_job_provider_reconciliation", {
@@ -1025,8 +1130,8 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
   async finalizeSuccess(
     jobId: string,
     lease: Lease,
-    proposal: AiSyllabusProposal,
-    warnings: AiWarning[],
+    proposal: WorkerProposal,
+    warnings: unknown[],
     responseId: string | null,
   ): Promise<void> {
     await this.rpc("finalize_ai_job_success_with_lease", {
@@ -1172,11 +1277,11 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
   }
 }
 
-function environmentNumber(name: string, fallback: number): number {
+export function environmentNumber(name: string, fallback: number): number {
   const value = Number(Deno.env.get(name));
   return Number.isSafeInteger(value) && value > 0 ? value : fallback;
 }
-function runtimeEnvironment(): WorkerRuntimeEnvironment {
+export function runtimeEnvironment(): WorkerRuntimeEnvironment {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim(),
     serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
   const serviceRoleJwt = Deno.env.get("AI_SERVICE_ROLE_JWT")?.trim();

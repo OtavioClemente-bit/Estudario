@@ -1,7 +1,8 @@
 import type { AiAccess, AiFeature, AiQuota } from "./contracts.ts";
 
 const LIMIT = 1;
-const DAILY_FEATURE: AiFeature = "CONTENT_GENERATION";
+// Conteúdo e plano renovam todo dia (Brasília); o edital segue com cota única.
+const DAILY_FEATURES: ReadonlySet<AiFeature> = new Set<AiFeature>(["CONTENT_GENERATION", "PLAN_GENERATION"]);
 const TIME_ZONE = "America/Sao_Paulo";
 
 const FEATURE_FLAG_KEYS: Record<AiFeature, string> = {
@@ -198,7 +199,7 @@ function dateInSaoPaulo(now: Date): string {
 }
 
 export function quotaPeriodStart(feature: AiFeature, now: Date): string {
-  return feature === DAILY_FEATURE ? dateInSaoPaulo(now) : "1970-01-01";
+  return DAILY_FEATURES.has(feature) ? dateInSaoPaulo(now) : "1970-01-01";
 }
 
 function nextDailyReset(now: Date): string {
@@ -256,7 +257,7 @@ export class ClosedBetaAiPolicy {
       used: successfulCount + reservedCount,
       remaining,
       periodStart,
-      resetAt: feature === DAILY_FEATURE ? nextDailyReset(this.now()) : null,
+      resetAt: DAILY_FEATURES.has(feature) ? nextDailyReset(this.now()) : null,
     };
 
     let reasonCode: string | null = null;

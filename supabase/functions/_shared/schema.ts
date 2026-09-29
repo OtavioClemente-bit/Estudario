@@ -1,4 +1,4 @@
-import { CURRENT_AI_SCHEMA_VERSION } from "./contracts.ts";
+import { CURRENT_AI_SCHEMA_VERSION, CURRENT_AI_SYLLABUS_SCHEMA_VERSION } from "./contracts.ts";
 
 export type JsonSchema = Record<string, unknown>;
 
@@ -88,8 +88,25 @@ const proposalSchemaV1: JsonSchema = {
   },
 };
 
+const proposalSchemaV2: JsonSchema = {
+  ...proposalSchemaV1,
+  $id: "https://estudario.com/contracts/ai-syllabus-proposal/v2",
+  title: "AiSyllabusProposal v2",
+  required: ["schemaVersion", "targetMatch", "promptVersion", "modelVersion", "documentTitle", "subjects", "warnings", "ambiguities"],
+  properties: {
+    ...(proposalSchemaV1.properties as Record<string, unknown>),
+    schemaVersion: { type: "integer", enum: [CURRENT_AI_SYLLABUS_SCHEMA_VERSION] },
+    targetMatch: { type: "string", enum: ["MATCHED", "NOT_FOUND", "AMBIGUOUS"] },
+    subjects: {
+      ...((proposalSchemaV1.properties as Record<string, JsonSchema>).subjects),
+      minItems: 0,
+    },
+  },
+};
+
 export const AI_SYLLABUS_PROPOSAL_SCHEMAS: Readonly<Record<number, JsonSchema>> = {
   [CURRENT_AI_SCHEMA_VERSION]: proposalSchemaV1,
+  [CURRENT_AI_SYLLABUS_SCHEMA_VERSION]: proposalSchemaV2,
 };
 
 export function getAiSyllabusProposalSchema(schemaVersion: number): JsonSchema {

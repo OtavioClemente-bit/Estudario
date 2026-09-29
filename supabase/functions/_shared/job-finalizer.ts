@@ -169,10 +169,21 @@ export class JobStoreError extends Error {
   }
 }
 
+function canonicalJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (value !== null && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record).sort().map((key) => [key, canonicalJson(record[key])]),
+    );
+  }
+  return value;
+}
+
 export async function requestFingerprint(
   payload: Record<string, unknown>,
 ): Promise<string> {
-  const canonical = JSON.stringify(payload, Object.keys(payload).sort());
+  const canonical = JSON.stringify(canonicalJson(payload));
   const digest = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(canonical),

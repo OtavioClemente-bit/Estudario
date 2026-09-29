@@ -26,6 +26,7 @@ export interface ProviderResponse {
   id: string;
   outcome?: "ACCEPTED";
   status: ProviderResponseStatus;
+  incompleteReason?: string | null;
   outputText: string | null;
   usage: ProviderUsage | null;
 }
@@ -41,6 +42,7 @@ export interface ProviderStartInput {
   schemaVersion: number;
   schema: JsonSchema;
   model?: string;
+  reasoningEffort?: "low" | "medium" | "high";
   background?: boolean;
   maxOutputTokens?: number;
   store?: boolean;
@@ -364,10 +366,28 @@ function parseResponse(value: unknown): ProviderResponse {
       "RESPONSE_AMBIGUOUS",
     );
   }
+  const incompleteDetails = row.incomplete_details;
+  const hasIncompleteReason = incompleteDetails !== null &&
+    typeof incompleteDetails === "object" && !Array.isArray(incompleteDetails) &&
+    "reason" in incompleteDetails;
+  const rawIncompleteReason = incompleteDetails !== null &&
+      typeof incompleteDetails === "object" &&
+      !Array.isArray(incompleteDetails)
+    ? (incompleteDetails as Record<string, unknown>).reason
+    : null;
+  // Keep only a small allowlisted enum. Do not persist arbitrary provider text.
+  const incompleteReason = rawIncompleteReason === "max_output_tokens" ||
+      rawIncompleteReason === "max_tokens" ||
+      rawIncompleteReason === "content_filter"
+    ? rawIncompleteReason
+    : !hasIncompleteReason
+    ? null
+    : "unknown";
   return {
     id: row.id.trim(),
     outcome: "ACCEPTED",
     status: responseStatus(row.status, row.id.trim()),
+    incompleteReason,
     outputText: outputText(row.output_text ?? row.output),
     usage: usage(row.usage),
   };
@@ -524,6 +544,9 @@ export function createOpenAiProvider(
           headers: { "Idempotency-Key": input.idempotencyKey },
           body: JSON.stringify({
             model: resolvedModel,
+            ...(input.reasoningEffort
+              ? { reasoning: { effort: input.reasoningEffort } }
+              : {}),
             metadata: {
               estudario_job_id: input.jobId,
               feature: "SYLLABUS_GENERATION",

@@ -11,8 +11,9 @@ import type { AiSyllabusProposal } from "../_shared/contracts.ts";
 
 const lease: Lease = { owner: "worker-a", token: "lease-token-a", generation: 7 };
 const validOutput = JSON.stringify({
-  schemaVersion: 1,
-  promptVersion: "syllabus-v1",
+  schemaVersion: 2,
+  targetMatch: "MATCHED",
+  promptVersion: "syllabus-v2",
   modelVersion: "gpt-6-luna",
   documentTitle: "Edital",
   subjects: [{ name: "Direito", position: 0, suggestedPriority: "NORMAL", sourcePages: [1], topics: [{ name: "Constituição", position: 0, sourcePages: [1], children: [] }] }],
@@ -30,6 +31,7 @@ function job(overrides: Partial<SyllabusWorkerJob> = {}): SyllabusWorkerJob {
     sourceBytes: 10,
     sourcePages: 1,
     sourceFileCount: 1,
+    targetTitle: "TRT-3 - Técnico Judiciário - TI",
     openaiResponseId: null,
     providerExecutionStartedAt: null,
     leaseExpiresAt: "2026-09-24T12:05:00Z",

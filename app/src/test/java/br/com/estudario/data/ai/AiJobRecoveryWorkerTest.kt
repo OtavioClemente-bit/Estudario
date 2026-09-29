@@ -35,7 +35,7 @@ class AiJobRecoveryWorkerTest {
     fun doWorkRunsRecoveryAgainstInjectedApiAndStoreBackedRepository() = runBlocking {
         var storeReads = 0
         val api = object : AiApiClient {
-            override suspend fun createOrGetJob(idempotencyKey: String, source: AiSourceMetadata, sourceReady: Boolean) = error("not reached")
+            override suspend fun createOrGetJob(idempotencyKey: String, source: AiSourceMetadata, sourceReady: Boolean, targetTitle: String?) = error("not reached")
             override suspend fun uploadSource(target: AiUploadTarget, source: PdfSource) = error("not reached")
             override suspend fun processJob(jobId: String) = error("not reached")
             override suspend fun getJob(jobId: String, timeoutMillis: Long?) = error("not reached")
@@ -170,7 +170,7 @@ private class StatefulRecoveryApi : AiApiClient {
     var processCalls = 0
     var awaitCalls = 0
 
-    override suspend fun createOrGetJob(idempotencyKey: String, source: AiSourceMetadata, sourceReady: Boolean): AiCreateJob {
+    override suspend fun createOrGetJob(idempotencyKey: String, source: AiSourceMetadata, sourceReady: Boolean, targetTitle: String?): AiCreateJob {
         idempotencyKeys += idempotencyKey
         return AiCreateJob("job-stable", AiJobStatus.RESERVED, AiUploadTarget("user/job-stable.pdf", null), sourceReady)
     }

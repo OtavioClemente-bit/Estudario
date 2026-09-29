@@ -181,6 +181,56 @@ class AiSyllabusRepositoryTest {
     }
 
     @Test
+    fun selectedTitleIsSentForUploadBindAndPreservedOnFailedJobRetry() = runTest {
+        val api = StatefulFakeAiApiClient(nextJob = job(AiJobStatus.FAILED))
+        val store = InMemoryAiJobRequestStore()
+        val repository = repository(api, store, userId = "user-a")
+        val title = "TRT-3 - Técnico Judiciário - TI"
+
+        repository.start("content://edital", "edital.pdf", targetSyllabusId = 73L, targetTitle = title)
+        val failedRequest = store.values.values.single()
+        assertEquals(title, failedRequest.targetTitle)
+        api.nextJob = job(AiJobStatus.SUCCEEDED, id = "job-2")
+        repository.retryFailed(failedRequest.requestId)
+
+        assertEquals(listOf(title, title, title, title), api.targetTitles)
+        assertEquals(title, store.values.getValue(failedRequest.requestId).targetTitle)
+    }
+
+    @Test
+    fun legacyReservedRequestKeepsItsPreV2FingerprintShape() = runTest {
+        val api = FakeAiApiClient(nextJob = job(AiJobStatus.SUCCEEDED))
+        val store = InMemoryAiJobRequestStore()
+        val snapshots = InMemoryPdfSourceSnapshotStore()
+        val legacyPath = "private/legacy-edital.pdf"
+        snapshots.replace(legacyPath, PdfSource(legacyPath, "edital.pdf", "application/pdf", ByteArray(123), "a".repeat(64)))
+        val repository = repository(api, store, userId = "user-a", snapshots = snapshots)
+        val legacyReserved = PersistedAiJobRequest(
+            requestId = "old-request",
+            idempotencyKey = "old-idempotency-key",
+            sourceUri = "content://edital",
+            fileName = "edital.pdf",
+            mimeType = "application/pdf",
+            sourceHash = "a".repeat(64),
+            sourceBytes = 123L,
+            sourcePath = legacyPath,
+            jobId = "old-job",
+            uploadPath = "user/old-job.pdf",
+            sourceUploaded = true,
+            status = AiJobStatus.RESERVED.name,
+            ownerUserId = "user-a",
+            targetSyllabusId = 73L,
+            targetTitle = "TRT-3 - Técnico Judiciário - TI",
+        )
+        store.save(legacyReserved)
+
+        repository.recover(legacyReserved.requestId)
+
+        assertEquals(listOf(null), api.targetTitles)
+        assertEquals(1, api.createCalls)
+    }
+
+    @Test
     fun absentAuthFailsBeforeReadingOrCallingApi() = runTest {
         val api = FakeAiApiClient()
         val provider = CountingPdfSourceProvider()
@@ -419,12 +469,14 @@ private class FakeAiApiClient(
     var getJobCalls = 0
     private var existingJobId: String? = null
     val idempotencyKeys = mutableListOf<String>()
+    val targetTitles = mutableListOf<String?>()
     val awaitedJobIds = mutableListOf<String>()
     val processedJobIds = mutableListOf<String>()
 
-    override suspend fun createOrGetJob(idempotencyKey: String, source: AiSourceMetadata, sourceReady: Boolean): AiCreateJob {
+    override suspend fun createOrGetJob(idempotencyKey: String, source: AiSourceMetadata, sourceReady: Boolean, targetTitle: String?): AiCreateJob {
         createCalls += 1
         idempotencyKeys += idempotencyKey
+        targetTitles += targetTitle
         val jobId = existingJobId ?: "job-${createCalls}".also { existingJobId = it }
         return AiCreateJob(
             jobId = jobId,
@@ -466,18 +518,20 @@ private class StatefulFakeAiApiClient(
 ) : AiApiClient {
     var processFailure: Throwable? = null
     val idempotencyKeys = mutableListOf<String>()
+    val targetTitles = mutableListOf<String?>()
     val uniqueJobIds = linkedSetOf<String>()
-    private val jobsByFingerprint = linkedMapOf<Pair<String, String>, String>()
+    private val jobsByFingerprint = linkedMapOf<Triple<String, String, String?>, String>()
     private val hashesByKey = linkedMapOf<String, String>()
     private var nextJobNumber = 1
 
-    override suspend fun createOrGetJob(idempotencyKey: String, source: AiSourceMetadata, sourceReady: Boolean): AiCreateJob {
+    override suspend fun createOrGetJob(idempotencyKey: String, source: AiSourceMetadata, sourceReady: Boolean, targetTitle: String?): AiCreateJob {
         hashesByKey[idempotencyKey]?.let { previousHash ->
             check(previousHash == source.sourceHash) { "idempotency key reused with different source bytes" }
         } ?: run { hashesByKey[idempotencyKey] = source.sourceHash }
-        val fingerprint = idempotencyKey to source.sourceHash
+        val fingerprint = Triple(idempotencyKey, source.sourceHash, targetTitle)
         val jobId = jobsByFingerprint.getOrPut(fingerprint) { "stateful-job-${nextJobNumber++}" }
         idempotencyKeys += idempotencyKey
+        targetTitles += targetTitle
         uniqueJobIds += jobId
         return AiCreateJob(jobId, AiJobStatus.RESERVED, AiUploadTarget("user/$jobId.pdf", null), sourceReady)
     }
