@@ -124,44 +124,6 @@ fun NotificationSettingsScreen(viewModel: AppViewModel, onBack: () -> Unit, show
             }
         }
         item {
-            Text("Modo foco", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-        }
-        item {
-            ElevatedCard {
-                ListItem(
-                    headlineContent = { Text("Não perturbe durante o estudo", fontWeight = FontWeight.SemiBold) },
-                    supportingContent = { Text("Liga o Não Perturbe do Android ao começar a sessão e devolve tudo ao normal ao encerrar. As exceções que você configurou (favoritos, quem liga duas vezes) continuam passando.") },
-                    leadingContent = { Icon(Icons.Outlined.DoNotDisturbOn, null) },
-                    trailingContent = { Switch(focusDnd, viewModel::setFocusDoNotDisturb) },
-                )
-                HorizontalDivider()
-                ListItem(
-                    headlineContent = { Text("Manter a tela ligada", fontWeight = FontWeight.SemiBold) },
-                    supportingContent = { Text("Enquanto a tela do modo foco estiver aberta") },
-                    leadingContent = { Icon(Icons.Outlined.Lightbulb, null) },
-                    trailingContent = { Switch(focusScreenOn, viewModel::setFocusKeepScreenOn) },
-                )
-                if (focusDnd && !dndGranted) {
-                    HorizontalDivider()
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Falta uma autorização do Android", fontWeight = FontWeight.Bold)
-                        Text("O Não Perturbe só pode ser ligado por um app depois que você autoriza, uma única vez, nas configurações do sistema.", style = MaterialTheme.typography.bodySmall)
-                        OutlinedButton(onClick = { context.startActivity(FocusMode.dndSettingsIntent()) }, Modifier.fillMaxWidth()) {
-                            Text("Conceder acesso ao Não Perturbe")
-                        }
-                    }
-                }
-            }
-        }
-        item {
-            Text("Durante uma sessão de foco os lembretes do Estudário ficam em silêncio e voltam sozinhos depois.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        item {
-            Button(onClick = viewModel::sendTestNotification, enabled = enabled && permissionGranted, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Outlined.Send, null); Spacer(Modifier.width(8.dp)); Text("Enviar notificação de teste")
-            }
-        }
-        item {
             Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Como funciona", fontWeight = FontWeight.Bold)

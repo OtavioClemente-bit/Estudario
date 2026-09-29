@@ -47,6 +47,7 @@ class EstudarioApplication : Application() {
         private set
     lateinit var planRepository: StudyPlanRepository
         private set
+    lateinit var calendarSyncService: br.com.estudario.data.planner.CalendarSyncService
     lateinit var planService: StudyPlanApplicationService
         private set
     lateinit var executionService: StudyExecutionService
@@ -125,7 +126,7 @@ class EstudarioApplication : Application() {
         focusSessionRepository = FocusSessionRepository(database.dao())
         preferences = AppPreferences(this)
         planRepository = StudyPlanRepository(database)
-        val calendarSyncService = br.com.estudario.data.planner.CalendarSyncService(this)
+        calendarSyncService = br.com.estudario.data.planner.CalendarSyncService(this)
         planService = StudyPlanApplicationService(database, StudyPlannerEngine(), calendarSyncService)
         executionService = StudyExecutionService(database, planService)
         planTransferService = StudyPlanTransferService(database)

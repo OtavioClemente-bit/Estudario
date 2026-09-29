@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FactCheck
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.QueryStats
@@ -223,7 +224,7 @@ fun estudarioDrawerSections(
         listOf(
             DrawerEntry("Ajustes", Icons.Outlined.Tune, onSettings, "more"),
             DrawerEntry("Notificações", Icons.Outlined.NotificationsActive, onNotifications, "notifications"),
-            DrawerEntry("Sincronizar com a agenda", Icons.Outlined.Autorenew, onSyncCalendar),
+            DrawerEntry("Agenda do celular", Icons.Outlined.CalendarMonth, onSyncCalendar, "agenda"),
             DrawerEntry("Como usar o app", Icons.Outlined.HelpOutline, onHelp),
         ),
     ),
@@ -269,6 +270,7 @@ fun EstudarioTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight),
         ) {
+            Icon(Icons.Outlined.Menu, contentDescription = null, modifier = Modifier.size(22.dp))
             EstudarioGlyph(size = 20.dp)
             Text("ESTUDÁRIO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
         }

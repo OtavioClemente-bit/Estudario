@@ -275,7 +275,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         onSources = { abrirDoMenu("sources") },
                         onSettings = { abrirDoMenu("more") },
                         onNotifications = { abrirDoMenu("notifications") },
-                        onSyncCalendar = ::sincronizarAgenda,
+                        onSyncCalendar = { abrirDoMenu("agenda") },
                         onHelp = { drawerScope.launch { drawerState.close() }; showTourPicker = true },
                     ),
                     appVersion = "Estudário ${BuildConfig.VERSION_NAME}",
@@ -302,12 +302,34 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         currentRoute == "focus-history" -> "Histórico de foco"
                         currentRoute == "theory/{id}?block={block}" -> "Leitura"
                         currentRoute == "notebook" -> "Caderno de estudo"
+                        currentRoute == "agenda" -> "Agenda"
                         else -> null
                     },
                     profileModifier = if (showBottom) Modifier.tourTarget(TourKey.HOME_PROFILE, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.HOME_PROFILE, it) } else Modifier,
                     menuModifier = Modifier.tourTarget(TourKey.NAV_MENU, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.NAV_MENU, it) },
                 )
                 // Gerações da IA que seguem em segundo plano, visíveis em qualquer tela.
+                // Uma vez só: mostra que o botão Estudário abre um menu com o resto do app.
+                val hintPrefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
+                var drawerHintSeen by remember { mutableStateOf(hintPrefs.getBoolean("drawer_hint_seen", false)) }
+                LaunchedEffect(drawerState.isOpen) { if (drawerState.isOpen && !drawerHintSeen) { drawerHintSeen = true; hintPrefs.edit().putBoolean("drawer_hint_seen", true).apply() } }
+                if (!drawerHintSeen && currentRoute == "home" && tourStep == null) {
+                    Surface(
+                        onClick = { drawerScope.launch { drawerState.open() } },
+                        shape = br.com.estudario.ui.theme.EstudarioShapes.row,
+                        color = MaterialTheme.colorScheme.inverseSurface,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    ) {
+                        Row(Modifier.padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Outlined.Menu, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.inverseOnSurface)
+                            Spacer(Modifier.width(10.dp))
+                            Text("Toque em ☰ Estudário para abrir o menu: Caderno, Revisões, Desempenho, Agenda e Ajustes.", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.inverseOnSurface)
+                            IconButton(onClick = { drawerHintSeen = true; hintPrefs.edit().putBoolean("drawer_hint_seen", true).apply() }) {
+                                Icon(Icons.Outlined.Close, "Entendi", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.inverseOnSurface)
+                            }
+                        }
+                    }
+                }
                 br.com.estudario.ui.ai.BackgroundAiBanner(onOpen = { text, competitionId -> viewModel.openIncomingText(text, competitionId) })
             } },
             bottomBar = {
@@ -401,7 +423,11 @@ private fun MainNavigation(viewModel: AppViewModel) {
                 }
                 composable("train") { TrainScreen(viewModel, onStart = { config -> navController.navigate("quiz/${config.count}/${config.topicId ?: 0}/${config.subjectId ?: 0}/${config.mode}/${Uri.encode(config.board ?: "_")}/${config.difficulty ?: "_"}") }, onHelp = { viewModel.startTour(TourId.TRAIN) }) }
                 composable("errors") { ErrorsScreen(viewModel, onTrainErrors = { navController.navigate("quiz/20/0/0/errors/_/_") }, onOpenTopic = { navController.navigate("topic/$it") }) }
-                composable("more") { MoreScreen(viewModel, onOpenSetup = viewModel::reopenInitialSetup) }
+                composable("more") { MoreScreen(viewModel, onOpenSetup = viewModel::reopenInitialSetup, onNotifications = { navController.navigate("notifications") }, onAgenda = { navController.navigate("agenda") }) }
+                composable("agenda") {
+                    val agendaPlan by planViewModel.state.collectAsState()
+                    br.com.estudario.ui.planner.AgendaSyncScreen(agendaPlan.activePlan?.name, loadTasks = { planViewModel.state.value.tasks.map { it.entity } })
+                }
                 composable("topic/{id}") { backStack ->
                     val id = backStack.arguments?.getString("id")?.toLongOrNull() ?: 0
                     TopicDetailScreen(viewModel, id, planViewModel = planViewModel, onBack = { navController.popBackStack() }, onQuiz = { navController.navigate("quiz/15/$id/0/random/_/_") }, onTheory = { navController.navigate("theory/$it") }, onFocus = { showFocusOverlay = true })
