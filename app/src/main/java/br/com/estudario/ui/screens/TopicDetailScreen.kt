@@ -54,6 +54,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
     val snippets by viewModel.snippets.collectAsState()
     val theories by viewModel.theories.collectAsState()
     val theoryMarks by viewModel.theoryMarks.collectAsState()
+    val userNotes by viewModel.notes.collectAsState()
     val questions by viewModel.questions.collectAsState()
     val reviews by viewModel.reviews.collectAsState()
     val attempts by viewModel.attempts.collectAsState()
@@ -103,6 +104,10 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
     val queueItem = queue.firstOrNull { it.item.topicId == topicId }
     val sessionAttempts = attempts.filter { it.questionId in questionIds && it.answeredAt >= studyStartedAt }
     var showContentPrompt by remember { mutableStateOf(false) }
+    var editingNote by remember { mutableStateOf<br.com.estudario.data.local.UserNoteEntity?>(null) }
+    editingNote?.let { note ->
+        NoteEditor(note, topics, onDismiss = { editingNote = null }, onSave = { viewModel.saveNote(it); editingNote = null }, onDelete = { viewModel.deleteNote(note); editingNote = null })
+    }
     var showAdditionalQuestionPrompt by remember { mutableStateOf(false) }
     var showPriority by remember { mutableStateOf(false) }
     val competitions by viewModel.competitions.collectAsState()
@@ -511,6 +516,29 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                         LinearProgressIndicator({ readPercent / 100f }, Modifier.fillMaxWidth())
                         Text("$readPercent% lido • ${theoryMarks.count { it.theoryId == theory.id }} marcação(ões)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Button(onClick = { onTheory(theory.id) }, Modifier.fillMaxWidth()) { Text(if (theory.lastReadBlock > 0) "Continuar leitura" else "Começar leitura") }
+                    }
+                }
+            }
+        }
+        // Anotações do próprio tópico: escritas aqui, reunidas também no Caderno de estudo.
+        val topicNotes = userNotes.filter { it.topicId == topicId }
+        item(key = "topic-notes-header") {
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("Minhas anotações", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                TextButton(onClick = { editingNote = br.com.estudario.data.local.UserNoteEntity(topicId = topicId, text = "") }) {
+                    Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Nova")
+                }
+            }
+        }
+        if (topicNotes.isEmpty()) item(key = "topic-notes-empty") {
+            Text("Escreva com suas palavras o que precisa lembrar deste tópico. As anotações também ficam no Caderno de estudo.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        topicNotes.forEach { note ->
+            item(key = "topic-note-${note.id}") {
+                ElevatedCard(onClick = { editingNote = note }, modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Icon(Icons.Outlined.EditNote, null, tint = MaterialTheme.colorScheme.primary)
+                        Text(note.text, Modifier.weight(1f), maxLines = 6, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
                 }
             }

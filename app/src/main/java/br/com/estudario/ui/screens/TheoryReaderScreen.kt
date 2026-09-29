@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -31,14 +32,27 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
     if (theory == null) { EmptyState("Teoria não encontrada", "O livro pode ter sido removido.", "Voltar", onBack); return }
     val blocks = remember(theory.markdown) { br.com.estudario.ui.components.studyBlocks(theory.markdown) }
     val marks = allMarks.filter { it.theoryId == theoryId }
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = (initialBlock ?: theory.lastReadBlock).coerceIn(0, (blocks.size - 1).coerceAtLeast(0)))
-    var textScale by remember { mutableFloatStateOf(1f) }
+    // Dentro do app o cabeçalho é um item da lista: os blocos começam depois dele.
+    val headerOffset = if (showInternalTopBar) 0 else 1
+    val startBlock = (initialBlock ?: theory.lastReadBlock).coerceIn(0, (blocks.size - 1).coerceAtLeast(0))
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = startBlock + if (startBlock > 0) headerOffset else 0)
+    val chapters = remember(blocks) { blocks.withIndex().filter { it.value.trimStart().startsWith("#") }.map { it.index to it.value.trimStart().trimStart('#').trim().lineSequence().first() } }
+    var tocOpen by remember { mutableStateOf(false) }
+    var textScale by rememberSaveable { mutableFloatStateOf(1f) }
     var editingIndex by remember { mutableStateOf<Int?>(null) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val reachedEnd by remember { derivedStateOf { listState.layoutInfo.totalItemsCount > 0 && !listState.canScrollForward } }
-    val currentBlock by remember { derivedStateOf { if (reachedEnd) blocks.lastIndex.coerceAtLeast(0) else listState.firstVisibleItemIndex } }
-    val progress by remember { derivedStateOf { if (blocks.isEmpty()) 0f else if (reachedEnd) 1f else (listState.firstVisibleItemIndex + 1f) / blocks.size } }
+    val currentBlock by remember { derivedStateOf { if (reachedEnd) blocks.lastIndex.coerceAtLeast(0) else (listState.firstVisibleItemIndex - headerOffset).coerceIn(0, blocks.lastIndex.coerceAtLeast(0)) } }
+    val progress by remember { derivedStateOf { if (blocks.isEmpty()) 0f else if (reachedEnd) 1f else (currentBlock + 1f) / blocks.size } }
+
+    // Retomada visível: quem volta à leitura sabe que caiu onde parou e pode recomeçar.
+    LaunchedEffect(theory.id) {
+        if (initialBlock == null && startBlock > 0 && blocks.isNotEmpty()) {
+            val result = snackbar.showSnackbar("Você voltou para onde parou (${((startBlock + 1) * 100) / blocks.size}%).", actionLabel = "Do início", duration = SnackbarDuration.Long)
+            if (result == SnackbarResult.ActionPerformed) listState.animateScrollToItem(0)
+        }
+    }
 
     LaunchedEffect(theory.id, blocks.size) {
         snapshotFlow { currentBlock }.distinctUntilChanged().collect { viewModel.updateTheoryProgress(theory, it) }
@@ -56,13 +70,33 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
         )
     }
 
+    if (tocOpen) ModalBottomSheet(onDismissRequest = { tocOpen = false }) {
+        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Índice", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
+            chapters.forEach { (blockIndex, title) ->
+                val active = chapters.lastOrNull { it.first <= currentBlock }?.first == blockIndex
+                Surface(
+                    onClick = { tocOpen = false; scope.launch { listState.animateScrollToItem(blockIndex + headerOffset) } },
+                    color = if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(title, Modifier.weight(1f), fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal)
+                        if (marks.any { mark -> mark.blockIndex >= blockIndex && mark.blockIndex < (chapters.firstOrNull { it.first > blockIndex }?.first ?: Int.MAX_VALUE) }) Icon(Icons.Outlined.Bookmark, "Tem marcações", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.tertiary)
+                    }
+                }
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
-            Column {
+            if (showInternalTopBar) Column {
                 TopAppBar(
                     title = { Column { Text(theory.title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis); Text("${(progress * 100).toInt()}% lido • ${marks.size} marcação(ões)", style = MaterialTheme.typography.labelSmall) } },
                     navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") } },
-                    actions = { IconButton(onClick = { textScale = (textScale - .1f).coerceAtLeast(.8f) }) { Text("A−", fontWeight = FontWeight.Bold) }; IconButton(onClick = { textScale = (textScale + .1f).coerceAtMost(1.5f) }) { Text("A+", fontWeight = FontWeight.Bold) } },
+                    actions = { if (chapters.size > 1) IconButton(onClick = { tocOpen = true }) { Icon(Icons.Outlined.Toc, "Índice") }; IconButton(onClick = { textScale = (textScale - .1f).coerceAtLeast(.8f) }) { Text("A−", fontWeight = FontWeight.Bold) }; IconButton(onClick = { textScale = (textScale + .1f).coerceAtMost(1.5f) }) { Text("A+", fontWeight = FontWeight.Bold) } },
                 )
                 LinearProgressIndicator({ progress.coerceIn(0f, 1f) }, Modifier.fillMaxWidth())
             }
@@ -90,6 +124,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(theory.title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        if (chapters.size > 1) IconButton(onClick = { tocOpen = true }) { Icon(Icons.Outlined.Toc, "Índice") }
                         IconButton(onClick = { textScale = (textScale - .1f).coerceAtLeast(.8f) }) { Text("A−", fontWeight = FontWeight.Bold) }
                         IconButton(onClick = { textScale = (textScale + .1f).coerceAtMost(1.5f) }) { Text("A+", fontWeight = FontWeight.Bold) }
                     }
@@ -101,8 +136,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                 item(key = index) {
                     val mark = marks.firstOrNull { it.blockIndex == index }
                     Row(Modifier.fillMaxWidth().background(if (mark != null) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = .55f) else MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp)).padding(start = 12.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.Top) {
-                        val density = LocalDensity.current
-                        CompositionLocalProvider(LocalDensity provides Density(density.density, textScale)) { MarkdownText(block, Modifier.weight(1f)) }
+                        br.com.estudario.ui.components.StudyMarkdown(block, Modifier.weight(1f), textSizeSp = MaterialTheme.typography.bodyLarge.fontSize.value * textScale)
                         IconButton(onClick = { editingIndex = index }) { Icon(if (mark == null) Icons.Outlined.BookmarkAdd else Icons.Outlined.Bookmark, if (mark == null) "Marcar" else "Editar observação", tint = if (mark == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.tertiary) }
                     }
                     if (!mark?.note.isNullOrBlank()) Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(8.dp), modifier = Modifier.padding(start = 12.dp, top = 4.dp)) { Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { Icon(Icons.Outlined.EditNote, null); Text(mark!!.note, Modifier.weight(1f)) } }

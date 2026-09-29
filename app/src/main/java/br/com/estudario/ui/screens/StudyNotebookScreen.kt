@@ -247,7 +247,7 @@ private fun EmptyHint(icon: androidx.compose.ui.graphics.vector.ImageVector, tit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NoteEditor(note: UserNoteEntity, topics: List<TopicEntity>, onDismiss: () -> Unit, onSave: (UserNoteEntity) -> Unit, onDelete: () -> Unit) {
+internal fun NoteEditor(note: UserNoteEntity, topics: List<TopicEntity>, onDismiss: () -> Unit, onSave: (UserNoteEntity) -> Unit, onDelete: () -> Unit) {
     var text by remember(note.id) { mutableStateOf(note.text) }
     var topicId by remember(note.id) { mutableStateOf(note.topicId) }
     var pickerOpen by remember { mutableStateOf(false) }
