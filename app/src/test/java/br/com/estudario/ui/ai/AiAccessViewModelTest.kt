@@ -25,10 +25,10 @@ class AiAccessViewModelTest {
             override suspend fun loadAccess(feature: AiFeature) = responses[feature] ?: AiAccessLoadResult.Failed(AiAccessFailure(AiAccessFailureCode.OFFLINE))
         })
         vm.refresh()
-        assertEquals("1 geração disponível no Beta", vm.state.value.items[AiFeature.SYLLABUS_GENERATION]?.quotaCopy)
+        assertEquals("Restam 1 de 1 · saldo único", vm.state.value.items[AiFeature.SYLLABUS_GENERATION]?.quotaCopy)
         responses[AiFeature.SYLLABUS_GENERATION] = AiAccessLoadResult.Available(access(AiFeature.SYLLABUS_GENERATION, 0, "QUOTA_EXHAUSTED"))
         vm.refresh()
-        assertEquals("Geração do Beta utilizada", vm.state.value.items[AiFeature.SYLLABUS_GENERATION]?.quotaCopy)
+        assertEquals("Restam 0 de 1 · saldo único", vm.state.value.items[AiFeature.SYLLABUS_GENERATION]?.quotaCopy)
         assertFalse(vm.state.value.items[AiFeature.SYLLABUS_GENERATION]!!.canUse)
         assertFalse(vm.state.value.items[AiFeature.SYLLABUS_GENERATION]!!.quotaCopy.contains("1970"))
     }

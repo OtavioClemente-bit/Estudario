@@ -43,6 +43,8 @@ import br.com.estudario.domain.StreakSummary
 import br.com.estudario.ui.AppViewModel
 import br.com.estudario.EstudarioApplication
 import br.com.estudario.ui.ai.AiAccessSummary
+import br.com.estudario.ui.plans.PlansDialog
+import androidx.compose.material.icons.outlined.WorkspacePremium
 import br.com.estudario.ui.ai.AiAccessUiState
 import br.com.estudario.ui.ai.AiAccessViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -176,6 +178,8 @@ private fun ProfileContent(
     onImportBackup: () -> Unit,
     showTopBar: Boolean = true,
 ) {
+    var showPlans by remember { mutableStateOf(false) }
+    if (showPlans) PlansDialog(onDismiss = { showPlans = false })
     Scaffold(
         topBar = {
             if (showTopBar) TopAppBar(
@@ -253,10 +257,17 @@ private fun ProfileContent(
             }
             item { Band { Divider() } }
 
+            item {
+                Band {
+                    Text("PLANO E IA", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(EstudarioSpacing.small))
+                    BackupRow(Icons.Outlined.WorkspacePremium, "Planos e uso", "Veja seu plano, o saldo de gerações e compare os planos") { showPlans = true }
+                }
+            }
             if (aiAccessState != null) {
                 item { AiAccessSummary(aiAccessState) }
-                item { Band { Divider() } }
             }
+            item { Band { Divider() } }
 
             item {
                 Band {

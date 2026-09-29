@@ -78,6 +78,13 @@ class EstudarioApplication : Application() {
             authRepository = supabaseAuthRepository,
         )
     }
+    /** Plano efetivo, catálogo e uso. Somente leitura: quem decide cota é o servidor. */
+    val aiPlanRepository: br.com.estudario.ui.plans.AiPlanRepository by lazy {
+        br.com.estudario.ui.plans.HttpAiPlanRepository(
+            config = supabaseClientConfig,
+            authRepository = supabaseAuthRepository,
+        )
+    }
     val privateSyllabusRepository: PrivateSyllabusRepository by lazy {
         PrivateSyllabusRepository(
             database = database,

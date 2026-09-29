@@ -53,16 +53,15 @@ fun AiAccess.toDisplay(): AiFeatureDisplay {
     }
     val copy = when {
         quota == null -> "Cota não disponível"
-        feature == AiFeature.SYLLABUS_GENERATION && canUse && quota.remaining > 0 -> "1 geração disponível no Beta"
-        feature == AiFeature.SYLLABUS_GENERATION && reasonCode == "QUOTA_EXHAUSTED" -> "Geração do Beta utilizada"
-        feature == AiFeature.SYLLABUS_GENERATION && reasonCode == "QUOTA_RESERVED" -> "Geração do Beta em andamento"
-        feature == AiFeature.SYLLABUS_GENERATION -> "Geração do Beta indisponível"
+        reasonCode == "QUOTA_RESERVED" -> "Geração em andamento"
+        // Acesso negado por conta ou recurso: não anunciar saldo que a pessoa não pode usar.
+        !canUse && reasonCode != "QUOTA_EXHAUSTED" -> "Cota indisponível"
         else -> {
-            val base = "${quota.remaining} de ${quota.limit} disponíveis"
+            val base = "Restam ${quota.remaining} de ${quota.limit}"
             val reset = quota.resetAt?.let { runCatching {
-                DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.of("America/Sao_Paulo")).format(Instant.parse(it))
+                DateTimeFormatter.ofPattern("dd/MM/yyyy").withZone(ZoneId.of("America/Sao_Paulo")).format(Instant.parse(it))
             }.getOrNull() }
-            if (reset == null) base else "$base · Renova em $reset"
+            if (reset == null) "$base · saldo único" else "$base neste mês · renova em $reset"
         }
     }
     return AiFeatureDisplay(availability, copy, canUse)
