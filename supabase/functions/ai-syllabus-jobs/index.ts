@@ -116,6 +116,20 @@ function sourceInput(body: Record<string, unknown>): Record<string, unknown> {
   return body.source;
 }
 
+function targetInput(body: Record<string, unknown>): { title: string | null } {
+  if (body.target === undefined) return { title: null };
+  if (!isRecord(body.target)) throw new JobStoreError("INVALID_REQUEST", 400);
+  const target = body.target;
+  if (Object.keys(target).some((key) => key !== "title") || typeof target.title !== "string") {
+    throw new JobStoreError("INVALID_REQUEST", 400);
+  }
+  const title = target.title.normalize("NFC").trim();
+  if (!title || Array.from(title).length > 200 || /\p{Cc}/u.test(title)) {
+    throw new JobStoreError("INVALID_REQUEST", 400);
+  }
+  return { title };
+}
+
 function sourcePath(userId: string, key: string, source: Record<string, unknown>): string {
   const generated = sourcePathForJob(userId, key);
   if (source.objectPath === undefined) return generated;
@@ -176,6 +190,7 @@ async function createJob(
   const key = idempotencyKey(request);
   const body = await requestBody(request);
   if (body.feature !== undefined && body.feature !== SYLLABUS_FEATURE) return safeError("INVALID_FEATURE", 400);
+  const target = targetInput(body);
   const source = sourceInput(body);
   const path = sourcePath(user.userId, key, source);
   const mimeType = clientMime(source);
@@ -188,6 +203,7 @@ async function createJob(
     mimeType,
     sourceHash,
     sourceBytes,
+    ...(body.target === undefined ? {} : { target }),
   } satisfies Record<string, unknown>;
   const fingerprint = await requestFingerprint(payload);
 

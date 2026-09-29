@@ -1,6 +1,7 @@
 package br.com.estudario.domain.ai
 
-import br.com.estudario.data.ai.CURRENT_AI_SCHEMA_VERSION
+import br.com.estudario.data.ai.CURRENT_AI_SYLLABUS_SCHEMA_VERSION
+import br.com.estudario.data.ai.AiTargetMatch
 import br.com.estudario.data.ai.AiWarning
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -16,7 +17,9 @@ object AiSyllabusProposalValidator {
         requireName(draft.targetTitle, "targetTitle")
         draft.titleOverride?.let { requireName(it, "titleOverride") }
         requireName(draft.sourceVersion, "sourceVersion")
-        if (draft.proposal.schemaVersion != CURRENT_AI_SCHEMA_VERSION) fail("unsupported proposal.schemaVersion")
+        if (draft.proposal.schemaVersion !in 1..CURRENT_AI_SYLLABUS_SCHEMA_VERSION) fail("unsupported proposal.schemaVersion")
+        if (draft.proposal.schemaVersion == CURRENT_AI_SYLLABUS_SCHEMA_VERSION && draft.proposal.targetMatch != AiTargetMatch.MATCHED) fail("proposal.targetMatch must be MATCHED to create a v2 draft")
+        if (draft.proposal.targetMatch != null && draft.proposal.targetMatch != AiTargetMatch.MATCHED) fail("proposal.targetMatch must be MATCHED to create a draft")
         requireName(draft.proposal.promptVersion, "proposal.promptVersion")
         requireName(draft.proposal.modelVersion, "proposal.modelVersion")
         requireName(draft.proposal.documentTitle, "proposal.documentTitle")

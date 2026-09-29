@@ -34,6 +34,8 @@ data class PersistedAiJobRequest(
     val targetSyllabusId: Long? = null,
     val targetTitle: String? = null,
     val updatedAtEpochMillis: Long = System.currentTimeMillis(),
+    // Defaults to v1 for requests persisted by older app versions. New attempts explicitly use v2.
+    val targetPayloadVersion: Int = 1,
 )
 
 interface AiJobRequestStore {
@@ -106,6 +108,7 @@ class DefaultAiSyllabusRepository(
             ownerUserId = ownerUserId,
             targetSyllabusId = targetSyllabusId,
             targetTitle = targetTitle,
+            targetPayloadVersion = 2,
         )
         requestStore.save(request)
         onRequestPersisted(request)
@@ -146,6 +149,7 @@ class DefaultAiSyllabusRepository(
             sourceHash = source.sha256,
             sourceBytes = source.bytes.size.toLong(),
             sourcePath = durablePrevious.sourcePath,
+            targetPayloadVersion = 2,
             updatedAtEpochMillis = System.currentTimeMillis(),
         )
         requestStore.save(retry)
@@ -247,6 +251,7 @@ class DefaultAiSyllabusRepository(
             current.idempotencyKey,
             sourceMetadata.copy(objectPath = current.uploadPath.takeIf { sourceReady }),
             sourceReady = sourceReady,
+            targetTitle = current.targetTitle.takeIf { current.targetPayloadVersion >= 2 },
         )
         current = current.copy(
             jobId = created.jobId,
@@ -267,6 +272,7 @@ class DefaultAiSyllabusRepository(
                 current.idempotencyKey,
                 sourceMetadata.copy(objectPath = created.uploadTarget.path),
                 sourceReady = true,
+                targetTitle = current.targetTitle.takeIf { current.targetPayloadVersion >= 2 },
             )
             current = current.copy(
                 jobId = bound.jobId,

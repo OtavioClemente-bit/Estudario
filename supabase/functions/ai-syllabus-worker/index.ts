@@ -21,10 +21,19 @@ import {
   SYLLABUS_PROMPT_VERSION,
   SYLLABUS_SYSTEM_PROMPT,
   syllabusUserPrompt,
+} from "../_shared/prompts/syllabus-v2.ts";
+import {
+  SYLLABUS_PROMPT_VERSION as LEGACY_SYLLABUS_PROMPT_VERSION,
+  SYLLABUS_SYSTEM_PROMPT as LEGACY_SYLLABUS_SYSTEM_PROMPT,
+  syllabusUserPrompt as legacySyllabusUserPrompt,
 } from "../_shared/prompts/syllabus-v1.ts";
 import {
   AI_SYLLABUS_PROPOSAL_SCHEMA,
   AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION,
+} from "../_shared/schemas/ai-syllabus-proposal-v2.ts";
+import {
+  AI_SYLLABUS_PROPOSAL_SCHEMA as LEGACY_AI_SYLLABUS_PROPOSAL_SCHEMA,
+  AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION as LEGACY_AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION,
 } from "../_shared/schemas/ai-syllabus-proposal-v1.ts";
 import {
   AI_SYLLABUS_SOURCE_BUCKET,
@@ -74,6 +83,7 @@ export interface SyllabusWorkerJob {
   sourceBytes: number;
   sourcePages: number;
   sourceFileCount: number;
+  targetTitle: string | null;
   openaiResponseId: string | null;
   providerExecutionStartedAt: string | null;
   providerStartOutcome?: string;
@@ -158,6 +168,7 @@ export interface SyllabusWorkerDependencies {
   validationLimits?: ProposalValidationLimits;
   telemetry?: (event: TerminalAiTelemetry) => void;
   providerDiagnostics?: (event: AiProviderDiagnostic) => void;
+  logProviderDiagnostics?: boolean;
 }
 
 export interface AiProviderDiagnostic {
@@ -166,12 +177,47 @@ export interface AiProviderDiagnostic {
   stage: "start" | "retrieve" | "cancel" | "validation";
   outcome: string;
   code: string;
+  providerStatus?: ProviderResponse["status"];
+  incompleteReason?: string | null;
   status?: number;
   type?: string | null;
   providerCode?: string | null;
   requestId?: string;
   model?: string;
   message: string;
+}
+
+function logProviderTerminalStatus(
+  dependencies: SyllabusWorkerDependencies,
+  job: SyllabusWorkerJob,
+  response: ProviderResponse,
+): void {
+  try {
+    const event: AiProviderDiagnostic = {
+      event: "ai_provider_diagnostic",
+      jobId: job.id,
+      stage: "retrieve",
+      outcome: "TERMINAL_RESPONSE",
+      code: response.status === "incomplete"
+        ? "PROVIDER_INCOMPLETE"
+        : response.status === "failed"
+        ? "PROVIDER_FAILED"
+        : response.status === "expired"
+        ? "PROVIDER_EXPIRED"
+        : "PROVIDER_CANCELLED",
+      providerStatus: response.status,
+      ...(response.status === "incomplete"
+        ? { incompleteReason: response.incompleteReason }
+        : {}),
+      message: "Provider response reached a terminal status without a result",
+    };
+    if (dependencies.logProviderDiagnostics !== false) {
+      console.error(JSON.stringify(event));
+    }
+    dependencies.providerDiagnostics?.(event);
+  } catch {
+    // Diagnostics must never change the provider/job state.
+  }
 }
 
 async function providerCall<T>(
@@ -351,12 +397,14 @@ async function finalizeFailure(
 
 function validationOptions(
   dependencies: SyllabusWorkerDependencies,
+  job: SyllabusWorkerJob,
 ): ProposalValidationOptions {
+  const legacyAcceptedJob = job.targetTitle === null && job.openaiResponseId !== null;
   return {
     ...dependencies.validationLimits,
     expected: {
-      schemaVersion: AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION,
-      promptVersion: SYLLABUS_PROMPT_VERSION,
+      schemaVersion: legacyAcceptedJob ? LEGACY_AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION : AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION,
+      promptVersion: legacyAcceptedJob ? LEGACY_SYLLABUS_PROMPT_VERSION : SYLLABUS_PROMPT_VERSION,
       modelVersion: resolveOpenAiModel(dependencies.model),
     },
   };
@@ -405,17 +453,20 @@ async function processResponse(
   }
   if (response.status === "queued" || response.status === "in_progress") {
     await dependencies.jobs.reconcileProvider(job.id, lease, true);
-    if (job.retryCount < (dependencies.maxRetries ?? 3)) {
-      await dependencies.jobs.markRetry(job.id, lease);
-    }
+    // Polling an already accepted response is not a new provider generation.
+    // Always release the lease so the scheduled worker can check it next cycle.
+    await dependencies.jobs.markRetry(job.id, lease);
     return;
   }
   if (terminalProviderStatus(response.status)) {
+    logProviderTerminalStatus(dependencies, job, response);
     await finalizeFailure(
       dependencies,
       job,
       lease,
-      "PROVIDER_RESULT_UNAVAILABLE",
+      response.status === "incomplete"
+        ? "PROVIDER_INCOMPLETE"
+        : "PROVIDER_RESULT_UNAVAILABLE",
       "FAILED",
       false,
       response.usage,
@@ -427,7 +478,7 @@ async function processResponse(
   try {
     proposal = await validateAiSyllabusProposal(
       response.outputText ?? "",
-      validationOptions(dependencies),
+      validationOptions(dependencies, job),
     );
   } catch (error) {
     if (error instanceof ProposalValidationError) {
@@ -464,6 +515,19 @@ async function processResponse(
       job,
       lease,
       code,
+      "FAILED",
+      false,
+      response.usage,
+    );
+    return;
+  }
+  if (proposal.schemaVersion === AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION && proposal.targetMatch !== "MATCHED") {
+    await dependencies.jobs.captureUsage(job.id, lease, response.usage);
+    await finalizeFailure(
+      dependencies,
+      job,
+      lease,
+      proposal.targetMatch === "NOT_FOUND" ? "TARGET_NOT_FOUND" : "TARGET_AMBIGUOUS",
       "FAILED",
       false,
       response.usage,
@@ -621,6 +685,10 @@ export async function processSyllabusJob(
       );
       await dependencies.jobs.assertLease(job.id, lease);
     } else {
+      if (job.targetTitle === null || genericTargetTitle(job.targetTitle)) {
+        await finalizeFailure(dependencies, job, lease, "TARGET_AMBIGUOUS", "FAILED", false);
+        return true;
+      }
       const bytes = await dependencies.source(job);
       await dependencies.jobs.assertLease(job.id, lease);
       if (deadlineExceeded(job, now())) {
@@ -655,12 +723,13 @@ export async function processSyllabusJob(
                 filename: job.sourceObjectPath.split("/").pop() ?? "source.pdf",
                 bytes,
               },
-              systemPrompt: SYLLABUS_SYSTEM_PROMPT,
-              userPrompt: syllabusUserPrompt(),
-              promptVersion: SYLLABUS_PROMPT_VERSION,
-              schemaVersion: AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION,
-              schema: AI_SYLLABUS_PROPOSAL_SCHEMA,
+              systemPrompt: job.targetTitle === null ? LEGACY_SYLLABUS_SYSTEM_PROMPT : SYLLABUS_SYSTEM_PROMPT,
+              userPrompt: job.targetTitle === null ? legacySyllabusUserPrompt() : syllabusUserPrompt(job.targetTitle),
+              promptVersion: job.targetTitle === null ? LEGACY_SYLLABUS_PROMPT_VERSION : SYLLABUS_PROMPT_VERSION,
+              schemaVersion: job.targetTitle === null ? LEGACY_AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION : AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION,
+              schema: job.targetTitle === null ? LEGACY_AI_SYLLABUS_PROPOSAL_SCHEMA : AI_SYLLABUS_PROPOSAL_SCHEMA,
               model: resolveOpenAiModel(dependencies.model),
+              reasoningEffort: "low",
               background: true,
               store: true,
               maxOutputTokens: dependencies.maxOutputTokens,
@@ -866,6 +935,7 @@ function parseJob(value: Record<string, unknown>): SyllabusWorkerJob {
     sourceBytes: integerField(value, "source_bytes"),
     sourcePages: integerField(value, "source_pages"),
     sourceFileCount: integerField(value, "source_file_count"),
+    targetTitle: parseTargetTitle(value.request_payload),
     openaiResponseId: nullableString(value, "openai_response_id"),
     providerExecutionStartedAt: nullableString(
       value,
@@ -883,6 +953,21 @@ function parseJob(value: Record<string, unknown>): SyllabusWorkerJob {
     promptVersion: nullableString(value, "prompt_version"),
     modelVersion: nullableString(value, "model_version"),
   };
+}
+
+export function parseTargetTitle(requestPayload: unknown): string | null {
+  if (typeof requestPayload !== "object" || requestPayload === null || Array.isArray(requestPayload)) return null;
+  const target = (requestPayload as Record<string, unknown>).target;
+  if (typeof target !== "object" || target === null || Array.isArray(target)) return null;
+  const title = (target as Record<string, unknown>).title;
+  return typeof title === "string" && title.trim().length > 0 ? title : null;
+}
+
+function genericTargetTitle(value: string): boolean {
+  const normalized = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR").trim();
+  return /^(meu\s+)?edital(?:\s+(selecionado|importado))?$/.test(normalized) ||
+    /^(concurso|prova|estudos?)$/.test(normalized);
 }
 
 export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
@@ -1205,7 +1290,7 @@ function runtimeDependencies(): SyllabusWorkerDependencies & {
     provider: createOpenAiProvider({
       background: true,
       model: resolveOpenAiModel(),
-      maxOutputTokens: environmentNumber("MAX_OUTPUT_TOKENS", 4096),
+      maxOutputTokens: environmentNumber("MAX_OUTPUT_TOKENS", 16_384),
       timeoutMs: environmentNumber("OPENAI_TIMEOUT_MS", 30_000),
       store: true,
     }),
@@ -1223,8 +1308,8 @@ function runtimeDependencies(): SyllabusWorkerDependencies & {
     },
     leaseSeconds: environmentNumber("AI_WORKER_LEASE_SECONDS", 300),
     maxRetries: environmentNumber("AI_MAX_RETRIES", 3),
-    maxOutputTokens: environmentNumber("MAX_OUTPUT_TOKENS", 4096),
-    maxProcessingSeconds: environmentNumber("MAX_PROCESSING_SECONDS", 900),
+    maxOutputTokens: environmentNumber("MAX_OUTPUT_TOKENS", 16_384),
+    maxProcessingSeconds: environmentNumber("MAX_PROCESSING_SECONDS", 1800),
     model: resolveOpenAiModel(),
     validationLimits: {
       maxSubjects: environmentNumber("MAX_SUBJECTS", 100),

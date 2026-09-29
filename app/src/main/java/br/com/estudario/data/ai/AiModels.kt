@@ -7,6 +7,8 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 
 const val CURRENT_AI_SCHEMA_VERSION: Int = 1
+const val CURRENT_AI_SYLLABUS_SCHEMA_VERSION: Int = 2
+enum class AiTargetMatch { MATCHED, NOT_FOUND, AMBIGUOUS }
 
 enum class AiFeature { SYLLABUS_GENERATION, PLAN_GENERATION, CONTENT_GENERATION }
 enum class AiJobStatus { RESERVED, PROCESSING, SUCCEEDED, FAILED, EXPIRED, CANCELLED }
@@ -57,6 +59,7 @@ data class AiSyllabusProposal(
     val subjects: List<AiSubjectProposal>,
     val warnings: List<AiWarning>,
     val ambiguities: List<String>,
+    val targetMatch: AiTargetMatch? = null,
 )
 
 @Serializable
@@ -125,13 +128,14 @@ object EstudarioContractJson {
 }
 
 private fun AiSyllabusProposal.validate() {
-    if (schemaVersion != CURRENT_AI_SCHEMA_VERSION) {
+    if (schemaVersion !in 1..CURRENT_AI_SYLLABUS_SCHEMA_VERSION || (schemaVersion == 1 && targetMatch != null) || (schemaVersion == CURRENT_AI_SYLLABUS_SCHEMA_VERSION && targetMatch == null)) {
         throw ContractValidationException("proposal.schemaVersion: unsupported schema version $schemaVersion")
     }
     requireText(promptVersion, "proposal.promptVersion")
     requireText(modelVersion, "proposal.modelVersion")
     requireText(documentTitle, "proposal.documentTitle")
-    if (subjects.isEmpty()) throw ContractValidationException("proposal.subjects: must not be empty")
+    if ((targetMatch == AiTargetMatch.MATCHED || targetMatch == null) && subjects.isEmpty()) throw ContractValidationException("proposal.subjects: must not be empty")
+    if (targetMatch != null && ((targetMatch == AiTargetMatch.MATCHED) != subjects.isNotEmpty())) throw ContractValidationException("proposal.subjects: inconsistent with targetMatch")
     requireUniquePositions(subjects.map { it.position }, "proposal.subjects")
     subjects.forEachIndexed { index, subject -> subject.validate("proposal.subjects[$index]") }
     warnings.validateWarnings("proposal.warnings")
@@ -146,8 +150,11 @@ private fun AiAccess.validate() {
 
 private fun AiJob.validate() {
     requireContractText(jobId, "job.jobId")
-    if (schemaVersion != null && schemaVersion != CURRENT_AI_SCHEMA_VERSION) {
+    if (schemaVersion != null && schemaVersion !in 1..CURRENT_AI_SYLLABUS_SCHEMA_VERSION) {
         throw ContractValidationException("job.schemaVersion: unsupported schema version $schemaVersion")
+    }
+    if (schemaVersion == CURRENT_AI_SYLLABUS_SCHEMA_VERSION && feature != AiFeature.SYLLABUS_GENERATION) {
+        throw ContractValidationException("job.schemaVersion: v2 is only supported for syllabus generation")
     }
     promptVersion?.let { requireContractText(it, "job.promptVersion") }
     modelVersion?.let { requireContractText(it, "job.modelVersion") }
@@ -162,7 +169,7 @@ private fun AiJob.validate() {
     if (status == AiJobStatus.SUCCEEDED) {
         val completedProposal = proposal
             ?: throw ContractValidationException("job.proposal: required for SUCCEEDED jobs")
-        if (schemaVersion != CURRENT_AI_SCHEMA_VERSION) {
+        if (schemaVersion != completedProposal.schemaVersion) {
             throw ContractValidationException("job.schemaVersion: required for SUCCEEDED jobs")
         }
         if (promptVersion != completedProposal.promptVersion) {

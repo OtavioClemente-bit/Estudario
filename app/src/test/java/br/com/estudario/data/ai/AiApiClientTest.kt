@@ -4,12 +4,36 @@ import br.com.estudario.data.remote.AiAccessTokenProvider
 import java.time.Instant
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AiApiClientTest {
+    @Test
+    fun createJobSendsSelectedSyllabusTitleWithAuthenticatedRequest() = runTest {
+        val transport = FakeAiHttpTransport(
+            AiHttpResponse(201, """{"jobId":"job-1","status":"RESERVED","uploadPath":"user/job-1.pdf","sourceBound":false}"""),
+        )
+        val client = HttpAiApiClient("", "", AiAccessTokenProvider { "supabase-jwt" }, transport)
+
+        client.createOrGetJob(
+            idempotencyKey = "idem-1",
+            source = AiSourceMetadata("edital.pdf", "application/pdf", "a".repeat(64), 123L),
+            sourceReady = false,
+            targetTitle = "TRT-3 - Técnico Judiciário - TI",
+        )
+
+        val request = transport.requests.single()
+        val body = Json.parseToJsonElement(request.body!!.decodeToString()).jsonObject
+        assertEquals("TRT-3 - Técnico Judiciário - TI", body.getValue("target").jsonObject.getValue("title").jsonPrimitive.content)
+        assertEquals("Bearer supabase-jwt", request.headers["Authorization"])
+        assertEquals("idem-1", request.headers["Idempotency-Key"])
+    }
+
     @Test
     fun processAccepts202AndSendsSupabaseJwtAndIdempotencyKey() = runTest {
         val transport = FakeAiHttpTransport(
@@ -55,6 +79,25 @@ class AiApiClientTest {
         assertEquals(AiJobStatus.SUCCEEDED, result.status)
         assertEquals(listOf(1000L, 2000L), delays)
         assertTrue(transport.requests.all { it.path == "/functions/v1/ai-syllabus-jobs/job-1" })
+    }
+
+    @Test
+    fun awaitJobDecodesV2MatchedProposalAndKeepsLegacyV1Readable() = runTest {
+        val v2 = succeededJobJson()
+            .replace("\"schemaVersion\":1,\"promptVersion\":\"syllabus-v1\"", "\"schemaVersion\":2,\"promptVersion\":\"syllabus-v2\"")
+            .replace("\"proposal\":{\"schemaVersion\":2,\"promptVersion\":\"syllabus-v2\"", "\"proposal\":{\"schemaVersion\":2,\"targetMatch\":\"MATCHED\",\"promptVersion\":\"syllabus-v2\"")
+        val client = HttpAiApiClient(
+            transport = FakeAiHttpTransport(AiHttpResponse(200, v2)),
+            baseUrl = "https://example.test/functions/v1/",
+            publishableKey = "publishable-test",
+            accessTokenProvider = AiAccessTokenProvider { "user-jwt" },
+        )
+
+        val job = client.awaitJob("job-1", policy = AiPollingPolicy(timeoutMillis = 1000, initialDelayMillis = 1), sleeper = {})
+
+        assertEquals(2, job.schemaVersion)
+        assertEquals(AiTargetMatch.MATCHED, job.proposal?.targetMatch)
+        assertEquals(1, EstudarioContractJson.decodeJob(succeededJobJson()).schemaVersion)
     }
 
     @Test
