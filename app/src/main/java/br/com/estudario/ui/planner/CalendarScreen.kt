@@ -63,6 +63,7 @@ private fun DayPlanView(
     header: LazyListScope.() -> Unit,
 ) {
     var selectedDate by remember { mutableStateOf(state.today) }
+    var showOverdue by remember { mutableStateOf(false) }
     
     val tasksForSelectedDate = state.tasks.filter { it.entity.scheduledEpochDay == selectedDate.toEpochDay() }
     val plannedMinutes = tasksForSelectedDate.plannedLoadMinutes()
@@ -111,8 +112,8 @@ private fun DayPlanView(
             }
         }
 
-        // Summary do dia selecionado
-        item {
+        // Summary do dia selecionado (hoje já aparece na "Missão de hoje" do topo)
+        if (selectedDate != state.today) item {
             val completionPercent = tasksForSelectedDate.plannedLoadCompletionPercent()
             PlannerSummary(
                 plannedMinutes = plannedMinutes,
@@ -125,17 +126,25 @@ private fun DayPlanView(
         }
 
         // Atrasadas (exibir apenas se o dia selecionado for Hoje)
+        // Atraso é aviso, não parede vermelha: um cartão recolhido com a contagem; quem quiser abre.
         if (selectedDate == state.today && state.overdueTasks.isNotEmpty()) {
             item {
-                Text(
-                    text = "Atrasadas",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+                Surface(
+                    onClick = { showOverdue = !showOverdue },
+                    shape = br.com.estudario.ui.theme.EstudarioShapes.panel,
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("${state.overdueTasks.size} atividade(s) atrasada(s)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Text("Faça agora ou toque em Reprogramar em cada uma: o plano redistribui sozinho.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text(if (showOverdue) "Ocultar" else "Ver", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
             }
-            items(state.overdueTasks, key = { "overdue_${it.entity.id}" }) { taskUi ->
+            if (showOverdue) items(state.overdueTasks, key = { "overdue_${it.entity.id}" }) { taskUi ->
                 MissionCard(
                     taskUi = taskUi,
                     onStart = { onFocus(taskUi) },

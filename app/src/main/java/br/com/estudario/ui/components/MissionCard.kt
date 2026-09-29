@@ -53,7 +53,7 @@ fun MissionCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.elevatedCardColors(
-            containerColor = if (isOverdue && task.status == PlanTaskStatus.PLANEJADA) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
         Column(

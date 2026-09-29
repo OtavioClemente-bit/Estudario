@@ -46,7 +46,11 @@ import br.com.estudario.ui.screens.home.CurrentStudySection
 import br.com.estudario.ui.screens.home.CurrentStudyUiState
 import br.com.estudario.ui.screens.home.HomeAttention
 import br.com.estudario.ui.screens.home.HomeDivider
-import br.com.estudario.ui.screens.home.HomeHeader
+import br.com.estudario.ui.screens.home.HomeHero
+import br.com.estudario.ui.screens.home.DailyMissionCard
+import br.com.estudario.ui.screens.home.DailyMissionUi
+import br.com.estudario.ui.screens.home.MissionItemUi
+import br.com.estudario.ui.planner.countsAsPlannedLoad
 import br.com.estudario.ui.screens.home.HomeMetrics
 import br.com.estudario.ui.screens.home.HomeNoContestState
 import br.com.estudario.ui.screens.home.calculateHomeMetrics
@@ -202,22 +206,17 @@ fun HomeScreen(
         val activePlan = planState.activePlan
 
         item {
+            val daysToExam = activePlan?.examEpochDay
+                ?.let { java.time.temporal.ChronoUnit.DAYS.between(planState.today, LocalDate.ofEpochDay(it)) }
+                ?.takeIf { it >= 0 }
             Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
-                HomeHeader(
+                HomeHero(
                     firstName = profile.firstName,
                     contest = ActiveContestUi(competition.name, activePlan?.objective),
-                    onOpenContest = onSyllabus,
-                )
-            }
-        }
-
-        item { Spacer(Modifier.height(EstudarioSpacing.comfortable)) }
-
-        item {
-            Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
-                JourneySnapshot(
+                    daysToExam = daysToExam,
                     coverage = coverageUi(metrics),
                     standing = standingUi(streak, progress),
+                    onOpenContest = onSyllabus,
                 )
             }
         }
@@ -242,6 +241,30 @@ fun HomeScreen(
                     practiceAvailable = questions.isNotEmpty(),
                     onPractice = { onQuiz(10, "daily") },
                 )
+            }
+        }
+
+        // Missão do dia: o checklist do plano de hoje, logo abaixo do que fazer agora.
+        val todayLoad = planState.todayTasks.filter { it.entity.status.countsAsPlannedLoad() }
+        if (activePlan != null && todayLoad.isNotEmpty()) {
+            item { Spacer(Modifier.height(EstudarioSpacing.medium)) }
+            item {
+                Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
+                    DailyMissionCard(
+                        DailyMissionUi(
+                            items = todayLoad.map {
+                                MissionItemUi(
+                                    title = it.entity.topicNameSnapshot ?: it.entity.subjectNameSnapshot ?: "Sessão de estudos",
+                                    subtitle = listOfNotNull(it.entity.type.displayNamePtBr(), minutesLabelPtBr(it.entity.plannedMinutes), it.entity.subjectNameSnapshot.takeIf { _ -> it.entity.topicNameSnapshot != null }).joinToString(" · "),
+                                    done = it.entity.status == PlanTaskStatus.CONCLUIDA,
+                                )
+                            },
+                            plannedMinutes = planState.todayPlannedMinutes,
+                            doneMinutes = planState.todayActualMinutes,
+                        ),
+                        onOpenPlan = onPlan,
+                    )
+                }
             }
         }
 

@@ -17,6 +17,7 @@ import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -129,25 +130,29 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
         // Só a linha de título fica fixa (é a "barra" da tela). Progresso e abas rolam junto com as
         // tarefas, antes eles ficavam presos no topo e, com fonte normal, sobrava pouco espaço para ler o plano.
         Row(Modifier.padding(start = gutter, end = gutter - 8.dp, top = 8.dp)) {
-            ScreenTitle("Plano", state.activePlan?.name ?: "Planejamento adaptativo", stackActionsWhenNarrow = false) {
+            ScreenTitle("Plano", "O que estudar, quando e por quê", stackActionsWhenNarrow = false) {
                 Row {
                     IconButton(onClick = onHelp, modifier = Modifier.size(actionSize)) { Icon(Icons.Outlined.HelpOutline, "Como usar o plano") }
                     IconButton(
                         onClick = { promptGenerator = true },
                         modifier = Modifier.size(actionSize).tourTarget(TourKey.PLAN_AI, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_AI, it) },
                     ) { Icon(Icons.Outlined.AutoAwesome, "Gerar plano com IA") }
-                    IconButton(
-                        onClick = pickPlanFile,
-                        modifier = Modifier.size(actionSize).tourTarget(TourKey.PLAN_IMPORT, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_IMPORT, it) },
-                    ) { Icon(Icons.Outlined.FileOpen, "Importar arquivo .plano") }
-                    IconButton(
-                        onClick = { wizard = true },
-                        modifier = Modifier.size(actionSize).tourTarget(TourKey.PLAN_CREATE, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_CREATE, it) },
-                    ) { Icon(Icons.Outlined.Add, "Novo plano") }
-                    IconButton(
-                        onClick = { management = true },
-                        modifier = Modifier.size(actionSize).tourTarget(TourKey.PLAN_MANAGE, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_MANAGE, it) },
-                    ) { Icon(Icons.Outlined.Tune, "Gerenciar planos") }
+                    // Ações menos usadas num menu só: o título respira e a tela fica com cara de app.
+                    var more by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(
+                            onClick = { more = true },
+                            modifier = Modifier.size(actionSize)
+                                .tourTarget(TourKey.PLAN_IMPORT, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_IMPORT, it) }
+                                .tourTarget(TourKey.PLAN_CREATE, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_CREATE, it) }
+                                .tourTarget(TourKey.PLAN_MANAGE, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_MANAGE, it) },
+                        ) { Icon(Icons.Outlined.MoreVert, "Mais opções do plano") }
+                        DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
+                            DropdownMenuItem(text = { Text("Novo plano") }, leadingIcon = { Icon(Icons.Outlined.Add, null) }, onClick = { more = false; wizard = true })
+                            DropdownMenuItem(text = { Text("Meus planos e ajustes") }, leadingIcon = { Icon(Icons.Outlined.Tune, null) }, onClick = { more = false; management = true })
+                            DropdownMenuItem(text = { Text("Importar arquivo .plano") }, leadingIcon = { Icon(Icons.Outlined.FileOpen, null) }, onClick = { more = false; pickPlanFile() })
+                        }
+                    }
                 }
             }
         }
@@ -267,11 +272,11 @@ private fun EscolhaDeCaminho(onSemIa: () -> Unit, onComIa: () -> Unit, onImporta
             onClick = onSemIa,
         )
         CaminhoCard(
-            titulo = "Gerar com IA",
+            titulo = "Montar com o assistente de IA",
             selo = null,
-            corpo = "O app monta o pedido com o seu edital, as suas horas e as suas metas para você colar no ChatGPT, Gemini ou outro app. A IA devolve um arquivo .plano que volta para cá.",
-            rodape = "Depende de você ir até a IA e trazer a resposta, mas aceita pedidos fora do comum.",
-            acao = "Preparar pedido para a IA",
+            corpo = "O assistente conversa com você sobre a prova, as horas e o que você já sabe, e a IA do Estudário escreve um plano sob medida. Se preferir, gere o pedido para a sua própria IA.",
+            rodape = "Ideal para quem quer um plano pensado para a própria rotina.",
+            acao = "Conversar com o assistente",
             destaque = false,
             onClick = onComIa,
         )
