@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import br.com.estudario.data.ai.AiSyllabusPreferences
 import br.com.estudario.EstudarioApplication
 import br.com.estudario.data.local.*
 import br.com.estudario.data.transfer.*
@@ -108,9 +109,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun openAiReview(targetId: Long, targetTitle: String, sourceUri: String? = null, sourceName: String? = null) {
+    fun openAiReview(
+        targetId: Long,
+        targetTitle: String,
+        sourceUri: String? = null,
+        sourceName: String? = null,
+        preferences: AiSyllabusPreferences? = null,
+    ) {
         if (targetId > 0L && targetTitle.isNotBlank()) {
-            val target = AiReviewTarget(targetId, targetTitle, sourceUri, sourceName)
+            val target = AiReviewTarget(targetId, targetTitle, sourceUri, sourceName, preferences)
             _aiReviewTarget.value = target
             app.supabaseAuthRepository.currentUserId()?.let { ownerUserId ->
                 viewModelScope.launch { DataStoreAiReviewTargetStore(app).save(target, ownerUserId) }

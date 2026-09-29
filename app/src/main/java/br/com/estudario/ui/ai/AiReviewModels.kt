@@ -2,6 +2,7 @@ package br.com.estudario.ui.ai
 
 import br.com.estudario.data.ai.AiAccess
 import br.com.estudario.data.ai.AiJobStatus
+import br.com.estudario.data.ai.AiSyllabusPreferences
 import br.com.estudario.data.local.RemoteSyllabusSyncState
 import br.com.estudario.domain.ai.AiSyllabusDraft
 import br.com.estudario.domain.ai.AiSyllabusDraftTopic
@@ -31,6 +32,8 @@ data class AiReviewTarget(
     val title: String,
     val sourceUri: String? = null,
     val sourceName: String? = null,
+    /** Respostas já dadas no assistente de edital; preenchem o formulário da IA do Estudário. */
+    val preferences: AiSyllabusPreferences? = null,
 )
 
 data class AiReviewSource(val uri: String, val fileName: String?)

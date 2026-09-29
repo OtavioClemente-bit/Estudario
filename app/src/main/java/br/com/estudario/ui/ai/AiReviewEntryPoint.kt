@@ -96,6 +96,8 @@ fun AiReviewEntryPoint(
     val state by actualReviewViewModel.state.collectAsState()
     val preferences by actualReviewViewModel.preferences.collectAsState()
     LaunchedEffect(target.sourceUri, target.sourceName) {
+        // Preferências antes da fonte: a fonte pode disparar a geração, que já leva as respostas.
+        target.preferences?.let(actualReviewViewModel::updatePreferences)
         target.sourceUri?.let { actualReviewViewModel.provideSource(it, target.sourceName) }
     }
     val sourcePicker = pdfPicker ?: rememberAiReviewPdfPicker()
