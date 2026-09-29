@@ -271,6 +271,12 @@ data class ExistingQuestionReference(
     val options: List<String>,
 )
 
+/**
+ * Como os textos devem vir formatados. O leitor do app mostra tabelas e fórmulas LaTeX; sem esta
+ * regra as IAs usam `$` simples (que o app confunde com R$) ou escrevem fórmula como texto.
+ */
+internal const val STUDY_FORMATTING_RULE = "- FORMATAÇÃO DOS TEXTOS (o aplicativo mostra tabelas e fórmulas): use ## e ### para seções, lista numerada para passo a passo, **negrito** para termos-chave e > para alertas de prova. Comparações lado a lado vão em tabela Markdown (| coluna | coluna |, com a linha |---|---| logo abaixo do cabeçalho). Fórmulas, símbolos matemáticos e unidades vão em LaTeX entre cifrões DUPLOS: na linha, \$\$M = C(1 + i)^t\$\$; em bloco, \$\$ sozinho na linha antes e depois da fórmula. Nunca use cifrão simples para fórmula, porque o app confunde com R$. No JSON, a barra do LaTeX vai dobrada: escreva \\\\frac para aparecer \\frac."
+
 object ContentPromptBuilder {
     /**
      * [topics] = todos os tópicos da matéria; [targetTopicIds] = os que devem receber conteúdo.
@@ -386,6 +392,7 @@ object ContentPromptBuilder {
             )
             if (ContentBlock.SUMMARY in blocks) appendLine("- summary: resumo completo em Markdown que consolida toda a teoria, detalhado o bastante para estudar só por ele.")
             if (ContentBlock.QUICK_REVIEW in blocks) appendLine("- quickReview: revisão de poucos minutos em Markdown, conceitos-chave, diferenças, regras e números que caem.")
+            if (blocks.any { it == ContentBlock.THEORY || it == ContentBlock.SUMMARY || it == ContentBlock.QUICK_REVIEW }) appendLine(STUDY_FORMATTING_RULE)
             if (ContentBlock.TIPS_TRAPS in blocks) appendLine("- tips: dicas objetivas de prova. traps: pegadinhas e confusões típicas de prova.")
             if (ContentBlock.ACTIVE_RECALL in blocks) appendLine("- activeRecall: perguntas curtas para responder sem olhar (recuperação ativa).")
             if (ContentBlock.ERROR_CONCEPTS in blocks) appendLine("- errorConcepts: conceitos que costumam gerar erro, cada um com título e explicação corretiva curta.")

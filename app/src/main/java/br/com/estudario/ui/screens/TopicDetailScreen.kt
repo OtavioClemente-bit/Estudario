@@ -506,7 +506,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                             Spacer(Modifier.width(10.dp))
                             Text(theory.title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         }
-                        val blockCount = theory.markdown.split(Regex("\\n\\s*\\n")).count { it.isNotBlank() }.coerceAtLeast(1)
+                        val blockCount = br.com.estudario.ui.components.studyBlocks(theory.markdown).size.coerceAtLeast(1)
                         val readPercent = if (theory.lastReadBlock < 0) 0 else ((theory.lastReadBlock + 1) * 100 / blockCount).coerceIn(0, 100)
                         LinearProgressIndicator({ readPercent / 100f }, Modifier.fillMaxWidth())
                         Text("$readPercent% lido • ${theoryMarks.count { it.theoryId == theory.id }} marcação(ões)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -28,7 +28,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
     val allMarks by viewModel.theoryMarks.collectAsState()
     val theory = theories.firstOrNull { it.id == theoryId }
     if (theory == null) { EmptyState("Teoria não encontrada", "O livro pode ter sido removido.", "Voltar", onBack); return }
-    val blocks = remember(theory.markdown) { theory.markdown.split(Regex("\\n\\s*\\n")).map(String::trim).filter(String::isNotBlank) }
+    val blocks = remember(theory.markdown) { br.com.estudario.ui.components.studyBlocks(theory.markdown) }
     val marks = allMarks.filter { it.theoryId == theoryId }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = theory.lastReadBlock.coerceIn(0, (blocks.size - 1).coerceAtLeast(0)))
     var textScale by remember { mutableFloatStateOf(1f) }

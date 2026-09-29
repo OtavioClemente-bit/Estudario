@@ -169,6 +169,7 @@ TEORIA COMPLETA, TRATE COMO UM LIVRO:
 - Escreva material longo, didático e autossuficiente, não um resumo ampliado.
 - Divida em capítulos e seções numa sequência pedagógica: fundamentos, desenvolvimento, exemplos, aplicações, pegadinhas da banca e revisão do capítulo.
 - Explique termos na primeira ocorrência, use exemplos concretos, comparações, tabelas Markdown quando ajudarem e conecte os conceitos.
+- Fórmulas e símbolos matemáticos em LaTeX entre cifrões duplos (${'$'}${'$'}M = C(1 + i)^t${'$'}${'$'} na linha; ${'$'}${'$'} sozinho na linha antes e depois para bloco). Nunca use cifrão simples para fórmula.
 - Cada capítulo deve possuir vários parágrafos substanciais. Não use frases soltas para simular profundidade.
 - Cubra integralmente o escopo informado, sem inventar leis, números, jurisprudência ou versões. Indique a data de referência quando o conteúdo puder mudar.
 - O campo markdown de cada capítulo aceita títulos, subtítulos, listas, negrito, tabelas e citações.

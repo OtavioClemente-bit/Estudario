@@ -133,52 +133,9 @@ fun ConfirmDialog(
     )
 }
 
+/** Markdown de estudo (tabelas, fórmulas, listas...). Ver [StudyMarkdown]. */
 @Composable
 fun MarkdownText(markdown: String, modifier: Modifier = Modifier) {
-    val uriHandler = LocalUriHandler.current
-    val linkColor = MaterialTheme.colorScheme.primary
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        markdown.lines().forEach { raw ->
-            val line = raw.trimEnd()
-            when {
-                line.startsWith("### ") -> Text(inlineMarkdown(line.removePrefix("### "), linkColor) { uriHandler.openUri(it) }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                line.startsWith("## ") -> Text(inlineMarkdown(line.removePrefix("## "), linkColor) { uriHandler.openUri(it) }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                line.startsWith("# ") -> Text(inlineMarkdown(line.removePrefix("# "), linkColor) { uriHandler.openUri(it) }, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                line.startsWith("- ") || line.startsWith("* ") -> Row { Text("•  ", color = MaterialTheme.colorScheme.primary); Text(inlineMarkdown(line.drop(2), linkColor) { uriHandler.openUri(it) }, Modifier.weight(1f)) }
-                line.startsWith("> ") -> Text(inlineMarkdown(line.drop(2), linkColor) { uriHandler.openUri(it) }, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(8.dp)).padding(12.dp), color = MaterialTheme.colorScheme.onPrimaryContainer)
-                line.startsWith("```") -> Unit
-                line.startsWith("    ") -> Text(line.trimStart(), fontFamily = FontFamily.Monospace, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(6.dp)).padding(8.dp))
-                line.isBlank() -> Spacer(Modifier.height(2.dp))
-                else -> Text(inlineMarkdown(line, linkColor) { uriHandler.openUri(it) }, style = MaterialTheme.typography.bodyLarge)
-            }
-        }
-    }
+    StudyMarkdown(markdown, modifier.fillMaxWidth())
 }
 
-private fun inlineMarkdown(text: String, linkColor: androidx.compose.ui.graphics.Color, openUri: (String) -> Unit) = buildAnnotatedString {
-    parseInlineLinks(text).forEach { token ->
-        when (token) {
-            is InlineMarkdownToken.Text -> appendBoldText(token.value)
-            is InlineMarkdownToken.Link -> {
-                val link = LinkAnnotation.Url(
-                    token.url,
-                    TextLinkStyles(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)),
-                ) { annotation -> openUri((annotation as LinkAnnotation.Url).url) }
-                withLink(link) { append(token.label) }
-            }
-        }
-    }
-}
-
-private fun androidx.compose.ui.text.AnnotatedString.Builder.appendBoldText(text: String) {
-    var index = 0
-    while (index < text.length) {
-        val boldStart = text.indexOf("**", index)
-        if (boldStart < 0) { append(text.substring(index)); break }
-        append(text.substring(index, boldStart))
-        val boldEnd = text.indexOf("**", boldStart + 2)
-        if (boldEnd < 0) { append(text.substring(boldStart)); break }
-        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(text.substring(boldStart + 2, boldEnd)) }
-        index = boldEnd + 2
-    }
-}
