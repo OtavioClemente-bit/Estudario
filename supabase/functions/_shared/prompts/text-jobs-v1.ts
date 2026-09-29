@@ -4,7 +4,7 @@ import type { ContentJobInput, PlanJobInput } from "../text-job-input.ts";
 // prompt do usuário, delimitados como DADOS. Regras de qualidade vêm do prompt de conteúdo que o
 // app já usa com IAs externas, condensadas para gastar menos tokens de entrada.
 
-export const CONTENT_PROMPT_VERSION = "topic-content-v1" as const;
+export const CONTENT_PROMPT_VERSION = "topic-content-v2" as const;
 export const PLAN_PROMPT_VERSION = "study-plan-v1" as const;
 
 const SECURITY = `Limites de segurança:
@@ -26,17 +26,18 @@ Recorte:
 - A palavra do edital define a profundidade: "noções", "conceitos básicos", "fundamentos" e "aspectos gerais" são teto (panorama); "análise", "aplicação" e "interpretação" pedem caso concreto e exceção.
 - Dê mais espaço ao que tem histórico de cobrança em provas; o resto, mais curto.
 
-Material:
-- chapters: 2 a 6 capítulos em Markdown, didáticos e autossuficientes (fundamentos, desenvolvimento, exemplos concretos, pegadinhas de banca), com tabelas quando ajudarem. Títulos numerados ("1. Fundamentos"). No fim do último capítulo, "### Fontes consultadas".
-- summary: resumo completo em Markdown, suficiente para revisar só por ele. quickReview: revisão de poucos minutos, diferente do summary.
-- tips (bizus), traps (pegadinhas), activeRecall (perguntas curtas para responder sem olhar).
-- errorConcepts: conceitos que costumam gerar erro, com explicação corretiva curta; chaves e1, e2...
+Partes: gere SOMENTE as partes listadas em PEDIDO. Parte não pedida fica vazia: lista vazia ou texto "".
+- chapters (TEORIA): 2 a 6 capítulos em Markdown, didáticos e autossuficientes (fundamentos, desenvolvimento, exemplos concretos, pegadinhas de banca), com tabelas quando ajudarem. Títulos numerados ("1. Fundamentos"). No fim do último capítulo, "### Fontes consultadas". A profundidade pedida manda: ESSENCIAL é direto ao ponto; APROFUNDADA traz exemplos e exceções; LIVRO é o mais completo possível.
+- summary (RESUMO): resumo completo em Markdown, suficiente para revisar só por ele. quickReview (REVISÃO RÁPIDA): revisão de poucos minutos, diferente do summary.
+- tips e traps (DICAS E PEGADINHAS), activeRecall (MEMORIZAÇÃO: perguntas curtas para responder sem olhar).
+- errorConcepts (CONCEITOS QUE GERAM ERRO): explicação corretiva curta; chaves e1, e2... Quando houver questões, gere também errorConcepts para ligá-las.
 
-Questões (exatamente 10):
-- 7 de múltipla escolha com 5 alternativas (A a E, exatamente uma correta) e 3 de Certo/Errado (duas alternativas: C "Certo" e E "Errado", uma correta), alternadas na lista.
-- Dificuldade: 3 FACIL, 4 MEDIA, 3 DIFICIL. FACIL cobra um conceito direto; MEDIA aplica regra a um caso; DIFICIL combina conceitos, exceções ou institutos vizinhos. Texto longo não é dificuldade.
+Questões (só se QUESTÕES estiver em PEDIDO; quantidade EXATA pedida):
+- Formato: MÚLTIPLA_A_E = 5 alternativas A a E; MÚLTIPLA_A_D = 4 alternativas A a D; CERTO_ERRADO = duas alternativas, C "Certo" e E "Errado"; MISTO = cerca de 70% múltipla A a E e 30% Certo/Errado, alternadas. Sempre exatamente uma correta. format = TRUE_FALSE para Certo/Errado, MULTIPLE_CHOICE para as demais.
+- Dificuldade: FÁCIL cobra um conceito direto; MÉDIA aplica regra a um caso; DIFÍCIL combina conceitos, exceções ou institutos vizinhos. Texto longo não é dificuldade. MISTA = cerca de 30% FACIL, 40% MEDIA, 30% DIFICIL; nas demais, todas no nível pedido.
+- Sem banca informada, siga o estilo das provas anteriores do concurso.
 - Cada questão cobra um ponto diferente. Distratores são o erro de quem estudou. Proibido "todas/nenhuma das anteriores", absolutos só para marcar o errado e a correta ser a mais longa. Espalhe o gabarito entre as letras.
-- explanation detalhada com a fonte (artigo/seção). section = título EXATO de um capítulo que responde a questão. errorConceptKey = um item de errorConcepts.
+- explanation detalhada com a fonte (artigo/seção). section = título EXATO de um capítulo que responde a questão, ou "Questões" quando não houver teoria. errorConceptKey = um item de errorConcepts.
 - sourceType REAL só se você confirmou enunciado, alternativas, banca, órgão, ano e gabarito definitivo no documento oficial e há permissão clara de reuso; preencha board, agency, year e sourceUrl reais. Caso contrário, AUTHORIAL com board, agency, year e sourceUrl nulos. Na dúvida, AUTHORIAL.
 
 Se nenhuma fonte confiável sustentar o tópico, entregue só o que tiver suporte, curto, com aviso INSUFFICIENT_EVIDENCE. Nunca preencha com memória.`;
@@ -56,8 +57,27 @@ export function contentUserPrompt(input: ContentJobInput): string {
   lines.push(`- Tópico do edital: ${input.topicPath.join(" › ")}`);
   if (input.scopeCovers) lines.push(`- Recorte já anotado (cobre): ${input.scopeCovers}`);
   if (input.scopeExcludes) lines.push(`- Recorte já anotado (não cobre): ${input.scopeExcludes}`);
+  const o = input.options;
+  lines.push("", "PEDIDO:", `- Partes: ${o.blocks.map((block) => BLOCK_NAMES[block]).join(", ")}.`);
+  if (o.blocks.includes("THEORY")) lines.push(`- Profundidade da teoria: ${DEPTH_NAMES[o.depth]}.`);
+  if (o.blocks.includes("QUESTIONS")) {
+    lines.push(`- Questões: exatamente ${o.questionCount}. Formato: ${STYLE_NAMES[o.questionStyle]}. Dificuldade: ${DIFFICULTY_NAMES[o.difficulty]}.`);
+  }
   return lines.join("\n");
 }
+
+const BLOCK_NAMES = {
+  THEORY: "TEORIA",
+  SUMMARY: "RESUMO",
+  QUICK_REVIEW: "REVISÃO RÁPIDA",
+  TIPS_TRAPS: "DICAS E PEGADINHAS",
+  ACTIVE_RECALL: "MEMORIZAÇÃO",
+  QUESTIONS: "QUESTÕES",
+  ERROR_CONCEPTS: "CONCEITOS QUE GERAM ERRO",
+} as const;
+const DEPTH_NAMES = { ESSENTIAL: "ESSENCIAL", DEEP: "APROFUNDADA", BOOK: "LIVRO" } as const;
+const STYLE_NAMES = { MIXED: "MISTO", FIVE_OPTIONS: "MÚLTIPLA_A_E", FOUR_OPTIONS: "MÚLTIPLA_A_D", TRUE_FALSE: "CERTO_ERRADO" } as const;
+const DIFFICULTY_NAMES = { MIXED: "MISTA", EASY: "FÁCIL", MEDIUM: "MÉDIA", HARD: "DIFÍCIL" } as const;
 
 export const PLAN_SYSTEM_PROMPT = `Você monta planos de estudo para concursos públicos brasileiros, para o aplicativo Estudário, em português do Brasil.
 

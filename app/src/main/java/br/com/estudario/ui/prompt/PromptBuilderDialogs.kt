@@ -268,7 +268,8 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
     if (subject == null || competition == null) { LaunchedEffect(Unit) { onDismiss() }; return }
     val selectedIds = selected.toSet()
     val prompt = remember(options, selectedIds, topics, subject, competition) {
-        if (selectedIds.isEmpty()) "" else ContentPromptBuilder.build(competition, subject, topics, selectedIds, options)
+        // O órgão decide qual estatuto/lei vale; em vez de perguntar, usa o próprio concurso.
+        if (selectedIds.isEmpty()) "" else ContentPromptBuilder.build(competition, subject, topics, selectedIds, options.copy(agency = options.agency.ifBlank { competition.name }))
     }
 
     val wholeSubject = !singleTopicMode && ordered.isNotEmpty() && selectedIds.size == ordered.size
@@ -332,6 +333,13 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
             if (ContentBlock.THEORY in options.blocks) OptionSection("Profundidade da teoria") {
                 ChoiceCards(TheoryDepth.entries, options.depth, { it.label }, { options = options.copy(depth = it) }, description = ::depthDescription)
             }
+            MaterialBaseSection(
+                useOwn = options.source == MaterialSource.ATTACHED,
+                attachment = attachment,
+                onUseOwnChange = { use -> options = options.copy(source = if (use) MaterialSource.ATTACHED else MaterialSource.AI_KNOWLEDGE) },
+                onPick = { attach.launch(attachmentTypes) },
+                onClear = { attachment = null },
+            )
         })
         if (ContentBlock.QUESTIONS in options.blocks) add(WizardStep(
             "Questões",
@@ -342,27 +350,8 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         ) {
             QuestionCountSelector(options.questionCount, questionLimit, perTopic = selectedIds.size > 1) { options = options.copy(questionCount = it) }
             OptionSection("Dificuldade") { DifficultySelector(options.difficulty) { options = options.copy(difficulty = it) } }
-            OptionSection("Formato") { ChoiceChips(QuestionStyle.entries, options.style, { it.label }) { options = options.copy(style = it) } }
-            OutlinedTextField(options.board, { options = options.copy(board = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Banca") }, supportingText = { Text("Orienta o estilo das questões") })
-        })
-        // Órgão e esfera decidem QUAL lei se aplica. É o dado que a IA não deduz com segurança,
-        // e errar isso faz a pessoa estudar o estatuto de outro ente do começo ao fim.
-        add(WizardStep(
-            "Contexto e fontes",
-            "Órgão e esfera definem qual estatuto e qual legislação valem para o seu concurso.",
-            question = "Para qual órgão é a prova?",
-            answer = listOf(
-                options.agency.ifBlank { "Órgão não informado" },
-                options.sphere.label,
-                if (options.source == MaterialSource.ATTACHED) attachment?.name ?: "sem anexo" else options.source.label,
-            ).joinToString(" · "),
-        ) {
-            OutlinedTextField(options.agency, { options = options.copy(agency = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Órgão do concurso") }, placeholder = { Text("Ex.: TRT 3ª Região") })
-            OptionSection("Esfera") { ChoiceChips(LegalSphere.entries, options.sphere, { it.label }) { options = options.copy(sphere = it) } }
-            OptionSection("Fonte do conteúdo") {
-                ChoiceCards(MaterialSource.entries, options.source, { it.label }, { options = options.copy(source = it) })
-                if (options.source == MaterialSource.ATTACHED) AttachmentPicker(attachment, "Anexar lei, apostila ou PDF", { attach.launch(attachmentTypes) }, { attachment = null })
-            }
+            OptionSection("Formato") { ChoiceCards(QuestionStyle.entries, options.style, ::styleTitle, { options = options.copy(style = it) }, description = ::styleDescription) }
+            BoardField(options.board) { options = options.copy(board = it) }
         })
     }
     fun stepOf(title: String) = steps.indexOfFirst { it.title == title }.coerceAtLeast(0)
@@ -384,13 +373,9 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
             stepOf("Questões"),
         ))
         add(WizardSummaryItem(
-            "Contexto",
-            listOf(
-                options.agency.ifBlank { "Órgão não informado" },
-                options.sphere.label,
-                if (options.source == MaterialSource.ATTACHED) attachment?.name ?: "Sem anexo" else options.source.label,
-            ).joinToString(" · "),
-            stepOf("Contexto e fontes"),
+            "Base",
+            if (options.source == MaterialSource.ATTACHED) attachment?.name ?: "Material seu (ainda não anexado)" else "Pesquisa em fontes oficiais",
+            stepOf("O que gerar"),
         ))
     }
 
@@ -487,7 +472,7 @@ fun AdditionalQuestionPromptBuilderDialog(
             answer = "${options.questionCount} questões · ${options.style.label}",
         ) {
             QuestionCountSelector(options.questionCount, questionLimit, perTopic = false) { options = options.copy(questionCount = it) }
-            OptionSection("Formato") { ChoiceChips(QuestionStyle.entries, options.style, { it.label }) { options = options.copy(style = it) } }
+            OptionSection("Formato") { ChoiceCards(QuestionStyle.entries, options.style, ::styleTitle, { options = options.copy(style = it) }, description = ::styleDescription) }
         },
         WizardStep(
             "Nível e banca",
@@ -496,7 +481,7 @@ fun AdditionalQuestionPromptBuilderDialog(
             answer = listOf(options.difficulty.label, options.board).filter(String::isNotBlank).joinToString(" · "),
         ) {
             DifficultySelector(options.difficulty) { options = options.copy(difficulty = it) }
-            OutlinedTextField(options.board, { options = options.copy(board = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Banca") })
+            BoardField(options.board) { options = options.copy(board = it) }
             Text(
                 if (existingQuestions.isEmpty()) "Ainda não há questões cadastradas nesta matéria para comparar."
                 else "${existingQuestions.size} questão(ões) já cadastradas vão junto só para evitar repetição, sem gabaritos nem desempenho.",
@@ -768,6 +753,43 @@ private fun blockIcon(block: ContentBlock): ImageVector = when (block) {
     ContentBlock.ACTIVE_RECALL -> Icons.Outlined.Psychology
     ContentBlock.QUESTIONS -> Icons.Outlined.Quiz
     ContentBlock.ERROR_CONCEPTS -> Icons.Outlined.ReportProblem
+}
+
+private fun styleTitle(style: QuestionStyle): String = when (style) {
+    QuestionStyle.MIXED -> "Misturado"
+    QuestionStyle.FIVE_OPTIONS -> "Múltipla escolha (A a E)"
+    QuestionStyle.FOUR_OPTIONS -> "Múltipla escolha (A a D)"
+    QuestionStyle.TRUE_FALSE -> "Certo ou Errado (C/E)"
+}
+
+private fun styleDescription(style: QuestionStyle): String = when (style) {
+    QuestionStyle.MIXED -> "Um pouco de múltipla escolha e um pouco de Certo ou Errado"
+    QuestionStyle.FIVE_OPTIONS -> "Cinco alternativas, uma correta. O formato mais comum (FGV, FCC, Vunesp)"
+    QuestionStyle.FOUR_OPTIONS -> "Quatro alternativas, uma correta"
+    QuestionStyle.TRUE_FALSE -> "Você julga se a afirmação está certa ou errada. É o estilo do Cebraspe"
+}
+
+/** Banca opcional: em branco, a IA segue o estilo das provas anteriores deste concurso. */
+@Composable
+private fun BoardField(value: String, onChange: (String) -> Unit) {
+    OutlinedTextField(
+        value, onChange, Modifier.fillMaxWidth(), singleLine = true,
+        label = { Text("Banca (opcional)") },
+        placeholder = { Text("Ex.: Cebraspe, FGV, FCC") },
+        supportingText = { Text("Em branco, as questões seguem o estilo das provas anteriores deste concurso.") },
+    )
+}
+
+/** Opção de a IA trabalhar em cima de um material da pessoa (lei, apostila, PDF). */
+@Composable
+private fun MaterialBaseSection(useOwn: Boolean, attachment: PromptAttachment?, onUseOwnChange: (Boolean) -> Unit, onPick: () -> Unit, onClear: () -> Unit) {
+    ToggleRow(
+        "Usar um material meu como base",
+        if (useOwn) "A IA trabalha em cima do que você anexar" else "Sem anexo, a IA pesquisa em fontes oficiais",
+        useOwn,
+        onUseOwnChange,
+    )
+    if (useOwn) AttachmentPicker(attachment, "Anexar lei, apostila ou PDF", onPick, onClear)
 }
 
 private fun depthDescription(depth: TheoryDepth): String = when (depth) {

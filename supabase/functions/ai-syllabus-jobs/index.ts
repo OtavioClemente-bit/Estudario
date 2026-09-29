@@ -26,10 +26,12 @@ import {
   type StorageSourceStore,
 } from "../_shared/storage-source.ts";
 import {
+  type ContentJobInput,
   parseContentJobInput,
   parsePlanJobInput,
   TextJobInputError,
 } from "../_shared/text-job-input.ts";
+import { effectivePlanTier, SupabaseAccessDataSource } from "../_shared/access-policy.ts";
 
 const SYLLABUS_FEATURE: AiFeature = "SYLLABUS_GENERATION";
 const TEXT_FEATURES: ReadonlySet<string> = new Set(["CONTENT_GENERATION", "PLAN_GENERATION"]);
@@ -47,6 +49,8 @@ export interface AiSyllabusJobsDependencies {
   schedule: (jobId: string) => Promise<void>;
   /** Play Integrity para pedidos que reservam cota. Ausente = não verifica (testes). */
   integrity?: IntegrityVerifier;
+  /** Máximo de questões por geração no plano da conta. Ausente = só o teto absoluto (testes). */
+  questionLimit?: (userId: string) => Promise<number>;
 }
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
@@ -73,6 +77,7 @@ function safeError(code: string, status: number, retryAfterSeconds?: number): Re
     INTEGRITY_REQUIRED: "Use the app installed from Google Play",
     INTEGRITY_FAILED: "Use the app installed from Google Play",
     INTEGRITY_UNAVAILABLE: "Integrity check is temporarily unavailable",
+    QUESTION_LIMIT_EXCEEDED: "Question count is above the plan limit",
   };
   if (code === "AI_RATE_LIMIT_EXCEEDED") {
     const retry = Number.isSafeInteger(retryAfterSeconds) && retryAfterSeconds! >= 0 ? retryAfterSeconds! : 0;
@@ -314,6 +319,17 @@ async function createTextJob(
     if (error instanceof TextJobInputError) return safeError("INVALID_REQUEST", 400);
     throw error;
   }
+  // O app já limita a régua ao plano; aqui é a garantia, antes de reservar cota.
+  const questionCount = feature === "CONTENT_GENERATION" ? (input as ContentJobInput).options.questionCount : 0;
+  if (questionCount > 0 && dependencies.questionLimit) {
+    let limit: number;
+    try {
+      limit = await dependencies.questionLimit(user.userId);
+    } catch {
+      return safeError("AI_JOB_DATA_UNAVAILABLE", 503);
+    }
+    if (questionCount > limit) return safeError("QUESTION_LIMIT_EXCEEDED", 403);
+  }
   const payload = { feature, input } satisfies Record<string, unknown>;
   const fingerprint = await requestFingerprint(payload);
   let created;
@@ -498,6 +514,13 @@ function runtimeDependencies(request: Request): AiSyllabusJobsDependencies {
     jobs: new SupabaseAiJobStore({ supabaseUrl, publishableKey, accessToken, serviceRoleKey }),
     limits: runtimeLimits(),
     integrity: integrityVerifierFromEnvironment((name) => Deno.env.get(name)),
+    questionLimit: async (userId) => {
+      const data = new SupabaseAccessDataSource({ supabaseUrl, authenticatedUserId: userId, accessToken, publishableKey });
+      const tier = effectivePlanTier(await data.findProfile(userId), new Date());
+      const row = (await data.listPlanLimits(tier)).find((limit) => limit.feature === "QUESTION_BATCH");
+      // Sem linha configurada, fica fechado no mínimo do Grátis em vez de liberar o teto.
+      return row?.maxPerRequest ?? 10;
+    },
     schedule: async () => {
       // The persisted PROCESSING lease is the durable queue consumed by the worker/Cron in Task 7.
     },

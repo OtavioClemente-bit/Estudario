@@ -5,7 +5,9 @@ import type { JsonSchema } from "../schema.ts";
 // não expressa (uma alternativa correta, referências existentes, capacidade do dia) ficam no
 // validador do servidor.
 
-export const AI_TOPIC_CONTENT_SCHEMA_VERSION = 1 as const;
+// v2: quantidade de questões, partes e formato vêm do pedido; as contagens exatas são conferidas
+// pelo validador, porque o schema strict não depende da entrada.
+export const AI_TOPIC_CONTENT_SCHEMA_VERSION = 2 as const;
 export const AI_STUDY_PLAN_SCHEMA_VERSION = 1 as const;
 
 const nonEmpty: JsonSchema = { type: "string", minLength: 1 };
@@ -48,7 +50,6 @@ export const AI_TOPIC_CONTENT_SCHEMA: JsonSchema = {
     theoryTitle: nonEmpty,
     chapters: {
       type: "array",
-      minItems: 2,
       maxItems: 6,
       items: {
         type: "object",
@@ -57,14 +58,14 @@ export const AI_TOPIC_CONTENT_SCHEMA: JsonSchema = {
         properties: { title: nonEmpty, markdown: nonEmpty },
       },
     },
-    summary: nonEmpty,
-    quickReview: nonEmpty,
+    // Vazios quando a parte não foi pedida.
+    summary: { type: "string" },
+    quickReview: { type: "string" },
     tips: { type: "array", maxItems: 8, items: nonEmpty },
     traps: { type: "array", maxItems: 8, items: nonEmpty },
     activeRecall: { type: "array", maxItems: 10, items: nonEmpty },
     errorConcepts: {
       type: "array",
-      minItems: 1,
       maxItems: 6,
       items: {
         type: "object",
@@ -75,8 +76,7 @@ export const AI_TOPIC_CONTENT_SCHEMA: JsonSchema = {
     },
     questions: {
       type: "array",
-      minItems: 10,
-      maxItems: 10,
+      maxItems: 30,
       items: {
         type: "object",
         additionalProperties: false,
@@ -105,7 +105,7 @@ export const AI_TOPIC_CONTENT_SCHEMA: JsonSchema = {
           },
           explanation: nonEmpty,
           section: nonEmpty,
-          errorConceptKey: { type: "string", enum: ["e1", "e2", "e3", "e4", "e5", "e6"] },
+          errorConceptKey: { anyOf: [{ type: "null" }, { type: "string", enum: ["e1", "e2", "e3", "e4", "e5", "e6"] }] },
           sourceType: { type: "string", enum: ["AUTHORIAL", "REAL"] },
           board: nullableText,
           agency: nullableText,

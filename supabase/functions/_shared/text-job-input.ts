@@ -22,7 +22,30 @@ export interface ContentJobInput {
   topicPath: string[];
   scopeCovers: string | null;
   scopeExcludes: string | null;
+  /** O que a pessoa escolheu no assistente. Pedidos antigos, sem o campo, recebem o pacote completo. */
+  options: ContentGenerationOptions;
 }
+
+export const CONTENT_BLOCKS = [
+  "THEORY", "SUMMARY", "QUICK_REVIEW", "TIPS_TRAPS", "ACTIVE_RECALL", "QUESTIONS", "ERROR_CONCEPTS",
+] as const;
+export type ContentBlock = typeof CONTENT_BLOCKS[number];
+export type QuestionStyle = "MIXED" | "FIVE_OPTIONS" | "FOUR_OPTIONS" | "TRUE_FALSE";
+export type QuestionDifficulty = "MIXED" | "EASY" | "MEDIUM" | "HARD";
+export type TheoryDepth = "ESSENTIAL" | "DEEP" | "BOOK";
+
+export interface ContentGenerationOptions {
+  blocks: ContentBlock[];
+  depth: TheoryDepth;
+  /** 0 quando QUESTIONS não foi pedido. O teto por plano é aplicado ao criar o job. */
+  questionCount: number;
+  questionStyle: QuestionStyle;
+  difficulty: QuestionDifficulty;
+}
+
+/** Teto absoluto; o limite de cada plano (Grátis 10, Essencial 20, Pro 30) é conferido à parte. */
+export const MAX_QUESTIONS_PER_REQUEST = 30;
+export const DEFAULT_QUESTION_COUNT = 10;
 
 export interface PlanSubjectInput {
   ref: string;
@@ -103,6 +126,32 @@ export function parseContentJobInput(value: unknown): ContentJobInput {
     topicPath: path.map((item, index) => text(item, `topicPath.${index}`, MAX_LONG_TEXT)),
     scopeCovers: optionalText(value.scopeCovers, "scopeCovers", MAX_LONG_TEXT),
     scopeExcludes: optionalText(value.scopeExcludes, "scopeExcludes", MAX_LONG_TEXT),
+    options: parseContentOptions(value.options),
+  };
+}
+
+function parseContentOptions(value: unknown): ContentGenerationOptions {
+  if (value === undefined || value === null) {
+    return { blocks: [...CONTENT_BLOCKS], depth: "DEEP", questionCount: DEFAULT_QUESTION_COUNT, questionStyle: "MIXED", difficulty: "MIXED" };
+  }
+  if (!isRecord(value)) throw new TextJobInputError("options");
+  const rawBlocks = value.blocks;
+  if (!Array.isArray(rawBlocks) || rawBlocks.length === 0 || rawBlocks.length > CONTENT_BLOCKS.length) {
+    throw new TextJobInputError("options.blocks");
+  }
+  const blocks = rawBlocks.map((block, index) => oneOf(block, `options.blocks.${index}`, CONTENT_BLOCKS));
+  if (new Set(blocks).size !== blocks.length) throw new TextJobInputError("options.blocks");
+  const wantsQuestions = blocks.includes("QUESTIONS");
+  return {
+    blocks: CONTENT_BLOCKS.filter((block) => blocks.includes(block)),
+    depth: value.depth === undefined ? "DEEP" : oneOf(value.depth, "options.depth", ["ESSENTIAL", "DEEP", "BOOK"] as const),
+    questionCount: wantsQuestions ? integer(value.questionCount ?? DEFAULT_QUESTION_COUNT, "options.questionCount", 1, MAX_QUESTIONS_PER_REQUEST) : 0,
+    questionStyle: value.questionStyle === undefined
+      ? "MIXED"
+      : oneOf(value.questionStyle, "options.questionStyle", ["MIXED", "FIVE_OPTIONS", "FOUR_OPTIONS", "TRUE_FALSE"] as const),
+    difficulty: value.difficulty === undefined
+      ? "MIXED"
+      : oneOf(value.difficulty, "options.difficulty", ["MIXED", "EASY", "MEDIUM", "HARD"] as const),
   };
 }
 

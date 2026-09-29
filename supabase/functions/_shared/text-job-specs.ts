@@ -46,7 +46,10 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
     systemPrompt: CONTENT_SYSTEM_PROMPT,
     userPrompt: contentUserPrompt(inputOf<ContentJobInput>(job, parseContentJobInput)),
   }),
-  validate: (raw, expected) => Promise.resolve(validateTopicContent(raw, expected) as unknown as WorkerProposal),
+  validate: (raw, expected, job) =>
+    Promise.resolve(
+      validateTopicContent(raw, expected, inputOf<ContentJobInput>(job, parseContentJobInput).options) as unknown as WorkerProposal,
+    ),
 };
 
 export const PLAN_JOB_SPEC: AiJobSpec = {

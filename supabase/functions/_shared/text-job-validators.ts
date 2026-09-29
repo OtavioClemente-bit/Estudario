@@ -1,4 +1,4 @@
-import type { PlanJobInput } from "./text-job-input.ts";
+import type { ContentBlock, ContentGenerationOptions, PlanJobInput } from "./text-job-input.ts";
 import { ProposalValidationError } from "./proposal-validator.ts";
 
 // Regras que o JSON Schema não expressa. Uma resposta que falha aqui não chega ao app: o job é
@@ -66,42 +66,67 @@ function httpsUrl(value: unknown, field: string): string {
   return url;
 }
 
-/** Conteúdo de um tópico: coerência interna das questões, vínculos e fontes. */
-export function validateTopicContent(raw: string, expected: ExpectedVersions): Json {
+function blank(value: unknown): boolean {
+  return value === undefined || value === null || (typeof value === "string" && value.trim().length === 0) ||
+    (Array.isArray(value) && value.length === 0);
+}
+
+/**
+ * Conteúdo de um tópico: só as partes pedidas, a quantidade exata de questões no formato pedido,
+ * coerência interna das questões, vínculos e fontes.
+ */
+export function validateTopicContent(raw: string, expected: ExpectedVersions, options: ContentGenerationOptions): Json {
   const value = parse(raw);
   checkVersions(value, expected);
+  const wants = (block: ContentBlock) => options.blocks.includes(block);
+  const onlyWhenAsked = (block: ContentBlock, field: string) => {
+    if (!wants(block) && !blank(value[field])) reject(`${field} was not requested`);
+  };
 
   const chapters = array(value.chapters, "chapters");
-  if (chapters.length < 2 || chapters.length > 6) reject("chapter count");
+  if (wants("THEORY") ? chapters.length < 2 || chapters.length > 6 : chapters.length !== 0) reject("chapter count");
   const chapterTitles = new Set(chapters.map((chapter, index) => nonBlank(chapter.title, `chapters.${index}.title`, 200).trim()));
   chapters.forEach((chapter, index) => nonBlank(chapter.markdown, `chapters.${index}.markdown`));
-  nonBlank(value.summary, "summary");
-  nonBlank(value.quickReview, "quickReview");
-  if (typeof value.summary === "string" && value.summary.trim() === String(value.quickReview).trim()) {
+  if (wants("SUMMARY")) nonBlank(value.summary, "summary");
+  if (wants("QUICK_REVIEW")) nonBlank(value.quickReview, "quickReview");
+  onlyWhenAsked("SUMMARY", "summary");
+  onlyWhenAsked("QUICK_REVIEW", "quickReview");
+  onlyWhenAsked("ACTIVE_RECALL", "activeRecall");
+  if (!wants("TIPS_TRAPS") && (!blank(value.tips) || !blank(value.traps))) reject("tips were not requested");
+  if (wants("SUMMARY") && wants("QUICK_REVIEW") && String(value.summary).trim() === String(value.quickReview).trim()) {
     reject("quickReview repeats summary");
   }
 
   const concepts = array(value.errorConcepts, "errorConcepts");
   const conceptKeys = new Set(concepts.map((concept) => String(concept.key)));
   if (conceptKeys.size !== concepts.length) reject("duplicated error concept key");
+  if (wants("ERROR_CONCEPTS") && concepts.length === 0) reject("error concepts missing");
 
   const questions = array(value.questions, "questions");
-  if (questions.length !== 10) reject("question count");
+  if (questions.length !== options.questionCount) reject("question count");
   const statements = new Set<string>();
   questions.forEach((question, index) => {
     const field = `questions.${index}`;
     const statement = nonBlank(question.statement, `${field}.statement`, 4_000).trim().toLowerCase();
     if (statements.has(statement)) reject(`${field} repeats a statement`);
     statements.add(statement);
-    const options = array(question.options, `${field}.options`);
-    const keys = options.map((option) => String(option.key));
-    const expectedKeys = question.format === "TRUE_FALSE" ? ["C", "E"] : ["A", "B", "C", "D", "E"];
+    const answerOptions = array(question.options, `${field}.options`);
+    const keys = answerOptions.map((option) => String(option.key));
+    const style = options.questionStyle;
+    if (style === "TRUE_FALSE" && question.format !== "TRUE_FALSE") reject(`${field} must be Certo/Errado`);
+    if ((style === "FIVE_OPTIONS" || style === "FOUR_OPTIONS") && question.format !== "MULTIPLE_CHOICE") reject(`${field} must be multiple choice`);
+    const expectedKeys = question.format === "TRUE_FALSE"
+      ? ["C", "E"]
+      : style === "FOUR_OPTIONS" ? ["A", "B", "C", "D"] : ["A", "B", "C", "D", "E"];
     if (keys.join() !== expectedKeys.join()) reject(`${field} has unexpected option keys`);
-    if (options.filter((option) => option.correct === true).length !== 1) reject(`${field} must have exactly one correct option`);
-    options.forEach((option, optionIndex) => nonBlank(option.text, `${field}.options.${optionIndex}.text`, 2_000));
+    if (answerOptions.filter((option) => option.correct === true).length !== 1) reject(`${field} must have exactly one correct option`);
+    answerOptions.forEach((option, optionIndex) => nonBlank(option.text, `${field}.options.${optionIndex}.text`, 2_000));
     nonBlank(question.explanation, `${field}.explanation`, 8_000);
-    if (!chapterTitles.has(nonBlank(question.section, `${field}.section`, 200).trim())) reject(`${field}.section is not a chapter title`);
-    if (!conceptKeys.has(String(question.errorConceptKey))) reject(`${field}.errorConceptKey is unknown`);
+    const section = nonBlank(question.section, `${field}.section`, 200).trim();
+    if (chapterTitles.size > 0 && !chapterTitles.has(section)) reject(`${field}.section is not a chapter title`);
+    if (question.errorConceptKey !== null && !conceptKeys.has(String(question.errorConceptKey))) reject(`${field}.errorConceptKey is unknown`);
+    const difficulty = { EASY: "FACIL", MEDIUM: "MEDIA", HARD: "DIFICIL", MIXED: null }[options.difficulty];
+    if (difficulty !== null && question.difficulty !== difficulty) reject(`${field} difficulty differs from the request`);
     if (question.sourceType === "REAL") {
       httpsUrl(question.sourceUrl, `${field}.sourceUrl`);
       nonBlank(question.board, `${field}.board`, 120);
