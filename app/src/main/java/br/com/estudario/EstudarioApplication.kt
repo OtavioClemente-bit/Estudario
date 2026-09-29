@@ -74,6 +74,14 @@ class EstudarioApplication : Application() {
             userIdProvider = { supabaseAuthRepository.currentUserId() },
         )
     }
+    /** Conteúdo de tópico e plano pela IA do Estudário: mesma função e mesmo login do edital. */
+    val aiTextJobClient: br.com.estudario.data.ai.AiTextJobClient by lazy {
+        br.com.estudario.data.ai.AiTextJobClient(
+            publishableKey = supabaseClientConfig.publishableKey,
+            accessTokenProvider = SupabaseAiTokenProvider(supabaseAuthRepository),
+            transport = br.com.estudario.data.ai.UrlConnectionAiHttpTransport(supabaseClientConfig.projectUrl),
+        )
+    }
     /** Read-only access boundary shared with the AI review gate and future quota UI. */
     val aiAccessRepository: AiAccessRepository by lazy {
         DefaultAiAccessRepository(

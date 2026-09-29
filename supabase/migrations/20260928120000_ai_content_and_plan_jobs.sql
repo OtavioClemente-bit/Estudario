@@ -159,7 +159,6 @@ end;
 $$;
 
 revoke all on function public.claim_ai_text_worker_job(text, text, integer, integer) from public, anon, authenticated;
-
 grant execute on function public.claim_ai_text_worker_job(text, text, integer, integer) to service_role;
 
 -- 5. Reconciliação de cancelamento separada por fila: cada worker só reconcilia os jobs que sabe
@@ -275,5 +274,4 @@ end;
 $$;
 
 revoke all on function public.claim_ai_text_job_provider_reconciliation(text, text, integer, integer) from public, anon, authenticated;
-
 grant execute on function public.claim_ai_text_job_provider_reconciliation(text, text, integer, integer) to service_role;

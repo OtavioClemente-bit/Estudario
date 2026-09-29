@@ -496,7 +496,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
             Text("Teoria completa", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
         val topicTheories = theories.filter { it.topicId == topicId }
-        if (topicTheories.isEmpty()) item { EmptyState("Teoria ainda não importada", "Toque em ✨ no topo para montar o pedido para a IA e depois importe o .estudo gerado.", "Gerar com IA") { showContentPrompt = true } }
+        if (topicTheories.isEmpty()) item { EmptyState("Teoria ainda não importada", "Escolha o que quer receber (teoria, resumo, questões) e gere com a IA do Estudário ou com a sua.", "Gerar com IA") { showContentPrompt = true } }
         topicTheories.forEach { theory ->
             item(key = "theory-${theory.id}") {
                 ElevatedCard(onClick = { onTheory(theory.id) }) {

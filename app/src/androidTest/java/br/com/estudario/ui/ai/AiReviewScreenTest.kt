@@ -1,6 +1,7 @@
 package br.com.estudario.ui.ai
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -42,7 +43,7 @@ class AiReviewScreenTest {
             }
         }
 
-        compose.onNodeWithText("Edital selecionado: TRT-3").assertIsDisplayed()
+        compose.onNodeWithTag("ai_selected_target").assertTextEquals("TRT-3")
         compose.onNodeWithText("Use a IA do Estudário").assertIsDisplayed()
         compose.onNodeWithText("Entrar para continuar").performClick()
         compose.runOnIdle { assertTrue(loginRequested) }
@@ -63,9 +64,10 @@ class AiReviewScreenTest {
             }
         }
 
-        compose.onNodeWithText("PROCESSING").assertIsDisplayed()
-        compose.onNodeWithText("jobId: job-42").assertIsDisplayed()
-        compose.onNodeWithText("Aguardando a análise do edital").assertIsDisplayed()
+        compose.onNodeWithTag("ai_selected_target").assertTextEquals("TRT-3")
+        compose.onNodeWithText("Analisando seu edital").assertIsDisplayed()
+        compose.onNodeWithText("Código da análise: job-42").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("${SyllabusAnalysisStages.first()}…").assertIsDisplayed()
     }
 
     @Test
@@ -100,7 +102,7 @@ class AiReviewScreenTest {
 
         compose.onNodeWithText("1 matéria · 4 tópicos").assertIsDisplayed()
         compose.onNodeWithText("As páginas 58-60 não puderam ser interpretadas.", substring = true).assertIsDisplayed()
-        compose.onNodeWithText("Edital selecionado: TRT-3").assertIsDisplayed()
+        compose.onNodeWithTag("ai_selected_target").assertTextEquals("TRT-3")
 
         compose.onNodeWithTag("ai_add_subject_button").performScrollTo().performClick()
         compose.waitForIdle()

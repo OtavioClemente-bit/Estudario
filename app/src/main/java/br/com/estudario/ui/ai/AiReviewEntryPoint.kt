@@ -95,6 +95,8 @@ fun AiReviewEntryPoint(
     )
     val state by actualReviewViewModel.state.collectAsState()
     val preferences by actualReviewViewModel.preferences.collectAsState()
+    // Voltar do sistema fecha a tela da IA e devolve ao passo de onde ela foi aberta.
+    androidx.activity.compose.BackHandler(enabled = !loginOpen) { onClose() }
     LaunchedEffect(target.sourceUri, target.sourceName) {
         // Preferências antes da fonte: a fonte pode disparar a geração, que já leva as respostas.
         target.preferences?.let(actualReviewViewModel::updatePreferences)

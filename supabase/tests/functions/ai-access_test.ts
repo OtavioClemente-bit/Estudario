@@ -3,6 +3,7 @@ import {
   type AccessDataSource,
   ClosedBetaAiPolicy,
   type FeatureFlagRecord,
+  type PlanLimitRecord,
   type ProfileRecord,
   type QuotaUsageRecord,
   SupabaseAccessDataSource,
@@ -44,6 +45,15 @@ class FakeAccessDataSource implements AccessDataSource {
       quota.userId === userId && quota.feature === feature &&
       quota.periodStart === periodStart
     ) ?? null;
+  }
+
+  // Limites como na migração de planos; o Grátis é o padrão de quem não tem plano.
+  async listPlanLimits(): Promise<PlanLimitRecord[]> {
+    return [
+      { planTier: "FREE", feature: "SYLLABUS_GENERATION", periodKind: "LIFETIME", quotaLimit: 1, maxPerRequest: null, maxPerTopicMonth: null },
+      { planTier: "FREE", feature: "PLAN_GENERATION", periodKind: "LIFETIME", quotaLimit: 1, maxPerRequest: null, maxPerTopicMonth: null },
+      { planTier: "FREE", feature: "CONTENT_GENERATION", periodKind: "MONTHLY", quotaLimit: 10, maxPerRequest: null, maxPerTopicMonth: null },
+    ];
   }
 }
 
@@ -175,25 +185,29 @@ Deno.test("isolates account A quota from account B quota", async () => {
   assert.equal(accountB.reasonCode, "QUOTA_EXHAUSTED");
 });
 
-Deno.test("uses America/Sao_Paulo when selecting a daily quota period", async () => {
+// Com os planos, conteúdo renova por mês (horário de Brasília), não mais por dia.
+Deno.test("uses America/Sao_Paulo when selecting a monthly quota period", async () => {
   const contentFeature = "CONTENT_GENERATION" as const;
   const access = await policyFor({
-    quotas: [quota(USER_A, contentFeature, 0, 0, "2026-09-22")],
-  }, new Date("2026-09-23T02:30:00Z")).getAccess(USER_A, contentFeature);
+    quotas: [quota(USER_A, contentFeature, 0, 0, "2026-09-01")],
+  }, new Date("2026-10-01T02:30:00Z")).getAccess(USER_A, contentFeature);
 
   assert.equal(access.canUse, true);
-  assert.equal(access.quota?.periodStart, "2026-09-22");
-  assert.equal(access.quota?.resetAt, "2026-09-23T03:00:00.000Z");
+  assert.equal(access.quota?.periodStart, "2026-09-01");
+  assert.equal(access.quota?.resetAt, "2026-10-01T03:00:00.000Z");
 });
 
-Deno.test("plan has no reset and exhausted content has the next Sao Paulo midnight", async () => {
+Deno.test("on the free plan, syllabus and plan never reset while content renews next month", async () => {
+  const syllabus = await policyFor().getAccess(USER_A, "SYLLABUS_GENERATION");
   const plan = await policyFor().getAccess(USER_A, "PLAN_GENERATION");
   const content = await policyFor({
-    quotas: [quota(USER_A, "CONTENT_GENERATION", 1, 0, "2026-09-23")],
+    quotas: [quota(USER_A, "CONTENT_GENERATION", 10, 0, "2026-09-01")],
   }).getAccess(USER_A, "CONTENT_GENERATION");
+  assert.equal(syllabus.quota?.resetAt, null);
+  // No Grátis o plano é 1 no total; o conteúdo, 10 por mês.
   assert.equal(plan.quota?.resetAt, null);
   assert.equal(content.quota?.remaining, 0);
-  assert.equal(content.quota?.resetAt, "2026-09-24T03:00:00.000Z");
+  assert.equal(content.quota?.resetAt, "2026-10-01T03:00:00.000Z");
 });
 
 Deno.test("GET access is read-only, ignores Android account/quota claims, and ignores Drive authorization", async () => {
@@ -327,6 +341,9 @@ Deno.test("authenticated ai-access propagates one user JWT to all RLS-protected 
                 { flag_key: "SYLLABUS_AI_ENABLED", enabled: true },
               ]);
             }
+            if (url.pathname.endsWith("/ai_plan_limits")) {
+              return Response.json([{ plan_tier: "FREE", feature: FEATURE, period_kind: "LIFETIME", quota_limit: 1, max_per_request: null, max_per_topic_month: null }]);
+            }
             if (url.pathname.endsWith("/ai_quota_usage")) {
               return Response.json([{
                 user_id: USER_A,
@@ -355,7 +372,7 @@ Deno.test("authenticated ai-access propagates one user JWT to all RLS-protected 
   assert.equal(body.quota.remaining, 1);
   assert.equal("accessToken" in body, false);
   assert.equal("userId" in body, false);
-  assert.equal(dataRequests.length, 3);
+  assert.equal(dataRequests.length, 4);
   for (const request of dataRequests) {
     assert.equal(request.headers.get("apikey"), publishableKey);
     assert.equal(request.headers.get("authorization"), `Bearer ${userJwt}`);

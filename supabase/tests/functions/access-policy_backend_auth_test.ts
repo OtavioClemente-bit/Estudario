@@ -47,6 +47,8 @@ async function readAllAccessTables() {
   assert.deepEqual(await source.findProfile(USER_ID), {
     userId: USER_ID,
     betaAccess: true,
+    planTier: "FREE",
+    planRenewsAt: null,
   });
   assert.deepEqual(await source.listFeatureFlags(["AI_BETA_ENABLED"]), [
     { flagKey: "AI_BETA_ENABLED", enabled: true },

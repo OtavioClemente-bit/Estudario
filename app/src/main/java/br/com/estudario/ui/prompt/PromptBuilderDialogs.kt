@@ -602,6 +602,7 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
     val priorities = remember { mutableStateMapOf<String, PlanPriority>() }
     var pickExamDate by remember { mutableStateOf(false) }
     var dailyPreset by remember { mutableIntStateOf(-1) }
+    var studioPlan by remember { mutableStateOf(false) }
 
     val competitionSubjects: List<SubjectEntity> = subjects.filter { it.competitionId == competitionId }.sortedBy { it.position }
     val subjectInfos = remember(competitionSubjects, topics, questions) {
@@ -785,7 +786,25 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
         onImportText = { onDismiss(); viewModel.openIncomingText(it) },
         onPickFile = { onDismiss(); onPickFile() },
         returnFileLabel = "Abrir arquivo .plano",
+        server = ServerGenerationOption(
+            description = "Monta o plano com as respostas desta conversa e mostra tudo para você conferir antes de salvar. Usa 1 geração de plano do seu plano.",
+            enabled = competition != null && competitionSubjects.isNotEmpty() && datesValid && dayMinutes.any { it > 0 },
+            disabledReason = "Responda às etapas acima para liberar.".takeIf { competition == null || competitionSubjects.isEmpty() || !datesValid || dayMinutes.none { it > 0 } },
+            onGenerate = { studioPlan = true },
+        ),
     )
+    // IA do Estudário: usa exatamente as respostas do assistente e entrega um .plano pelo mesmo
+    // caminho de importação (prévia e confirmação).
+    if (studioPlan && competition != null) {
+        br.com.estudario.ui.ai.StudyPlanAiScreen(
+            competitionExternalId = PromptIds.competition(competition),
+            competitionName = competition.name,
+            prepare = { runCatching { br.com.estudario.data.ai.StudyPlanAi.prepare(PromptIds.competition(competition), competition.name, subjectInfos, effective) }.getOrNull() },
+            onPlano = { plano -> studioPlan = false; onDismiss(); viewModel.openIncomingText(plano) },
+            onFallback = { studioPlan = false },
+            onClose = { studioPlan = false },
+        )
+    }
 }
 
 private fun priorityLabel(value: PlanPriority) = when (value) {

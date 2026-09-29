@@ -118,24 +118,11 @@ internal fun WizardPage(
     // o rodapé respeitando a barra de navegação.
     Column(Modifier.fillMaxSize().padding(horizontal = estudarioLayout().screenGutter)) {
         SetupScrollContainer(Modifier.weight(1f), showScrollIndicator = showScrollIndicator) {
-            Icon(icon, null, Modifier.size(34.dp), tint = MaterialTheme.colorScheme.primary)
-            Text(
-                eyebrow.uppercase(),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(question, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+            SetupHeader(eyebrow, question, icon)
             WizardAside(aside)
             content()
         }
-        // FlowRow: com fonte maior os botões do rodapé (Voltar / Continuar) descem um para cada
-        // linha em vez de espremer o rótulo.
-        FlowRow(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 4.dp, bottom = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) { bottom() }
+        SetupBottomBar(bottom)
     }
 }
 

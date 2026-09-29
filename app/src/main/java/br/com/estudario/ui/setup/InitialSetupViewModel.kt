@@ -120,6 +120,15 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
     private val _operation = MutableStateFlow<SetupOperation>(SetupOperation.Idle)
     val operation: StateFlow<SetupOperation> = _operation.asStateFlow()
 
+    /**
+     * O PDF do edital anexado no começo. Mora aqui, e não na tela, porque a tela do assistente sai
+     * de composição quando a IA do Estudário abre; guardado na tela, o anexo se perdia e a pessoa
+     * tinha que escolher o mesmo PDF de novo.
+     */
+    private val _editalAttachment = MutableStateFlow<br.com.estudario.ui.prompt.PromptAttachment?>(null)
+    val editalAttachment: StateFlow<br.com.estudario.ui.prompt.PromptAttachment?> = _editalAttachment.asStateFlow()
+    fun setEditalAttachment(value: br.com.estudario.ui.prompt.PromptAttachment?) { _editalAttachment.value = value }
+
     fun selectedAiTarget(): AiReviewTarget? = state.value.competition?.let { AiReviewTarget(it.id, it.name) }
 
     /** Called only after the AI proposal was applied locally and its outbox row was created. */

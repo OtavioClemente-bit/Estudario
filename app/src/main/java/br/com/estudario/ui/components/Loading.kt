@@ -44,31 +44,10 @@ import androidx.compose.ui.window.DialogProperties
  * - [SkeletonBlock] / [SkeletonCard]: esqueleto com brilho, quando já sabemos o formato do conteúdo.
  */
 @Composable
-fun LoadingDialog(title: String, message: String? = null) {
-    Dialog(
-        onDismissRequest = {},
-        properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
-    ) {
-        Surface(
-            shape = RoundedCornerShape(22.dp),
-            tonalElevation = 6.dp,
-            shadowElevation = 12.dp,
-            color = MaterialTheme.colorScheme.surface,
-            modifier = Modifier.widthIn(max = 360.dp),
-        ) {
-            Row(
-                Modifier.padding(horizontal = 24.dp, vertical = 22.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(18.dp),
-            ) {
-                EstudarioBookLoader(size = 52.dp)
-                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    if (message != null) Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        }
-    }
+fun LoadingDialog(title: String, message: String? = null, steps: List<String> = emptyList()) {
+    // A cena de processamento (o livro recebendo o material) em versão compacta; com [steps], o
+    // texto vai narrando o que está acontecendo em vez de uma frase fixa.
+    EstudarioProcessDialog(title = title, message = message, steps = steps)
 }
 
 /** Corpo de tela ainda sem conteúdo. */

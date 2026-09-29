@@ -31,6 +31,13 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -177,6 +184,9 @@ fun InitialSetupFlow(
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
 
+    // Voltar do sistema volta um passo, igual à seta do topo; só na primeira tela ele sai do app.
+    androidx.activity.compose.BackHandler(enabled = snapshot.step != InitialSetupStep.INTRO) { viewModel.goBack() }
+
     LaunchedEffect(snapshot.status) {
         if (snapshot.status == InitialSetupStatus.NOT_STARTED) viewModel.begin()
     }
@@ -201,16 +211,16 @@ fun InitialSetupFlow(
 
     // Anexo do edital (PDF): escolhido já no passo do nome do concurso, para ir junto quando a
     // pessoa enviar o prompt pra IA. Fica aqui em cima (e não dentro do passo) porque cada passo
-    // sai de composição ao avançar, sem isso, o anexo se perderia entre um passo e outro. Muitas
+    // sai de composição ao avançar; sem isso, o anexo se perderia entre um passo e outro. Muitas
     // IAs gratuitas só respondem direito com o PDF em mãos; sem ele, dependem de pesquisar na
     // internet, o que nem sempre funciona nos planos grátis.
-    var editalAttachment by remember { mutableStateOf<PromptAttachment?>(null) }
+    val editalAttachment by viewModel.editalAttachment.collectAsState()
     val aiPdfPermission = remember(context) { ContentResolverAiPdfUriPermission(context.contentResolver) }
     val editalAttach = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let {
             runCatching {
                 val persistedUri = InitialSetupAiPdfSource.persist(it, aiPdfPermission)
-                editalAttachment = context.attachmentFor(persistedUri)
+                viewModel.setEditalAttachment(context.attachmentFor(persistedUri))
             }.onFailure {
                 viewModel.reportError("Não foi possível manter acesso ao PDF selecionado.")
             }
@@ -231,13 +241,16 @@ fun InitialSetupFlow(
         }
     }
 
-    val progress = visibleSteps.indexOf(snapshot.step).let { index ->
-        if (index < 0) 0f else (index + 1).toFloat() / visibleSteps.size
-    }
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (snapshot.step == InitialSetupStep.READY) "Seu ponto de partida" else "Vamos preparar seu estudo") },
+                title = {
+                    Text(
+                        if (snapshot.step == InitialSetupStep.READY) "Seu ponto de partida" else "Configuração inicial",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                },
                 navigationIcon = {
                     if (snapshot.step != InitialSetupStep.INTRO) {
                         androidx.compose.material3.IconButton(onClick = viewModel::goBack) {
@@ -258,11 +271,14 @@ fun InitialSetupFlow(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .safeDrawingPadding()
+                // O Scaffold já aplicou barra de status e de navegação; consumir evita o recuo
+                // duplicado (o vão vazio que aparecia embaixo da barra superior).
+                .consumeWindowInsets(padding)
                 .imePadding(),
         ) {
-            if (snapshot.step != InitialSetupStep.INTRO && snapshot.step != InitialSetupStep.READY) {
-                LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth())
+            val stepIndex = visibleSteps.indexOf(snapshot.step)
+            if (snapshot.step != InitialSetupStep.INTRO && snapshot.step != InitialSetupStep.READY && stepIndex >= 0) {
+                SetupProgress(stepIndex, visibleSteps.size)
             }
             AnimatedContent(
                 targetState = snapshot.step,
@@ -276,14 +292,14 @@ fun InitialSetupFlow(
                         snapshot, uiState.competition, uiState.competitions, viewModel,
                         editalAttachment = editalAttachment,
                         onPickEditalAttachment = { editalAttach.launch(InitialSetupAiPdfSource.PICKER_MIME_TYPES) },
-                        onClearEditalAttachment = { editalAttachment = null },
+                        onClearEditalAttachment = { viewModel.setEditalAttachment(null) },
                     )
                     InitialSetupStep.EXAM_DATE -> ExamDateStep(snapshot, viewModel)
                     InitialSetupStep.SYLLABUS_METHOD -> SyllabusMethodStep(
                         snapshot, operation, viewModel, picker,
                         editalAttachment = editalAttachment,
                         onPickEditalAttachment = { editalAttach.launch(InitialSetupAiPdfSource.PICKER_MIME_TYPES) },
-                        onClearEditalAttachment = { editalAttachment = null },
+                        onClearEditalAttachment = { viewModel.setEditalAttachment(null) },
                         onOpenIntegratedAi = { attachment ->
                             viewModel.selectedAiTarget()?.let {
                                 appViewModel.openAiReview(it.id, it.title, attachment?.uri?.toString(), attachment?.name)
@@ -333,7 +349,16 @@ fun InitialSetupFlow(
         }
     }
 
-    if (operation is SetupOperation.Loading) LoadingDialog("Preparando seu estudo", "Analisando apenas o conteúdo real que você enviou…")
+    if (operation is SetupOperation.Loading) LoadingDialog(
+        title = "Preparando seu estudo",
+        message = "Analisando apenas o conteúdo real que você enviou…",
+        steps = listOf(
+            "Lendo o conteúdo que você enviou",
+            "Conferindo matérias e tópicos",
+            "Organizando seu estudo",
+            "Quase pronto",
+        ),
+    )
     if (operation is SetupOperation.Error) {
         val message = (operation as SetupOperation.Error).message
         AlertDialog(
@@ -413,9 +438,33 @@ private fun IntroStep(onContinue: () -> Unit) {
         icon = Icons.Outlined.School,
         bottom = { SetupPrimaryButton("Começar", onContinue) },
     ) {
+        Box(
+            Modifier.fillMaxWidth().height(170.dp).clip(RoundedCornerShape(26.dp)).background(
+                androidx.compose.ui.graphics.Brush.radialGradient(
+                    listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.22f), MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)),
+                ),
+            ),
+            contentAlignment = Alignment.Center,
+        ) { br.com.estudario.ui.components.EstudarioGlyph(size = 104.dp) }
         SetupCard {
-            Text("Você decide o ritmo. O Estudário cuida da estrutura.", fontWeight = FontWeight.SemiBold)
-            Text("Nada aqui exige banca, ano ou uma data de prova. Se ainda não souber tudo, seguimos mesmo assim.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            IntroPoint(Icons.Outlined.School, "Seu objetivo", "A prova que você quer e, se souber, a data.")
+            IntroPoint(Icons.Outlined.Description, "Seu edital", "Com IA, por arquivo ou montado à mão.")
+            IntroPoint(Icons.Outlined.CalendarMonth, "Seu plano", "Um ritmo que cabe na sua semana.")
+        }
+        Text("Nada aqui exige banca, ano ou uma data de prova. Se ainda não souber tudo, seguimos mesmo assim.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun IntroPoint(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Box(
+            Modifier.size(38.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer) }
+        Column {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -462,7 +511,7 @@ private fun CompetitionStep(
         SetupCard {
             Text("Já aproveite e anexe o edital", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Text(
-                "A maioria das IAs gratuitas só consegue pesquisar direito quando o PDF é enviado junto, sem ele, geralmente não conseguem buscar o edital sozinhas. Se puder, escolha a versão com o conteúdo programático (as matérias) já incluído. É opcional, e dá pra anexar depois, no passo do edital.",
+                "A maioria das IAs gratuitas só consegue pesquisar direito quando o PDF é enviado junto; sem ele, geralmente não conseguem buscar o edital sozinhas. Se puder, escolha a versão com o conteúdo programático (as matérias) já incluído. É opcional, e dá pra anexar depois, no passo do edital.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -603,9 +652,9 @@ internal fun SyllabusMethodStep(
             }
         },
     ) {
-        SyllabusChoice("Gerar com IA", "A IA do Estudário lê o PDF do edital e monta tudo. Ou use a sua IA.", Icons.Outlined.AutoAwesome, method == SyllabusMethod.DIRECT_AI) { viewModel.chooseSyllabusMethod(SyllabusMethod.DIRECT_AI) }
-        SyllabusChoice("Importar arquivo .estudo", "Use um edital que você já tenha gerado ou recebido.", Icons.Outlined.UploadFile, method == SyllabusMethod.IMPORT_ESTUDO) { viewModel.chooseSyllabusMethod(SyllabusMethod.IMPORT_ESTUDO) }
-        SyllabusChoice("Montar manualmente", "Crie matérias e tópicos agora e edite tudo antes de continuar.", Icons.Outlined.School, method == SyllabusMethod.MANUAL) { viewModel.chooseSyllabusMethod(SyllabusMethod.MANUAL) }
+        ChoiceCard("Gerar com IA", "A IA lê o edital e organiza matérias e tópicos para você revisar.", method == SyllabusMethod.DIRECT_AI, icon = Icons.Outlined.AutoAwesome, badge = "Recomendado") { viewModel.chooseSyllabusMethod(SyllabusMethod.DIRECT_AI) }
+        ChoiceCard("Importar arquivo .estudo", "Use um edital que você já tenha gerado ou recebido.", method == SyllabusMethod.IMPORT_ESTUDO, icon = Icons.Outlined.UploadFile) { viewModel.chooseSyllabusMethod(SyllabusMethod.IMPORT_ESTUDO) }
+        ChoiceCard("Montar manualmente", "Crie matérias e tópicos agora e edite tudo antes de continuar.", method == SyllabusMethod.MANUAL, icon = Icons.Outlined.School) { viewModel.chooseSyllabusMethod(SyllabusMethod.MANUAL) }
 
         when (method) {
             SyllabusMethod.DIRECT_AI -> {
@@ -618,34 +667,11 @@ internal fun SyllabusMethodStep(
                         ),
                     )
                 }
-                // IA do Estudário em destaque; a IA da própria pessoa fica logo abaixo como alternativa.
-                ElevatedCard(
-                    Modifier.fillMaxWidth(),
-                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                ) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.width(10.dp))
-                            Column {
-                                Text("IA do Estudário", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                                Text("Recomendado · gera aqui no app", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                            }
-                        }
-                        Text(
-                            "Escolha o PDF oficial do edital. A IA lê o documento, monta matérias e tópicos do seu cargo e mostra tudo para você revisar antes de salvar.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                        Button(onClick = { onOpenIntegratedAi(editalAttachment) }, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Outlined.AutoAwesome, null, Modifier.padding(end = 8.dp))
-                            Text("Gerar com a IA do Estudário")
-                        }
-                        br.com.estudario.ui.ai.AiAccessPanel(showTitle = false)
-                    }
-                }
-                Text("Ou use a sua IA", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                PromptActionCard(
+                Spacer(Modifier.height(4.dp))
+                StudioAiCard(editalAttachment) { onOpenIntegratedAi(editalAttachment) }
+                br.com.estudario.ui.ai.AiAccessPanel()
+                OrDivider("ou use outra IA")
+                ExternalAiGuide(
                     prompt = prompt,
                     attachment = editalAttachment,
                     onPickAttachment = onPickEditalAttachment,
@@ -904,6 +930,46 @@ private fun PlanMethodStep(
             } else SetupPrimaryButton("Montar meu plano", { viewModel.createAutomaticPlan() })
         },
     ) {
+        // IA do Estudário: mesma entrada do prompt externo; o resultado vira .plano e passa pela
+        // mesma prévia e validação de cobertura da importação.
+        var studioPlan by rememberSaveable { mutableStateOf(false) }
+        val competitionExternalId = uiState.competition?.let(PromptIds::competition) ?: "concurso-${PromptIds.slug(snapshot.competitionName)}"
+        StudioAiCard(
+            attachment = null,
+            description = "A IA monta o seu plano dia a dia com as suas matérias, horas e prioridades, com revisões e simulados. Você confere antes de aplicar.",
+            buttonLabel = "Montar plano com a IA",
+        ) { studioPlan = true }
+        if (studioPlan) {
+            br.com.estudario.ui.ai.StudyPlanAiScreen(
+                competitionExternalId = competitionExternalId,
+                competitionName = snapshot.competitionName,
+                prepare = {
+                    val start = LocalDate.now()
+                    val exam = snapshot.examDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }?.takeIf { !it.isBefore(start) }
+                    runCatching {
+                        br.com.estudario.data.ai.StudyPlanAi.prepare(
+                            competitionExternalId,
+                            snapshot.competitionName,
+                            uiState.promptSubjects,
+                            PlanPromptOptions(
+                                startDate = start,
+                                examDate = exam,
+                                horizonWeeks = 12,
+                                dayMinutes = snapshot.availabilityMinutes,
+                                priorities = uiState.planningPrioritiesByExternalId,
+                                blockMinutes = snapshot.sessionMinutes,
+                                studyProfile = snapshot.studyProfile,
+                                planPreference = snapshot.planPreference,
+                            ),
+                        )
+                    }.getOrNull()
+                },
+                onPlano = { plano -> studioPlan = false; viewModel.inspectPlan(plano) },
+                onFallback = { studioPlan = false; viewModel.choosePlanMethod(PlanCreationMethod.EXTERNAL_AI) },
+                onClose = { studioPlan = false },
+            )
+        }
+        OrDivider("ou escolha outro caminho")
         ChoiceCard("Montar automaticamente", "Recomendado para começar: distribui suas matérias nos dias disponíveis e já cria a primeira atividade.", snapshot.planMethod == PlanCreationMethod.AUTOMATIC, onClick = { viewModel.choosePlanMethod(PlanCreationMethod.AUTOMATIC) })
         ChoiceCard("Montar com IA externa", "O prompt inclui o edital completo, seus tópicos e prioridades, ritmo, bloco e perfil. Depois, importe e confira o .plano.", snapshot.planMethod == PlanCreationMethod.EXTERNAL_AI, onClick = { viewModel.choosePlanMethod(PlanCreationMethod.EXTERNAL_AI) })
         if (snapshot.planMethod == PlanCreationMethod.EXTERNAL_AI) {
@@ -1071,7 +1137,7 @@ private fun ReadyStep(onFinish: () -> Unit) {
     SetupPage(
         eyebrow = "Tudo pronto",
         title = "Agora você tem um próximo passo claro.",
-        description = "Seu edital, sua rotina e seu primeiro plano já estão organizados. Quando quiser, ajuste os detalhes, hoje basta começar.",
+        description = "Seu edital, sua rotina e seu primeiro plano já estão organizados. Quando quiser, ajuste os detalhes; hoje basta começar.",
         icon = Icons.Outlined.CheckCircle,
         bottom = { SetupPrimaryButton("Ir para minha Home", onFinish) },
     ) {
@@ -1094,92 +1160,336 @@ internal fun SetupPage(
 ) {
     Column(Modifier.fillMaxSize().padding(horizontal = estudarioLayout().screenGutter)) {
         SetupScrollContainer(Modifier.weight(1f), showScrollIndicator = showScrollIndicator) {
-            Icon(icon, null, Modifier.size(34.dp), tint = MaterialTheme.colorScheme.primary)
-            Text(eyebrow.uppercase(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-            Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+            SetupHeader(eyebrow, title, icon)
             Text(description, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(4.dp))
             content()
         }
-        // FlowRow: com fonte maior os botões do rodapé (Voltar / Continuar) descem um para cada
-        // linha em vez de espremer o rótulo.
+        SetupBottomBar(bottom)
+    }
+}
+
+/**
+ * Cabeçalho de cada passo: o ícone dentro de um selo, o rótulo curto e a pergunta. É o mesmo em
+ * [SetupPage] e no assistente do plano, para a configuração inteira parecer uma coisa só.
+ */
+@Composable
+internal fun SetupHeader(eyebrow: String, title: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(
+            Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer) }
+        Text(eyebrow.uppercase(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+    }
+    Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+}
+
+/** Rodapé fixo: uma linha fina separando do conteúdo e a ação principal ocupando a largura. */
+@Composable
+internal fun SetupBottomBar(bottom: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        // FlowRow: com fonte maior os botões do rodapé descem um para cada linha em vez de
+        // espremer o rótulo.
         FlowRow(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 4.dp, bottom = 12.dp),
+            Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) { bottom() }
     }
 }
 
+/** Progresso da configuração em segmentos, com a contagem escrita. */
+@Composable
+private fun SetupProgress(index: Int, total: Int) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = estudarioLayout().screenGutter).padding(bottom = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            "Passo ${index + 1} de $total",
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            repeat(total) { i ->
+                val color = when {
+                    i < index -> MaterialTheme.colorScheme.primary
+                    i == index -> MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+                    else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                }
+                Box(Modifier.weight(1f).height(5.dp).clip(RoundedCornerShape(50)).background(color))
+            }
+        }
+    }
+}
+
 @Composable
 internal fun SetupCard(content: @Composable ColumnScope.() -> Unit) {
-    ElevatedCard(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content) }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) { Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content) }
 }
 
 @Composable
 internal fun SetupPrimaryButton(label: String, onClick: () -> Unit, enabled: Boolean = true) {
-    Button(onClick = onClick, enabled = enabled, contentPadding = PaddingValues(horizontal = 22.dp, vertical = 12.dp)) { Text(label); Spacer(Modifier.width(8.dp)); Icon(Icons.Outlined.ArrowForward, null) }
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().height(56.dp),
+        shape = RoundedCornerShape(18.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.width(8.dp))
+        Icon(Icons.Outlined.ArrowForward, null, Modifier.size(20.dp))
+    }
 }
 
+/**
+ * Opção selecionável: borda de destaque e o marcador à direita quando escolhida. Serve às escolhas
+ * simples (perfil, ritmo) e, com ícone e selo, aos caminhos do edital.
+ */
 @Composable
-private fun ChoiceCard(title: String, description: String, selected: Boolean, onClick: () -> Unit) {
-    ElevatedCard(onClick = onClick, colors = CardDefaults.elevatedCardColors(containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow)) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(title, fontWeight = FontWeight.SemiBold); Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            if (selected) Icon(Icons.Outlined.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
+private fun ChoiceCard(
+    title: String,
+    description: String,
+    selected: Boolean,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    badge: String? = null,
+    onClick: () -> Unit,
+) {
+    val border = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f) else MaterialTheme.colorScheme.surfaceContainerLow,
+        border = androidx.compose.foundation.BorderStroke(if (selected) 2.dp else 1.dp, border),
+    ) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) Box(
+                Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(
+                    if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
+                ),
+                contentAlignment = Alignment.Center,
+            ) { Icon(icon, null, Modifier.size(22.dp), tint = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer) }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    if (badge != null) Text(
+                        badge,
+                        Modifier.clip(RoundedCornerShape(50)).background(br.com.estudario.ui.theme.estudarioColors().completed).padding(horizontal = 8.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = br.com.estudario.ui.theme.estudarioColors().onCompleted,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            SelectionMark(selected)
         }
     }
 }
 
 @Composable
-private fun SyllabusChoice(title: String, description: String, icon: androidx.compose.ui.graphics.vector.ImageVector, selected: Boolean, onClick: () -> Unit) {
-    ElevatedCard(onClick = onClick, colors = CardDefaults.elevatedCardColors(containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow)) {
-        Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
-            Column(Modifier.weight(1f)) { Text(title, fontWeight = FontWeight.SemiBold); Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            if (selected) Icon(Icons.Outlined.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
-        }
-    }
+private fun SelectionMark(selected: Boolean) {
+    Box(
+        Modifier.size(22.dp).clip(CircleShape).then(
+            if (selected) Modifier.background(MaterialTheme.colorScheme.primary)
+            else Modifier.border(2.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
+        ),
+        contentAlignment = Alignment.Center,
+    ) { if (selected) Icon(Icons.Outlined.Check, null, Modifier.size(15.dp), tint = MaterialTheme.colorScheme.onPrimary) }
 }
 
 @Composable
 private fun ImportActionCard(pastedText: String, onPastedTextChange: (String) -> Unit, onChooseFile: () -> Unit, onInspect: () -> Unit) {
     SetupCard {
-        FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onChooseFile) { Icon(Icons.Outlined.FolderOpen, null); Spacer(Modifier.width(6.dp)); Text("Escolher .estudo") }
-            Button(onClick = onInspect, enabled = pastedText.isNotBlank()) { Text("Analisar texto") }
+        // Área de arquivo em destaque: é o caminho mais comum.
+        Surface(
+            onClick = onChooseFile,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+        ) {
+            Column(Modifier.padding(vertical = 22.dp, horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Outlined.UploadFile, null, Modifier.size(34.dp), tint = MaterialTheme.colorScheme.primary)
+                Text("Escolher .estudo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                Text("Você vê um resumo antes de importar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
-        OutlinedTextField(pastedText, onPastedTextChange, Modifier.fillMaxWidth(), label = { Text("Ou cole o JSON aqui") }, minLines = 5)
+        OrDivider("ou cole o conteúdo")
+        OutlinedTextField(pastedText, onPastedTextChange, Modifier.fillMaxWidth(), label = { Text("Ou cole o JSON aqui") }, minLines = 4, shape = RoundedCornerShape(14.dp))
+        OutlinedButton(onClick = onInspect, enabled = pastedText.isNotBlank(), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("Analisar texto") }
     }
 }
 
 @Composable
-private fun PromptActionCard(
+private fun OrDivider(label: String) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+    }
+}
+
+/**
+ * O cartão principal do caminho com IA: a IA do próprio Estudário, sobre o degradê da IA. Um
+ * toque abre a tela da IA com o edital (e o PDF, se já anexado) selecionados.
+ */
+@Composable
+private fun StudioAiCard(
+    attachment: PromptAttachment?,
+    description: String = "Envie o PDF oficial e receba as matérias e os tópicos organizados. Você confere tudo antes de salvar.",
+    buttonLabel: String = "Gerar com a IA do Estudário",
+    onOpen: () -> Unit,
+) {
+    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(br.com.estudario.ui.ai.aiGradient())) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Outlined.AutoAwesome, null, tint = Color.White) }
+                Column(Modifier.weight(1f)) {
+                    Text("IA do Estudário", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Mais rápido: tudo dentro do app", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.85f))
+                }
+                Text(
+                    "BETA",
+                    Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.22f)).padding(horizontal = 9.dp, vertical = 3.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                )
+            }
+            Text(
+                description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White,
+            )
+            if (attachment != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Outlined.CheckCircle, null, Modifier.size(16.dp), tint = Color.White)
+                Text("Vai usar “${attachment.name}”", style = MaterialTheme.typography.labelMedium, color = Color.White, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+            Button(
+                onClick = onOpen,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF3B34C4)),
+            ) {
+                Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(buttonLabel, style = MaterialTheme.typography.titleSmall)
+            }
+        }
+    }
+}
+
+/**
+ * Um passo numerado do caminho com uma IA de fora. O número vira um "certo" quando o passo já está
+ * feito, e uma linha liga um passo ao próximo.
+ */
+@Composable
+private fun GuideStep(
+    number: Int,
+    title: String,
+    description: String,
+    done: Boolean = false,
+    last: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit = {},
+) {
+    Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                Modifier.size(30.dp).clip(CircleShape).background(
+                    if (done) br.com.estudario.ui.theme.estudarioColors().completed else MaterialTheme.colorScheme.primary,
+                ),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (done) Icon(Icons.Outlined.Check, null, Modifier.size(17.dp), tint = Color.White)
+                else Text("$number", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
+            }
+            if (!last) Box(
+                Modifier.padding(vertical = 4.dp).width(2.dp).weight(1f).clip(RoundedCornerShape(1.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+            )
+        }
+        Column(Modifier.weight(1f).padding(bottom = if (last) 0.dp else 18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
+                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            content()
+        }
+    }
+}
+
+/** Caminho com uma IA de fora (ChatGPT, Gemini, Claude…): anexar, enviar e trazer a resposta. */
+@Composable
+private fun ExternalAiGuide(
     prompt: String,
+    attachment: PromptAttachment?,
+    onPickAttachment: () -> Unit,
+    onClearAttachment: () -> Unit,
     onImport: () -> Unit,
-    attachment: PromptAttachment? = null,
-    onPickAttachment: (() -> Unit)? = null,
-    onClearAttachment: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     SetupCard {
-        Text("O prompt já vem com o nome do seu concurso e regras para não inventar matérias.", style = MaterialTheme.typography.bodyMedium)
-        if (onPickAttachment != null && onClearAttachment != null) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(
+                Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.secondaryContainer),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Outlined.OpenInNew, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer) }
+            Column {
+                Text("Usar sua IA favorita", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("ChatGPT, Gemini, Claude, Copilot…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        GuideStep(
+            number = 1,
+            title = "Anexe o edital em PDF",
+            description = if (attachment != null) "O PDF vai junto quando você enviar." else "Recomendado: sem o PDF, a maioria das IAs gratuitas não encontra o edital sozinha.",
+            done = attachment != null,
+        ) {
             AttachmentPicker(attachment, "Anexar edital (PDF)", onPickAttachment, onClearAttachment)
-            Text(
-                if (attachment != null) "O anexo “${attachment.name}” vai junto ao compartilhar." else "Recomendado: sem o PDF anexado, a maioria das IAs gratuitas não consegue pesquisar o edital sozinha.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
-        FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { sharePromptWithAi(context, prompt, attachment) }) { Icon(Icons.Outlined.OpenInNew, null); Spacer(Modifier.width(6.dp)); Text("Compartilhar com IA") }
-            OutlinedButton(onClick = {
-                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText("Prompt do Estudário", prompt))
-            }) { Icon(Icons.Outlined.ContentCopy, null); Spacer(Modifier.width(6.dp)); Text("Copiar") }
+        GuideStep(
+            number = 2,
+            title = "Envie o prompt para a IA",
+            description = "Ele já leva o nome do seu concurso e regras para a IA não inventar matérias.",
+        ) {
+            // Um embaixo do outro: com fonte grande, lado a lado cortava o rótulo.
+            Button(
+                onClick = { sharePromptWithAi(context, prompt, attachment) },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+            ) { Icon(Icons.Outlined.OpenInNew, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Compartilhar com IA") }
+            OutlinedButton(
+                onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("Prompt do Estudário", prompt))
+                },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+            ) { Icon(Icons.Outlined.ContentCopy, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Copiar prompt") }
         }
-        TextButton(onClick = onImport) { Icon(Icons.Outlined.UploadFile, null); Spacer(Modifier.width(4.dp)); Text("Importar resposta") }
-        Text("A resposta precisa ser um .estudo válido. O Estudário analisa e mostra o resumo antes de gravar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        GuideStep(
+            number = 3,
+            title = "Traga a resposta de volta",
+            description = "Salve o arquivo .estudo que a IA gerar e escolha aqui. Você vê um resumo antes de gravar.",
+            last = true,
+        ) {
+            OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth().height(46.dp), shape = RoundedCornerShape(14.dp)) {
+                Icon(Icons.Outlined.UploadFile, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Importar resposta")
+            }
+        }
     }
 }
 
@@ -1187,16 +1497,29 @@ private fun PromptActionCard(
 private fun PlanPromptActionCard(prompt: String, onImport: () -> Unit) {
     val context = LocalContext.current
     SetupCard {
-        Text("A IA recebe somente matérias e disponibilidade já existentes no seu aparelho.", style = MaterialTheme.typography.bodyMedium)
-        FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = {
-                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText("Prompt de plano do Estudário", prompt))
-            }) { Icon(Icons.Outlined.ContentCopy, null); Spacer(Modifier.width(6.dp)); Text("Copiar prompt") }
-            OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://chatgpt.com/"))) }) { Icon(Icons.Outlined.OpenInNew, null); Spacer(Modifier.width(6.dp)); Text("Abrir IA") }
+        Text("A IA recebe somente matérias e disponibilidade já existentes no seu aparelho.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        GuideStep(number = 1, title = "Copie o prompt e abra a IA", description = "Cole na conversa com a IA que você preferir.") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("Prompt de plano do Estudário", prompt))
+                    },
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    shape = RoundedCornerShape(14.dp),
+                ) { Icon(Icons.Outlined.ContentCopy, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Copiar prompt", maxLines = 1) }
+                OutlinedButton(
+                    onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://chatgpt.com/"))) },
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    shape = RoundedCornerShape(14.dp),
+                ) { Icon(Icons.Outlined.OpenInNew, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Abrir IA") }
+            }
         }
-        TextButton(onClick = onImport) { Icon(Icons.Outlined.UploadFile, null); Spacer(Modifier.width(4.dp)); Text("Importar .plano") }
-        Text("O Estudário só aplica o plano depois de validar referências e preservar o que já existe.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        GuideStep(number = 2, title = "Importe o .plano", description = "O Estudário só aplica o plano depois de validar referências e preservar o que já existe.", last = true) {
+            OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth().height(46.dp), shape = RoundedCornerShape(14.dp)) {
+                Icon(Icons.Outlined.UploadFile, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Importar .plano")
+            }
+        }
     }
 }
 
