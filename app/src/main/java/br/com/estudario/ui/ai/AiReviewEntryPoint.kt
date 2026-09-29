@@ -148,65 +148,12 @@ fun AiReviewEntryPoint(
         onPreferencesChange = actualReviewViewModel::updatePreferences,
     )
     if (loginOpen) {
-        AlertDialog(
-            onDismissRequest = { if (!loginBusy) loginOpen = false },
-            title = { Text("Entrar na conta Estudário") },
-            text = {
-                Column {
-                    Text("O acesso da IA usa somente a sessão Supabase da sua conta.")
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = loginEmail,
-                        onValueChange = { loginEmail = it },
-                        enabled = !otpSent && !loginBusy,
-                        label = { Text("E-mail") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    if (otpSent) {
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = loginCode,
-                            onValueChange = { loginCode = it },
-                            enabled = !loginBusy,
-                            label = { Text("Código recebido") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    loginError?.let { message ->
-                        Spacer(Modifier.height(8.dp))
-                        Text(message)
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    enabled = !loginBusy && if (otpSent) loginCode.isNotBlank() else loginEmail.isNotBlank(),
-                    onClick = {
-                        scope.launch {
-                            loginBusy = true
-                            loginError = null
-                            runCatching {
-                                if (otpSent) {
-                                    authRepository.verifyEmailOtp(loginEmail, loginCode)
-                                    loginOpen = false
-                                    loginContinuation?.invoke()
-                                    loginContinuation = null
-                                } else {
-                                    authRepository.sendEmailOtp(loginEmail)
-                                    otpSent = true
-                                }
-                            }.onFailure {
-                                loginError = "Não foi possível concluir o login nesta configuração."
-                            }
-                            loginBusy = false
-                        }
-                    },
-                ) { Text(if (otpSent) "Verificar código" else "Enviar código") }
-            },
-            dismissButton = {
-                TextButton(enabled = !loginBusy, onClick = { loginOpen = false }) { Text("Cancelar") }
+        AccountLoginDialog(
+            onDismiss = { loginOpen = false },
+            onSignedIn = {
+                loginOpen = false
+                loginContinuation?.invoke()
+                loginContinuation = null
             },
         )
     }

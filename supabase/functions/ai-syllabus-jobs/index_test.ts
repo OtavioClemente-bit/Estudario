@@ -301,3 +301,52 @@ Deno.test("create job is refused when Play Integrity rejects the request", async
   assertEquals((await response.json()).error.code, "INTEGRITY_FAILED");
   assertEquals(reserved, false);
 });
+
+const DEVICE = "a".repeat(64);
+
+function deviceRequest(): Request {
+  return new Request("https://x/functions/v1/ai-syllabus-jobs", {
+    method: "POST",
+    headers: { authorization: "Bearer t", "idempotency-key": "k-1", "content-type": "application/json", "x-estudario-device": DEVICE },
+    body: JSON.stringify({ feature: "SYLLABUS_GENERATION", source: {} }),
+  });
+}
+
+Deno.test("free allowance used on this device blocks a new job before reserving quota", async () => {
+  let reserved = false;
+  const handler = createAiSyllabusJobsHandler({
+    authenticate: () => Promise.resolve({ userId: "user-2", accessToken: "t" }),
+    storage: {} as never,
+    jobs: { createOrGet: () => { reserved = true; return Promise.reject(new Error("must not reserve")); } } as never,
+    limits: { maxBytes: 1, maxPages: 1, maxFiles: 1 },
+    schedule: () => Promise.resolve(),
+    deviceQuota: {
+      exhausted: (_user, device, feature) => Promise.resolve(device === DEVICE && feature === "SYLLABUS_GENERATION"),
+      record: () => Promise.reject(new Error("must not record")),
+    },
+  });
+  const response = await handler(deviceRequest());
+  assertEquals(response.status, 429);
+  assertEquals((await response.json()).error.code, "DEVICE_QUOTA_EXHAUSTED");
+  assertEquals(reserved, false);
+});
+
+Deno.test("a new job is recorded against the device that asked for it", async () => {
+  const recorded: string[] = [];
+  const handler = createAiSyllabusJobsHandler({
+    authenticate: () => Promise.resolve({ userId: "user-1", accessToken: "t" }),
+    storage: {} as never,
+    jobs: {
+      createOrGet: () => Promise.resolve({ jobId: "job-9", reused: false }),
+      getJob: () => Promise.resolve(null),
+    } as never,
+    limits: { maxBytes: 1, maxPages: 1, maxFiles: 1 },
+    schedule: () => Promise.resolve(),
+    deviceQuota: {
+      exhausted: () => Promise.resolve(false),
+      record: (user, device, feature, job) => { recorded.push(`${user}|${device === DEVICE}|${feature}|${job}`); return Promise.resolve(); },
+    },
+  });
+  await handler(deviceRequest());
+  assertEquals(recorded, ["user-1|true|SYLLABUS_GENERATION|job-9"]);
+});

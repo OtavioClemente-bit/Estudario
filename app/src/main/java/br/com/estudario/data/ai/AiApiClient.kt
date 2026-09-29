@@ -354,6 +354,8 @@ class UrlConnectionAiHttpTransport(
             readTimeout = readTimeoutMillis
             doInput = true
             request.headers.forEach { (name, value) -> setRequestProperty(name, value) }
+            // Só para o servidor do Estudário: o limite grátis é somado por aparelho.
+            if (baseUrl.isNotBlank() && target.startsWith(baseUrl.trimEnd('/'))) DeviceIdentity.hash?.let { setRequestProperty("x-estudario-device", it) }
             if (request.body != null) {
                 doOutput = true
                 setFixedLengthStreamingMode(request.body.size)

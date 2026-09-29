@@ -51,6 +51,53 @@ export interface AiSyllabusJobsDependencies {
   integrity?: IntegrityVerifier;
   /** Máximo de questões por geração no plano da conta. Ausente = só o teto absoluto (testes). */
   questionLimit?: (userId: string) => Promise<number>;
+  /** Saldo grátis somado por aparelho (todas as contas do celular). Ausente = não confere (testes). */
+  deviceQuota?: DeviceQuota;
+}
+
+export interface DeviceQuota {
+  exhausted: (userId: string, deviceHash: string, feature: AiFeature) => Promise<boolean>;
+  record: (userId: string, deviceHash: string, feature: AiFeature, jobId: string) => Promise<void>;
+}
+
+/** Hash do aparelho enviado pelo app (SHA-256 em hexadecimal). Formato inválido é ignorado. */
+function deviceHash(request: Request): string | null {
+  const value = request.headers.get("x-estudario-device")?.trim().toLowerCase() ?? "";
+  return /^[0-9a-f]{64}$/.test(value) ? value : null;
+}
+
+/**
+ * Antes de reservar cota: no plano Grátis, o aparelho não pode passar do saldo grátis somando todas
+ * as contas. Se a consulta falhar, o pedido segue (a cota da conta continua valendo).
+ */
+async function deviceQuotaBlocked(
+  dependencies: AiSyllabusJobsDependencies,
+  userId: string,
+  device: string | null,
+  feature: AiFeature,
+): Promise<Response | null> {
+  if (!dependencies.deviceQuota || device === null) return null;
+  try {
+    if (await dependencies.deviceQuota.exhausted(userId, device, feature)) return safeError("DEVICE_QUOTA_EXHAUSTED", 429);
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+async function recordDeviceQuietly(
+  dependencies: AiSyllabusJobsDependencies,
+  userId: string,
+  device: string | null,
+  feature: AiFeature,
+  jobId: string,
+): Promise<void> {
+  if (!dependencies.deviceQuota || device === null) return;
+  try {
+    await dependencies.deviceQuota.record(userId, device, feature, jobId);
+  } catch {
+    // O registro só alimenta o limite por aparelho; falhar aqui não derruba a geração.
+  }
 }
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
@@ -78,6 +125,7 @@ function safeError(code: string, status: number, retryAfterSeconds?: number): Re
     INTEGRITY_FAILED: "Use the app installed from Google Play",
     INTEGRITY_UNAVAILABLE: "Integrity check is temporarily unavailable",
     QUESTION_LIMIT_EXCEEDED: "Question count is above the plan limit",
+    DEVICE_QUOTA_EXHAUSTED: "The free allowance of this device has been used",
   };
   if (code === "AI_RATE_LIMIT_EXCEEDED") {
     const retry = Number.isSafeInteger(retryAfterSeconds) && retryAfterSeconds! >= 0 ? retryAfterSeconds! : 0;
@@ -206,7 +254,7 @@ async function createJob(
   const key = idempotencyKey(request);
   const body = await requestBody(request);
   if (typeof body.feature === "string" && TEXT_FEATURES.has(body.feature)) {
-    return createTextJob(dependencies, user, key, body.feature as AiFeature, body.input);
+    return createTextJob(dependencies, user, key, body.feature as AiFeature, body.input, deviceHash(request));
   }
   if (body.feature !== undefined && body.feature !== SYLLABUS_FEATURE) return safeError("INVALID_FEATURE", 400);
   const source = sourceInput(body);
@@ -226,6 +274,9 @@ async function createJob(
       throw error;
     }
   }
+  const device = deviceHash(request);
+  const blocked = await deviceQuotaBlocked(dependencies, user.userId, device, SYLLABUS_FEATURE);
+  if (blocked) return blocked;
   const payload = {
     feature: SYLLABUS_FEATURE,
     sourcePath: path,
@@ -251,6 +302,7 @@ async function createJob(
     return safeError("AI_JOB_DATA_UNAVAILABLE", 503);
   }
 
+  if (!created.reused) await recordDeviceQuietly(dependencies, user.userId, device, SYLLABUS_FEATURE, created.jobId);
   let job = await dependencies.jobs.getJob(user.userId, created.jobId);
   if (!job) return safeError("AI_JOB_NOT_FOUND", 503);
   assertBoundSourceMatches(job, source);
@@ -311,6 +363,7 @@ async function createTextJob(
   key: string,
   feature: AiFeature,
   rawInput: unknown,
+  device: string | null = null,
 ): Promise<Response> {
   let input: unknown;
   try {
@@ -330,6 +383,8 @@ async function createTextJob(
     }
     if (questionCount > limit) return safeError("QUESTION_LIMIT_EXCEEDED", 403);
   }
+  const blocked = await deviceQuotaBlocked(dependencies, user.userId, device, feature);
+  if (blocked) return blocked;
   const payload = { feature, input } satisfies Record<string, unknown>;
   const fingerprint = await requestFingerprint(payload);
   let created;
@@ -345,6 +400,7 @@ async function createTextJob(
     if (error instanceof JobStoreError) return safeError(error.code, error.status, error.retryAfterSeconds);
     return safeError("AI_JOB_DATA_UNAVAILABLE", 503);
   }
+  if (!created.reused) await recordDeviceQuietly(dependencies, user.userId, device, feature, created.jobId);
   let job = await dependencies.jobs.getJob(user.userId, created.jobId);
   if (!job) return safeError("AI_JOB_NOT_FOUND", 503);
   if (job.status === "RESERVED") {
@@ -521,8 +577,34 @@ function runtimeDependencies(request: Request): AiSyllabusJobsDependencies {
       // Sem linha configurada, fica fechado no mínimo do Grátis em vez de liberar o teto.
       return row?.maxPerRequest ?? 10;
     },
+    deviceQuota: serviceDeviceQuota(supabaseUrl, serviceRoleKey),
     schedule: async () => {
       // The persisted PROCESSING lease is the durable queue consumed by the worker/Cron in Task 7.
+    },
+  };
+}
+
+/** Limite por aparelho pelas RPCs da migration ai_device_quota, só com a service role. */
+function serviceDeviceQuota(supabaseUrl: string, serviceRoleKey: string): DeviceQuota {
+  const rpc = async (name: string, body: Record<string, unknown>): Promise<unknown> => {
+    const response = await fetch(`${supabaseUrl}/rest/v1/rpc/${name}`, {
+      method: "POST",
+      headers: {
+        apikey: serviceRoleKey,
+        authorization: `Bearer ${serviceRoleKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw new Error(`${name} failed with ${response.status}`);
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
+  };
+  return {
+    exhausted: async (userId, device, feature) =>
+      (await rpc("ai_device_quota_exhausted", { p_device_hash: device, p_feature: feature, p_user_id: userId })) === true,
+    record: async (userId, device, feature, jobId) => {
+      await rpc("ai_record_device_job", { p_device_hash: device, p_user_id: userId, p_feature: feature, p_job_id: jobId });
     },
   };
 }

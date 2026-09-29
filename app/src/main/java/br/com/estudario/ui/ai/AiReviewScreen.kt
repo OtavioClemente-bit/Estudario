@@ -379,6 +379,7 @@ private fun String?.toUserMessage(): String = when (this) {
     "BETA_ACCESS_REQUIRED", "BETA_DISABLED" -> "Sua conta ainda não tem acesso à beta fechada."
     "FEATURE_DISABLED" -> "A geração de edital está temporariamente desativada."
     "QUOTA_EXHAUSTED" -> "A cota de geração desta conta foi atingida."
+    "DEVICE_QUOTA_EXHAUSTED" -> br.com.estudario.data.ai.DEVICE_QUOTA_MESSAGE
     "CONFIGURATION_CLOSED", "ACCESS_UNAVAILABLE" -> "O acesso online está fechado nesta configuração."
     else -> "A conta não pode usar a geração de edital agora."
 }

@@ -113,6 +113,7 @@ class AiContentGenerator(
             "QUOTA_EXHAUSTED", "AI_QUOTA_EXHAUSTED" -> "Você usou todas as gerações de conteúdo do seu plano neste mês. Veja em Perfil > Planos e uso."
             "QUOTA_RESERVED" -> "Já tem uma geração em andamento. Espere ela terminar."
             "QUESTION_LIMIT_EXCEEDED" -> "Essa quantidade de questões passa do limite do seu plano."
+            "DEVICE_QUOTA_EXHAUSTED" -> DEVICE_QUOTA_MESSAGE
             "AI_RATE_LIMIT_EXCEEDED" -> "Muitas tentativas em pouco tempo. Tente de novo em alguns minutos."
             "AUTH_REQUIRED", "AUTH_INVALID" -> "Entre na sua conta para usar a IA do Estudário."
             "AI_ACCESS_DENIED", "BETA_ACCESS_REQUIRED" -> "Sua conta ainda não tem acesso à IA do Estudário."

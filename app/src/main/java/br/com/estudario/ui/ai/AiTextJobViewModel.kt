@@ -138,6 +138,7 @@ class AiTextJobViewModel(
 
     private fun failureMessage(error: Throwable): AiTextJobState = when {
         error is AiAuthenticationRequiredException -> AiTextJobState.NeedsLogin
+        error is AiApiException && error.code == "DEVICE_QUOTA_EXHAUSTED" -> AiTextJobState.Failed(br.com.estudario.data.ai.DEVICE_QUOTA_MESSAGE, canRetry = false)
         error is AiApiException && error.code.contains("QUOTA") -> AiTextJobState.QuotaUsed(null)
         error is AiApiException && error.status == 401 -> AiTextJobState.NeedsLogin
         error is AiApiException && (error.code == "NETWORK_UNAVAILABLE" || error.code == "HTTP_TIMEOUT") ->

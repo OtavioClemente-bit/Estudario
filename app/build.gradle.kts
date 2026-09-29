@@ -62,6 +62,9 @@ check(forbiddenAndroidSecretProperty == null) {
     "Server-only service-role/OpenAI properties are not allowed in Android configuration."
 }
 
+// ID do cliente OAuth "Aplicativo da Web" do Google Cloud, usado no login com Google (não é segredo).
+val googleWebClientId = providers.gradleProperty("estudario.google.webClientId").orNull.orEmpty().trim()
+
 // Número do projeto do Google Cloud vinculado ao app no Play Console (não é segredo).
 val playIntegrityCloudProjectNumber = providers.gradleProperty("estudario.playIntegrity.cloudProjectNumber").orNull.orEmpty().trim()
 check(playIntegrityCloudProjectNumber.isEmpty() || playIntegrityCloudProjectNumber.all(Char::isDigit)) {
@@ -88,6 +91,7 @@ extensions.configure<ApplicationExtension> {
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "SUPABASE_URL", supabaseUrl.toBuildConfigLiteral())
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", supabasePublishableKey.toBuildConfigLiteral())
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", googleWebClientId.toBuildConfigLiteral())
         buildConfigField("long", "PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER", "${playIntegrityCloudProjectNumber.ifEmpty { "0" }}L")
     }
 
@@ -159,6 +163,10 @@ dependencies {
     implementation("com.google.android.gms:play-services-auth:21.3.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
     implementation("com.google.android.play:integrity:1.4.0")
+    // Login com a conta Google do celular (Credential Manager).
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
     // Leitura de estudo: Markdown completo (tabelas, listas, código) e fórmulas LaTeX.

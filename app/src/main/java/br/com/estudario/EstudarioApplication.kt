@@ -121,6 +121,7 @@ class EstudarioApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         br.com.estudario.ui.ai.BackgroundAiTasks.init(this)
+        br.com.estudario.data.ai.DeviceIdentity.init(this)
         database = AppDatabase.create(this)
         repository = StudyRepository(database)
         focusSessionRepository = FocusSessionRepository(database.dao())

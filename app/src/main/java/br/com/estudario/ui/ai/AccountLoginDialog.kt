@@ -27,11 +27,64 @@ import br.com.estudario.EstudarioApplication
 import kotlinx.coroutines.launch
 
 /**
- * Entrar na conta Estudário por código no e-mail. É a conta que guarda a cota da IA; o login do
- * Google do backup é outro e não serve aqui.
+ * Entrar na conta Estudário. O caminho é a conta Google do celular: e-mail descartável não serve
+ * mais para ganhar gerações grátis de novo. O código por e-mail só aparece em versões sem o ID do
+ * cliente do Google configurado (builds de desenvolvimento).
  */
 @Composable
 fun AccountLoginDialog(onDismiss: () -> Unit, onSignedIn: () -> Unit) {
+    if (br.com.estudario.BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank()) GoogleLoginDialog(onDismiss, onSignedIn)
+    else EmailCodeLoginDialog(onDismiss, onSignedIn)
+}
+
+@Composable
+private fun GoogleLoginDialog(onDismiss: () -> Unit, onSignedIn: () -> Unit) {
+    val context = LocalContext.current
+    val app = context.applicationContext as EstudarioApplication
+    val scope = rememberCoroutineScope()
+    var busy by rememberSaveable { mutableStateOf(false) }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = { if (!busy) onDismiss() },
+        icon = { Icon(Icons.Outlined.Lock, null) },
+        title = { Text("Entrar na conta Estudário") },
+        text = {
+            Column {
+                Text(
+                    "Entre com a sua conta Google, a mesma do Google Play. Ela guarda o seu plano e o uso da IA do Estudário.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                error?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = !busy,
+                onClick = {
+                    scope.launch {
+                        busy = true
+                        error = null
+                        val result = GoogleAccountSignIn.idToken(context)
+                        result.onSuccess { token ->
+                            runCatching { app.supabaseAuthRepository.signInWithGoogle(br.com.estudario.data.remote.SupabaseGoogleCredential(token)) }
+                                .onSuccess { onSignedIn() }
+                                .onFailure { error = "Não foi possível entrar agora. Confira a internet e tente de novo." }
+                        }.onFailure { error = it.message }
+                        busy = false
+                    }
+                },
+            ) { Text(if (busy) "Entrando…" else "Continuar com Google") }
+        },
+        dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text("Cancelar") } },
+    )
+}
+
+@Composable
+private fun EmailCodeLoginDialog(onDismiss: () -> Unit, onSignedIn: () -> Unit) {
     val app = LocalContext.current.applicationContext as EstudarioApplication
     val auth = app.supabaseAuthRepository
     val scope = rememberCoroutineScope()
