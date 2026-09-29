@@ -183,7 +183,7 @@ RESUMO COMPLETO E REVISÃO RÁPIDA:
 - O summary consolida toda a teoria de modo estruturado, ainda detalhado o bastante para estudar.
 - O quickReview é uma revisão de poucos minutos: conceitos-chave, diferenças, fórmulas e regras.
 - Em tips, escreva dicas objetivas de prova. Em traps, erros e confusões típicas de prova.
-- Em activeRecall, escreva perguntas curtas que obriguem o aluno a lembrar sem olhar a resposta.
+- Em activeRecall, escreva perguntas curtas que obriguem o aluno a lembrar sem olhar a resposta, cada uma com a resposta correta e objetiva em "resposta".
 - Em errorConcepts, agrupe conceitos que provavelmente originam erros, com título e explicação corretiva.
 
 PROIBIDO INVENTAR:
@@ -240,7 +240,7 @@ USE EXATAMENTE ESTA ESTRUTURA:
 "quickReview": "# Revisão rápida\n\nConteúdo para poucos minutos...",
 "tips": ["Dica objetiva 1", "Dica objetiva 2"],
 "traps": ["Pegadinha ou confusão frequente 1"],
-"activeRecall": ["Pergunta de recuperação ativa 1?", "Pergunta 2?"],
+"activeRecall": [{ "pergunta": "Pergunta de recuperação ativa 1?", "resposta": "Resposta objetiva." }],
 "questoes": [
   {
     "id": "q-topico-001",

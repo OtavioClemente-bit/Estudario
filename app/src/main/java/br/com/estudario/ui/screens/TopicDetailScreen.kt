@@ -548,6 +548,12 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
             item(key = "snippet-title-$kind") { Text(when (kind) { SnippetKind.BIZU -> "Dicas"; SnippetKind.PEGADINHA -> "Pegadinhas"; SnippetKind.RECUPERACAO -> "Perguntas para lembrar" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             values.forEach { snippet ->
                 item(key = "snippet-${snippet.id}") {
+                    if (kind == SnippetKind.RECUPERACAO) {
+                        br.com.estudario.ui.components.RecallCard(snippet.text, snippet.answer, revealKey = snippet.id) {
+                            IconButton(onClick = { viewModel.saveSnippet(snippet.copy(isFavorite = !snippet.isFavorite)) }) { Icon(if (snippet.isFavorite) Icons.Outlined.Star else Icons.Outlined.StarBorder, "Favoritar") }
+                        }
+                        return@item
+                    }
                     ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = when (kind) { SnippetKind.PEGADINHA -> MaterialTheme.colorScheme.errorContainer; SnippetKind.BIZU -> MaterialTheme.colorScheme.tertiaryContainer; else -> MaterialTheme.colorScheme.secondaryContainer })) {
                         Row(Modifier.padding(14.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                             Text(snippet.text, Modifier.weight(1f))

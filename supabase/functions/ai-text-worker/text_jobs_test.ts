@@ -48,7 +48,7 @@ function question(index: number, overrides: Record<string, unknown> = {}) {
 
 function content(overrides: Record<string, unknown> = {}) {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     promptVersion: CONTENT_PROMPT_VERSION,
     modelVersion: MODEL,
     scope: { covers: "Princípios fundamentais", excludes: "Direitos fundamentais" },
@@ -58,7 +58,7 @@ function content(overrides: Record<string, unknown> = {}) {
     quickReview: "# Revisão rápida",
     tips: ["Bizu"],
     traps: ["Pegadinha"],
-    activeRecall: ["Pergunta?"],
+    activeRecall: [{ question: "Pergunta?", answer: "Resposta." }],
     errorConcepts: [{ key: "e1", title: "Fundamento x objetivo", summary: "Explicação" }],
     questions: Array.from({ length: 10 }, (_, index) => question(index)),
     sources: [{ kind: "OFICIAL", title: "Constituição Federal", publisher: "Planalto", reference: "Art. 1º", url: "https://www.planalto.gov.br/ccivil_03/constituicao/constituicao.htm", accessedAt: "2026-09-28" }],
@@ -67,7 +67,7 @@ function content(overrides: Record<string, unknown> = {}) {
   };
 }
 
-const expectedContent = { schemaVersion: 2, promptVersion: CONTENT_PROMPT_VERSION, modelVersion: MODEL };
+const expectedContent = { schemaVersion: 3, promptVersion: CONTENT_PROMPT_VERSION, modelVersion: MODEL };
 // Pedido sem opções = pacote completo com 10 questões mistas, como antes.
 const fullOptions = parseContentJobInput(contentInput).options;
 
@@ -226,7 +226,7 @@ Deno.test("worker generates topic content from text only, with web search and no
   assertEquals(starts.length, 1);
   assertEquals(starts[0].source, undefined);
   assertEquals(starts[0].feature, "CONTENT_GENERATION");
-  assertEquals(starts[0].schemaName, "ai_topic_content_v2");
+  assertEquals(starts[0].schemaName, "ai_topic_content_v3");
   assert(JSON.stringify(starts[0].tools).includes("web_search"));
   assert(starts[0].userPrompt!.includes("Dos princípios fundamentais"));
   assert(events.includes("success"));

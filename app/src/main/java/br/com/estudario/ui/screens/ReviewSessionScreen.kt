@@ -77,10 +77,8 @@ fun ReviewSessionScreen(viewModel: AppViewModel, reviewId: Long, onBack: () -> U
                 val prompt = recall[recallIndex.coerceAtMost(recall.lastIndex)]
                 item {
                     Text("1. Tente lembrar sem consultar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                        Text(prompt.text, Modifier.padding(20.dp), style = MaterialTheme.typography.titleMedium)
-                    }
-                    Text("Responda mentalmente e registre como foi. O objetivo é recuperar a informação, não apenas reconhecê-la.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    br.com.estudario.ui.components.RecallCard(prompt.text, prompt.answer, revealKey = prompt.id)
+                    Text("Responda mentalmente antes de ver a resposta e registre como foi. O objetivo é recuperar a informação, não apenas reconhecê-la.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 item {
                     // Lado a lado quando cabe; em tela estreita ou fonte grande, um botão por linha.

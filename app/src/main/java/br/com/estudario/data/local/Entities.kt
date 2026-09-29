@@ -154,6 +154,8 @@ data class TopicSnippetEntity(
     val position: Int = 0,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
+    /** Resposta das perguntas de memorização (RECUPERACAO); nula nos demais tipos e em pacotes antigos. */
+    val answer: String? = null,
 )
 
 @Entity(

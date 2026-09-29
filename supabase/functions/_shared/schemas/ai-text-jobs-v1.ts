@@ -7,7 +7,7 @@ import type { JsonSchema } from "../schema.ts";
 
 // v2: quantidade de questões, partes e formato vêm do pedido; as contagens exatas são conferidas
 // pelo validador, porque o schema strict não depende da entrada.
-export const AI_TOPIC_CONTENT_SCHEMA_VERSION = 2 as const;
+export const AI_TOPIC_CONTENT_SCHEMA_VERSION = 3 as const;
 export const AI_STUDY_PLAN_SCHEMA_VERSION = 1 as const;
 
 const nonEmpty: JsonSchema = { type: "string", minLength: 1 };
@@ -63,7 +63,17 @@ export const AI_TOPIC_CONTENT_SCHEMA: JsonSchema = {
     quickReview: { type: "string" },
     tips: { type: "array", maxItems: 8, items: nonEmpty },
     traps: { type: "array", maxItems: 8, items: nonEmpty },
-    activeRecall: { type: "array", maxItems: 10, items: nonEmpty },
+    // Pergunta e resposta: a pessoa tenta lembrar e depois confere.
+    activeRecall: {
+      type: "array",
+      maxItems: 10,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["question", "answer"],
+        properties: { question: nonEmpty, answer: nonEmpty },
+      },
+    },
     errorConcepts: {
       type: "array",
       maxItems: 6,

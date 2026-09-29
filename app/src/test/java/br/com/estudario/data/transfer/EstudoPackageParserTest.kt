@@ -171,4 +171,17 @@ class EstudoPackageParserTest {
           }]
         }
     """.trimIndent()
+
+    @Test fun activeRecallKeepsTheAnswerWhenProvided() {
+        val withRecall = validV2.replace("\"id\":\"q1\"", "\"id\":\"q1\"").let { json ->
+            val marker = "\"questoes\""
+            val index = json.indexOf(marker)
+            json.substring(0, index) + "\"activeRecall\":[{\"pergunta\":\"O que é crase?\",\"resposta\":\"Fusão de a + a.\"},\"Só pergunta?\"]," + json.substring(index)
+        }
+        val topic = EstudoPackageParser.parse(withRecall).subjects.single().topics.single()
+        val recall = (listOf(topic) + topic.children).flatMap { it.snippets }
+        assertEquals("Fusão de a + a.", recall.first { it.text == "O que é crase?" }.answer)
+        assertEquals(null, recall.first { it.text == "Só pergunta?" }.answer)
+    }
+
 }

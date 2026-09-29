@@ -394,7 +394,7 @@ object ContentPromptBuilder {
             if (ContentBlock.QUICK_REVIEW in blocks) appendLine("- quickReview: revisão de poucos minutos em Markdown, conceitos-chave, diferenças, regras e números que caem.")
             if (blocks.any { it == ContentBlock.THEORY || it == ContentBlock.SUMMARY || it == ContentBlock.QUICK_REVIEW }) appendLine(STUDY_FORMATTING_RULE)
             if (ContentBlock.TIPS_TRAPS in blocks) appendLine("- tips: dicas objetivas de prova. traps: pegadinhas e confusões típicas de prova.")
-            if (ContentBlock.ACTIVE_RECALL in blocks) appendLine("- activeRecall: perguntas curtas para responder sem olhar (recuperação ativa).")
+            if (ContentBlock.ACTIVE_RECALL in blocks) appendLine("- activeRecall: perguntas curtas para responder sem olhar (recuperação ativa), cada uma com a resposta correta e objetiva em \"resposta\", de 1 a 3 frases.")
             if (ContentBlock.ERROR_CONCEPTS in blocks) appendLine("- errorConcepts: conceitos que costumam gerar erro, cada um com título e explicação corretiva curta.")
             if (questions > 0) {
                 appendLine("- questoes: $questions questão(ões) ${if (single) "" else "POR TÓPICO "}para o nível da prova${if (o.board.isBlank()) "" else " e da banca ${o.board.trim()}"}.")
@@ -521,7 +521,7 @@ object ContentPromptBuilder {
                     line(indent + 1, "\"tips\": [\"Dica 1\", \"Dica 2\"],")
                     line(indent + 1, "\"traps\": [\"Pegadinha 1\"],")
                 }
-                if (ContentBlock.ACTIVE_RECALL in blocks) line(indent + 1, "\"activeRecall\": [\"Pergunta 1?\", \"Pergunta 2?\"],")
+                if (ContentBlock.ACTIVE_RECALL in blocks) line(indent + 1, "\"activeRecall\": [{ \"pergunta\": \"Pergunta 1?\", \"resposta\": \"Resposta objetiva.\" }],")
                 if (questions > 0) {
                     // No modo misto o esqueleto traz um exemplo de cada formato: modelo copia o que vê.
                     val formatos = when (style) {

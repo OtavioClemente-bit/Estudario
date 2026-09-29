@@ -221,7 +221,8 @@ object TopicContentEstudoMapper {
         put("quickReview", p.text("quickReview"))
         put("tips", p.strings("tips"))
         put("traps", p.strings("traps"))
-        put("activeRecall", p.strings("activeRecall"))
+        // Objetos { question, answer }: o importador lê a pergunta e a resposta.
+        put("activeRecall", p["activeRecall"] ?: JsonArray(emptyList()))
         put("errorConcepts", buildJsonArray {
             p.array("errorConcepts").forEach { concept ->
                 add(buildJsonObject {

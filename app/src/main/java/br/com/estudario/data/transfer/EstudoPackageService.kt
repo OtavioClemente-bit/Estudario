@@ -66,7 +66,7 @@ class EstudoPackageException(message: String) : IllegalArgumentException(message
 internal data class OptionPlan(val key: String, val text: String, val correct: Boolean)
 internal data class SummaryPlan(val id: String, val title: String, val markdown: String, val kind: SummaryKind = SummaryKind.COMPLETO)
 internal data class TheoryPlan(val id: String, val title: String, val markdown: String)
-internal data class SnippetPlan(val id: String, val kind: SnippetKind, val text: String)
+internal data class SnippetPlan(val id: String, val kind: SnippetKind, val text: String, val answer: String? = null)
 internal data class ErrorConceptPlan(val id: String, val title: String, val summary: String)
 internal data class SourcePlan(
     val id: String?,
@@ -316,7 +316,7 @@ internal object EstudoPackageParser {
             if (!ids.add(id)) throw EstudoPackageException("$path: id de item duplicado: $id.")
             val text = obj?.let { firstText(it, "text", "texto", "question", "pergunta") } ?: value.toString().trim()
             if (text.isNullOrBlank()) throw EstudoPackageException("$path: item ${index + 1} está vazio.")
-            SnippetPlan(id, kind, text)
+            SnippetPlan(id, kind, text, obj?.let { firstText(it, "answer", "resposta") })
         }
     }
 
@@ -732,8 +732,8 @@ class EstudoPackageService(private val db: AppDatabase) {
                 p.snippets.forEachIndexed { index, item ->
                     val externalId = if (mode == ImportMode.COPY) "$prefix:${item.id}" else item.id
                     val old = dao.snippetByExternalId(externalId) ?: dao.snippetByExternalId("${plan.packageId}:${item.id}")
-                    if (old == null) { dao.insertSnippet(TopicSnippetEntity(topicId = topicId, kind = item.kind, text = item.text, externalId = externalId, position = index)); snippets++ }
-                    else if (mode == ImportMode.UPDATE) { dao.updateSnippet(old.copy(topicId = topicId, kind = item.kind, text = item.text, position = index, updatedAt = System.currentTimeMillis())); updated++ }
+                    if (old == null) { dao.insertSnippet(TopicSnippetEntity(topicId = topicId, kind = item.kind, text = item.text, externalId = externalId, position = index, answer = item.answer)); snippets++ }
+                    else if (mode == ImportMode.UPDATE) { dao.updateSnippet(old.copy(topicId = topicId, kind = item.kind, text = item.text, position = index, answer = item.answer ?: old.answer, updatedAt = System.currentTimeMillis())); updated++ }
                     else skipped++
                 }
                 p.questions.forEach { item ->

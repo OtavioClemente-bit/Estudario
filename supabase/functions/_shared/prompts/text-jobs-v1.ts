@@ -30,7 +30,7 @@ Partes: gere SOMENTE as partes listadas em PEDIDO. Parte não pedida fica vazia:
 - chapters (TEORIA): 2 a 6 capítulos em Markdown, didáticos e autossuficientes (fundamentos, desenvolvimento, exemplos concretos, pegadinhas de banca), com tabelas quando ajudarem. Títulos numerados ("1. Fundamentos"). No fim do último capítulo, "### Fontes consultadas". A profundidade pedida manda: ESSENCIAL é direto ao ponto; APROFUNDADA traz exemplos e exceções; LIVRO é o mais completo possível.
 - summary (RESUMO): resumo completo em Markdown, suficiente para revisar só por ele. quickReview (REVISÃO RÁPIDA): revisão de poucos minutos, diferente do summary.
 - Formatação (o app mostra tabelas e fórmulas): ## e ### para seções, lista numerada para passo a passo, **negrito** para termos-chave, > para alertas de prova. Comparações lado a lado em tabela Markdown (| coluna | coluna | com |---|---| abaixo do cabeçalho). Fórmulas, símbolos e unidades em LaTeX entre cifrões DUPLOS: na linha $$M = C(1 + i)^t$$; em bloco, $$ sozinho na linha antes e depois. Nunca use cifrão simples para fórmula (o app confunde com R$).
-- tips e traps (DICAS E PEGADINHAS), activeRecall (MEMORIZAÇÃO: perguntas curtas para responder sem olhar).
+- tips e traps (DICAS E PEGADINHAS), activeRecall (MEMORIZAÇÃO: perguntas curtas para responder sem olhar, cada uma com a resposta correta e objetiva em answer, de 1 a 3 frases).
 - errorConcepts (CONCEITOS QUE GERAM ERRO): explicação corretiva curta; chaves e1, e2... Quando houver questões, gere também errorConcepts para ligá-las.
 
 Questões (só se QUESTÕES estiver em PEDIDO; quantidade EXATA pedida):

@@ -249,4 +249,18 @@ class AppDatabaseMigrationTest {
             close()
         }
     }
+
+    @Test
+    fun migrateEighteenToNineteenAddsRecallAnswerColumn() {
+        val name = "migration-v18-v19-test"
+        helper.createDatabase(name, 18).close()
+        helper.runMigrationsAndValidate(name, 19, true, AppDatabase.MIGRATION_18_19).apply {
+            query("PRAGMA table_info(topic_snippets)").use { cursor ->
+                val columns = buildList { while (cursor.moveToNext()) add(cursor.getString(cursor.getColumnIndexOrThrow("name"))) }
+                assertTrue("answer" in columns)
+            }
+            close()
+        }
+    }
+
 }
