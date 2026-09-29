@@ -417,7 +417,7 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
                 options.source == MaterialSource.ATTACHED -> "Para trabalhar em cima do seu material, use outra IA (o anexo vai junto)."
                 else -> null
             },
-            onGenerate = { if (application.supabaseAuthRepository.currentUserId() == null) loginFor = singleTopic else serverTarget = singleTopic },
+            onGenerate = { if (application.supabaseAuthRepository.accessToken() == null) loginFor = singleTopic else serverTarget = singleTopic },
         ),
         tutorial = TutorialVideo.CONTENT,
         externalWarning = MULTI_TOPIC_WARNING.takeIf { selectedIds.size > 1 },

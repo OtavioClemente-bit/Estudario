@@ -344,6 +344,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val badgeUnlock: StateFlow<List<Badge>> = _badgeUnlock.asStateFlow()
     fun consumeBadgeUnlock() { _badgeUnlock.value = emptyList() }
 
+    /**
+     * Enquanto um backup é restaurado (e logo depois, até o progresso recalcular), emblemas e a
+     * sequência do dia são registrados em silêncio: vieram do histórico, não foram conquistados agora.
+     */
+    @Volatile private var celebrationsMutedUntil = 0L
+    private fun celebrationsMuted() = System.currentTimeMillis() < celebrationsMutedUntil
+
+    private suspend fun restoreQuietly(content: String) {
+        celebrationsMutedUntil = Long.MAX_VALUE
+        try {
+            withContext(Dispatchers.Default) { backupService.restore(content) }
+        } finally {
+            celebrationsMutedUntil = System.currentTimeMillis() + RESTORE_QUIET_MILLIS
+        }
+    }
+
     private val _celebration = MutableStateFlow<StreakCelebration?>(null)
     /** Tela de comemoração: abre uma única vez por dia, na primeira atividade que fecha a meta. */
     val celebration: StateFlow<StreakCelebration?> = _celebration.asStateFlow()
@@ -356,6 +372,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (!summary.todayDone || celebratedDay == today) return@collect
                 celebratedDay = today
                 app.preferences.setLastCelebratedDay(today)
+                if (celebrationsMuted()) return@collect
                 _celebration.value = StreakCelebration(summary, celebrationReason(summary), progress.value?.xpToday ?: 0)
             }
         }
@@ -370,7 +387,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (novos.isEmpty()) return@collect
                 // Primeira leitura com histórico antigo: registra em silêncio em vez de despejar
                 // dezenas de comemorações de uma vez.
-                val backfill = conhecidos.isEmpty() && novos.size > 3
+                val backfill = (conhecidos.isEmpty() && novos.size > 3) || celebrationsMuted()
                 conhecidos = conhecidos + novos
                 app.preferences.markBadgesEarned(novos)
                 if (!backfill) _badgeUnlock.value = summary.earnedBadges.filter { it.badge.id in novos }.map { it.badge }
@@ -408,7 +425,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 GoogleAction.RESTORE -> {
                     val latest = drive.listBackups(token).firstOrNull() ?: error("Nenhum backup encontrado na sua conta do Google.")
                     val content = drive.download(token, latest.id)
-                    withContext(Dispatchers.Default) { backupService.restore(content) }
+                    restoreQuietly(content)
                     TransferState.Success("Backup ${latest.name} restaurado.")
                 }
             }
@@ -714,7 +731,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun createBackup(): String = withContext(Dispatchers.Default) { backupService.export() }
     fun restoreBackup(text: String) = viewModelScope.launch {
         _transfer.value = TransferState.Loading
-        _transfer.value = try { withContext(Dispatchers.Default) { backupService.restore(text) }; TransferState.Success("Backup restaurado com sucesso.") } catch (e: Exception) { TransferState.Error(e.message ?: "Falha ao restaurar backup.") }
+        _transfer.value = try { restoreQuietly(text); TransferState.Success("Backup restaurado com sucesso.") } catch (e: Exception) { TransferState.Error(e.message ?: "Falha ao restaurar backup.") }
     }
     fun clearTransfer() {
         val finishedImport = _transfer.value is TransferState.Success
@@ -725,5 +742,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun launchCatching(block: suspend () -> Unit) = viewModelScope.launch {
         try { block() } catch (e: Exception) { _transfer.value = TransferState.Error(e.message ?: "Ocorreu um erro.") }
+    }
+
+    private companion object {
+        /** Tempo para o progresso recalcular depois da restauração antes de voltar a comemorar. */
+        const val RESTORE_QUIET_MILLIS = 15_000L
     }
 }

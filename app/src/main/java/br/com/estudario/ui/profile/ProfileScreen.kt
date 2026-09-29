@@ -45,6 +45,9 @@ import br.com.estudario.EstudarioApplication
 import br.com.estudario.ui.ai.AiAccessSummary
 import br.com.estudario.ui.plans.PlansDialog
 import androidx.compose.material.icons.outlined.WorkspacePremium
+import androidx.compose.material.icons.outlined.Login
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.VerifiedUser
 import br.com.estudario.ui.ai.AiAccessUiState
 import br.com.estudario.ui.ai.AiAccessViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -90,7 +93,13 @@ fun ProfileScreen(
     val context = LocalContext.current
     val aiAccessViewModel: AiAccessViewModel = viewModel(factory = AiAccessViewModel.Factory((context.applicationContext as EstudarioApplication).aiAccessRepository))
     val aiAccessState by aiAccessViewModel.state.collectAsState()
-    LaunchedEffect(aiAccessViewModel) { aiAccessViewModel.refresh() }
+    val auth = (context.applicationContext as EstudarioApplication).supabaseAuthRepository
+    val sessionState by remember(auth) { auth.observeSession() }.collectAsState(br.com.estudario.data.remote.SupabaseSessionState.Loading)
+    val estudarioSignedIn = (sessionState as? br.com.estudario.data.remote.SupabaseSessionState.Ready)?.session != null
+    var accessRefresh by remember { mutableIntStateOf(0) }
+    LaunchedEffect(aiAccessViewModel, accessRefresh, estudarioSignedIn) { aiAccessViewModel.refresh() }
+    var estudarioLogin by remember { mutableStateOf(false) }
+    var reopenPlansAfterLogin by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     var editName by remember { mutableStateOf(false) }
@@ -132,8 +141,19 @@ fun ProfileScreen(
         onDismiss = { confirmDriveRestore = false },
     ) { confirmDriveRestore = false; runGoogle(GoogleAction.RESTORE) }
 
+    if (estudarioLogin) br.com.estudario.ui.ai.AccountLoginDialog(
+        onDismiss = { estudarioLogin = false; reopenPlansAfterLogin = false },
+        onSignedIn = { estudarioLogin = false; accessRefresh++ },
+    )
+
     ProfileContent(
         profile = profile,
+        estudarioSignedIn = estudarioSignedIn,
+        reopenPlans = reopenPlansAfterLogin && estudarioSignedIn,
+        onPlansReopened = { reopenPlansAfterLogin = false },
+        onEstudarioSignIn = { estudarioLogin = true },
+        onPlansSignIn = { reopenPlansAfterLogin = true; estudarioLogin = true },
+        onEstudarioSignOut = { scope.launch { runCatching { auth.signOut() }; accessRefresh++ } },
         progress = progress,
         streak = streak,
         driveLastBackupAt = driveLastBackupAt,
@@ -160,6 +180,12 @@ fun ProfileScreen(
 @Composable
 private fun ProfileContent(
     profile: UserProfile,
+    estudarioSignedIn: Boolean = false,
+    reopenPlans: Boolean = false,
+    onPlansReopened: () -> Unit = {},
+    onEstudarioSignIn: () -> Unit = {},
+    onPlansSignIn: () -> Unit = {},
+    onEstudarioSignOut: () -> Unit = {},
     progress: ProgressEngine.ProgressSummary?,
     streak: StreakSummary?,
     driveLastBackupAt: Long,
@@ -179,7 +205,9 @@ private fun ProfileContent(
     showTopBar: Boolean = true,
 ) {
     var showPlans by remember { mutableStateOf(false) }
-    if (showPlans) PlansDialog(onDismiss = { showPlans = false })
+    // Depois de entrar pela tela de planos, ela reabre já com o saldo da conta.
+    LaunchedEffect(reopenPlans) { if (reopenPlans) { showPlans = true; onPlansReopened() } }
+    if (showPlans) PlansDialog(onDismiss = { showPlans = false }, onSignIn = { showPlans = false; onPlansSignIn() })
     Scaffold(
         topBar = {
             if (showTopBar) TopAppBar(
@@ -192,34 +220,37 @@ private fun ProfileContent(
             Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(horizontal = EstudarioSpacing.screenGutter, vertical = EstudarioSpacing.medium),
         ) {
-            item { ProfileHeader(profile, progress?.level, progress?.levelTitle, onEditName, onChangePhoto, onRemovePhoto) }
-            item { Spacer(Modifier.height(EstudarioSpacing.section)) }
+            item {
+                Box(
+                    Modifier.fillMaxWidth().clip(br.com.estudario.ui.theme.EstudarioShapes.spotlight).background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.surfaceContainerLow),
+                        ),
+                    ).padding(vertical = EstudarioSpacing.large, horizontal = EstudarioSpacing.medium),
+                ) {
+                    ProfileHeader(profile, progress?.level, progress?.levelTitle, onEditName, onChangePhoto, onRemovePhoto)
+                }
+            }
+            item { Spacer(Modifier.height(EstudarioSpacing.medium)) }
 
             item {
                 val current = progress
                 if (current == null) SkeletonCard(lines = 3) else LevelBand(current)
             }
-            item { Band { Divider() } }
+            item { Divider() }
 
             item {
                 val current = streak
                 if (current == null) SkeletonCard(lines = 3) else StreakBand(current)
             }
-            item { Band { Divider() } }
+            item { Divider() }
 
             item {
-                Text("FREQUÊNCIA DE ESTUDO", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(EstudarioSpacing.small))
-            }
-            if (streak == null) {
-                item { SkeletonCard(lines = 2) }
-            } else {
-                item {
-                    // O mapa já traz seu próprio recuo horizontal (contentPadding), não soma outro
-                    // aqui, senão o início da grade fica cortado atrás da margem da tela.
+                if (streak == null) SkeletonCard(lines = 2) else Band {
+                    Text("FREQUÊNCIA DE ESTUDO", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(EstudarioSpacing.small))
+                    // O mapa já traz seu próprio recuo horizontal (contentPadding), não soma outro.
                     ActivityHeatmap(streak.calendar, streak.goal, contentPadding = PaddingValues(0.dp))
-                }
-                item {
                     Row(Modifier.fillMaxWidth().padding(top = EstudarioSpacing.medium), horizontalArrangement = Arrangement.SpaceBetween) {
                         Stat("Dias com estudo", streak.activeDays.toString())
                         Stat("Questões", streak.totalQuestions.toString())
@@ -227,22 +258,22 @@ private fun ProfileContent(
                     }
                 }
             }
-            item { Band { Divider() } }
+            item { Divider() }
 
             item {
                 val current = progress
                 if (current == null) SkeletonCard(lines = 2) else BadgesBand(current, onBadges)
             }
-            item { Band { Divider() } }
+            item { Divider() }
 
             item {
                 val current = streak
                 if (current != null) RewardTableBand(current.current)
             }
-            item { Band { Divider() } }
+            item { Divider() }
 
             item { DailyGoalBand(profile.dailyGoal.questions, onDailyGoalChange) }
-            item { Band { Divider() } }
+            item { Divider() }
 
             item {
                 AccountBand(
@@ -255,19 +286,34 @@ private fun ProfileContent(
                     onSignOut = onSignOut,
                 )
             }
-            item { Band { Divider() } }
+            item { Divider() }
 
             item {
                 Band {
-                    Text("PLANO E IA", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("CONTA ESTUDÁRIO E IA", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(EstudarioSpacing.small))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
+                        Icon(if (estudarioSignedIn) Icons.Outlined.VerifiedUser else Icons.Outlined.Lock, null, tint = if (estudarioSignedIn) estudarioColors().completed else MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(Modifier.weight(1f)) {
+                            Text(if (estudarioSignedIn) "Conta Estudário conectada" else "Você ainda não entrou na conta Estudário", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                            Text(
+                                if (estudarioSignedIn) "Sua cota da IA do Estudário e seus editais ficam guardados nela." else "É ela que libera a IA do Estudário. Entre com seu e-mail: enviamos um código, sem senha.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(EstudarioSpacing.small))
+                    if (estudarioSignedIn) TextButton(onClick = onEstudarioSignOut) { Text("Sair da conta Estudário") }
+                    else Button(onClick = onEstudarioSignIn, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.Login, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Entrar na conta Estudário") }
+                    HorizontalDivider(Modifier.padding(vertical = EstudarioSpacing.small), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     BackupRow(Icons.Outlined.WorkspacePremium, "Planos e uso", "Veja seu plano, o saldo de gerações e compare os planos") { showPlans = true }
                 }
             }
             if (aiAccessState != null) {
-                item { AiAccessSummary(aiAccessState) }
+                item { Spacer(Modifier.height(EstudarioSpacing.small)); AiAccessSummary(aiAccessState) }
             }
-            item { Band { Divider() } }
+            item { Divider() }
 
             item {
                 Band {
@@ -290,18 +336,22 @@ private fun ProfileContent(
     }
 }
 
-/** Um pequeno wrapper para dar padding vertical consistente a uma seção de conteúdo livre. */
+/** Cada seção do Perfil é um cartão, no mesmo estilo dos painéis do resto do app. */
 @Composable
 private fun Band(content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth(), content = content)
+    Surface(
+        Modifier.fillMaxWidth(),
+        shape = br.com.estudario.ui.theme.EstudarioShapes.panel,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(Modifier.padding(18.dp), content = content)
+    }
 }
 
+/** Espaço entre os cartões (antes era uma linha divisória entre faixas). */
 @Composable
 private fun Divider() {
-    HorizontalDivider(
-        Modifier.padding(vertical = EstudarioSpacing.large),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
-    )
+    Spacer(Modifier.height(EstudarioSpacing.medium))
 }
 
 // ---------------------------------------------------------------- cabeçalho
@@ -592,11 +642,15 @@ private fun DailyGoalBand(questions: Int, onChange: (Int) -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
         )
-        Slider(
-            questions.toFloat(),
-            { onChange(it.toInt()) },
-            valueRange = 5f..100f,
-            steps = 18,
+        Spacer(Modifier.height(EstudarioSpacing.small))
+        br.com.estudario.ui.prompt.BigValueSlider(
+            value = questions,
+            range = 5..100,
+            step = 5,
+            format = { "$it" },
+            onChange = onChange,
+            caption = "questões por dia",
+            quickValues = listOf(10, 20, 30, 50),
         )
     }
 }
@@ -614,7 +668,7 @@ private fun AccountBand(
     onSignOut: () -> Unit,
 ) {
     Band {
-        Text("CONTA", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("BACKUP NO GOOGLE DRIVE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(EstudarioSpacing.tight))
         if (!signedIn) {
             Text(

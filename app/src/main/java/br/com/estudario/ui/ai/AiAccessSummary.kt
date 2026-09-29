@@ -56,7 +56,7 @@ fun AiAccessPanel(modifier: Modifier = Modifier, dismissible: Boolean = true) {
     val state by accessViewModel.state.collectAsState()
     val prefs = remember { app.getSharedPreferences(PANEL_PREFS, android.content.Context.MODE_PRIVATE) }
     var dismissed by remember { mutableStateOf(dismissible && prefs.getBoolean(PANEL_DISMISSED, false)) }
-    var signedIn by remember { mutableStateOf(app.supabaseAuthRepository.currentUserId() != null) }
+    var signedIn by remember { mutableStateOf(app.supabaseAuthRepository.accessToken() != null) }
     var loginOpen by remember { mutableStateOf(false) }
     var refreshTick by remember { mutableStateOf(0) }
     LaunchedEffect(accessViewModel, refreshTick) { accessViewModel.refresh() }
