@@ -1,6 +1,15 @@
 package br.com.estudario.ui.ai
 
 import androidx.compose.foundation.background
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Button
+import androidx.compose.material.icons.outlined.Login
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,13 +50,31 @@ import br.com.estudario.ui.components.SkeletonBlock
 import br.com.estudario.ui.theme.estudarioColors
 
 @Composable
-fun AiAccessPanel(modifier: Modifier = Modifier) {
+fun AiAccessPanel(modifier: Modifier = Modifier, dismissible: Boolean = true) {
     val app = LocalContext.current.applicationContext as EstudarioApplication
     val accessViewModel: AiAccessViewModel = viewModel(factory = AiAccessViewModel.Factory(app.aiAccessRepository))
     val state by accessViewModel.state.collectAsState()
-    LaunchedEffect(accessViewModel) { accessViewModel.refresh() }
-    AiAccessSummary(state, modifier)
+    val prefs = remember { app.getSharedPreferences(PANEL_PREFS, android.content.Context.MODE_PRIVATE) }
+    var dismissed by remember { mutableStateOf(dismissible && prefs.getBoolean(PANEL_DISMISSED, false)) }
+    var signedIn by remember { mutableStateOf(app.supabaseAuthRepository.currentUserId() != null) }
+    var loginOpen by remember { mutableStateOf(false) }
+    var refreshTick by remember { mutableStateOf(0) }
+    LaunchedEffect(accessViewModel, refreshTick) { accessViewModel.refresh() }
+    if (loginOpen) AccountLoginDialog(
+        onDismiss = { loginOpen = false },
+        onSignedIn = { loginOpen = false; signedIn = true; refreshTick++ },
+    )
+    if (dismissed) return
+    AiAccessSummary(
+        state,
+        modifier,
+        onLogin = if (signedIn) null else ({ loginOpen = true }),
+        onDismiss = if (dismissible) ({ dismissed = true; prefs.edit().putBoolean(PANEL_DISMISSED, true).apply() }) else null,
+    )
 }
+
+private const val PANEL_PREFS = "estudario_ui"
+private const val PANEL_DISMISSED = "ai_access_panel_dismissed"
 
 /**
  * O que a conta tem de IA agora, recurso por recurso. Cada linha diz o recurso, a cota em uma
@@ -55,7 +82,12 @@ fun AiAccessPanel(modifier: Modifier = Modifier) {
  * pessoa (entrar, esperar a geração em andamento) e neutro quando não depende dela.
  */
 @Composable
-fun AiAccessSummary(state: AiAccessUiState, modifier: Modifier = Modifier) {
+fun AiAccessSummary(
+    state: AiAccessUiState,
+    modifier: Modifier = Modifier,
+    onLogin: (() -> Unit)? = null,
+    onDismiss: (() -> Unit)? = null,
+) {
     Surface(
         modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -69,6 +101,14 @@ fun AiAccessSummary(state: AiAccessUiState, modifier: Modifier = Modifier) {
                     Text("O que sua conta pode usar agora", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 BetaPill()
+                if (onDismiss != null) IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Outlined.Close, "Fechar aviso", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            if (onLogin != null) {
+                Button(onClick = onLogin, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.Login, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Entrar na conta Estudário")
+                }
             }
             if (state.items.isEmpty()) {
                 repeat(3) {

@@ -3,6 +3,14 @@ package br.com.estudario.ui.prompt
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.fillMaxSize
 import br.com.estudario.EstudarioApplication
 import br.com.estudario.data.ai.AiContentProgress
 import kotlinx.coroutines.flow.Flow
@@ -272,6 +280,8 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
     var attachment by remember { mutableStateOf<PromptAttachment?>(null) }
     val attach = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { attachment = context.attachmentFor(it) } }
     var serverTarget by remember { mutableStateOf<TopicEntity?>(null) }
+    // Sem conta, a IA do Estudário não tem de onde descontar a cota: entra primeiro, gera em seguida.
+    var loginFor by remember { mutableStateOf<TopicEntity?>(null) }
     val application = context.applicationContext as EstudarioApplication
 
     if (subject == null || competition == null) { LaunchedEffect(Unit) { onDismiss() }; return }
@@ -407,13 +417,20 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
                 options.source == MaterialSource.ATTACHED -> "Para trabalhar em cima do seu material, use outra IA (o anexo vai junto)."
                 else -> null
             },
-            onGenerate = { serverTarget = singleTopic },
+            onGenerate = { if (application.supabaseAuthRepository.currentUserId() == null) loginFor = singleTopic else serverTarget = singleTopic },
         ),
         tutorial = TutorialVideo.CONTENT,
         externalWarning = MULTI_TOPIC_WARNING.takeIf { selectedIds.size > 1 },
     )
+    loginFor?.let { pending ->
+        br.com.estudario.ui.ai.AccountLoginDialog(
+            onDismiss = { loginFor = null },
+            onSignedIn = { loginFor = null; serverTarget = pending },
+        )
+    }
     serverTarget?.let { target ->
         ServerContentGenerationDialog(
+            topicTitle = target.title,
             progress = remember(target) { application.aiContentGenerator.generate(competition, subject, topics, target, options) },
             onDone = { estudo -> serverTarget = null; onDismiss(); viewModel.openIncomingText(estudo, competition.id) },
             onClose = { serverTarget = null },
@@ -421,9 +438,23 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
     }
 }
 
-/** Acompanha a geração no servidor; ao terminar, entrega o pacote para a revisão de importação. */
+/** Etapas mostradas enquanto a IA do Estudário escreve o material do tópico. */
+private val ContentGenerationStages = listOf(
+    "Enviando seu pedido",
+    "Pesquisando fontes oficiais",
+    "Conferindo leis e versões vigentes",
+    "Escrevendo a teoria",
+    "Montando resumo e revisão",
+    "Criando as questões comentadas",
+    "Revisando tudo antes de entregar",
+)
+
+/**
+ * Tela de processamento da geração no servidor, com a cena animada do Estudário (a mesma do
+ * edital). Ao terminar, entrega o pacote para a revisão de importação; se falhar, explica e volta.
+ */
 @Composable
-private fun ServerContentGenerationDialog(progress: Flow<AiContentProgress>, onDone: (String) -> Unit, onClose: () -> Unit) {
+private fun ServerContentGenerationDialog(topicTitle: String, progress: Flow<AiContentProgress>, onDone: (String) -> Unit, onClose: () -> Unit) {
     var state by remember(progress) { mutableStateOf<AiContentProgress>(AiContentProgress.Sending) }
     LaunchedEffect(progress) {
         progress.collect { value ->
@@ -432,27 +463,39 @@ private fun ServerContentGenerationDialog(progress: Flow<AiContentProgress>, onD
         }
     }
     val failed = state as? AiContentProgress.Failed
-    AlertDialog(
+    androidx.compose.ui.window.Dialog(
         onDismissRequest = { if (failed != null) onClose() },
-        icon = { Icon(Icons.Outlined.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary) },
-        title = { Text(if (failed != null) "Não deu certo desta vez" else "Gerando seu material") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (failed != null) {
-                    Text(failed.message)
-                } else {
-                    LinearProgressIndicator(Modifier.fillMaxWidth())
-                    Text(
-                        if (state is AiContentProgress.Sending) "Enviando seu pedido…"
-                        else "A IA do Estudário está pesquisando fontes oficiais e escrevendo. Costuma levar de 1 a 3 minutos.",
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = true, dismissOnClickOutside = false),
+    ) {
+        androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(
+                Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                if (failed == null) {
+                    br.com.estudario.ui.components.EstudarioProcessView(
+                        title = "Preparando seu material",
+                        eyebrow = topicTitle,
+                        stages = ContentGenerationStages,
+                        stageMillis = 14_000L,
+                        footer = {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Costuma levar de 1 a 3 minutos. No fim, você revisa tudo antes de salvar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                TextButton(onClick = onClose) { Text("Fechar") }
+                            }
+                        },
                     )
-                    Text("Pode deixar esta tela aberta. No fim, você revisa tudo antes de salvar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    Spacer(Modifier.height(48.dp))
+                    Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+                    Text("Não deu certo desta vez", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                    Text(failed.message, textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    androidx.compose.material3.Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("Voltar") }
                 }
             }
-        },
-        confirmButton = { if (failed != null) TextButton(onClick = onClose) { Text("Voltar") } },
-        dismissButton = { if (failed == null) TextButton(onClick = onClose) { Text("Fechar") } },
-    )
+        }
+    }
 }
 
 @Composable
