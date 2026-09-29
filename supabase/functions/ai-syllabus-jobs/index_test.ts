@@ -273,3 +273,31 @@ Deno.test("same idempotency key cannot reuse a bound job for a different source 
   assertEquals((await response.json()).error.code, "IDEMPOTENCY_KEY_CONFLICT");
   assertEquals(calls.bind, 0);
 });
+
+Deno.test("create job is refused when Play Integrity rejects the request", async () => {
+  const { IntegrityError } = await import("../_shared/play-integrity.ts");
+  let reserved = false;
+  const handler = createAiSyllabusJobsHandler({
+    authenticate: () => Promise.resolve({ userId: "user-1", accessToken: "t" }),
+    storage: {} as never,
+    jobs: {
+      createOrGet: () => {
+        reserved = true;
+        return Promise.reject(new Error("must not reserve"));
+      },
+    } as never,
+    limits: { maxBytes: 1, maxPages: 1, maxFiles: 1 },
+    schedule: () => Promise.resolve(),
+    integrity: { verify: () => Promise.reject(new IntegrityError("INTEGRITY_FAILED")) },
+  });
+  const response = await handler(
+    new Request("https://x/functions/v1/ai-syllabus-jobs", {
+      method: "POST",
+      headers: { authorization: "Bearer t", "idempotency-key": "k-1", "content-type": "application/json" },
+      body: JSON.stringify({ feature: "SYLLABUS_GENERATION", source: {} }),
+    }),
+  );
+  assertEquals(response.status, 403);
+  assertEquals((await response.json()).error.code, "INTEGRITY_FAILED");
+  assertEquals(reserved, false);
+});

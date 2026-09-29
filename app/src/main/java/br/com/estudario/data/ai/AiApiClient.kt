@@ -122,6 +122,8 @@ class HttpAiApiClient(
     private val accessTokenProvider: AiAccessTokenProvider,
     private val transport: AiHttpTransport = UrlConnectionAiHttpTransport(baseUrl),
     private val httpTimeoutMillis: Long = DEFAULT_HTTP_TIMEOUT_MILLIS,
+    /** Play Integrity dos pedidos que reservam cota. Null nos testes e sem configuração. */
+    private val integrityTokens: IntegrityTokenSource? = null,
 ) : AiApiClient {
     init {
         require(httpTimeoutMillis > 0)
@@ -139,11 +141,12 @@ class HttpAiApiClient(
         sourceReady: Boolean,
         preferences: AiSyllabusPreferences?,
     ): AiCreateJob {
+        val integrityToken = integrityTokens?.token(IntegrityRequestHash.of(AI_FEATURE, idempotencyKey, source.sourceHash))
         val response = execute(
             buildRequest(
                 method = "POST",
                 path = FUNCTIONS_JOBS_PATH,
-                headers = authHeaders(idempotencyKey),
+                headers = authHeaders(idempotencyKey) + listOfNotNull(integrityToken?.let { "X-Play-Integrity-Token" to it }),
                 body = buildJsonObject {
                     put("feature", JsonPrimitive(AI_FEATURE))
                     put("source", buildJsonObject {

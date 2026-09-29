@@ -32,6 +32,39 @@ class AiApiClientTest {
     }
 
     @Test
+    fun createJobSendsPlayIntegrityTokenBoundToThisRequest() = runTest {
+        val transport = FakeAiHttpTransport(
+            AiHttpResponse(201, "{\"jobId\":\"job-1\",\"uploadPath\":\"u/p.pdf\",\"status\":\"RESERVED\"}"),
+        )
+        val hashes = mutableListOf<String>()
+        val client = HttpAiApiClient(
+            baseUrl = "",
+            publishableKey = "",
+            accessTokenProvider = AiAccessTokenProvider { "supabase-jwt" },
+            transport = transport,
+            integrityTokens = IntegrityTokenSource { hash -> hashes += hash; "integrity-token" },
+        )
+
+        client.createOrGetJob("key-1", AiSourceMetadata("e.pdf", "application/pdf", "ABCDEF", 10), sourceReady = false)
+
+        // Mesmo valor calculado por supabase/functions/_shared/play-integrity.ts.
+        assertEquals(listOf("81f4dc0b6238b1b8b26b8d14e3c9fb0a88d58d391a27b9447f62ce4ae463c3d5"), hashes)
+        assertEquals("integrity-token", transport.requests.single().headers["X-Play-Integrity-Token"])
+    }
+
+    @Test
+    fun createJobWithoutIntegrityTokenOmitsHeader() = runTest {
+        val transport = FakeAiHttpTransport(
+            AiHttpResponse(201, "{\"jobId\":\"job-1\",\"uploadPath\":\"u/p.pdf\",\"status\":\"RESERVED\"}"),
+        )
+        val client = HttpAiApiClient("", "", AiAccessTokenProvider { "jwt" }, transport, integrityTokens = IntegrityTokenSource { null })
+
+        client.createOrGetJob("key-1", AiSourceMetadata("e.pdf", "application/pdf", "abcdef", 10), sourceReady = false)
+
+        assertFalse(transport.requests.single().headers.containsKey("X-Play-Integrity-Token"))
+    }
+
+    @Test
     fun pollsJobWithExponentialBackoffUntilSucceeded() = runTest {
         val transport = FakeAiHttpTransport(
             AiHttpResponse(200, jobJson("PROCESSING")),

@@ -852,7 +852,11 @@ class AiReviewViewModel(
     private fun fail(message: String) { _state.value = _state.value.copy(content = AiReviewContent.Failure(message)) }
 
     private fun safeMessage(error: Throwable): String = when (error) {
-        is AiApiException -> if (error.code == "AI_RATE_LIMIT_EXCEEDED") {
+        is AiApiException -> if (error.code == "INTEGRITY_REQUIRED" || error.code == "INTEGRITY_FAILED") {
+            "Não foi possível confirmar que este é o app original da Google Play. Instale ou atualize o Estudário pela Play Store e tente novamente."
+        } else if (error.code == "INTEGRITY_UNAVAILABLE") {
+            "A verificação de segurança do Google está indisponível agora. Tente novamente em alguns minutos."
+        } else if (error.code == "AI_RATE_LIMIT_EXCEEDED") {
             error.retryAfterSeconds?.takeIf { it > 0 }?.let { seconds ->
                 "Muitas tentativas em pouco tempo. Tente novamente em ${seconds.coerceAtLeast(1)} segundos."
             } ?: "Muitas tentativas em pouco tempo. Tente novamente em alguns minutos."

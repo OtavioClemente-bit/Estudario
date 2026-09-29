@@ -63,6 +63,9 @@ class EstudarioApplication : Application() {
                 baseUrl = supabaseClientConfig.projectUrl,
                 publishableKey = supabaseClientConfig.publishableKey,
                 accessTokenProvider = SupabaseAiTokenProvider(supabaseAuthRepository),
+                integrityTokens = BuildConfig.PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER.takeIf { it > 0L }?.let {
+                    br.com.estudario.data.ai.PlayIntegrityTokenSource(this, it)
+                },
             ),
             sourceReader = PdfSourceReader.fromContentResolver(contentResolver),
             requestStore = DataStoreAiJobRequestStore(this),

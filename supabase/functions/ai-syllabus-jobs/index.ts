@@ -1,3 +1,9 @@
+import {
+  integrityRequestHash,
+  IntegrityError,
+  integrityVerifierFromEnvironment,
+  type IntegrityVerifier,
+} from "../_shared/play-integrity.ts";
 import { parseSyllabusGenerationOptions, type SyllabusGenerationOptions } from "../_shared/prompts/syllabus-v1.ts";
 import { parseAiJob, type AiFeature, type AiJob } from "../_shared/contracts.ts";
 import {
@@ -33,6 +39,8 @@ export interface AiSyllabusJobsDependencies {
   jobs: AiJobStore;
   limits: StorageSourceLimits;
   schedule: (jobId: string) => Promise<void>;
+  /** Play Integrity para pedidos que reservam cota. Ausente = não verifica (testes). */
+  integrity?: IntegrityVerifier;
 }
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
@@ -56,6 +64,9 @@ function safeError(code: string, status: number, retryAfterSeconds?: number): Re
     SOURCE_NOT_BOUND: "Source must be uploaded and validated before processing",
     IDEMPOTENCY_KEY_CONFLICT: "Idempotency key conflicts with the source fingerprint",
     AI_RATE_LIMIT_EXCEEDED: "Too many syllabus attempts; retry later",
+    INTEGRITY_REQUIRED: "Use the app installed from Google Play",
+    INTEGRITY_FAILED: "Use the app installed from Google Play",
+    INTEGRITY_UNAVAILABLE: "Integrity check is temporarily unavailable",
   };
   if (code === "AI_RATE_LIMIT_EXCEEDED") {
     const retry = Number.isSafeInteger(retryAfterSeconds) && retryAfterSeconds! >= 0 ? retryAfterSeconds! : 0;
@@ -190,6 +201,17 @@ async function createJob(
   const sourceHash = clientSourceHash(source);
   const sourceBytes = clientSourceBytes(source);
   const options = generationOptions(body);
+  if (dependencies.integrity) {
+    const expected = await integrityRequestHash(SYLLABUS_FEATURE, key, sourceHash);
+    try {
+      await dependencies.integrity.verify(request.headers.get("x-play-integrity-token"), expected);
+    } catch (error) {
+      if (error instanceof IntegrityError) {
+        return safeError(error.code, error.code === "INTEGRITY_UNAVAILABLE" ? 503 : 403);
+      }
+      throw error;
+    }
+  }
   const payload = {
     feature: SYLLABUS_FEATURE,
     sourcePath: path,
@@ -393,6 +415,7 @@ function runtimeDependencies(request: Request): AiSyllabusJobsDependencies {
     storage: new SupabaseStorageSourceStore({ supabaseUrl, publishableKey, accessToken, serviceRoleKey, serviceRoleJwt }, runtimeLimits().maxBytes),
     jobs: new SupabaseAiJobStore({ supabaseUrl, publishableKey, accessToken, serviceRoleKey }),
     limits: runtimeLimits(),
+    integrity: integrityVerifierFromEnvironment((name) => Deno.env.get(name)),
     schedule: async () => {
       // The persisted PROCESSING lease is the durable queue consumed by the worker/Cron in Task 7.
     },
