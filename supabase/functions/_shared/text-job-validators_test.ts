@@ -3,7 +3,7 @@ import { parseContentJobInput, TextJobInputError } from "./text-job-input.ts";
 import { validateTopicContent } from "./text-job-validators.ts";
 import { ProposalValidationError } from "./proposal-validator.ts";
 
-const expected = { schemaVersion: 3, promptVersion: "topic-content-v4", modelVersion: "m" };
+const expected = { schemaVersion: 4, promptVersion: "topic-content-v5", modelVersion: "m" };
 const baseInput = { competitionName: "TRT-3", subjectName: "Português", topicPath: ["Crase"] };
 
 function question(index: number, overrides: Record<string, unknown> = {}) {
@@ -31,7 +31,7 @@ function output(overrides: Record<string, unknown> = {}) {
     theoryTitle: "Crase",
     chapters: [],
     summary: "",
-    quickReview: "",
+    flashcards: [],
     tips: [],
     traps: [],
     activeRecall: [],

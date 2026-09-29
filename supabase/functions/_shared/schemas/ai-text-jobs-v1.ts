@@ -7,7 +7,7 @@ import type { JsonSchema } from "../schema.ts";
 
 // v2: quantidade de questões, partes e formato vêm do pedido; as contagens exatas são conferidas
 // pelo validador, porque o schema strict não depende da entrada.
-export const AI_TOPIC_CONTENT_SCHEMA_VERSION = 3 as const;
+export const AI_TOPIC_CONTENT_SCHEMA_VERSION = 4 as const;
 export const AI_STUDY_PLAN_SCHEMA_VERSION = 1 as const;
 
 const nonEmpty: JsonSchema = { type: "string", minLength: 1 };
@@ -37,7 +37,7 @@ export const AI_TOPIC_CONTENT_SCHEMA: JsonSchema = {
   additionalProperties: false,
   required: [
     "schemaVersion", "promptVersion", "modelVersion", "scope", "theoryTitle", "chapters", "summary",
-    "quickReview", "tips", "traps", "activeRecall", "errorConcepts", "questions", "sources", "warnings",
+    "flashcards", "tips", "traps", "activeRecall", "errorConcepts", "questions", "sources", "warnings",
   ],
   properties: {
     ...versionFields,
@@ -60,7 +60,17 @@ export const AI_TOPIC_CONTENT_SCHEMA: JsonSchema = {
     },
     // Vazios quando a parte não foi pedida.
     summary: { type: "string" },
-    quickReview: { type: "string" },
+    // Flashcards de verdade: frente curta e verso objetivo, um conceito por cartão.
+    flashcards: {
+      type: "array",
+      maxItems: 30,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["front", "back"],
+        properties: { front: nonEmpty, back: nonEmpty },
+      },
+    },
     tips: { type: "array", maxItems: 8, items: nonEmpty },
     traps: { type: "array", maxItems: 8, items: nonEmpty },
     // Pergunta e resposta: a pessoa tenta lembrar e depois confere.

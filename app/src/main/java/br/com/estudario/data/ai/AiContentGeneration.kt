@@ -209,7 +209,18 @@ internal object AiContentEstudo {
             ))
         }
         proposal.optString("summary").takeIf(String::isNotBlank)?.let { topic.put("summary", it) }
-        proposal.optString("quickReview").takeIf(String::isNotBlank)?.let { topic.put("quickReview", it) }
+        // Flashcards viram o baralho do tópico: cada cartão é uma seção (frente no título, verso no
+        // corpo), o formato que o leitor de flashcards do app separa sem ambiguidade.
+        val flashcards = proposal.optJSONArray("flashcards") ?: JSONArray()
+        if (flashcards.length() > 0) {
+            val deck = (0 until flashcards.length()).joinToString("\n\n") { index ->
+                val card = flashcards.getJSONObject(index)
+                "### ${card.optString("front").trim()}\n\n${card.optString("back").trim()}"
+            }
+            topic.put("quickReview", deck)
+        } else {
+            proposal.optString("quickReview").takeIf(String::isNotBlank)?.let { topic.put("quickReview", it) }
+        }
         listOf("tips", "traps", "activeRecall").forEach { key ->
             proposal.optJSONArray(key)?.takeIf { it.length() > 0 }?.let { topic.put(key, it) }
         }

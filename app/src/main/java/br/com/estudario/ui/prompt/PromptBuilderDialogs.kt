@@ -860,7 +860,7 @@ private fun priorityLabel(value: PlanPriority) = when (value) {
 private fun blockDescription(block: ContentBlock): String = when (block) {
     ContentBlock.THEORY -> "Explicação completa, em capítulos"
     ContentBlock.SUMMARY -> "O essencial em poucas páginas"
-    ContentBlock.QUICK_REVIEW -> "Para a véspera da prova"
+    ContentBlock.QUICK_REVIEW -> "Baralho para estudar por repetição"
     ContentBlock.TIPS_TRAPS -> "Dicas e pegadinhas de banca"
     ContentBlock.ACTIVE_RECALL -> "Perguntas para testar a memória"
     ContentBlock.QUESTIONS -> "Questões de treino com gabarito comentado"

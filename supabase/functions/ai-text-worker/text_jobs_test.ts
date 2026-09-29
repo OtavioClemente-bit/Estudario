@@ -48,14 +48,14 @@ function question(index: number, overrides: Record<string, unknown> = {}) {
 
 function content(overrides: Record<string, unknown> = {}) {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     promptVersion: CONTENT_PROMPT_VERSION,
     modelVersion: MODEL,
     scope: { covers: "Princípios fundamentais", excludes: "Direitos fundamentais" },
     theoryTitle: "Princípios fundamentais",
     chapters: [{ title: "1. Fundamentos", markdown: "Texto" }, { title: "2. Aplicação", markdown: "Texto" }],
     summary: "# Resumo",
-    quickReview: "# Revisão rápida",
+    flashcards: Array.from({ length: 12 }, (_, i) => ({ front: `Pergunta ${i + 1}?`, back: `**Resposta** ${i + 1}.` })),
     tips: ["Bizu"],
     traps: ["Pegadinha"],
     activeRecall: [{ question: "Pergunta?", answer: "Resposta." }],
@@ -67,7 +67,7 @@ function content(overrides: Record<string, unknown> = {}) {
   };
 }
 
-const expectedContent = { schemaVersion: 3, promptVersion: CONTENT_PROMPT_VERSION, modelVersion: MODEL };
+const expectedContent = { schemaVersion: 4, promptVersion: CONTENT_PROMPT_VERSION, modelVersion: MODEL };
 // Pedido sem opções = pacote completo com 10 questões mistas, como antes.
 const fullOptions = parseContentJobInput(contentInput).options;
 
@@ -92,7 +92,8 @@ Deno.test("content validator rejects invented or incoherent material", () => {
     { questions: [question(0, { sourceType: "REAL" }), ...Array.from({ length: 9 }, (_, i) => question(i + 1))] },
     { questions: [question(0, { errorConceptKey: "e5" }), ...Array.from({ length: 9 }, (_, i) => question(i + 1))] },
     { sources: [{ kind: "OFICIAL", title: "Sem link", publisher: "X", reference: "", url: "não é url", accessedAt: "2026-09-28" }] },
-    { quickReview: "# Resumo" },
+    { flashcards: [] },
+    { flashcards: Array.from({ length: 12 }, () => ({ front: "Mesma frente?", back: "Verso." })) },
     { modelVersion: "outro-modelo" },
   ];
   for (const override of cases) {
@@ -226,7 +227,7 @@ Deno.test("worker generates topic content from text only, with web search and no
   assertEquals(starts.length, 1);
   assertEquals(starts[0].source, undefined);
   assertEquals(starts[0].feature, "CONTENT_GENERATION");
-  assertEquals(starts[0].schemaName, "ai_topic_content_v3");
+  assertEquals(starts[0].schemaName, "ai_topic_content_v4");
   assert(JSON.stringify(starts[0].tools).includes("web_search"));
   assert(starts[0].userPrompt!.includes("Dos princípios fundamentais"));
   assert(events.includes("success"));

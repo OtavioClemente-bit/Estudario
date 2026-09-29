@@ -167,7 +167,7 @@ object EditalPromptBuilder {
 // ---------------------------------------------------------------------------------------------
 
 enum class ContentBlock(val label: String) {
-    THEORY("Teoria"), SUMMARY("Resumo completo"), QUICK_REVIEW("Revisão rápida"), TIPS_TRAPS("Dicas e pegadinhas"),
+    THEORY("Teoria"), SUMMARY("Resumo completo"), QUICK_REVIEW("Flashcards"), TIPS_TRAPS("Dicas e pegadinhas"),
     ACTIVE_RECALL("Perguntas de memorização"), QUESTIONS("Questões"), ERROR_CONCEPTS("Conceitos que geram erro"),
 }
 
@@ -391,7 +391,7 @@ object ContentPromptBuilder {
                 },
             )
             if (ContentBlock.SUMMARY in blocks) appendLine("- summary: resumo completo em Markdown que consolida toda a teoria, detalhado o bastante para estudar só por ele.")
-            if (ContentBlock.QUICK_REVIEW in blocks) appendLine("- quickReview: vira FLASHCARDS no app. Escreva uma lista, um cartão por item, no formato \"- **termo ou pergunta curta**: explicação objetiva\" (frente em negrito, verso depois dos dois-pontos), cobrindo conceitos-chave, diferenças, regras e números que caem. Comparações podem vir em tabela: a 1ª coluna vira a frente do cartão.")
+            if (ContentBlock.QUICK_REVIEW in blocks) appendLine("- quickReview: é o BARALHO DE FLASHCARDS do tópico, de 15 a 25 cartões. Escreva cada cartão como uma seção: \"### frente\" numa linha e o verso logo abaixo. Frente: pergunta direta ou termo, até 15 palavras, sem a resposta embutida. Verso: resposta objetiva em 1 a 3 frases, com a **palavra-chave em negrito**, e tabela pequena ou fórmula quando ajudar. Uma ideia por cartão; cubra conceitos, diferenças, exceções, prazos, números e pegadinhas; não repita cartões.")
             if (blocks.any { it == ContentBlock.THEORY || it == ContentBlock.SUMMARY || it == ContentBlock.QUICK_REVIEW }) appendLine(STUDY_FORMATTING_RULE)
             if (ContentBlock.TIPS_TRAPS in blocks) appendLine("- tips: dicas objetivas de prova. traps: pegadinhas e confusões típicas de prova.")
             if (ContentBlock.ACTIVE_RECALL in blocks) appendLine("- activeRecall: perguntas curtas para responder sem olhar (recuperação ativa), cada uma com a resposta correta e objetiva em \"resposta\", de 1 a 3 frases.")
@@ -516,7 +516,7 @@ object ContentPromptBuilder {
                     line(indent + 1, "],")
                 }
                 if (ContentBlock.SUMMARY in blocks) line(indent + 1, "\"summary\": \"# Resumo completo\\n\\n...\",")
-                if (ContentBlock.QUICK_REVIEW in blocks) line(indent + 1, "\"quickReview\": \"# Revisão rápida\\n\\n...\",")
+                if (ContentBlock.QUICK_REVIEW in blocks) line(indent + 1, "\"quickReview\": \"### Pergunta 1?\\n\\n**Resposta** objetiva.\\n\\n### Pergunta 2?\\n\\n...\",")
                 if (ContentBlock.TIPS_TRAPS in blocks) {
                     line(indent + 1, "\"tips\": [\"Dica 1\", \"Dica 2\"],")
                     line(indent + 1, "\"traps\": [\"Pegadinha 1\"],")

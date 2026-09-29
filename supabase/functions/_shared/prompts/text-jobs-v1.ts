@@ -4,7 +4,7 @@ import type { ContentJobInput, PlanJobInput } from "../text-job-input.ts";
 // prompt do usuário, delimitados como DADOS. Regras de qualidade vêm do prompt de conteúdo que o
 // app já usa com IAs externas, condensadas para gastar menos tokens de entrada.
 
-export const CONTENT_PROMPT_VERSION = "topic-content-v4" as const;
+export const CONTENT_PROMPT_VERSION = "topic-content-v5" as const;
 export const PLAN_PROMPT_VERSION = "study-plan-v1" as const;
 
 const SECURITY = `Limites de segurança:
@@ -28,7 +28,12 @@ Recorte:
 
 Partes: gere SOMENTE as partes listadas em PEDIDO. Parte não pedida fica vazia: lista vazia ou texto "".
 - chapters (TEORIA): 2 a 6 capítulos em Markdown, didáticos e autossuficientes (fundamentos, desenvolvimento, exemplos concretos, pegadinhas de banca), com tabelas quando ajudarem. Títulos numerados ("1. Fundamentos"). No fim do último capítulo, "### Fontes consultadas". A profundidade pedida manda: ESSENCIAL é direto ao ponto; APROFUNDADA traz exemplos e exceções; LIVRO é o mais completo possível.
-- summary (RESUMO): resumo completo em Markdown, suficiente para revisar só por ele. quickReview (FLASHCARDS): lista de cartões, um por item, no formato "- **termo ou pergunta curta**: explicação objetiva" (frente em negrito, verso após os dois-pontos), cobrindo conceitos-chave, diferenças, regras e números que caem; comparações podem vir em tabela (1ª coluna = frente). Diferente do summary.
+- summary (RESUMO): resumo completo em Markdown, suficiente para revisar só por ele.
+- flashcards (FLASHCARDS): um baralho para estudar por repetição, de 15 a 25 cartões. Regras de um bom cartão:
+  - UMA ideia por cartão. Nada de "explique tudo sobre X".
+  - front: pergunta direta ou termo, até 15 palavras, que obrigue a lembrar (ex.: "Prazo para interpor recurso de apelação?", "O que caracteriza a crase?"). Sem a resposta embutida na frente.
+  - back: resposta objetiva em 1 a 3 frases, com a **palavra-chave em negrito**; use lista curta, tabela pequena ou fórmula LaTeX quando isso deixar a resposta mais clara. Cite o artigo ou a regra quando houver.
+  - Cubra o que mais cai: conceitos, diferenças entre institutos parecidos, exceções, prazos, números e pegadinhas de banca. Não repita cartões nem copie questões.
 - Formatação (o app mostra tabelas e fórmulas): ## e ### para seções, lista numerada para passo a passo, **negrito** para termos-chave, > para alertas de prova. Comparações lado a lado em tabela Markdown (| coluna | coluna | com |---|---| abaixo do cabeçalho). Fórmulas, símbolos e unidades em LaTeX entre cifrões DUPLOS: na linha $$M = C(1 + i)^t$$; em bloco, $$ sozinho na linha antes e depois. Nunca use cifrão simples para fórmula (o app confunde com R$).
 - tips e traps (DICAS E PEGADINHAS), activeRecall (MEMORIZAÇÃO: perguntas curtas para responder sem olhar, cada uma com a resposta correta e objetiva em answer, de 1 a 3 frases).
 - errorConcepts (CONCEITOS QUE GERAM ERRO): explicação corretiva curta; chaves e1, e2... Quando houver questões, gere também errorConcepts para ligá-las.
@@ -70,7 +75,7 @@ export function contentUserPrompt(input: ContentJobInput): string {
 const BLOCK_NAMES = {
   THEORY: "TEORIA",
   SUMMARY: "RESUMO",
-  QUICK_REVIEW: "REVISÃO RÁPIDA",
+  QUICK_REVIEW: "FLASHCARDS",
   TIPS_TRAPS: "DICAS E PEGADINHAS",
   ACTIVE_RECALL: "MEMORIZAÇÃO",
   QUESTIONS: "QUESTÕES",

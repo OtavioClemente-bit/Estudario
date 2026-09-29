@@ -66,6 +66,9 @@ function httpsUrl(value: unknown, field: string): string {
   return url;
 }
 
+export const MIN_FLASHCARDS = 12;
+export const MAX_FLASHCARDS = 30;
+
 function blank(value: unknown): boolean {
   return value === undefined || value === null || (typeof value === "string" && value.trim().length === 0) ||
     (Array.isArray(value) && value.length === 0);
@@ -88,14 +91,19 @@ export function validateTopicContent(raw: string, expected: ExpectedVersions, op
   const chapterTitles = new Set(chapters.map((chapter, index) => nonBlank(chapter.title, `chapters.${index}.title`, 200).trim()));
   chapters.forEach((chapter, index) => nonBlank(chapter.markdown, `chapters.${index}.markdown`));
   if (wants("SUMMARY")) nonBlank(value.summary, "summary");
-  if (wants("QUICK_REVIEW")) nonBlank(value.quickReview, "quickReview");
+  // Baralho: quantidade que dá para estudar de verdade, cartões curtos e sem repetição.
+  const cards = array(value.flashcards, "flashcards");
+  if (wants("QUICK_REVIEW") ? cards.length < MIN_FLASHCARDS || cards.length > MAX_FLASHCARDS : cards.length !== 0) reject("flashcard count");
+  const fronts = new Set<string>();
+  cards.forEach((card, index) => {
+    const front = nonBlank(card.front, `flashcards.${index}.front`, 240).trim().toLowerCase();
+    nonBlank(card.back, `flashcards.${index}.back`, 3_000);
+    if (fronts.has(front)) reject(`flashcards.${index} repeats a front`);
+    fronts.add(front);
+  });
   onlyWhenAsked("SUMMARY", "summary");
-  onlyWhenAsked("QUICK_REVIEW", "quickReview");
   onlyWhenAsked("ACTIVE_RECALL", "activeRecall");
   if (!wants("TIPS_TRAPS") && (!blank(value.tips) || !blank(value.traps))) reject("tips were not requested");
-  if (wants("SUMMARY") && wants("QUICK_REVIEW") && String(value.summary).trim() === String(value.quickReview).trim()) {
-    reject("quickReview repeats summary");
-  }
 
   const concepts = array(value.errorConcepts, "errorConcepts");
   const conceptKeys = new Set(concepts.map((concept) => String(concept.key)));

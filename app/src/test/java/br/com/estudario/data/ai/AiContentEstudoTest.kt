@@ -68,4 +68,20 @@ class AiContentEstudoTest {
         assertEquals("TRUE_FALSE", sent.getString("questionStyle"))
         assertEquals(listOf("QUESTIONS"), (0 until sent.getJSONArray("blocks").length()).map { sent.getJSONArray("blocks").getString(it) })
     }
+
+    @Test
+    fun flashcardsDoServidorViramBaralhoComFrenteEVerso() {
+        val withCards = JSONObject(proposal.toString()).apply {
+            remove("quickReview")
+            put("flashcards", org.json.JSONArray()
+                .put(JSONObject().put("front", "O que é crase?").put("back", "**Fusão** de a + a."))
+                .put(JSONObject().put("front", "Crase antes de masculino?").put("back", "| Caso | Crase |\n|---|---|\n| Masculino | Não |")))
+        }
+        val topic = EstudoPackageParser.parse(AiContentEstudo.build(competition, subject, topics, target, withCards)).allTopics().single { it.id == PromptIds.topic(target) }
+        val deck = topic.summaries.single { it.kind == br.com.estudario.data.local.SummaryKind.RAPIDO }
+        val cards = br.com.estudario.ui.components.FlashcardParser.parse(deck.markdown)
+        assertEquals(listOf("O que é crase?", "Crase antes de masculino?"), cards.map { it.front })
+        assertTrue(cards[1].back.contains("| Masculino | Não |"))
+    }
+
 }
