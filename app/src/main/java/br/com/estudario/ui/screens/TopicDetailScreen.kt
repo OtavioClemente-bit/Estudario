@@ -103,6 +103,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
     val queueItem = queue.firstOrNull { it.item.topicId == topicId }
     val sessionAttempts = attempts.filter { it.questionId in questionIds && it.answeredAt >= studyStartedAt }
     var showContentPrompt by remember { mutableStateOf(false) }
+    var showAiContent by remember { mutableStateOf(false) }
     var showAdditionalQuestionPrompt by remember { mutableStateOf(false) }
     var showPriority by remember { mutableStateOf(false) }
     val competitions by viewModel.competitions.collectAsState()
@@ -212,6 +213,19 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
         }
     }
 
+    val topicCompetition = subject?.let { s -> competitions.firstOrNull { it.id == s.competitionId } }
+    if (showAiContent && subject != null && topicCompetition != null) {
+        br.com.estudario.ui.ai.TopicAiContentScreen(
+            competition = topicCompetition,
+            subject = subject,
+            topic = topic,
+            allTopics = topics.filter { it.subjectId == subject.id },
+            // Entra pela importação padrão: prévia e confirmação antes de gravar.
+            onImport = { estudo -> showAiContent = false; viewModel.openIncomingText(estudo, subject.competitionId) },
+            onFallback = { showAiContent = false; showContentPrompt = true },
+            onClose = { showAiContent = false },
+        )
+    }
     if (showContentPrompt && subject != null) {
         ContentPromptBuilderDialog(viewModel, subject.id, setOf(topic.id), onDismiss = { showContentPrompt = false }, onPickFile = { importLauncher.launch(arrayOf("*/*")) })
     }
@@ -352,7 +366,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                 }
             }
             val actions: @Composable () -> Unit = {
-                IconButton(onClick = { showContentPrompt = true }) { Icon(Icons.Outlined.AutoAwesome, "Gerar conteúdo com IA", tint = MaterialTheme.colorScheme.primary) }
+                IconButton(onClick = { showAiContent = true }) { Icon(Icons.Outlined.AutoAwesome, "Gerar conteúdo com IA", tint = MaterialTheme.colorScheme.primary) }
                 IconButton(onClick = { showPriority = true }) { Icon(Icons.Outlined.Flag, "Definir prioridade", tint = MaterialTheme.colorScheme.primary) }
                 IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) { Icon(Icons.Outlined.FileOpen, "Importar arquivo .estudo") }
             }
@@ -496,7 +510,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
             Text("Teoria completa", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
         val topicTheories = theories.filter { it.topicId == topicId }
-        if (topicTheories.isEmpty()) item { EmptyState("Teoria ainda não importada", "Toque em ✨ no topo para montar o pedido para a IA e depois importe o .estudo gerado.", "Gerar com IA") { showContentPrompt = true } }
+        if (topicTheories.isEmpty()) item { EmptyState("Teoria ainda não importada", "A IA do Estudário monta teoria, resumo e questões deste tópico. Toque para gerar.", "Gerar com IA") { showAiContent = true } }
         topicTheories.forEach { theory ->
             item(key = "theory-${theory.id}") {
                 ElevatedCard(onClick = { onTheory(theory.id) }) {

@@ -253,6 +253,30 @@ class StudyPlanApplicationService(
         )
     }
 
+    /**
+     * Remove de um plano importado da IA as tarefas que o motor automático enfiou nele antes de
+     * isso ser bloqueado. Só sai o que o motor criou e ninguém tocou: planejada, destravada e sem
+     * nenhuma execução registrada. Plano sem tarefa importada não é alterado.
+     */
+    suspend fun removeEngineTasksFromImportedPlan(planId: String): Int = db.withTransaction {
+        val sql = db.openHelper.writableDatabase
+        val hasImported = sql.query("SELECT 1 FROM plan_tasks WHERE planId = ? AND origin = 'IMPORTED' LIMIT 1", arrayOf<Any>(planId)).use { it.moveToFirst() }
+        if (!hasImported) return@withTransaction 0
+        val removed = sql.delete(
+            "plan_tasks",
+            "planId = ? AND origin = 'ENGINE' AND status = 'PLANEJADA' AND locked = 0 AND id NOT IN (SELECT taskId FROM study_task_executions WHERE taskId IS NOT NULL)",
+            arrayOf<Any>(planId),
+        )
+        // O mesmo motor tinha marcado as tarefas da IA como REPROGRAMADA para pôr as dele no lugar.
+        // A pessoa nunca gera esse status (reprogramar com data só muda a data), então toda tarefa
+        // importada nele volta a valer.
+        sql.execSQL(
+            "UPDATE plan_tasks SET status = 'PLANEJADA', updatedAt = ? WHERE planId = ? AND origin = 'IMPORTED' AND status = 'REPROGRAMADA'",
+            arrayOf<Any>(System.currentTimeMillis(), planId),
+        )
+        removed
+    }
+
     /** Corrige estimativas antigas de questões ao abrir um plano, sem mexer em trabalho iniciado. */
     suspend fun normalizeQuestionTaskEstimates(planId: String): Int {
         val corrected = db.withTransaction {
@@ -290,7 +314,16 @@ class StudyPlanApplicationService(
      * de navegação) enquanto o plano é montado.
      */
     suspend fun replan(planId: String, reason: ReplanReason, today: LocalDate = LocalDate.now()): PlanningProposal {
-        val proposal = withContext(Dispatchers.Default) { engine.plan(snapshotFactory.create(planId, today), reason) }
+        val computed = withContext(Dispatchers.Default) { engine.plan(snapshotFactory.create(planId, today), reason) }
+        // Plano trazido da IA é da pessoa: o motor automático não acrescenta tarefas próprias nem
+        // reprograma as importadas. Sem isso, cada conclusão "completava" o plano da IA com a
+        // agenda do motor, e tarefas que a pessoa não pediu apareciam no começo.
+        val tasks = planner.tasksForOnce(planId)
+        val imported = tasks.any { it.origin == br.com.estudario.domain.planner.PlanOrigin.IMPORTED }
+        val proposal = if (!imported) computed else {
+            val importedIds = tasks.filter { it.origin == br.com.estudario.domain.planner.PlanOrigin.IMPORTED }.mapTo(HashSet()) { it.id }
+            computed.copy(newTasks = emptyList(), transitions = computed.transitions.filterNot { it.taskId in importedIds })
+        }
         applyProposal(proposal)
         
         // Sincroniza tarefas do plano em background se a permissão estiver concedida

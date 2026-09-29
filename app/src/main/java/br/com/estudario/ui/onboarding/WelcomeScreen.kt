@@ -27,6 +27,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.SettingsBackupRestore
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.graphics.Brush
+import br.com.estudario.ui.components.EstudarioGlyph
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
@@ -117,89 +122,131 @@ private fun WelcomeContent(
     val carregando = loading
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        // Rola quando não cabe (tela baixa, fonte grande) e continua distribuída como antes quando cabe.
-        BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .heightIn(min = maxHeight)
-                .padding(horizontal = EstudarioSpacing.screenGutter),
-        ) {
-            Spacer(Modifier.weight(1f))
-
-            EstudarioWordmark()
-            Spacer(Modifier.height(EstudarioSpacing.comfortable))
-            Text(
-                "Prepare seu espaço de estudo.",
-                style = MaterialTheme.typography.displaySmall,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Spacer(Modifier.height(EstudarioSpacing.medium))
-            Text(
-                "Seus dados permanecem neste aparelho. Ao entrar com o Google, você adiciona um backup no Drive e pode restaurar seu histórico em outro aparelho.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            Spacer(Modifier.height(EstudarioSpacing.section))
-
-            Column(verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.medium)) {
-                BenefitRow(Icons.Rounded.CloudDone, "Backup do seu histórico na sua conta")
-                BenefitRow(Icons.Rounded.SettingsBackupRestore, "Restauração em outro aparelho")
-                BenefitRow(Icons.Rounded.AccountCircle, "Nome e foto no seu perfil")
+        Column(Modifier.fillMaxSize()) {
+            // Conteúdo rola quando não cabe (tela baixa, fonte grande); as ações ficam fixas embaixo.
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                WelcomeHero()
+                Column(
+                    Modifier.padding(horizontal = EstudarioSpacing.screenGutter).padding(top = 24.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "Prepare seu espaço de estudo",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            "Entre com o Google para guardar uma cópia do seu progresso no Drive. Seus dados continuam neste aparelho.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Surface(shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                        Column(Modifier.padding(vertical = 6.dp)) {
+                            BenefitRow(Icons.Rounded.CloudDone, "Backup na nuvem", "Seu histórico guardado na sua conta")
+                            BenefitDivider()
+                            BenefitRow(Icons.Rounded.SettingsBackupRestore, "Troque de celular sem perder nada", "Restaure tudo em outro aparelho")
+                            BenefitDivider()
+                            BenefitRow(Icons.Rounded.AccountCircle, "Seu perfil", "Nome e foto da sua conta Google")
+                        }
+                    }
+                }
             }
 
-            Spacer(Modifier.weight(1f))
-
-            if (errorMessage != null) {
-                Text(
-                    errorMessage,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(bottom = EstudarioSpacing.small),
-                )
-            }
-
-            GoogleSignInButton(loading = carregando, onClick = onGoogle)
-
-            TextButton(
-                onClick = onContinue,
-                modifier = Modifier.fillMaxWidth().padding(top = EstudarioSpacing.hairline),
+            Column(
+                Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = EstudarioSpacing.screenGutter).padding(top = 8.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text("Continuar sem uma conta", style = MaterialTheme.typography.labelLarge)
+                if (errorMessage != null) {
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.errorContainer).padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Icon(Icons.Rounded.ErrorOutline, null, tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(20.dp))
+                        Text(errorMessage, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+                    }
+                }
+                GoogleSignInButton(loading = carregando, onClick = onGoogle)
+                TextButton(onClick = onContinue, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), enabled = !carregando) {
+                    Text("Continuar sem uma conta", style = MaterialTheme.typography.titleSmall)
+                }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.Lock, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "Você pode vincular uma conta depois, no Perfil.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
-
-            Text(
-                "Você poderá vincular uma conta depois, na área Perfil.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth().padding(bottom = EstudarioSpacing.large),
-            )
         }
+    }
+}
+
+/** Topo com a marca: o livro num selo branco sobre o degradê do app, com anéis suaves em volta. */
+@Composable
+private fun WelcomeHero() {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(bottomStart = 36.dp, bottomEnd = 36.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFF3B34C4), Color(0xFF5B4FE9), Color(0xFF8B5CF6))))
+            .statusBarsPadding()
+            .padding(top = 28.dp, bottom = 32.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Box(contentAlignment = Alignment.Center) {
+                Box(Modifier.size(168.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.06f)))
+                Box(Modifier.size(134.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.10f)))
+                Box(
+                    Modifier.size(100.dp).clip(RoundedCornerShape(30.dp)).background(Color.White),
+                    contentAlignment = Alignment.Center,
+                ) { EstudarioGlyph(size = 64.dp) }
+            }
+            Text(
+                "ESTUDÁRIO",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+            )
+            Text(
+                "Do edital à aprovação, com clareza.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.85f),
+            )
         }
     }
 }
 
 @Composable
-private fun BenefitRow(icon: ImageVector, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
+private fun BenefitRow(icon: ImageVector, title: String, caption: String) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
         Box(
-            Modifier
-                .size(30.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer),
+            Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(17.dp),
-            )
+        ) { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(21.dp)) }
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+            Text(caption, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
     }
+}
+
+@Composable
+private fun BenefitDivider() {
+    HorizontalDivider(Modifier.padding(start = 70.dp, end = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 }
 
 /**
@@ -231,7 +278,7 @@ private fun GoogleSignInButton(loading: Boolean, onClick: () -> Unit) {
         contentPadding = PaddingValues(horizontal = 16.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 52.dp)
+            .heightIn(min = 56.dp)
             .semantics { contentDescription = if (loading) "Conectando com o Google" else "Continuar com o Google" },
     ) {
         Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {

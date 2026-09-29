@@ -168,7 +168,11 @@ fun HomeScreen(
 
         val focusTask = pickFocusTask(planState)
         val planCurrentStudy = currentStudyState(planState, focusTask)
-        val currentQueueItem = firstEligibleQueueTopic(queue)
+        // Com um plano ativo e tarefas pendentes, a Home segue o plano, na ordem dele. A fila manual
+        // de tópicos só manda quando não há plano; antes ela passava na frente e o "próximo a
+        // estudar" ignorava o plano (inclusive o importado da IA).
+        val planDrives = planState.activePlan != null && focusTask != null
+        val currentQueueItem = if (planDrives) null else firstEligibleQueueTopic(queue)
         val queueTask = currentQueueItem?.let { row ->
             val subjectName = subjects.firstOrNull { it.id == row.topic.subjectId }?.name ?: "Matéria removida"
             queueTopicUi(row, subjectName)
@@ -325,20 +329,27 @@ fun HomeScreen(
 // e do StreakEngine. Esta camada só escolhe o que a Home mostra.
 
 /** A tarefa de agora: a primeira já em andamento, senão a primeira planejada. */
-private fun pickFocusTask(planState: ActivePlanUiState): PlannerTaskUi? =
-    planState.tasks.firstOrNull {
-        it.entity.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO) &&
-            it.entity.scheduledEpochDay <= planState.today.toEpochDay()
-    } ?: planState.tasks.firstOrNull {
-        it.entity.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO)
-    }
+private fun pickFocusTask(planState: ActivePlanUiState): PlannerTaskUi? {
+    // Ordem do plano: data e, no mesmo dia, a posição em que a tarefa veio. Algo já começado vem
+    // antes de abrir uma nova.
+    val ordered = planState.tasks.withIndex()
+        .filter { it.value.entity.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO) }
+        .sortedWith(compareBy({ it.value.entity.scheduledEpochDay }, { it.index }))
+        .map { it.value }
+    return ordered.firstOrNull { it.entity.status == PlanTaskStatus.EM_ANDAMENTO }
+        ?: ordered.firstOrNull()
+}
 
 private fun currentStudyState(planState: ActivePlanUiState, focusTask: PlannerTaskUi?): CurrentStudyUiState {
     if (planState.loading && planState.activePlan == null) return CurrentStudyUiState.Loading
     if (planState.activePlan == null) return CurrentStudyUiState.NoPlan
 
     val todayTasks = planState.todayTasks
-    if (todayTasks.isEmpty()) return CurrentStudyUiState.NoTaskToday
+    // Nada marcado para hoje, mas o plano segue: mostra a próxima tarefa da ordem.
+    if (todayTasks.isEmpty()) {
+        return focusTask?.let { CurrentStudyUiState.Ready(task = it.toStudyTaskUi(), progressFraction = null) }
+            ?: CurrentStudyUiState.NoTaskToday
+    }
 
     val doneToday = todayTasks.count { it.entity.status == PlanTaskStatus.CONCLUIDA }
     if (focusTask == null || doneToday == todayTasks.size) {
@@ -352,13 +363,20 @@ private fun currentStudyState(planState: ActivePlanUiState, focusTask: PlannerTa
     return CurrentStudyUiState.Ready(task = focusTask.toStudyTaskUi(), progressFraction = progressFraction)
 }
 
-/** As próximas de hoje, sem a de agora, a aba Plano continua sendo o lugar do cronograma completo. */
+/**
+ * A fila do plano depois da de agora, na ordem do plano (data e posição), incluindo os próximos
+ * dias: só as de hoje deixava a lista vazia assim que o dia acabava. A aba Plano continua sendo o
+ * lugar do cronograma completo.
+ */
 private fun nextUpToday(planState: ActivePlanUiState, focusTask: PlannerTaskUi?): NextUpUi {
-    val pendentes = planState.todayTasks.filter {
-        it.entity.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO) &&
-            it.entity.id != focusTask?.entity?.id
-    }
-    return NextUpUi(items = pendentes.map { it.toStudyTaskUi() }, remainingToday = pendentes.size)
+    val pending = setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO)
+    val proximas = planState.tasks.withIndex()
+        .filter { (_, row) -> row.entity.status in pending && row.entity.id != focusTask?.entity?.id }
+        .sortedWith(compareBy({ it.value.entity.scheduledEpochDay }, { it.index }))
+        .map { it.value }
+        .take(6)
+    val hoje = planState.todayTasks.count { it.entity.status in pending && it.entity.id != focusTask?.entity?.id }
+    return NextUpUi(items = proximas.map { it.toStudyTaskUi() }, remainingToday = hoje)
 }
 
 private fun PlannerTaskUi.toStudyTaskUi(): StudyTaskUi = StudyTaskUi(

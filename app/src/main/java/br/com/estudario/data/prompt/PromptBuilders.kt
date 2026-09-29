@@ -637,9 +637,29 @@ object PlanPromptBuilder {
             append("Sem matérias fornecidas pelo app: não gere arquivo .plano, não use valores de exemplo como dados e não invente matérias ou IDs. Responda brevemente que não há matérias cadastradas para montar o plano.")
             return@buildString
         }
-        append(PromptDelivery.fileOnly("plano-" + PromptIds.slug(o.planName.ifBlank { "estudos" }), ".plano"))
+        val fileName = "plano-" + PromptIds.slug(o.planName.ifBlank { "estudos" }) + ".plano"
+        val totalTopics = subjects.sumOf { it.topics.size }
+        val studiedTopics = subjects.sumOf { s -> s.topics.count { it.studied } }
+        val weeks = (days + 6) / 7
+        // Duas etapas: a pessoa conversa com a IA sobre o plano (e entende o que pode mudar) antes
+        // de receber o arquivo. Entregar o arquivo direto fazia a IA só preencher o molde, sem
+        // discussão, e o resultado parecia o plano automático do próprio app.
+        appendLine("Você vai me ajudar a montar meu plano de estudos para o aplicativo Estudário. Trabalhe em DUAS ETAPAS.")
         appendLine()
-        appendLine("Crie um arquivo .plano (JSON) para o aplicativo Estudário com um plano de estudos realista.")
+        appendLine("ETAPA 1, CONVERSA (agora). NÃO gere o arquivo ainda. Responda em português, para eu ler:")
+        appendLine("1. Diagnóstico: horas disponíveis até $end ($weeks semanas, $weeklyMinutes min por semana), $totalTopics tópicos no edital ($studiedTopics já estudados), quanto tempo cada matéria precisaria considerando a prioridade e o que já estudei, e se tudo cabe no prazo. Seja honesto se não couber.")
+        appendLine("2. Proposta resumida: uma tabela com as horas por semana de cada matéria, a ordem/fases de estudo, o ritmo de questões, revisões e simulados.")
+        appendLine("3. O que eu posso mudar e o impacto de cada opção: estender o prazo das tarefas além de $end, trocar a ordem ou a ênfase entre matérias, pausar matérias, mudar o método (teoria primeiro, questões primeiro, ciclo), aumentar ou reduzir revisões e simulados.")
+        appendLine("4. Atenção ao que o app confere na importação: as HORAS DE CADA DIA, a DATA DA PROVA e as PRIORIDADES das matérias precisam ser as mesmas deste prompt. Se eu quiser mudar alguma delas, me diga para alterar no app e gerar um prompt novo; não mude no arquivo.")
+        appendLine("5. Termine perguntando o que eu quero ajustar. Converse comigo quantas vezes eu precisar.")
+        appendLine()
+        appendLine("ETAPA 2, ARQUIVO: só quando eu disser \"pode gerar\" (ou algo equivalente), gere o plano final já com os ajustes combinados:")
+        appendLine("- Entregue UM ARQUIVO para download chamado \"$fileName\". Se não tiver ferramenta de arquivo, responda só com o JSON puro, de \"{\" a \"}\".")
+        appendLine("- Nessa etapa, não escreva nada fora do arquivo e não cole o conteúdo na conversa: quem lê o JSON é o aplicativo.")
+        appendLine("- Vá até o fim, sem cortar nem resumir. Se ficar grande demais, avise e divida por semanas mantendo o mesmo formato.")
+        appendLine("- Se combinamos um prazo maior, as tarefas vão até a nova data (sem passar da data da prova, se houver).")
+        appendLine()
+        appendLine("Tudo abaixo vale para as duas etapas: é o que o plano precisa respeitar e o formato do arquivo final.")
         appendLine()
         appendLine("PROIBIDO INVENTAR:")
         appendLine("- Use SOMENTE as matérias e os tópicos listados neste prompt, com os externalId exatamente como estão. Não crie, renomeie, traduza nem desdobre matéria ou tópico que não esteja na lista.")
@@ -654,7 +674,7 @@ object PlanPromptBuilder {
         appendLine("- Bloco-base de cada tarefa: ${o.blockMinutes.coerceIn(15, 180)} minutos; ele não representa a disponibilidade total do dia.")
         if (o.planPreference.isNotBlank()) appendLine("- Prioridade declarada pela pessoa: ${o.planPreference.trim()}")
         appendLine("- Início: ${o.startDate}. ${if (o.examDate != null) "Data da prova: ${o.examDate}." else "Data da prova ainda não definida."}")
-        appendLine("- Gere tarefas de ${o.startDate} até $end ($days dias). Fases anuais e metas mensais podem ir além, até ${o.examDate ?: o.startDate.plusMonths(6)}.")
+        appendLine("- Prazo sugerido pelo app: tarefas de ${o.startDate} até $end ($days dias)${if (o.examDate == null) "; como não há data de prova, posso pedir um prazo maior na conversa" else ""}. Fases anuais e metas mensais podem ir além, até ${o.examDate ?: o.startDate.plusMonths(6)}.")
         appendLine("- Disponibilidade líquida (já descontadas pausas): " + o.dayMinutes.mapIndexed { index, minutes -> "${dayNames[index]} ${if (minutes == 0) "folga" else "$minutes min"}" }.joinToString(", ") + ". Total: $weeklyMinutes min por semana.")
         appendLine("- Meta de questões por semana: ${o.weeklyQuestions}.")
         if (o.monthlyDiscursives > 0) appendLine("- Discursivas por mês: ${o.monthlyDiscursives}.") else appendLine("- Sem discursivas.")
@@ -693,7 +713,7 @@ object PlanPromptBuilder {
         appendLine("- Em configuracao.perfil, use somente DO_ZERO, APROFUNDANDO ou RETA_FINAL; copie o perfil informado acima. Em configuracao.blocoMinutos, copie o tamanho do bloco informado acima.")
         appendLine()
         appendLine("FORMATO:")
-        appendLine("- O conteúdo do arquivo é JSON válido puro, sem Markdown e sem ```. Entregue como arquivo .plano, conforme o bloco COMO ENTREGAR no topo.")
+        appendLine("- O conteúdo do arquivo é JSON válido puro, sem Markdown e sem ```. Entregue como arquivo .plano, na ETAPA 2.")
         appendLine("- Copie exatamente os blocos \"concurso\", \"configuracao\" e \"prioridades\" abaixo; gere o restante.")
         appendLine()
         appendLine("{")
@@ -738,7 +758,7 @@ object PlanPromptBuilder {
         appendLine("  \"metadata\": { \"premissas\": \"...\" }")
         appendLine("}")
         appendLine()
-        append("Antes de responder, valide: JSON puro; datas AAAA-MM-DD; minutos de cada dia dentro do limite; externalIds copiados da lista; IDs únicos; dependências válidas. Se ficar grande demais, avise e divida por semanas mantendo o mesmo formato.")
+        append("Antes de entregar o arquivo na ETAPA 2, valide: JSON puro; datas AAAA-MM-DD; minutos de cada dia dentro do limite; externalIds copiados da lista; IDs únicos; dependências válidas. Se ficar grande demais, avise e divida por semanas mantendo o mesmo formato.")
     }.trimEnd()
 }
 

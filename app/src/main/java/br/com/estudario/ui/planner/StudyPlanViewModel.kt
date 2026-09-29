@@ -65,6 +65,7 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
 
     private suspend fun load(planId: String, plans: List<br.com.estudario.data.local.planner.StudyPlanEntity>, section: PlanSection): ActivePlanUiState {
         service.normalizeQuestionTaskEstimates(planId)
+        service.removeEngineTasksFromImportedPlan(planId)
         val plan = repository.plan(planId) ?: return ActivePlanUiState(allPlans = plans, selectedSection = section)
         val availability = repository.availabilityOnce(planId)
         val mapped = StudyPlanUiMapper.map(
@@ -126,8 +127,10 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         if (available == 0) return 0
         when (task.status) {
             PlanTaskStatus.PLANEJADA -> executions.start(taskId)
-            PlanTaskStatus.EM_ANDAMENTO -> Unit
-            else -> error("Esta bateria não está mais disponível para iniciar.")
+            // Já concluída (ex.: questões feitas dentro do bloco de estudo) ou reprogramada: a
+            // bateria abre como treino extra, sem mexer no status. Recusar aqui deixava a pessoa
+            // sem conseguir resolver as questões do bloco.
+            else -> Unit
         }
         return available.coerceAtMost(task.plannedQuestions.coerceAtLeast(1))
     }
@@ -153,6 +156,9 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
             ?: repository.task(taskId)
             ?: error("A tarefa não está mais no plano ativo.")
         require(task.type == br.com.estudario.domain.planner.PlanTaskType.QUESTIONS) { "Esta tarefa não é uma bateria de questões." }
+        // Treino extra sobre uma tarefa já fechada: as respostas já foram salvas pelo quiz; o
+        // plano não aceita uma segunda conclusão, então não há o que registrar nele.
+        if (task.status in setOf(PlanTaskStatus.CONCLUIDA, PlanTaskStatus.NAO_REALIZADA, PlanTaskStatus.PAUSADA)) return
         executions.completeFromQuestionQuiz(taskId, input)
         service.replan(task.planId, ReplanReason.TASK_COMPLETED)
     }

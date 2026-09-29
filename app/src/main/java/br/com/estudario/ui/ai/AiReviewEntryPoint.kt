@@ -94,6 +94,8 @@ fun AiReviewEntryPoint(
         },
     )
     val state by actualReviewViewModel.state.collectAsState()
+    // Voltar do sistema fecha a tela da IA e devolve ao passo de onde ela foi aberta.
+    androidx.activity.compose.BackHandler(enabled = !loginOpen) { onClose() }
     LaunchedEffect(target.sourceUri, target.sourceName) {
         target.sourceUri?.let { actualReviewViewModel.provideSource(it, target.sourceName) }
     }

@@ -186,12 +186,15 @@ Deno.test("uses America/Sao_Paulo when selecting a daily quota period", async ()
   assert.equal(access.quota?.resetAt, "2026-09-23T03:00:00.000Z");
 });
 
-Deno.test("plan has no reset and exhausted content has the next Sao Paulo midnight", async () => {
+Deno.test("syllabus has no reset while plan and exhausted content renew at the next Sao Paulo midnight", async () => {
+  const syllabus = await policyFor().getAccess(USER_A, "SYLLABUS_GENERATION");
   const plan = await policyFor().getAccess(USER_A, "PLAN_GENERATION");
   const content = await policyFor({
     quotas: [quota(USER_A, "CONTENT_GENERATION", 1, 0, "2026-09-23")],
   }).getAccess(USER_A, "CONTENT_GENERATION");
-  assert.equal(plan.quota?.resetAt, null);
+  assert.equal(syllabus.quota?.resetAt, null);
+  // Plano passou a ser 1 por dia, como o conteúdo.
+  assert.equal(plan.quota?.resetAt, "2026-09-24T03:00:00.000Z");
   assert.equal(content.quota?.remaining, 0);
   assert.equal(content.quota?.resetAt, "2026-09-24T03:00:00.000Z");
 });

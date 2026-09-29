@@ -453,6 +453,26 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
             else -> "Defina pelo menos um dia com tempo de estudo."
         },
     ) {
+        // IA do Estudário: usa exatamente as opções desta tela e entrega um .plano pelo mesmo
+        // caminho de importação (prévia e confirmação).
+        var studioPlan by remember { mutableStateOf(false) }
+        val canGenerate = datesValid && competition != null && competitionSubjects.isNotEmpty() && dayMinutes.any { it > 0 }
+        br.com.estudario.ui.ai.StudioAiShortcut(
+            text = "Prefere que a IA do Estudário monte direto? Ela usa as opções desta tela.",
+            buttonLabel = "Montar com a IA do Estudário",
+            enabled = canGenerate,
+            onClick = { studioPlan = true },
+        )
+        if (studioPlan && competition != null) {
+            br.com.estudario.ui.ai.StudyPlanAiScreen(
+                competitionExternalId = PromptIds.competition(competition),
+                competitionName = competition.name,
+                prepare = { runCatching { br.com.estudario.data.ai.StudyPlanAi.prepare(PromptIds.competition(competition), competition.name, subjectInfos, effective) }.getOrNull() },
+                onPlano = { plano -> studioPlan = false; onDismiss(); viewModel.openIncomingText(plano) },
+                onFallback = { studioPlan = false },
+                onClose = { studioPlan = false },
+            )
+        }
         if (competitions.size > 1) OptionSection("Concurso") {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 competitions.forEach { item -> FilterChip(selected = item.id == competitionId, onClick = { competitionId = item.id; priorities.clear() }, label = { Text(item.name) }) }
