@@ -158,7 +158,7 @@ fun BigValueSlider(
     quickValues: List<Int> = emptyList(),
 ) {
     val current = value.coerceIn(range)
-    Surface(shape = EstudarioShapes.panel, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)) {
+    Surface(shape = EstudarioShapes.panel, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f), contentColor = MaterialTheme.colorScheme.onSurface) {
         Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(format(current), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             if (caption != null) Text(caption, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
@@ -167,7 +167,11 @@ fun BigValueSlider(
                 onValueChange = { raw -> onChange(((raw / step).roundToInt() * step).coerceIn(range)) },
                 valueRange = range.first.toFloat()..range.last.toFloat(),
                 steps = ((range.last - range.first) / step - 1).coerceAtLeast(0),
-                colors = SliderDefaults.colors(inactiveTickColor = Color.Transparent, activeTickColor = Color.Transparent),
+                colors = SliderDefaults.colors(
+                    inactiveTickColor = Color.Transparent,
+                    activeTickColor = Color.Transparent,
+                    inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant,
+                ),
                 modifier = Modifier.fillMaxWidth(),
             )
             Row(Modifier.fillMaxWidth()) {
@@ -273,7 +277,7 @@ private val weekLabels = listOf("Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"
 @Composable
 fun WeekHoursPicker(minutes: List<Int>, onChange: (day: Int, minutes: Int) -> Unit, maxMinutes: Int = 480) {
     val colors = estudarioColors()
-    Surface(shape = EstudarioShapes.panel, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)) {
+    Surface(shape = EstudarioShapes.panel, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f), contentColor = MaterialTheme.colorScheme.onSurface) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp)) {
             Row(Modifier.fillMaxWidth().height(200.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 minutes.forEachIndexed { day, value ->

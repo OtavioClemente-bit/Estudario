@@ -118,8 +118,7 @@ internal fun WizardPage(
     // o rodapé respeitando a barra de navegação.
     Column(Modifier.fillMaxSize().padding(horizontal = estudarioLayout().screenGutter)) {
         SetupScrollContainer(Modifier.weight(1f), showScrollIndicator = showScrollIndicator) {
-            SetupHeader(eyebrow, question, icon)
-            WizardAside(aside)
+            SetupHeader(eyebrow, question, icon, aside, italicDescription = true)
             content()
         }
         SetupBottomBar(bottom)

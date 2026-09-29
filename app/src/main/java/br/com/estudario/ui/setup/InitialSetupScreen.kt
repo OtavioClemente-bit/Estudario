@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
@@ -433,8 +434,8 @@ private fun PlanCoverageResult.asReadableCoverageSummary(): String = buildList {
 private fun IntroStep(onContinue: () -> Unit) {
     SetupPage(
         eyebrow = "Primeiro passo",
-        title = "Seu estudo começa com clareza.",
-        description = "Em poucos minutos, vamos entender qual prova você quer alcançar, organizar o edital e montar um ritmo que caiba na sua vida.",
+        title = "Olá! Eu sou o assistente do Estudário.",
+        description = "Em poucos minutos vou entender qual prova você quer alcançar, organizar o seu edital e montar um plano que caiba na sua vida. É só ir respondendo.",
         icon = Icons.Outlined.School,
         bottom = { SetupPrimaryButton("Começar", onContinue) },
     ) {
@@ -484,8 +485,8 @@ private fun CompetitionStep(
     val canContinue = name.trim().length >= 2
     SetupPage(
         eyebrow = "Seu objetivo",
-        title = "Qual prova está no seu horizonte?",
-        description = "Começamos pelo essencial. Você pode escolher um concurso já salvo ou criar um novo.",
+        title = "Qual concurso você vai prestar?",
+        description = "Começo pelo essencial. Escolha um concurso já salvo ou me diga o nome e o cargo.",
         icon = Icons.Outlined.School,
         bottom = {
             SetupPrimaryButton("Continuar", { viewModel.saveCompetition(name, role) }, enabled = canContinue)
@@ -534,8 +535,8 @@ private fun ExamDateStep(snapshot: InitialSetupSnapshot, viewModel: InitialSetup
 
     SetupPage(
         eyebrow = "Sem pressão",
-        title = "Você já sabe quando é a prova?",
-        description = "A data ajuda a dividir as fases. Se ainda não houver edital ou calendário definido, seu plano continua funcionando sem ela.",
+        title = snapshot.competitionName.trim().takeIf { it.isNotEmpty() }?.let { "Você já sabe quando é a prova de $it?" } ?: "Você já sabe quando é a prova?",
+        description = "A data me ajuda a dividir as fases. Se ainda não houver calendário, o plano funciona sem ela.",
         icon = Icons.Outlined.CalendarMonth,
         bottom = {
             SetupPrimaryButton("Continuar", { viewModel.saveExamDate(date) }, enabled = date.isBlank() || (parsed != null && !dateIsBeforeStart))
@@ -641,8 +642,8 @@ internal fun SyllabusMethodStep(
     }
     SetupPage(
         eyebrow = "Seu edital",
-        title = "Como ele chega até aqui?",
-        description = "Escolha o caminho mais confortável. O Estudário só aceita conteúdo que você consiga conferir.",
+        title = "Como eu trago o seu edital?",
+        description = "O jeito mais rápido é eu ler o PDF oficial. Você confere tudo antes de salvar.",
         icon = Icons.Outlined.Description,
         bottom = {
             if (method == SyllabusMethod.MANUAL) {
@@ -865,33 +866,39 @@ private fun ProfileStep(snapshot: InitialSetupSnapshot, viewModel: InitialSetupV
 
 @Composable
 private fun AvailabilityStep(snapshot: InitialSetupSnapshot, viewModel: InitialSetupViewModel) {
-    val days = listOf(
-        "Seg" to "Segunda-feira",
-        "Ter" to "Terça-feira",
-        "Qua" to "Quarta-feira",
-        "Qui" to "Quinta-feira",
-        "Sex" to "Sexta-feira",
-        "Sáb" to "Sábado",
-        "Dom" to "Domingo",
-    )
+    val hasTime = snapshot.availabilityMinutes.any { it > 0 }
     SetupPage(
         eyebrow = "Seu ritmo",
         title = "Quanto tempo cabe na sua semana?",
-        description = "Você pode mudar isso depois. O plano vai distribuir tarefas apenas nos dias disponíveis.",
+        description = "Arraste cada barra para marcar o tempo líquido do dia, já sem pausas. Zero é folga. Dá para mudar depois.",
         icon = Icons.Outlined.Schedule,
-        bottom = { SetupPrimaryButton("Continuar", { viewModel.advance(InitialSetupStep.AVAILABILITY, InitialSetupStep.PROFILE) }) },
+        bottom = {
+            if (!hasTime) Text("Marque pelo menos um dia com tempo de estudo.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            SetupPrimaryButton("Continuar", { viewModel.advance(InitialSetupStep.AVAILABILITY, InitialSetupStep.PROFILE) }, enabled = hasTime)
+        },
     ) {
-        days.forEachIndexed { index, (shortDay, fullDay) ->
-            val minutes = snapshot.availabilityMinutes.getOrElse(index) { 0 }
-            AvailabilityDaySlider(shortDay, fullDay, minutes) { viewModel.setAvailability(index, it) }
+        // Atalhos para o caso comum; depois a pessoa ajusta cada dia arrastando a barra.
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(60, 120, 180, 240).forEach { minutes ->
+                val selected = (0..4).all { snapshot.availabilityMinutes.getOrElse(it) { 0 } == minutes }
+                FilterChip(selected, { (0..4).forEach { day -> viewModel.setAvailability(day, minutes) } }, label = { Text("${minutes / 60}h seg a sex") })
+            }
         }
-        Text("Total disponível na semana: ${formatAvailabilityMinutes(snapshot.availabilityMinutes.sum())}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Text("Este total é a soma dos dias disponíveis; cada controle acima é por dia.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("Tamanho do bloco", style = MaterialTheme.typography.titleMedium)
-        Text("O bloco é o tamanho-base de cada tarefa do plano. Não é o total de estudo do dia; as tarefas usam múltiplos do bloco dentro do tempo disponível.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(25, 45, 50, 60, 90).forEach { option -> FilterChip(snapshot.sessionMinutes == option, { viewModel.chooseSessionMinutes(option) }, label = { Text("$option min") }) }
-        }
+        br.com.estudario.ui.prompt.WeekHoursPicker(
+            minutes = List(7) { snapshot.availabilityMinutes.getOrElse(it) { 0 } },
+            onChange = { day, minutes -> viewModel.setAvailability(day, minutes) },
+            maxMinutes = 720,
+        )
+        Text("Tamanho do bloco", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        br.com.estudario.ui.prompt.BigValueSlider(
+            value = snapshot.sessionMinutes,
+            range = 15..120,
+            step = 5,
+            format = ::formatAvailabilityMinutes,
+            onChange = viewModel::chooseSessionMinutes,
+            caption = "Tamanho-base de cada tarefa, não o total do dia: as tarefas usam múltiplos do bloco dentro do tempo disponível.",
+            quickValues = listOf(25, 45, 50, 60, 90),
+        )
         // Esta pergunta só existe porque muda comportamento real: ela define o teto diário por
         // matéria e a alternância do rodízio. Se um dia deixar de mudar algo, ela sai do assistente.
         Text("Variar ou aprofundar", style = MaterialTheme.typography.titleMedium)
@@ -1160,8 +1167,7 @@ internal fun SetupPage(
 ) {
     Column(Modifier.fillMaxSize().padding(horizontal = estudarioLayout().screenGutter)) {
         SetupScrollContainer(Modifier.weight(1f), showScrollIndicator = showScrollIndicator) {
-            SetupHeader(eyebrow, title, icon)
-            Text(description, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SetupHeader(eyebrow, title, icon, description)
             Spacer(Modifier.height(4.dp))
             content()
         }
@@ -1170,19 +1176,49 @@ internal fun SetupPage(
 }
 
 /**
- * Cabeçalho de cada passo: o ícone dentro de um selo, o rótulo curto e a pergunta. É o mesmo em
- * [SetupPage] e no assistente do plano, para a configuração inteira parecer uma coisa só.
+ * Cabeçalho de cada passo como fala do assistente: o ✨ do Estudário, o tema da etapa num selo e a
+ * pergunta num balão, com a explicação logo abaixo. É o mesmo em [SetupPage] e no assistente do
+ * plano, e o mesmo balão dos geradores de IA, para o app inteiro conversar do mesmo jeito.
  */
 @Composable
-internal fun SetupHeader(eyebrow: String, title: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+internal fun SetupHeader(
+    eyebrow: String,
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String? = null,
+    italicDescription: Boolean = false,
+) {
+    Row(verticalAlignment = Alignment.Top) {
         Box(
-            Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.primaryContainer),
+            Modifier.padding(top = 26.dp).size(36.dp).clip(androidx.compose.foundation.shape.CircleShape).background(MaterialTheme.colorScheme.primary),
             contentAlignment = Alignment.Center,
-        ) { Icon(icon, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer) }
-        Text(eyebrow.uppercase(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+        ) { Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onPrimary) }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)).padding(horizontal = 10.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(icon, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                Text(eyebrow.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            }
+            Surface(
+                shape = RoundedCornerShape(topStart = 4.dp, topEnd = 22.dp, bottomEnd = 22.dp, bottomStart = 22.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+            ) {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    if (!description.isNullOrBlank()) Text(
+                        description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontStyle = if (italicDescription) androidx.compose.ui.text.font.FontStyle.Italic else null,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+                    )
+                }
+            }
+        }
     }
-    Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
 }
 
 /** Rodapé fixo: uma linha fina separando do conteúdo e a ação principal ocupando a largura. */
