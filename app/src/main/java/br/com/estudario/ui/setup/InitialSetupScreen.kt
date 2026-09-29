@@ -201,7 +201,7 @@ fun InitialSetupFlow(
 
     // Anexo do edital (PDF): escolhido já no passo do nome do concurso, para ir junto quando a
     // pessoa enviar o prompt pra IA. Fica aqui em cima (e não dentro do passo) porque cada passo
-    // sai de composição ao avançar — sem isso, o anexo se perderia entre um passo e outro. Muitas
+    // sai de composição ao avançar, sem isso, o anexo se perderia entre um passo e outro. Muitas
     // IAs gratuitas só respondem direito com o PDF em mãos; sem ele, dependem de pesquisar na
     // internet, o que nem sempre funciona nos planos grátis.
     var editalAttachment by remember { mutableStateOf<PromptAttachment?>(null) }
@@ -462,7 +462,7 @@ private fun CompetitionStep(
         SetupCard {
             Text("Já aproveite e anexe o edital", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Text(
-                "A maioria das IAs gratuitas só consegue pesquisar direito quando o PDF é enviado junto — sem ele, geralmente não conseguem buscar o edital sozinhas. Se puder, escolha a versão com o conteúdo programático (as matérias) já incluído. É opcional, e dá pra anexar depois, no passo do edital.",
+                "A maioria das IAs gratuitas só consegue pesquisar direito quando o PDF é enviado junto, sem ele, geralmente não conseguem buscar o edital sozinhas. Se puder, escolha a versão com o conteúdo programático (as matérias) já incluído. É opcional, e dá pra anexar depois, no passo do edital.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -805,7 +805,7 @@ private fun ProfileStep(snapshot: InitialSetupSnapshot, viewModel: InitialSetupV
     SetupPage(
         eyebrow = "Seu momento",
         title = "Onde você está nessa preparação?",
-        description = "Isso muda a mistura de teoria, questões e revisão — não é um rótulo permanente.",
+        description = "Isso muda a mistura de teoria, questões e revisão, não é um rótulo permanente.",
         icon = Icons.Outlined.School,
         bottom = { SetupPrimaryButton("Continuar", { viewModel.advance(InitialSetupStep.PROFILE, InitialSetupStep.PLAN_SUMMARY) }) },
     ) {
@@ -989,7 +989,7 @@ private fun PlanReviewStep(snapshot: InitialSetupSnapshot, uiState: InitialSetup
             Text(snapshot.competitionName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text("Perfil de estudo: ${snapshot.studyProfile.label}")
             Text("Método: ${if (snapshot.planMethod == PlanCreationMethod.AUTOMATIC) "plano do Estudário" else "plano gerado com IA e validado"}")
-            Text("Bloco de estudo: ${snapshot.sessionMinutes} min — é o tamanho-base de cada tarefa, não o total diário.")
+            Text("Bloco de estudo: ${snapshot.sessionMinutes} min, é o tamanho-base de cada tarefa, não o total diário.")
             Text("Disponibilidade semanal: ${formatAvailabilityMinutes(snapshot.availabilityMinutes.sum())} em ${snapshot.availabilityMinutes.count { it > 0 }} dias.")
             snapshot.availabilityMinutes.forEachIndexed { index, minutes ->
                 Text("${dayNames[index]}: ${formatAvailabilityMinutes(minutes)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1049,7 +1049,7 @@ private fun ReadyStep(onFinish: () -> Unit) {
     SetupPage(
         eyebrow = "Tudo pronto",
         title = "Agora você tem um próximo passo claro.",
-        description = "Seu edital, sua rotina e seu primeiro plano já estão organizados. Quando quiser, ajuste os detalhes — hoje basta começar.",
+        description = "Seu edital, sua rotina e seu primeiro plano já estão organizados. Quando quiser, ajuste os detalhes, hoje basta começar.",
         icon = Icons.Outlined.CheckCircle,
         bottom = { SetupPrimaryButton("Ir para minha Home", onFinish) },
     ) {
