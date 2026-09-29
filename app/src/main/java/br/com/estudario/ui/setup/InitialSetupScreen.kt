@@ -603,7 +603,7 @@ internal fun SyllabusMethodStep(
             }
         },
     ) {
-        SyllabusChoice("Gerar com IA", "Copiar um prompt estruturado e importar o .estudo gerado.", Icons.Outlined.AutoAwesome, method == SyllabusMethod.DIRECT_AI) { viewModel.chooseSyllabusMethod(SyllabusMethod.DIRECT_AI) }
+        SyllabusChoice("Gerar com IA", "A IA do Estudário lê o PDF do edital e monta tudo. Ou use a sua IA.", Icons.Outlined.AutoAwesome, method == SyllabusMethod.DIRECT_AI) { viewModel.chooseSyllabusMethod(SyllabusMethod.DIRECT_AI) }
         SyllabusChoice("Importar arquivo .estudo", "Use um edital que você já tenha gerado ou recebido.", Icons.Outlined.UploadFile, method == SyllabusMethod.IMPORT_ESTUDO) { viewModel.chooseSyllabusMethod(SyllabusMethod.IMPORT_ESTUDO) }
         SyllabusChoice("Montar manualmente", "Crie matérias e tópicos agora e edite tudo antes de continuar.", Icons.Outlined.School, method == SyllabusMethod.MANUAL) { viewModel.chooseSyllabusMethod(SyllabusMethod.MANUAL) }
 
@@ -618,6 +618,33 @@ internal fun SyllabusMethodStep(
                         ),
                     )
                 }
+                // IA do Estudário em destaque; a IA da própria pessoa fica logo abaixo como alternativa.
+                ElevatedCard(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Outlined.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Text("IA do Estudário", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                Text("Recomendado · gera aqui no app", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            }
+                        }
+                        Text(
+                            "Escolha o PDF oficial do edital. A IA lê o documento, monta matérias e tópicos do seu cargo e mostra tudo para você revisar antes de salvar.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                        Button(onClick = { onOpenIntegratedAi(editalAttachment) }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Outlined.AutoAwesome, null, Modifier.padding(end = 8.dp))
+                            Text("Gerar com a IA do Estudário")
+                        }
+                        br.com.estudario.ui.ai.AiAccessPanel()
+                    }
+                }
+                Text("Ou use a sua IA", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 PromptActionCard(
                     prompt = prompt,
                     attachment = editalAttachment,
@@ -625,11 +652,6 @@ internal fun SyllabusMethodStep(
                     onClearAttachment = onClearEditalAttachment,
                     onImport = { picker.launch(arrayOf("application/json", "text/plain", "*/*")) },
                 )
-                OutlinedButton(onClick = { onOpenIntegratedAi(editalAttachment) }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Outlined.AutoAwesome, null, Modifier.padding(end = 8.dp))
-                    Text("Gerar com IA do Estudário (beta)")
-                }
-                br.com.estudario.ui.ai.AiAccessPanel()
             }
             SyllabusMethod.IMPORT_ESTUDO -> {
                 ImportActionCard(

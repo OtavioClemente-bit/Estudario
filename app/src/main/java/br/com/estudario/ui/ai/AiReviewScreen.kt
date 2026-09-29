@@ -197,11 +197,34 @@ private fun AiSyllabusPreferencesForm(value: AiSyllabusPreferences, onChange: (A
                 OutlinedTextField(value.year, { onChange(value.copy(year = it.filter(Char::isDigit).take(4))) }, Modifier.weight(0.6f), singleLine = true, label = { Text("Ano") })
             }
         }
-        OptionSection("2. Abrangência", required = true) {
-            ChoiceChips(EditalScope.entries, EditalScope.entries.firstOrNull { it.name == value.scope } ?: EditalScope.FULL, { it.label }) { onChange(value.copy(scope = it.name)) }
+        OptionSection("2. Que parte do edital?", required = true) {
+            br.com.estudario.ui.prompt.ChoiceCards(
+                EditalScope.entries,
+                EditalScope.entries.firstOrNull { it.name == value.scope } ?: EditalScope.FULL,
+                { it.label },
+                { onChange(value.copy(scope = it.name)) },
+                description = { scope ->
+                    when (scope) {
+                        EditalScope.FULL -> "Todas as matérias do seu cargo"
+                        EditalScope.BASIC_AND_SPECIFIC -> "Conhecimentos gerais e específicos, sem anexos"
+                        EditalScope.SPECIFIC_ONLY -> "Só as matérias específicas do cargo"
+                    }
+                },
+            )
         }
-        OptionSection("3. Nível de detalhe", required = true) {
-            ChoiceChips(EditalDetail.entries, EditalDetail.entries.firstOrNull { it.name == value.detail } ?: EditalDetail.LITERAL, { it.label }) { onChange(value.copy(detail = it.name)) }
+        OptionSection("3. Como os tópicos devem ficar?", required = true) {
+            br.com.estudario.ui.prompt.ChoiceCards(
+                EditalDetail.entries,
+                EditalDetail.entries.firstOrNull { it.name == value.detail } ?: EditalDetail.LITERAL,
+                { it.label },
+                { onChange(value.copy(detail = it.name)) },
+                description = { detail ->
+                    when (detail) {
+                        EditalDetail.LITERAL -> "Exatamente como está escrito no edital"
+                        EditalDetail.DIDACTIC -> "Itens longos viram subtópicos menores, mais fáceis de estudar"
+                    }
+                },
+            )
         }
         ToggleRow("Descrição curta em cada tópico", "Uma frase com o escopo do assunto", value.includeDescriptions) { onChange(value.copy(includeDescriptions = it)) }
     }
