@@ -128,7 +128,7 @@ fun EditalPromptBuilderDialog(viewModel: AppViewModel, selectedCompetitionId: Lo
             if (target == null) {
                 OutlinedTextField(options.competitionName, { options = options.copy(competitionName = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Nome do concurso *") }, placeholder = { Text("Ex.: TRT 3ª Região") }, isError = options.competitionName.isBlank())
             }
-            OutlinedTextField(options.role, { options = options.copy(role = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cargo ou área *") }, placeholder = { Text("Ex.: Analista Judiciário – Área Administrativa") }, isError = options.role.isBlank())
+            OutlinedTextField(options.role, { options = options.copy(role = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cargo ou área *") }, placeholder = { Text("Ex.: Analista Judiciário, Área Administrativa") }, isError = options.role.isBlank())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(options.board, { options = options.copy(board = it) }, Modifier.weight(1f), singleLine = true, label = { Text("Banca (opcional)") })
                 OutlinedTextField(options.year, { value -> options = options.copy(year = value.filter(Char::isDigit).take(4)) }, Modifier.width(110.dp), singleLine = true, label = { Text("Ano (opcional)") })
