@@ -25,8 +25,14 @@ import {
   type StorageSourceLimits,
   type StorageSourceStore,
 } from "../_shared/storage-source.ts";
+import {
+  parseContentJobInput,
+  parsePlanJobInput,
+  TextJobInputError,
+} from "../_shared/text-job-input.ts";
 
 const SYLLABUS_FEATURE: AiFeature = "SYLLABUS_GENERATION";
+const TEXT_FEATURES: ReadonlySet<string> = new Set(["CONTENT_GENERATION", "PLAN_GENERATION"]);
 const DEFAULT_LIMITS: StorageSourceLimits = {
   maxBytes: 50 * 1024 * 1024,
   maxPages: 500,
@@ -194,6 +200,9 @@ async function createJob(
 ): Promise<Response> {
   const key = idempotencyKey(request);
   const body = await requestBody(request);
+  if (typeof body.feature === "string" && TEXT_FEATURES.has(body.feature)) {
+    return createTextJob(dependencies, user, key, body.feature as AiFeature, body.input);
+  }
   if (body.feature !== undefined && body.feature !== SYLLABUS_FEATURE) return safeError("INVALID_FEATURE", 400);
   const source = sourceInput(body);
   const path = sourcePath(user.userId, key, source);
@@ -286,6 +295,76 @@ async function createJob(
   }, status);
 }
 
+/**
+ * Conteúdo de tópico e plano: não têm PDF, então o job é criado (com a cota do dia reservada) e já
+ * entra em processamento na mesma chamada. A entrada é validada antes de tudo; o que não passa
+ * nem chega a reservar cota.
+ */
+async function createTextJob(
+  dependencies: AiSyllabusJobsDependencies,
+  user: AuthenticatedUser,
+  key: string,
+  feature: AiFeature,
+  rawInput: unknown,
+): Promise<Response> {
+  let input: unknown;
+  try {
+    input = feature === "CONTENT_GENERATION" ? parseContentJobInput(rawInput) : parsePlanJobInput(rawInput);
+  } catch (error) {
+    if (error instanceof TextJobInputError) return safeError("INVALID_REQUEST", 400);
+    throw error;
+  }
+  const payload = { feature, input } satisfies Record<string, unknown>;
+  const fingerprint = await requestFingerprint(payload);
+  let created;
+  try {
+    created = await dependencies.jobs.createOrGet({
+      userId: user.userId,
+      feature,
+      idempotencyKey: key,
+      requestFingerprint: fingerprint,
+      requestPayload: payload,
+    });
+  } catch (error) {
+    if (error instanceof JobStoreError) return safeError(error.code, error.status, error.retryAfterSeconds);
+    return safeError("AI_JOB_DATA_UNAVAILABLE", 503);
+  }
+  let job = await dependencies.jobs.getJob(user.userId, created.jobId);
+  if (!job) return safeError("AI_JOB_NOT_FOUND", 503);
+  if (job.status === "RESERVED") {
+    try {
+      job = await dependencies.jobs.claimForProcessing(user.userId, created.jobId);
+      try {
+        await dependencies.schedule(job.id);
+      } catch {
+        // PROCESSING com lease é a entrega durável; agendar só acelera.
+      }
+    } catch (error) {
+      return error instanceof JobStoreError ? safeError(error.code, error.status) : safeError("AI_JOB_DATA_UNAVAILABLE", 503);
+    }
+  }
+  return jsonResponse({ jobId: job.id, feature, status: job.status }, created.reused ? 200 : 201);
+}
+
+/** Visão pública de um job de texto: o resultado já foi validado pelo worker antes de ser salvo. */
+function publicTextJob(job: AiJobRecord): Record<string, unknown> {
+  return {
+    jobId: job.id,
+    feature: job.feature,
+    status: job.status,
+    schemaVersion: job.schemaVersion,
+    promptVersion: job.promptVersion,
+    modelVersion: job.modelVersion,
+    proposal: job.status === "SUCCEEDED" ? job.proposal : null,
+    warnings: job.warnings,
+    errorCode: job.errorCode,
+    errorMessage: job.errorMessage,
+    createdAt: job.createdAt,
+    updatedAt: job.updatedAt,
+    finishedAt: job.finishedAt,
+  };
+}
+
 async function processJob(
   request: Request,
   dependencies: AiSyllabusJobsDependencies,
@@ -302,7 +381,9 @@ async function processJob(
   if (!job) return safeError("AI_JOB_NOT_FOUND", 404);
   if (job.status === "PROCESSING") return jsonResponse({ jobId, status: "PROCESSING" }, 202);
   if (job.status !== "RESERVED") return safeError("AI_JOB_NOT_RESERVABLE", 409);
-  if (job.sourceObjectPath === null || job.sourceHash === null) return safeError("SOURCE_NOT_BOUND", 409);
+  if (job.feature === SYLLABUS_FEATURE && (job.sourceObjectPath === null || job.sourceHash === null)) {
+    return safeError("SOURCE_NOT_BOUND", 409);
+  }
 
   try {
     const processing = await dependencies.jobs.claimForProcessing(user.userId, jobId);
@@ -350,6 +431,7 @@ async function getJob(
   }
   if (!job) return safeError("AI_JOB_NOT_FOUND", 404);
   try {
+    if (TEXT_FEATURES.has(job.feature)) return jsonResponse(publicTextJob(job));
     return jsonResponse(publicJob(job));
   } catch {
     return safeError("AI_JOB_DATA_UNAVAILABLE", 503);

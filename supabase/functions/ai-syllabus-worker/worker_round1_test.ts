@@ -63,7 +63,7 @@ function fakeStore(initial: SyllabusWorkerJob, options: { loseLeaseAfterRetrieve
     async reconcileProvider(id, activeLease, recoverable) { events.push(`reconcile:${id}:${activeLease.token}:${recoverable}`); },
     async markRetry(id, activeLease) { events.push(`retry:${id}:${activeLease.token}`); },
     async captureUsage(id, activeLease) { events.push(`usage:${id}:${activeLease.token}`); },
-    async finalizeSuccess(id, activeLease, proposal) { proposals.push(proposal); events.push(`success:${id}:${activeLease.token}`); },
+    async finalizeSuccess(id, activeLease, proposal) { proposals.push(proposal as AiSyllabusProposal); events.push(`success:${id}:${activeLease.token}`); },
     async finalizeFailure(id, activeLease, code, _message, status, reconciled) { events.push(`failure:${id}:${activeLease.token}:${code}:${status}:${reconciled}`); },
     async cleanupSource(id, activeLease) { events.push(`cleanup:${id}:${activeLease.token}`); },
     loseLease() { leaseLost = true; },
