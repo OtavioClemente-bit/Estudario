@@ -141,6 +141,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val snippets = repository.snippets.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val theories = repository.theories.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val theoryMarks = repository.theoryMarks.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val notes = repository.notes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val questions = repository.questions.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val attempts = repository.attempts.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val errors = repository.errors.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -659,6 +660,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateTheoryProgress(value: TheoryDocumentEntity, block: Int) = launchCatching { repository.updateTheoryProgress(value, block) }
     fun saveTheoryMark(value: TheoryMarkEntity) = launchCatching { repository.saveTheoryMark(value) }
     fun deleteTheoryMark(value: TheoryMarkEntity) = launchCatching { repository.deleteTheoryMark(value) }
+    fun saveNote(value: br.com.estudario.data.local.UserNoteEntity) = launchCatching { if (value.text.isNotBlank()) repository.saveNote(value.copy(text = value.text.trim())) }
+    fun deleteNote(value: br.com.estudario.data.local.UserNoteEntity) = launchCatching { repository.deleteNote(value) }
     fun saveEditalPrompt(value: String) = launchCatching { if (value.isNotBlank()) app.preferences.setEditalPrompt(value) }
     fun saveContentPrompt(value: String) = launchCatching { if (value.isNotBlank()) app.preferences.setContentPrompt(value) }
     fun saveStudyPlanPrompt(value: String) = launchCatching { if (value.isNotBlank()) app.preferences.setStudyPlanPrompt(value) }

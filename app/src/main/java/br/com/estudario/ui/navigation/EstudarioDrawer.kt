@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Autorenew
+import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.EmojiEvents
@@ -193,6 +194,7 @@ fun estudarioDrawerSections(
     onHelp: () -> Unit,
     onFocusHistory: () -> Unit = onFocus,
     onMySyllabi: () -> Unit = {},
+    onNotebook: () -> Unit = {},
 ): List<DrawerSection> = listOf(
     DrawerSection(
         "Estudos",
@@ -201,6 +203,7 @@ fun estudarioDrawerSections(
             DrawerEntry("Edital", Icons.Outlined.Checklist, onSyllabus, "syllabus"),
             DrawerEntry("Plano de estudos", Icons.Outlined.CalendarMonth, onPlan, "plan"),
             DrawerEntry("Treinar questões", Icons.Outlined.School, onTrain, "train"),
+            DrawerEntry("Caderno de estudo", Icons.Outlined.Bookmarks, onNotebook, "notebook"),
             DrawerEntry("Revisões espaçadas", Icons.Outlined.Autorenew, onReviews, "reviews"),
             DrawerEntry("Caderno de erros", Icons.Outlined.ErrorOutline, onErrors, "errors"),
             DrawerEntry("Modo foco", Icons.Outlined.Timer, onFocus, "focus"),

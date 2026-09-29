@@ -21,6 +21,7 @@ class StudyRepository(private val db: AppDatabase) {
     val snippets = dao.snippets()
     val theories = dao.theories()
     val theoryMarks = dao.theoryMarks()
+    val notes = dao.notes()
     val questions = dao.questions()
     val attempts = dao.attempts()
     val errors = dao.errors()
@@ -126,6 +127,8 @@ class StudyRepository(private val db: AppDatabase) {
         if (value.id == 0L) dao.insertTheoryMark(value) else dao.updateTheoryMark(value)
     }
     suspend fun deleteTheoryMark(value: TheoryMarkEntity) = dao.deleteTheoryMark(value)
+    suspend fun saveNote(value: UserNoteEntity) { if (value.id == 0L) dao.insertNote(value) else dao.updateNote(value) }
+    suspend fun deleteNote(value: UserNoteEntity) = dao.deleteNote(value)
 
     suspend fun markStudied(topic: TopicEntity, intervals: List<Long> = ReviewIntervals.days) = db.withTransaction {
         val now = System.currentTimeMillis()

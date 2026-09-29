@@ -200,7 +200,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
     val drawerGestureDisabled = currentRoute in setOf(
         "topic/{id}",
         "topic/{id}/task/{taskId}",
-        "theory/{id}",
+        "theory/{id}?block={block}",
         "quiz/{count}/{topic}/{subject}/{mode}/{board}/{difficulty}",
         "review-session/{id}",
         "focus",
@@ -261,6 +261,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     currentRoute = currentRoute,
                     sections = estudarioDrawerSections(
                         onMySyllabi = { abrirDoMenu("my-syllabi") },
+                        onNotebook = { abrirDoMenu("notebook") },
                         onSyllabus = { abrirAbaDoMenu("syllabus") },
                         onPlan = { abrirAbaDoMenu("plan") },
                         onTrain = { abrirAbaDoMenu("train") },
@@ -298,7 +299,8 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         currentRoute == "badges" -> "Emblemas"
                         currentRoute == "sources" -> "Histórico e fontes"
                         currentRoute == "focus-history" -> "Histórico de foco"
-                        currentRoute == "theory/{id}" -> "Leitura"
+                        currentRoute == "theory/{id}?block={block}" -> "Leitura"
+                        currentRoute == "notebook" -> "Caderno de estudo"
                         else -> null
                     },
                     profileModifier = if (showBottom) Modifier.tourTarget(TourKey.HOME_PROFILE, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.HOME_PROFILE, it) } else Modifier,
@@ -407,7 +409,22 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     // A rota mantém a origem da tarefa para sincronizar a conclusão do tópico com o plano.
                     TopicDetailScreen(viewModel, id, taskId = taskId, planViewModel = planViewModel, onBack = { navController.popBackStack() }, onQuiz = { navController.navigate("quiz/15/$id/0/random/_/_") }, onTheory = { navController.navigate("theory/$it") }, onFocus = { showFocusOverlay = true })
                 }
-                composable("theory/{id}") { backStack -> TheoryReaderScreen(viewModel, backStack.arguments?.getString("id")?.toLongOrNull() ?: 0, showInternalTopBar = false) { navController.popBackStack() } }
+                composable("theory/{id}?block={block}", arguments = listOf(androidx.navigation.navArgument("block") { type = androidx.navigation.NavType.IntType; defaultValue = -1 })) { backStack ->
+                    TheoryReaderScreen(
+                        viewModel,
+                        backStack.arguments?.getString("id")?.toLongOrNull() ?: 0,
+                        showInternalTopBar = false,
+                        initialBlock = backStack.arguments?.getInt("block")?.takeIf { it >= 0 },
+                    ) { navController.popBackStack() }
+                }
+                composable("notebook") {
+                    StudyNotebookScreen(
+                        viewModel,
+                        onOpenTheory = { theoryId, block -> navController.navigate("theory/$theoryId?block=$block") },
+                        onOpenTopic = { navController.navigate("topic/$it") },
+                        onTrainFavorites = { navController.navigate("quiz/20/0/0/favorites/_/_") },
+                    )
+                }
                 composable("quiz/{count}/{topic}/{subject}/{mode}/{board}/{difficulty}") { backStack ->
                     val args = backStack.arguments
                     val topic = args?.getString("topic")?.toLongOrNull()?.takeIf { it != 0L }

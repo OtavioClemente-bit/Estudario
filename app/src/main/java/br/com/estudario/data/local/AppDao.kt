@@ -198,6 +198,10 @@ interface AppDao {
     @Insert suspend fun insertImportPackage(value: ImportPackageEntity): Long
 
     @Query("SELECT * FROM user_notes ORDER BY createdAt DESC") suspend fun notesOnce(): List<UserNoteEntity>
+    @Query("SELECT * FROM user_notes ORDER BY createdAt DESC") fun notes(): Flow<List<UserNoteEntity>>
+    @Insert suspend fun insertNote(value: UserNoteEntity): Long
+    @Update suspend fun updateNote(value: UserNoteEntity)
+    @Delete suspend fun deleteNote(value: UserNoteEntity)
     @Query("SELECT * FROM tags ORDER BY name") suspend fun tagsOnce(): List<TagEntity>
     @Query("SELECT * FROM question_tags") suspend fun questionTagsOnce(): List<QuestionTagCrossRef>
 

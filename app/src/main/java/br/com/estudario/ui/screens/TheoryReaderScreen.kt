@@ -20,19 +20,22 @@ import br.com.estudario.ui.AppViewModel
 import br.com.estudario.ui.components.EmptyState
 import br.com.estudario.ui.components.MarkdownText
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopBar: Boolean = true, onBack: () -> Unit) {
+fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopBar: Boolean = true, initialBlock: Int? = null, onBack: () -> Unit) {
     val theories by viewModel.theories.collectAsState()
     val allMarks by viewModel.theoryMarks.collectAsState()
     val theory = theories.firstOrNull { it.id == theoryId }
     if (theory == null) { EmptyState("Teoria não encontrada", "O livro pode ter sido removido.", "Voltar", onBack); return }
     val blocks = remember(theory.markdown) { br.com.estudario.ui.components.studyBlocks(theory.markdown) }
     val marks = allMarks.filter { it.theoryId == theoryId }
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = theory.lastReadBlock.coerceIn(0, (blocks.size - 1).coerceAtLeast(0)))
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = (initialBlock ?: theory.lastReadBlock).coerceIn(0, (blocks.size - 1).coerceAtLeast(0)))
     var textScale by remember { mutableFloatStateOf(1f) }
     var editingIndex by remember { mutableStateOf<Int?>(null) }
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     val reachedEnd by remember { derivedStateOf { listState.layoutInfo.totalItemsCount > 0 && !listState.canScrollForward } }
     val currentBlock by remember { derivedStateOf { if (reachedEnd) blocks.lastIndex.coerceAtLeast(0) else listState.firstVisibleItemIndex } }
     val progress by remember { derivedStateOf { if (blocks.isEmpty()) 0f else if (reachedEnd) 1f else (listState.firstVisibleItemIndex + 1f) / blocks.size } }
@@ -64,7 +67,23 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                 LinearProgressIndicator({ progress.coerceIn(0f, 1f) }, Modifier.fillMaxWidth())
             }
         },
-        floatingActionButton = { ExtendedFloatingActionButton(onClick = { viewModel.updateTheoryProgress(theory, currentBlock) }, icon = { Icon(Icons.Outlined.BookmarkAdded, null) }, text = { Text(if (reachedEnd) "Leitura concluída" else "Salvar página") }) },
+        snackbarHost = { SnackbarHost(snackbar) },
+        // O progresso já é salvo sozinho; o botão marca o trecho atual para revisar depois no
+        // Caderno de estudo, e avisa, em vez de repetir um salvamento que ninguém vê.
+        floatingActionButton = {
+            val markedHere = marks.any { it.blockIndex == currentBlock }
+            ExtendedFloatingActionButton(
+                onClick = {
+                    if (markedHere || blocks.isEmpty()) editingIndex = currentBlock.takeIf { blocks.isNotEmpty() }
+                    else {
+                        viewModel.saveTheoryMark(TheoryMarkEntity(theoryId = theoryId, blockIndex = currentBlock, quote = blocks[currentBlock], note = ""))
+                        scope.launch { snackbar.showSnackbar("Trecho marcado. Revise em Caderno de estudo.") }
+                    }
+                },
+                icon = { Icon(if (markedHere) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkAdd, null) },
+                text = { Text(if (markedHere) "Anotar neste trecho" else "Marcar este ponto") },
+            )
+        },
     ) { padding ->
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (!showInternalTopBar) item {
