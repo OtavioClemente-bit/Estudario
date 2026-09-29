@@ -154,10 +154,3 @@ export async function validateAiSyllabusProposal(
     );
   }
 }
-
-export async function validateAiSyllabusMatchResult(
-  raw: string,
-  options: ProposalValidationOptions = {},
-): Promise<AiSyllabusProposal> {
-  return await validateAiSyllabusProposal(raw, options);
-}

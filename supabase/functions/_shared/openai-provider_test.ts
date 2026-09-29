@@ -41,7 +41,6 @@ Deno.test("starts a Responses API request with safe correlation metadata", async
   assert(captured?.url.endsWith("/responses"));
   const body = JSON.parse(String(captured?.init.body));
   assertEquals(body.model, "gpt-test");
-  assertEquals(body.reasoning, undefined);
   assertEquals(body.background, true);
   assertEquals(body.tools, undefined);
   assertEquals(body.metadata, {
@@ -635,62 +634,6 @@ Deno.test("valid response IDs are ACCEPTED", async () => {
   const response = await provider.start(source);
   assertEquals(response.id, "resp-accepted");
   assertEquals(response.outcome, "ACCEPTED");
-});
-
-Deno.test("uses the configured low reasoning effort for syllabus extraction", async () => {
-  let body: Record<string, unknown> | undefined;
-  const provider = createOpenAiProvider({
-    apiKey: "test-key",
-    fetcher: async (_input, init) => {
-      body = JSON.parse(String(init?.body));
-      return Response.json({ id: "resp-low-effort", status: "queued" });
-    },
-  });
-  await provider.start({ ...source, reasoningEffort: "low" });
-  assertEquals(body?.reasoning, { effort: "low" });
-});
-
-Deno.test("parses only a safe incomplete response reason", async () => {
-  const provider = createOpenAiProvider({
-    apiKey: "test-key",
-    fetcher: async () =>
-      Response.json({
-        id: "resp-incomplete",
-        status: "incomplete",
-        incomplete_details: { reason: "max_output_tokens" },
-      }),
-  });
-  const response = await provider.retrieve("resp-incomplete");
-  assertEquals(response.status, "incomplete");
-  assertEquals(response.incompleteReason, "max_output_tokens");
-});
-
-Deno.test("parses the Responses API max_tokens incomplete reason", async () => {
-  const provider = createOpenAiProvider({
-    apiKey: "test-key",
-    fetcher: async () =>
-      Response.json({
-        id: "resp-incomplete",
-        status: "incomplete",
-        incomplete_details: { reason: "max_tokens" },
-      }),
-  });
-  const response = await provider.retrieve("resp-incomplete");
-  assertEquals(response.incompleteReason, "max_tokens");
-});
-
-Deno.test("discards arbitrary incomplete response reasons", async () => {
-  const provider = createOpenAiProvider({
-    apiKey: "test-key",
-    fetcher: async () =>
-      Response.json({
-        id: "resp-incomplete",
-        status: "incomplete",
-        incomplete_details: { reason: "private provider detail with spaces" },
-      }),
-  });
-  const response = await provider.retrieve("resp-incomplete");
-  assertEquals(response.incompleteReason, "unknown");
 });
 
 Deno.test("retrieves and cancels only by response id", async () => {

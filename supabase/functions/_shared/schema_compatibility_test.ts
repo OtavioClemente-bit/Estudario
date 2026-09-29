@@ -34,7 +34,7 @@ Deno.test("schemaVersion remains a single supported integer and parser rejects o
     new URL("./fixtures/v1/ai-syllabus-proposal.json", import.meta.url),
   );
   const unsupported = JSON.parse(raw);
-  unsupported.schemaVersion = CURRENT_AI_SCHEMA_VERSION + 2;
+  unsupported.schemaVersion = CURRENT_AI_SCHEMA_VERSION + 1;
   assertThrows(
     () => parseProviderAiSyllabusProposal(JSON.stringify(unsupported)),
     ContractValidationError,

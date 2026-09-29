@@ -231,10 +231,7 @@ Deno.test("POST fingerprint includes normalized MIME, SHA-256, and byte count", 
   const response = await handler(new Request("https://example.test/functions/v1/ai-syllabus-jobs", {
     method: "POST",
     headers: { authorization: "Bearer supabase-jwt", "idempotency-key": "idem-1", "content-type": "application/json" },
-    body: JSON.stringify({
-      target: { title: "  TRT-3 — Técnico Judiciário — TI  " },
-      source: { fileName: "edital.pdf", mimeType: "Application/PDF; charset=binary", sourceHash: "a".repeat(64), sourceBytes: 123 },
-    }),
+    body: JSON.stringify({ source: { fileName: "edital.pdf", mimeType: "Application/PDF; charset=binary", sourceHash: "a".repeat(64), sourceBytes: 123 } }),
   }));
 
   assertEquals(response.status, 201);
@@ -243,117 +240,6 @@ Deno.test("POST fingerprint includes normalized MIME, SHA-256, and byte count", 
   assertEquals(requestPayload.mimeType, "application/pdf");
   assertEquals(requestPayload.sourceHash, "a".repeat(64));
   assertEquals(requestPayload.sourceBytes, 123);
-  assertEquals(requestPayload.target, { title: "TRT-3 — Técnico Judiciário — TI" });
-});
-
-Deno.test("legacy POST without target retains the original fingerprint payload shape", async () => {
-  let captured: CreateAiJobInput | null = null;
-  const reserved = record();
-  reserved.status = "RESERVED";
-  reserved.sourceObjectPath = null;
-  reserved.sourceHash = null;
-  reserved.sourceBytes = null;
-  reserved.sourceMimeType = null;
-  reserved.proposal = null;
-  reserved.finishedAt = null;
-  const jobs = {
-    async createOrGet(input: CreateAiJobInput) {
-      captured = input;
-      return { jobId: reserved.id, status: reserved.status, reservationId: "reservation-1", quotaPeriod: "2026-09", quotaRemaining: 1, reused: true, requestPayload: input.requestPayload };
-    },
-    async getJob() { return reserved; },
-  } as unknown as AiJobStore;
-  const handler = createAiSyllabusJobsHandler({
-    authenticate: async () => ({ userId: "user-1" }),
-    storage: {} as never,
-    jobs,
-    limits: { maxBytes: 50, maxPages: 1, maxFiles: 1 },
-    schedule: async () => {},
-  });
-  const response = await handler(new Request("https://example.test/functions/v1/ai-syllabus-jobs", {
-    method: "POST",
-    headers: { authorization: "Bearer supabase-jwt", "idempotency-key": "legacy-idem", "content-type": "application/json" },
-    body: JSON.stringify({ source: { fileName: "edital.pdf" } }),
-  }));
-  assertEquals(response.status, 200);
-  const requestPayload = (captured as CreateAiJobInput | null)?.requestPayload;
-  assert(requestPayload);
-  assertEquals(Object.hasOwn(requestPayload, "target"), false);
-});
-
-Deno.test("POST rejects unsafe syllabus target titles before reserving a job", async () => {
-  for (const title of [" ", "a".repeat(201), `TRT\u0000-3`]) {
-    let createCalls = 0;
-    const jobs = {
-      async createOrGet() {
-        createCalls += 1;
-        throw new Error("invalid target must not reserve a job");
-      },
-    } as unknown as AiJobStore;
-    const handler = createAiSyllabusJobsHandler({
-      authenticate: async () => ({ userId: "user-1" }),
-      storage: {} as never,
-      jobs,
-      limits: { maxBytes: 50, maxPages: 1, maxFiles: 1 },
-      schedule: async () => {},
-    });
-    const response = await handler(new Request("https://example.test/functions/v1/ai-syllabus-jobs", {
-      method: "POST",
-      headers: { authorization: "Bearer supabase-jwt", "idempotency-key": "idem-1", "content-type": "application/json" },
-      body: JSON.stringify({ target: { title }, source: { fileName: "edital.pdf" } }),
-    }));
-    assertEquals(response.status, 400);
-    assertEquals(createCalls, 0);
-  }
-});
-
-Deno.test("same idempotency key cannot reuse a job for a different normalized target", async () => {
-  let first: CreateAiJobInput | null = null;
-  const reserved = record();
-  reserved.status = "RESERVED";
-  reserved.sourceObjectPath = null;
-  reserved.sourceHash = null;
-  reserved.sourceBytes = null;
-  reserved.sourceMimeType = null;
-  reserved.proposal = null;
-  reserved.finishedAt = null;
-  const jobs = {
-    async createOrGet(input: CreateAiJobInput) {
-      if (first && first.requestFingerprint !== input.requestFingerprint) {
-        throw new JobStoreError("IDEMPOTENCY_KEY_CONFLICT", 409);
-      }
-      first ??= input;
-      return {
-        jobId: reserved.id,
-        status: reserved.status,
-        reservationId: "reservation-1",
-        quotaPeriod: "2026-09",
-        quotaRemaining: 1,
-        reused: first !== input,
-        requestPayload: input.requestPayload,
-      };
-    },
-    async getJob() { return reserved; },
-  } as unknown as AiJobStore;
-  const handler = createAiSyllabusJobsHandler({
-    authenticate: async () => ({ userId: "user-1" }),
-    storage: {} as never,
-    jobs,
-    limits: { maxBytes: 50, maxPages: 1, maxFiles: 1 },
-    schedule: async () => {},
-  });
-  const request = (title: string) => new Request("https://example.test/functions/v1/ai-syllabus-jobs", {
-    method: "POST",
-    headers: { authorization: "Bearer supabase-jwt", "idempotency-key": "idem-1", "content-type": "application/json" },
-    body: JSON.stringify({ target: { title }, source: { fileName: "edital.pdf", mimeType: "application/pdf", sourceHash: "a".repeat(64), sourceBytes: 123 } }),
-  });
-
-  const original = await handler(request("TRT-3 — TI"));
-  const different = await handler(request("TRT-3 — Enfermagem"));
-
-  assertEquals(original.status, 201);
-  assertEquals(different.status, 409);
-  assertEquals((await different.json()).error.code, "IDEMPOTENCY_KEY_CONFLICT");
 });
 
 Deno.test("same idempotency key cannot reuse a bound job for a different source fingerprint", async () => {

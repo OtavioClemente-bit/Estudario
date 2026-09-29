@@ -82,12 +82,7 @@ fun interface AiHttpTransport {
 }
 
 interface AiApiClient {
-    suspend fun createOrGetJob(
-        idempotencyKey: String,
-        source: AiSourceMetadata,
-        sourceReady: Boolean,
-        targetTitle: String? = null,
-    ): AiCreateJob
+    suspend fun createOrGetJob(idempotencyKey: String, source: AiSourceMetadata, sourceReady: Boolean): AiCreateJob
 
     suspend fun uploadSource(target: AiUploadTarget, source: PdfSource)
 
@@ -128,7 +123,6 @@ class HttpAiApiClient(
         idempotencyKey: String,
         source: AiSourceMetadata,
         sourceReady: Boolean,
-        targetTitle: String?,
     ): AiCreateJob {
         val response = execute(
             buildRequest(
@@ -147,9 +141,6 @@ class HttpAiApiClient(
                             put("ready", JsonPrimitive(true))
                         }
                     })
-                    targetTitle?.takeIf(String::isNotBlank)?.let { title ->
-                        put("target", buildJsonObject { put("title", JsonPrimitive(title)) })
-                    }
                 }.toString().toJsonBytes(),
                 contentType = JSON_CONTENT_TYPE,
             ),

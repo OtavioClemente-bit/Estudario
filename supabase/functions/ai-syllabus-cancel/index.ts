@@ -18,10 +18,8 @@ import {
   resolveOpenAiModel,
 } from "../_shared/openai-provider.ts";
 import { validateAiSyllabusProposal } from "../_shared/proposal-validator.ts";
-import { SYLLABUS_PROMPT_VERSION } from "../_shared/prompts/syllabus-v2.ts";
-import { SYLLABUS_PROMPT_VERSION as LEGACY_SYLLABUS_PROMPT_VERSION } from "../_shared/prompts/syllabus-v1.ts";
-import { AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION } from "../_shared/schemas/ai-syllabus-proposal-v2.ts";
-import { AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION as LEGACY_AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION } from "../_shared/schemas/ai-syllabus-proposal-v1.ts";
+import { SYLLABUS_PROMPT_VERSION } from "../_shared/prompts/syllabus-v1.ts";
+import { AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION } from "../_shared/schemas/ai-syllabus-proposal-v1.ts";
 
 export interface AiSyllabusCancelDependencies {
   authenticate: (request: Request) => Promise<AuthenticatedUser>;
@@ -96,29 +94,14 @@ function jobResponse(job: AiJobRecord, status = 200): Response {
 
 async function completedProposal(
   response: ProviderResponse,
-  job: AiJobRecord,
 ): Promise<Record<string, unknown>> {
-  const requestPayload = job.requestPayload;
-  const target = Object.prototype.hasOwnProperty.call(requestPayload, "target")
-    ? requestPayload.target
-    : undefined;
-  const title = typeof target === "object" && target !== null && !Array.isArray(target)
-    ? (target as Record<string, unknown>).title
-    : null;
-  const legacyJob = target === undefined;
-  if (!legacyJob && (typeof title !== "string" || title.trim().length === 0)) {
-    throw new Error("TARGET_AMBIGUOUS");
-  }
   const proposal = await validateAiSyllabusProposal(response.outputText ?? "", {
     expected: {
-      schemaVersion: legacyJob ? LEGACY_AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION : AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION,
-      promptVersion: legacyJob ? LEGACY_SYLLABUS_PROMPT_VERSION : SYLLABUS_PROMPT_VERSION,
+      schemaVersion: AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION,
+      promptVersion: SYLLABUS_PROMPT_VERSION,
       modelVersion: resolveOpenAiModel(),
     },
   });
-  if (!legacyJob && proposal.targetMatch !== "MATCHED") {
-    throw new Error(proposal.targetMatch === "NOT_FOUND" ? "TARGET_NOT_FOUND" : "TARGET_AMBIGUOUS");
-  }
   return proposal as unknown as Record<string, unknown>;
 }
 
@@ -149,39 +132,17 @@ async function finalizeCompleted(
   response: ProviderResponse,
 ): Promise<Response> {
   try {
-    const currentJob = await dependencies.jobs.getJob(userId, jobId);
-    if (!currentJob) return safeError("AI_JOB_NOT_FOUND", 404);
-    const proposal = await completedProposal(response, currentJob);
-    const finalizedJob = await dependencies.jobs.finalizeCancellationSuccess(
+    const proposal = await completedProposal(response);
+    const job = await dependencies.jobs.finalizeCancellationSuccess(
       userId,
       jobId,
       response,
       proposal,
     );
-    await reportFinalized(dependencies, finalizedJob, response);
-    return jobResponse(finalizedJob);
+    await reportFinalized(dependencies, job, response);
+    return jobResponse(job);
   } catch (error) {
     if (error instanceof JobStoreError) throw error;
-    const targetCode = error instanceof Error && ["TARGET_NOT_FOUND", "TARGET_AMBIGUOUS"].includes(error.message)
-      ? error.message
-      : null;
-    if (targetCode !== null) {
-      await dependencies.jobs.recordCancellationReconciliation(userId, jobId, {
-        responseId: response.id,
-        providerStatus: "completed",
-        resultRecoverable: false,
-        errorCode: targetCode,
-      });
-      const job = await dependencies.jobs.cancelAfterReconciliation(
-        userId,
-        jobId,
-        targetCode,
-        "The selected role or area could not be matched to the source",
-        "FAILED",
-      );
-      await reportFinalized(dependencies, job, response);
-      return jobResponse(job);
-    }
     const reconciled = await dependencies.jobs.recordCancellationReconciliation(
       userId,
       jobId,

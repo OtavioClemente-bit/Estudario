@@ -667,7 +667,7 @@ class AiReviewViewModel(
                 persistedDraftJson?.let { AiReviewDraftCodec.decode(it) } ?: AiSyllabusDraft.fromProposal(targetId, targetTitle, job.proposal),
             )
             job.status == AiJobStatus.FAILED -> AiReviewContent.Failure(
-                AiReviewRecovery.terminalFailureMessage(job.errorCode),
+                "A geração não foi concluída. Você pode tentar novamente.",
                 terminalStatus = job.status,
             )
             job.status == AiJobStatus.CANCELLED -> AiReviewContent.Failure(
@@ -897,8 +897,8 @@ private fun PersistedAiJobRequest.toIdentity() = AiReviewRequestIdentity(
 )
 private fun PersistedAiJobRequest.toPendingIdentity() = AiReviewPendingRequestIdentity(requestId, idempotencyKey, jobId, ownerUserId)
 
-internal object AiReviewDraftCodec {
-    @Serializable private data class DraftPayload(val targetId: Long, val targetTitle: String, val titleOverride: String?, val sourceVersion: String, val sourcePromptVersion: String, val sourceModelVersion: String, val sourceSchemaVersion: Int, val sourceHash: String?, val documentTitle: String, val subjects: List<SubjectPayload>, val warnings: List<WarningPayload>, val ambiguities: List<String>, val targetMatch: String? = null)
+private object AiReviewDraftCodec {
+    @Serializable private data class DraftPayload(val targetId: Long, val targetTitle: String, val titleOverride: String?, val sourceVersion: String, val sourcePromptVersion: String, val sourceModelVersion: String, val sourceSchemaVersion: Int, val sourceHash: String?, val documentTitle: String, val subjects: List<SubjectPayload>, val warnings: List<WarningPayload>, val ambiguities: List<String>)
     @Serializable private data class SubjectPayload(val name: String, val position: Int, val priority: String, val externalId: String, val sourcePages: List<Int>, val topics: List<TopicPayload>)
     @Serializable private data class TopicPayload(val name: String, val position: Int, val externalId: String, val sourcePages: List<Int>, val children: List<TopicPayload>)
     @Serializable private data class WarningPayload(val code: String, val severity: String, val message: String, val sourcePages: List<Int>, val ambiguity: String?)
@@ -907,7 +907,7 @@ internal object AiReviewDraftCodec {
     fun encode(draft: AiSyllabusDraft): String = json.encodeToString(DraftPayload(
         draft.targetSyllabusId, draft.targetTitle, draft.titleOverride, draft.sourceVersion, draft.sourcePromptVersion, draft.sourceModelVersion, draft.sourceSchemaVersion, draft.sourceHash, draft.proposal.documentTitle,
         draft.subjects.map { subject -> SubjectPayload(subject.name, subject.position, subject.suggestedPriority.name, subject.externalId, subject.sourcePages, subject.topics.map { topic(it) }) },
-        draft.warnings.map { WarningPayload(it.code.name, it.severity.name, it.message, it.sourcePages, it.ambiguity) }, draft.ambiguities, draft.proposal.targetMatch?.name,
+        draft.warnings.map { WarningPayload(it.code.name, it.severity.name, it.message, it.sourcePages, it.ambiguity) }, draft.ambiguities,
     ))
 
     fun decode(raw: String): AiSyllabusDraft = json.decodeFromString<DraftPayload>(raw).let { payload ->
@@ -919,7 +919,6 @@ internal object AiReviewDraftCodec {
             subjects = payload.subjects.map { subject -> AiSubjectProposal(subject.name, subject.position, AiPriority.valueOf(subject.priority), subject.topics.map { proposalTopic(it) }, subject.sourcePages) },
             warnings = payload.warnings.map { AiWarning(AiWarningCode.valueOf(it.code), AiWarningSeverity.valueOf(it.severity), it.message, it.sourcePages, it.ambiguity) },
             ambiguities = payload.ambiguities,
-            targetMatch = payload.targetMatch?.let(br.com.estudario.data.ai.AiTargetMatch::valueOf),
         )
         AiSyllabusDraft(payload.targetId, proposal, payload.targetTitle, titleOverride = payload.titleOverride, subjects = payload.subjects.map { subject(it) }, warnings = proposal.warnings, ambiguities = payload.ambiguities, sourceVersion = payload.sourceVersion, sourcePromptVersion = payload.sourcePromptVersion, sourceModelVersion = payload.sourceModelVersion, sourceSchemaVersion = payload.sourceSchemaVersion, sourceHash = payload.sourceHash)
     }

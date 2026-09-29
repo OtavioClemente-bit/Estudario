@@ -53,12 +53,6 @@ data class AiReviewPendingRequestIdentity(
 
 object AiReviewRecovery {
     fun afterTimeout(identity: AiReviewRequestIdentity): AiReviewRequestIdentity = identity
-
-    fun terminalFailureMessage(errorCode: String?): String = when (errorCode) {
-        "TARGET_NOT_FOUND" -> "Não encontrei no PDF o conteúdo do edital para o cargo/área selecionado. Confira o nome do edital e tente novamente."
-        "TARGET_AMBIGUOUS" -> "Não consegui confirmar o cargo/área neste PDF. Use um nome de edital que indique o cargo e a especialidade e tente novamente."
-        else -> "A geração não foi concluída. Você pode tentar novamente."
-    }
 }
 
 sealed interface AiReviewContent {

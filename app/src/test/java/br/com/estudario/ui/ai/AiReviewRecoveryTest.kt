@@ -4,7 +4,6 @@ import br.com.estudario.data.ai.AiPriority
 import br.com.estudario.data.ai.AiSubjectProposal
 import br.com.estudario.data.ai.AiSyllabusProposal
 import br.com.estudario.data.ai.AiTopicProposal
-import br.com.estudario.data.ai.AiTargetMatch
 import br.com.estudario.domain.ai.AiSyllabusDraft
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -51,43 +50,5 @@ class AiReviewRecoveryTest {
         )
 
         assertEquals(3, draft.totalTopicCount())
-    }
-
-    @Test
-    fun terminalTargetErrorsHaveSpecificSafeMessages() {
-        assertEquals(
-            "Não encontrei no PDF o conteúdo do edital para o cargo/área selecionado. Confira o nome do edital e tente novamente.",
-            AiReviewRecovery.terminalFailureMessage("TARGET_NOT_FOUND"),
-        )
-        assertEquals(
-            "Não consegui confirmar o cargo/área neste PDF. Use um nome de edital que indique o cargo e a especialidade e tente novamente.",
-            AiReviewRecovery.terminalFailureMessage("TARGET_AMBIGUOUS"),
-        )
-        assertEquals(
-            "A geração não foi concluída. Você pode tentar novamente.",
-            AiReviewRecovery.terminalFailureMessage("PROVIDER_RESULT_UNAVAILABLE"),
-        )
-    }
-
-    @Test
-    fun v2TargetMatchSurvivesSavedDraftRoundTrip() {
-        val draft = AiSyllabusDraft.fromProposal(
-            7L,
-            "TRT-3 Técnico Judiciário TI",
-            AiSyllabusProposal(
-                schemaVersion = 2,
-                promptVersion = "syllabus-v2",
-                modelVersion = "gpt-6-luna",
-                documentTitle = "Edital TRT-3",
-                subjects = listOf(AiSubjectProposal("Tecnologia da Informação", 0, AiPriority.NORMAL, emptyList(), listOf(2))),
-                warnings = emptyList(),
-                ambiguities = emptyList(),
-                targetMatch = AiTargetMatch.MATCHED,
-            ),
-        )
-
-        val restored = AiReviewDraftCodec.decode(AiReviewDraftCodec.encode(draft))
-
-        assertEquals(AiTargetMatch.MATCHED, restored.proposal.targetMatch)
     }
 }

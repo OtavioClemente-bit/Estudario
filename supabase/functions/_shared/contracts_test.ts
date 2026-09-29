@@ -61,7 +61,7 @@ Deno.test("accepts a valid nested proposal with warnings and source pages", () =
 });
 
 Deno.test("rejects an unsupported proposal schema version", () => {
-  const unsupported = { ...validProposal, schemaVersion: 3 };
+  const unsupported = { ...validProposal, schemaVersion: 2 };
 
   try {
     parseAiSyllabusProposal(unsupported);
@@ -71,27 +71,6 @@ Deno.test("rejects an unsupported proposal schema version", () => {
       throw error;
     }
   }
-});
-
-Deno.test("v2 targetMatch requires subjects only for MATCHED and keeps v1 readable", () => {
-  const matched = parseAiSyllabusProposal({ ...validProposal, schemaVersion: 2, targetMatch: "MATCHED" });
-  if (matched.targetMatch !== "MATCHED") throw new Error("v2 match state was lost");
-  for (const targetMatch of ["NOT_FOUND", "AMBIGUOUS"] as const) {
-    parseAiSyllabusProposal({ ...validProposal, schemaVersion: 2, targetMatch, subjects: [] });
-    try {
-      parseAiSyllabusProposal({ ...validProposal, schemaVersion: 2, targetMatch });
-      throw new Error("non-match with subjects must be rejected");
-    } catch (error) {
-      if (!(error instanceof ContractValidationError)) throw error;
-    }
-  }
-  try {
-    parseAiSyllabusProposal({ ...validProposal, schemaVersion: 2, targetMatch: "MATCHED", subjects: [] });
-    throw new Error("empty MATCHED result must be rejected");
-  } catch (error) {
-    if (!(error instanceof ContractValidationError)) throw error;
-  }
-  if (parseAiSyllabusProposal(validProposal).schemaVersion !== 1) throw new Error("legacy v1 was not retained");
 });
 
 Deno.test("rejects unknown fields and definitive local identifiers", () => {

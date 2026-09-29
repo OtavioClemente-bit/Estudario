@@ -1,8 +1,5 @@
 export const CURRENT_AI_SCHEMA_VERSION = 1 as const;
 export const SUPPORTED_AI_SCHEMA_VERSIONS = [CURRENT_AI_SCHEMA_VERSION] as const;
-export const CURRENT_AI_SYLLABUS_SCHEMA_VERSION = 2 as const;
-export const SUPPORTED_AI_SYLLABUS_SCHEMA_VERSIONS = [1, CURRENT_AI_SYLLABUS_SCHEMA_VERSION] as const;
-export type AiTargetMatch = "MATCHED" | "NOT_FOUND" | "AMBIGUOUS";
 
 export type AiFeature = "SYLLABUS_GENERATION" | "PLAN_GENERATION" | "CONTENT_GENERATION";
 export type AiJobStatus = "RESERVED" | "PROCESSING" | "SUCCEEDED" | "FAILED" | "EXPIRED" | "CANCELLED";
@@ -47,7 +44,6 @@ export interface AiSubjectProposal {
 
 export interface AiSyllabusProposal {
   schemaVersion: number;
-  targetMatch?: AiTargetMatch;
   promptVersion: string;
   modelVersion: string;
   documentTitle: string;
@@ -271,14 +267,6 @@ function assertSupportedSchemaVersion(value: unknown, path: string): number {
   return version;
 }
 
-function assertSupportedSyllabusSchemaVersion(value: unknown, path: string): number {
-  const version = integer(value, path, 1);
-  if (!SUPPORTED_AI_SYLLABUS_SCHEMA_VERSIONS.includes(version as (typeof SUPPORTED_AI_SYLLABUS_SCHEMA_VERSIONS)[number])) {
-    fail(path, `unsupported syllabus schema version ${version}`);
-  }
-  return version;
-}
-
 function warning(value: unknown, path: string): AiWarning {
   const item = object(value, path);
   exactKeys(item, ["code", "severity", "message", "sourcePages", "ambiguity"], path);
@@ -320,22 +308,13 @@ function subject(value: unknown, path: string): AiSubjectProposal {
 
 export function parseAiSyllabusProposal(value: unknown): AiSyllabusProposal {
   const item = object(value, "proposal");
-  const version = assertSupportedSyllabusSchemaVersion(required(item, "schemaVersion", "proposal"), "proposal.schemaVersion");
-  const keys = ["schemaVersion", ...(version === 2 ? ["targetMatch"] : []), "promptVersion", "modelVersion", "documentTitle", "subjects", "warnings", "ambiguities"];
-  exactKeys(item, keys, "proposal");
-  const targetMatch = version === 2
-    ? enumValue(required(item, "targetMatch", "proposal"), ["MATCHED", "NOT_FOUND", "AMBIGUOUS"], "proposal.targetMatch")
-    : undefined;
-  const subjects = arrayValue(required(item, "subjects", "proposal"), "proposal.subjects", targetMatch === undefined || targetMatch === "MATCHED" ? 1 : 0).map((value, index) => subject(value, `proposal.subjects[${index}]`));
-  if (targetMatch !== undefined && ((targetMatch === "MATCHED") !== (subjects.length > 0))) {
-    fail("proposal.subjects", "must contain content only when targetMatch is MATCHED");
-  }
+  exactKeys(item, ["schemaVersion", "promptVersion", "modelVersion", "documentTitle", "subjects", "warnings", "ambiguities"], "proposal");
+  const subjects = arrayValue(required(item, "subjects", "proposal"), "proposal.subjects", 1).map((value, index) => subject(value, `proposal.subjects[${index}]`));
   assertDistinct(subjects.map((value) => value.position), "proposal.subjects");
   const ambiguities = arrayValue(required(item, "ambiguities", "proposal"), "proposal.ambiguities").map((value, index) => stringValue(value, `proposal.ambiguities[${index}]`));
   if (new Set(ambiguities).size !== ambiguities.length) fail("proposal.ambiguities", "must not contain duplicate entries");
   return {
-    schemaVersion: version,
-    ...(targetMatch === undefined ? {} : { targetMatch }),
+    schemaVersion: assertSupportedSchemaVersion(required(item, "schemaVersion", "proposal"), "proposal.schemaVersion"),
     promptVersion: stringValue(required(item, "promptVersion", "proposal"), "proposal.promptVersion"),
     modelVersion: stringValue(required(item, "modelVersion", "proposal"), "proposal.modelVersion"),
     documentTitle: stringValue(required(item, "documentTitle", "proposal"), "proposal.documentTitle"),
@@ -362,7 +341,7 @@ export function parseProviderAiSyllabusProposal(raw: string): AiSyllabusProposal
     fail("proposal", `invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
   }
   const item = object(value, "proposal");
-  assertSupportedSyllabusSchemaVersion(required(item, "schemaVersion", "proposal"), "proposal.schemaVersion");
+  assertSupportedSchemaVersion(required(item, "schemaVersion", "proposal"), "proposal.schemaVersion");
   return parseAiSyllabusProposal(item);
 }
 
@@ -411,7 +390,7 @@ export function parseAiJob(value: unknown): AiJob {
     jobId: stringValue(required(item, "jobId", "job"), "job.jobId"),
     feature: enumValue(required(item, "feature", "job"), AI_FEATURES, "job.feature"),
     status: enumValue(required(item, "status", "job"), AI_JOB_STATUSES, "job.status"),
-    schemaVersion: schemaVersion === null ? null : (item.feature === "SYLLABUS_GENERATION" ? assertSupportedSyllabusSchemaVersion(schemaVersion, "job.schemaVersion") : assertSupportedSchemaVersion(schemaVersion, "job.schemaVersion")),
+    schemaVersion: schemaVersion === null ? null : assertSupportedSchemaVersion(schemaVersion, "job.schemaVersion"),
     promptVersion: nullableString(required(item, "promptVersion", "job"), "job.promptVersion"),
     modelVersion: nullableString(required(item, "modelVersion", "job"), "job.modelVersion"),
     proposal: proposal === null ? null : parseAiSyllabusProposal(proposal),
@@ -423,11 +402,8 @@ export function parseAiJob(value: unknown): AiJob {
     finishedAt: required(item, "finishedAt", "job") === null ? null : dateTime(required(item, "finishedAt", "job"), "job.finishedAt"),
     providerExecutionStartedAt: required(item, "providerExecutionStartedAt", "job") === null ? null : dateTime(required(item, "providerExecutionStartedAt", "job"), "job.providerExecutionStartedAt"),
   };
-  if (job.schemaVersion === CURRENT_AI_SYLLABUS_SCHEMA_VERSION && job.feature !== "SYLLABUS_GENERATION") {
-    fail("job.schemaVersion", "v2 is only supported for syllabus generation");
-  }
   if (job.status === "SUCCEEDED") {
-    if (job.proposal === null || job.schemaVersion !== job.proposal.schemaVersion || job.promptVersion !== job.proposal.promptVersion || job.modelVersion !== job.proposal.modelVersion || job.finishedAt === null) {
+    if (job.proposal === null || job.schemaVersion !== CURRENT_AI_SCHEMA_VERSION || job.promptVersion !== job.proposal.promptVersion || job.modelVersion !== job.proposal.modelVersion || job.finishedAt === null) {
       fail("job", "SUCCEEDED requires a valid proposal, matching versions, and finishedAt");
     }
   }
