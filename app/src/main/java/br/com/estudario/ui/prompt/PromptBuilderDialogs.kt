@@ -3,6 +3,29 @@ package br.com.estudario.ui.prompt
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import br.com.estudario.ui.theme.estudarioColors
+import br.com.estudario.ui.theme.EstudarioShapes
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.Surface
+import androidx.compose.material.icons.outlined.TrendingUp
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.Summarize
+import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.ReportProblem
+import androidx.compose.material.icons.outlined.Quiz
+import androidx.compose.material.icons.outlined.Psychology
+import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.LibraryBooks
+import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.EmojiEvents
+import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.outlined.CenterFocusStrong
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -106,7 +129,13 @@ fun EditalPromptBuilderDialog(viewModel: AppViewModel, selectedCompetitionId: Lo
     }
 
     val steps = listOf(
-        WizardStep("Concurso e cargo", "Crie um novo concurso ou complete um que já está no app. Banca e ano ajudam a localizar o edital correto.", competitionError) {
+        WizardStep(
+            "Concurso e cargo",
+            "Crie um novo concurso ou complete um que já está no app. Banca e ano ajudam a localizar o edital correto.",
+            competitionError,
+            question = "Vamos trazer seu edital. De qual concurso e cargo estamos falando?",
+            answer = listOf(effective.competitionName, effective.role, effective.board, effective.year).filter(String::isNotBlank).joinToString(" · "),
+        ) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = target == null, onClick = { targetId = null }, label = { Text("Novo concurso") })
                 competitions.forEach { competition -> FilterChip(selected = competition.id == targetId, onClick = { targetId = competition.id }, label = { Text(competition.name) }) }
@@ -120,7 +149,12 @@ fun EditalPromptBuilderDialog(viewModel: AppViewModel, selectedCompetitionId: Lo
                 OutlinedTextField(options.year, { value -> options = options.copy(year = value.filter(Char::isDigit).take(4)) }, Modifier.width(110.dp), singleLine = true, label = { Text("Ano") })
             }
         },
-        WizardStep("O que extrair", "Defina a parte do edital que interessa e como os tópicos devem ficar.") {
+        WizardStep(
+            "O que extrair",
+            "Defina a parte do edital que interessa e como os tópicos devem ficar.",
+            question = "Que parte do edital você quer no app?",
+            answer = "${options.scope.label} · ${options.detail.label}",
+        ) {
             OptionSection("Abrangência") { ChoiceChips(EditalScope.entries, options.scope, { it.label }) { options = options.copy(scope = it) } }
             OptionSection("Nível de detalhe", "Dividir itens longos cria subtópicos didáticos, marcados como subdivisão de estudo.") {
                 ChoiceChips(EditalDetail.entries, options.detail, { it.label }) { options = options.copy(detail = it) }
@@ -129,7 +163,12 @@ fun EditalPromptBuilderDialog(viewModel: AppViewModel, selectedCompetitionId: Lo
             ToggleRow("Prioridade pelo peso na prova", "Matérias com mais questões ficam como prioridade alta", options.priorityByWeight) { options = options.copy(priorityByWeight = it) }
             if (target == null) ToggleRow("Tornar concurso principal", null, options.makePrimary) { options = options.copy(makePrimary = it) }
         },
-        WizardStep("Edital oficial", "Com o PDF do edital, a IA segue exatamente as matérias e os tópicos publicados.") {
+        WizardStep(
+            "Edital oficial",
+            "Com o PDF do edital, a IA segue exatamente as matérias e os tópicos publicados.",
+            question = "Você tem o PDF oficial do edital?",
+            answer = if (options.source == EditalSource.PASTE_TEXT) "Vou colar o texto" else attachment?.name ?: "Sem PDF por enquanto",
+        ) {
             ChoiceChips(EditalSource.entries, options.source, { it.label }) { options = options.copy(source = it) }
             if (options.source == EditalSource.ATTACH_PDF) {
                 AttachmentPicker(attachment, "Escolher PDF do edital", { attach.launch(attachmentTypes) }, { attachment = null })
@@ -232,45 +271,46 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         if (selectedIds.isEmpty()) "" else ContentPromptBuilder.build(competition, subject, topics, selectedIds, options)
     }
 
-    val maxQuestions = GenerationLimits.maxQuestions()
     val wholeSubject = !singleTopicMode && ordered.isNotEmpty() && selectedIds.size == ordered.size
     val singleTopic = topics.firstOrNull { it.id in selectedIds }.takeIf { selectedIds.size == 1 }
 
+    val questionLimit = rememberQuestionBatchLimit()
     val steps = buildList {
         if (!singleTopicMode) add(WizardStep(
             "Abrangência",
-            "Gerar um tópico por vez produz material mais profundo e fácil de conferir. Tópicos com ✓ já têm conteúdo.",
+            "Um tópico por vez gera material mais profundo e fácil de conferir. Os que têm ✓ já têm conteúdo.",
             when {
                 ordered.isEmpty() -> "Esta matéria ainda não tem tópicos. Adicione tópicos ou importe o edital primeiro."
                 selectedIds.isEmpty() -> "Selecione ao menos um tópico."
                 else -> null
             },
+            question = "Vamos montar seu material de ${subject.name}. O que você quer estudar?",
+            answer = when {
+                wholeSubject -> "A matéria completa (${ordered.size} tópicos)"
+                singleTopic != null -> singleTopic.title
+                else -> "${selectedIds.size} tópicos"
+            },
         ) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = !wholeSubject,
-                    onClick = { selected.clear(); selected.addAll(ordered.map { it.first }.filter { it.id !in withContent }.take(1).map { it.id }) },
-                    label = { Text("Tópico específico") },
-                )
-                FilterChip(
-                    selected = wholeSubject,
-                    enabled = ordered.isNotEmpty(),
-                    onClick = { selected.clear(); selected.addAll(ordered.map { it.first.id }) },
-                    label = { Text("Matéria completa (${ordered.size} tópicos)") },
-                )
-            }
-            if (!wholeSubject) ElevatedCard {
-                Column(Modifier.padding(vertical = 4.dp)) {
-                    ordered.forEach { (topic, depth) ->
-                        val checked = topic.id in selectedIds
-                        Row(
-                            Modifier.fillMaxWidth().clickable { if (checked) selected.remove(topic.id) else selected.add(topic.id) }.padding(start = (8 + depth * 18).dp, end = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(checked, { if (it) selected.add(topic.id) else selected.remove(topic.id) })
-                            Text(topic.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                            if (topic.id in withContent) Text("✓", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
-                        }
+            ChoiceCard(
+                "Um tópico específico", !wholeSubject,
+                { selected.clear(); selected.addAll(ordered.map { it.first }.filter { it.id !in withContent }.take(1).map { it.id }) },
+                description = "Recomendado · mais profundidade", icon = Icons.Outlined.CenterFocusStrong,
+            )
+            ChoiceCard(
+                "A matéria completa", wholeSubject,
+                { selected.clear(); selected.addAll(ordered.map { it.first.id }) },
+                description = "${ordered.size} tópicos de uma vez", icon = Icons.Outlined.LibraryBooks,
+            )
+            if (!wholeSubject) Column {
+                ordered.forEach { (topic, depth) ->
+                    val checked = topic.id in selectedIds
+                    Row(
+                        Modifier.fillMaxWidth().clickable { if (checked) selected.remove(topic.id) else selected.add(topic.id) }.padding(start = (depth * 18).dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked, { if (it) selected.add(topic.id) else selected.remove(topic.id) })
+                        Text(topic.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        if (topic.id in withContent) Text("✓", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -278,35 +318,49 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         })
         add(WizardStep(
             "O que gerar",
-            "Escolha os materiais que quer receber. Comece pelo material completo e desmarque o que não precisa.",
+            "Marque tudo o que quer receber. Dá para começar pelo pacote completo e desmarcar o resto.",
             "Escolha pelo menos um tipo de material.".takeIf { options.blocks.isEmpty() },
+            question = "O que você quer que eu prepare?",
+            answer = (if (options.blocks == ContentBlock.entries.toSet()) "Material completo" else options.blocks.sortedBy { it.ordinal }.joinToString(", ") { it.label }) +
+                if (ContentBlock.THEORY in options.blocks) " · teoria ${options.depth.label.lowercase()}" else "",
         ) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AssistChip(onClick = { options = options.copy(blocks = ContentBlock.entries.toSet()) }, label = { Text("Material completo") })
-                AssistChip(onClick = { options = options.copy(blocks = setOf(ContentBlock.QUESTIONS)) }, label = { Text("Só questões") })
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(options.blocks == ContentBlock.entries.toSet(), { options = options.copy(blocks = ContentBlock.entries.toSet()) }, label = { Text("Pacote completo") })
+                FilterChip(options.blocks == setOf(ContentBlock.QUESTIONS), { options = options.copy(blocks = setOf(ContentBlock.QUESTIONS)) }, label = { Text("Só questões") })
             }
-            MultiChoiceChips(ContentBlock.entries, options.blocks, { it.label }) { options = options.copy(blocks = it) }
+            MultiChoiceCards(ContentBlock.entries, options.blocks, { it.label }, { options = options.copy(blocks = it) }, description = ::blockDescription, icon = ::blockIcon)
             if (ContentBlock.THEORY in options.blocks) OptionSection("Profundidade da teoria") {
-                ChoiceChips(TheoryDepth.entries, options.depth, { it.label }) { options = options.copy(depth = it) }
+                ChoiceCards(TheoryDepth.entries, options.depth, { it.label }, { options = options.copy(depth = it) }, description = ::depthDescription)
             }
         })
         if (ContentBlock.QUESTIONS in options.blocks) add(WizardStep(
             "Questões",
-            "Quantidade, formato e nível das questões de treino.",
-            "Defina a quantidade de questões.".takeIf { options.questionCount !in GenerationLimits.MIN_QUESTIONS..maxQuestions },
+            "Arraste para escolher. O limite depende do seu plano.",
+            "Defina a quantidade de questões.".takeIf { options.questionCount !in GenerationLimits.MIN_QUESTIONS..questionLimit.max },
+            question = "Quantas questões e em que nível?",
+            answer = "${options.questionCount} questões · ${options.difficulty.label} · ${options.style.label}" + options.board.takeIf(String::isNotBlank)?.let { " · $it" }.orEmpty(),
         ) {
-            QuestionCountPicker(options.questionCount, maxQuestions, perTopic = selectedIds.size > 1) { options = options.copy(questionCount = it) }
+            QuestionCountSelector(options.questionCount, questionLimit, perTopic = selectedIds.size > 1) { options = options.copy(questionCount = it) }
+            OptionSection("Dificuldade") { DifficultySelector(options.difficulty) { options = options.copy(difficulty = it) } }
             OptionSection("Formato") { ChoiceChips(QuestionStyle.entries, options.style, { it.label }) { options = options.copy(style = it) } }
-            OptionSection("Dificuldade") { ChoiceChips(QuestionDifficulty.entries, options.difficulty, { it.label }) { options = options.copy(difficulty = it) } }
             OutlinedTextField(options.board, { options = options.copy(board = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Banca") }, supportingText = { Text("Orienta o estilo das questões") })
         })
         // Órgão e esfera decidem QUAL lei se aplica. É o dado que a IA não deduz com segurança,
         // e errar isso faz a pessoa estudar o estatuto de outro ente do começo ao fim.
-        add(WizardStep("Contexto e fontes", "Órgão e esfera definem qual estatuto e qual legislação valem para o seu concurso.") {
+        add(WizardStep(
+            "Contexto e fontes",
+            "Órgão e esfera definem qual estatuto e qual legislação valem para o seu concurso.",
+            question = "Para qual órgão é a prova?",
+            answer = listOf(
+                options.agency.ifBlank { "Órgão não informado" },
+                options.sphere.label,
+                if (options.source == MaterialSource.ATTACHED) attachment?.name ?: "sem anexo" else options.source.label,
+            ).joinToString(" · "),
+        ) {
             OutlinedTextField(options.agency, { options = options.copy(agency = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Órgão do concurso") }, placeholder = { Text("Ex.: TRT 3ª Região") })
             OptionSection("Esfera") { ChoiceChips(LegalSphere.entries, options.sphere, { it.label }) { options = options.copy(sphere = it) } }
             OptionSection("Fonte do conteúdo") {
-                ChoiceChips(MaterialSource.entries, options.source, { it.label }) { options = options.copy(source = it) }
+                ChoiceCards(MaterialSource.entries, options.source, { it.label }, { options = options.copy(source = it) })
                 if (options.source == MaterialSource.ATTACHED) AttachmentPicker(attachment, "Anexar lei, apostila ou PDF", { attach.launch(attachmentTypes) }, { attachment = null })
             }
         })
@@ -354,16 +408,6 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         tutorial = TutorialVideo.CONTENT,
         externalWarning = MULTI_TOPIC_WARNING.takeIf { selectedIds.size > 1 },
     )
-}
-
-/** Quantidade de questões limitada ao plano atual (grátis: até [GenerationLimits.FREE_MAX_QUESTIONS]). */
-@Composable
-private fun QuestionCountPicker(value: Int, max: Int, perTopic: Boolean, onChange: (Int) -> Unit) {
-    val current = value.coerceIn(GenerationLimits.MIN_QUESTIONS, max)
-    LaunchedEffect(value, max) { if (value != current) onChange(current) }
-    Text("$current questões${if (perTopic) " por tópico" else ""}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-    Slider(current.toFloat(), { onChange(it.roundToInt()) }, valueRange = GenerationLimits.MIN_QUESTIONS.toFloat()..max.toFloat(), steps = (max - GenerationLimits.MIN_QUESTIONS - 1).coerceAtLeast(0))
-    Text("Seu plano permite até $max questões por geração.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable
@@ -432,19 +476,26 @@ fun AdditionalQuestionPromptBuilderDialog(
             additionalQuestionBatchId = batchId,
         )
     }
-    val maxQuestions = GenerationLimits.maxQuestions()
 
+    val questionLimit = rememberQuestionBatchLimit()
     val steps = listOf(
         WizardStep(
-            "Quantidade e formato",
-            "Quantas questões você quer resolver e em qual formato.",
-            "Defina a quantidade de questões.".takeIf { options.questionCount !in GenerationLimits.MIN_QUESTIONS..maxQuestions },
+            "Quantidade",
+            "Arraste para escolher. O limite depende do seu plano.",
+            "Defina a quantidade de questões.".takeIf { options.questionCount !in GenerationLimits.MIN_QUESTIONS..questionLimit.max },
+            question = "Quantas questões novas você quer resolver?",
+            answer = "${options.questionCount} questões · ${options.style.label}",
         ) {
-            QuestionCountPicker(options.questionCount, maxQuestions, perTopic = false) { options = options.copy(questionCount = it) }
+            QuestionCountSelector(options.questionCount, questionLimit, perTopic = false) { options = options.copy(questionCount = it) }
             OptionSection("Formato") { ChoiceChips(QuestionStyle.entries, options.style, { it.label }) { options = options.copy(style = it) } }
         },
-        WizardStep("Nível e banca", "A banca orienta o estilo dos enunciados e das alternativas.") {
-            OptionSection("Dificuldade") { ChoiceChips(QuestionDifficulty.entries, options.difficulty, { it.label }) { options = options.copy(difficulty = it) } }
+        WizardStep(
+            "Nível e banca",
+            "A banca orienta o estilo dos enunciados e das alternativas.",
+            question = "Em que nível e no estilo de qual banca?",
+            answer = listOf(options.difficulty.label, options.board).filter(String::isNotBlank).joinToString(" · "),
+        ) {
+            DifficultySelector(options.difficulty) { options = options.copy(difficulty = it) }
             OutlinedTextField(options.board, { options = options.copy(board = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Banca") })
             Text(
                 if (existingQuestions.isEmpty()) "Ainda não há questões cadastradas nesta matéria para comparar."
@@ -543,87 +594,117 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
     val steps = listOf(
         WizardStep(
             "Objetivo",
-            "Qual é o foco deste plano?",
+            "Isso define o ritmo e o equilíbrio entre teoria, questões e revisão.",
             when {
                 competition == null -> "Crie ou importe um concurso no Edital antes de gerar o plano."
                 competitionSubjects.isEmpty() -> "Este concurso ainda não tem matérias. Importe o edital primeiro."
                 options.planName.isBlank() -> "Dê um nome ao plano."
                 else -> null
             },
+            question = "Olá! Vamos montar seu plano${competition?.let { " para ${it.name}" } ?: ""}. Qual é o seu objetivo agora?",
+            answer = options.objective.label,
         ) {
             if (competitions.size > 1) OptionSection("Concurso") {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     competitions.forEach { item -> FilterChip(selected = item.id == competitionId, onClick = { competitionId = item.id; priorities.clear() }, label = { Text(item.name) }) }
                 }
             }
-            OutlinedTextField(options.planName, { options = options.copy(planName = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Nome do plano *") })
-            ChoiceChips(PlanObjective.entries, options.objective, { it.label }) { options = options.copy(objective = it) }
-            Text(options.objective.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            ChoiceCards(PlanObjective.entries, options.objective, { it.label }, { options = options.copy(objective = it) }, description = { it.text }, icon = ::objectiveIcon)
+            OutlinedTextField(options.planName, { options = options.copy(planName = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Nome do plano") })
         },
-        WizardStep("Momento atual", "Em que ponto da preparação você está? Isso define a proporção entre teoria, questões e revisão.") {
-            ChoiceChips(StudyProfile.entries, options.studyProfile, { it.label }) { options = options.copy(studyProfile = it) }
-            Text(options.studyProfile.summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            OptionSection("Método") {
-                ChoiceChips(PlanMethod.entries, options.method, { it.label }) { options = options.copy(method = it) }
-                Text(options.method.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        WizardStep(
+            "Momento atual",
+            "Assim eu sei quanto de teoria nova entra no plano.",
+            question = "Em que ponto da preparação você está?",
+            answer = "${options.studyProfile.label} · ${options.method.label}",
+        ) {
+            ChoiceCards(StudyProfile.entries, options.studyProfile, { it.label }, { options = options.copy(studyProfile = it) }, description = { it.summary }, icon = ::profileIcon)
+            OptionSection("Como prefere estudar?") {
+                ChoiceCards(PlanMethod.entries, options.method, { it.label }, { options = options.copy(method = it) }, description = { it.text })
             }
         },
         WizardStep(
             "Datas",
             "Horizontes curtos geram tarefas mais detalhadas. Ao terminar, é só gerar o próximo bloco.",
             "A data da prova não pode ser anterior ao início do plano.".takeIf { !datesValid },
+            question = "Quando é a prova e para quantas semanas eu detalho as tarefas?",
+            answer = (options.examDate?.let { "Prova em ${it.format(dateFormat)}" } ?: "Sem data de prova") + " · ${options.horizonWeeks} semanas",
         ) {
             FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { pickExamDate = true }) { Text(options.examDate?.let { "Prova: ${it.format(dateFormat)}" } ?: "Definir data da prova") }
-                if (options.examDate != null) TextButton(onClick = { options = options.copy(examDate = null) }) { Text("Sem data") }
+                if (options.examDate != null) TextButton(onClick = { options = options.copy(examDate = null) }) { Text("Ainda sem data") }
             }
-            OptionSection("Tarefas detalhadas para") {
-                ChoiceChips(listOf(2, 4, 8, 12), options.horizonWeeks, { "$it semanas" }) { options = options.copy(horizonWeeks = it) }
-            }
-            if (datesValid) {
-                val end = PlanPromptBuilder.endDate(effective)
-                Text("De ${options.startDate.format(dateFormat)} até ${end.format(dateFormat)}.", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-            }
+            BigValueSlider(
+                value = options.horizonWeeks,
+                range = 1..12,
+                step = 1,
+                format = { if (it == 1) "1 semana" else "$it semanas" },
+                onChange = { options = options.copy(horizonWeeks = it) },
+                caption = if (datesValid) "De ${options.startDate.format(dateFormat)} até ${PlanPromptBuilder.endDate(effective).format(dateFormat)}" else null,
+                quickValues = listOf(2, 4, 8, 12),
+            )
         },
         WizardStep(
             "Disponibilidade",
-            "Tempo líquido por dia, já descontando pausas. Deixe em zero os dias de folga.",
+            "Arraste cada barra para marcar o tempo líquido do dia, já sem pausas. Zero é folga.",
             "Defina pelo menos um dia com tempo de estudo.".takeIf { dayMinutes.none { it > 0 } },
+            question = "Quanto tempo você tem por dia?",
+            answer = "${durationText(dayMinutes.sum())} por semana · blocos de ${durationText(options.blockMinutes)}",
         ) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(60, 120, 180, 240).forEachIndexed { index, minutes ->
-                    FilterChip(selected = dailyPreset == index, onClick = { dailyPreset = index; for (day in 0..4) dayMinutes[day] = minutes }, label = { Text("${minutes / 60}h de segunda a sexta") })
+                    FilterChip(selected = dailyPreset == index, onClick = { dailyPreset = index; for (day in 0..4) dayMinutes[day] = minutes }, label = { Text("${minutes / 60}h seg a sex") })
                 }
             }
-            listOf("Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom").forEachIndexed { index, label ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(label, Modifier.width(40.dp), fontWeight = FontWeight.SemiBold)
-                    Slider(dayMinutes[index].toFloat(), { dayMinutes[index] = (it / 15f).toInt() * 15; dailyPreset = -1 }, Modifier.weight(1f), valueRange = 0f..480f, steps = 31)
-                    Text(if (dayMinutes[index] == 0) "folga" else minutesText(dayMinutes[index]), Modifier.widthIn(min = 64.dp), style = MaterialTheme.typography.bodySmall, maxLines = 1)
-                }
-            }
-            Text("Total: ${minutesText(dayMinutes.sum())} por semana", fontWeight = FontWeight.SemiBold)
-            OptionSection("Duração de cada bloco de estudo") {
-                ChoiceChips(listOf(25, 50, 90), options.blockMinutes, { minutesText(it) }) { options = options.copy(blockMinutes = it) }
+            WeekHoursPicker(dayMinutes, onChange = { day, minutes -> dayMinutes[day] = minutes; dailyPreset = -1 })
+            OptionSection("Cada bloco de estudo dura") {
+                BigValueSlider(
+                    value = options.blockMinutes,
+                    range = 25..120,
+                    step = 5,
+                    format = ::durationText,
+                    onChange = { options = options.copy(blockMinutes = it) },
+                    quickValues = listOf(25, 50, 90),
+                )
             }
         },
-        WizardStep("Metas", "Quanto de prática você quer por semana.") {
-            Text("${options.weeklyQuestions} questões por semana", fontWeight = FontWeight.SemiBold)
-            Slider(options.weeklyQuestions.toFloat(), { options = options.copy(weeklyQuestions = (it / 25f).toInt() * 25) }, valueRange = 0f..500f, steps = 19)
-            Text(if (options.monthlyDiscursives == 0) "Sem discursivas" else "${options.monthlyDiscursives} discursiva(s) por mês", fontWeight = FontWeight.SemiBold)
-            Slider(options.monthlyDiscursives.toFloat(), { options = options.copy(monthlyDiscursives = it.toInt()) }, valueRange = 0f..8f, steps = 7)
+        WizardStep(
+            "Metas",
+            "Questões são o que mais fixa o conteúdo. Arraste para ajustar.",
+            question = "Quantas questões por semana você quer fazer?",
+            answer = "${options.weeklyQuestions} questões por semana" + if (options.includeSimulations) " · com simulados" else "",
+        ) {
+            BigValueSlider(
+                value = options.weeklyQuestions,
+                range = 0..500,
+                step = 25,
+                format = { "$it" },
+                onChange = { options = options.copy(weeklyQuestions = it) },
+                caption = "questões por semana",
+                quickValues = listOf(50, 100, 200, 300),
+            )
             ToggleRow("Incluir simulados", "Um simulado a cada 2 a 4 semanas", options.includeSimulations) { options = options.copy(includeSimulations = it) }
+            ToggleRow("Treinar discursivas", if (options.monthlyDiscursives == 0) "Sem discursivas" else "${options.monthlyDiscursives} por mês", options.monthlyDiscursives > 0) { options = options.copy(monthlyDiscursives = if (it) 2 else 0) }
+            if (options.monthlyDiscursives > 0) Slider(options.monthlyDiscursives.toFloat(), { options = options.copy(monthlyDiscursives = it.roundToInt().coerceAtLeast(1)) }, valueRange = 1f..8f, steps = 6)
         },
-        WizardStep("Prioridades", "Matérias críticas recebem mais tempo; as de prioridade baixa ficam só em manutenção.") {
+        WizardStep(
+            "Prioridades",
+            "Críticas recebem mais tempo; as de prioridade baixa ficam só em manutenção.",
+            question = "Quais matérias precisam de mais atenção?",
+            answer = listOf(PlanPriority.CRITICAL, PlanPriority.HIGH, PlanPriority.MEDIUM, PlanPriority.LOW)
+                .mapNotNull { priority -> subjectInfos.count { (priorities[it.id] ?: PlanPriority.MEDIUM) == priority }.takeIf { it > 0 }?.let { "$it ${priorityLabel(priority).lowercase()}" } }
+                .joinToString(" · ")
+                .ifBlank { "Sem matérias" },
+        ) {
             subjectInfos.forEach { info ->
-                Column(Modifier.fillMaxWidth()) {
-                    Text(info.name + (info.accuracyPercent?.let { " • $it% de acerto" } ?: ""), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                    ChoiceChips(listOf(PlanPriority.CRITICAL, PlanPriority.HIGH, PlanPriority.MEDIUM, PlanPriority.LOW), priorities[info.id] ?: PlanPriority.MEDIUM, { priorityLabel(it) }) { priorities[info.id] = it }
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(info.name + (info.accuracyPercent?.let { " · $it% de acerto" } ?: ""), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    PrioritySelector(priorities[info.id] ?: PlanPriority.MEDIUM) { priorities[info.id] = it }
                 }
             }
-            OutlinedTextField(options.planPreference, { options = options.copy(planPreference = it.take(300)) }, Modifier.fillMaxWidth(), minLines = 2, label = { Text("Observações (opcional)") }, placeholder = { Text("Ex.: priorizar Português; revisar aos domingos") })
-            ToggleRow("Enviar tópicos do edital", "Permite tarefas por tópico, na ordem certa (${subjectInfos.sumOf { it.topics.size }} tópicos)", options.includeTopics) { options = options.copy(includeTopics = it) }
-            ToggleRow("Enviar meu desempenho", "Acertos por matéria, para reforçar as mais fracas", options.includePerformance) { options = options.copy(includePerformance = it) }
+            OutlinedTextField(options.planPreference, { options = options.copy(planPreference = it.take(300)) }, Modifier.fillMaxWidth(), minLines = 2, label = { Text("Algo mais que eu deva saber? (opcional)") }, placeholder = { Text("Ex.: priorizar Português; revisar aos domingos") })
+            ToggleRow("Usar os tópicos do edital", "Tarefas por tópico, na ordem certa (${subjectInfos.sumOf { it.topics.size }} tópicos)", options.includeTopics) { options = options.copy(includeTopics = it) }
+            ToggleRow("Usar meu desempenho", "Reforça as matérias com menos acertos", options.includePerformance) { options = options.copy(includePerformance = it) }
         },
     )
     val priorityCounts = subjectInfos.groupingBy { priorities[it.id] ?: PlanPriority.MEDIUM }.eachCount()
@@ -637,7 +718,7 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
             else "Datas inválidas",
             2,
         ),
-        WizardSummaryItem("Disponibilidade", "${minutesText(dayMinutes.sum())} por semana · blocos de ${minutesText(options.blockMinutes)}", 3),
+        WizardSummaryItem("Disponibilidade", "${durationText(dayMinutes.sum())} por semana · blocos de ${durationText(options.blockMinutes)}", 3),
         WizardSummaryItem("Metas", "${options.weeklyQuestions} questões por semana" + if (options.includeSimulations) " · com simulados" else "", 4),
         WizardSummaryItem(
             "Prioridades",
@@ -669,8 +750,74 @@ private fun priorityLabel(value: PlanPriority) = when (value) {
     PlanPriority.LOW -> "Baixa"
 }
 
-private fun minutesText(minutes: Int): String = when {
-    minutes < 60 -> "$minutes min"
-    minutes % 60 == 0 -> "${minutes / 60}h"
-    else -> "${minutes / 60}h${"%02d".format(minutes % 60)}"
+private fun blockDescription(block: ContentBlock): String = when (block) {
+    ContentBlock.THEORY -> "Explicação completa, em capítulos"
+    ContentBlock.SUMMARY -> "O essencial em poucas páginas"
+    ContentBlock.QUICK_REVIEW -> "Para a véspera da prova"
+    ContentBlock.TIPS_TRAPS -> "Dicas e pegadinhas de banca"
+    ContentBlock.ACTIVE_RECALL -> "Perguntas para testar a memória"
+    ContentBlock.QUESTIONS -> "Questões de treino com gabarito comentado"
+    ContentBlock.ERROR_CONCEPTS -> "Onde a maioria erra e por quê"
+}
+
+private fun blockIcon(block: ContentBlock): ImageVector = when (block) {
+    ContentBlock.THEORY -> Icons.Outlined.MenuBook
+    ContentBlock.SUMMARY -> Icons.Outlined.Summarize
+    ContentBlock.QUICK_REVIEW -> Icons.Outlined.Bolt
+    ContentBlock.TIPS_TRAPS -> Icons.Outlined.Lightbulb
+    ContentBlock.ACTIVE_RECALL -> Icons.Outlined.Psychology
+    ContentBlock.QUESTIONS -> Icons.Outlined.Quiz
+    ContentBlock.ERROR_CONCEPTS -> Icons.Outlined.ReportProblem
+}
+
+private fun depthDescription(depth: TheoryDepth): String = when (depth) {
+    TheoryDepth.ESSENTIAL -> "Direto ao ponto"
+    TheoryDepth.DEEP -> "Com exemplos e exceções"
+    TheoryDepth.BOOK -> "O mais completo possível"
+}
+
+private fun objectiveIcon(objective: PlanObjective): ImageVector = when (objective) {
+    PlanObjective.APPROVAL -> Icons.Outlined.EmojiEvents
+    PlanObjective.COVER_SYLLABUS -> Icons.Outlined.Checklist
+    PlanObjective.QUESTIONS -> Icons.Outlined.Quiz
+    PlanObjective.FINAL_REVIEW -> Icons.Outlined.Flag
+}
+
+private fun profileIcon(profile: StudyProfile): ImageVector = when (profile) {
+    StudyProfile.DO_ZERO -> Icons.Outlined.School
+    StudyProfile.RETA_FINAL -> Icons.Outlined.Timer
+    else -> Icons.Outlined.TrendingUp
+}
+
+/** Prioridade da matéria em quatro botões lado a lado, com a cor de cada nível. */
+@Composable
+private fun PrioritySelector(selected: PlanPriority, onSelect: (PlanPriority) -> Unit) {
+    val colors = estudarioColors()
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        listOf(PlanPriority.CRITICAL, PlanPriority.HIGH, PlanPriority.MEDIUM, PlanPriority.LOW).forEach { priority ->
+            val tone = when (priority) {
+                PlanPriority.CRITICAL -> Color(0xFFC0392B)
+                PlanPriority.HIGH -> colors.attention
+                PlanPriority.MEDIUM -> colors.current
+                PlanPriority.LOW -> colors.upcoming
+            }
+            val isSelected = priority == selected
+            Surface(
+                onClick = { onSelect(priority) },
+                modifier = Modifier.weight(1f),
+                shape = EstudarioShapes.pill,
+                color = if (isSelected) tone else MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, if (isSelected) tone else MaterialTheme.colorScheme.outlineVariant),
+            ) {
+                Text(
+                    priorityLabel(priority),
+                    Modifier.padding(vertical = 8.dp),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        }
+    }
 }

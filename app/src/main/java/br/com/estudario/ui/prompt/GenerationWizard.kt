@@ -1,6 +1,13 @@
 package br.com.estudario.ui.prompt
 
 import android.widget.Toast
+import br.com.estudario.ui.theme.EstudarioShapes
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -86,6 +93,10 @@ class WizardStep(
     val title: String,
     val hint: String? = null,
     val error: String? = null,
+    /** Pergunta que o assistente faz nesta etapa; sem ela, vale o título. */
+    val question: String = title,
+    /** Resposta curta que fica no histórico da conversa depois que a pessoa avança. */
+    val answer: String? = null,
     val content: @Composable ColumnScope.() -> Unit,
 )
 
@@ -163,35 +174,49 @@ fun GenerationWizard(
                     )
                 }
                 HorizontalDivider()
-                AnimatedContent(
-                    targetState = index,
-                    transitionSpec = { fadeIn() togetherWith fadeOut() },
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    label = "wizard-step",
-                ) { page ->
-                    Column(
-                        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        val step = steps.getOrNull(page)
-                        if (step != null) {
-                            Text(step.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                            if (step.hint != null) Text(step.hint, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            step.content(this)
-                        } else {
-                            ReviewPage(
-                                summary = summary,
-                                firstInvalid = firstInvalid,
-                                invalidReason = steps.getOrNull(firstInvalid)?.error,
-                                onEdit = { index = it },
-                                prompt = prompt,
-                                server = server,
-                                attachment = attachment,
-                                onExternal = ::runExternal,
-                                onImportText = onImportText,
-                                onPickFile = onPickFile,
-                                returnFileLabel = returnFileLabel,
-                            )
+                val scroll = rememberScrollState()
+                var currentTop by remember { mutableIntStateOf(0) }
+                // A cada nova pergunta, a conversa rola até ela (e não até o fim, que em etapas
+                // longas esconderia a própria pergunta).
+                LaunchedEffect(index, currentTop) { scroll.animateScrollTo((currentTop - 24).coerceAtLeast(0)) }
+                Column(
+                    Modifier.weight(1f).fillMaxWidth().verticalScroll(scroll).padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    // Histórico: o que já foi perguntado e respondido. Tocar na resposta volta
+                    // para aquela pergunta.
+                    steps.take(index.coerceAtMost(steps.size)).forEachIndexed { position, answered ->
+                        AssistantBubble(answered.question)
+                        UserBubble(answered.answer ?: "Ok", onClick = { index = position })
+                    }
+                    AnimatedContent(
+                        targetState = index,
+                        transitionSpec = { fadeIn() togetherWith fadeOut() },
+                        modifier = Modifier.fillMaxWidth().onGloballyPositioned { currentTop = it.positionInParent().y.toInt() },
+                        label = "wizard-step",
+                    ) { page ->
+                        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            val step = steps.getOrNull(page)
+                            if (step != null) {
+                                AssistantBubble(step.question, step.hint)
+                                Surface(shape = EstudarioShapes.panel, color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+                                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) { step.content(this) }
+                                }
+                            } else {
+                                ReviewPage(
+                                    summary = summary,
+                                    firstInvalid = firstInvalid,
+                                    invalidReason = steps.getOrNull(firstInvalid)?.error,
+                                    onEdit = { index = it },
+                                    prompt = prompt,
+                                    server = server,
+                                    attachment = attachment,
+                                    onExternal = ::runExternal,
+                                    onImportText = onImportText,
+                                    onPickFile = onPickFile,
+                                    returnFileLabel = returnFileLabel,
+                                )
+                            }
                         }
                     }
                 }
@@ -239,7 +264,7 @@ fun GenerationWizard(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ColumnScope.ReviewPage(
+private fun ReviewPage(
     summary: List<WizardSummaryItem>,
     firstInvalid: Int,
     invalidReason: String?,
@@ -255,6 +280,7 @@ private fun ColumnScope.ReviewPage(
     val context = LocalContext.current
     var showPreview by remember { mutableStateOf(false) }
     val ready = firstInvalid < 0
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
     Text("Confira seu pedido", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
     Text("Toque em um item para ajustar.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     ElevatedCard(Modifier.fillMaxWidth()) {
@@ -352,6 +378,47 @@ private fun ColumnScope.ReviewPage(
                     else onImportText(text)
                 }, modifier = Modifier.widthIn(min = 120.dp)) { Icon(Icons.Outlined.ContentPaste, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Colar resposta") }
                 TextButton(onClick = onPickFile, modifier = Modifier.widthIn(min = 120.dp)) { Icon(Icons.Outlined.FileOpen, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(returnFileLabel) }
+            }
+        }
+    }
+    }
+}
+
+/** Fala do assistente: avatar do Estudário e a pergunta, com a explicação logo abaixo. */
+@Composable
+private fun AssistantBubble(text: String, hint: String? = null) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Box(Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+            Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimary)
+        }
+        Spacer(Modifier.width(10.dp))
+        Surface(
+            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 18.dp, bottomEnd = 18.dp, bottomStart = 18.dp),
+            color = MaterialTheme.colorScheme.primaryContainer,
+            modifier = Modifier.weight(1f, fill = false),
+        ) {
+            Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(text, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                if (hint != null) Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f))
+            }
+        }
+    }
+}
+
+/** Resposta da pessoa no histórico. Tocar volta para a pergunta e permite mudar. */
+@Composable
+private fun UserBubble(text: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Surface(
+            onClick = onClick,
+            shape = RoundedCornerShape(topStart = 18.dp, topEnd = 4.dp, bottomEnd = 18.dp, bottomStart = 18.dp),
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(start = 48.dp),
+        ) {
+            Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f, fill = false))
+                Spacer(Modifier.width(8.dp))
+                Icon(Icons.Outlined.Edit, "Mudar resposta", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f))
             }
         }
     }
