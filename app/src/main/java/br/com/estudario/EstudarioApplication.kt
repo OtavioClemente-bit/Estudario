@@ -81,6 +81,13 @@ class EstudarioApplication : Application() {
             authRepository = supabaseAuthRepository,
         )
     }
+    /** Conteúdo de tópico pela IA do Estudário (fila de jobs de texto no servidor). */
+    val aiContentGenerator: br.com.estudario.data.ai.AiContentGenerator by lazy {
+        br.com.estudario.data.ai.AiContentGenerator(
+            config = supabaseClientConfig,
+            authRepository = supabaseAuthRepository,
+        )
+    }
     /** Plano efetivo, catálogo e uso. Somente leitura: quem decide cota é o servidor. */
     val aiPlanRepository: br.com.estudario.ui.plans.AiPlanRepository by lazy {
         br.com.estudario.ui.plans.HttpAiPlanRepository(

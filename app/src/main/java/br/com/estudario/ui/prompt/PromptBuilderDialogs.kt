@@ -3,6 +3,13 @@ package br.com.estudario.ui.prompt
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import br.com.estudario.EstudarioApplication
+import br.com.estudario.data.ai.AiContentProgress
+import kotlinx.coroutines.flow.Flow
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
 import br.com.estudario.ui.theme.estudarioColors
 import br.com.estudario.ui.theme.EstudarioShapes
 import androidx.compose.ui.text.style.TextAlign
@@ -264,6 +271,8 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
     var options by remember(subjectBoard) { mutableStateOf(ContentPromptOptions(board = subjectBoard)) }
     var attachment by remember { mutableStateOf<PromptAttachment?>(null) }
     val attach = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { attachment = context.attachmentFor(it) } }
+    var serverTarget by remember { mutableStateOf<TopicEntity?>(null) }
+    val application = context.applicationContext as EstudarioApplication
 
     if (subject == null || competition == null) { LaunchedEffect(Unit) { onDismiss() }; return }
     val selectedIds = selected.toSet()
@@ -390,8 +399,59 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         onPickFile = { onDismiss(); onPickFile() },
         returnFileLabel = "Abrir arquivo .estudo",
         attachment = attachment.takeIf { options.source == MaterialSource.ATTACHED },
+        server = ServerGenerationOption(
+            description = "Pesquisa fontes oficiais, escreve o material e mostra tudo para você revisar antes de salvar no tópico. Usa 1 geração de conteúdo do seu plano.",
+            enabled = singleTopic != null && options.source != MaterialSource.ATTACHED,
+            disabledReason = when {
+                singleTopic == null -> "A IA do Estudário gera um tópico por vez. Escolha um tópico ou use outra IA."
+                options.source == MaterialSource.ATTACHED -> "Para trabalhar em cima do seu material, use outra IA (o anexo vai junto)."
+                else -> null
+            },
+            onGenerate = { serverTarget = singleTopic },
+        ),
         tutorial = TutorialVideo.CONTENT,
         externalWarning = MULTI_TOPIC_WARNING.takeIf { selectedIds.size > 1 },
+    )
+    serverTarget?.let { target ->
+        ServerContentGenerationDialog(
+            progress = remember(target) { application.aiContentGenerator.generate(competition, subject, topics, target, options) },
+            onDone = { estudo -> serverTarget = null; onDismiss(); viewModel.openIncomingText(estudo, competition.id) },
+            onClose = { serverTarget = null },
+        )
+    }
+}
+
+/** Acompanha a geração no servidor; ao terminar, entrega o pacote para a revisão de importação. */
+@Composable
+private fun ServerContentGenerationDialog(progress: Flow<AiContentProgress>, onDone: (String) -> Unit, onClose: () -> Unit) {
+    var state by remember(progress) { mutableStateOf<AiContentProgress>(AiContentProgress.Sending) }
+    LaunchedEffect(progress) {
+        progress.collect { value ->
+            state = value
+            if (value is AiContentProgress.Done) onDone(value.estudo)
+        }
+    }
+    val failed = state as? AiContentProgress.Failed
+    AlertDialog(
+        onDismissRequest = { if (failed != null) onClose() },
+        icon = { Icon(Icons.Outlined.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary) },
+        title = { Text(if (failed != null) "Não deu certo desta vez" else "Gerando seu material") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (failed != null) {
+                    Text(failed.message)
+                } else {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                    Text(
+                        if (state is AiContentProgress.Sending) "Enviando seu pedido…"
+                        else "A IA do Estudário está pesquisando fontes oficiais e escrevendo. Costuma levar de 1 a 3 minutos.",
+                    )
+                    Text("Pode deixar esta tela aberta. No fim, você revisa tudo antes de salvar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        },
+        confirmButton = { if (failed != null) TextButton(onClick = onClose) { Text("Voltar") } },
+        dismissButton = { if (failed == null) TextButton(onClick = onClose) { Text("Fechar") } },
     )
 }
 
