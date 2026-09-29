@@ -12,6 +12,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import br.com.estudario.EstudarioApplication
+import br.com.estudario.data.ai.AiSyllabusPreferences
 import br.com.estudario.data.ai.AiJob
 import br.com.estudario.data.ai.AiApiException
 import br.com.estudario.data.ai.AiAuthenticationRequiredException
@@ -79,6 +80,14 @@ interface AiReviewJobs {
         fileName: String?,
         onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit,
     ): AiReviewStarted = start(targetId, uri, fileName)
+    suspend fun start(
+        targetId: Long,
+        targetTitle: String,
+        uri: String,
+        fileName: String?,
+        preferences: AiSyllabusPreferences?,
+        onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit,
+    ): AiReviewStarted = start(targetId, targetTitle, uri, fileName, onRequestPersisted)
     suspend fun recover(requestId: String): AiReviewStarted
     suspend fun recover(
         requestId: String,
@@ -112,11 +121,20 @@ class DefaultAiReviewJobs(
         uri: String,
         fileName: String?,
         onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit,
+    ): AiReviewStarted = start(targetId, targetTitle, uri, fileName, null, onRequestPersisted)
+
+    override suspend fun start(
+        targetId: Long,
+        targetTitle: String,
+        uri: String,
+        fileName: String?,
+        preferences: AiSyllabusPreferences?,
+        onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit,
     ): AiReviewStarted {
         require(targetId > 0L) { "targetId must be positive" }
         val knownRequestIds = requestStore.list().mapTo(hashSetOf()) { it.requestId }
         return try {
-            val job = repository.start(uri, fileName, targetId, targetTitle, onRequestPersisted)
+            val job = repository.start(uri, fileName, targetId, targetTitle, preferences, onRequestPersisted)
             started(job)
         } catch (timeout: AiProcessTimeoutException) {
             throw timeout
@@ -354,6 +372,9 @@ class AiReviewViewModel(
     private var identity: AiReviewRequestIdentity? = null
     private var pendingIdentity: AiReviewPendingRequestIdentity? = null
     private var pendingSource: AiReviewSource? = null
+    private val _preferences = MutableStateFlow<AiSyllabusPreferences?>(null)
+    /** Respostas do formulário obrigatório; sem elas a geração não começa. */
+    val preferences: StateFlow<AiSyllabusPreferences?> = _preferences.asStateFlow()
     private val startMutex = Mutex()
     private val sessionMutex = Mutex()
     private var hasAppliedLocally = false
@@ -390,6 +411,10 @@ class AiReviewViewModel(
 
     fun onLoginReturned() {
         viewModelScope.launch { refreshAccessAndRestore() }
+    }
+
+    fun updatePreferences(value: AiSyllabusPreferences) {
+        _preferences.value = value
     }
 
     fun start(uri: String, fileName: String?) {
@@ -588,7 +613,7 @@ class AiReviewViewModel(
                 val ownerUserId = userIdProvider()?.takeIf(String::isNotBlank)
                     ?: throw AiAuthenticationRequiredException()
                 targetStore?.save(AiReviewTarget(targetId, targetTitle, source.uri, source.fileName), ownerUserId)
-                val started = jobs.start(targetId, targetTitle, source.uri, source.fileName, ::saveRequestContext)
+                val started = jobs.start(targetId, targetTitle, source.uri, source.fileName, _preferences.value?.takeIf { it.isComplete }, ::saveRequestContext)
                 identity = started.identity
                 pendingIdentity = null
                 pendingSource = null

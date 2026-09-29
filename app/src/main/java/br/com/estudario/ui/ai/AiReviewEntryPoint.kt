@@ -94,6 +94,7 @@ fun AiReviewEntryPoint(
         },
     )
     val state by actualReviewViewModel.state.collectAsState()
+    val preferences by actualReviewViewModel.preferences.collectAsState()
     LaunchedEffect(target.sourceUri, target.sourceName) {
         target.sourceUri?.let { actualReviewViewModel.provideSource(it, target.sourceName) }
     }
@@ -124,6 +125,8 @@ fun AiReviewEntryPoint(
         onClose = onClose,
         onLocalApplied = onLocalApplied,
         onSyncAck = onSyncAck,
+        preferences = preferences,
+        onPreferencesChange = actualReviewViewModel::updatePreferences,
     )
     if (loginOpen) {
         AlertDialog(

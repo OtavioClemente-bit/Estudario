@@ -61,7 +61,7 @@ interface:
 
 Opções no modal antes de copiar/compartilhar:
 
-- O que incluir: teoria, resumo, revisão rápida, bizus, pegadinhas, active
+- O que incluir: teoria, resumo, revisão rápida, dicas, pegadinhas, active
   recall, questões (checkboxes, todos marcados por padrão).
 - Quantidade de questões, dividida em dois campos:
   - **questões inéditas/autorais** (a IA cria no estilo da banca);

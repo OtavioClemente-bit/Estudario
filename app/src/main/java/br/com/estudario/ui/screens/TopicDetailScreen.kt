@@ -486,7 +486,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
         }
         item {
             ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 0.dp) {
-                listOf("TEORIA", "REVISÃO", "BIZUS", "QUESTÕES", "ERROS", "HISTÓRICO").forEachIndexed { index, label ->
+                listOf("TEORIA", "REVISÃO", "DICAS", "QUESTÕES", "ERROS", "HISTÓRICO").forEachIndexed { index, label ->
                     Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(label) })
                 }
             }
@@ -543,9 +543,9 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
         val topicSnippets = snippets.filter { it.topicId == topicId }
         if (selectedTab == 1 || selectedTab == 2) {
         val visibleSnippets = topicSnippets.filter { if (selectedTab == 1) it.kind == SnippetKind.RECUPERACAO else it.kind != SnippetKind.RECUPERACAO }
-        if (visibleSnippets.isNotEmpty()) item { Text(if (selectedTab == 1) "Memorização ativa" else "Bizus e pegadinhas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+        if (visibleSnippets.isNotEmpty()) item { Text(if (selectedTab == 1) "Memorização ativa" else "Dicas e pegadinhas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
         visibleSnippets.groupBy { it.kind }.forEach { (kind, values) ->
-            item(key = "snippet-title-$kind") { Text(when (kind) { SnippetKind.BIZU -> "Bizus"; SnippetKind.PEGADINHA -> "Pegadinhas"; SnippetKind.RECUPERACAO -> "Perguntas para lembrar" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+            item(key = "snippet-title-$kind") { Text(when (kind) { SnippetKind.BIZU -> "Dicas"; SnippetKind.PEGADINHA -> "Pegadinhas"; SnippetKind.RECUPERACAO -> "Perguntas para lembrar" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             values.forEach { snippet ->
                 item(key = "snippet-${snippet.id}") {
                     ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = when (kind) { SnippetKind.PEGADINHA -> MaterialTheme.colorScheme.errorContainer; SnippetKind.BIZU -> MaterialTheme.colorScheme.tertiaryContainer; else -> MaterialTheme.colorScheme.secondaryContainer })) {

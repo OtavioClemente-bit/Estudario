@@ -18,6 +18,7 @@ import br.com.estudario.data.ai.AiTopicProposal
 import br.com.estudario.data.ai.AiWarning
 import br.com.estudario.data.ai.AiWarningCode
 import br.com.estudario.data.ai.AiWarningSeverity
+import br.com.estudario.data.ai.AiSyllabusPreferences
 import br.com.estudario.data.local.RemoteSyllabusSyncState
 import br.com.estudario.domain.ai.AiSyllabusDraft
 import br.com.estudario.ui.theme.EstudarioTheme
@@ -75,11 +76,12 @@ class AiReviewScreenTest {
                 AiReviewScreen(
                     state = AiReviewUiState.gate(42L, "TRT-3", AiReviewAccessState.READY),
                     onPickSource = { picked = true },
+                    preferences = AiSyllabusPreferences(competitionName = "TRT-3", role = "Analista"),
                 )
             }
         }
 
-        compose.onNodeWithText("Pronto para analisar o edital").assertIsDisplayed()
+        compose.onNodeWithText("Configure a geração").assertIsDisplayed()
         compose.onNodeWithText("Selecionar PDF do edital").performClick()
         compose.runOnIdle { assertTrue(picked) }
     }

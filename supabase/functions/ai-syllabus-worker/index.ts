@@ -20,6 +20,8 @@ import {
 import {
   SYLLABUS_PROMPT_VERSION,
   SYLLABUS_SYSTEM_PROMPT,
+  parseSyllabusGenerationOptions,
+  type SyllabusGenerationOptions,
   syllabusUserPrompt,
 } from "../_shared/prompts/syllabus-v1.ts";
 import {
@@ -87,6 +89,8 @@ export interface SyllabusWorkerJob {
   retryCount: number;
   promptVersion?: string | null;
   modelVersion?: string | null;
+  /** Answers from the app form, validated when the job was created. */
+  generationOptions?: SyllabusGenerationOptions | null;
 }
 
 export interface SyllabusWorkerStore {
@@ -656,7 +660,7 @@ export async function processSyllabusJob(
                 bytes,
               },
               systemPrompt: SYLLABUS_SYSTEM_PROMPT,
-              userPrompt: syllabusUserPrompt(),
+              userPrompt: syllabusUserPrompt(job.generationOptions ?? null),
               promptVersion: SYLLABUS_PROMPT_VERSION,
               schemaVersion: AI_SYLLABUS_PROPOSAL_SCHEMA_VERSION,
               schema: AI_SYLLABUS_PROPOSAL_SCHEMA,
@@ -856,6 +860,11 @@ function integerField(value: Record<string, unknown>, key: string): number {
   return value[key] as number;
 }
 
+function generationOptionsOf(payload: unknown): SyllabusGenerationOptions | null {
+  if (typeof payload !== "object" || payload === null) return null;
+  return parseSyllabusGenerationOptions((payload as Record<string, unknown>).options);
+}
+
 function parseJob(value: Record<string, unknown>): SyllabusWorkerJob {
   return {
     id: stringField(value, "id"),
@@ -882,6 +891,7 @@ function parseJob(value: Record<string, unknown>): SyllabusWorkerJob {
     retryCount: integerField(value, "retry_count"),
     promptVersion: nullableString(value, "prompt_version"),
     modelVersion: nullableString(value, "model_version"),
+    generationOptions: generationOptionsOf(value.request_payload),
   };
 }
 

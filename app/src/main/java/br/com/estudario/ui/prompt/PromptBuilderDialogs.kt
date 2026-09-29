@@ -54,6 +54,7 @@ import br.com.estudario.data.prompt.EditalPromptOptions
 import br.com.estudario.data.prompt.EditalScope
 import br.com.estudario.data.prompt.EditalSource
 import br.com.estudario.data.prompt.ExistingQuestionReference
+import br.com.estudario.data.prompt.GenerationLimits
 import br.com.estudario.data.prompt.MaterialSource
 import br.com.estudario.data.prompt.PlanMethod
 import br.com.estudario.data.prompt.PlanObjective
@@ -67,6 +68,7 @@ import br.com.estudario.data.prompt.LegalSphere
 import br.com.estudario.data.prompt.QuestionStyle
 import br.com.estudario.data.prompt.TheoryDepth
 import br.com.estudario.domain.planner.PlanPriority
+import br.com.estudario.domain.planner.StudyProfile
 import br.com.estudario.ui.AppViewModel
 import br.com.estudario.ui.tour.TutorialVideo
 import java.time.Instant
@@ -74,6 +76,7 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import kotlin.math.roundToInt
 
 private val attachmentTypes = arrayOf("application/pdf", "image/*", "text/plain")
 private val dateFormat = DateTimeFormatter.ofPattern("dd/MM/yyyy")
@@ -95,37 +98,43 @@ fun EditalPromptBuilderDialog(viewModel: AppViewModel, selectedCompetitionId: Lo
     val effective = (if (target != null) options.copy(competitionName = target.name, existingCompetitionId = PromptIds.competition(target), makePrimary = target.isPrimary) else options)
         .copy(attachmentProvided = attachment != null)
     val prompt = remember(effective) { EditalPromptBuilder.build(effective) }
+    val missing = buildList {
+        if (effective.competitionName.isBlank()) add("o nome do concurso")
+        if (effective.role.isBlank()) add("o cargo ou a área")
+    }
 
     PromptBuilderDialog(
-        title = "Montar edital com IA",
-        subtitle = "Matérias, tópicos e subtópicos a partir do edital",
+        title = "Gerar edital com IA",
+        subtitle = "Matérias, tópicos e subtópicos a partir do edital oficial",
         steps = listOf(
-            "Escolha as opções abaixo. Banca, ano e anexo são opcionais; o PDF oficial é recomendado quando você tiver acesso a ele.",
-            "Toque em Enviar para a IA e escolha o ChatGPT, Gemini ou outro app. Se não anexar o PDF agora, a IA pesquisará fontes oficiais quando possível.",
-            "Baixe o arquivo .estudo gerado e abra com o Estudário (ou copie a resposta e toque em Colar resposta).",
+            "Informe o concurso e o cargo e defina o que deve ser extraído do edital.",
+            "Toque em Enviar para a IA e escolha o app (ChatGPT, Gemini, Claude…). Sem o PDF anexado, a IA consulta fontes oficiais.",
+            "Abra o arquivo .estudo gerado com o Estudário ou copie a resposta e toque em Colar resposta.",
         ),
         prompt = prompt,
         onDismiss = onDismiss,
         onImportText = { onDismiss(); viewModel.openIncomingText(it, targetId) },
         onPickFile = { onDismiss(); onPickFile() },
         attachment = attachment.takeIf { options.source == EditalSource.ATTACH_PDF },
+        shareEnabled = missing.isEmpty(),
+        disabledReason = "Preencha ${missing.joinToString(" e ")} para continuar.",
         tutorial = TutorialVideo.EDITAL,
     ) {
-        OptionSection("Concurso", "Crie um novo ou complete um concurso que já existe no app. Banca e ano são opcionais.") {
+        OptionSection("1. Concurso", "Crie um novo concurso ou complete um que já está no app. Banca e ano ajudam a IA a localizar o edital correto.", required = true) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = target == null, onClick = { targetId = null }, label = { Text("Novo concurso") })
                 competitions.forEach { competition -> FilterChip(selected = competition.id == targetId, onClick = { targetId = competition.id }, label = { Text(competition.name) }) }
             }
             if (target == null) {
-                OutlinedTextField(options.competitionName, { options = options.copy(competitionName = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Nome do concurso (ex.: TRT-3)") })
+                OutlinedTextField(options.competitionName, { options = options.copy(competitionName = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Nome do concurso *") }, placeholder = { Text("Ex.: TRT 3ª Região") }, isError = options.competitionName.isBlank())
             }
-            OutlinedTextField(options.role, { options = options.copy(role = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cargo ou área (opcional)") })
+            OutlinedTextField(options.role, { options = options.copy(role = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cargo ou área *") }, placeholder = { Text("Ex.: Analista Judiciário – Área Administrativa") }, isError = options.role.isBlank())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(options.board, { options = options.copy(board = it) }, Modifier.weight(1f), singleLine = true, label = { Text("Banca (opcional)") })
                 OutlinedTextField(options.year, { value -> options = options.copy(year = value.filter(Char::isDigit).take(4)) }, Modifier.width(110.dp), singleLine = true, label = { Text("Ano (opcional)") })
             }
         }
-        OptionSection("Como a IA vai receber o edital") {
+        OptionSection("2. Fonte do edital") {
             ChoiceChips(EditalSource.entries, options.source, { it.label }) { options = options.copy(source = it) }
             if (options.source == EditalSource.ATTACH_PDF) {
                 AttachmentPicker(attachment, "Anexar PDF do edital (opcional)", { attach.launch(attachmentTypes) }, { attachment = null })
@@ -133,13 +142,13 @@ fun EditalPromptBuilderDialog(viewModel: AppViewModel, selectedCompetitionId: Lo
             }
             else Text("O prompt termina com o espaço “TEXTO DO EDITAL”: cole o conteúdo programático logo depois, no app de IA.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        OptionSection("O que incluir") {
+        OptionSection("3. Abrangência") {
             ChoiceChips(EditalScope.entries, options.scope, { it.label }) { options = options.copy(scope = it) }
         }
-        OptionSection("Nível de detalhe", "Dividir itens longos cria subtópicos didáticos, marcados como subdivisão de estudo.") {
+        OptionSection("4. Nível de detalhe", "Dividir itens longos cria subtópicos didáticos, marcados como subdivisão de estudo.") {
             ChoiceChips(EditalDetail.entries, options.detail, { it.label }) { options = options.copy(detail = it) }
         }
-        OptionSection("Extras") {
+        OptionSection("5. Complementos") {
             ToggleRow("Descrição curta em cada tópico", "Uma frase com o escopo do assunto", options.includeDescriptions) { options = options.copy(includeDescriptions = it) }
             ToggleRow("Prioridade pelo peso na prova", "Matérias com mais questões ficam como prioridade alta", options.priorityByWeight) { options = options.copy(priorityByWeight = it) }
             if (target == null) ToggleRow("Tornar concurso principal", null, options.makePrimary) { options = options.copy(makePrimary = it) }
@@ -188,31 +197,49 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         if (selectedIds.isEmpty()) "" else ContentPromptBuilder.build(competition, subject, topics, selectedIds, options)
     }
 
+    val maxQuestions = GenerationLimits.maxQuestions()
+    val wholeSubject = !singleTopicMode && ordered.isNotEmpty() && selectedIds.size == ordered.size
+    val missing = when {
+        selectedIds.isEmpty() -> "Selecione ao menos um tópico ou escolha Matéria completa."
+        options.blocks.isEmpty() -> "Escolha pelo menos um tipo de material para gerar."
+        ContentBlock.QUESTIONS in options.blocks && options.questionCount !in GenerationLimits.MIN_QUESTIONS..maxQuestions -> "Defina a quantidade de questões."
+        else -> null
+    }
+
     PromptBuilderDialog(
-        title = if (singleTopicMode) "Conteúdo do tópico com IA" else "Gerar conteúdo por tópico",
+        title = if (singleTopicMode) "Gerar material do tópico" else "Gerar material da matéria",
         subtitle = if (singleTopicMode) topics.firstOrNull { it.id in selectedIds }?.let { ContentPromptBuilder.pathOf(it, topics) } ?: subject.name else subject.name,
         steps = listOf(
-            if (singleTopicMode) "Escolha o que a IA deve gerar para este tópico." else "Recomendado: escolha o tópico que vai estudar agora e o que a IA deve gerar.",
-            "Toque em Enviar para a IA e escolha o app. Nomes e IDs já vão certinhos no pedido.",
-            "Baixe o .estudo gerado e abra com o Estudário, ou copie a resposta e toque em Colar resposta.",
+            if (singleTopicMode) "Defina o que a IA deve produzir para este tópico e como." else "Escolha a abrangência (um tópico ou a matéria completa) e o material a ser produzido.",
+            "Toque em Enviar para a IA e escolha o app. Concurso, matéria, tópicos e IDs já seguem preenchidos no pedido.",
+            "Abra o arquivo .estudo gerado com o Estudário ou copie a resposta e toque em Colar resposta.",
         ),
         prompt = prompt,
         onDismiss = onDismiss,
         onImportText = { onDismiss(); viewModel.openIncomingText(it, competition.id) },
         onPickFile = { onDismiss(); onPickFile() },
         attachment = attachment.takeIf { options.source == MaterialSource.ATTACHED },
-        shareEnabled = selectedIds.isNotEmpty(),
-        disabledReason = "Marque pelo menos um tópico.",
+        shareEnabled = missing == null,
+        disabledReason = missing,
         tutorial = TutorialVideo.CONTENT,
         shareWarning = MULTI_TOPIC_WARNING.takeIf { selectedIds.size > 1 },
     ) {
-        if (!singleTopicMode) OptionSection("Tópicos", "Selecione o tópico que vai estudar agora. Para obter uma resposta mais completa e verificar as fontes, recomendamos gerar um tópico por vez. Tópicos com ✓ já têm conteúdo.") {
+        if (!singleTopicMode) OptionSection("1. Abrangência", "Gerar um tópico por vez produz material mais profundo e fácil de conferir. Tópicos com ✓ já têm conteúdo.", required = true) {
             if (ordered.isEmpty()) Text("Esta matéria ainda não tem tópicos. Adicione tópicos ou importe o edital primeiro.", color = MaterialTheme.colorScheme.error)
-            FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AssistChip(onClick = { selected.clear(); selected.addAll(ordered.map { it.first }.filter { it.id !in withContent }.take(1).map { it.id }) }, label = { Text("Próximo sem conteúdo") })
-                AssistChip(onClick = { selected.clear() }, label = { Text("Limpar") })
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = !wholeSubject,
+                    onClick = { selected.clear(); selected.addAll(ordered.map { it.first }.filter { it.id !in withContent }.take(1).map { it.id }) },
+                    label = { Text("Tópico específico") },
+                )
+                FilterChip(
+                    selected = wholeSubject,
+                    enabled = ordered.isNotEmpty(),
+                    onClick = { selected.clear(); selected.addAll(ordered.map { it.first.id }) },
+                    label = { Text("Matéria completa (${ordered.size} tópicos)") },
+                )
             }
-            ElevatedCard {
+            if (!wholeSubject) ElevatedCard {
                 Column(Modifier.padding(vertical = 4.dp)) {
                     ordered.forEach { (topic, depth) ->
                         val checked = topic.id in selectedIds
@@ -229,35 +256,48 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
             }
             if (selectedIds.size > 1) Text("${selectedIds.size} tópicos selecionados. $MULTI_TOPIC_WARNING", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
-        OptionSection("O que gerar") {
+        var step = if (singleTopicMode) 0 else 1
+        OptionSection("${++step}. O que gerar", "Selecione todos os materiais que deseja receber.", required = true) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(onClick = { options = options.copy(blocks = ContentBlock.entries.toSet()) }, label = { Text("Material completo") })
+                AssistChip(onClick = { options = options.copy(blocks = setOf(ContentBlock.QUESTIONS)) }, label = { Text("Só questões") })
+            }
             MultiChoiceChips(ContentBlock.entries, options.blocks, { it.label }) { options = options.copy(blocks = it) }
+            if (options.blocks.isEmpty()) Text("Escolha pelo menos um item.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
-        if (ContentBlock.THEORY in options.blocks) OptionSection("Profundidade da teoria") {
+        if (ContentBlock.THEORY in options.blocks) OptionSection("${++step}. Profundidade da teoria", required = true) {
             ChoiceChips(TheoryDepth.entries, options.depth, { it.label }) { options = options.copy(depth = it) }
         }
-        if (ContentBlock.QUESTIONS in options.blocks) OptionSection("Questões") {
-            Text("${options.questionCount} questões${if (selectedIds.size > 1) " por tópico" else ""}", fontWeight = FontWeight.SemiBold)
-            Slider(options.questionCount.toFloat(), { options = options.copy(questionCount = it.toInt()) }, valueRange = 5f..30f, steps = 4)
+        if (ContentBlock.QUESTIONS in options.blocks) OptionSection("${++step}. Questões", required = true) {
+            QuestionCountPicker(options.questionCount, maxQuestions, perTopic = selectedIds.size > 1) { options = options.copy(questionCount = it) }
+            Text("Formato", style = MaterialTheme.typography.labelLarge)
             ChoiceChips(QuestionStyle.entries, options.style, { it.label }) { options = options.copy(style = it) }
-            // Órgão e esfera decidem QUAL lei se aplica. É o dado que a IA não deduz com segurança,
-            // e errar isso faz a pessoa estudar o estatuto de outro ente do começo ao fim.
-            OutlinedTextField(
-                options.agency,
-                { options = options.copy(agency = it) },
-                Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Órgão do concurso (opcional)") },
-                supportingText = { Text("Define qual estatuto e qual legislação se aplicam") },
-            )
-            ChoiceChips(LegalSphere.entries, options.sphere, { it.label }) { options = options.copy(sphere = it) }
+            Text("Dificuldade", style = MaterialTheme.typography.labelLarge)
             ChoiceChips(QuestionDifficulty.entries, options.difficulty, { it.label }) { options = options.copy(difficulty = it) }
-            OutlinedTextField(options.board, { options = options.copy(board = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Banca (estilo das questões)") })
+            OutlinedTextField(options.board, { options = options.copy(board = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Banca") }, supportingText = { Text("Orienta o estilo das questões") })
         }
-        OptionSection("Fonte do conteúdo") {
+        // Órgão e esfera decidem QUAL lei se aplica. É o dado que a IA não deduz com segurança,
+        // e errar isso faz a pessoa estudar o estatuto de outro ente do começo ao fim.
+        OptionSection("${++step}. Contexto do concurso", "Define qual estatuto e qual legislação se aplicam ao conteúdo.") {
+            OutlinedTextField(options.agency, { options = options.copy(agency = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Órgão do concurso") }, placeholder = { Text("Ex.: TRT 3ª Região") })
+            Text("Esfera", style = MaterialTheme.typography.labelLarge)
+            ChoiceChips(LegalSphere.entries, options.sphere, { it.label }) { options = options.copy(sphere = it) }
+        }
+        OptionSection("${++step}. Fonte do conteúdo") {
             ChoiceChips(MaterialSource.entries, options.source, { it.label }) { options = options.copy(source = it) }
             if (options.source == MaterialSource.ATTACHED) AttachmentPicker(attachment, "Anexar lei, apostila ou PDF", { attach.launch(attachmentTypes) }, { attachment = null })
         }
     }
+}
+
+/** Quantidade de questões limitada ao plano atual (grátis: até [GenerationLimits.FREE_MAX_QUESTIONS]). */
+@Composable
+private fun QuestionCountPicker(value: Int, max: Int, perTopic: Boolean, onChange: (Int) -> Unit) {
+    val current = value.coerceIn(GenerationLimits.MIN_QUESTIONS, max)
+    LaunchedEffect(value, max) { if (value != current) onChange(current) }
+    Text("$current questões${if (perTopic) " por tópico" else ""}", fontWeight = FontWeight.SemiBold)
+    Slider(current.toFloat(), { onChange(it.roundToInt()) }, valueRange = GenerationLimits.MIN_QUESTIONS.toFloat()..max.toFloat(), steps = (max - GenerationLimits.MIN_QUESTIONS - 1).coerceAtLeast(0))
+    Text("Plano grátis: até $max questões por geração.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -329,32 +369,31 @@ fun AdditionalQuestionPromptBuilderDialog(
     }
 
     PromptBuilderDialog(
-        title = "Gerar mais questões",
+        title = "Gerar novas questões",
         subtitle = ContentPromptBuilder.pathOf(topic, subjectTopics),
         steps = listOf(
-            "Escolha a quantidade, o formato e a dificuldade.",
-            "O pedido inclui enunciados e alternativas já cadastrados nesta matéria para a IA evitar repetições.",
-            "Gere as questões, depois abra o arquivo .estudo ou cole a resposta no Estudário.",
+            "Defina quantidade, formato, dificuldade e banca.",
+            "O pedido leva as questões já cadastradas nesta matéria para a IA não repetir enunciados.",
+            "Abra o arquivo .estudo gerado com o Estudário ou cole a resposta.",
         ),
         prompt = prompt,
         onDismiss = onDismiss,
         onImportText = { onDismiss(); viewModel.openIncomingText(it) },
         onPickFile = { onDismiss(); onPickFile() },
     ) {
-        OptionSection("Quantidade") {
-            Text("${options.questionCount} questões", fontWeight = FontWeight.SemiBold)
-            Slider(options.questionCount.toFloat(), { options = options.copy(questionCount = it.toInt()) }, valueRange = 5f..30f, steps = 4)
+        OptionSection("1. Quantidade", required = true) {
+            QuestionCountPicker(options.questionCount, GenerationLimits.maxQuestions(), perTopic = false) { options = options.copy(questionCount = it) }
         }
-        OptionSection("Formato") {
+        OptionSection("2. Formato", required = true) {
             ChoiceChips(QuestionStyle.entries, options.style, { it.label }) { options = options.copy(style = it) }
         }
-        OptionSection("Dificuldade") {
+        OptionSection("3. Dificuldade", required = true) {
             ChoiceChips(QuestionDifficulty.entries, options.difficulty, { it.label }) { options = options.copy(difficulty = it) }
         }
-        OptionSection("Banca (opcional)", "Usada só para orientar o estilo das questões.") {
+        OptionSection("4. Banca", "Orienta o estilo das questões.") {
             OutlinedTextField(options.board, { options = options.copy(board = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Banca") })
         }
-        OptionSection("Banco atual da matéria") {
+        OptionSection("Questões já cadastradas") {
             Text(
                 if (existingQuestions.isEmpty()) "Ainda não há questões cadastradas para comparar."
                 else "${existingQuestions.size} questão(ões) serão enviadas apenas como referência antirrepetição, sem gabaritos ou dados de desempenho.",
@@ -420,6 +459,14 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
     }
     val effective = options.copy(dayMinutes = dayMinutes.toList(), priorities = priorities.toMap())
     val datesValid = effective.examDate == null || !effective.examDate.isBefore(effective.startDate)
+    val planMissing = when {
+        competition == null -> "Crie ou importe um concurso no Edital antes de gerar o plano."
+        competitionSubjects.isEmpty() -> "Este concurso ainda não tem matérias. Importe o edital primeiro."
+        options.planName.isBlank() -> "Dê um nome ao plano."
+        !datesValid -> "A data da prova não pode ser anterior ao início do plano."
+        dayMinutes.none { it > 0 } -> "Defina pelo menos um dia com tempo de estudo."
+        else -> null
+    }
     val prompt = remember(effective, subjectInfos, competition) {
         if (competition == null || !datesValid) "" else PlanPromptBuilder.build(PromptIds.competition(competition), competition.name, subjectInfos, effective)
     }
@@ -437,33 +484,32 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
         title = "Plano de estudos com IA",
         subtitle = competition?.name ?: "Crie um concurso no Edital primeiro",
         steps = listOf(
-            "Ajuste seus dias, horários, prioridades e metas.",
+            "Responda às perguntas: objetivo, momento atual, datas, disponibilidade, metas e prioridades.",
             "Toque em Enviar para a IA. O pedido já leva suas matérias, tópicos e desempenho.",
-            "Baixe o arquivo .plano gerado e abra com o Estudário, ou copie a resposta e toque em Colar resposta.",
+            "Abra o arquivo .plano gerado com o Estudário ou copie a resposta e toque em Colar resposta.",
         ),
         prompt = prompt,
         onDismiss = onDismiss,
         onImportText = { onDismiss(); viewModel.openIncomingText(it) },
         onPickFile = { onDismiss(); onPickFile() },
-        shareEnabled = datesValid && competition != null && competitionSubjects.isNotEmpty() && dayMinutes.any { it > 0 },
-        disabledReason = when {
-            !datesValid -> "A data da prova não pode ser anterior ao início do plano."
-            competition == null -> "Crie ou importe um concurso no Edital antes de gerar o plano."
-            competitionSubjects.isEmpty() -> "Este concurso ainda não tem matérias. Importe o edital primeiro."
-            else -> "Defina pelo menos um dia com tempo de estudo."
-        },
+        shareEnabled = planMissing == null,
+        disabledReason = planMissing,
     ) {
-        if (competitions.size > 1) OptionSection("Concurso") {
+        if (competitions.size > 1) OptionSection("Concurso", required = true) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 competitions.forEach { item -> FilterChip(selected = item.id == competitionId, onClick = { competitionId = item.id; priorities.clear() }, label = { Text(item.name) }) }
             }
         }
-        OptionSection("Objetivo") {
-            OutlinedTextField(options.planName, { options = options.copy(planName = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Nome do plano") })
+        OptionSection("1. Objetivo", "Qual é o foco deste plano?", required = true) {
+            OutlinedTextField(options.planName, { options = options.copy(planName = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Nome do plano *") }, isError = options.planName.isBlank())
             ChoiceChips(PlanObjective.entries, options.objective, { it.label }) { options = options.copy(objective = it) }
             Text(options.objective.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        OptionSection("Datas") {
+        OptionSection("2. Momento atual", "Em que ponto da preparação você está?", required = true) {
+            ChoiceChips(StudyProfile.entries, options.studyProfile, { it.label }) { options = options.copy(studyProfile = it) }
+            Text(options.studyProfile.summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        OptionSection("3. Datas", required = true) {
             FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { pickExamDate = true }) { Text(options.examDate?.let { "Prova: ${it.format(dateFormat)}" } ?: "Definir data da prova") }
                 if (options.examDate != null) TextButton(onClick = { options = options.copy(examDate = null) }) { Text("Sem data") }
@@ -477,7 +523,7 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
                 Text("A data da prova não pode ser anterior ao início do plano.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
         }
-        OptionSection("Tempo líquido por dia", "Já descontando pausas. Deixe em 0 os dias de folga.") {
+        OptionSection("4. Disponibilidade", "Tempo líquido por dia, já descontando pausas. Deixe em 0 os dias de folga.", required = true) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(60, 120, 180, 240).forEachIndexed { index, minutes ->
                     FilterChip(selected = dailyPreset == index, onClick = { dailyPreset = index; for (day in 0..4) dayMinutes[day] = minutes }, label = { Text("${minutes / 60}h de segunda a sexta") })
@@ -491,19 +537,21 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
                 }
             }
             Text("Total: ${minutesText(dayMinutes.sum())} por semana", fontWeight = FontWeight.SemiBold)
+            Text("Duração de cada bloco de estudo", style = MaterialTheme.typography.labelLarge)
+            ChoiceChips(listOf(25, 50, 90), options.blockMinutes, { minutesText(it) }) { options = options.copy(blockMinutes = it) }
         }
-        OptionSection("Metas") {
+        OptionSection("5. Metas") {
             Text("${options.weeklyQuestions} questões por semana")
             Slider(options.weeklyQuestions.toFloat(), { options = options.copy(weeklyQuestions = (it / 25f).toInt() * 25) }, valueRange = 0f..500f, steps = 19)
             Text(if (options.monthlyDiscursives == 0) "Sem discursivas" else "${options.monthlyDiscursives} discursiva(s) por mês")
             Slider(options.monthlyDiscursives.toFloat(), { options = options.copy(monthlyDiscursives = it.toInt()) }, valueRange = 0f..8f, steps = 7)
             ToggleRow("Incluir simulados", "Um simulado a cada 2 a 4 semanas", options.includeSimulations) { options = options.copy(includeSimulations = it) }
         }
-        OptionSection("Método") {
+        OptionSection("6. Método") {
             ChoiceChips(PlanMethod.entries, options.method, { it.label }) { options = options.copy(method = it) }
             Text(options.method.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (subjectInfos.isNotEmpty()) OptionSection("Prioridade de cada matéria", "Crítica recebe mais tempo; baixa só manutenção.") {
+        if (subjectInfos.isNotEmpty()) OptionSection("7. Prioridade de cada matéria", "Crítica recebe mais tempo; baixa, só manutenção.") {
             subjectInfos.forEach { info ->
                 Column(Modifier.fillMaxWidth()) {
                     Text(info.name + (info.accuracyPercent?.let { " • $it% de acerto" } ?: ""), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
@@ -511,7 +559,10 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
                 }
             }
         }
-        OptionSection("O que mandar para a IA") {
+        OptionSection("8. Observações", "Algo que a IA precisa considerar? Opcional.") {
+            OutlinedTextField(options.planPreference, { options = options.copy(planPreference = it.take(300)) }, Modifier.fillMaxWidth(), minLines = 2, label = { Text("Ex.: priorizar Português; revisar aos domingos") })
+        }
+        OptionSection("9. Dados enviados à IA") {
             ToggleRow("Tópicos do edital", "Permite tarefas por tópico, na ordem certa (${subjectInfos.sumOf { it.topics.size }} tópicos)", options.includeTopics) { options = options.copy(includeTopics = it) }
             ToggleRow("Meu desempenho", "Acertos por matéria, para reforçar as mais fracas", options.includePerformance) { options = options.copy(includePerformance = it) }
         }

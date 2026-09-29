@@ -109,13 +109,13 @@ fun QuestionReviewSheet(
             theories.filter { it.topicId == question.topicId }.forEach { teoria ->
                 addAll(secoes(teoria.markdown, "Teoria", teoria.title, chaves))
             }
-            snippets.filter { it.topicId == question.topicId }.forEach { bizu ->
-                val titulo = when (bizu.kind) {
-                    SnippetKind.BIZU -> "Bizu"
+            snippets.filter { it.topicId == question.topicId }.forEach { dica ->
+                val titulo = when (dica.kind) {
+                    SnippetKind.BIZU -> "Dica"
                     SnippetKind.PEGADINHA -> "Pegadinha"
                     SnippetKind.RECUPERACAO -> "Recuperação"
                 }
-                add(Trecho("Memorização", titulo, bizu.text, pontuar(chaves, bizu.text)))
+                add(Trecho("Memorização", titulo, dica.text, pontuar(chaves, dica.text)))
             }
         }
         // Quando a IA disse de qual seção a questão saiu, ela vem primeiro; a pontuação por

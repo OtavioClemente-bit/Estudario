@@ -41,7 +41,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import br.com.estudario.data.ai.AiSyllabusPreferences
 import br.com.estudario.data.local.RemoteSyllabusSyncState
+import br.com.estudario.data.prompt.EditalDetail
+import br.com.estudario.data.prompt.EditalScope
+import br.com.estudario.ui.prompt.ChoiceChips
+import br.com.estudario.ui.prompt.OptionSection
+import br.com.estudario.ui.prompt.ToggleRow
 import br.com.estudario.domain.ai.AiSyllabusDraft
 import br.com.estudario.domain.ai.AiSyllabusDraftSubject
 import br.com.estudario.domain.ai.AiSyllabusDraftTopic
@@ -63,6 +69,8 @@ fun AiReviewScreen(
     sourceError: String? = null,
     onLocalApplied: () -> Unit = {},
     onSyncAck: () -> Unit = {},
+    preferences: AiSyllabusPreferences? = null,
+    onPreferencesChange: (AiSyllabusPreferences) -> Unit = {},
 ) {
     var addingSubject by remember { mutableStateOf(false) }
     var localAppliedNotified by remember(state.targetSyllabusId) { mutableStateOf(false) }
@@ -88,7 +96,16 @@ fun AiReviewScreen(
                 item { Text(message, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("ai_source_error")) }
             }
             when (val content = state.content) {
-                AiReviewContent.Gate -> item { AiGate(state.access, onLogin, onPickSource, onFallback) }
+                AiReviewContent.Gate -> item {
+                    AiGate(
+                        access = state.access,
+                        preferences = preferences ?: AiSyllabusPreferences(competitionName = state.targetTitle, role = ""),
+                        onPreferencesChange = onPreferencesChange,
+                        onLogin = onLogin,
+                        onPickSource = onPickSource,
+                        onFallback = onFallback,
+                    )
+                }
                 is AiReviewContent.Processing -> item { AiProcessing(content) }
                 is AiReviewContent.Review -> item {
                     AiDraftEditor(
@@ -130,6 +147,8 @@ fun AiReviewScreen(
 @Composable
 private fun AiGate(
     access: AiReviewAccessState,
+    preferences: AiSyllabusPreferences,
+    onPreferencesChange: (AiSyllabusPreferences) -> Unit,
     onLogin: () -> Unit,
     onPickSource: () -> Unit,
     onFallback: () -> Unit,
@@ -154,13 +173,37 @@ private fun AiGate(
                     Button(onClick = onFallback, Modifier.fillMaxWidth()) { Text("Importar .estudo ou montar manualmente") }
                 }
                 AiReviewAccessKind.READY -> {
-                    Text("Pronto para analisar o edital", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text("Selecione o PDF do edital para iniciar uma análise recuperável.")
-                    Button(onClick = onPickSource, Modifier.fillMaxWidth()) { Text("Selecionar PDF do edital") }
+                    Text("Configure a geração", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text("Responda às perguntas abaixo e selecione o PDF oficial do edital. As respostas orientam a IA sobre o que extrair.")
+                    AiSyllabusPreferencesForm(preferences, onPreferencesChange)
+                    if (!preferences.isComplete) Text("Preencha o nome do concurso e o cargo para continuar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    Button(onClick = onPickSource, Modifier.fillMaxWidth().testTag("ai_pick_source"), enabled = preferences.isComplete) { Text("Selecionar PDF do edital") }
                 }
             }
             access.access?.let { Text(it.toDisplay().quotaCopy) }
         }
+    }
+}
+
+/** Mesmas perguntas do gerador de edital por prompt, obrigatórias também na IA do Estudário. */
+@Composable
+private fun AiSyllabusPreferencesForm(value: AiSyllabusPreferences, onChange: (AiSyllabusPreferences) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        OptionSection("1. Concurso", required = true) {
+            OutlinedTextField(value.competitionName, { onChange(value.copy(competitionName = it)) }, Modifier.fillMaxWidth().testTag("ai_pref_competition"), singleLine = true, label = { Text("Nome do concurso *") }, isError = value.competitionName.isBlank())
+            OutlinedTextField(value.role, { onChange(value.copy(role = it)) }, Modifier.fillMaxWidth().testTag("ai_pref_role"), singleLine = true, label = { Text("Cargo ou área *") }, isError = value.role.isBlank())
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value.board, { onChange(value.copy(board = it)) }, Modifier.weight(1f), singleLine = true, label = { Text("Banca") })
+                OutlinedTextField(value.year, { onChange(value.copy(year = it.filter(Char::isDigit).take(4))) }, Modifier.weight(0.6f), singleLine = true, label = { Text("Ano") })
+            }
+        }
+        OptionSection("2. Abrangência", required = true) {
+            ChoiceChips(EditalScope.entries, EditalScope.entries.firstOrNull { it.name == value.scope } ?: EditalScope.FULL, { it.label }) { onChange(value.copy(scope = it.name)) }
+        }
+        OptionSection("3. Nível de detalhe", required = true) {
+            ChoiceChips(EditalDetail.entries, EditalDetail.entries.firstOrNull { it.name == value.detail } ?: EditalDetail.LITERAL, { it.label }) { onChange(value.copy(detail = it.name)) }
+        }
+        ToggleRow("Descrição curta em cada tópico", "Uma frase com o escopo do assunto", value.includeDescriptions) { onChange(value.copy(includeDescriptions = it)) }
     }
 }
 

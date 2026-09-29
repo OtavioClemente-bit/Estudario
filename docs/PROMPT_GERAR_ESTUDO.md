@@ -77,7 +77,7 @@ CONTEÚDO:
 - teorias: um livro didático, longo, autossuficiente e completo. Divida em capítulos substanciais com fundamentos, desenvolvimento, exemplos, aplicações, comparações, pegadinhas e síntese. Explique termos na primeira ocorrência. Não invente leis, números, jurisprudência ou versões.
 - summary: resumo completo e estruturado de toda a teoria; não é apenas uma lista curta.
 - quickReview: revisão de poucos minutos, diferente do summary.
-- tips: bizus objetivos e úteis.
+- tips: dicas objetivas e úteis de prova.
 - traps: confusões e armadilhas típicas de prova.
 - activeRecall: perguntas curtas para o aluno responder mentalmente sem consultar.
 - questions: questões autorais no estilo da banca, cinco alternativas A–E, uma correta, distratores plausíveis e explicação detalhada.
@@ -102,7 +102,7 @@ RESPONDA SOMENTE COM ESTE JSON PREENCHIDO, SEM BLOCO DE CÓDIGO:
   ],
   "summary": "# Resumo completo\n\nConteúdo estruturado...",
   "quickReview": "# Revisão rápida\n\nConteúdo para poucos minutos...",
-  "tips": ["Bizu 1", "Bizu 2"],
+  "tips": ["Dica 1", "Dica 2"],
   "traps": ["Pegadinha 1", "Pegadinha 2"],
   "activeRecall": ["Pergunta de recuperação ativa 1?", "Pergunta 2?"],
   "questions": [

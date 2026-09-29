@@ -84,6 +84,14 @@ fun interface AiHttpTransport {
 interface AiApiClient {
     suspend fun createOrGetJob(idempotencyKey: String, source: AiSourceMetadata, sourceReady: Boolean): AiCreateJob
 
+    /** Igual ao anterior, levando as respostas do formulário de geração para orientar a IA. */
+    suspend fun createOrGetJob(
+        idempotencyKey: String,
+        source: AiSourceMetadata,
+        sourceReady: Boolean,
+        preferences: AiSyllabusPreferences?,
+    ): AiCreateJob = createOrGetJob(idempotencyKey, source, sourceReady)
+
     suspend fun uploadSource(target: AiUploadTarget, source: PdfSource)
 
     suspend fun processJob(jobId: String): AiJobStatus
@@ -123,6 +131,13 @@ class HttpAiApiClient(
         idempotencyKey: String,
         source: AiSourceMetadata,
         sourceReady: Boolean,
+    ): AiCreateJob = createOrGetJob(idempotencyKey, source, sourceReady, null)
+
+    override suspend fun createOrGetJob(
+        idempotencyKey: String,
+        source: AiSourceMetadata,
+        sourceReady: Boolean,
+        preferences: AiSyllabusPreferences?,
     ): AiCreateJob {
         val response = execute(
             buildRequest(
@@ -141,6 +156,17 @@ class HttpAiApiClient(
                             put("ready", JsonPrimitive(true))
                         }
                     })
+                    preferences?.let { value ->
+                        put("options", buildJsonObject {
+                            put("competitionName", JsonPrimitive(value.competitionName.trim()))
+                            put("role", JsonPrimitive(value.role.trim()))
+                            put("board", JsonPrimitive(value.board.trim()))
+                            put("year", JsonPrimitive(value.year.trim()))
+                            put("scope", JsonPrimitive(value.scope))
+                            put("detail", JsonPrimitive(value.detail))
+                            put("includeDescriptions", JsonPrimitive(value.includeDescriptions))
+                        })
+                    }
                 }.toString().toJsonBytes(),
                 contentType = JSON_CONTENT_TYPE,
             ),

@@ -243,9 +243,12 @@ private fun HowItWorks(steps: List<String>) {
 }
 
 @Composable
-fun OptionSection(title: String, hint: String? = null, content: @Composable ColumnScope.() -> Unit) {
+fun OptionSection(title: String, hint: String? = null, required: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            if (required) Text("  Obrigatório", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+        }
         if (hint != null) Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         content()
     }

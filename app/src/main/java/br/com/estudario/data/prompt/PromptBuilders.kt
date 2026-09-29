@@ -167,7 +167,7 @@ object EditalPromptBuilder {
 // ---------------------------------------------------------------------------------------------
 
 enum class ContentBlock(val label: String) {
-    THEORY("Teoria"), SUMMARY("Resumo completo"), QUICK_REVIEW("Revisão rápida"), TIPS_TRAPS("Bizus e pegadinhas"),
+    THEORY("Teoria"), SUMMARY("Resumo completo"), QUICK_REVIEW("Revisão rápida"), TIPS_TRAPS("Dicas e pegadinhas"),
     ACTIVE_RECALL("Perguntas de memorização"), QUESTIONS("Questões"), ERROR_CONCEPTS("Conceitos que geram erro"),
 }
 
@@ -198,6 +198,16 @@ object PromptDelivery {
         appendLine("7. Não gere o arquivo se uma regra específica abaixo exigir um material de entrada que não chegou ou está ilegível, ou se a pesquisa ou evidência exigida não pôde ser obtida. Um anexo opcional ausente não é motivo para recusar. Nesses casos, informe em uma linha o que faltou ou não pôde ser verificado.")
     }
 }
+/**
+ * Limites de geração por plano. Por enquanto todo mundo está no plano grátis, que gera no máximo
+ * [FREE_MAX_QUESTIONS] questões por pedido; quando houver plano pago, basta trocar [maxQuestions].
+ */
+object GenerationLimits {
+    const val MIN_QUESTIONS = 1
+    const val FREE_MAX_QUESTIONS = 10
+    fun maxQuestions(): Int = FREE_MAX_QUESTIONS
+}
+
 enum class QuestionDifficulty(val label: String) { MIXED("Mista"), EASY("Fácil"), MEDIUM("Média"), HARD("Difícil") }
 enum class MaterialSource(val label: String) { AI_KNOWLEDGE("Conhecimento da IA"), ATTACHED("Vou anexar material") }
 
@@ -283,7 +293,7 @@ object ContentPromptBuilder {
             o.blocks.isEmpty() -> setOf(ContentBlock.SUMMARY)
             else -> o.blocks
         }
-        val questions = if (ContentBlock.QUESTIONS in blocks) o.questionCount.coerceIn(1, 60) else 0
+        val questions = if (ContentBlock.QUESTIONS in blocks) o.questionCount.coerceIn(1, GenerationLimits.maxQuestions()) else 0
         val batchSuffix = additionalQuestionBatchId?.let { "-lote-${PromptIds.slug(it)}" }.orEmpty()
         val targetSlug = if (single) PromptIds.slug(PromptIds.topic(targets.first())) else "lote-" + targets.joinToString("-") { it.id.toString() }.take(40)
         val packageId = "conteudo-${PromptIds.slug(PromptIds.subject(subject))}-$targetSlug$batchSuffix"
@@ -376,7 +386,7 @@ object ContentPromptBuilder {
             )
             if (ContentBlock.SUMMARY in blocks) appendLine("- summary: resumo completo em Markdown que consolida toda a teoria, detalhado o bastante para estudar só por ele.")
             if (ContentBlock.QUICK_REVIEW in blocks) appendLine("- quickReview: revisão de poucos minutos em Markdown, conceitos-chave, diferenças, regras e números que caem.")
-            if (ContentBlock.TIPS_TRAPS in blocks) appendLine("- tips: bizus objetivos. traps: pegadinhas e confusões típicas de prova.")
+            if (ContentBlock.TIPS_TRAPS in blocks) appendLine("- tips: dicas objetivas de prova. traps: pegadinhas e confusões típicas de prova.")
             if (ContentBlock.ACTIVE_RECALL in blocks) appendLine("- activeRecall: perguntas curtas para responder sem olhar (recuperação ativa).")
             if (ContentBlock.ERROR_CONCEPTS in blocks) appendLine("- errorConcepts: conceitos que costumam gerar erro, cada um com título e explicação corretiva curta.")
             if (questions > 0) {
@@ -501,7 +511,7 @@ object ContentPromptBuilder {
                 if (ContentBlock.SUMMARY in blocks) line(indent + 1, "\"summary\": \"# Resumo completo\\n\\n...\",")
                 if (ContentBlock.QUICK_REVIEW in blocks) line(indent + 1, "\"quickReview\": \"# Revisão rápida\\n\\n...\",")
                 if (ContentBlock.TIPS_TRAPS in blocks) {
-                    line(indent + 1, "\"tips\": [\"Bizu 1\", \"Bizu 2\"],")
+                    line(indent + 1, "\"tips\": [\"Dica 1\", \"Dica 2\"],")
                     line(indent + 1, "\"traps\": [\"Pegadinha 1\"],")
                 }
                 if (ContentBlock.ACTIVE_RECALL in blocks) line(indent + 1, "\"activeRecall\": [\"Pergunta 1?\", \"Pergunta 2?\"],")

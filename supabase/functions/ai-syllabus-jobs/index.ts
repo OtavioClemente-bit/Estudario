@@ -1,3 +1,4 @@
+import { parseSyllabusGenerationOptions, type SyllabusGenerationOptions } from "../_shared/prompts/syllabus-v1.ts";
 import { parseAiJob, type AiFeature, type AiJob } from "../_shared/contracts.ts";
 import {
   authenticateSupabaseRequest,
@@ -116,6 +117,13 @@ function sourceInput(body: Record<string, unknown>): Record<string, unknown> {
   return body.source;
 }
 
+function generationOptions(body: Record<string, unknown>): SyllabusGenerationOptions | null {
+  if (body.options === undefined || body.options === null) return null;
+  const options = parseSyllabusGenerationOptions(body.options);
+  if (options === null) throw new JobStoreError("INVALID_REQUEST", 400);
+  return options;
+}
+
 function sourcePath(userId: string, key: string, source: Record<string, unknown>): string {
   const generated = sourcePathForJob(userId, key);
   if (source.objectPath === undefined) return generated;
@@ -181,6 +189,7 @@ async function createJob(
   const mimeType = clientMime(source);
   const sourceHash = clientSourceHash(source);
   const sourceBytes = clientSourceBytes(source);
+  const options = generationOptions(body);
   const payload = {
     feature: SYLLABUS_FEATURE,
     sourcePath: path,
@@ -188,6 +197,7 @@ async function createJob(
     mimeType,
     sourceHash,
     sourceBytes,
+    ...(options === null ? {} : { options }),
   } satisfies Record<string, unknown>;
   const fingerprint = await requestFingerprint(payload);
 

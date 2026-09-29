@@ -4,6 +4,8 @@ import android.app.Application
 import android.net.Uri
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import br.com.estudario.data.ai.AiFeature
@@ -41,6 +43,7 @@ class AiReviewEntryPointTest {
             }
         }
         compose.waitUntil { viewModel.state.value.access.kind == AiReviewAccessKind.READY }
+        compose.onNodeWithTag("ai_pref_role").performTextInput("Analista")
         compose.onNodeWithText("Selecionar PDF do edital").performClick()
         picker.resultCallback!!.invoke(selectedUri)
         compose.waitUntil { jobs.startedUris.size == 1 }
@@ -68,6 +71,7 @@ class AiReviewEntryPointTest {
             }
         }
         compose.waitUntil { viewModel.state.value.access.kind == AiReviewAccessKind.READY }
+        compose.onNodeWithTag("ai_pref_role").performTextInput("Analista")
         compose.onNodeWithText("Selecionar PDF do edital").performClick()
         picker.resultCallback!!.invoke(Uri.parse("content://provider/edital.pdf"))
         compose.waitUntil { permission.persistedUris.size == 1 }

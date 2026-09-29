@@ -34,6 +34,7 @@ data class PersistedAiJobRequest(
     val targetSyllabusId: Long? = null,
     val targetTitle: String? = null,
     val updatedAtEpochMillis: Long = System.currentTimeMillis(),
+    val preferences: AiSyllabusPreferences? = null,
 )
 
 interface AiJobRequestStore {
@@ -89,6 +90,7 @@ class DefaultAiSyllabusRepository(
         fileName: String? = null,
         targetSyllabusId: Long? = null,
         targetTitle: String? = null,
+        preferences: AiSyllabusPreferences? = null,
         onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit = {},
     ): AiJob {
         val ownerUserId = requireAuthenticatedUser()
@@ -106,6 +108,7 @@ class DefaultAiSyllabusRepository(
             ownerUserId = ownerUserId,
             targetSyllabusId = targetSyllabusId,
             targetTitle = targetTitle,
+            preferences = preferences,
         )
         requestStore.save(request)
         onRequestPersisted(request)
@@ -247,6 +250,7 @@ class DefaultAiSyllabusRepository(
             current.idempotencyKey,
             sourceMetadata.copy(objectPath = current.uploadPath.takeIf { sourceReady }),
             sourceReady = sourceReady,
+            preferences = current.preferences,
         )
         current = current.copy(
             jobId = created.jobId,
@@ -267,6 +271,7 @@ class DefaultAiSyllabusRepository(
                 current.idempotencyKey,
                 sourceMetadata.copy(objectPath = created.uploadTarget.path),
                 sourceReady = true,
+                preferences = current.preferences,
             )
             current = current.copy(
                 jobId = bound.jobId,
