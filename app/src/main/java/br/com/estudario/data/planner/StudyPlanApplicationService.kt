@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import br.com.estudario.data.local.AppDatabase
 import br.com.estudario.data.local.planner.PlanSubjectEntity
+import br.com.estudario.data.local.planner.PlanCompetitionEntity
 import br.com.estudario.data.local.planner.StudyAvailabilityEntity
 import br.com.estudario.data.local.planner.StudyPlanEntity
 import br.com.estudario.data.local.planner.StudyPlanRevisionEntity
@@ -38,6 +39,7 @@ data class PlanSubjectInput(
 
 data class CreatePlanInput(
     val competitionId: Long,
+    val competitionIds: List<Long> = listOf(competitionId),
     val name: String,
     val objective: String,
     val startDate: LocalDate,
@@ -64,6 +66,13 @@ class StudyPlanApplicationService(
         require(input.name.isNotBlank()) { "Informe um nome para o plano." }
         require(input.objective.isNotBlank()) { "Informe o objetivo do plano." }
         require(input.availability.any { !it.unavailable && it.availableMinutes > 0 }) { "Informe pelo menos um dia disponível." }
+        require(input.competitionIds.isNotEmpty()) { "Selecione pelo menos um edital." }
+        require(input.competitionIds.distinct().size == input.competitionIds.size) { "Cada edital pode ser selecionado uma vez." }
+        require(input.competitionId in input.competitionIds) { "O edital principal precisa fazer parte do plano." }
+        val subjectCompetitions = db.dao().subjectsOnce().associate { it.id to it.competitionId }
+        require(input.subjects.all { subjectCompetitions[it.subjectId] in input.competitionIds }) {
+            "Há matéria fora dos editais selecionados."
+        }
         val id = UUID.randomUUID().toString()
         planner.insertPlan(
             StudyPlanEntity(
@@ -83,6 +92,9 @@ class StudyPlanApplicationService(
                 discursivesPerMonth = input.method.discursivesPerMonth,
                 interleaveSubjects = input.method.interleaveSubjects,
             ),
+        )
+        planner.upsertPlanCompetitions(
+            input.competitionIds.mapIndexed { position, competitionId -> PlanCompetitionEntity(id, competitionId, position) },
         )
         planner.insertRevision(StudyPlanRevisionEntity(id, 0, 0, "CREATED", summary = "Plano criado."))
         planner.upsertAvailability(input.availability.map { it.copy(planId = id) })
@@ -121,7 +133,9 @@ class StudyPlanApplicationService(
         val plan = planner.plan(planId) ?: error("Plano não encontrado.")
         require(!plan.archived) { "Restaure o plano antes de ativá-lo." }
         require(planner.claimRevision(plan.id, plan.revision, System.currentTimeMillis()) == 1)
-        planner.activateOnly(plan.competitionId, planId)
+        val competitions = planner.competitionsFor(planId).map { it.competitionId }
+        planner.deactivatePlansSharingCompetitions(planId, competitions)
+        planner.updatePlan(plan.copy(active = true, updatedAt = System.currentTimeMillis()))
         planner.insertRevision(StudyPlanRevisionEntity(plan.id, plan.revision + 1, plan.revision, "ACTIVATED", summary = "Plano ativado."))
     }
 
@@ -129,7 +143,9 @@ class StudyPlanApplicationService(
         val plan = planner.plan(planId) ?: error("Plano não encontrado.")
         require(!plan.archived) { "Restaure o plano antes de marcá-lo como Mestre." }
         require(planner.claimRevision(plan.id, plan.revision, System.currentTimeMillis()) == 1)
-        planner.markOnlyMaster(plan.competitionId, planId)
+        val competitions = planner.competitionsFor(planId).map { it.competitionId }
+        planner.unmarkMasterPlansSharingCompetitions(planId, competitions)
+        planner.updatePlan(plan.copy(masterPlan = true, updatedAt = System.currentTimeMillis()))
         planner.insertRevision(StudyPlanRevisionEntity(plan.id, plan.revision + 1, plan.revision, "MASTER_SELECTED", summary = "Plano marcado como Mestre."))
     }
 
@@ -257,6 +273,7 @@ class StudyPlanApplicationService(
         val newId = UUID.randomUUID().toString()
         val now = System.currentTimeMillis()
         planner.insertPlan(source.copy(id = newId, name = name.trim(), active = false, masterPlan = false, archived = false, revision = 0, createdAt = now, updatedAt = now))
+        planner.upsertPlanCompetitions(planner.competitionsFor(planId).map { it.copy(planId = newId) })
         planner.insertRevision(StudyPlanRevisionEntity(newId, 0, 0, "DUPLICATED", summary = "Duplicado de $planId."))
         planner.upsertAvailability(planner.availabilityFor(planId).map { it.copy(planId = newId) })
         planner.upsertPlanSubjects(planner.subjectsFor(planId).map { it.copy(planId = newId) })
