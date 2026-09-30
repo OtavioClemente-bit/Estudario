@@ -405,13 +405,14 @@ async function finalizeFailure(
   status: "FAILED" | "EXPIRED" | "CANCELLED",
   providerReconciled: boolean,
   usage: ProviderUsage | null = null,
+  providerDetail: string | null = null,
 ): Promise<void> {
   await cleanupBestEffort(dependencies, job, lease);
   await dependencies.jobs.finalizeFailure(
     job.id,
     lease,
     code,
-    "The AI job did not complete",
+    providerDetail ? `The AI job did not complete (provider: ${providerDetail})` : "The AI job did not complete",
     status,
     providerReconciled,
   );
@@ -487,6 +488,7 @@ async function processResponse(
       "FAILED",
       false,
       response.usage,
+      `${response.status}${response.failureCode ? `/${response.failureCode}` : ""}`,
     );
     return;
   }
@@ -624,6 +626,7 @@ async function processReconciliation(
         terminalStatus,
         false,
         response.usage,
+        `${response.status}${response.failureCode ? `/${response.failureCode}` : ""}`,
       );
     }
     await dependencies.jobs.completeReconciliation(job.id, lease);

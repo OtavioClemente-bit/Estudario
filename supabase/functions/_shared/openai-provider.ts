@@ -28,6 +28,24 @@ export interface ProviderResponse {
   status: ProviderResponseStatus;
   outputText: string | null;
   usage: ProviderUsage | null;
+  /** Código curto que a OpenAI dá quando a resposta falha (ex.: server_error). Só letras e _. */
+  failureCode?: string | null;
+}
+
+/** Motivo da falha num formato seguro para guardar: nada de texto livre vindo da OpenAI. */
+function failureCode(row: Record<string, unknown>): string | null {
+  const pick = (value: unknown): string | null =>
+    typeof value === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(value) ? value : null;
+  const error = row.error;
+  if (error !== null && typeof error === "object" && !Array.isArray(error)) {
+    const code = pick((error as Record<string, unknown>).code) ?? pick((error as Record<string, unknown>).type);
+    if (code) return code;
+  }
+  const incomplete = row.incomplete_details;
+  if (incomplete !== null && typeof incomplete === "object" && !Array.isArray(incomplete)) {
+    return pick((incomplete as Record<string, unknown>).reason);
+  }
+  return null;
 }
 
 export interface ProviderStartInput {
@@ -377,6 +395,7 @@ function parseResponse(value: unknown): ProviderResponse {
     status: responseStatus(row.status, row.id.trim()),
     outputText: outputText(row.output_text ?? row.output),
     usage: usage(row.usage),
+    failureCode: failureCode(row),
   };
 }
 
