@@ -67,37 +67,35 @@ function deviceHash(request: Request): string | null {
 }
 
 /**
- * Antes de reservar cota: no plano Grátis, o aparelho não pode passar do saldo grátis somando todas
- * as contas. Se a consulta falhar, o pedido segue (a cota da conta continua valendo).
+ * Limite grátis por aparelho, só na criação de um job novo. Chamadas seguintes do mesmo job (a
+ * que prende o PDF, por exemplo) reaproveitam o job e nunca são barradas. Se o aparelho já usou
+ * o saldo grátis, a reserva recém-feita é devolvida e o pedido é recusado. Se a consulta falhar,
+ * o pedido segue: a cota da conta continua valendo.
  */
-async function deviceQuotaBlocked(
+async function claimDeviceAllowance(
   dependencies: AiSyllabusJobsDependencies,
   userId: string,
   device: string | null,
   feature: AiFeature,
+  created: { jobId: string; reused: boolean },
 ): Promise<Response | null> {
-  if (!dependencies.deviceQuota || device === null) return null;
+  if (!dependencies.deviceQuota || device === null || created.reused) return null;
+  let exhausted = false;
   try {
-    if (await dependencies.deviceQuota.exhausted(userId, device, feature)) return safeError("DEVICE_QUOTA_EXHAUSTED", 429);
+    exhausted = await dependencies.deviceQuota.exhausted(userId, device, feature);
   } catch {
     return null;
   }
-  return null;
-}
-
-async function recordDeviceQuietly(
-  dependencies: AiSyllabusJobsDependencies,
-  userId: string,
-  device: string | null,
-  feature: AiFeature,
-  jobId: string,
-): Promise<void> {
-  if (!dependencies.deviceQuota || device === null) return;
+  if (exhausted) {
+    await releaseQuietly(dependencies, userId, created.jobId);
+    return safeError("DEVICE_QUOTA_EXHAUSTED", 429);
+  }
   try {
-    await dependencies.deviceQuota.record(userId, device, feature, jobId);
+    await dependencies.deviceQuota.record(userId, device, feature, created.jobId);
   } catch {
     // O registro só alimenta o limite por aparelho; falhar aqui não derruba a geração.
   }
+  return null;
 }
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
@@ -275,8 +273,6 @@ async function createJob(
     }
   }
   const device = deviceHash(request);
-  const blocked = await deviceQuotaBlocked(dependencies, user.userId, device, SYLLABUS_FEATURE);
-  if (blocked) return blocked;
   const payload = {
     feature: SYLLABUS_FEATURE,
     sourcePath: path,
@@ -302,7 +298,8 @@ async function createJob(
     return safeError("AI_JOB_DATA_UNAVAILABLE", 503);
   }
 
-  if (!created.reused) await recordDeviceQuietly(dependencies, user.userId, device, SYLLABUS_FEATURE, created.jobId);
+  const blockedSyllabus = await claimDeviceAllowance(dependencies, user.userId, device, SYLLABUS_FEATURE, created);
+  if (blockedSyllabus) return blockedSyllabus;
   let job = await dependencies.jobs.getJob(user.userId, created.jobId);
   if (!job) return safeError("AI_JOB_NOT_FOUND", 503);
   assertBoundSourceMatches(job, source);
@@ -383,8 +380,6 @@ async function createTextJob(
     }
     if (questionCount > limit) return safeError("QUESTION_LIMIT_EXCEEDED", 403);
   }
-  const blocked = await deviceQuotaBlocked(dependencies, user.userId, device, feature);
-  if (blocked) return blocked;
   const payload = { feature, input } satisfies Record<string, unknown>;
   const fingerprint = await requestFingerprint(payload);
   let created;
@@ -400,7 +395,8 @@ async function createTextJob(
     if (error instanceof JobStoreError) return safeError(error.code, error.status, error.retryAfterSeconds);
     return safeError("AI_JOB_DATA_UNAVAILABLE", 503);
   }
-  if (!created.reused) await recordDeviceQuietly(dependencies, user.userId, device, feature, created.jobId);
+  const blockedText = await claimDeviceAllowance(dependencies, user.userId, device, feature, created);
+  if (blockedText) return blockedText;
   let job = await dependencies.jobs.getJob(user.userId, created.jobId);
   if (!job) return safeError("AI_JOB_NOT_FOUND", 503);
   if (job.status === "RESERVED") {

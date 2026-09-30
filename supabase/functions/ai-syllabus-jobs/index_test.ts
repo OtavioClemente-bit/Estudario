@@ -312,12 +312,15 @@ function deviceRequest(): Request {
   });
 }
 
-Deno.test("free allowance used on this device blocks a new job before reserving quota", async () => {
-  let reserved = false;
+Deno.test("free allowance used on this device refuses a new job and returns its reservation", async () => {
+  const released: string[] = [];
   const handler = createAiSyllabusJobsHandler({
     authenticate: () => Promise.resolve({ userId: "user-2", accessToken: "t" }),
     storage: {} as never,
-    jobs: { createOrGet: () => { reserved = true; return Promise.reject(new Error("must not reserve")); } } as never,
+    jobs: {
+      createOrGet: () => Promise.resolve({ jobId: "job-new", reused: false }),
+      releaseReservation: (_user: string, job: string) => { released.push(job); return Promise.resolve(); },
+    } as never,
     limits: { maxBytes: 1, maxPages: 1, maxFiles: 1 },
     schedule: () => Promise.resolve(),
     deviceQuota: {
@@ -328,7 +331,30 @@ Deno.test("free allowance used on this device blocks a new job before reserving 
   const response = await handler(deviceRequest());
   assertEquals(response.status, 429);
   assertEquals((await response.json()).error.code, "DEVICE_QUOTA_EXHAUSTED");
-  assertEquals(reserved, false);
+  assertEquals(released, ["job-new"]);
+});
+
+Deno.test("the follow-up call of an existing job is never blocked by the device allowance", async () => {
+  // O caso real: o 1º POST registrou o job no aparelho (1 de 1) e o 2º POST, que prende o PDF,
+  // não pode ser barrado pelo próprio job.
+  let checked = false;
+  const handler = createAiSyllabusJobsHandler({
+    authenticate: () => Promise.resolve({ userId: "user-1", accessToken: "t" }),
+    storage: {} as never,
+    jobs: {
+      createOrGet: () => Promise.resolve({ jobId: "job-1", reused: true }),
+      getJob: () => Promise.resolve(null),
+    } as never,
+    limits: { maxBytes: 1, maxPages: 1, maxFiles: 1 },
+    schedule: () => Promise.resolve(),
+    deviceQuota: {
+      exhausted: () => { checked = true; return Promise.resolve(true); },
+      record: () => Promise.reject(new Error("must not record")),
+    },
+  });
+  const response = await handler(deviceRequest());
+  assertNotEquals(response.status, 429);
+  assertEquals(checked, false);
 });
 
 Deno.test("a new job is recorded against the device that asked for it", async () => {
