@@ -8,7 +8,7 @@ import kotlinx.serialization.json.Json
 
 const val CURRENT_AI_SCHEMA_VERSION: Int = 1
 
-enum class AiFeature { SYLLABUS_GENERATION, PLAN_GENERATION, CONTENT_GENERATION }
+enum class AiFeature { SYLLABUS_GENERATION, PLAN_GENERATION, CONTENT_GENERATION, SIMULATION_GENERATION }
 enum class AiJobStatus { RESERVED, PROCESSING, SUCCEEDED, FAILED, EXPIRED, CANCELLED }
 enum class AiPriority { LOW, NORMAL, HIGH }
 enum class AiWarningSeverity { INFO, WARNING, ERROR }

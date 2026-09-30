@@ -25,14 +25,16 @@ import br.com.estudario.data.local.planner.*
         AnnualPhaseSubjectEntity::class, AnnualPhaseTopicEntity::class, MonthlyPlanEntity::class,
         MonthlyPlanSubjectEntity::class, MonthlyPlanTopicEntity::class, WeeklyPlanEntity::class,
         PlanTaskEntity::class, PlanTaskDependencyEntity::class, StudyTaskExecutionEntity::class,
+        ExamProfileEntity::class, SimulationEntity::class,
     ],
-    version = 20,
+    version = 21,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dao(): AppDao
     abstract fun plannerDao(): PlannerDao
+    abstract fun simulationDao(): SimulationDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -275,6 +277,17 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         /** Perguntas de memorização passam a ter resposta, para a pessoa conferir depois de tentar. */
+        val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `questions` ADD COLUMN `simulationId` INTEGER")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_questions_simulationId` ON `questions` (`simulationId`)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `exam_profiles` (`competitionId` INTEGER NOT NULL, `board` TEXT, `boardSource` TEXT, `boardUrl` TEXT, `boardPending` INTEGER NOT NULL, `style` TEXT NOT NULL, `targetPercent` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`competitionId`), FOREIGN KEY(`competitionId`) REFERENCES `competitions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `simulations` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `competitionId` INTEGER NOT NULL, `mode` TEXT NOT NULL, `title` TEXT NOT NULL, `board` TEXT, `style` TEXT NOT NULL, `plannedQuestions` INTEGER NOT NULL, `timeLimitMinutes` INTEGER NOT NULL, `status` TEXT NOT NULL, `partsJson` TEXT NOT NULL, `answersJson` TEXT NOT NULL, `flaggedJson` TEXT NOT NULL, `weakSpotsJson` TEXT NOT NULL, `sourceSimulationId` INTEGER, `createdAt` INTEGER NOT NULL, `startedAt` INTEGER, `finishedAt` INTEGER, `elapsedSeconds` INTEGER NOT NULL, `answeredCount` INTEGER NOT NULL, `correctCount` INTEGER NOT NULL, `questionCount` INTEGER NOT NULL, `scorePercent` INTEGER, FOREIGN KEY(`competitionId`) REFERENCES `competitions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_simulations_competitionId` ON `simulations` (`competitionId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_simulations_status` ON `simulations` (`status`)")
+            }
+        }
+
         val MIGRATION_19_20 = object : Migration(19, 20) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `questions` ADD COLUMN `isHidden` INTEGER NOT NULL DEFAULT 0")
@@ -418,6 +431,6 @@ abstract class AppDatabase : RoomDatabase() {
             context.applicationContext,
             AppDatabase::class.java,
             "estudario.db",
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21).build()
     }
 }

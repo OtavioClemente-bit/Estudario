@@ -438,7 +438,32 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         },
                     )
                 }
-                composable("train") { TrainScreen(viewModel, onStart = { config -> navController.navigate("quiz/${config.count}/${config.topicId ?: 0}/${config.subjectId ?: 0}/${config.mode}/${Uri.encode(config.board ?: "_")}/${config.difficulty ?: "_"}") }, onHelp = { viewModel.startTour(TourId.TRAIN) }) }
+                composable("train") { TrainScreen(viewModel, onSimulations = { navController.navigate("simulations") }, onStart = { config -> navController.navigate("quiz/${config.count}/${config.topicId ?: 0}/${config.subjectId ?: 0}/${config.mode}/${Uri.encode(config.board ?: "_")}/${config.difficulty ?: "_"}") }, onHelp = { viewModel.startTour(TourId.TRAIN) }) }
+                composable("simulations") {
+                    br.com.estudario.ui.simulation.SimulationsScreen(
+                        viewModel,
+                        onOpenExam = { navController.navigate("simulation/$it/exam") },
+                        onOpenResult = { navController.navigate("simulation/$it/result") },
+                    )
+                }
+                composable("simulation/{id}/exam") { backStack ->
+                    val id = backStack.arguments?.getString("id")?.toLongOrNull() ?: 0L
+                    br.com.estudario.ui.simulation.SimulationExamScreen(
+                        id,
+                        onExit = { navController.popBackStack() },
+                        onFinished = { finished -> navController.navigate("simulation/$finished/result") { popUpTo("simulations") } },
+                    )
+                }
+                composable("simulation/{id}/result") { backStack ->
+                    val id = backStack.arguments?.getString("id")?.toLongOrNull() ?: 0L
+                    br.com.estudario.ui.simulation.SimulationResultScreen(
+                        viewModel,
+                        id,
+                        onBack = { navController.popBackStack() },
+                        onTrainSubject = { subjectId -> navController.navigate("quiz/15/0/$subjectId/random/_/_") },
+                        onOpenSimulations = { navController.navigate("simulations") { popUpTo("simulations") { inclusive = true } } },
+                    )
+                }
                 composable("errors") { ErrorsScreen(viewModel, onTrainErrors = { navController.navigate("quiz/20/0/0/errors/_/_") }, onOpenTopic = { navController.navigate("topic/$it") }) }
                 composable("more") { MoreScreen(viewModel, onOpenSetup = viewModel::reopenInitialSetup, onNotifications = { navController.navigate("notifications") }, onAgenda = { navController.navigate("agenda") }) }
                 composable("agenda") {

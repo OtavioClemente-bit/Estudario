@@ -39,6 +39,7 @@ class AiAccessViewModelTest {
                 AiFeature.SYLLABUS_GENERATION -> access(feature, 1, "FEATURE_DISABLED")
                 AiFeature.PLAN_GENERATION -> access(feature, 1, "BETA_ACCESS_REQUIRED")
                 AiFeature.CONTENT_GENERATION -> access(feature, 0, "QUOTA_EXHAUSTED", "2026-09-24T03:00:00Z")
+                AiFeature.SIMULATION_GENERATION -> access(feature, 1)
             })
         })
         vm.refresh()

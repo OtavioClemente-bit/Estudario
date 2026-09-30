@@ -192,7 +192,7 @@ data class TheoryMarkEntity(
 @Entity(
     tableName = "questions",
     foreignKeys = [ForeignKey(entity = TopicEntity::class, parentColumns = ["id"], childColumns = ["topicId"], onDelete = ForeignKey.CASCADE)],
-    indices = [Index("topicId"), Index(value = ["externalId"], unique = true), Index("sourceId"), Index("normalizedHash"), Index("questionSourceType")],
+    indices = [Index("topicId"), Index(value = ["externalId"], unique = true), Index("sourceId"), Index("normalizedHash"), Index("questionSourceType"), Index("simulationId")],
 )
 data class QuestionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -232,6 +232,63 @@ data class QuestionEntity(
     val errorConceptExternalId: String? = null,
     /** Ocultada pela pessoa (deslizou para o lado): some das listas e dos treinos, mas pode ser restaurada. */
     val isHidden: Boolean = false,
+    /** Questão criada para um simulado: fica fora do banco até a pessoa entregar a prova. */
+    val simulationId: Long? = null,
+)
+
+/** Dados da prova de um concurso que o simulado usa: banca, formato e a meta de acerto. */
+@Entity(
+    tableName = "exam_profiles",
+    foreignKeys = [ForeignKey(entity = CompetitionEntity::class, parentColumns = ["id"], childColumns = ["competitionId"], onDelete = ForeignKey.CASCADE)],
+)
+data class ExamProfileEntity(
+    @PrimaryKey val competitionId: Long,
+    val board: String? = null,
+    /** EDITAL, WEB (detectada pela IA, com fonte) ou USER (escolhida pela pessoa). */
+    val boardSource: String? = null,
+    val boardUrl: String? = null,
+    /** Detectada pela IA e ainda não confirmada pela pessoa. */
+    val boardPending: Boolean = false,
+    /** FIVE_OPTIONS, FOUR_OPTIONS, TRUE_FALSE ou MIXED. */
+    val style: String = "FIVE_OPTIONS",
+    val targetPercent: Int = 70,
+    val updatedAt: Long = System.currentTimeMillis(),
+)
+
+@Entity(
+    tableName = "simulations",
+    foreignKeys = [ForeignKey(entity = CompetitionEntity::class, parentColumns = ["id"], childColumns = ["competitionId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("competitionId"), Index("status")],
+)
+data class SimulationEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val competitionId: Long,
+    /** DIAGNOSTIC, STUDIED, FULL ou REMATCH. */
+    val mode: String,
+    val title: String,
+    val board: String? = null,
+    val style: String = "FIVE_OPTIONS",
+    val plannedQuestions: Int,
+    val timeLimitMinutes: Int,
+    /** GENERATING, READY, PARTIAL, IN_PROGRESS, FINISHED ou FAILED. */
+    val status: String = "GENERATING",
+    /** Partes da geração: [{key, jobId, status, error, input}] em JSON. */
+    val partsJson: String = "[]",
+    /** Respostas marcadas: {questionId: letra}. */
+    val answersJson: String = "{}",
+    /** Questões marcadas para revisar antes de entregar. */
+    val flaggedJson: String = "[]",
+    /** Fraquezas da pessoa usadas na geração, na ordem dos índices que a IA devolve. */
+    val weakSpotsJson: String = "[]",
+    val sourceSimulationId: Long? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val startedAt: Long? = null,
+    val finishedAt: Long? = null,
+    val elapsedSeconds: Long = 0,
+    val answeredCount: Int = 0,
+    val correctCount: Int = 0,
+    val questionCount: Int = 0,
+    val scorePercent: Int? = null,
 )
 
 @Entity(

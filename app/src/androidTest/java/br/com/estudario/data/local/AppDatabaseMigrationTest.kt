@@ -276,4 +276,11 @@ class AppDatabaseMigrationTest {
         }
     }
 
+    @Test
+    fun migrateTwentyToTwentyOneAddsSimulationTables() {
+        val name = "migration-v20-v21-test"
+        helper.createDatabase(name, 20).close()
+        helper.runMigrationsAndValidate(name, 21, true, AppDatabase.MIGRATION_20_21).close()
+    }
+
 }

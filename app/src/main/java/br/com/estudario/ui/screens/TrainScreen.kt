@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.ExpandLess
@@ -80,7 +81,7 @@ private data class Recommendation(val title: String, val reason: String, val ico
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: () -> Unit = {}) {
+fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: () -> Unit = {}, onSimulations: () -> Unit = {}) {
     val competitions by viewModel.competitions.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
     val topics by viewModel.topics.collectAsState()
@@ -135,6 +136,19 @@ fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: 
 
     LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { ScreenTitle("Treinar", "Questões que mudam o seu estudo", stackActionsWhenNarrow = false) { IconButton(onClick = onHelp) { Icon(Icons.Outlined.HelpOutline, "Como treinar") } } }
+        // Simulado antes de tudo: o diagnóstico funciona até para quem ainda não tem questões.
+        item {
+            Surface(onClick = onSimulations, shape = EstudarioShapes.spotlight, color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("SIMULADOS", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
+                        Text("Prova inédita no estilo da sua banca", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                        Text("Com cronômetro, gabarito no final e nota por matéria. Comece pelo diagnóstico.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                    }
+                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                }
+            }
+        }
         if (questions.isEmpty()) {
             item { EmptyState("Sem questões ainda", "Na aba Concursos, toque em ✨ num tópico e gere o material com questões. Elas aparecem aqui para treinar.") }
             return@LazyColumn

@@ -127,6 +127,7 @@ fun AiAccessSummary(
                     AiFeature.SYLLABUS_GENERATION -> "Edital" to Icons.Outlined.Description
                     AiFeature.PLAN_GENERATION -> "Plano de estudo" to Icons.Outlined.CalendarMonth
                     AiFeature.CONTENT_GENERATION -> "Conteúdo" to Icons.Outlined.MenuBook
+                    AiFeature.SIMULATION_GENERATION -> "Simulados" to Icons.Outlined.MenuBook
                 }
                 FeatureRow(label, icon, display)
             }

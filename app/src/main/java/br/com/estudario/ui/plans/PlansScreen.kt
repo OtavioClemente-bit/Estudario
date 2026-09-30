@@ -74,11 +74,12 @@ private fun featureLabel(feature: String): String = when (feature) {
     "CONTENT_GENERATION" -> "Gerações de conteúdo"
     "QUESTION_BATCH" -> "Lotes de questões extras"
     "AD_REWARD" -> "Bônus por anúncio"
+    "SIMULATION_GENERATION" -> "Simulados (partes de até 30 questões)"
     else -> feature
 }
 
 private fun featureOrder(feature: String): Int = listOf(
-    "SYLLABUS_GENERATION", "PLAN_GENERATION", "CONTENT_GENERATION", "QUESTION_BATCH", "AD_REWARD",
+    "SYLLABUS_GENERATION", "PLAN_GENERATION", "CONTENT_GENERATION", "SIMULATION_GENERATION", "QUESTION_BATCH", "AD_REWARD",
 ).indexOf(feature).let { if (it < 0) Int.MAX_VALUE else it }
 
 private fun formatDate(iso: String?): String? = iso?.let { runCatching { dateFormat.format(Instant.parse(it)) }.getOrNull() }

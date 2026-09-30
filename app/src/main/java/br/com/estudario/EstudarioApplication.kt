@@ -101,6 +101,10 @@ class EstudarioApplication : Application() {
             authRepository = supabaseAuthRepository,
         )
     }
+    /** Simulados: planta, geração em partes, prova e correção. */
+    val simulationService: br.com.estudario.data.simulation.SimulationService by lazy {
+        br.com.estudario.data.simulation.SimulationService(this, database, repository, aiTextJobClient)
+    }
     /** Reporte de erro no material, direto na tabela do Supabase. */
     val contentReportClient: br.com.estudario.data.remote.ContentReportClient by lazy {
         br.com.estudario.data.remote.ContentReportClient(supabaseClientConfig, supabaseAuthRepository)
@@ -143,6 +147,8 @@ class EstudarioApplication : Application() {
         aiSyllabusRepository
         AiJobRecoveryWorker.enqueue(this)
         RemoteSyllabusSyncWorker.enqueue(this)
+        // Simulado que estava sendo gerado quando o app fechou continua de onde parou.
+        simulationService.resumeAll()
         StudyNotificationCoordinator.createChannels(this)
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             StudyNotificationCoordinator.refresh(this@EstudarioApplication, preferences)

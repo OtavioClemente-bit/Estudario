@@ -22,7 +22,12 @@ class StudyRepository(private val db: AppDatabase) {
     val theories = dao.theories()
     val theoryMarks = dao.theoryMarks()
     val notes = dao.notes()
-    val questions = dao.questions()
+    // Questões de simulado ainda não entregue ficam fora de tudo (banco, treinos, contagens): a prova
+    // só vale se a pessoa não viu as questões antes.
+    val questions = kotlinx.coroutines.flow.combine(dao.questions(), db.simulationDao().simulations()) { rows, simulations ->
+        val open = simulations.asSequence().filter { it.status != "FINISHED" }.map { it.id }.toSet()
+        if (open.isEmpty()) rows else rows.filterNot { it.question.simulationId in open }
+    }
     val attempts = dao.attempts()
     val errors = dao.errors()
     val errorConcepts = dao.errorConcepts()
@@ -374,7 +379,8 @@ class StudyRepository(private val db: AppDatabase) {
     }
 
     suspend fun smartQuestions(count: Int, seed: Long = LocalDate.now().toEpochDay()): List<QuestionWithOptions> {
-        val questions = dao.questionsPage(2_000, 0).filterNot { it.question.isHidden }
+        val openSimulations = db.simulationDao().openIds().toSet()
+        val questions = dao.questionsPage(2_000, 0).filterNot { it.question.isHidden || it.question.simulationId in openSimulations }
         val topics = dao.topicsOnce().associateBy { it.id }
         val attempts = dao.attemptsOnce().groupBy { it.questionId }
         val reviews = dao.reviewsOnce()
