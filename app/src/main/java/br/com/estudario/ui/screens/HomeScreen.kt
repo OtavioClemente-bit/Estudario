@@ -172,6 +172,8 @@ fun HomeScreen(
                     }
                 }
             }
+            // Respiro entre o aviso e o cartão de saudação, para os dois não parecerem um bloco só.
+            item { Spacer(Modifier.height(EstudarioSpacing.medium)) }
         }
         if (competition == null) {
             item {

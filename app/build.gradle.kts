@@ -120,6 +120,14 @@ extensions.configure<ApplicationExtension> {
         getByName("release") {
             signingConfig = signingConfigs.getByName("release")
         }
+        // "Estudário Teste": instala ao lado da versão da Play Store (outro pacote e outro nome),
+        // para testar no celular sem desinstalar e sem perder os dados do app oficial.
+        create("preview") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".teste"
+            resValue("string", "app_name", "Estudário Teste")
+            matchingFallbacks += listOf("debug")
+        }
     }
 
     packaging.resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}")
