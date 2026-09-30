@@ -108,14 +108,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
     var editingNote by remember { mutableStateOf<br.com.estudario.data.local.UserNoteEntity?>(null) }
     var deckFor by remember { mutableStateOf<br.com.estudario.data.local.SummaryEntity?>(null) }
     deckFor?.let { deck ->
-        val current = summaries.firstOrNull { it.id == deck.id } ?: deck
-        br.com.estudario.ui.components.FlashcardDeckDialog(
-            title = topics.firstOrNull { it.id == current.topicId }?.title ?: current.title,
-            cards = remember(current.markdown) { br.com.estudario.ui.components.FlashcardParser.parse(current.markdown) },
-            saved = current.isFavorite,
-            onToggleSave = { viewModel.updateSummary(current.copy(isFavorite = !current.isFavorite)) },
-            onDismiss = { deckFor = null },
-        )
+        br.com.estudario.ui.components.SummaryFlashcardDeck(viewModel, deck, topics.firstOrNull { it.id == deck.topicId }?.title ?: deck.title, onDismiss = { deckFor = null })
     }
     editingNote?.let { note ->
         NoteEditor(note, topics, onDismiss = { editingNote = null }, onSave = { viewModel.saveNote(it); editingNote = null }, onDelete = { viewModel.deleteNote(note); editingNote = null })

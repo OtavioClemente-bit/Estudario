@@ -374,7 +374,7 @@ class StudyRepository(private val db: AppDatabase) {
     }
 
     suspend fun smartQuestions(count: Int, seed: Long = LocalDate.now().toEpochDay()): List<QuestionWithOptions> {
-        val questions = dao.questionsPage(2_000, 0)
+        val questions = dao.questionsPage(2_000, 0).filterNot { it.question.isHidden }
         val topics = dao.topicsOnce().associateBy { it.id }
         val attempts = dao.attemptsOnce().groupBy { it.questionId }
         val reviews = dao.reviewsOnce()
@@ -400,6 +400,7 @@ class StudyRepository(private val db: AppDatabase) {
 
     suspend fun saveQuestionSession(value: QuestionSessionEntity) = dao.insertQuestionSession(value)
     suspend fun toggleQuestionFavorite(value: QuestionEntity) = dao.updateQuestion(value.copy(isFavorite = !value.isFavorite))
+    suspend fun setQuestionsHidden(ids: List<Long>, hidden: Boolean) = dao.setQuestionsHidden(ids, hidden)
 
     suspend fun deleteError(id: Long) = dao.deleteError(id)
     suspend fun updateError(value: ErrorNotebookEntryEntity) = dao.updateError(value)

@@ -230,6 +230,8 @@ data class QuestionEntity(
      * mostrar o padrão ("confundo competência com atribuição") em vez de uma lista de questões.
      */
     val errorConceptExternalId: String? = null,
+    /** Ocultada pela pessoa (deslizou para o lado): some das listas e dos treinos, mas pode ser restaurada. */
+    val isHidden: Boolean = false,
 )
 
 @Entity(

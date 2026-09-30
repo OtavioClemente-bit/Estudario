@@ -35,6 +35,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import br.com.estudario.data.local.SnippetKind
+import br.com.estudario.data.local.SummaryEntity
+import br.com.estudario.data.local.TopicSnippetEntity
+import br.com.estudario.ui.AppViewModel
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -141,7 +147,15 @@ object FlashcardParser {
  * fórmula e destaque. [saved] guarda o baralho no Caderno de estudo.
  */
 @Composable
-fun FlashcardDeckDialog(title: String, cards: List<Flashcard>, saved: Boolean, onToggleSave: () -> Unit, onDismiss: () -> Unit) {
+fun FlashcardDeckDialog(
+    title: String,
+    cards: List<Flashcard>,
+    saved: Boolean,
+    onToggleSave: (() -> Unit)?,
+    onDismiss: () -> Unit,
+    isCardSaved: (Flashcard) -> Boolean = { false },
+    onToggleCard: ((Flashcard) -> Unit)? = null,
+) {
     val pager = rememberPagerState { cards.size }
     val flipped = remember { mutableStateMapOf<Int, Boolean>() }
     val scope = rememberCoroutineScope()
@@ -155,8 +169,8 @@ fun FlashcardDeckDialog(title: String, cards: List<Flashcard>, saved: Boolean, o
                         Text("Flashcards", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text(title, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                     }
-                    IconButton(onClick = onToggleSave) {
-                        Icon(if (saved) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder, if (saved) "Remover dos salvos" else "Salvar baralho", tint = MaterialTheme.colorScheme.primary)
+                    if (onToggleSave != null) IconButton(onClick = onToggleSave) {
+                        Icon(if (saved) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder, if (saved) "Remover baralho dos salvos" else "Salvar baralho inteiro", tint = MaterialTheme.colorScheme.primary)
                     }
                     IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "Fechar") }
                 }
@@ -165,7 +179,20 @@ fun FlashcardDeckDialog(title: String, cards: List<Flashcard>, saved: Boolean, o
                     return@Column
                 }
                 Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Cartão ${pager.currentPage + 1} de ${cards.size}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Cartão ${pager.currentPage + 1} de ${cards.size}", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        // Salvar só este cartão: o baralho de um tópico costuma ter muitos, e às vezes só um interessa.
+                        cards.getOrNull(pager.currentPage)?.let { card ->
+                            if (onToggleCard != null) {
+                                val cardSaved = isCardSaved(card)
+                                TextButton(onClick = { onToggleCard(card) }) {
+                                    Icon(if (cardSaved) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder, null, Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(if (cardSaved) "Cartão salvo" else "Salvar este cartão")
+                                }
+                            }
+                        }
+                    }
                     LinearProgressIndicator({ (pager.currentPage + 1f) / cards.size }, Modifier.fillMaxWidth())
                 }
                 HorizontalPager(pager, Modifier.weight(1f).fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp), pageSpacing = 12.dp) { page ->
@@ -239,4 +266,51 @@ private fun FlipHint(text: String) {
             Text(text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         }
     }
+}
+
+/**
+ * Cartão salvo sozinho: vira um item de memorização (pergunta na frente, resposta no verso) marcado
+ * pelo externalId, para aparecer em "Cartões salvos" no Caderno sem depender do baralho inteiro.
+ */
+object SavedFlashcards {
+    private const val PREFIX = "flashcard:"
+
+    fun externalId(summaryId: Long, card: Flashcard): String =
+        "$PREFIX$summaryId:" + java.security.MessageDigest.getInstance("SHA-256")
+            .digest("${card.front}\u0000${card.back}".toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }.take(24)
+
+    fun isSavedCard(snippet: TopicSnippetEntity): Boolean = snippet.externalId?.startsWith(PREFIX) == true
+
+    fun card(snippet: TopicSnippetEntity) = Flashcard(snippet.text, snippet.answer.orEmpty())
+
+    fun snippet(summary: SummaryEntity, card: Flashcard) = TopicSnippetEntity(
+        topicId = summary.topicId,
+        kind = SnippetKind.RECUPERACAO,
+        text = card.front,
+        answer = card.back.ifBlank { null },
+        isFavorite = true,
+        externalId = externalId(summary.id, card),
+    )
+}
+
+/** Baralho de uma revisão rápida, com salvar o baralho inteiro ou só um cartão. */
+@Composable
+fun SummaryFlashcardDeck(viewModel: AppViewModel, summary: SummaryEntity, title: String, onDismiss: () -> Unit) {
+    val summaries by viewModel.summaries.collectAsState()
+    val snippets by viewModel.snippets.collectAsState()
+    val current = summaries.firstOrNull { it.id == summary.id } ?: summary
+    val savedById = remember(snippets) { snippets.filter(SavedFlashcards::isSavedCard).associateBy { it.externalId } }
+    FlashcardDeckDialog(
+        title = title,
+        cards = remember(current.markdown) { FlashcardParser.parse(current.markdown) },
+        saved = current.isFavorite,
+        onToggleSave = { viewModel.updateSummary(current.copy(isFavorite = !current.isFavorite)) },
+        onDismiss = onDismiss,
+        isCardSaved = { card -> SavedFlashcards.externalId(current.id, card) in savedById },
+        onToggleCard = { card ->
+            val existing = savedById[SavedFlashcards.externalId(current.id, card)]
+            if (existing != null) viewModel.deleteSnippet(existing) else viewModel.saveSnippet(SavedFlashcards.snippet(current, card))
+        },
+    )
 }

@@ -10,6 +10,11 @@ import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Restore
+import androidx.compose.material.icons.outlined.VisibilityOff
+import br.com.estudario.ui.components.SwipeToHide
+import br.com.estudario.ui.components.offerUndo
+import kotlinx.coroutines.launch
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,8 +42,13 @@ fun QuestionBankScreen(viewModel: AppViewModel, onBack: () -> Unit, onStart: (Qu
     var year by remember { mutableStateOf<Int?>(null) }
     var topicId by remember { mutableStateOf<Long?>(null) }
     var difficulty by remember { mutableStateOf<Difficulty?>(null) }
+    var showHidden by remember { mutableStateOf(false) }
+    val hiddenCount = questions.count { it.question.isHidden }
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     val filtered = questions.asSequence().filter { row ->
         val topic = topics.firstOrNull { it.id == row.question.topicId }
+        row.question.isHidden == showHidden &&
         (subjectId == null || topic?.subjectId == subjectId) &&
             (topicId == null || row.question.topicId == topicId) &&
             (sourceType == null || row.question.questionSourceType == sourceType) &&
@@ -51,6 +61,7 @@ fun QuestionBankScreen(viewModel: AppViewModel, onBack: () -> Unit, onStart: (Qu
             when (status) { "new" -> row.question.answerCount == 0; "errors" -> row.question.errorCount > 0; "correct" -> row.question.correctCount > 0; else -> true }
     }.take(250).toList()
 
+    Box(Modifier.fillMaxSize()) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { Row(verticalAlignment = Alignment.CenterVertically) { if (showInlineBack) IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") }; Column { Text("Banco de questões", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("${questions.size} questões locais") } } }
         item { OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), leadingIcon = { Icon(Icons.Outlined.Search, null) }, label = { Text("Buscar enunciado ou tag") }, singleLine = true) }
@@ -60,7 +71,13 @@ fun QuestionBankScreen(viewModel: AppViewModel, onBack: () -> Unit, onStart: (Qu
                 items(subjects, key = { it.id }) { subject -> FilterChip(subjectId == subject.id, { subjectId = subject.id }, { Text(subject.name) }) }
             }
         }
-        item { FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("all" to "Todas", "new" to "Novas", "errors" to "Com erros", "correct" to "Já acertadas").forEach { (key, label) -> FilterChip(status == key, { status = key }, { Text(label) }) }; FilterChip(favorites, { favorites = !favorites }, { Text("Favoritas") }, leadingIcon = { Icon(Icons.Outlined.Favorite, null) }) } }
+        item { FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("all" to "Todas", "new" to "Novas", "errors" to "Com erros", "correct" to "Já acertadas").forEach { (key, label) -> FilterChip(status == key, { status = key }, { Text(label) }) }; FilterChip(favorites, { favorites = !favorites }, { Text("Favoritas") }, leadingIcon = { Icon(Icons.Outlined.Favorite, null) }); if (hiddenCount > 0 || showHidden) FilterChip(showHidden, { showHidden = !showHidden }, { Text("Ocultas ()") }, leadingIcon = { Icon(Icons.Outlined.VisibilityOff, null) }) } }
+        if (showHidden) item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Questões que você tirou da tela. Elas não aparecem nos treinos.", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = { viewModel.setQuestionsHidden(questions.filter { it.question.isHidden }.map { it.question.id }, false); showHidden = false }) { Icon(Icons.Outlined.Restore, null); Spacer(Modifier.width(4.dp)); Text("Restaurar todas") }
+            }
+        }
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 item { FilterChip(sourceType == null, { sourceType = null }, { Text("Todas as origens") }) }
@@ -91,19 +108,34 @@ fun QuestionBankScreen(viewModel: AppViewModel, onBack: () -> Unit, onStart: (Qu
                 items(topics.filter { subjectId == null || it.subjectId == subjectId }, key = { it.id }) { value -> FilterChip(topicId == value.id, { topicId = value.id }, { Text(value.title) }) }
             }
         }
-        item { Button(onClick = { onStart(QuizConfig(filtered.size.coerceAtMost(30), subjectId = subjectId, mode = when { favorites -> "favorites"; status == "new" -> "new"; status == "errors" -> "errors"; else -> "random" })) }, enabled = filtered.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("Treinar esta seleção") } }
-        if (filtered.isEmpty()) item { EmptyState("Nenhuma questão", "Ajuste os filtros ou importe um pacote com questões.") }
+        item { Button(onClick = { onStart(QuizConfig(filtered.size.coerceAtMost(30), subjectId = subjectId, mode = when { favorites -> "favorites"; status == "new" -> "new"; status == "errors" -> "errors"; else -> "random" })) }, enabled = filtered.isNotEmpty() && !showHidden, modifier = Modifier.fillMaxWidth()) { Text("Treinar esta seleção") } }
+        if (filtered.isEmpty()) item { EmptyState("Nenhuma questão", if (showHidden) "Nenhuma questão oculta com esses filtros." else "Ajuste os filtros ou importe um pacote com questões.") }
         items(filtered, key = { it.question.id }) { row ->
             val topic = topics.firstOrNull { it.id == row.question.topicId }
+            val id = row.question.id
+            SwipeToHide(
+                onHide = {
+                    viewModel.setQuestionsHidden(listOf(id), !showHidden)
+                    val message = if (showHidden) "Questão restaurada" else "Questão ocultada"
+                    val hiddenNow = !showHidden
+                    scope.launch { snackbar.offerUndo(message) { viewModel.setQuestionsHidden(listOf(id), !hiddenNow) } }
+                },
+                modifier = Modifier.animateItem(),
+                label = if (showHidden) "Restaurar" else "Ocultar",
+            ) {
             ElevatedCard {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) { Text(topic?.title ?: "Tópico", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary); IconButton(onClick = { viewModel.toggleQuestionFavorite(row.question) }) { Icon(if (row.question.isFavorite) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, "Favoritar") } }
                     Text(row.question.statement, maxLines = 4, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     Text(listOfNotNull(row.question.board, row.question.agency, row.question.year?.toString(), row.question.difficulty?.name).joinToString(" • ") + " • ${row.question.answerCount} resposta(s)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     QuestionProvenance(row.question)
+                    if (showHidden) TextButton(onClick = { viewModel.setQuestionsHidden(listOf(row.question.id), false) }) { Icon(Icons.Outlined.Restore, null); Spacer(Modifier.width(4.dp)); Text("Restaurar") }
                 }
+            }
             }
         }
         if (filtered.size == 250) item { Text("Exibindo os primeiros 250 resultados. Refine a busca para localizar outros itens.", style = MaterialTheme.typography.bodySmall) }
+    }
+    SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(16.dp))
     }
 }

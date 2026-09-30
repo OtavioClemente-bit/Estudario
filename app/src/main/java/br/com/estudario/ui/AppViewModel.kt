@@ -694,6 +694,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun smartQuestions(count: Int): List<QuestionWithOptions> = repository.smartQuestions(count.coerceIn(1, 100))
     suspend fun saveQuestionSession(value: QuestionSessionEntity) = repository.saveQuestionSession(value)
     fun toggleQuestionFavorite(value: QuestionEntity) = launchCatching { repository.toggleQuestionFavorite(value) }
+    fun setQuestionsHidden(ids: List<Long>, hidden: Boolean) = launchCatching { repository.setQuestionsHidden(ids, hidden) }
 
     fun inspectEstudo(text: String) = viewModelScope.launch { previewEstudo(text) }
 

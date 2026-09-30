@@ -263,4 +263,17 @@ class AppDatabaseMigrationTest {
         }
     }
 
+    @Test
+    fun migrateNineteenToTwentyAddsHiddenQuestionColumn() {
+        val name = "migration-v19-v20-test"
+        helper.createDatabase(name, 19).close()
+        helper.runMigrationsAndValidate(name, 20, true, AppDatabase.MIGRATION_19_20).apply {
+            query("PRAGMA table_info(questions)").use { cursor ->
+                val columns = buildList { while (cursor.moveToNext()) add(cursor.getString(cursor.getColumnIndexOrThrow("name"))) }
+                assertTrue("isHidden" in columns)
+            }
+            close()
+        }
+    }
+
 }

@@ -10,6 +10,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Cancel
+import androidx.compose.material.icons.outlined.Close
+import br.com.estudario.ui.components.SwipeToHide
+import br.com.estudario.ui.components.offerUndo
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Timer
@@ -65,6 +68,7 @@ fun QuizScreen(
     val questionIds = remember(questionIdsText) { questionIdsText.split(",").mapNotNull(String::toLongOrNull) }
     val eligible = allQuestions.filter { item ->
         val topic = topics.firstOrNull { it.id == item.question.topicId }
+        !item.question.isHidden &&
         (config.topicId == null || item.question.topicId == config.topicId) &&
             (config.subjectId == null || topic?.subjectId == config.subjectId) &&
             (config.board == null || item.question.board == config.board) &&
@@ -99,7 +103,9 @@ fun QuizScreen(
             delay(1_000)
         }
     }
-    val sessionQuestions = questionIds.mapNotNull { id -> allQuestions.firstOrNull { it.question.id == id } }
+    // Questão ocultada no meio da bateria sai da sessão; a seguinte assume o mesmo índice.
+    val sessionQuestions = questionIds.mapNotNull { id -> allQuestions.firstOrNull { it.question.id == id } }.filterNot { it.question.isHidden }
+    val snackbar = remember { SnackbarHostState() }
     var index by rememberSaveable { mutableIntStateOf(0) }
     val selections = rememberSaveable(saver = selectionsSaver) { mutableStateMapOf<Long, String>() }
     val results = rememberSaveable(saver = resultsSaver) { mutableStateMapOf<Long, Boolean>() }
@@ -166,6 +172,12 @@ fun QuizScreen(
     val selected = selections[current.question.id]
     val confirmed = results.containsKey(current.question.id)
     val correct = results[current.question.id]
+    fun hideCurrent() {
+        val hidden = current.question.id
+        viewModel.setQuestionsHidden(listOf(hidden), true)
+        scope.launch { snackbar.offerUndo("Questão ocultada") { viewModel.setQuestionsHidden(listOf(hidden), false) } }
+    }
+    Box(Modifier.fillMaxSize()) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         finishError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) } }
         item {
@@ -181,14 +193,22 @@ fun QuizScreen(
                 IconButton(onClick = { viewModel.toggleQuestionFavorite(current.question) }) {
                     Icon(if (current.question.isFavorite) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, if (current.question.isFavorite) "Remover dos favoritos" else "Favoritar")
                 }
+                IconButton(onClick = ::hideCurrent) { Icon(Icons.Outlined.Close, "Ocultar esta questão") }
             }
         }
-        item {
-            current.question.board?.let { AssistChip(onClick = {}, label = { Text(listOfNotNull(it, current.question.year?.toString()).joinToString(" • ")) }) }
-            Spacer(Modifier.height(8.dp))
-            MarkdownText(current.question.statement)
-            Spacer(Modifier.height(8.dp))
-            QuestionProvenance(current.question)
+        item(key = "enunciado-${current.question.id}") {
+            SwipeToHide(onHide = ::hideCurrent) {
+                Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.background) {
+                    Column {
+                        current.question.board?.let { AssistChip(onClick = {}, label = { Text(listOfNotNull(it, current.question.year?.toString()).joinToString(" • ")) }) }
+                        Spacer(Modifier.height(8.dp))
+                        MarkdownText(current.question.statement)
+                        Spacer(Modifier.height(8.dp))
+                        QuestionProvenance(current.question)
+                        Text("Não serve para você? Deslize para o lado para ocultar.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
         }
         val certoErrado = current.options.size == 2 &&
             current.options.mapTo(hashSetOf()) { it.key.uppercase() } == setOf("C", "E")
@@ -319,6 +339,8 @@ fun QuizScreen(
                 }
             }
         }
+    }
+    SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(16.dp))
     }
 
     revisao?.let { alvo ->

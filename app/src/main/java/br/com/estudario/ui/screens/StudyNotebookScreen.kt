@@ -92,17 +92,23 @@ fun StudyNotebookScreen(
     val topicById = remember(topics) { topics.associateBy { it.id } }
     val theoryById = remember(theories) { theories.associateBy { it.id } }
     val favoriteQuestions = questions.filter { it.question.isFavorite }
-    val favoriteSnippets = snippets.filter { it.isFavorite && it.kind == SnippetKind.RECUPERACAO }
+    val savedCards = snippets.filter(br.com.estudario.ui.components.SavedFlashcards::isSavedCard)
+    var savedCardsOpen by remember { mutableStateOf(false) }
+    val favoriteSnippets = snippets.filter { it.isFavorite && it.kind == SnippetKind.RECUPERACAO && !br.com.estudario.ui.components.SavedFlashcards.isSavedCard(it) }
     val starredTips = snippets.filter { it.isFavorite && it.kind != SnippetKind.RECUPERACAO }
 
     deckFor?.let { deck ->
-        val current = summaries.firstOrNull { it.id == deck.id } ?: deck
+        br.com.estudario.ui.components.SummaryFlashcardDeck(viewModel, deck, topicById[deck.topicId]?.title ?: deck.title, onDismiss = { deckFor = null })
+    }
+    if (savedCardsOpen) {
         br.com.estudario.ui.components.FlashcardDeckDialog(
-            title = topicById[current.topicId]?.title ?: current.title,
-            cards = remember(current.markdown) { br.com.estudario.ui.components.FlashcardParser.parse(current.markdown) },
-            saved = current.isFavorite,
-            onToggleSave = { viewModel.updateSummary(current.copy(isFavorite = !current.isFavorite)) },
-            onDismiss = { deckFor = null },
+            title = "Cartões salvos",
+            cards = savedCards.map(br.com.estudario.ui.components.SavedFlashcards::card),
+            saved = false,
+            onToggleSave = null,
+            onDismiss = { savedCardsOpen = false },
+            isCardSaved = { card -> savedCards.any { it.text == card.front && it.answer.orEmpty() == card.back } },
+            onToggleCard = { card -> savedCards.firstOrNull { it.text == card.front && it.answer.orEmpty() == card.back }?.let(viewModel::deleteSnippet) },
         )
     }
     editingNote?.let { note ->
@@ -126,7 +132,7 @@ fun StudyNotebookScreen(
                         NotebookTab.entries.forEach { value ->
                             val count = when (value) {
                                 NotebookTab.MARKS -> marks.size
-                                NotebookTab.FLASHCARDS -> savedDecks.size
+                                NotebookTab.FLASHCARDS -> savedDecks.size + savedCards.size
                                 NotebookTab.TIPS -> starredTips.size
                                 NotebookTab.NOTES -> notes.size
                                 NotebookTab.FAVORITES -> favoriteQuestions.size + favoriteSnippets.size
@@ -162,7 +168,19 @@ fun StudyNotebookScreen(
                     }
                 }
                 NotebookTab.FLASHCARDS -> {
-                    if (savedDecks.isEmpty()) item { EmptyHint(Icons.Outlined.Style, "Nenhum baralho salvo", "Nos tópicos, abra os Flashcards na aba REVISÃO e toque no marcador para salvar o baralho aqui.") }
+                    if (savedDecks.isEmpty() && savedCards.isEmpty()) item { EmptyHint(Icons.Outlined.Style, "Nenhum flashcard salvo", "Nos tópicos, abra os Flashcards na aba REVISÃO. Salve o baralho inteiro no marcador do topo, ou só o cartão que interessa em \"Salvar este cartão\".") }
+                    if (savedCards.isNotEmpty()) item(key = "saved-cards") {
+                        ElevatedCard(onClick = { savedCardsOpen = true }, modifier = Modifier.fillMaxWidth()) {
+                            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Icon(Icons.Outlined.Bookmark, null, tint = MaterialTheme.colorScheme.primary)
+                                Column(Modifier.weight(1f)) {
+                                    Text("Cartões salvos", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                    Text("${savedCards.size} cartão(ões) de vários tópicos", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Icon(Icons.Outlined.PlayArrow, "Praticar", tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
                     items(savedDecks, key = { "deck-${it.id}" }) { deck ->
                         val count = remember(deck.markdown) { br.com.estudario.ui.components.FlashcardParser.parse(deck.markdown).size }
                         ElevatedCard(onClick = { deckFor = deck }, modifier = Modifier.fillMaxWidth()) {

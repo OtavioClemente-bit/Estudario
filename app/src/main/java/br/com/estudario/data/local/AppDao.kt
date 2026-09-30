@@ -135,6 +135,7 @@ interface AppDao {
     @Insert suspend fun insertOptions(values: List<QuestionOptionEntity>)
     @Query("DELETE FROM question_options WHERE questionId = :questionId") suspend fun deleteOptionsFor(questionId: Long)
     @Update suspend fun updateQuestion(value: QuestionEntity)
+    @Query("UPDATE questions SET isHidden = :hidden WHERE id IN (:ids)") suspend fun setQuestionsHidden(ids: List<Long>, hidden: Boolean)
 
     @Insert suspend fun insertAttempt(value: QuestionAttemptEntity)
     @Query("SELECT * FROM question_attempts ORDER BY answeredAt DESC") suspend fun attemptsOnce(): List<QuestionAttemptEntity>
