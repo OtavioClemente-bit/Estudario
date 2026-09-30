@@ -716,7 +716,6 @@ private fun AiSyllabusPreferencesForm(value: AiSyllabusPreferences, onChange: (A
                 { onChange(value.copy(detail = it.name)) },
                 description = { detail ->
                     when (detail) {
-                        EditalDetail.LITERAL -> "Exatamente como está escrito no edital"
                         EditalDetail.DIDACTIC -> "Itens que juntam várias matérias (ex.: Java, Python...) viram subtópicos, um livro para cada"
                         EditalDetail.FINE -> "Separa ainda mais: cada tecnologia, lei ou técnica ganha seu subtópico"
                     }

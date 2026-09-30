@@ -36,7 +36,7 @@ object PromptIds {
 
 enum class EditalSource(val label: String) { ATTACH_PDF("Usar PDF oficial (recomendado)"), PASTE_TEXT("Colar texto do edital") }
 enum class EditalScope(val label: String) { FULL("Edital inteiro"), BASIC_AND_SPECIFIC("Básicos + específicos"), SPECIFIC_ONLY("Só específicos") }
-enum class EditalDetail(val label: String) { DIDACTIC("Dividir com bom senso (recomendado)"), FINE("Dividir ao máximo"), LITERAL("Fiel ao edital") }
+enum class EditalDetail(val label: String) { DIDACTIC("Dividir com bom senso (recomendado)"), FINE("Dividir ao máximo") }
 
 /** Regras para o item do edital que junta várias matérias: cada tópico-folha precisa render um livro só. */
 private val EDITAL_SPLIT_RULES = """
@@ -47,6 +47,7 @@ DIVISÃO DE ITENS QUE JUNTAM VÁRIAS MATÉRIAS (o Estudário gera um livro por t
 - Em listas longas e misturadas, agrupe por afinidade e deixe sozinho o que for pesado. Ex.: "Fundamentos de DevOps e DevSecOps: Jenkins; Maven; Git; GitLab; Gitflow; proxy reverso; SSL offloading; balanceamento de carga; JWT; virtualização; conteinerização (Docker)" vira "Jenkins e Maven", "Git, GitLab e Gitflow", "Proxy reverso, SSL offloading e balanceamento de carga", "JSON Web Tokens (JWT)", "Virtualização e conteinerização (Docker)".
 - Itens que o edital já subdivide (1.1, a), ou "Norma-padrão: emprego da crase; emprego de tempos e modos verbais") seguem a divisão do edital.
 - Subtopicos usam só termos do item original. Nunca crie assunto novo e nunca junte itens diferentes do edital num tópico só.
+- Ser fiel ao edital vale só para o nome do tópico-pai. O tópico que gera material (sem subtopicos) nunca pode juntar várias matérias: isso deixa o material grande demais e a geração falha.
 """.trim()
 
 data class EditalPromptOptions(
@@ -118,12 +119,11 @@ object EditalPromptBuilder {
         if (o.source == EditalSource.ATTACH_PDF && !o.attachmentProvided) appendLine("- Em observacoes de cada tópico, registre a URL exata da página ou PDF oficial que você realmente abriu para confirmar o item. Não invente links nem cite só a página de resultados da busca.")
         appendLine(
             when (o.detail) {
-                EditalDetail.LITERAL -> "- Mantenha a divisão exatamente como no edital. Itens com enumeração interna (ex.: 1.1, 1.2, a), b)) viram subtopicos. Use contentOriginType \"EDITAL\"."
                 EditalDetail.DIDACTIC -> "- Itens do edital usam contentOriginType \"EDITAL\". Divida com bom senso os itens que juntam várias matérias independentes, seguindo as regras de DIVISÃO abaixo."
                 EditalDetail.FINE -> "- Itens do edital usam contentOriginType \"EDITAL\". Divida ao máximo: cada tecnologia, lei, família de conceitos ou técnica que renda um livro próprio vira um subtopico; junte só facetas muito pequenas. Siga as regras de DIVISÃO abaixo."
             },
         )
-        if (o.detail != EditalDetail.LITERAL) appendLine(EDITAL_SPLIT_RULES)
+        appendLine(EDITAL_SPLIT_RULES)
         appendLine(if (o.includeDescriptions) "- Em descricao, escreva uma frase curta com o escopo do tópico." else "- Deixe descricao como string vazia.")
         appendLine("PRIORIDADE DE ESTUDO, IMPORTÂNCIA PARA A PROVA, NÃO DESEMPENHO PESSOAL:")
         appendLine("- Preencha priorityAssessment usando esta ordem de evidência: quantidade oficial de questões; peso oficial; pontuação oficial; critério eliminatório; distribuição oficial; histórico fornecido de provas da banca; histórico fornecido do cargo/órgão/área; recorrência demonstrável do tópico; relevância estrutural; inferência contextual somente por último.")
