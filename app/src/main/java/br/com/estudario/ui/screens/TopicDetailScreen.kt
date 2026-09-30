@@ -47,7 +47,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = null, planViewModel: StudyPlanViewModel, onBack: () -> Unit, onQuiz: () -> Unit, onTheory: (Long) -> Unit, onFocus: () -> Unit) {
+fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = null, planViewModel: StudyPlanViewModel, onBack: () -> Unit, onQuiz: () -> Unit, onTheory: (Long) -> Unit, onFocus: () -> Unit, onOpenTopic: (Long) -> Unit = {}) {
     val topics by viewModel.topics.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
     val summaries by viewModel.summaries.collectAsState()
@@ -362,13 +362,13 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
         item {
             val titleBlock: @Composable (Modifier) -> Unit = { mod ->
                 Column(mod) {
-                    Text(topic.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    br.com.estudario.ui.components.ExpandableText(topic.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, collapsedLines = 4)
                     Text(listOfNotNull(subject?.name, parent?.title).joinToString(" › "), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(topic.contentOriginType.displayName(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 }
             }
             val actions: @Composable () -> Unit = {
-                IconButton(onClick = { showContentPrompt = true }) { Icon(Icons.Outlined.AutoAwesome, "Gerar com o Estudário", tint = MaterialTheme.colorScheme.primary) }
+                if (childTopics.isEmpty()) IconButton(onClick = { showContentPrompt = true }) { Icon(Icons.Outlined.AutoAwesome, "Gerar com o Estudário", tint = MaterialTheme.colorScheme.primary) }
                 IconButton(onClick = { showPriority = true }) { Icon(Icons.Outlined.Flag, "Definir prioridade", tint = MaterialTheme.colorScheme.primary) }
                 IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) { Icon(Icons.Outlined.FileOpen, "Importar arquivo .estudo") }
             }
@@ -519,7 +519,17 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
             Text("Teoria completa", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
         val topicTheories = theories.filter { it.topicId == topicId }
-        if (topicTheories.isEmpty()) item { EmptyState("Teoria ainda não importada", "Escolha o que quer receber (teoria, resumo, questões) e gere com o Estudário.", "Gerar com o Estudário") { showContentPrompt = true } }
+        if (childTopics.isNotEmpty()) item {
+            ElevatedCard {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Este item foi dividido em ${childTopics.size} subtópicos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("No edital ele junta várias matérias. Para o material sair completo, gere a teoria em cada subtópico.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    childTopics.forEach { child ->
+                        OutlinedButton(onClick = { onOpenTopic(child.id) }, modifier = Modifier.fillMaxWidth()) { Text(child.title, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+                    }
+                }
+            }
+        } else if (topicTheories.isEmpty()) item { EmptyState("Teoria ainda não importada", "Escolha o que quer receber (teoria, resumo, questões) e gere com o Estudário.", "Gerar com o Estudário") { showContentPrompt = true } }
         topicTheories.forEach { theory ->
             item(key = "theory-${theory.id}") {
                 ElevatedCard(onClick = { onTheory(theory.id) }) {

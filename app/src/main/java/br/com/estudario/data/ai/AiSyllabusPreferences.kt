@@ -16,7 +16,7 @@ data class AiSyllabusPreferences(
     /** Nome de [br.com.estudario.data.prompt.EditalScope]. */
     val scope: String = "FULL",
     /** Nome de [br.com.estudario.data.prompt.EditalDetail]. */
-    val detail: String = "LITERAL",
+    val detail: String = "DIDACTIC",
     val includeDescriptions: Boolean = true,
 ) {
     val isComplete: Boolean get() = competitionName.isNotBlank() && role.isNotBlank()

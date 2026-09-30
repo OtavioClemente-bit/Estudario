@@ -36,7 +36,18 @@ object PromptIds {
 
 enum class EditalSource(val label: String) { ATTACH_PDF("Usar PDF oficial (recomendado)"), PASTE_TEXT("Colar texto do edital") }
 enum class EditalScope(val label: String) { FULL("Edital inteiro"), BASIC_AND_SPECIFIC("Básicos + específicos"), SPECIFIC_ONLY("Só específicos") }
-enum class EditalDetail(val label: String) { LITERAL("Fiel ao edital"), DIDACTIC("Dividir itens longos") }
+enum class EditalDetail(val label: String) { DIDACTIC("Dividir com bom senso (recomendado)"), FINE("Dividir ao máximo"), LITERAL("Fiel ao edital") }
+
+/** Regras para o item do edital que junta várias matérias: cada tópico-folha precisa render um livro só. */
+private val EDITAL_SPLIT_RULES = """
+DIVISÃO DE ITENS QUE JUNTAM VÁRIAS MATÉRIAS (o Estudário gera um livro por tópico sem subtopicos, então cada um desses precisa ser UMA matéria de estudo):
+- O item do edital continua como tópico-pai, com o nome exatamente como está no edital. As partes divididas entram em subtopicos (contentOriginType "DIDACTIC_SUBDIVISION"). O tópico-pai só agrupa; o conteúdo é gerado nos subtopicos.
+- Divida quando o item junta matérias independentes, cada uma valendo um livro. Ex.: "Linguagens de programação: Java, JavaScript, TypeScript e Python 3" vira "Java", "JavaScript", "TypeScript", "Python 3". Ex.: "Funções: afim, quadrática, exponencial e logarítmica" vira um subtopico por tipo de função.
+- Não pulverize facetas pequenas de um mesmo assunto. Ex.: "Gerenciamento de redes: ICMP; SNMP e QoS" fica um tópico só.
+- Em listas longas e misturadas, agrupe por afinidade e deixe sozinho o que for pesado. Ex.: "Fundamentos de DevOps e DevSecOps: Jenkins; Maven; Git; GitLab; Gitflow; proxy reverso; SSL offloading; balanceamento de carga; JWT; virtualização; conteinerização (Docker)" vira "Jenkins e Maven", "Git, GitLab e Gitflow", "Proxy reverso, SSL offloading e balanceamento de carga", "JSON Web Tokens (JWT)", "Virtualização e conteinerização (Docker)".
+- Itens que o edital já subdivide (1.1, a), ou "Norma-padrão: emprego da crase; emprego de tempos e modos verbais") seguem a divisão do edital.
+- Subtopicos usam só termos do item original. Nunca crie assunto novo e nunca junte itens diferentes do edital num tópico só.
+""".trim()
 
 data class EditalPromptOptions(
     val competitionName: String = "",
@@ -48,7 +59,7 @@ data class EditalPromptOptions(
     /** Indica se o PDF foi realmente escolhido na tela; o anexo continua opcional. */
     val attachmentProvided: Boolean = false,
     val scope: EditalScope = EditalScope.FULL,
-    val detail: EditalDetail = EditalDetail.LITERAL,
+    val detail: EditalDetail = EditalDetail.DIDACTIC,
     val includeDescriptions: Boolean = true,
     val priorityByWeight: Boolean = true,
     val makePrimary: Boolean = true,
@@ -108,9 +119,11 @@ object EditalPromptBuilder {
         appendLine(
             when (o.detail) {
                 EditalDetail.LITERAL -> "- Mantenha a divisão exatamente como no edital. Itens com enumeração interna (ex.: 1.1, 1.2, a), b)) viram subtopicos. Use contentOriginType \"EDITAL\"."
-                EditalDetail.DIDACTIC -> "- Itens do edital usam contentOriginType \"EDITAL\". Quando um item for longo ou juntar vários assuntos, crie subtopicos didáticos para facilitar o estudo, com contentOriginType \"DIDACTIC_SUBDIVISION\", sem alterar o texto do item original."
+                EditalDetail.DIDACTIC -> "- Itens do edital usam contentOriginType \"EDITAL\". Divida com bom senso os itens que juntam várias matérias independentes, seguindo as regras de DIVISÃO abaixo."
+                EditalDetail.FINE -> "- Itens do edital usam contentOriginType \"EDITAL\". Divida ao máximo: cada tecnologia, lei, família de conceitos ou técnica que renda um livro próprio vira um subtopico; junte só facetas muito pequenas. Siga as regras de DIVISÃO abaixo."
             },
         )
+        if (o.detail != EditalDetail.LITERAL) appendLine(EDITAL_SPLIT_RULES)
         appendLine(if (o.includeDescriptions) "- Em descricao, escreva uma frase curta com o escopo do tópico." else "- Deixe descricao como string vazia.")
         appendLine("PRIORIDADE DE ESTUDO, IMPORTÂNCIA PARA A PROVA, NÃO DESEMPENHO PESSOAL:")
         appendLine("- Preencha priorityAssessment usando esta ordem de evidência: quantidade oficial de questões; peso oficial; pontuação oficial; critério eliminatório; distribuição oficial; histórico fornecido de provas da banca; histórico fornecido do cargo/órgão/área; recorrência demonstrável do tópico; relevância estrutural; inferência contextual somente por último.")

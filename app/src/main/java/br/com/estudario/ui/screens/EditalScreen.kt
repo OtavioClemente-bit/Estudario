@@ -372,8 +372,8 @@ internal fun SubjectCard(subject: SubjectEntity, topics: List<TopicEntity>, expa
 
 @Composable
 private fun TopicTreeRows(topic: TopicEntity, allTopics: List<TopicEntity>, depth: Int, parentPriority: PriorityLevel, viewModel: AppViewModel, onTopic: (Long) -> Unit, onPriority: (TopicEntity, PriorityLevel) -> Unit, onGenerateContent: (Long) -> Unit, visibleTopicIds: Set<Long>? = null, contentTopicIds: Set<Long> = emptySet()) {
-    TopicRow(topic, depth, viewModel, hasContent = topic.id in contentTopicIds, onClick = { onTopic(topic.id) }, onPriority = { onPriority(topic, parentPriority) }, onGenerateContent = { onGenerateContent(topic.id) })
     val children = allTopics.filter { it.parentTopicId == topic.id }.sortedBy { it.position }
+    TopicRow(topic, depth, viewModel, hasContent = topic.id in contentTopicIds, childCount = children.size, onClick = { onTopic(topic.id) }, onPriority = { onPriority(topic, parentPriority) }, onGenerateContent = { onGenerateContent(topic.id) })
     val visibleChildren = if (visibleTopicIds != null) children.filter { it.id in visibleTopicIds } else children
     visibleChildren.forEach { child ->
         TopicTreeRows(child, allTopics, depth + 1, topic.priorityState(parentPriority).effectivePriority, viewModel, onTopic, onPriority, onGenerateContent, visibleTopicIds, contentTopicIds)
@@ -381,7 +381,7 @@ private fun TopicTreeRows(topic: TopicEntity, allTopics: List<TopicEntity>, dept
 }
 
 @Composable
-private fun TopicRow(topic: TopicEntity, depth: Int, viewModel: AppViewModel, hasContent: Boolean, onClick: () -> Unit, onPriority: () -> Unit, onGenerateContent: () -> Unit) {
+private fun TopicRow(topic: TopicEntity, depth: Int, viewModel: AppViewModel, hasContent: Boolean, childCount: Int, onClick: () -> Unit, onPriority: () -> Unit, onGenerateContent: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     val studied = topic.status != TopicStatus.NAO_ESTUDADO
     Row(
@@ -395,14 +395,14 @@ private fun TopicRow(topic: TopicEntity, depth: Int, viewModel: AppViewModel, ha
             tint = if (studied) estudarioColors().completed else MaterialTheme.colorScheme.outline,
         )
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-            Text(topic.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            br.com.estudario.ui.components.ExpandableText(topic.title, fontWeight = FontWeight.Medium)
             Text(
-                if (hasContent) "${topic.status.displayName()} · material pronto" else topic.status.displayName(),
+                if (childCount > 0) "Dividido em $childCount subtópicos · gere o material em cada um" else if (hasContent) "${topic.status.displayName()} · material pronto" else topic.status.displayName(),
                 style = MaterialTheme.typography.labelSmall,
                 color = if (hasContent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (!hasContent) {
+        if (!hasContent && childCount == 0) {
             FilledTonalButton(onClick = onGenerateContent, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp), modifier = Modifier.height(34.dp)) {
                 Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Gerar", style = MaterialTheme.typography.labelMedium)
             }
@@ -411,7 +411,7 @@ private fun TopicRow(topic: TopicEntity, depth: Int, viewModel: AppViewModel, ha
             IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Opções") }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Abrir") }, onClick = { menu = false; onClick() })
-                DropdownMenuItem(text = { Text(if (hasContent) "Gerar mais material" else "Gerar com o Estudário") }, leadingIcon = { Icon(Icons.Outlined.AutoAwesome, null) }, onClick = { menu = false; onGenerateContent() })
+                if (childCount == 0) DropdownMenuItem(text = { Text(if (hasContent) "Gerar mais material" else "Gerar com o Estudário") }, leadingIcon = { Icon(Icons.Outlined.AutoAwesome, null) }, onClick = { menu = false; onGenerateContent() })
                 DropdownMenuItem(text = { Text("Prioridade") }, leadingIcon = { Icon(Icons.Outlined.Flag, null) }, onClick = { menu = false; onPriority() })
                 if (topic.status == TopicStatus.NAO_ESTUDADO) {
                     DropdownMenuItem(text = { Text("Marcar estudado") }, onClick = { menu = false; viewModel.markStudied(topic) })
