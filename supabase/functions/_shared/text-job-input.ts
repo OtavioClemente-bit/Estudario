@@ -74,11 +74,11 @@ const MAX_PLAN_DAYS = 120;
 const MAX_SUBJECTS = 40;
 const MAX_TOPICS = 600;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function text(value: unknown, field: string, max = MAX_TEXT): string {
+export function text(value: unknown, field: string, max = MAX_TEXT): string {
   if (typeof value !== "string") throw new TextJobInputError(field);
   // Controle e quebras viram espaço: o texto entra num prompt e não pode forjar seções dele.
   const clean = value.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
@@ -86,7 +86,7 @@ function text(value: unknown, field: string, max = MAX_TEXT): string {
   return clean;
 }
 
-function optionalText(value: unknown, field: string, max = MAX_TEXT): string | null {
+export function optionalText(value: unknown, field: string, max = MAX_TEXT): string | null {
   if (value === undefined || value === null || value === "") return null;
   return text(value, field, max);
 }
@@ -98,14 +98,14 @@ function isoDate(value: unknown, field: string): string {
   return value;
 }
 
-function integer(value: unknown, field: string, min: number, max: number): number {
+export function integer(value: unknown, field: string, min: number, max: number): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < min || value > max) {
     throw new TextJobInputError(field);
   }
   return value;
 }
 
-function oneOf<T extends string>(value: unknown, field: string, allowed: readonly T[]): T {
+export function oneOf<T extends string>(value: unknown, field: string, allowed: readonly T[]): T {
   if (typeof value !== "string" || !allowed.includes(value as T)) throw new TextJobInputError(field);
   return value as T;
 }

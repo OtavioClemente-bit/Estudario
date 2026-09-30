@@ -22,6 +22,16 @@ import {
 import { type ExpectedVersions, validateStudyPlan, validateTopicContent } from "./text-job-validators.ts";
 import { applyReview, type ContentReview, runContentReview } from "./content-review.ts";
 import { resolveOpenAiModel } from "./openai-provider.ts";
+import {
+  AI_SIMULATION_SCHEMA,
+  parseSimulationJobInput,
+  SIMULATION_PROMPT_VERSION,
+  SIMULATION_SCHEMA_VERSION,
+  SIMULATION_SYSTEM_PROMPT,
+  type SimulationJobInput,
+  simulationUserPrompt,
+  validateSimulation,
+} from "./simulation.ts";
 import type { WorkerProposal } from "../ai-syllabus-worker/index.ts";
 
 // Especificações dos recursos de texto para o worker compartilhado.
@@ -109,9 +119,60 @@ export const PLAN_JOB_SPEC: AiJobSpec = {
     ),
 };
 
+export const SIMULATION_JOB_SPEC: AiJobSpec = {
+  feature: "SIMULATION_GENERATION",
+  promptVersion: SIMULATION_PROMPT_VERSION,
+  schemaVersion: SIMULATION_SCHEMA_VERSION,
+  schema: AI_SIMULATION_SCHEMA,
+  schemaName: `ai_simulation_v${SIMULATION_SCHEMA_VERSION}`,
+  usesSource: false,
+  // Pesquisa para confirmar lei, número e a própria banca do concurso.
+  tools: [{ type: "web_search", search_context_size: "medium" }],
+  prompts: (job) => ({
+    systemPrompt: SIMULATION_SYSTEM_PROMPT,
+    userPrompt: simulationUserPrompt(inputOf<SimulationJobInput>(job, parseSimulationJobInput)),
+  }),
+  validate: async (raw, expected, job, dependencies) => {
+    const input = inputOf<SimulationJobInput>(job, parseSimulationJobInput);
+    const part = validateSimulation(raw, expected, input);
+    if (Deno.env.get("CONTENT_REVIEW_ENABLED") === "false") return part as unknown as WorkerProposal;
+    const review = await runContentReview({ questions: part.questions }, {
+      provider: dependencies.provider,
+      jobId: job.id,
+      model: resolveOpenAiModel(dependencies.modelForJob?.(job) ?? dependencies.model),
+      context: [input.competitionName, input.role, input.board ? `banca ${input.board}` : null, "simulado"].filter(Boolean).join(" · "),
+    });
+    return withSimulationReview(part, review, expected, input) as unknown as WorkerProposal;
+  },
+};
+
+/** Mesma lógica da revisão do conteúdo: corrigido e revalidado, ou o original com aviso. */
+export function withSimulationReview(
+  part: Record<string, unknown>,
+  review: ContentReview | null,
+  expected: ExpectedVersions,
+  input: SimulationJobInput,
+): Record<string, unknown> {
+  const warn = (message: string) => ({
+    ...part,
+    warnings: [...(part.warnings as unknown[]).slice(0, 9), { code: "SOURCE_NOT_VERIFIED", message }],
+  });
+  if (review === null) return warn("A revisão automática de fatos não foi concluída para esta parte do simulado.");
+  for (const attempt of [review, { ...review, removeQuestions: [], removeFlashcards: [] }]) {
+    const { content: reviewed } = applyReview(part, attempt);
+    try {
+      return validateSimulation(reviewed, expected, input, { allowShortfall: true });
+    } catch {
+      // Tenta a forma mais conservadora.
+    }
+  }
+  return warn("A revisão automática encontrou pontos a conferir, mas não pôde aplicar as correções.");
+}
+
 export function textSpecFor(job: SyllabusWorkerJob): AiJobSpec {
   if (job.feature === "CONTENT_GENERATION") return CONTENT_JOB_SPEC;
   if (job.feature === "PLAN_GENERATION") return PLAN_JOB_SPEC;
-  // A fila de texto só entrega esses dois; qualquer outro é dado corrompido.
+  if (job.feature === "SIMULATION_GENERATION") return SIMULATION_JOB_SPEC;
+  // A fila de texto só entrega esses três; qualquer outro é dado corrompido.
   throw new Error("TEXT_JOB_INPUT_INVALID");
 }

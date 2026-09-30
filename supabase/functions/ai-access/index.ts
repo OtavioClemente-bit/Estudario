@@ -13,6 +13,7 @@ const FEATURES: readonly AiFeature[] = [
   "SYLLABUS_GENERATION",
   "PLAN_GENERATION",
   "CONTENT_GENERATION",
+  "SIMULATION_GENERATION",
 ];
 
 export interface AiAccessHandlerDependencies {

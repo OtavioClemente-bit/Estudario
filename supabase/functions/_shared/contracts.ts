@@ -1,7 +1,7 @@
 export const CURRENT_AI_SCHEMA_VERSION = 1 as const;
 export const SUPPORTED_AI_SCHEMA_VERSIONS = [CURRENT_AI_SCHEMA_VERSION] as const;
 
-export type AiFeature = "SYLLABUS_GENERATION" | "PLAN_GENERATION" | "CONTENT_GENERATION";
+export type AiFeature = "SYLLABUS_GENERATION" | "PLAN_GENERATION" | "CONTENT_GENERATION" | "SIMULATION_GENERATION";
 export type AiJobStatus = "RESERVED" | "PROCESSING" | "SUCCEEDED" | "FAILED" | "EXPIRED" | "CANCELLED";
 export type AiQuotaReservationStatus = "RESERVED" | "CONSUMED" | "RELEASED";
 export type RemoteSyllabusSyncState = "PENDING" | "SYNCED" | "FAILED";
@@ -148,7 +148,7 @@ export class ContractValidationError extends Error {
   }
 }
 
-const AI_FEATURES: readonly AiFeature[] = ["SYLLABUS_GENERATION", "PLAN_GENERATION", "CONTENT_GENERATION"];
+const AI_FEATURES: readonly AiFeature[] = ["SYLLABUS_GENERATION", "PLAN_GENERATION", "CONTENT_GENERATION", "SIMULATION_GENERATION"];
 const AI_JOB_STATUSES: readonly AiJobStatus[] = ["RESERVED", "PROCESSING", "SUCCEEDED", "FAILED", "EXPIRED", "CANCELLED"];
 const PRIORITIES: readonly AiPriority[] = ["LOW", "NORMAL", "HIGH"];
 const WARNING_SEVERITIES: readonly AiWarningSeverity[] = ["INFO", "WARNING", "ERROR"];

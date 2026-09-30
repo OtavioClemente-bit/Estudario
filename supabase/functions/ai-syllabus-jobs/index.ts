@@ -32,9 +32,10 @@ import {
   TextJobInputError,
 } from "../_shared/text-job-input.ts";
 import { effectivePlanTier, SupabaseAccessDataSource } from "../_shared/access-policy.ts";
+import { parseSimulationJobInput } from "../_shared/simulation.ts";
 
 const SYLLABUS_FEATURE: AiFeature = "SYLLABUS_GENERATION";
-const TEXT_FEATURES: ReadonlySet<string> = new Set(["CONTENT_GENERATION", "PLAN_GENERATION"]);
+const TEXT_FEATURES: ReadonlySet<string> = new Set(["CONTENT_GENERATION", "PLAN_GENERATION", "SIMULATION_GENERATION"]);
 const DEFAULT_LIMITS: StorageSourceLimits = {
   maxBytes: 50 * 1024 * 1024,
   maxPages: 500,
@@ -385,7 +386,11 @@ async function createTextJob(
 ): Promise<Response> {
   let input: unknown;
   try {
-    input = feature === "CONTENT_GENERATION" ? parseContentJobInput(rawInput) : parsePlanJobInput(rawInput);
+    input = feature === "CONTENT_GENERATION"
+      ? parseContentJobInput(rawInput)
+      : feature === "SIMULATION_GENERATION"
+      ? parseSimulationJobInput(rawInput)
+      : parsePlanJobInput(rawInput);
   } catch (error) {
     if (error instanceof TextJobInputError) return safeError("INVALID_REQUEST", 400);
     throw error;

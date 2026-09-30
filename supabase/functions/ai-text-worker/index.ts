@@ -18,6 +18,8 @@ function modelFor(feature: string | undefined): string {
     ? Deno.env.get("CONTENT_AI_MODEL")
     : feature === "PLAN_GENERATION"
     ? Deno.env.get("PLAN_AI_MODEL")
+    : feature === "SIMULATION_GENERATION"
+    ? Deno.env.get("SIMULATION_AI_MODEL")
     : undefined;
   return resolveOpenAiModel(specific?.trim() || undefined);
 }
