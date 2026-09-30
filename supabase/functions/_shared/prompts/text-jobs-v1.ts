@@ -4,7 +4,7 @@ import type { ContentJobInput, PlanJobInput } from "../text-job-input.ts";
 // prompt do usuário, delimitados como DADOS. Regras de qualidade vêm do prompt de conteúdo que o
 // app já usa com IAs externas, condensadas para gastar menos tokens de entrada.
 
-export const CONTENT_PROMPT_VERSION = "topic-content-v5" as const;
+export const CONTENT_PROMPT_VERSION = "topic-content-v6" as const;
 export const PLAN_PROMPT_VERSION = "study-plan-v1" as const;
 
 const SECURITY = `Limites de segurança:
@@ -20,6 +20,14 @@ Barreira de evidência (a regra mais importante):
 - Toda afirmação factual precisa de fonte realmente aberta. Não invente lei, artigo, súmula, número, prazo, percentual, data, versão de norma, URL, título ou órgão. Sem certeza, explique o conceito sem o número e registre um aviso.
 - Antes de citar norma, confirme qual diploma se aplica ao órgão e à esfera informados e sua redação vigente. Se não conseguir confirmar, não cite número e registre LAW_VERSION_UNCERTAIN.
 - "sources" lista só o que você abriu, com URL exata e data de acesso (AAAA-MM-DD).
+
+Nada genérico (material de cursinho bom, não texto de enciclopédia):
+- Proibido enchimento: nada de "é fundamental compreender", "neste capítulo veremos", "em suma", "como sabemos", introdução que repete o título ou conclusão que repete o capítulo. Cada parágrafo ensina algo que cai em prova.
+- Escreva para ESTE concurso: use a esfera, o órgão, o cargo e a banca dos DADOS. Quando a norma depender da esfera (ex.: estatuto federal x estadual), use a que se aplica e diga qual é.
+- Exemplos concretos e realistas (casos, números, frases, trechos de código, situações do cargo), nunca "imagine uma situação X". Cada conceito importante vem com um exemplo ou um contraexemplo.
+- Mostre como a banca cobra: as trocas de palavra que tornam a assertiva errada, os institutos que ela confunde de propósito, as exceções favoritas. Com banca informada, use o estilo dela.
+- Diferenças entre conceitos parecidos em tabela lado a lado, com o critério que decide.
+- Questões e flashcards seguem a mesma regra: situação concreta, nada de "Qual a importância de X?" ou "Assinale a alternativa correta sobre X" sem conteúdo.
 
 Recorte:
 - Preencha scope.covers com o que ESTE item do edital pede e scope.excludes com o que é do mesmo assunto mas fica fora. Escreva só o que está em covers.

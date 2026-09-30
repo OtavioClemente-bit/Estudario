@@ -224,7 +224,10 @@ Deno.test("worker generates topic content from text only, with web search and no
     specForJob: textSpecFor,
     now: () => new Date("2026-09-28T12:01:00Z"),
   });
-  assertEquals(starts.length, 1);
+  // Segunda chamada: o revisor de fatos, com pesquisa web e chave idempotente própria.
+  assertEquals(starts.length, 2);
+  assertEquals(starts[1].feature, "CONTENT_REVIEW");
+  assertEquals(starts[1].idempotencyKey, `${starts[0].idempotencyKey}:review`);
   assertEquals(starts[0].source, undefined);
   assertEquals(starts[0].feature, "CONTENT_GENERATION");
   assertEquals(starts[0].schemaName, "ai_topic_content_v4");

@@ -183,6 +183,7 @@ fun FlashcardDeckDialog(
                         Text("Cartão ${pager.currentPage + 1} de ${cards.size}", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                         // Salvar só este cartão: o baralho de um tópico costuma ter muitos, e às vezes só um interessa.
                         cards.getOrNull(pager.currentPage)?.let { card ->
+                            ReportErrorButton(br.com.estudario.data.remote.ReportKind.FLASHCARD, excerpt = { "${card.front}\n→ ${card.back}" }, topic = title)
                             if (onToggleCard != null) {
                                 val cardSaved = isCardSaved(card)
                                 TextButton(onClick = { onToggleCard(card) }) {

@@ -101,6 +101,10 @@ class EstudarioApplication : Application() {
             authRepository = supabaseAuthRepository,
         )
     }
+    /** Reporte de erro no material, direto na tabela do Supabase. */
+    val contentReportClient: br.com.estudario.data.remote.ContentReportClient by lazy {
+        br.com.estudario.data.remote.ContentReportClient(supabaseClientConfig, supabaseAuthRepository)
+    }
     /** Plano efetivo, catálogo e uso. Somente leitura: quem decide cota é o servidor. */
     val aiPlanRepository: br.com.estudario.ui.plans.AiPlanRepository by lazy {
         br.com.estudario.ui.plans.HttpAiPlanRepository(

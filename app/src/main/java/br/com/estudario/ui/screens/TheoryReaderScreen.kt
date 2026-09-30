@@ -46,6 +46,14 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
     val scope = rememberCoroutineScope()
     val reachedEnd by remember { derivedStateOf { listState.layoutInfo.totalItemsCount > 0 && !listState.canScrollForward } }
     val currentBlock by remember { derivedStateOf { if (reachedEnd) blocks.lastIndex.coerceAtLeast(0) else (listState.firstVisibleItemIndex - headerOffset).coerceIn(0, blocks.lastIndex.coerceAtLeast(0)) } }
+    // Reporta o trecho que está na tela: é o que a pessoa acabou de ler e achou errado.
+    val ReportTheoryButton: @Composable () -> Unit = {
+        br.com.estudario.ui.components.ReportErrorButton(
+            br.com.estudario.data.remote.ReportKind.THEORY,
+            excerpt = { blocks.getOrNull(currentBlock).orEmpty().ifBlank { theory.title } },
+            topic = theory.title,
+        )
+    }
     val progress by remember { derivedStateOf { if (blocks.isEmpty()) 0f else if (reachedEnd) 1f else (currentBlock + 1f) / blocks.size } }
 
     // Retomada visível: quem volta à leitura sabe que caiu onde parou e pode recomeçar.
@@ -98,7 +106,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                 TopAppBar(
                     title = { Column { Text(theory.title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis); Text("${(progress * 100).toInt()}% lido • ${marks.size} marcação(ões)", style = MaterialTheme.typography.labelSmall) } },
                     navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") } },
-                    actions = { if (chapters.size > 1) IconButton(onClick = { tocOpen = true }) { Icon(Icons.Outlined.Toc, "Índice") }; IconButton(onClick = { textScale = (textScale - .1f).coerceAtLeast(.8f) }) { Text("A−", fontWeight = FontWeight.Bold) }; IconButton(onClick = { textScale = (textScale + .1f).coerceAtMost(1.5f) }) { Text("A+", fontWeight = FontWeight.Bold) } },
+                    actions = { if (chapters.size > 1) IconButton(onClick = { tocOpen = true }) { Icon(Icons.Outlined.Toc, "Índice") }; IconButton(onClick = { textScale = (textScale - .1f).coerceAtLeast(.8f) }) { Text("A−", fontWeight = FontWeight.Bold) }; IconButton(onClick = { textScale = (textScale + .1f).coerceAtMost(1.5f) }) { Text("A+", fontWeight = FontWeight.Bold) }; ReportTheoryButton() },
                 )
                 LinearProgressIndicator({ progress.coerceIn(0f, 1f) }, Modifier.fillMaxWidth())
             }
@@ -140,6 +148,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                         if (chapters.size > 1) IconButton(onClick = { tocOpen = true }) { Icon(Icons.Outlined.Toc, "Índice") }
                         IconButton(onClick = { textScale = (textScale - .1f).coerceAtLeast(.8f) }) { Text("A−", fontWeight = FontWeight.Bold) }
                         IconButton(onClick = { textScale = (textScale + .1f).coerceAtMost(1.5f) }) { Text("A+", fontWeight = FontWeight.Bold) }
+                        ReportTheoryButton()
                     }
                     Text("${(progress * 100).toInt()}% lido • ${marks.size} marcação(ões)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     LinearProgressIndicator({ progress.coerceIn(0f, 1f) }, Modifier.fillMaxWidth())

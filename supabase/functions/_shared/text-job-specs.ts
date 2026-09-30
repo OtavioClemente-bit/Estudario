@@ -19,7 +19,9 @@ import {
   parsePlanJobInput,
   type PlanJobInput,
 } from "./text-job-input.ts";
-import { validateStudyPlan, validateTopicContent } from "./text-job-validators.ts";
+import { type ExpectedVersions, validateStudyPlan, validateTopicContent } from "./text-job-validators.ts";
+import { applyReview, type ContentReview, runContentReview } from "./content-review.ts";
+import { resolveOpenAiModel } from "./openai-provider.ts";
 import type { WorkerProposal } from "../ai-syllabus-worker/index.ts";
 
 // Especificações dos recursos de texto para o worker compartilhado.
@@ -46,11 +48,49 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
     systemPrompt: CONTENT_SYSTEM_PROMPT,
     userPrompt: contentUserPrompt(inputOf<ContentJobInput>(job, parseContentJobInput)),
   }),
-  validate: (raw, expected, job) =>
-    Promise.resolve(
-      validateTopicContent(raw, expected, inputOf<ContentJobInput>(job, parseContentJobInput).options) as unknown as WorkerProposal,
-    ),
+  validate: async (raw, expected, job, dependencies) => {
+    const input = inputOf<ContentJobInput>(job, parseContentJobInput);
+    const content = validateTopicContent(raw, expected, input.options);
+    if (Deno.env.get("CONTENT_REVIEW_ENABLED") === "false") return content as unknown as WorkerProposal;
+    const review = await runContentReview(content, {
+      provider: dependencies.provider,
+      jobId: job.id,
+      model: resolveOpenAiModel(dependencies.modelForJob?.(job) ?? dependencies.model),
+      context: [input.competitionName, input.role, input.board ? `banca ${input.board}` : null, input.subjectName, input.topicPath.join(" › ")]
+        .filter(Boolean).join(" · "),
+    });
+    return withReview(content, review, expected, input) as unknown as WorkerProposal;
+  },
 };
+
+/**
+ * Aplica a revisão e confere o formato de novo. Se a versão corrigida não passar (ex.: sobraram
+ * poucos flashcards), tenta só as correções de texto e gabarito; em último caso, fica o original.
+ */
+export function withReview(
+  content: Record<string, unknown>,
+  review: ContentReview | null,
+  expected: ExpectedVersions,
+  input: ContentJobInput,
+): Record<string, unknown> {
+  const warn = (message: string) => ({
+    ...content,
+    warnings: [...(content.warnings as unknown[]).slice(0, 9), { code: "SOURCE_NOT_VERIFIED", message }],
+  });
+  if (review === null) return warn("A revisão automática de fatos não foi concluída para este material. Confira números e artigos na fonte oficial.");
+  const attempts = [review, { ...review, removeQuestions: [], removeFlashcards: [] }];
+  for (const attempt of attempts) {
+    const { content: reviewed } = applyReview(content, attempt);
+    const questions = (reviewed.questions as unknown[]).length;
+    if (input.options.questionCount > 0 && questions === 0) continue;
+    try {
+      return validateTopicContent(JSON.stringify(reviewed), expected, { ...input.options, questionCount: questions });
+    } catch {
+      // Tenta a próxima forma, mais conservadora.
+    }
+  }
+  return warn("A revisão automática encontrou pontos a conferir, mas não pôde aplicar as correções. Confira números e artigos na fonte oficial.");
+}
 
 export const PLAN_JOB_SPEC: AiJobSpec = {
   feature: "PLAN_GENERATION",

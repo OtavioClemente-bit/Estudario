@@ -193,6 +193,16 @@ fun QuizScreen(
                 IconButton(onClick = { viewModel.toggleQuestionFavorite(current.question) }) {
                     Icon(if (current.question.isFavorite) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, if (current.question.isFavorite) "Remover dos favoritos" else "Favoritar")
                 }
+                br.com.estudario.ui.components.ReportErrorButton(
+                    br.com.estudario.data.remote.ReportKind.QUESTION,
+                    excerpt = {
+                        buildString {
+                            appendLine(current.question.statement)
+                            current.options.sortedBy { it.position }.forEach { appendLine("${it.key}) ${it.text}${if (it.isCorrect) "  ← gabarito" else ""}") }
+                        }
+                    },
+                    topic = topics.firstOrNull { it.id == current.question.topicId }?.title,
+                )
                 IconButton(onClick = ::hideCurrent) { Icon(Icons.Outlined.Close, "Ocultar esta questão") }
             }
         }
