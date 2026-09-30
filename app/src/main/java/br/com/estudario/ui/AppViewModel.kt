@@ -669,8 +669,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             IncomingFileFormat.PLANO -> { app.incomingFiles.publishPlan(text); _transfer.value = TransferState.Idle }
             IncomingFileFormat.BACKUP -> _transfer.value = TransferState.Error("Este é um backup completo. Para substituir os dados deste aparelho, use Mais › Restaurar backup.")
             null -> _transfer.value = TransferState.Error(
-                if (text.trimStart().startsWith("{")) "O conteúdo não parece um arquivo do Estudário ou o JSON está incompleto (a resposta da IA pode ter sido cortada). Peça para a IA continuar ou gerar de novo e tente outra vez."
-                else "Não encontrei um arquivo .estudo ou .plano nesse conteúdo. Copie a resposta inteira da IA (o JSON) ou baixe o arquivo gerado e abra com o Estudário.",
+                if (text.trimStart().startsWith("{")) "O conteúdo não parece um arquivo do Estudário ou o JSON está incompleto (a resposta pode ter sido cortada). Peça para a sua IA continuar ou gerar de novo e tente outra vez."
+                else "Não encontrei um arquivo .estudo ou .plano nesse conteúdo. Copie a resposta inteira (o JSON) ou baixe o arquivo gerado e abra com o Estudário.",
             )
         }
     }

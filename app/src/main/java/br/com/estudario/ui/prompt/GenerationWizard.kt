@@ -323,7 +323,7 @@ private fun ReviewPage(
                     }
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("IA do Estudário", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text("Assistente Estudário", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                         Text("Recomendado · gera aqui no app", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     }
                 }
@@ -332,7 +332,7 @@ private fun ReviewPage(
                     Text(server.disabledReason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
                 Button(onClick = server.onGenerate, enabled = ready && server.enabled, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Gerar com a IA do Estudário")
+                    Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Gerar com o Estudário")
                 }
             }
         }
@@ -340,9 +340,9 @@ private fun ReviewPage(
 
     OutlinedCard(Modifier.fillMaxWidth(), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(if (server != null) "Ou use outra IA" else "Gerar com a sua IA", fontWeight = FontWeight.Bold)
+            Text(if (server != null) "Ou envie para sua IA favorita" else "Enviar para sua IA favorita", fontWeight = FontWeight.Bold)
             Text(
-                "Envie o pedido pronto para ChatGPT, Gemini, Claude ou outra IA. Depois traga a resposta de volta ao Estudário.",
+                "Opcional: mande o pedido pronto para o ChatGPT, o Gemini ou outra IA que você use, e traga a resposta de volta ao Estudário.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -352,7 +352,7 @@ private fun ReviewPage(
                     Icon(Icons.Outlined.ContentCopy, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Copiar pedido")
                 }
                 val share: @Composable () -> Unit = {
-                    Icon(Icons.Outlined.Share, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Enviar para a IA")
+                    Icon(Icons.Outlined.Share, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Enviar para minha IA")
                 }
                 if (server == null) Button(onClick = { onExternal(ExternalAction.SHARE) }, enabled = ready, modifier = Modifier.weight(1.4f)) { share() }
                 else OutlinedButton(onClick = { onExternal(ExternalAction.SHARE) }, enabled = ready, modifier = Modifier.weight(1.4f)) { share() }
@@ -374,7 +374,7 @@ private fun ReviewPage(
             FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = if (estudarioLayout().prefersStacking) 1 else Int.MAX_VALUE, verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = {
                     val text = readClipboardText(context)
-                    if (text.isNullOrBlank()) Toast.makeText(context, "A área de transferência está vazia. Copie a resposta inteira da IA.", Toast.LENGTH_LONG).show()
+                    if (text.isNullOrBlank()) Toast.makeText(context, "A área de transferência está vazia. Copie a resposta inteira da sua IA.", Toast.LENGTH_LONG).show()
                     else onImportText(text)
                 }, modifier = Modifier.widthIn(min = 120.dp)) { Icon(Icons.Outlined.ContentPaste, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Colar resposta") }
                 TextButton(onClick = onPickFile, modifier = Modifier.widthIn(min = 120.dp)) { Icon(Icons.Outlined.FileOpen, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(returnFileLabel) }

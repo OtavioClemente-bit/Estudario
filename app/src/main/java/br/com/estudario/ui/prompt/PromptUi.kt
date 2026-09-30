@@ -80,8 +80,8 @@ fun Context.attachmentFor(uri: Uri): PromptAttachment {
 }
 
 fun copyPrompt(context: Context, prompt: String, toast: Boolean = true) {
-    context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Prompt Estudário", prompt))
-    if (toast) Toast.makeText(context, "Prompt copiado", Toast.LENGTH_SHORT).show()
+    context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Pedido do Estudário", prompt))
+    if (toast) Toast.makeText(context, "Pedido copiado", Toast.LENGTH_SHORT).show()
 }
 
 /**
@@ -104,10 +104,10 @@ fun sharePromptWithAi(context: Context, prompt: String, attachment: PromptAttach
         }
     }
     try {
-        context.startActivity(Intent.createChooser(intent, "Enviar para o app de IA"))
-        Toast.makeText(context, "Prompt também copiado: se o app de IA não preencher sozinho, é só colar.", Toast.LENGTH_LONG).show()
+        context.startActivity(Intent.createChooser(intent, "Enviar para sua IA favorita"))
+        Toast.makeText(context, "Pedido também copiado: se a sua IA não preencher sozinha, é só colar.", Toast.LENGTH_LONG).show()
     } catch (_: ActivityNotFoundException) {
-        Toast.makeText(context, "Nenhum app para compartilhar. O prompt foi copiado, cole no app de IA.", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, "Nenhum app para compartilhar. O pedido foi copiado: cole na sua IA.", Toast.LENGTH_LONG).show()
     }
 }
 

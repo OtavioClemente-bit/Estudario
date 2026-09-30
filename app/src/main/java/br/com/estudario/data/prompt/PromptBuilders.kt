@@ -209,7 +209,7 @@ object GenerationLimits {
 }
 
 enum class QuestionDifficulty(val label: String) { MIXED("Mista"), EASY("Fácil"), MEDIUM("Média"), HARD("Difícil") }
-enum class MaterialSource(val label: String) { AI_KNOWLEDGE("Conhecimento da IA"), ATTACHED("Vou anexar material") }
+enum class MaterialSource(val label: String) { AI_KNOWLEDGE("Base do Estudário"), ATTACHED("Vou anexar material") }
 
 data class ContentPromptOptions(
     val blocks: Set<ContentBlock> = ContentBlock.entries.toSet(),

@@ -44,7 +44,7 @@ class AiReviewScreenTest {
         }
 
         compose.onNodeWithTag("ai_selected_target").assertTextEquals("TRT-3")
-        compose.onNodeWithText("Use a IA do Estudário").assertIsDisplayed()
+        compose.onNodeWithText("Monte seu edital com o Estudário").assertIsDisplayed()
         compose.onNodeWithText("Entrar para continuar").performClick()
         compose.runOnIdle { assertTrue(loginRequested) }
     }

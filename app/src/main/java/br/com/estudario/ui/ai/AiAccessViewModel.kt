@@ -43,13 +43,13 @@ class AiAccessViewModel(private val repository: AiAccessRepository) : ViewModel(
 
 fun AiAccess.toDisplay(): AiFeatureDisplay {
     val availability = when {
-        !authenticated -> "Entre para usar a IA"
+        !authenticated -> "Entre para gerar com o Estudário"
         !betaAccess || reasonCode == "BETA_DISABLED" -> "Beta indisponível para esta conta"
         !featureEnabled -> "Recurso desativado"
         canUse -> "Disponível"
         reasonCode == "QUOTA_EXHAUSTED" -> "Cota utilizada"
         reasonCode == "QUOTA_RESERVED" -> "Geração em andamento"
-        else -> "IA indisponível agora"
+        else -> "Geração indisponível agora"
     }
     val copy = when {
         quota == null -> "Cota não disponível"

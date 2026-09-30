@@ -142,13 +142,13 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
     }
     LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
-            ScreenTitle("Edital", "Cada tópico vira material de estudo") {
+            ScreenTitle("Concursos", "Cada tópico vira material de estudo") {
                 Row {
                     IconButton(onClick = onHelp) { Icon(Icons.Outlined.HelpOutline, "Como montar o edital") }
                     IconButton(
                         onClick = { showEditalPrompt = true },
                         modifier = Modifier.tourTarget(TourKey.EDITAL_AI, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.EDITAL_AI, it) },
-                    ) { Icon(Icons.Outlined.AutoAwesome, "Montar edital com IA") }
+                    ) { Icon(Icons.Outlined.AutoAwesome, "Montar matérias pelo edital") }
                     var more by remember { mutableStateOf(false) }
                     Box {
                         IconButton(
@@ -178,9 +178,9 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
             item {
                 Surface(shape = EstudarioShapes.spotlight, color = MaterialTheme.colorScheme.primaryContainer) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Comece pelo edital", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("Envie o PDF do edital e a IA organiza as matérias e os tópicos. Depois, cada tópico vira teoria, flashcards e questões.")
-                        Button(onClick = { showEditalPrompt = true }, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.AutoAwesome, null); Spacer(Modifier.width(8.dp)); Text("Montar edital com IA") }
+                        Text("Comece pelo seu concurso", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("Envie o PDF do edital e o Estudário organiza as matérias e os tópicos. Depois, cada tópico vira teoria, flashcards e questões.")
+                        Button(onClick = { showEditalPrompt = true }, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.AutoAwesome, null); Spacer(Modifier.width(8.dp)); Text("Montar pelo edital") }
                         OutlinedButton(onClick = pickFile, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.FileOpen, null); Spacer(Modifier.width(8.dp)); Text("Importar arquivo .estudo") }
                         TextButton(onClick = { addCompetition = true }, Modifier.fillMaxWidth()) { Text("Criar concurso manualmente") }
                     }
@@ -215,7 +215,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
                         }
                         ProgressLine(if (allTopics.isEmpty()) 0f else withContent.toFloat() / allTopics.size, MaterialTheme.colorScheme.primary)
                         Text(
-                            if (withContent < allTopics.size) "Toque em ✨ Gerar num tópico: a IA do Estudário escreve a teoria, os flashcards e as questões só dele, com mais profundidade."
+                            if (withContent < allTopics.size) "Toque em ✨ Gerar num tópico: o Estudário escreve a teoria, os flashcards e as questões só dele, com mais profundidade."
                             else "Todo o edital tem material. Agora é estudar e treinar.",
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer,
                         )
@@ -251,7 +251,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
                 val matchesContent = !onlyWithContent || subjectTopics.any { it.id in contentTopicIds }
                 matchesSearch && matchesContent
             }
-            if (selectedSubjects.isEmpty()) item { EmptyState("Edital vazio", "Adicione a primeira matéria deste concurso.", "Adicionar matéria") { addSubject = true } }
+            if (selectedSubjects.isEmpty()) item { EmptyState("Nenhuma matéria ainda", "Adicione a primeira matéria deste concurso.", "Adicionar matéria") { addSubject = true } }
             else if (visibleSubjects.isEmpty()) item { EmptyState("Nenhuma matéria encontrada", "Altere a pesquisa ou desative o filtro de material.") }
             items(visibleSubjects, key = { it.id }) { subject ->
                 val isFirst = subject.id == visibleSubjects.firstOrNull()?.id
@@ -387,7 +387,7 @@ private fun TopicRow(topic: TopicEntity, depth: Int, viewModel: AppViewModel, ha
             IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Opções") }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Abrir") }, onClick = { menu = false; onClick() })
-                DropdownMenuItem(text = { Text(if (hasContent) "Gerar mais material" else "Gerar material com IA") }, leadingIcon = { Icon(Icons.Outlined.AutoAwesome, null) }, onClick = { menu = false; onGenerateContent() })
+                DropdownMenuItem(text = { Text(if (hasContent) "Gerar mais material" else "Gerar com o Estudário") }, leadingIcon = { Icon(Icons.Outlined.AutoAwesome, null) }, onClick = { menu = false; onGenerateContent() })
                 DropdownMenuItem(text = { Text("Prioridade") }, leadingIcon = { Icon(Icons.Outlined.Flag, null) }, onClick = { menu = false; onPriority() })
                 if (topic.status == TopicStatus.NAO_ESTUDADO) {
                     DropdownMenuItem(text = { Text("Marcar estudado") }, onClick = { menu = false; viewModel.markStudied(topic) })

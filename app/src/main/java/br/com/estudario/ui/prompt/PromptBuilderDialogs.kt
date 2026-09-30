@@ -180,16 +180,16 @@ fun EditalPromptBuilderDialog(viewModel: AppViewModel, selectedCompetitionId: Lo
         },
         WizardStep(
             "Edital oficial",
-            "Com o PDF do edital, a IA segue exatamente as matérias e os tópicos publicados.",
+            "Com o PDF do edital, o Estudário segue exatamente as matérias e os tópicos publicados.",
             question = "Você tem o PDF oficial do edital?",
             answer = if (options.source == EditalSource.PASTE_TEXT) "Vou colar o texto" else attachment?.name ?: "Sem PDF por enquanto",
         ) {
             ChoiceChips(EditalSource.entries, options.source, { it.label }) { options = options.copy(source = it) }
             if (options.source == EditalSource.ATTACH_PDF) {
                 AttachmentPicker(attachment, "Escolher PDF do edital", { attach.launch(attachmentTypes) }, { attachment = null })
-                if (attachment == null) Text("Sem o arquivo, a IA precisa pesquisar fontes oficiais, o que é menos preciso.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (attachment == null) Text("Sem o arquivo, as matérias podem não bater com o edital publicado.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
-                Text("O pedido termina com o espaço “TEXTO DO EDITAL”: cole o conteúdo programático logo depois, no app de IA.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("O pedido termina com o espaço “TEXTO DO EDITAL”: cole o conteúdo programático logo depois, na sua IA.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
     )
@@ -197,14 +197,14 @@ fun EditalPromptBuilderDialog(viewModel: AppViewModel, selectedCompetitionId: Lo
         WizardSummaryItem("Concurso", effective.competitionName.ifBlank { "Não informado" }, 0),
         WizardSummaryItem("Cargo", listOf(effective.role, effective.board, effective.year).filter(String::isNotBlank).joinToString(" · ").ifBlank { "Não informado" }, 0),
         WizardSummaryItem("Extração", "${options.scope.label} · ${options.detail.label}", 1),
-        WizardSummaryItem("Edital", if (options.source == EditalSource.PASTE_TEXT) "Texto colado na IA" else attachment?.name ?: "Sem PDF anexado", 2),
+        WizardSummaryItem("Edital", if (options.source == EditalSource.PASTE_TEXT) "Texto colado na sua IA" else attachment?.name ?: "Sem PDF anexado", 2),
     )
     val server = ServerGenerationOption(
         description = "Lê o PDF oficial, extrai matérias e tópicos e mostra tudo para você revisar antes de salvar. Usa 1 geração de edital do seu plano.",
         enabled = target != null && options.source == EditalSource.ATTACH_PDF,
         disabledReason = when {
-            target == null -> "Disponível para concursos já criados no app. Crie o concurso primeiro ou use outra IA."
-            options.source != EditalSource.ATTACH_PDF -> "A IA do Estudário trabalha com o PDF oficial do edital."
+            target == null -> "Disponível para concursos já criados no app. Crie o concurso primeiro, na aba Concursos."
+            options.source != EditalSource.ATTACH_PDF -> "Para gerar pelo Estudário, anexe o PDF oficial do edital."
             else -> null
         },
         onGenerate = {
@@ -230,7 +230,7 @@ fun EditalPromptBuilderDialog(viewModel: AppViewModel, selectedCompetitionId: Lo
     )
 
     GenerationWizard(
-        title = "Gerar edital com IA",
+        title = "Montar matérias pelo edital",
         subtitle = "Matérias, tópicos e subtópicos a partir do edital oficial",
         steps = steps,
         summary = summary,
@@ -393,7 +393,7 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         ))
         add(WizardSummaryItem(
             "Base",
-            if (options.source == MaterialSource.ATTACHED) attachment?.name ?: "Material seu (ainda não anexado)" else "Pesquisa em fontes oficiais",
+            if (options.source == MaterialSource.ATTACHED) attachment?.name ?: "Material seu (ainda não anexado)" else "Base de conhecimento do Estudário",
             stepOf("O que gerar"),
         ))
     }
@@ -410,11 +410,11 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         returnFileLabel = "Abrir arquivo .estudo",
         attachment = attachment.takeIf { options.source == MaterialSource.ATTACHED },
         server = ServerGenerationOption(
-            description = "Pesquisa fontes oficiais, escreve o material e mostra tudo para você revisar antes de salvar no tópico. Usa 1 geração de conteúdo do seu plano.",
+            description = "Escreve o material do tópico e mostra tudo para você revisar antes de salvar. Usa 1 geração de conteúdo do seu plano.",
             enabled = singleTopic != null && options.source != MaterialSource.ATTACHED,
             disabledReason = when {
-                singleTopic == null -> "A IA do Estudário gera um tópico por vez. Escolha um tópico ou use outra IA."
-                options.source == MaterialSource.ATTACHED -> "Para trabalhar em cima do seu material, use outra IA (o anexo vai junto)."
+                singleTopic == null -> "O Estudário gera um tópico por vez. Escolha um tópico."
+                options.source == MaterialSource.ATTACHED -> "Para trabalhar em cima do seu material, envie para a sua IA favorita (o anexo vai junto)."
                 else -> null
             },
             onGenerate = { if (application.supabaseAuthRepository.accessToken() == null) loginFor = singleTopic else serverTarget = singleTopic },
@@ -454,11 +454,10 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
     }
 }
 
-/** Etapas mostradas enquanto a IA do Estudário escreve o material do tópico. */
+/** Etapas mostradas enquanto o Estudário escreve o material do tópico. */
 private val ContentGenerationStages = listOf(
     "Enviando seu pedido",
-    "Pesquisando fontes oficiais",
-    "Conferindo leis e versões vigentes",
+    "Organizando o tópico",
     "Escrevendo a teoria",
     "Montando resumo e revisão",
     "Criando as questões comentadas",
@@ -701,7 +700,7 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
             "Objetivo",
             "Isso define o ritmo e o equilíbrio entre teoria, questões e revisão.",
             when {
-                competition == null -> "Crie ou importe um concurso no Edital antes de gerar o plano."
+                competition == null -> "Crie ou importe um concurso na aba Concursos antes de gerar o plano."
                 competitionSubjects.isEmpty() -> "Este concurso ainda não tem matérias. Importe o edital primeiro."
                 options.planName.isBlank() -> "Dê um nome ao plano."
                 else -> null
@@ -836,8 +835,8 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
     )
 
     GenerationWizard(
-        title = "Plano de estudos com IA",
-        subtitle = competition?.name ?: "Crie um concurso no Edital primeiro",
+        title = "Plano de estudos com o assistente",
+        subtitle = competition?.name ?: "Crie um concurso na aba Concursos primeiro",
         steps = steps,
         summary = summary,
         prompt = prompt,
@@ -924,7 +923,7 @@ private fun BoardField(value: String, onChange: (String) -> Unit) {
 private fun MaterialBaseSection(useOwn: Boolean, attachment: PromptAttachment?, onUseOwnChange: (Boolean) -> Unit, onPick: () -> Unit, onClear: () -> Unit) {
     ToggleRow(
         "Usar um material meu como base",
-        if (useOwn) "A IA trabalha em cima do que você anexar" else "Sem anexo, a IA pesquisa em fontes oficiais",
+        if (useOwn) "O material que você anexar é a base" else "Sem anexo, vale a base do Estudário",
         useOwn,
         onUseOwnChange,
     )

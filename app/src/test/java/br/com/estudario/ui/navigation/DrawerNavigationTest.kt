@@ -24,7 +24,7 @@ class DrawerNavigationTest {
             onHelp = {},
             onMySyllabi = { opened = true },
         )
-        val entry = sections.flatMap { it.entries }.single { it.label == "Meus editais" }
+        val entry = sections.flatMap { it.entries }.single { it.label == "Meus concursos" }
 
         entry.onClick()
 

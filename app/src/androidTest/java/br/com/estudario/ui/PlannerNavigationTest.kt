@@ -33,7 +33,7 @@ class PlannerNavigationTest {
 
     @Test fun bottomNavigationContainsPlanAndErrorsLivesInMore() {
         openHome()
-        listOf("Início", "Edital", "Plano", "Treinar").forEach { label ->
+        listOf("Início", "Concursos", "Plano", "Treinar").forEach { label ->
             assertTrue(compose.onAllNodesWithText(label).fetchSemanticsNodes().isNotEmpty())
         }
         compose.onNodeWithText("Mais").assertDoesNotExist()

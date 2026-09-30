@@ -51,7 +51,7 @@ private fun GoogleLoginDialog(onDismiss: () -> Unit, onSignedIn: () -> Unit) {
         text = {
             Column {
                 Text(
-                    "Entre com a sua conta Google, a mesma do Google Play. Uma conta só para tudo: seu plano, a IA do Estudário e o backup do seu estudo.",
+                    "Entre com a sua conta Google, a mesma do Google Play. Uma conta só para tudo: seu plano, as gerações do Estudário e o backup do seu estudo.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

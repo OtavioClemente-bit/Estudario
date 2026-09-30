@@ -381,7 +381,7 @@ fun InitialSetupFlow(
         val preview = operation as SetupOperation.PlanPreview
         AlertDialog(
             onDismissRequest = viewModel::clearOperation,
-            title = { Text("Confira o plano da IA") },
+            title = { Text("Confira o plano do assistente") },
             text = { Text("${preview.value.planName}\n\n${preview.value.importedTaskCount} tarefa(s) encontradas. ${preview.value.unresolvedReferences.size} referência(s) precisam ser resolvidas.") },
             confirmButton = {
                 TextButton(onClick = { viewModel.confirmPlanImport(preview.raw) }, enabled = preview.value.unresolvedReferences.isEmpty()) { Text("Importar plano") }
@@ -449,7 +449,7 @@ private fun IntroStep(onContinue: () -> Unit) {
         ) { br.com.estudario.ui.components.EstudarioGlyph(size = 104.dp) }
         SetupCard {
             IntroPoint(Icons.Outlined.School, "Seu objetivo", "A prova que você quer e, se souber, a data.")
-            IntroPoint(Icons.Outlined.Description, "Seu edital", "Com IA, por arquivo ou montado à mão.")
+            IntroPoint(Icons.Outlined.Description, "Suas matérias", "Pelo edital, por arquivo ou montadas à mão.")
             IntroPoint(Icons.Outlined.CalendarMonth, "Seu plano", "Um ritmo que cabe na sua semana.")
         }
         Text("Nada aqui exige banca, ano ou uma data de prova. Se ainda não souber tudo, seguimos mesmo assim.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -512,7 +512,7 @@ private fun CompetitionStep(
         SetupCard {
             Text("Já aproveite e anexe o edital", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Text(
-                "A maioria das IAs gratuitas só consegue pesquisar direito quando o PDF é enviado junto; sem ele, geralmente não conseguem buscar o edital sozinhas. Se puder, escolha a versão com o conteúdo programático (as matérias) já incluído. É opcional, e dá pra anexar depois, no passo do edital.",
+                "Com o PDF, as matérias saem iguais às do edital publicado. Se puder, escolha a versão com o conteúdo programático (as matérias) já incluído. É opcional, e dá pra anexar depois, no passo do edital.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -653,7 +653,7 @@ internal fun SyllabusMethodStep(
             }
         },
     ) {
-        ChoiceCard("Gerar com IA", "A IA lê o edital e organiza matérias e tópicos para você revisar.", method == SyllabusMethod.DIRECT_AI, icon = Icons.Outlined.AutoAwesome, badge = "Recomendado") { viewModel.chooseSyllabusMethod(SyllabusMethod.DIRECT_AI) }
+        ChoiceCard("Gerar com o Estudário", "O Estudário lê o edital e organiza matérias e tópicos para você revisar.", method == SyllabusMethod.DIRECT_AI, icon = Icons.Outlined.AutoAwesome, badge = "Recomendado") { viewModel.chooseSyllabusMethod(SyllabusMethod.DIRECT_AI) }
         ChoiceCard("Importar arquivo .estudo", "Use um edital que você já tenha gerado ou recebido.", method == SyllabusMethod.IMPORT_ESTUDO, icon = Icons.Outlined.UploadFile) { viewModel.chooseSyllabusMethod(SyllabusMethod.IMPORT_ESTUDO) }
         ChoiceCard("Montar manualmente", "Crie matérias e tópicos agora e edite tudo antes de continuar.", method == SyllabusMethod.MANUAL, icon = Icons.Outlined.School) { viewModel.chooseSyllabusMethod(SyllabusMethod.MANUAL) }
 
@@ -671,7 +671,7 @@ internal fun SyllabusMethodStep(
                 Spacer(Modifier.height(4.dp))
                 StudioAiCard(editalAttachment) { onOpenIntegratedAi(editalAttachment) }
                 br.com.estudario.ui.ai.AiAccessPanel()
-                OrDivider("ou use outra IA")
+                OrDivider("ou envie para sua IA favorita")
                 ExternalAiGuide(
                     prompt = prompt,
                     attachment = editalAttachment,
@@ -943,8 +943,8 @@ private fun PlanMethodStep(
         val competitionExternalId = uiState.competition?.let(PromptIds::competition) ?: "concurso-${PromptIds.slug(snapshot.competitionName)}"
         StudioAiCard(
             attachment = null,
-            description = "A IA monta o seu plano dia a dia com as suas matérias, horas e prioridades, com revisões e simulados. Você confere antes de aplicar.",
-            buttonLabel = "Montar plano com a IA",
+            description = "O assistente Estudário monta o seu plano dia a dia com as suas matérias, horas e prioridades, com revisões e simulados. Você confere antes de aplicar.",
+            buttonLabel = "Montar com o assistente Estudário",
         ) { studioPlan = true }
         if (studioPlan) {
             br.com.estudario.ui.ai.StudyPlanAiScreen(
@@ -978,7 +978,7 @@ private fun PlanMethodStep(
         }
         OrDivider("ou escolha outro caminho")
         ChoiceCard("Montar automaticamente", "Recomendado para começar: distribui suas matérias nos dias disponíveis e já cria a primeira atividade.", snapshot.planMethod == PlanCreationMethod.AUTOMATIC, onClick = { viewModel.choosePlanMethod(PlanCreationMethod.AUTOMATIC) })
-        ChoiceCard("Montar com IA externa", "O prompt inclui o edital completo, seus tópicos e prioridades, ritmo, bloco e perfil. Depois, importe e confira o .plano.", snapshot.planMethod == PlanCreationMethod.EXTERNAL_AI, onClick = { viewModel.choosePlanMethod(PlanCreationMethod.EXTERNAL_AI) })
+        ChoiceCard("Enviar para sua IA favorita", "O pedido inclui o edital completo, seus tópicos e prioridades, ritmo, bloco e perfil. Depois, importe e confira o .plano.", snapshot.planMethod == PlanCreationMethod.EXTERNAL_AI, onClick = { viewModel.choosePlanMethod(PlanCreationMethod.EXTERNAL_AI) })
         if (snapshot.planMethod == PlanCreationMethod.EXTERNAL_AI) {
             val planStartDate = LocalDate.now()
             val examDate = snapshot.examDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
@@ -1083,7 +1083,7 @@ private fun PlanReviewStep(snapshot: InitialSetupSnapshot, uiState: InitialSetup
         SetupCard {
             Text(snapshot.competitionName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text("Perfil de estudo: ${snapshot.studyProfile.label}")
-            Text("Método: ${if (snapshot.planMethod == PlanCreationMethod.AUTOMATIC) "plano do Estudário" else "plano gerado com IA e validado"}")
+            Text("Método: ${if (snapshot.planMethod == PlanCreationMethod.AUTOMATIC) "plano do Estudário" else "plano do assistente, conferido"}")
             Text("Bloco de estudo: ${snapshot.sessionMinutes} min, é o tamanho-base de cada tarefa, não o total diário.")
             Text("Disponibilidade semanal: ${formatAvailabilityMinutes(snapshot.availabilityMinutes.sum())} em ${snapshot.availabilityMinutes.count { it > 0 }} dias.")
             snapshot.availabilityMinutes.forEachIndexed { index, minutes ->
@@ -1382,7 +1382,7 @@ private fun OrDivider(label: String) {
 private fun StudioAiCard(
     attachment: PromptAttachment?,
     description: String = "Envie o PDF oficial e receba as matérias e os tópicos organizados. Você confere tudo antes de salvar.",
-    buttonLabel: String = "Gerar com a IA do Estudário",
+    buttonLabel: String = "Gerar com o Estudário",
     onOpen: () -> Unit,
 ) {
     Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(br.com.estudario.ui.ai.aiGradient())) {
@@ -1393,7 +1393,7 @@ private fun StudioAiCard(
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.Outlined.AutoAwesome, null, tint = Color.White) }
                 Column(Modifier.weight(1f)) {
-                    Text("IA do Estudário", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Assistente Estudário", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
                     Text("Mais rápido: tudo dentro do app", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.85f))
                 }
                 Text(
@@ -1491,35 +1491,35 @@ private fun ExternalAiGuide(
         GuideStep(
             number = 1,
             title = "Anexe o edital em PDF",
-            description = if (attachment != null) "O PDF vai junto quando você enviar." else "Recomendado: sem o PDF, a maioria das IAs gratuitas não encontra o edital sozinha.",
+            description = if (attachment != null) "O PDF vai junto quando você enviar." else "Recomendado: com o PDF, a sua IA segue o edital publicado.",
             done = attachment != null,
         ) {
             AttachmentPicker(attachment, "Anexar edital (PDF)", onPickAttachment, onClearAttachment)
         }
         GuideStep(
             number = 2,
-            title = "Envie o prompt para a IA",
-            description = "Ele já leva o nome do seu concurso e regras para a IA não inventar matérias.",
+            title = "Envie o pedido para sua IA",
+            description = "Ele já leva o nome do seu concurso e regras para não inventar matérias.",
         ) {
             // Um embaixo do outro: com fonte grande, lado a lado cortava o rótulo.
             Button(
                 onClick = { sharePromptWithAi(context, prompt, attachment) },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 shape = RoundedCornerShape(14.dp),
-            ) { Icon(Icons.Outlined.OpenInNew, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Compartilhar com IA") }
+            ) { Icon(Icons.Outlined.OpenInNew, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Enviar para minha IA") }
             OutlinedButton(
                 onClick = {
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText("Prompt do Estudário", prompt))
+                    clipboard.setPrimaryClip(ClipData.newPlainText("Pedido do Estudário", prompt))
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 shape = RoundedCornerShape(14.dp),
-            ) { Icon(Icons.Outlined.ContentCopy, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Copiar prompt") }
+            ) { Icon(Icons.Outlined.ContentCopy, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Copiar pedido") }
         }
         GuideStep(
             number = 3,
             title = "Traga a resposta de volta",
-            description = "Salve o arquivo .estudo que a IA gerar e escolha aqui. Você vê um resumo antes de gravar.",
+            description = "Salve o arquivo .estudo que a sua IA gerar e escolha aqui. Você vê um resumo antes de gravar.",
             last = true,
         ) {
             OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth().height(46.dp), shape = RoundedCornerShape(14.dp)) {
@@ -1533,22 +1533,22 @@ private fun ExternalAiGuide(
 private fun PlanPromptActionCard(prompt: String, onImport: () -> Unit) {
     val context = LocalContext.current
     SetupCard {
-        Text("A IA recebe somente matérias e disponibilidade já existentes no seu aparelho.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        GuideStep(number = 1, title = "Copie o prompt e abra a IA", description = "Cole na conversa com a IA que você preferir.") {
+        Text("O pedido leva somente as matérias e a disponibilidade que já estão no seu aparelho.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        GuideStep(number = 1, title = "Copie o pedido e abra sua IA", description = "Cole na conversa com a IA que você preferir.") {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("Prompt de plano do Estudário", prompt))
+                        clipboard.setPrimaryClip(ClipData.newPlainText("Pedido de plano do Estudário", prompt))
                     },
                     modifier = Modifier.weight(1f).height(46.dp),
                     shape = RoundedCornerShape(14.dp),
-                ) { Icon(Icons.Outlined.ContentCopy, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Copiar prompt", maxLines = 1) }
+                ) { Icon(Icons.Outlined.ContentCopy, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Copiar pedido", maxLines = 1) }
                 OutlinedButton(
                     onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://chatgpt.com/"))) },
                     modifier = Modifier.weight(1f).height(46.dp),
                     shape = RoundedCornerShape(14.dp),
-                ) { Icon(Icons.Outlined.OpenInNew, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Abrir IA") }
+                ) { Icon(Icons.Outlined.OpenInNew, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Abrir minha IA") }
             }
         }
         GuideStep(number = 2, title = "Importe o .plano", description = "O Estudário só aplica o plano depois de validar referências e preservar o que já existe.", last = true) {

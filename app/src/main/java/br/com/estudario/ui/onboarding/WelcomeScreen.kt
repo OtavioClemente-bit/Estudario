@@ -132,14 +132,14 @@ private fun WelcomeContent(
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
-                            "Uma conta só para tudo: entre com o Google para liberar a IA do Estudário e guardar uma cópia do seu progresso no Drive.",
+                            "Uma conta só para tudo: entre com o Google para gerar material com o Estudário e guardar uma cópia do seu progresso no Drive.",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     Surface(shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
                         Column(Modifier.padding(vertical = 6.dp)) {
-                            BenefitRow(Icons.Rounded.CloudDone, "IA do Estudário e backup", "Gere material com IA e guarde seu histórico na sua conta")
+                            BenefitRow(Icons.Rounded.CloudDone, "Geração e backup", "Gere material com o Estudário e guarde seu histórico na sua conta")
                             BenefitDivider()
                             BenefitRow(Icons.Rounded.SettingsBackupRestore, "Troque de celular sem perder nada", "Restaure tudo em outro aparelho")
                             BenefitDivider()

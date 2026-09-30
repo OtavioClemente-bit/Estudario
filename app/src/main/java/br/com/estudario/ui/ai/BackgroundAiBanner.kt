@@ -61,7 +61,7 @@ private fun TaskRow(task: BackgroundAiTasks.Task, onOpen: (String, Long?) -> Uni
             Column(Modifier.weight(1f)) {
                 Text(
                     when (status) {
-                        BackgroundAiTasks.Status.Running -> "Gerando ${task.kind.lowercase()}…"
+                        BackgroundAiTasks.Status.Running -> "Preparando ${task.kind.lowercase()}…"
                         is BackgroundAiTasks.Status.Ready -> "${task.kind} pronto"
                         is BackgroundAiTasks.Status.Failed -> "Não deu para gerar"
                     },

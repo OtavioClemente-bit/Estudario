@@ -192,7 +192,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
     // chamada "Mais" para guardar o que não coube.
     val destinations = listOf(
         Destination("home", "Início", Icons.Rounded.Home, Icons.Outlined.Home),
-        Destination("syllabus", "Edital", Icons.Rounded.Checklist, Icons.Outlined.Checklist),
+        Destination("syllabus", "Concursos", Icons.Rounded.Checklist, Icons.Outlined.Checklist),
         Destination("focus", "Foco", Icons.Rounded.Timer, Icons.Outlined.Timer),
         Destination("plan", "Plano", Icons.Rounded.CalendarMonth, Icons.Outlined.CalendarMonth),
         Destination("train", "Treinar", Icons.Rounded.School, Icons.Outlined.School),
@@ -296,7 +296,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     }),
                     title = when {
                         currentRoute == "profile" -> "Perfil"
-                        currentRoute == "my-syllabi" -> "Meus editais"
+                        currentRoute == "my-syllabi" -> "Meus concursos"
                         currentRoute == "badges" -> "Emblemas"
                         currentRoute == "sources" -> "Histórico e fontes"
                         currentRoute == "focus-history" -> "Histórico de foco"
@@ -650,7 +650,7 @@ private fun TransferDialog(viewModel: AppViewModel) {
     val state by viewModel.transfer.collectAsState()
     when (val current = state) {
         TransferState.Idle -> Unit
-        TransferState.Loading -> LoadingDialog("Processando o arquivo", "Arquivos grandes da IA podem levar alguns segundos.")
+        TransferState.Loading -> LoadingDialog("Processando o arquivo", "Arquivos grandes podem levar alguns segundos.")
         is TransferState.Preview -> ImportReviewScreen(
             state = current,
             onConfirm = { mode, studied ->

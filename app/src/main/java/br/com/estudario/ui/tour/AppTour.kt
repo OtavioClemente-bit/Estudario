@@ -66,9 +66,9 @@ import androidx.compose.ui.unit.dp
  * posição via [tourTarget] e o [TourOverlay] recorta um destaque em volta dele.
  */
 enum class TourId(val title: String, val subtitle: String) {
-    EDITAL("Primeiros passos", "Criar o concurso e montar o edital com IA"),
+    EDITAL("Primeiros passos", "Criar o concurso e montar as matérias"),
     CONTENT("Conteúdo das matérias", "Gerar teoria, resumos e questões; revisões e fila"),
-    PLAN("Plano de estudos", "Gerar o plano com IA, importar e acompanhar"),
+    PLAN("Plano de estudos", "Montar o plano e acompanhar"),
     TRAIN("Treinar", "Desafio do dia, modos de treino e caderno de erros"),
     MORE("Revisões, fila e desempenho", "Onde acompanhar revisões, fila, desempenho e erros"),
     PROFILE("Perfil, XP e emblemas", "Seu nível, sua sequência e as conquistas"),
@@ -98,27 +98,27 @@ fun tourSteps(id: TourId): List<TourStep> = when (id) {
         TourStep("home", TourKey.NAV_MENU, "Acesse todas as ferramentas", "Toque no nome do app para abrir o menu. Ali você encontra revisões, fila de estudos, desempenho, backup e os guias de orientação."),
         TourStep("home", TourKey.NAV_EDITAL, "1. Comece pelo edital", "Aqui ficam as matérias e os tópicos do seu concurso. O plano, as revisões e as questões são organizados a partir desse conteúdo."),
         TourStep("syllabus", TourKey.EDITAL_CREATE, "Crie seu edital manualmente", "Toque no botão + para criar o concurso e adicionar as matérias e os tópicos manualmente."),
-        TourStep("syllabus", TourKey.EDITAL_AI, "Peça ajuda à IA", "No botão ✨, selecione as opções, como cargo, banca e conteúdo, anexe o PDF do edital e compartilhe a solicitação com o ChatGPT, Gemini ou outra ferramenta de IA. Não é necessário escrever ou editar o prompt.", TutorialVideo.EDITAL),
-        TourStep("syllabus", TourKey.EDITAL_IMPORT, "Importe a resposta", "Quando a IA gerar o arquivo .estudo, abra-o com o Estudário, compartilhe a resposta com o app ou selecione o arquivo por aqui. Você também pode copiar o texto e usar a opção “Colar resposta da IA”."),
-        TourStep("syllabus", null, "A IA cria o conteúdo. O app organiza o plano.", "Use a IA para produzir edital, teoria e questões. O Estudário monta o plano de estudos automaticamente e funciona offline. Assim que o edital estiver pronto, você poderá gerar o conteúdo do primeiro tópico."),
+        TourStep("syllabus", TourKey.EDITAL_AI, "Monte pelo edital", "No botão ✨, anexe o PDF do edital e o Estudário organiza as matérias e os tópicos para você revisar. Se preferir, envie o pedido pronto para a sua IA favorita.", TutorialVideo.EDITAL),
+        TourStep("syllabus", TourKey.EDITAL_IMPORT, "Importe a resposta", "Se usou a sua IA, quando ela gerar o arquivo .estudo, abra-o com o Estudário, compartilhe a resposta com o app ou selecione o arquivo por aqui. Você também pode copiar o texto e usar a opção “Colar resposta da IA”."),
+        TourStep("syllabus", null, "Suas matérias viram plano", "O Estudário prepara teoria e questões e monta o plano de estudos automaticamente, com tudo salvo no aparelho. Assim que o edital estiver pronto, você poderá gerar o conteúdo do primeiro tópico."),
     )
     TourId.CONTENT -> listOf(
         TourStep("syllabus", null, "Edital importado", "Gere teoria, resumos e questões para um tópico por vez. Essa abordagem preserva o detalhamento e reduz o risco de informações imprecisas. Revise o material antes de estudar."),
-        TourStep("syllabus", TourKey.SUBJECT_AI, "Gere o tópico atual", "Toque em ✨ na matéria, escolha o tópico e selecione o conteúdo desejado, como teoria, resumo ou questões. Depois, envie a solicitação à IA.", TutorialVideo.CONTENT),
-        TourStep("syllabus", TourKey.EDITAL_IMPORT, "Importe o conteúdo", "A IA devolve um arquivo .estudo. Abra-o com o app, compartilhe o texto ou use este botão. Cada teoria e questão será associada ao tópico correto, sem duplicação."),
+        TourStep("syllabus", TourKey.SUBJECT_AI, "Gere o tópico atual", "Toque em ✨ na matéria, escolha o tópico e selecione o conteúdo desejado, como teoria, resumo ou questões. Depois, toque em Gerar com o Estudário.", TutorialVideo.CONTENT),
+        TourStep("syllabus", TourKey.EDITAL_IMPORT, "Importe o conteúdo", "Se usou a sua IA, ela devolve um arquivo .estudo. Abra-o com o app, compartilhe o texto ou use este botão. Cada teoria e questão será associada ao tópico correto, sem duplicação."),
         TourStep("syllabus", null, "Acesso rápido no tópico", "Dentro do tópico, o botão ✨ abre o gerador com o assunto já selecionado. Repita o processo para cada novo tópico."),
         TourStep("syllabus", null, "Revisões espaçadas", "Ao marcar um tópico como estudado, o app agenda revisões em D+1, D+7 e D+30, ou segue o ciclo intensivo. Os intervalos aumentam com a consolidação e diminuem quando há dificuldade. As revisões aparecem no Início e em Mais, na seção Revisões espaçadas."),
         TourStep("syllabus", null, "Fila de estudos", "No menu ⋮ de cada tópico, selecione “Adicionar à fila”. O próximo item ficará em destaque no Início até a conclusão do bloco."),
     )
     TourId.PLAN -> listOf(
-        TourStep("plan", null, "Duas formas de criar seu plano", "Você pode montar o plano no próprio app, com regras definidas para sua rotina, ou solicitar uma versão personalizada a uma ferramenta de IA. As duas opções funcionam em conjunto."),
+        TourStep("plan", null, "Duas formas de criar seu plano", "Você pode montar o plano no próprio app, com regras definidas para sua rotina, ou pedir ao assistente Estudário uma versão sob medida. As duas opções funcionam em conjunto."),
         TourStep("plan", TourKey.PLAN_CREATE, "1. Monte o plano no app", "Informe sua etapa atual, a data da prova, o tempo disponível, a duração dos blocos, o peso de cada matéria e suas metas. Antes de criar, o app mostra uma prévia das horas por matéria, das fases e da previsão de conclusão do edital."),
         TourStep("plan", null, "Como o app organiza o estudo", "Revisões atrasadas vêm antes de conteúdo novo. As matérias se alternam conforme o peso definido, e os tópicos com mais erros retornam como reforço."),
         TourStep("plan", null, "Ajustes automáticos", "Quando uma atividade atrasa, ela entra no próximo replanejamento. Se você alterar o tempo disponível ou o peso de uma matéria, o cronograma é atualizado sem perder o histórico já realizado."),
-        TourStep("plan", TourKey.PLAN_AI, "2. Gere um plano com IA", "Use esta opção para estratégias específicas, como uma banca ou um cronograma personalizado. Em ✨, o app prepara a solicitação com seu edital e seu tempo disponível para você enviar ao ChatGPT, Gemini ou outra ferramenta."),
-        TourStep("plan", TourKey.PLAN_IMPORT, "Importe o arquivo .plano", "A IA devolve um arquivo .plano. Abra-o com o Estudário, compartilhe a resposta com o app ou selecione o arquivo por aqui."),
+        TourStep("plan", TourKey.PLAN_AI, "2. Monte com o assistente Estudário", "Use esta opção para estratégias específicas, como uma banca ou um cronograma personalizado. Em ✨, o assistente conversa com você e monta o plano. Também dá para enviar o pedido à sua IA favorita."),
+        TourStep("plan", TourKey.PLAN_IMPORT, "Importe o arquivo .plano", "Se usou a sua IA, ela devolve um arquivo .plano. Abra-o com o Estudário, compartilhe a resposta com o app ou selecione o arquivo por aqui."),
         TourStep("plan", TourKey.PLAN_TABS, "Acompanhe hoje, semana, mês e ano", "Acompanhe as tarefas do dia, registre o que realizou e consulte as metas da semana, do mês e das fases da preparação. Em Hoje, “Por que este plano” explica as regras usadas pelo cronograma."),
-        TourStep("plan", TourKey.PLAN_MANAGE, "Gerencie seus planos", "Troque o plano ativo, ajuste sua disponibilidade e os pesos das matérias, ou exporte o contexto para uma IA revisar o que já foi realizado."),
+        TourStep("plan", TourKey.PLAN_MANAGE, "Gerencie seus planos", "Troque o plano ativo, ajuste sua disponibilidade e os pesos das matérias, ou exporte o contexto para a sua IA revisar o que já foi realizado."),
     )
     TourId.TRAIN -> listOf(
         TourStep("train", null, "Hora de treinar", "As questões são baseadas nos conteúdos importados. Cada resposta atualiza o domínio do tópico e os indicadores de desempenho."),

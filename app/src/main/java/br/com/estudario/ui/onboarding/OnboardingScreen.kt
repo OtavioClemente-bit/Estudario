@@ -86,9 +86,9 @@ private fun onboardingPages(): List<OnboardingPage> = listOf(
         art = OnboardingArt.PLAN,
     ),
     OnboardingPage(
-        eyebrow = "Sua IA",
-        title = "A IA que você já usa,\nintegrada ao seu plano.",
-        body = "O Estudário prepara a solicitação com seu conteúdo, suas prioridades e seu ritmo. Você escolhe a ferramenta de IA, e o resultado retorna organizado no seu plano.",
+        eyebrow = "Sua IA favorita",
+        title = "Prefere o ChatGPT ou o Gemini?\nTambém funciona.",
+        body = "Além de gerar pelo próprio Estudário, você pode enviar o pedido pronto para a IA que já usa. O resultado volta organizado no seu plano.",
         art = OnboardingArt.COMPANION,
     ),
     OnboardingPage(

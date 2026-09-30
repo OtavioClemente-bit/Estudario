@@ -200,7 +200,7 @@ object StudyPlanAi {
             weeklyPlans = emptyList(),
             tasks = tasks,
             // A estratégia explicada pela IA viaja com o plano e aparece nas premissas.
-            metadata = mapOf("premissas" to proposal.text("summary"), "origem" to "IA do Estudário"),
+            metadata = mapOf("premissas" to proposal.text("summary"), "origem" to "Assistente Estudário"),
         )
         return StudyPlanCodec().encode(plan)
     }

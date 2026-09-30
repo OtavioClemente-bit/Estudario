@@ -19,19 +19,19 @@ import br.com.estudario.data.local.SubjectEntity
 import br.com.estudario.data.local.TopicEntity
 
 private val ContentCopy = AiGenerationCopy(
-    screenTitle = "IA do Estudário",
+    screenTitle = "Assistente Estudário",
     heroTitle = "Material completo deste tópico",
-    heroText = "A IA pesquisa fontes oficiais e monta teoria, resumo e questões comentadas só do que este item do edital pede.",
+    heroText = "O Estudário prepara teoria, resumo e questões comentadas só do que este item do edital pede.",
     benefits = listOf(
         Icons.Outlined.MenuBook to "Teoria em capítulos, resumo e revisão rápida",
         Icons.Outlined.Quiz to "10 questões comentadas, do fácil ao difícil",
         Icons.Outlined.FactCheck to "Fontes oficiais listadas para você conferir",
     ),
-    generateLabel = "Gerar material com a IA",
+    generateLabel = "Gerar com o Estudário",
     processingTitle = "Preparando seu material",
     stages = listOf(
         "Delimitando o recorte do edital",
-        "Pesquisando fontes oficiais",
+        "Organizando o tópico",
         "Conferindo a legislação vigente",
         "Redigindo a teoria",
         "Montando resumo e revisão rápida",
@@ -39,8 +39,8 @@ private val ContentCopy = AiGenerationCopy(
         "Conferindo tudo antes de entregar",
     ),
     stageMillis = 22_000L,
-    durationHint = "Com pesquisa nas fontes, costuma levar de 2 a 4 minutos.",
-    fallbackLabel = "Prefiro usar outra IA (ChatGPT, Gemini…)",
+    durationHint = "Costuma levar de 2 a 4 minutos.",
+    fallbackLabel = "Prefiro enviar para minha IA favorita (ChatGPT, Gemini…)",
 )
 
 /**

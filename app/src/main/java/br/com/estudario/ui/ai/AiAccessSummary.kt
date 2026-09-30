@@ -97,7 +97,7 @@ fun AiAccessSummary(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 AiBadge(Icons.Outlined.AutoAwesome)
                 Column(Modifier.weight(1f)) {
-                    Text("IA do Estudário", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text("Gerações do Estudário", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text("O que sua conta pode usar agora", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 BetaPill()

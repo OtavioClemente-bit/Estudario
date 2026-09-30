@@ -66,8 +66,8 @@ class AiTextJobViewModel(
             _state.value = when (val result = app.aiAccessRepository.loadAccess(feature)) {
                 is AiAccessLoadResult.Failed -> when (result.failure.code) {
                     AiAccessFailureCode.AUTH_REQUIRED, AiAccessFailureCode.AUTH_EXPIRED -> AiTextJobState.NeedsLogin
-                    AiAccessFailureCode.OFFLINE, AiAccessFailureCode.TIMEOUT -> AiTextJobState.Unavailable("Sem conexão com a IA agora. Confira a internet e tente de novo.")
-                    else -> AiTextJobState.Unavailable("A IA do Estudário está indisponível agora.")
+                    AiAccessFailureCode.OFFLINE, AiAccessFailureCode.TIMEOUT -> AiTextJobState.Unavailable("Sem conexão com o Estudário agora. Confira a internet e tente de novo.")
+                    else -> AiTextJobState.Unavailable("A geração pelo Estudário está indisponível agora.")
                 }
                 is AiAccessLoadResult.Available -> {
                     val access = result.access
@@ -77,7 +77,7 @@ class AiTextJobViewModel(
                         access.reasonCode == "QUOTA_EXHAUSTED" || access.reasonCode == "QUOTA_RESERVED" ->
                             AiTextJobState.QuotaUsed(resetLabel(access.quota?.resetAt))
                         access.reasonCode == "BETA_ACCESS_REQUIRED" || access.reasonCode == "BETA_DISABLED" ->
-                            AiTextJobState.Unavailable("Sua conta ainda não participa da beta da IA do Estudário.")
+                            AiTextJobState.Unavailable("Sua conta ainda não tem acesso à geração pelo Estudário.")
                         else -> AiTextJobState.Unavailable("Este recurso está temporariamente desativado.")
                     }
                 }
@@ -117,7 +117,7 @@ class AiTextJobViewModel(
             } else {
                 prefs.edit().remove(targetKey).remove("$targetKey:ctx").apply()
                 _state.value = AiTextJobState.Failed(
-                    "A IA não conseguiu entregar um resultado confiável desta vez. Sua geração do dia foi devolvida.",
+                    "Não deu para entregar um resultado confiável desta vez. Sua geração do dia foi devolvida.",
                     canRetry = true,
                 )
             }
@@ -142,7 +142,7 @@ class AiTextJobViewModel(
         error is AiApiException && error.code.contains("QUOTA") -> AiTextJobState.QuotaUsed(null)
         error is AiApiException && error.status == 401 -> AiTextJobState.NeedsLogin
         error is AiApiException && (error.code == "NETWORK_UNAVAILABLE" || error.code == "HTTP_TIMEOUT") ->
-            AiTextJobState.Failed("Sem conexão com a IA agora. Confira a internet e tente de novo.", canRetry = true)
+            AiTextJobState.Failed("Sem conexão com o Estudário agora. Confira a internet e tente de novo.", canRetry = true)
         // O código vai junto: é o que permite descobrir a causa sem acesso ao aparelho.
         else -> AiTextJobState.Failed(
             "Não foi possível gerar agora. Tente novamente em instantes. (código: ${(error as? AiApiException)?.let { "${it.code} ${it.status}" } ?: error.javaClass.simpleName})",

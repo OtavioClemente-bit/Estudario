@@ -136,7 +136,7 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
                     IconButton(
                         onClick = { promptGenerator = true },
                         modifier = Modifier.size(actionSize).tourTarget(TourKey.PLAN_AI, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_AI, it) },
-                    ) { Icon(Icons.Outlined.AutoAwesome, "Gerar plano com IA") }
+                    ) { Icon(Icons.Outlined.AutoAwesome, "Montar com o assistente Estudário") }
                     // Ações menos usadas num menu só: o título respira e a tela fica com cara de app.
                     var more by remember { mutableStateOf(false) }
                     Box {
@@ -258,12 +258,12 @@ private fun EscolhaDeCaminho(onSemIa: () -> Unit, onComIa: () -> Unit, onImporta
     ) {
         Text("Como você quer montar seu plano?", style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
         Text(
-            "Só o edital precisa mesmo de IA (ou de digitação). O plano o app monta sozinho, com regras fixas, a partir do seu edital e do seu tempo.",
+            "O Estudário monta o plano a partir das suas matérias e do seu tempo. Escolha como prefere.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         CaminhoCard(
-            titulo = "Montar aqui, sem IA",
+            titulo = "Montar pelo Estudário",
             selo = "Recomendado",
             corpo = "O app aplica o método completo: teoria com questões logo depois, revisão espaçada, rodízio das matérias por peso, simulado no seu dia mais livre e fases até a data da prova. Você vê a prévia antes de criar e pode conferir por que cada tarefa entrou.",
             rodape = "Funciona offline, na hora, e replaneja sozinho quando você atrasa.",
@@ -272,9 +272,9 @@ private fun EscolhaDeCaminho(onSemIa: () -> Unit, onComIa: () -> Unit, onImporta
             onClick = onSemIa,
         )
         CaminhoCard(
-            titulo = "Montar com o assistente de IA",
+            titulo = "Montar com o assistente Estudário",
             selo = null,
-            corpo = "O assistente conversa com você sobre a prova, as horas e o que você já sabe, e a IA do Estudário escreve um plano sob medida. Se preferir, gere o pedido para a sua própria IA.",
+            corpo = "O assistente conversa com você sobre a prova, as horas e o que você já sabe, e escreve um plano sob medida. Se preferir, envie o pedido para a sua IA favorita.",
             rodape = "Ideal para quem quer um plano pensado para a própria rotina.",
             acao = "Conversar com o assistente",
             destaque = false,

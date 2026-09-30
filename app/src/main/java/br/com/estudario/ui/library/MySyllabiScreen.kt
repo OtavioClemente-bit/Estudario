@@ -34,7 +34,7 @@ fun MySyllabiScreen(viewModel: MySyllabiViewModel) {
     var confirmRemoteDeletion by remember { mutableStateOf<String?>(null) }
 
     Column(Modifier.fillMaxSize().testTag("my-syllabi-screen")) {
-        Text("Meus editais", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(16.dp))
+        Text("Meus concursos", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(16.dp))
         AiAccessPanel()
         if (state.remoteUnavailable) {
             Text(

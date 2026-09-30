@@ -136,7 +136,7 @@ fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: 
     LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { ScreenTitle("Treinar", "Questões que mudam o seu estudo", stackActionsWhenNarrow = false) { IconButton(onClick = onHelp) { Icon(Icons.Outlined.HelpOutline, "Como treinar") } } }
         if (questions.isEmpty()) {
-            item { EmptyState("Sem questões ainda", "No Edital, toque em ✨ numa matéria ou tópico e gere o material com questões. Elas aparecem aqui para treinar.") }
+            item { EmptyState("Sem questões ainda", "Na aba Concursos, toque em ✨ num tópico e gere o material com questões. Elas aparecem aqui para treinar.") }
             return@LazyColumn
         }
 

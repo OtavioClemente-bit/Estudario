@@ -137,7 +137,7 @@ fun PlansDialog(onDismiss: () -> Unit, onSignIn: (() -> Unit)? = null) {
                 Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Planos e uso", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("Gerações com a IA do Estudário", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Gerações pelo Estudário", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "Fechar") }
                 }
@@ -149,7 +149,7 @@ fun PlansDialog(onDismiss: () -> Unit, onSignIn: (() -> Unit)? = null) {
                         PlansState.Loading -> Row(Modifier.fillMaxWidth().padding(32.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator() }
                         PlansState.SignedOut -> Notice(
                             "Entre na sua conta",
-                            "O saldo fica vinculado à sua conta Estudário, não ao aparelho. Entre pela opção Gerar com IA do Estudário para ver seu plano e quanto ainda pode gerar.",
+                            "O saldo fica vinculado à sua conta Estudário, não ao aparelho. Entre com o Google para ver seu plano e quanto ainda pode gerar.",
                             actionLabel = if (onSignIn != null) "Entrar" else null,
                             onAction = { onSignIn?.invoke() },
                         )
@@ -318,7 +318,7 @@ private fun HowQuotaWorks() {
             "Cada pedido concluído com sucesso consome 1 unidade: um edital, um plano, o material de um tópico ou um lote de questões.",
             "Se a geração falhar ou for cancelada antes de entregar o resultado, nada é descontado.",
             "Repetir o mesmo pedido após um erro técnico não cobra de novo.",
-            "O saldo é da sua conta e vale em qualquer aparelho. Usar sua própria IA pelo prompt não consome saldo.",
+            "O saldo é da sua conta e vale em qualquer aparelho. Enviar o pedido para a sua IA favorita não consome saldo.",
         ).forEach { line ->
             Row {
                 Text("•", Modifier.width(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -16,15 +16,15 @@ import br.com.estudario.data.ai.AiFeature
 import br.com.estudario.data.ai.StudyPlanAi
 
 private val PlanCopy = AiGenerationCopy(
-    screenTitle = "IA do Estudário",
-    heroTitle = "Seu plano montado pela IA",
-    heroText = "A IA distribui as suas matérias e tópicos nos dias e horas que você informou, com revisões e simulados na hora certa.",
+    screenTitle = "Assistente Estudário",
+    heroTitle = "Seu plano sob medida",
+    heroText = "O assistente Estudário distribui as suas matérias e tópicos nos dias e horas que você informou, com revisões e simulados na hora certa.",
     benefits = listOf(
         Icons.Outlined.CalendarMonth to "Tarefas dia a dia, dentro do seu tempo",
         Icons.Outlined.Timeline to "Fases, revisões espaçadas e simulados",
         Icons.Outlined.Rule to "Só as suas matérias e tópicos, nada inventado",
     ),
-    generateLabel = "Montar plano com a IA",
+    generateLabel = "Montar com o assistente Estudário",
     processingTitle = "Montando seu plano",
     stages = listOf(
         "Lendo suas matérias e prioridades",
@@ -36,7 +36,7 @@ private val PlanCopy = AiGenerationCopy(
     ),
     stageMillis = 12_000L,
     durationHint = "Costuma levar de 1 a 2 minutos.",
-    fallbackLabel = "Prefiro usar outra IA (ChatGPT, Gemini…)",
+    fallbackLabel = "Prefiro enviar para minha IA favorita (ChatGPT, Gemini…)",
 )
 
 /**

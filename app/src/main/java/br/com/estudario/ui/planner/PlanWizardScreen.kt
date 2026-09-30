@@ -123,7 +123,7 @@ fun PlanWizardScreen(
                 topBar = {
                     Column {
                         TopAppBar(
-                            title = { Column { Text("Criar plano sem IA", style = MaterialTheme.typography.titleMedium); Text("${step + 1} de ${PASSOS.size} • ${PASSOS[step]}", style = MaterialTheme.typography.bodySmall) } },
+                            title = { Column { Text("Montar pelo Estudário", style = MaterialTheme.typography.titleMedium); Text("${step + 1} de ${PASSOS.size} • ${PASSOS[step]}", style = MaterialTheme.typography.bodySmall) } },
                             navigationIcon = { IconButton(onClick = onCancel) { Icon(Icons.Outlined.Close, "Fechar") } },
                         )
                         LinearProgressIndicator({ (step + 1) / PASSOS.size.toFloat() }, Modifier.fillMaxWidth())
@@ -173,7 +173,7 @@ fun PlanWizardScreen(
                 ) {
                     when (step) {
                         0 -> {
-                            Explicacao("Este é o plano montado pelo próprio app, sem IA. Ele segue sempre as mesmas regras, teoria com questões logo depois, revisão espaçada, rodízio de matérias por peso e simulado periódico, e na última tela você vê exatamente o que vai sair.")
+                            Explicacao("Este é o plano montado pelo Estudário. Ele segue sempre as mesmas regras, teoria com questões logo depois, revisão espaçada, rodízio de matérias por peso e simulado periódico, e na última tela você vê exatamente o que vai sair.")
                             OutlinedTextField(name, { name = it }, label = { Text("Nome do plano") }, modifier = Modifier.fillMaxWidth())
                             OutlinedTextField(objective, { objective = it }, label = { Text("Objetivo") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
                         }
@@ -182,7 +182,7 @@ fun PlanWizardScreen(
                             competitions.forEach { item ->
                                 FilterChip(competitionId == item.id, { competitionId = item.id }, { Text(item.name) })
                             }
-                            if (selectedSubjects.isEmpty()) Aviso("Este concurso ainda não tem matérias. Monte o edital primeiro, é a única parte que realmente pede IA (ou digitação manual).")
+                            if (selectedSubjects.isEmpty()) Aviso("Este concurso ainda não tem matérias. Adicione as matérias primeiro, na aba Concursos.")
                             else Text("${selectedSubjects.size} matéria(s) • ${selectedTopics.size} tópico(s) • ${selectedTopics.count { it.status == TopicStatus.NAO_ESTUDADO }} ainda não estudado(s)", style = MaterialTheme.typography.bodyMedium)
                         }
                         2 -> {

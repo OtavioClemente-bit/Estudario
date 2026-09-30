@@ -48,9 +48,9 @@ class AiContentGenerator(
         options: ContentPromptOptions,
     ): Flow<AiContentProgress> = flow {
         emit(AiContentProgress.Sending)
-        if (!config.isConfigured) return@flow emit(AiContentProgress.Failed("A IA do Estudário não está disponível nesta versão do app."))
+        if (!config.isConfigured) return@flow emit(AiContentProgress.Failed("A geração pelo Estudário não está disponível nesta versão do app."))
         val token = authRepository.accessToken()
-            ?: return@flow emit(AiContentProgress.Failed("Entre na sua conta para usar a IA do Estudário."))
+            ?: return@flow emit(AiContentProgress.Failed("Entre na sua conta para gerar com o Estudário."))
         val body = JSONObject()
             .put("feature", "CONTENT_GENERATION")
             .put("input", AiContentRequest.input(competition, subject, topics, target, options))
@@ -83,11 +83,11 @@ class AiContentGenerator(
             when (job.optString("status")) {
                 "SUCCEEDED" -> {
                     val proposal = job.optJSONObject("proposal")
-                        ?: return@flow emit(AiContentProgress.Failed("A IA terminou, mas o conteúdo não chegou. Tente de novo."))
+                        ?: return@flow emit(AiContentProgress.Failed("O material ficou pronto, mas não chegou ao aparelho. Tente de novo."))
                     return@flow emit(AiContentProgress.Done(AiContentEstudo.build(competition, subject, topics, target, proposal)))
                 }
                 "FAILED", "EXPIRED", "CANCELLED" -> return@flow emit(AiContentProgress.Failed(
-                    "Não consegui gerar um material confiável desta vez. Sua cota não foi usada; tente de novo ou use outra IA.",
+                    "Não consegui gerar um material confiável desta vez. Sua cota não foi usada; tente de novo.",
                 ))
             }
         }
@@ -115,8 +115,8 @@ class AiContentGenerator(
             "QUESTION_LIMIT_EXCEEDED" -> "Essa quantidade de questões passa do limite do seu plano."
             "DEVICE_QUOTA_EXHAUSTED" -> DEVICE_QUOTA_MESSAGE
             "AI_RATE_LIMIT_EXCEEDED" -> "Muitas tentativas em pouco tempo. Tente de novo em alguns minutos."
-            "AUTH_REQUIRED", "AUTH_INVALID" -> "Entre na sua conta para usar a IA do Estudário."
-            "AI_ACCESS_DENIED", "BETA_ACCESS_REQUIRED" -> "Sua conta ainda não tem acesso à IA do Estudário."
+            "AUTH_REQUIRED", "AUTH_INVALID" -> "Entre na sua conta para gerar com o Estudário."
+            "AI_ACCESS_DENIED", "BETA_ACCESS_REQUIRED" -> "Sua conta ainda não tem acesso à geração pelo Estudário."
             else -> NETWORK
         }
     }
@@ -124,7 +124,7 @@ class AiContentGenerator(
     private companion object {
         const val PATH = "/functions/v1/ai-syllabus-jobs"
         const val REQUEST_TIMEOUT_MILLIS = 30_000L
-        const val NETWORK = "Não foi possível falar com a IA do Estudário agora. Confira a internet e tente de novo."
+        const val NETWORK = "Não foi possível falar com o Estudário agora. Confira a internet e tente de novo."
     }
 }
 

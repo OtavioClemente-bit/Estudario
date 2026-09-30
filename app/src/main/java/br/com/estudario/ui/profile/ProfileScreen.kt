@@ -664,7 +664,7 @@ private fun AccountBand(
             Text("Entre com o Google", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
             Spacer(Modifier.height(EstudarioSpacing.tight))
             Text(
-                "Uma conta para tudo: libera a IA do Estudário, guarda seu plano e faz o backup do seu estudo no seu Google Drive. Sem senha e sem código por e-mail.",
+                "Uma conta para tudo: libera as gerações do Estudário, guarda seu plano e faz o backup do seu estudo no seu Google Drive. Sem senha e sem código por e-mail.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -673,7 +673,7 @@ private fun AccountBand(
                 Text("G", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold); Spacer(Modifier.width(10.dp)); Text("Continuar com Google")
             }
             Spacer(Modifier.height(EstudarioSpacing.tight))
-            Text("Sem entrar, o app funciona inteiro neste aparelho, só sem IA e sem backup na nuvem.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Sem entrar, o app funciona inteiro neste aparelho, só sem as gerações e sem backup na nuvem.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
                 Icon(Icons.Outlined.VerifiedUser, null, tint = estudarioColors().completed)
@@ -683,7 +683,7 @@ private fun AccountBand(
                 }
             }
             HorizontalDivider(Modifier.padding(vertical = EstudarioSpacing.small), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            BackupRow(Icons.Outlined.WorkspacePremium, "Plano e uso da IA", "Seu plano, o saldo de gerações e a comparação dos planos", onPlans)
+            BackupRow(Icons.Outlined.WorkspacePremium, "Plano e gerações", "Seu plano, o saldo de gerações e a comparação dos planos", onPlans)
             HorizontalDivider(Modifier.padding(vertical = EstudarioSpacing.small), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             BackupRow(
                 Icons.Outlined.CloudUpload,

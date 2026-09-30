@@ -368,7 +368,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                 }
             }
             val actions: @Composable () -> Unit = {
-                IconButton(onClick = { showContentPrompt = true }) { Icon(Icons.Outlined.AutoAwesome, "Gerar conteúdo com IA", tint = MaterialTheme.colorScheme.primary) }
+                IconButton(onClick = { showContentPrompt = true }) { Icon(Icons.Outlined.AutoAwesome, "Gerar com o Estudário", tint = MaterialTheme.colorScheme.primary) }
                 IconButton(onClick = { showPriority = true }) { Icon(Icons.Outlined.Flag, "Definir prioridade", tint = MaterialTheme.colorScheme.primary) }
                 IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) { Icon(Icons.Outlined.FileOpen, "Importar arquivo .estudo") }
             }
@@ -519,7 +519,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
             Text("Teoria completa", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
         val topicTheories = theories.filter { it.topicId == topicId }
-        if (topicTheories.isEmpty()) item { EmptyState("Teoria ainda não importada", "Escolha o que quer receber (teoria, resumo, questões) e gere com a IA do Estudário ou com a sua.", "Gerar com IA") { showContentPrompt = true } }
+        if (topicTheories.isEmpty()) item { EmptyState("Teoria ainda não importada", "Escolha o que quer receber (teoria, resumo, questões) e gere com o Estudário.", "Gerar com o Estudário") { showContentPrompt = true } }
         topicTheories.forEach { theory ->
             item(key = "theory-${theory.id}") {
                 ElevatedCard(onClick = { onTheory(theory.id) }) {
@@ -645,14 +645,14 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                     Text("Precisa de mais questões?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(
                         if (subjectQuestionCount == 0) "Gere as primeiras questões para este tópico."
-                        else "A IA vai comparar com as $subjectQuestionCount questões já cadastradas nesta matéria para evitar repetições.",
+                        else "O Estudário vai comparar com as $subjectQuestionCount questões já cadastradas nesta matéria para evitar repetições.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                     )
                     Button(onClick = { showAdditionalQuestionPrompt = true }, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Outlined.AutoAwesome, null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Gerar com IA")
+                        Text("Gerar com o Estudário")
                     }
                 }
             }

@@ -120,7 +120,7 @@ fun AiReviewScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("IA do Estudário", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        Text("Assistente Estudário", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                         BetaPill()
                     }
                 },
@@ -281,7 +281,7 @@ private fun AiGate(
                     Modifier.size(48.dp).clip(RoundedCornerShape(15.dp)).background(Color.White.copy(alpha = 0.18f)),
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.Outlined.AutoAwesome, null, tint = Color.White) }
-                Text("Use a IA do Estudário", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Monte seu edital com o Estudário", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
                 Text(
                     "Envie o PDF oficial e receba o edital organizado em matérias e tópicos, pronto para revisar.",
                     style = MaterialTheme.typography.bodyMedium,
@@ -300,7 +300,7 @@ private fun AiGate(
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                             EstudarioBookLoader(size = 40.dp)
                             Column {
-                                Text("Verificando acesso à IA", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                Text("Verificando seu acesso", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                                 Text("Conferindo sua conta e sua cota…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
@@ -403,7 +403,7 @@ private fun AiDraftEditor(
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-                Text("PROPOSTA DA IA", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Text("PROPOSTA DO ESTUDÁRIO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             }
             Text("Confira antes de usar", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             Text("${draft.subjects.size} matéria${if (draft.subjects.size == 1) "" else "s"} · $topicCount tópicos", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

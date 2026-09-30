@@ -82,7 +82,7 @@ internal fun SyllabusReviewStep(
             Text("Adicionar matéria")
         }
         if (uiState.subjects.isEmpty()) {
-            SetupCard { Text("Seu edital ainda não tem matérias. Adicione uma para continuar.") }
+            SetupCard { Text("Você ainda não tem matérias. Adicione uma para continuar.") }
         }
         uiState.subjects.forEach { subject ->
             val topics = topicsBySubject[subject.id].orEmpty()

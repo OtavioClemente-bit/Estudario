@@ -156,11 +156,11 @@ private fun StatusCard(
                     }
                 }
                 AiTextJobState.NeedsLogin -> {
-                    GateStatus(Icons.Outlined.Lock, "Entre para continuar", "A IA do Estudário usa a sua conta para guardar a cota de 1 geração por dia.", StatusTone(scheme.tertiaryContainer, scheme.onTertiaryContainer))
+                    GateStatus(Icons.Outlined.Lock, "Entre para continuar", "O Estudário usa a sua conta para guardar o saldo de gerações do seu plano.", StatusTone(scheme.tertiaryContainer, scheme.onTertiaryContainer))
                     PrimaryAction("Entrar para continuar", onLogin)
                 }
                 is AiTextJobState.Unavailable -> {
-                    GateStatus(Icons.Outlined.CloudOff, "IA indisponível agora", state.message, StatusTone(scheme.surfaceContainerHighest, scheme.onSurfaceVariant))
+                    GateStatus(Icons.Outlined.CloudOff, "Geração indisponível agora", state.message, StatusTone(scheme.surfaceContainerHighest, scheme.onSurfaceVariant))
                     OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(16.dp)) { Text("Tentar de novo") }
                 }
                 is AiTextJobState.QuotaUsed -> {
@@ -169,7 +169,7 @@ private fun StatusCard(
                 is AiTextJobState.Ready -> {
                     StatusPill(state.quotaLabel, StatusTone(scheme.secondaryContainer, estudarioColors().completed))
                     PrimaryAction(copy.generateLabel, onGenerate, Icons.Outlined.AutoAwesome)
-                    Text("Você revisa antes de salvar. Se a IA falhar, a geração do dia volta para você.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+                    Text("Você revisa antes de salvar. Se algo falhar, a geração volta para o seu saldo.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
                 }
                 is AiTextJobState.Failed -> {
                     InlineError(state.message)
