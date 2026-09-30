@@ -114,6 +114,18 @@ fun ProfileScreen(
         onError = viewModel::reportGoogleError,
     )
     fun runGoogle(action: GoogleAction) { googleAction = action; authorizeGoogle() }
+    // Entrar é um passo só: a conta Google do celular já abre a conta Estudário e o perfil.
+    fun signInWithGoogle(reopenPlans: Boolean = false) {
+        if (!br.com.estudario.ui.ai.GoogleAccountSignIn.available) { reopenPlansAfterLogin = reopenPlans; estudarioLogin = true; return }
+        scope.launch {
+            busy = "Entrando com o Google"
+            br.com.estudario.ui.ai.GoogleAccountSignIn.signIn(context)
+                .onSuccess { reopenPlansAfterLogin = reopenPlans }
+                .onFailure { viewModel.reportGoogleError(it.message ?: "Não foi possível entrar agora.") }
+            busy = null
+            accessRefresh++
+        }
+    }
 
     val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let(viewModel::setProfilePhoto)
@@ -151,9 +163,9 @@ fun ProfileScreen(
         estudarioSignedIn = estudarioSignedIn,
         reopenPlans = reopenPlansAfterLogin && estudarioSignedIn,
         onPlansReopened = { reopenPlansAfterLogin = false },
-        onEstudarioSignIn = { estudarioLogin = true },
-        onPlansSignIn = { reopenPlansAfterLogin = true; estudarioLogin = true },
-        onEstudarioSignOut = { scope.launch { runCatching { auth.signOut() }; accessRefresh++ } },
+        onEstudarioSignIn = { signInWithGoogle() },
+        onPlansSignIn = { signInWithGoogle(reopenPlans = true) },
+        onEstudarioSignOut = { scope.launch { br.com.estudario.ui.ai.GoogleAccountSignIn.signOut(context); accessRefresh++ } },
         progress = progress,
         streak = streak,
         driveLastBackupAt = driveLastBackupAt,
@@ -165,10 +177,8 @@ fun ProfileScreen(
         onRemovePhoto = viewModel::clearProfilePhoto,
         onBadges = onBadges,
         onDailyGoalChange = viewModel::setDailyGoal,
-        onSignIn = { runGoogle(GoogleAction.SIGN_IN) },
         onBackup = { runGoogle(GoogleAction.BACKUP) },
         onRestore = { confirmDriveRestore = true },
-        onSignOut = viewModel::signOutGoogle,
         onExportBackup = {
             scope.launch { busy = "Gerando o backup"; pendingBackup = viewModel.createBackup(); busy = null; exportLauncher.launch("estudario-backup-${LocalDate.now()}.json") }
         },
@@ -196,10 +206,8 @@ private fun ProfileContent(
     onRemovePhoto: () -> Unit,
     onBadges: () -> Unit,
     onDailyGoalChange: (Int) -> Unit,
-    onSignIn: () -> Unit,
     onBackup: () -> Unit,
     onRestore: () -> Unit,
-    onSignOut: () -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit,
     showTopBar: Boolean = true,
@@ -277,38 +285,15 @@ private fun ProfileContent(
 
             item {
                 AccountBand(
-                    signedIn = profile.signedIn,
+                    signedIn = estudarioSignedIn,
                     email = profile.email,
                     lastBackupAt = driveLastBackupAt,
-                    onSignIn = onSignIn,
+                    onSignIn = onEstudarioSignIn,
                     onBackup = onBackup,
                     onRestore = onRestore,
-                    onSignOut = onSignOut,
+                    onPlans = { showPlans = true },
+                    onSignOut = onEstudarioSignOut,
                 )
-            }
-            item { Divider() }
-
-            item {
-                Band {
-                    Text("CONTA ESTUDÁRIO E IA", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(EstudarioSpacing.small))
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
-                        Icon(if (estudarioSignedIn) Icons.Outlined.VerifiedUser else Icons.Outlined.Lock, null, tint = if (estudarioSignedIn) estudarioColors().completed else MaterialTheme.colorScheme.onSurfaceVariant)
-                        Column(Modifier.weight(1f)) {
-                            Text(if (estudarioSignedIn) "Conta Estudário conectada" else "Você ainda não entrou na conta Estudário", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
-                            Text(
-                                if (estudarioSignedIn) "Sua cota da IA do Estudário e seus editais ficam guardados nela." else "É ela que libera a IA do Estudário. Entre com seu e-mail: enviamos um código, sem senha.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(EstudarioSpacing.small))
-                    if (estudarioSignedIn) TextButton(onClick = onEstudarioSignOut) { Text("Sair da conta Estudário") }
-                    else Button(onClick = onEstudarioSignIn, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.Login, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Entrar na conta Estudário") }
-                    HorizontalDivider(Modifier.padding(vertical = EstudarioSpacing.small), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    BackupRow(Icons.Outlined.WorkspacePremium, "Planos e uso", "Veja seu plano, o saldo de gerações e compare os planos") { showPlans = true }
-                }
             }
             if (aiAccessState != null) {
                 item { Spacer(Modifier.height(EstudarioSpacing.small)); AiAccessSummary(aiAccessState) }
@@ -657,6 +642,10 @@ private fun DailyGoalBand(questions: Int, onChange: (Int) -> Unit) {
 
 // ---------------------------------------------------------------- conta
 
+/**
+ * Sua conta: uma só, a do Google. Entrar libera a IA do Estudário e o plano, preenche o perfil e
+ * guarda o backup no Drive, sem logins separados para cada coisa.
+ */
 @Composable
 private fun AccountBand(
     signedIn: Boolean,
@@ -665,51 +654,47 @@ private fun AccountBand(
     onSignIn: () -> Unit,
     onBackup: () -> Unit,
     onRestore: () -> Unit,
+    onPlans: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     Band {
-        Text("BACKUP NO GOOGLE DRIVE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(EstudarioSpacing.tight))
+        Text("SUA CONTA", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(EstudarioSpacing.small))
         if (!signedIn) {
-            Text(
-                "Seus dados estão somente neste dispositivo.",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
+            Text("Entre com o Google", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
             Spacer(Modifier.height(EstudarioSpacing.tight))
             Text(
-                "Entrar com o Google guarda um backup na sua conta e permite continuar de onde parou em outro aparelho, quando quiser. O app funciona inteiro sem isso.",
+                "Uma conta para tudo: libera a IA do Estudário, guarda seu plano e faz o backup do seu estudo no seu Google Drive. Sem senha e sem código por e-mail.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(EstudarioSpacing.medium))
-            Button(onClick = onSignIn) { Text("Vincular conta Google") }
+            Button(onClick = onSignIn, modifier = Modifier.fillMaxWidth()) {
+                Text("G", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold); Spacer(Modifier.width(10.dp)); Text("Continuar com Google")
+            }
+            Spacer(Modifier.height(EstudarioSpacing.tight))
+            Text("Sem entrar, o app funciona inteiro neste aparelho, só sem IA e sem backup na nuvem.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
-                Box(
-                    Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHighest),
-                    contentAlignment = Alignment.Center,
-                ) { Text("G", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface) }
+                Icon(Icons.Outlined.VerifiedUser, null, tint = estudarioColors().completed)
                 Column(Modifier.weight(1f)) {
-                    Text("Conta Google conectada", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-                    Text(
-                        if (lastBackupAt > 0L) "$email · último backup em ${formatMoment(lastBackupAt)}" else "$email · nenhum backup enviado ainda",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Text("Conectado com Google", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                    Text(email.ifBlank { "Conta Google" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            Spacer(Modifier.height(EstudarioSpacing.medium))
-            // Lado a lado quando cabe; em tela estreita ou fonte grande, um botão por linha.
-            FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = if (estudarioLayout().prefersStacking) 1 else Int.MAX_VALUE, verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
-                Button(onClick = onBackup, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Outlined.CloudUpload, null, Modifier.size(18.dp)); Spacer(Modifier.width(EstudarioSpacing.hairline)); Text("Backup")
-                }
-                OutlinedButton(onClick = onRestore, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Outlined.CloudDownload, null, Modifier.size(18.dp)); Spacer(Modifier.width(EstudarioSpacing.hairline)); Text("Restaurar")
-                }
-            }
-            TextButton(onClick = onSignOut) { Text("Desconectar esta conta") }
+            HorizontalDivider(Modifier.padding(vertical = EstudarioSpacing.small), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            BackupRow(Icons.Outlined.WorkspacePremium, "Plano e uso da IA", "Seu plano, o saldo de gerações e a comparação dos planos", onPlans)
+            HorizontalDivider(Modifier.padding(vertical = EstudarioSpacing.small), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            BackupRow(
+                Icons.Outlined.CloudUpload,
+                "Fazer backup no Google Drive",
+                if (lastBackupAt > 0L) "Último backup em ${formatMoment(lastBackupAt)}" else "Nenhum backup ainda. Fica numa pasta privada do app no seu Drive.",
+                onBackup,
+            )
+            HorizontalDivider(Modifier.padding(vertical = EstudarioSpacing.small), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            BackupRow(Icons.Outlined.CloudDownload, "Restaurar do Google Drive", "Traz o backup mais recente para este aparelho", onRestore)
+            Spacer(Modifier.height(EstudarioSpacing.small))
+            TextButton(onClick = onSignOut) { Text("Sair da conta") }
         }
     }
 }
@@ -784,7 +769,7 @@ private fun ProfileWithPhotoPreview() {
             streak = previewStreak,
             driveLastBackupAt = System.currentTimeMillis(),
             onBack = {}, onEditName = {}, onChangePhoto = {}, onRemovePhoto = {}, onBadges = {},
-            onDailyGoalChange = {}, onSignIn = {}, onBackup = {}, onRestore = {}, onSignOut = {},
+            onDailyGoalChange = {}, onBackup = {}, onRestore = {},
             onExportBackup = {}, onImportBackup = {},
         )
     }
@@ -800,7 +785,7 @@ private fun ProfileNoPhotoPreview() {
             streak = previewStreak,
             driveLastBackupAt = 0L,
             onBack = {}, onEditName = {}, onChangePhoto = {}, onRemovePhoto = {}, onBadges = {},
-            onDailyGoalChange = {}, onSignIn = {}, onBackup = {}, onRestore = {}, onSignOut = {},
+            onDailyGoalChange = {}, onBackup = {}, onRestore = {},
             onExportBackup = {}, onImportBackup = {},
         )
     }
@@ -816,7 +801,7 @@ private fun ProfileNoAccountPreview() {
             streak = previewStreak,
             driveLastBackupAt = 0L,
             onBack = {}, onEditName = {}, onChangePhoto = {}, onRemovePhoto = {}, onBadges = {},
-            onDailyGoalChange = {}, onSignIn = {}, onBackup = {}, onRestore = {}, onSignOut = {},
+            onDailyGoalChange = {}, onBackup = {}, onRestore = {},
             onExportBackup = {}, onImportBackup = {},
         )
     }
@@ -832,7 +817,7 @@ private fun ProfileNoAccountDarkPreview() {
             streak = previewStreak,
             driveLastBackupAt = 0L,
             onBack = {}, onEditName = {}, onChangePhoto = {}, onRemovePhoto = {}, onBadges = {},
-            onDailyGoalChange = {}, onSignIn = {}, onBackup = {}, onRestore = {}, onSignOut = {},
+            onDailyGoalChange = {}, onBackup = {}, onRestore = {},
             onExportBackup = {}, onImportBackup = {},
         )
     }

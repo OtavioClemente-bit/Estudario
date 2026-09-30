@@ -1,5 +1,6 @@
 package br.com.estudario.ui.onboarding
 
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -79,35 +80,28 @@ import br.com.estudario.ui.theme.EstudarioTheme
  */
 @Composable
 fun WelcomeScreen(viewModel: AppViewModel, onContinue: () -> Unit) {
-    val transfer by viewModel.transfer.collectAsState()
-    var aguardandoGoogle by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var entrando by remember { mutableStateOf(false) }
+    var erro by remember { mutableStateOf<String?>(null) }
 
-    val authorize = rememberGoogleAuthorizer(
-        onToken = { token ->
-            aguardandoGoogle = true
-            viewModel.handleGoogleToken(GoogleAction.SIGN_IN, token)
-        },
-        onError = { message ->
-            aguardandoGoogle = false
-            viewModel.reportGoogleError(message)
-        },
-    )
-
-    // Entrou: segue direto para o app. O aviso de "conectado como…" não precisa segurar a pessoa
-    // numa tela de boas-vindas que ela nunca mais vai ver.
-    LaunchedEffect(transfer, aguardandoGoogle) {
-        if (aguardandoGoogle && transfer is TransferState.Success) {
-            viewModel.clearTransfer()
-            aguardandoGoogle = false
-            onContinue()
+    // Entrar aqui é o mesmo login do resto do app: conta Estudário, perfil e backup de uma vez.
+    // Entrou, segue direto para o app.
+    val entrarComGoogle: () -> Unit = {
+        scope.launch {
+            entrando = true
+            erro = null
+            br.com.estudario.ui.ai.GoogleAccountSignIn.signIn(context)
+                .onSuccess { onContinue() }
+                .onFailure { erro = it.message?.takeIf { message -> message != br.com.estudario.ui.ai.GoogleAccountSignIn.CANCELLED } }
+            entrando = false
         }
-        if (transfer is TransferState.Error) aguardandoGoogle = false
     }
 
     WelcomeContent(
-        loading = aguardandoGoogle && transfer is TransferState.Loading,
-        errorMessage = (transfer as? TransferState.Error)?.message,
-        onGoogle = authorize,
+        loading = entrando,
+        errorMessage = erro,
+        onGoogle = entrarComGoogle,
         onContinue = onContinue,
     )
 }
@@ -138,14 +132,14 @@ private fun WelcomeContent(
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
-                            "Entre com o Google para guardar uma cópia do seu progresso no Drive. Seus dados continuam neste aparelho.",
+                            "Uma conta só para tudo: entre com o Google para liberar a IA do Estudário e guardar uma cópia do seu progresso no Drive.",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     Surface(shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
                         Column(Modifier.padding(vertical = 6.dp)) {
-                            BenefitRow(Icons.Rounded.CloudDone, "Backup na nuvem", "Seu histórico guardado na sua conta")
+                            BenefitRow(Icons.Rounded.CloudDone, "IA do Estudário e backup", "Gere material com IA e guarde seu histórico na sua conta")
                             BenefitDivider()
                             BenefitRow(Icons.Rounded.SettingsBackupRestore, "Troque de celular sem perder nada", "Restaure tudo em outro aparelho")
                             BenefitDivider()

@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun AccountLoginDialog(onDismiss: () -> Unit, onSignedIn: () -> Unit) {
-    if (br.com.estudario.BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank()) GoogleLoginDialog(onDismiss, onSignedIn)
+    if (GoogleAccountSignIn.available) GoogleLoginDialog(onDismiss, onSignedIn)
     else EmailCodeLoginDialog(onDismiss, onSignedIn)
 }
 
@@ -51,7 +51,7 @@ private fun GoogleLoginDialog(onDismiss: () -> Unit, onSignedIn: () -> Unit) {
         text = {
             Column {
                 Text(
-                    "Entre com a sua conta Google, a mesma do Google Play. Ela guarda o seu plano e o uso da IA do Estudário.",
+                    "Entre com a sua conta Google, a mesma do Google Play. Uma conta só para tudo: seu plano, a IA do Estudário e o backup do seu estudo.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -68,12 +68,9 @@ private fun GoogleLoginDialog(onDismiss: () -> Unit, onSignedIn: () -> Unit) {
                     scope.launch {
                         busy = true
                         error = null
-                        val result = GoogleAccountSignIn.idToken(context)
-                        result.onSuccess { token ->
-                            runCatching { app.supabaseAuthRepository.signInWithGoogle(br.com.estudario.data.remote.SupabaseGoogleCredential(token)) }
-                                .onSuccess { onSignedIn() }
-                                .onFailure { error = "Não foi possível entrar agora. Confira a internet e tente de novo." }
-                        }.onFailure { error = it.message }
+                        GoogleAccountSignIn.signIn(context)
+                            .onSuccess { onSignedIn() }
+                            .onFailure { error = it.message?.takeIf { message -> message != GoogleAccountSignIn.CANCELLED } }
                         busy = false
                     }
                 },
