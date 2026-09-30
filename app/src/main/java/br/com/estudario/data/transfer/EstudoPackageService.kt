@@ -210,7 +210,7 @@ internal object EstudoPackageParser {
             val name = requireText(item, "nome", path)
             val topics = item.optJSONArray("topicos") ?: throw EstudoPackageException("$path: topicos deve ser uma lista.")
             SubjectPlan(id, name, item.optInt("ordem", index), topics.objects().mapIndexed { i, topic ->
-                parseTopic(topic, "$name › tópico ${i + 1}", i, defaults, ids, true)
+                parseTopic(topic, "$name › tópico ${i + 1}", i, defaults, ids, true).tidyEditalSplit()
             }, parsePriorityAssessment(item, path, ids), externalId, parsePriority(item, path), parseSourcePages(item), copyMetadata(item))
         }
         val competitionName = requireText(competition, "nome", "concurso")
@@ -810,3 +810,25 @@ internal fun JSONArray.strings(): List<String> = (0 until length()).map { getStr
 // optString devolve o texto "null" para JSON null; sem o isNull, todo externalId nulo virava "null"
 // e colidia no índice único, e a restauração do backup substituía um tópico pelo outro.
 internal fun JSONObject.optNullableString(key: String): String? = if (isNull(key)) null else optString(key).takeIf { it.isNotBlank() }
+
+/**
+ * Edital recém-gerado pelo prompt manual: junta pai com um único subtópico e tira subtópico com o
+ * mesmo nome do pai. Só mexe quando a árvore ainda não tem conteúdo, para não alterar backup.
+ */
+private fun TopicPlan.tidyEditalSplit(): TopicPlan {
+    if (flatten().any { it.theories.isNotEmpty() || it.summaries.isNotEmpty() || it.snippets.isNotEmpty() || it.questions.isNotEmpty() || it.errorConcepts.isNotEmpty() }) return this
+    return br.com.estudario.domain.ai.EditalSplitTidy.tidy(
+        this,
+        name = { it.title },
+        children = { it.children },
+        rebuild = { node, name, kids, absorbed ->
+            node.copy(
+                title = name,
+                children = kids.mapIndexed { index, child -> child.copy(position = index) },
+                sources = node.sources + absorbed.flatMap { it.sources },
+                sourcePages = (node.sourcePages + absorbed.flatMap { it.sourcePages }).distinct().sorted(),
+            )
+        },
+        canAbsorb = { it.originType == ContentOriginType.DIDACTIC_SUBDIVISION },
+    )
+}

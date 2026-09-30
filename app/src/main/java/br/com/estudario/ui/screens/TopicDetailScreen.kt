@@ -69,6 +69,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
     if (topic == null) { EmptyState("Tópico não encontrado", "Ele pode ter sido excluído.", "Voltar", onBack); return }
     val subject = subjects.firstOrNull { it.id == topic.subjectId }
     val parent = topics.firstOrNull { it.id == topic.parentTopicId }
+    val childTopics = topics.filter { it.parentTopicId == topicId }.sortedBy { it.position }
     val topicQuestions = questions.filter { it.question.topicId == topicId }
     val answered = topicQuestions.sumOf { it.question.answerCount }
     val correct = topicQuestions.sumOf { it.question.correctCount }

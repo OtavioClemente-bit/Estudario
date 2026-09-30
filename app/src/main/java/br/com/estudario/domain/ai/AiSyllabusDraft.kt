@@ -91,7 +91,19 @@ data class AiSyllabusDraftTopic(
     val sourcePages: List<Int> = emptyList(),
 ) {
     companion object {
-        fun fromProposal(proposal: AiTopicProposal, parentExternalId: String): AiSyllabusDraftTopic {
+        fun fromProposal(raw: AiTopicProposal, parentExternalId: String): AiSyllabusDraftTopic {
+            val proposal = EditalSplitTidy.tidy(
+                raw,
+                name = { it.name },
+                children = { it.children },
+                rebuild = { node, name, kids, absorbed ->
+                    node.copy(
+                        name = name,
+                        children = kids.mapIndexed { index, child -> child.copy(position = index) },
+                        sourcePages = (node.sourcePages + absorbed.flatMap { it.sourcePages }).distinct().sorted(),
+                    )
+                },
+            )
             val externalId = AiSyllabusExternalIds.topic(parentExternalId, proposal.name)
             return AiSyllabusDraftTopic(
                 name = proposal.name,

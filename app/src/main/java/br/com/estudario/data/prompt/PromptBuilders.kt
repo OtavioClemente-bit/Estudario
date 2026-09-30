@@ -41,6 +41,10 @@ enum class EditalDetail(val label: String) { DIDACTIC("Dividir com bom senso (re
 /** Regras para o item do edital que junta várias matérias: cada tópico-folha precisa render um livro só. */
 private val EDITAL_SPLIT_RULES = """
 DIVISÃO DE ITENS QUE JUNTAM VÁRIAS MATÉRIAS (o Estudário gera um livro por tópico sem subtopicos, então cada um desses precisa ser UMA matéria de estudo):
+- Decida item por item com este teste: um bom cursinho ensinaria esse item como UM capítulo de tamanho normal? Então ele fica sem subtopicos e o material é gerado nele mesmo. Precisaria de vários capítulos separados? Então divida.
+- A maioria dos itens já é uma matéria só e fica sem subtopicos. Ex.: "Significação contextual de palavras e expressões" fica como está. É normal a mesma matéria ter tópicos simples e tópicos divididos.
+- Nunca crie um único subtopico, nem subtopico com o mesmo nome (ou quase) do pai. Ou o item vira dois ou mais subtopicos, ou não tem nenhum.
+- Ex. de divisão em Português: "Articulação textual: expressões referenciais, nexos, operadores sequenciais, coerência e coesão" vira "Coesão: expressões referenciais, nexos e operadores sequenciais" e "Coerência textual".
 - O item do edital continua como tópico-pai, com o nome exatamente como está no edital. As partes divididas entram em subtopicos (contentOriginType "DIDACTIC_SUBDIVISION"). O tópico-pai só agrupa; o conteúdo é gerado nos subtopicos.
 - Divida quando o item junta matérias independentes, cada uma valendo um livro. Ex.: "Linguagens de programação: Java, JavaScript, TypeScript e Python 3" vira "Java", "JavaScript", "TypeScript", "Python 3". Ex.: "Funções: afim, quadrática, exponencial e logarítmica" vira um subtopico por tipo de função.
 - Não pulverize facetas pequenas de um mesmo assunto. Ex.: "Gerenciamento de redes: ICMP; SNMP e QoS" fica um tópico só.

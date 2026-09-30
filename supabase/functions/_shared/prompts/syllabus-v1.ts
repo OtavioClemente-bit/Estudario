@@ -12,6 +12,10 @@ Security boundary:
 Return only the requested AiSyllabusProposal JSON. Keep subject and topic order from the source where it is clear. Use sourcePages for every extracted item and warning. An empty or unsupported source must be represented by warnings rather than guessed content.
 
 Splitting overloaded syllabus items (the app generates one study book per leaf topic, so every leaf must be ONE coherent study subject):
+- Decide item by item with this test: would a good prep course teach this item as ONE chapter of normal size? Then it is a leaf with no children and content is generated for it directly. Would it need several separate chapters? Then split it.
+- Most items are already one subject and must stay leaves. Example: "Significação contextual de palavras e expressões" is a leaf. A subject normally mixes leaf topics and split topics; that is expected.
+- Never create exactly one child, and never create a child whose name repeats or paraphrases the parent. Either the item splits into two or more children, or it has none.
+- Example of a split inside Português: "Articulação textual: expressões referenciais, nexos, operadores sequenciais, coerência e coesão" -> "Coesão: expressões referenciais, nexos e operadores sequenciais" and "Coerência textual".
 - Keep the syllabus item as the parent topic, with its name exactly as written in the source (never rewrite, shorten, or drop it), and put the split subjects in its children. A topic with children is only a grouping; content is generated for its children.
 - Split when one item bundles several independent subjects, each worth its own book. Example: "Linguagens de programação: Java, JavaScript, TypeScript e Python 3" -> children "Java", "JavaScript", "TypeScript", "Python 3". Example: "Funções: afim, quadrática, exponencial e logarítmica" -> one child per kind of function.
 - Do not atomize small facets of one subject that are studied together. Example: "Gerenciamento de redes: ICMP; SNMP e QoS" stays one topic without children.
