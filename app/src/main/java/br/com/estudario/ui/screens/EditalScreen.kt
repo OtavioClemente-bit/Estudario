@@ -70,6 +70,11 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
     var showEditalPrompt by remember { mutableStateOf(false) }
     var contentPromptFor by remember { mutableStateOf<Pair<Long, Set<Long>?>?>(null) }
     var priorityTarget by remember { mutableStateOf<PriorityTarget?>(null) }
+    var showCatalog by remember { mutableStateOf(false) }
+    var submitToCatalog by remember { mutableStateOf<CompetitionEntity?>(null) }
+    var showCatalogReview by remember { mutableStateOf(false) }
+    val catalogRepository = (LocalContext.current.applicationContext as br.com.estudario.EstudarioApplication).contestCatalog
+    val isCatalogAdmin by produceState(false) { value = catalogRepository.isAdmin() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -93,6 +98,9 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
         }
     }
 
+    if (showCatalog) br.com.estudario.ui.catalog.CatalogSearchDialog(viewModel, onDismiss = { showCatalog = false })
+    submitToCatalog?.let { br.com.estudario.ui.catalog.CatalogSubmitDialog(it, viewModel, onDismiss = { submitToCatalog = null }) }
+    if (showCatalogReview) br.com.estudario.ui.catalog.CatalogReviewDialog(onDismiss = { showCatalogReview = false })
     if (showEditalPrompt) EditalPromptBuilderDialog(viewModel, selectedCompetitionId.takeIf { it != 0L }, onDismiss = { showEditalPrompt = false }, onPickFile = pickFile)
     contentPromptFor?.let { (subjectId, topicIds) -> ContentPromptBuilderDialog(viewModel, subjectId, topicIds, onDismiss = { contentPromptFor = null }, onPickFile = pickFile) }
     if (addCompetition) TextInputDialog("Novo concurso", label = "Nome do concurso", onDismiss = { addCompetition = false }) { viewModel.addCompetition(it) }
@@ -160,7 +168,9 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
                         DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
                             DropdownMenuItem(text = { Text("Novo concurso") }, leadingIcon = { Icon(Icons.Outlined.Add, null) }, onClick = { more = false; addCompetition = true })
                             DropdownMenuItem(text = { Text("Importar arquivo .estudo") }, leadingIcon = { Icon(Icons.Outlined.FileOpen, null) }, onClick = { more = false; pickFile() })
+                            if (isCatalogAdmin) DropdownMenuItem(text = { Text("Aprovar envios do catálogo") }, leadingIcon = { Icon(Icons.Outlined.VerifiedUser, null) }, onClick = { more = false; showCatalogReview = true })
                             if (selectedCompetition != null) {
+                                DropdownMenuItem(text = { Text("Enviar para o catálogo") }, leadingIcon = { Icon(Icons.Outlined.CloudUpload, null) }, onClick = { more = false; submitToCatalog = selectedCompetition })
                                 DropdownMenuItem(text = { Text("Tornar concurso principal") }, leadingIcon = { Icon(Icons.Outlined.Star, null) }, onClick = { more = false; viewModel.setPrimary(selectedCompetitionId) })
                                 DropdownMenuItem(text = { Text("Prioridade do concurso") }, leadingIcon = { Icon(Icons.Outlined.Flag, null) }, onClick = { more = false; priorityTarget = PriorityTarget.Competition(selectedCompetition, selectedCompetition.priorityState()) })
                                 DropdownMenuItem(
@@ -180,7 +190,8 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("Comece pelo seu concurso", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text("Envie o PDF do edital e o Estudário organiza as matérias e os tópicos. Depois, cada tópico vira teoria, flashcards e questões.")
-                        Button(onClick = { showEditalPrompt = true }, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.AutoAwesome, null); Spacer(Modifier.width(8.dp)); Text("Montar pelo edital") }
+                        Button(onClick = { showCatalog = true }, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.Search, null); Spacer(Modifier.width(8.dp)); Text("Buscar concurso pronto") }
+                        OutlinedButton(onClick = { showEditalPrompt = true }, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.AutoAwesome, null); Spacer(Modifier.width(8.dp)); Text("Montar pelo PDF do edital") }
                         OutlinedButton(onClick = pickFile, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.FileOpen, null); Spacer(Modifier.width(8.dp)); Text("Importar arquivo .estudo") }
                         TextButton(onClick = { addCompetition = true }, Modifier.fillMaxWidth()) { Text("Criar concurso manualmente") }
                     }
@@ -219,6 +230,19 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
                             else "Todo o edital tem material. Agora é estudar e treinar.",
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer,
                         )
+                    }
+                }
+            }
+            item {
+                Surface(onClick = { showCatalog = true }, shape = EstudarioShapes.row, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.TravelExplore, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Buscar concurso pronto", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text("Matérias de outro concurso na hora, sem montar de novo", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Icon(Icons.Outlined.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

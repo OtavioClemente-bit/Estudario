@@ -39,6 +39,10 @@ class EstudarioApplication : Application() {
     lateinit var database: AppDatabase
         private set
     val supabaseClientConfig: SupabaseClientConfig by lazy { SupabaseClientConfig.fromBuildConfig() }
+    /** Catálogo de concursos prontos (busca pública, envio com conta, aprovação por administrador). */
+    val contestCatalog: br.com.estudario.data.catalog.ContestCatalogRepository by lazy {
+        br.com.estudario.data.catalog.ContestCatalogRepository(supabaseClientConfig, { supabaseAuthRepository.accessToken() })
+    }
     lateinit var repository: StudyRepository
         private set
     lateinit var focusSessionRepository: FocusSessionRepository

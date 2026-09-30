@@ -83,6 +83,21 @@ fun EstudarioApp(viewModel: AppViewModel) {
         val initialSetup by viewModel.initialSetup.collectAsState()
         val hasExistingWorkspace by viewModel.hasExistingWorkspace.collectAsState()
         val aiReviewTarget by viewModel.aiReviewTarget.collectAsState()
+        var catalogOffer by remember { mutableStateOf<br.com.estudario.ui.ai.AiReviewTarget?>(null) }
+        val catalogCompetitions by viewModel.competitions.collectAsState()
+        catalogOffer?.let { offer ->
+            if (aiReviewTarget == null) catalogCompetitions.firstOrNull { it.id == offer.id }?.let { competition ->
+                br.com.estudario.ui.catalog.CatalogSubmitDialog(
+                    competition = competition,
+                    viewModel = viewModel,
+                    onDismiss = { catalogOffer = null },
+                    initialRole = offer.preferences?.role.orEmpty(),
+                    initialBoard = offer.preferences?.board.orEmpty(),
+                    initialYear = offer.preferences?.year.orEmpty(),
+                    offeredAfterGeneration = true,
+                )
+            }
+        }
         val setupViewModel: InitialSetupViewModel = viewModel()
         LaunchedEffect(initialSetup?.status, hasExistingWorkspace) {
             if (initialSetup?.status == InitialSetupStatus.NOT_STARTED && hasExistingWorkspace == true) {
@@ -95,6 +110,8 @@ fun EstudarioApp(viewModel: AppViewModel) {
                 onClose = viewModel::closeAiReview,
                 onReopen = aiReviewTarget!!.let { t -> { viewModel.openAiReview(t.id, t.title) } },
                 onLocalApplied = {
+                    // Edital montado e aprovado: oferece deixar pronto no catálogo para os próximos.
+                    catalogOffer = aiReviewTarget
                     setupViewModel.onAiSyllabusApplied().invokeOnCompletion { viewModel.closeAiReview() }
                 },
             )
