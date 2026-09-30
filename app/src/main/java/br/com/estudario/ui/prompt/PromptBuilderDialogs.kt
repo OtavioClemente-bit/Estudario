@@ -15,6 +15,8 @@ import br.com.estudario.EstudarioApplication
 import br.com.estudario.data.ai.AiContentProgress
 import kotlinx.coroutines.flow.Flow
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.VerifiedUser
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.AlertDialog
@@ -393,7 +395,7 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         ))
         add(WizardSummaryItem(
             "Base",
-            if (options.source == MaterialSource.ATTACHED) attachment?.name ?: "Material seu (ainda não anexado)" else "Base de conhecimento do Estudário",
+            if (options.source == MaterialSource.ATTACHED) attachment?.name ?: "Material seu (ainda não anexado)" else "Pesquisa em fontes oficiais",
             stepOf("O que gerar"),
         ))
     }
@@ -410,7 +412,7 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         returnFileLabel = "Abrir arquivo .estudo",
         attachment = attachment.takeIf { options.source == MaterialSource.ATTACHED },
         server = ServerGenerationOption(
-            description = "Escreve o material do tópico e mostra tudo para você revisar antes de salvar. Usa 1 geração de conteúdo do seu plano.",
+            description = "Pesquisa em fontes oficiais, confere a versão vigente das leis, escreve o material do tópico e mostra tudo, com as fontes, para você revisar antes de salvar. Usa 1 geração de conteúdo do seu plano.",
             enabled = singleTopic != null && options.source != MaterialSource.ATTACHED,
             disabledReason = when {
                 singleTopic == null -> "O Estudário gera um tópico por vez. Escolha um tópico."
@@ -454,14 +456,27 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
     }
 }
 
-/** Etapas mostradas enquanto o Estudário escreve o material do tópico. */
+/**
+ * Etapas mostradas enquanto o Estudário escreve o material do tópico. São as etapas reais do
+ * servidor: busca na web com prioridade para fontes oficiais, conferência da redação vigente das
+ * normas e nada afirmado sem fonte (ver prompts/text-jobs-v1.ts).
+ */
 private val ContentGenerationStages = listOf(
-    "Enviando seu pedido",
-    "Organizando o tópico",
-    "Escrevendo a teoria",
-    "Montando resumo e revisão",
-    "Criando as questões comentadas",
-    "Revisando tudo antes de entregar",
+    "Lendo o que o edital pede neste tópico",
+    "Pesquisando em fontes oficiais",
+    "Conferindo leis e versões vigentes",
+    "Escrevendo a teoria, passo a passo",
+    "Montando resumo e flashcards",
+    "Criando questões no estilo da banca",
+    "Revisando cada fonte citada",
+)
+
+/** O que o Estudário garante em todo material, mostrado enquanto ele trabalha. */
+private val ContentCommitments = listOf(
+    "Fontes oficiais primeiro: leis, órgãos públicos, tribunais e bancas.",
+    "Lei citada na redação que vale hoje.",
+    "Sem fonte, não entra: nada é inventado.",
+    "Você confere tudo, com as fontes, antes de salvar.",
 )
 
 /**
@@ -495,7 +510,8 @@ private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, on
                         stageMillis = 14_000L,
                         footer = {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("Costuma levar de 1 a 3 minutos. Pode continuar usando o app: avisamos quando estiver pronto para você revisar e salvar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                ContentCommitmentsCard()
+                                Text("Costuma levar de 2 a 4 minutos, porque cada fonte é conferida. Pode continuar usando o app: avisamos quando estiver pronto para você revisar e salvar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                                 androidx.compose.material3.OutlinedButton(onClick = onBackground) { Text("Continuar em segundo plano") }
                                 TextButton(onClick = onClose) { Text("Cancelar geração", color = MaterialTheme.colorScheme.error) }
                             }
@@ -923,7 +939,7 @@ private fun BoardField(value: String, onChange: (String) -> Unit) {
 private fun MaterialBaseSection(useOwn: Boolean, attachment: PromptAttachment?, onUseOwnChange: (Boolean) -> Unit, onPick: () -> Unit, onClear: () -> Unit) {
     ToggleRow(
         "Usar um material meu como base",
-        if (useOwn) "O material que você anexar é a base" else "Sem anexo, vale a base do Estudário",
+        if (useOwn) "O material que você anexar é a base" else "Sem anexo, o Estudário pesquisa em fontes oficiais",
         useOwn,
         onUseOwnChange,
     )
@@ -977,6 +993,34 @@ private fun PrioritySelector(selected: PlanPriority, onSelect: (PlanPriority) ->
                     fontWeight = FontWeight.SemiBold,
                     color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
                 )
+            }
+        }
+    }
+}
+
+/**
+ * O compromisso do Estudário com o material, à vista enquanto ele trabalha: é o que faz a pessoa
+ * confiar no que vai estudar.
+ */
+@Composable
+private fun ContentCommitmentsCard() {
+    androidx.compose.material3.Surface(
+        shape = br.com.estudario.ui.theme.EstudarioShapes.panel,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.VerifiedUser, null, Modifier.size(20.dp), tint = br.com.estudario.ui.theme.estudarioColors().completed)
+                Spacer(Modifier.width(8.dp))
+                Text("Nosso compromisso com o seu material", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            }
+            ContentCommitments.forEach { line ->
+                Row(verticalAlignment = Alignment.Top) {
+                    Icon(Icons.Outlined.CheckCircle, null, Modifier.size(18.dp).padding(top = 1.dp), tint = br.com.estudario.ui.theme.estudarioColors().completed)
+                    Spacer(Modifier.width(8.dp))
+                    Text(line, style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
     }

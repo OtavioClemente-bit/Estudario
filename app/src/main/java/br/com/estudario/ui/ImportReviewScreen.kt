@@ -102,7 +102,7 @@ fun ImportReviewScreen(state: TransferState.Preview, onConfirm: (ImportMode?, Bo
                         Icons.Outlined.WarningAmber, estudarioColors().attention,
                         "${preview.downgradedQuestions} questão(ões) vieram como de prova real sem dizer de onde. Elas entram como autorais, sem banca nem ano.",
                     )
-                    if (preview.sourceCount > 0) Notice(Icons.Outlined.Link, estudarioColors().completed, "${preview.sourceCount} fonte(s) declarada(s). Ficam salvas para você conferir depois.")
+                    if (preview.sourceCount > 0) Notice(Icons.Outlined.Link, estudarioColors().completed, "Feito a partir de ${preview.sourceCount} fonte(s) consultada(s). Cada uma fica salva no tópico, com o link, para você conferir quando quiser.")
 
                     Text("O que entra", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     preview.subjects.forEach { subject ->
