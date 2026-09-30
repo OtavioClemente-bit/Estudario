@@ -45,6 +45,10 @@ class MainActivity : ComponentActivity() {
             handleIncomingFile(intent)
             handleNotification(intent)
             handleWidgetAction(intent)
+            if (BuildConfig.DEBUG && intent?.getBooleanExtra("seedDemo", false) == true) {
+                val app = application as EstudarioApplication
+                lifecycleScope.launch { br.com.estudario.data.DebugSeed.run(app.database, app.repository) }
+            }
         }
     }
 

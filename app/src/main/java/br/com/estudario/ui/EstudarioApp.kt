@@ -494,6 +494,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         onOpenTheory = { theoryId, block -> navController.navigate("theory/$theoryId?block=$block") },
                         onOpenTopic = { navController.navigate("topic/$it") },
                         onTrainFavorites = { navController.navigate("quiz/20/0/0/favorites/_/_") },
+                        onTrainTopicFavorites = { topicId -> navController.navigate("quiz/20/$topicId/0/favorites/_/_") },
                     )
                 }
                 composable("quiz/{count}/{topic}/{subject}/{mode}/{board}/{difficulty}") { backStack ->

@@ -1,6 +1,8 @@
 package br.com.estudario.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -40,6 +42,9 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
     var tocOpen by remember { mutableStateOf(false) }
     var textScale by rememberSaveable { mutableFloatStateOf(1f) }
     var editingIndex by remember { mutableStateOf<Int?>(null) }
+    var selected by remember(theoryId) { mutableStateOf<Int?>(null) }
+    var reportIndex by remember { mutableStateOf<Int?>(null) }
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val snackbar = remember { SnackbarHostState() }
     val readerPrefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
     var markHintSeen by remember { mutableStateOf(readerPrefs.getBoolean(MARK_HINT_SEEN, false)) }
@@ -68,15 +73,18 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
         snapshotFlow { currentBlock }.distinctUntilChanged().collect { viewModel.updateTheoryProgress(theory, it) }
     }
 
+    reportIndex?.let { index ->
+        br.com.estudario.ui.components.ReportErrorDialog(br.com.estudario.data.remote.ReportKind.THEORY, blocks.getOrElse(index) { "" }, theory.title, null, onDismiss = { reportIndex = null })
+    }
     editingIndex?.let { index ->
         val existing = marks.firstOrNull { it.blockIndex == index }
         var note by remember(index, existing?.id) { mutableStateOf(existing?.note.orEmpty()) }
         AlertDialog(
             onDismissRequest = { editingIndex = null },
-            title = { Text(if (existing == null) "Marcar trecho" else "Observação do trecho") },
+            title = { Text(if (existing == null) "Anotar e grifar" else "Sua anotação") },
             text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(blocks.getOrElse(index) { "" }.replace("#", "").take(240), color = MaterialTheme.colorScheme.onSurfaceVariant); OutlinedTextField(note, { note = it }, label = { Text("Sua observação (opcional)") }, minLines = 3, maxLines = 7) } },
-            confirmButton = { TextButton(onClick = { viewModel.saveTheoryMark(existing?.copy(note = note) ?: TheoryMarkEntity(theoryId = theoryId, blockIndex = index, quote = blocks[index], note = note)); editingIndex = null }) { Text("Salvar marcação") } },
-            dismissButton = { Row { if (existing != null) TextButton(onClick = { viewModel.deleteTheoryMark(existing); editingIndex = null }) { Text("Remover") }; TextButton(onClick = { editingIndex = null }) { Text("Cancelar") } } },
+            confirmButton = { TextButton(onClick = { viewModel.saveTheoryMark(existing?.copy(note = note) ?: TheoryMarkEntity(theoryId = theoryId, blockIndex = index, quote = blocks[index], note = note)); editingIndex = null }) { Text("Salvar") } },
+            dismissButton = { Row { if (existing != null) TextButton(onClick = { viewModel.deleteTheoryMark(existing); editingIndex = null }) { Text("Tirar grifo") }; TextButton(onClick = { editingIndex = null }) { Text("Cancelar") } } },
         )
     }
 
@@ -104,7 +112,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
         topBar = {
             if (showInternalTopBar) Column {
                 TopAppBar(
-                    title = { Column { Text(theory.title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis); Text("${(progress * 100).toInt()}% lido • ${marks.size} marcação(ões)", style = MaterialTheme.typography.labelSmall) } },
+                    title = { Column { Text(theory.title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis); Text("${(progress * 100).toInt()}% lido • ${marks.size} grifo(s)", style = MaterialTheme.typography.labelSmall) } },
                     navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") } },
                     actions = { if (chapters.size > 1) IconButton(onClick = { tocOpen = true }) { Icon(Icons.Outlined.Toc, "Índice") }; IconButton(onClick = { textScale = (textScale - .1f).coerceAtLeast(.8f) }) { Text("A−", fontWeight = FontWeight.Bold) }; IconButton(onClick = { textScale = (textScale + .1f).coerceAtMost(1.5f) }) { Text("A+", fontWeight = FontWeight.Bold) }; ReportTheoryButton() },
                 )
@@ -112,21 +120,36 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
             }
         },
         snackbarHost = { SnackbarHost(snackbar) },
-        // O progresso já é salvo sozinho; o botão marca o trecho atual para revisar depois no
-        // Caderno de estudo, e avisa, em vez de repetir um salvamento que ninguém vê.
-        floatingActionButton = {
-            val markedHere = marks.any { it.blockIndex == currentBlock }
-            ExtendedFloatingActionButton(
-                onClick = {
-                    if (markedHere || blocks.isEmpty()) editingIndex = currentBlock.takeIf { blocks.isNotEmpty() }
-                    else {
-                        viewModel.saveTheoryMark(TheoryMarkEntity(theoryId = theoryId, blockIndex = currentBlock, quote = blocks[currentBlock], note = ""))
-                        scope.launch { snackbar.showSnackbar("Trecho marcado. Revise em Caderno de estudo.") }
-                    }
-                },
-                icon = { Icon(if (markedHere) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkAdd, null) },
-                text = { Text(if (markedHere) "Anotar neste trecho" else "Marcar este ponto") },
-            )
+        // Tocar num parágrafo seleciona; a barra de ações só existe enquanto há seleção. Nada de
+        // ícone em cada trecho: a leitura fica limpa e o gesto é o mesmo de qualquer leitor de livro.
+        bottomBar = {
+            val index = selected
+            if (index != null && index in blocks.indices) {
+                val existing = marks.firstOrNull { it.blockIndex == index }
+                SelectionBar(
+                    highlighted = existing != null,
+                    onHighlight = {
+                        if (existing != null) {
+                            viewModel.deleteTheoryMark(existing)
+                            scope.launch { snackbar.showSnackbar("Grifo removido.") }
+                        } else {
+                            viewModel.saveTheoryMark(TheoryMarkEntity(theoryId = theoryId, blockIndex = index, quote = blocks[index], note = ""))
+                            markHintSeen = true
+                            readerPrefs.edit().putBoolean(MARK_HINT_SEEN, true).apply()
+                            scope.launch { snackbar.showSnackbar("Grifado. Fica no Caderno de estudo, no tópico desta teoria.") }
+                        }
+                        selected = null
+                    },
+                    onNote = { editingIndex = index; selected = null },
+                    onCopy = {
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(plainPreview(blocks[index])))
+                        scope.launch { snackbar.showSnackbar("Trecho copiado.") }
+                        selected = null
+                    },
+                    onReport = { reportIndex = index; selected = null },
+                    onClose = { selected = null },
+                )
+            }
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
@@ -135,7 +158,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
             Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Row(Modifier.padding(start = 14.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Icon(Icons.Outlined.TouchApp, null, tint = MaterialTheme.colorScheme.primary)
-                    Text("Dica: segure o dedo sobre um trecho para marcá-lo e anotar. Os marcados ficam no Caderno de estudo.", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    Text("Toque em qualquer parágrafo para grifar, anotar ou copiar. Os grifos ficam no Caderno de estudo, no tópico desta teoria.", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                     IconButton(onClick = { markHintSeen = true; readerPrefs.edit().putBoolean(MARK_HINT_SEEN, true).apply() }) { Icon(Icons.Outlined.Close, "Fechar dica") }
                 }
             }
@@ -150,22 +173,38 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                         IconButton(onClick = { textScale = (textScale + .1f).coerceAtMost(1.5f) }) { Text("A+", fontWeight = FontWeight.Bold) }
                         ReportTheoryButton()
                     }
-                    Text("${(progress * 100).toInt()}% lido • ${marks.size} marcação(ões)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${(progress * 100).toInt()}% lido • ${marks.size} grifo(s)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     LinearProgressIndicator({ progress.coerceIn(0f, 1f) }, Modifier.fillMaxWidth())
                 }
             }
             blocks.forEachIndexed { index, block ->
                 item(key = index) {
                     val mark = marks.firstOrNull { it.blockIndex == index }
-                    Row(Modifier.fillMaxWidth().background(if (mark != null) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = .55f) else MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp)).padding(start = 12.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.Top) {
+                    val isSelected = selected == index
+                    val highlighter = estudarioHighlighter()
+                    // Grifo = faixa de marca-texto na lateral e fundo bem leve; seleção = contorno.
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                when {
+                                    isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = .5f)
+                                    mark != null -> highlighter.copy(alpha = .16f)
+                                    else -> MaterialTheme.colorScheme.surface
+                                },
+                            )
+                            .border(if (isSelected) 1.5.dp else 0.dp, if (isSelected) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(10.dp))
+                            .height(IntrinsicSize.Min),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Box(Modifier.width(4.dp).fillMaxHeight().background(if (mark != null) highlighter else androidx.compose.ui.graphics.Color.Transparent))
                         br.com.estudario.ui.components.StudyMarkdown(
                             block,
-                            Modifier.weight(1f).padding(end = 12.dp),
+                            Modifier.weight(1f).padding(start = 10.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
                             textSizeSp = MaterialTheme.typography.bodyLarge.fontSize.value * textScale,
                             onLongPress = { editingIndex = index; markHintSeen = true; readerPrefs.edit().putBoolean(MARK_HINT_SEEN, true).apply() },
+                            onTap = { selected = if (selected == index) null else index },
                         )
-                        // Sem ícone em cada trecho (poluía teorias longas): só o marcado ganha um sinal.
-                        if (mark != null) Icon(Icons.Outlined.Bookmark, "Trecho marcado", Modifier.padding(end = 8.dp).size(18.dp), tint = MaterialTheme.colorScheme.tertiary)
                     }
                     if (!mark?.note.isNullOrBlank()) Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(8.dp), modifier = Modifier.padding(start = 12.dp, top = 4.dp)) { Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { Icon(Icons.Outlined.EditNote, null); Text(mark!!.note, Modifier.weight(1f)) } }
                 }
@@ -186,3 +225,34 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
 }
 
 private const val MARK_HINT_SEEN = "reader_mark_hint_seen"
+
+/** Cor de marca-texto: amarelo quente no claro, âmbar no escuro (legível nos dois). */
+@Composable
+private fun estudarioHighlighter(): androidx.compose.ui.graphics.Color =
+    if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) androidx.compose.ui.graphics.Color(0xFFFFC857) else androidx.compose.ui.graphics.Color(0xFFF2A900)
+
+private fun androidx.compose.ui.graphics.Color.luminance(): Float = 0.2126f * red + 0.7152f * green + 0.0722f * blue
+
+/** Barra que sobe quando um parágrafo está selecionado. */
+@Composable
+private fun SelectionBar(highlighted: Boolean, onHighlight: () -> Unit, onNote: () -> Unit, onCopy: () -> Unit, onReport: () -> Unit, onClose: () -> Unit) {
+    Surface(tonalElevation = 6.dp, shadowElevation = 8.dp, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            SelectionAction(if (highlighted) Icons.Outlined.FormatColorReset else Icons.Outlined.BorderColor, if (highlighted) "Tirar grifo" else "Grifar", Modifier.weight(1f), onHighlight)
+            SelectionAction(Icons.Outlined.EditNote, "Anotar", Modifier.weight(1f), onNote)
+            SelectionAction(Icons.Outlined.ContentCopy, "Copiar", Modifier.weight(1f), onCopy)
+            SelectionAction(Icons.Outlined.Flag, "Reportar", Modifier.weight(1f), onReport)
+            IconButton(onClick = onClose) { Icon(Icons.Outlined.Close, "Cancelar seleção") }
+        }
+    }
+}
+
+@Composable
+private fun SelectionAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, modifier: Modifier, onClick: () -> Unit) {
+    TextButton(onClick = onClick, modifier = modifier, contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, null, Modifier.size(22.dp))
+            Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        }
+    }
+}

@@ -30,7 +30,7 @@ import kotlin.math.roundToInt
  * tabelas e fórmulas LaTeX (`$$...$$`, na linha ou em bloco). As cores seguem o tema do app.
  */
 @Composable
-fun StudyMarkdown(markdown: String, modifier: Modifier = Modifier, textSizeSp: Float? = null, onLongPress: (() -> Unit)? = null) {
+fun StudyMarkdown(markdown: String, modifier: Modifier = Modifier, textSizeSp: Float? = null, onLongPress: (() -> Unit)? = null, onTap: (() -> Unit)? = null) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val size = textSizeSp ?: MaterialTheme.typography.bodyLarge.fontSize.value
@@ -58,6 +58,8 @@ fun StudyMarkdown(markdown: String, modifier: Modifier = Modifier, textSizeSp: F
             } else {
                 view.setOnLongClickListener(null)
             }
+            // Toque simples seleciona o trecho (na leitura da teoria). Link continua abrindo normalmente.
+            if (onTap != null) view.setOnClickListener { if (view.selectionStart == -1 || view.selectionStart == view.selectionEnd) onTap() } else view.setOnClickListener(null)
         },
     )
 }
