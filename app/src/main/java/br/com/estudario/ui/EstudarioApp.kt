@@ -265,12 +265,15 @@ private fun MainNavigation(viewModel: AppViewModel) {
             )
         }
     }
+    // Voltar do celular fecha o menu antes de sair da tela.
+    BackHandler(enabled = drawerState.isOpen) { drawerScope.launch { drawerState.close() } }
     Box(Modifier.fillMaxSize()) {
         ModalNavigationDrawer(
             drawerState = drawerState,
             // O botão Estudário permanece visível em todas as rotas; só o gesto de borda cede aos
             // leitores, ao quiz, à revisão ativa e ao cronômetro de foco.
-            gesturesEnabled = !drawerGestureDisabled,
+            // Aberto, o menu sempre fecha por toque fora ou arrastando, mesmo nessas telas.
+            gesturesEnabled = !drawerGestureDisabled || drawerState.isOpen,
             drawerContent = {
                 EstudarioDrawerContent(
                     profile = profile,
