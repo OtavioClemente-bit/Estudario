@@ -376,3 +376,42 @@ Deno.test("a new job is recorded against the device that asked for it", async ()
   await handler(deviceRequest());
   assertEquals(recorded, ["user-1|true|SYLLABUS_GENERATION|job-9"]);
 });
+
+function textRequest(sourceText: unknown): Request {
+  return new Request("https://x/functions/v1/ai-syllabus-jobs", {
+    method: "POST",
+    headers: { authorization: "Bearer t", "idempotency-key": "k-2", "content-type": "application/json" },
+    body: JSON.stringify({ feature: "SYLLABUS_GENERATION", source: {}, sourceText }),
+  });
+}
+
+Deno.test("the extracted edital text is kept with the job so the worker can skip the PDF", async () => {
+  let payload: Record<string, unknown> = {};
+  const handler = createAiSyllabusJobsHandler({
+    authenticate: () => Promise.resolve({ userId: "user-1", accessToken: "t" }),
+    storage: {} as never,
+    jobs: {
+      createOrGet: (input: CreateAiJobInput) => { payload = input.requestPayload as Record<string, unknown>; return Promise.resolve({ jobId: "job-t", reused: false }); },
+      getJob: () => Promise.resolve(null),
+    } as never,
+    limits: { maxBytes: 1, maxPages: 1, maxFiles: 1 },
+    schedule: () => Promise.resolve(),
+  });
+  await handler(textRequest({ text: "--- Página 51 ---\nLÍNGUA PORTUGUESA", pages: "1, 51-54", totalPages: 64, focused: true }));
+  assertEquals((payload.sourceText as Record<string, unknown>).pages, "1, 51-54");
+});
+
+Deno.test("an oversized or malformed edital text is refused before reserving quota", async () => {
+  let reserved = false;
+  const handler = createAiSyllabusJobsHandler({
+    authenticate: () => Promise.resolve({ userId: "user-1", accessToken: "t" }),
+    storage: {} as never,
+    jobs: { createOrGet: () => { reserved = true; return Promise.reject(new Error("must not reserve")); } } as never,
+    limits: { maxBytes: 1, maxPages: 1, maxFiles: 1 },
+    schedule: () => Promise.resolve(),
+  });
+  const big = await handler(textRequest({ text: "a".repeat(450_001), pages: "1", totalPages: 1, focused: false }));
+  const broken = await handler(textRequest({ text: "ok", pages: "1", totalPages: "64", focused: true }));
+  assertEquals([big.status, broken.status], [400, 400]);
+  assertEquals(reserved, false);
+});

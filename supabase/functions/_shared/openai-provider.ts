@@ -53,6 +53,8 @@ export interface ProviderStartInput {
   idempotencyKey: string;
   /** PDF de origem. Conteúdo e plano são só texto e não mandam arquivo. */
   source?: { filename: string; bytes: Uint8Array };
+  /** Texto do edital já extraído; quando vem, vai no lugar do PDF. */
+  sourceText?: string;
   /** Recurso registrado nos metadados do pedido; o edital é o padrão histórico. */
   feature?: string;
   /** Nome do formato estruturado; o padrão continua o do edital. */
@@ -572,7 +574,9 @@ export function createOpenAiProvider(
             }, {
               role: "user",
               content: [
-                ...(input.source
+                ...(input.sourceText
+                  ? [{ type: "input_text", text: input.sourceText }]
+                  : input.source
                   ? [{
                     type: "input_file",
                     filename: input.source.filename,

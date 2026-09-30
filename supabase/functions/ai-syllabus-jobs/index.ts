@@ -185,6 +185,25 @@ function sourceInput(body: Record<string, unknown>): Record<string, unknown> {
   return body.source;
 }
 
+/** Maior texto aceito (~110 mil tokens). */
+const MAX_SOURCE_TEXT_CHARS = 450_000;
+
+/**
+ * Texto do edital lido no celular, já recortado no conteúdo programático. Quando vem, a IA lê
+ * este texto e não o PDF: fica até 30 vezes mais leve. Ausente = comportamento antigo (PDF).
+ */
+function sourceTextInput(body: Record<string, unknown>): Record<string, unknown> | null {
+  if (body.sourceText === undefined || body.sourceText === null) return null;
+  const value = body.sourceText;
+  if (!isRecord(value)) throw new JobStoreError("INVALID_REQUEST", 400);
+  const { text, pages, totalPages, focused } = value;
+  if (typeof text !== "string" || text.trim().length === 0 || text.length > MAX_SOURCE_TEXT_CHARS) throw new JobStoreError("INVALID_REQUEST", 400);
+  if (typeof pages !== "string" || pages.length > 400) throw new JobStoreError("INVALID_REQUEST", 400);
+  if (typeof totalPages !== "number" || !Number.isSafeInteger(totalPages) || totalPages < 1 || totalPages > 10_000) throw new JobStoreError("INVALID_REQUEST", 400);
+  if (typeof focused !== "boolean") throw new JobStoreError("INVALID_REQUEST", 400);
+  return { text, pages, totalPages, focused };
+}
+
 function generationOptions(body: Record<string, unknown>): SyllabusGenerationOptions | null {
   if (body.options === undefined || body.options === null) return null;
   const options = parseSyllabusGenerationOptions(body.options);
@@ -261,6 +280,7 @@ async function createJob(
   const sourceHash = clientSourceHash(source);
   const sourceBytes = clientSourceBytes(source);
   const options = generationOptions(body);
+  const sourceText = sourceTextInput(body);
   if (dependencies.integrity) {
     const expected = await integrityRequestHash(SYLLABUS_FEATURE, key, sourceHash);
     try {
@@ -281,6 +301,7 @@ async function createJob(
     sourceHash,
     sourceBytes,
     ...(options === null ? {} : { options }),
+    ...(sourceText === null ? {} : { sourceText }),
   } satisfies Record<string, unknown>;
   const fingerprint = await requestFingerprint(payload);
 

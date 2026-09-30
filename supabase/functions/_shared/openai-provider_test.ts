@@ -656,3 +656,27 @@ Deno.test("retrieves and cancels only by response id", async () => {
   assert(calls[0].endsWith("/responses/resp-1"));
   assert(calls[1].endsWith("/responses/resp-1/cancel"));
 });
+
+Deno.test("sends the extracted edital text instead of the PDF when it is available", async () => {
+  let body: Record<string, unknown> = {};
+  const provider = createOpenAiProvider({
+    apiKey: "test-key",
+    fetcher: async (_input, init) => {
+      body = JSON.parse(String(init?.body));
+      return Response.json({ id: "resp-2", status: "queued" });
+    },
+  });
+  await provider.start({ ...source, sourceText: "<edital>\n--- Página 51 ---\nLÍNGUA PORTUGUESA\n</edital>" });
+  const user = (body.input as Array<Record<string, unknown>>)[1].content as Array<Record<string, unknown>>;
+  assertEquals(user.some((item) => item.type === "input_file"), false);
+  assert(user.some((item) => item.type === "input_text" && String(item.text).includes("LÍNGUA PORTUGUESA")));
+});
+
+Deno.test("keeps only a short safe code when the provider reports a failure", async () => {
+  const provider = createOpenAiProvider({
+    apiKey: "test-key",
+    fetcher: async () => Response.json({ id: "resp-3", status: "failed", error: { code: "server_error", message: "free text never stored" } }),
+  });
+  const response = await provider.retrieve("resp-3");
+  assertEquals(response.failureCode, "server_error");
+});

@@ -122,6 +122,7 @@ class EstudarioApplication : Application() {
         super.onCreate()
         br.com.estudario.ui.ai.BackgroundAiTasks.init(this)
         br.com.estudario.data.ai.DeviceIdentity.init(this)
+        br.com.estudario.data.ai.EditalPdfText.init(this)
         database = AppDatabase.create(this)
         repository = StudyRepository(database)
         focusSessionRepository = FocusSessionRepository(database.dao())

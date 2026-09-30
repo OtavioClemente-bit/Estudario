@@ -32,6 +32,8 @@ data class AiSourceMetadata(
     val sourceHash: String,
     val sourceBytes: Long,
     val objectPath: String? = null,
+    /** Texto do edital já recortado no celular; ausente = a IA lê o PDF, como antes. */
+    val sourceText: AiSourceText? = null,
 )
 
 data class AiUploadTarget(
@@ -159,6 +161,14 @@ class HttpAiApiClient(
                             put("ready", JsonPrimitive(true))
                         }
                     })
+                    source.sourceText?.let { text ->
+                        put("sourceText", buildJsonObject {
+                            put("text", JsonPrimitive(text.text))
+                            put("pages", JsonPrimitive(text.pages))
+                            put("totalPages", JsonPrimitive(text.totalPages))
+                            put("focused", JsonPrimitive(text.focused))
+                        })
+                    }
                     preferences?.let { value ->
                         put("options", buildJsonObject {
                             put("competitionName", JsonPrimitive(value.competitionName.trim()))

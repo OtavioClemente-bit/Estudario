@@ -167,6 +167,8 @@ dependencies {
     implementation("androidx.credentials:credentials:1.3.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    // Texto do PDF do edital lido no próprio celular, para a IA receber só o conteúdo programático.
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
     // Leitura de estudo: Markdown completo (tabelas, listas, código) e fórmulas LaTeX.

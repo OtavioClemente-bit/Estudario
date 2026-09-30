@@ -244,7 +244,8 @@ class DefaultAiSyllabusRepository(
         onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit = {},
     ): AiJob {
         var current = request
-        val sourceMetadata = source.toMetadata()
+        // Ler o texto do PDF leva de um a alguns segundos: nunca na thread da tela.
+        val sourceMetadata = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { source.toMetadata() }
         val sourceReady = current.sourceUploaded && current.uploadPath != null
         val created = api.createOrGetJob(
             current.idempotencyKey,
@@ -347,6 +348,7 @@ class DefaultAiSyllabusRepository(
         sourceHash = sha256,
         sourceBytes = bytes.size.toLong(),
         objectPath = objectPath,
+        sourceText = EditalPdfText.of(bytes, sha256),
     )
 
     private companion object {
