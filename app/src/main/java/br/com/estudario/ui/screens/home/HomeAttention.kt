@@ -1,32 +1,41 @@
 package br.com.estudario.ui.screens.home
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Autorenew
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.TrendingDown
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import br.com.estudario.ui.theme.EstudarioShapes
 import br.com.estudario.ui.theme.EstudarioSpacing
+import br.com.estudario.ui.theme.estudarioColors
 
 /**
  * O que está pedindo atenção agora: revisões vencendo, erros para refazer, o tópico mais frágil.
  *
- * Fica no rodapé da Home de propósito, é útil, mas não é o que abre o dia. Cada linha só aparece
- * quando tem conteúdo real; nenhuma delas vira um "0 pendências" ocupando espaço.
- *
- * (Este arquivo ainda se chama `ProgressSummary.kt` por herança da versão anterior da Home. Vale
- * renomear para `HomeAttention.kt` no Android Studio, não dá para renomear arquivos daqui.)
+ * Cada pendência é um cartão próprio, com ícone, número, o que fazer e a seta de "abrir", para
+ * ficar óbvio que é tocável. Só aparece o que tem conteúdo real; nada de "0 pendências".
  */
 @Composable
 fun HomeAttention(
@@ -41,55 +50,64 @@ fun HomeAttention(
 ) {
     val temAlgo = pendingReviews > 0 || pendingErrors > 0 || weakTopicName != null
     if (!temAlgo) return
+    val colors = estudarioColors()
 
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight)) {
-        Text(
-            "Pedindo atenção",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
+        Text("Pedindo atenção", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        if (pendingErrors > 0) AttentionCard(
+            icon = Icons.Outlined.ErrorOutline,
+            accent = MaterialTheme.colorScheme.error,
+            count = pendingErrors,
+            title = if (pendingErrors == 1) "Questão errada para refazer" else "Questões erradas para refazer",
+            subtitle = "Caderno de erros · refazer agora fixa o que você errou",
+            onClick = onOpenErrors,
         )
-        if (pendingReviews > 0) {
-            AttentionRow(
-                text = if (pendingReviews == 1) "1 revisão no ponto de revisar" else "$pendingReviews revisões no ponto de revisar",
-                onClick = onOpenReviews,
-            )
-        }
-        if (pendingErrors > 0) {
-            AttentionRow(
-                text = if (pendingErrors == 1) "1 questão errada voltou para refazer" else "$pendingErrors questões erradas voltaram para refazer",
-                onClick = onOpenErrors,
-            )
-        }
-        if (weakTopicName != null) {
-            AttentionRow(
-                text = "Ponto mais frágil: $weakTopicName · domínio $weakTopicMastery%",
-                onClick = onOpenWeakTopic,
-            )
-        }
+        if (pendingReviews > 0) AttentionCard(
+            icon = Icons.Outlined.Autorenew,
+            accent = MaterialTheme.colorScheme.primary,
+            count = pendingReviews,
+            title = if (pendingReviews == 1) "Revisão no dia certo" else "Revisões no dia certo",
+            subtitle = "Revisar hoje evita esquecer o que já estudou",
+            onClick = onOpenReviews,
+        )
+        if (weakTopicName != null) AttentionCard(
+            icon = Icons.Outlined.TrendingDown,
+            accent = colors.attention,
+            count = null,
+            badge = "$weakTopicMastery%",
+            title = weakTopicName,
+            subtitle = "Seu ponto mais frágil · domínio de $weakTopicMastery%",
+            onClick = onOpenWeakTopic,
+        )
     }
 }
 
 @Composable
-private fun AttentionRow(text: String, onClick: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(4.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 2,
-            modifier = Modifier.weight(1f), overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-        )
-        Icon(
-            Icons.AutoMirrored.Outlined.ArrowForward,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+private fun AttentionCard(
+    icon: ImageVector,
+    accent: Color,
+    count: Int?,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    badge: String? = null,
+) {
+    Surface(onClick = onClick, shape = EstudarioShapes.row, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(42.dp).clip(CircleShape).background(accent.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = accent)
+            }
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (count != null) Text("$count", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = accent)
+                    Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                }
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            if (badge != null) Surface(shape = CircleShape, color = accent.copy(alpha = 0.15f)) {
+                Text(badge, Modifier.padding(horizontal = 10.dp, vertical = 4.dp), style = MaterialTheme.typography.labelLarge, color = accent, fontWeight = FontWeight.Bold)
+            }
+            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, "Abrir", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
