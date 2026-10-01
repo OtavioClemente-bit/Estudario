@@ -33,7 +33,7 @@ object FocusSessionManager {
         // Já existe sessão aberta: respeitar a que está correndo em vez de zerar o cronômetro dela.
         val atual = app.preferences.focusSession.first()
         if (atual.active) {
-            FocusMode.showOngoing(context, atual.title, atual.startedAt, dndOn = atual.previousFilter != FocusSessionPrefs.FILTER_UNKNOWN)
+            showFor(context, atual)
             return atual.startedAt
         }
         val startedAt = System.currentTimeMillis()
@@ -62,12 +62,14 @@ object FocusSessionManager {
         if (!session.active) return 0
         val completedAt = System.currentTimeMillis()
         val minutes = session.elapsedMinutes(completedAt)
+        // Tempo estudado de verdade: pausas não contam.
+        val studiedSeconds = session.elapsedMillis(completedAt) / 1_000L
         val history = FocusSessionEntity(
             id = session.sessionId.ifBlank { "legacy-${session.startedAt}" },
             title = session.title.ifBlank { "Sessão de estudo" },
             startedAt = session.startedAt,
             completedAt = completedAt,
-            durationSeconds = ((completedAt - session.startedAt) / 1_000L).coerceAtLeast(0L),
+            durationSeconds = studiedSeconds.coerceAtLeast(0L),
             subjectIdsText = session.subjectIds.filter { it > 0L }.sorted().joinToString(","),
             origin = session.origin,
             topicId = session.topicId,
@@ -98,9 +100,35 @@ object FocusSessionManager {
             stop(context)
             FocusMode.notifyAutoClosed(context, minutes)
         } else {
-            FocusMode.showOngoing(context, session.title, session.startedAt, dndOn = session.previousFilter != FocusSessionPrefs.FILTER_UNKNOWN)
+            showFor(context, session)
             FocusMode.scheduleSafetyNet(context)
         }
+    }
+
+    /** Pausa o cronômetro (o Não Perturbe continua como está). */
+    suspend fun pause(context: Context) {
+        val app = context.applicationContext as EstudarioApplication
+        app.preferences.pauseFocusSession(System.currentTimeMillis())
+        showFor(context, app.preferences.focusSession.first())
+    }
+
+    suspend fun resume(context: Context) {
+        val app = context.applicationContext as EstudarioApplication
+        app.preferences.resumeFocusSession(System.currentTimeMillis())
+        showFor(context, app.preferences.focusSession.first())
+    }
+
+    /** Notificação coerente com o estado: cronômetro com base descontando as pausas, ou "pausado". */
+    private fun showFor(context: Context, session: FocusSessionPrefs) {
+        if (!session.active) return
+        val now = System.currentTimeMillis()
+        FocusMode.showOngoing(
+            context,
+            session.title,
+            now - session.elapsedMillis(now),
+            dndOn = session.previousFilter != FocusSessionPrefs.FILTER_UNKNOWN,
+            paused = session.paused,
+        )
     }
 }
 

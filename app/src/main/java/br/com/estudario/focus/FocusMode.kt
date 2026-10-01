@@ -64,7 +64,11 @@ object FocusMode {
         runCatching { manager.setInterruptionFilter(previousFilter) }
     }
 
-    fun showOngoing(context: Context, title: String, startedAt: Long, dndOn: Boolean) {
+    /**
+     * [startedAt] é a base do cronômetro da notificação (início menos as pausas). Pausada, a
+     * notificação para de contar e diz que está pausada.
+     */
+    fun showOngoing(context: Context, title: String, startedAt: Long, dndOn: Boolean, paused: Boolean = false) {
         if (!canPost(context)) return
         val open = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -79,14 +83,14 @@ object FocusMode {
         )
         val notification = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Modo foco ativo")
+            .setContentTitle(if (paused) "Modo foco pausado" else "Modo foco ativo")
             .setContentText(if (dndOn) "$title • Não perturbe ligado" else title)
             .setStyle(NotificationCompat.BigTextStyle().bigText(if (dndOn) "$title\nO Não Perturbe volta ao normal assim que você encerrar." else title))
             .setWhen(startedAt)
-            .setUsesChronometer(true)
+            .setUsesChronometer(!paused)
             .setOngoing(true)
             .setSilent(true)
-            .setShowWhen(true)
+            .setShowWhen(!paused)
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(openIntent)

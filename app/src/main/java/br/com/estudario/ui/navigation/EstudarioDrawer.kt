@@ -249,6 +249,8 @@ fun EstudarioTopBar(
     menuModifier: Modifier = Modifier,
     /** Atalho extra à direita, antes da busca (ex.: cronômetro do foco recolhido). */
     trailing: @Composable () -> Unit = {},
+    /** Esconde o nome ESTUDÁRIO (fica só o símbolo) para caber o atalho extra. */
+    compactBrand: Boolean = false,
 ) {
     Row(
         Modifier
@@ -275,7 +277,7 @@ fun EstudarioTopBar(
         ) {
             Icon(Icons.Outlined.Menu, contentDescription = null, modifier = Modifier.size(22.dp))
             EstudarioGlyph(size = 20.dp)
-            Text("ESTUDÁRIO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
+            if (!compactBrand) Text("ESTUDÁRIO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
         }
         if (title != null) {
             Text(

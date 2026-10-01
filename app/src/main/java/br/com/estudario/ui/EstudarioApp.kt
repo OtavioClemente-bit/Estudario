@@ -41,6 +41,7 @@ import br.com.estudario.ui.planner.StudyPlanViewModel
 import br.com.estudario.ui.planner.StudyPlanViewModelFactory
 import androidx.activity.compose.BackHandler
 import br.com.estudario.ui.focus.FocusSessionSheet
+import br.com.estudario.ui.focus.FocusTimerActions
 import br.com.estudario.ui.focus.FocusTimerBar
 import br.com.estudario.ui.components.LoadingDialog
 import br.com.estudario.ui.profile.BadgeCelebrationScreen
@@ -176,6 +177,14 @@ private fun MainNavigation(viewModel: AppViewModel) {
     val focusDnd by viewModel.focusDoNotDisturb.collectAsState()
     val focusKeepOn by viewModel.focusKeepScreenOn.collectAsState()
     val focusScope = rememberCoroutineScope()
+    val focusHidden by viewModel.focusClockHidden.collectAsState()
+    val focusActions = FocusTimerActions(
+        onOpen = { focusSheetOpen = true },
+        onCollapse = { focusBarCollapsed = true },
+        onExpand = { focusBarCollapsed = false },
+        onTogglePause = viewModel::toggleFocusPause,
+        onToggleHidden = viewModel::toggleFocusClockHidden,
+    )
     var focusClockNow by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(focusSession.active, focusSession.startedAt) {
         while (focusSession.active) {
@@ -337,16 +346,10 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     },
                     profileModifier = if (showBottom) Modifier.tourTarget(TourKey.HOME_PROFILE, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.HOME_PROFILE, it) } else Modifier,
                     menuModifier = Modifier.tourTarget(TourKey.NAV_MENU, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.NAV_MENU, it) },
-                    trailing = { if (focusBarCollapsed) br.com.estudario.ui.focus.FocusTimerPill(focusSession, focusClockNow) { focusBarCollapsed = false } },
+                    trailing = { if (focusBarCollapsed) br.com.estudario.ui.focus.FocusTimerPill(focusSession, focusClockNow, focusHidden, focusActions) },
+                    compactBrand = focusBarCollapsed && focusSession.active,
                 )
-                FocusTimerBar(
-                    session = focusSession,
-                    now = focusClockNow,
-                    collapsed = focusBarCollapsed,
-                    onOpen = { focusSheetOpen = true },
-                    onCollapse = { focusBarCollapsed = true },
-                    onExpand = { focusBarCollapsed = false },
-                )
+                FocusTimerBar(focusSession, focusClockNow, focusBarCollapsed, focusHidden, focusActions)
                 // Gerações da IA que seguem em segundo plano, visíveis em qualquer tela.
                 // Uma vez só: mostra que o botão Estudário abre um menu com o resto do app.
                 val hintPrefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
@@ -553,10 +556,13 @@ private fun MainNavigation(viewModel: AppViewModel) {
         if (focusSheetOpen && focusSession.active) FocusSessionSheet(
             session = focusSession,
             now = focusClockNow,
+            hidden = focusHidden,
             doNotDisturb = focusDnd,
             keepScreenOn = focusKeepOn,
             onDoNotDisturb = viewModel::setFocusDoNotDisturb,
             onKeepScreenOn = viewModel::setFocusKeepScreenOn,
+            onTogglePause = viewModel::toggleFocusPause,
+            onToggleHidden = viewModel::toggleFocusClockHidden,
             onStop = { focusSheetOpen = false; focusScope.launch { viewModel.stopFocus() } },
             onOpenTopic = focusSession.topicId?.let { id -> { focusSheetOpen = false; navController.navigate("topic/$id") { launchSingleTop = true } } },
             onHistory = { focusSheetOpen = false; navController.navigate("focus-history") },

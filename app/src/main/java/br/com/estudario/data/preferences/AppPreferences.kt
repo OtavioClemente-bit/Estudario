@@ -50,6 +50,8 @@ class AppPreferences(private val context: Context) {
     private val focusSubjectIdsKey = stringPreferencesKey("focus_subject_ids")
     private val focusOriginKey = stringPreferencesKey("focus_origin")
     private val focusPreviousFilterKey = intPreferencesKey("focus_previous_filter")
+    private val focusPausedAtKey = longPreferencesKey("focus_paused_at")
+    private val focusPausedTotalKey = longPreferencesKey("focus_paused_total_ms")
     private val focusDndKey = booleanPreferencesKey("focus_do_not_disturb")
     private val focusKeepScreenOnKey = booleanPreferencesKey("focus_keep_screen_on")
     private val lastFocusMinutesKey = intPreferencesKey("focus_last_minutes")
@@ -105,6 +107,8 @@ class AppPreferences(private val context: Context) {
             topicId = topicId,
             taskId = taskId,
             previousFilter = prefs[focusPreviousFilterKey] ?: FocusSessionPrefs.FILTER_UNKNOWN,
+            pausedAt = prefs[focusPausedAtKey] ?: 0L,
+            pausedMillis = prefs[focusPausedTotalKey] ?: 0L,
         )
     }
     /** Ligar o Não Perturbe do sistema durante a sessão (respeitando as exceções da pessoa). */
@@ -149,6 +153,26 @@ class AppPreferences(private val context: Context) {
             prefs[focusSubjectIdsKey] = subjectIds.filter { it > 0L }.sorted().joinToString(",")
             prefs[focusOriginKey] = origin.name
             prefs[focusPreviousFilterKey] = previousFilter
+            prefs.remove(focusPausedAtKey)
+            prefs.remove(focusPausedTotalKey)
+        }
+    }
+
+    /** Pausa: o relógio para de contar a partir de [at], sem perder o que já foi estudado. */
+    suspend fun pauseFocusSession(at: Long) {
+        context.dataStore.edit { prefs ->
+            if ((prefs[focusStartedAtKey] ?: 0L) > 0L && (prefs[focusPausedAtKey] ?: 0L) == 0L) prefs[focusPausedAtKey] = at
+        }
+    }
+
+    /** Retoma: o intervalo pausado entra no total descontado do tempo estudado. */
+    suspend fun resumeFocusSession(at: Long) {
+        context.dataStore.edit { prefs ->
+            val pausedAt = prefs[focusPausedAtKey] ?: 0L
+            if (pausedAt > 0L) {
+                prefs[focusPausedTotalKey] = (prefs[focusPausedTotalKey] ?: 0L) + (at - pausedAt).coerceAtLeast(0L)
+                prefs.remove(focusPausedAtKey)
+            }
         }
     }
 
@@ -163,6 +187,8 @@ class AppPreferences(private val context: Context) {
             prefs.remove(focusSubjectIdsKey)
             prefs.remove(focusOriginKey)
             prefs.remove(focusPreviousFilterKey)
+            prefs.remove(focusPausedAtKey)
+            prefs.remove(focusPausedTotalKey)
             prefs[lastFocusMinutesKey] = minutes
             prefs[lastFocusTaskKey] = taskId.orEmpty()
         }
@@ -238,10 +264,17 @@ data class FocusSessionPrefs(
     val topicId: Long? = null,
     val taskId: String? = null,
     val previousFilter: Int = FILTER_UNKNOWN,
+    /** Momento em que foi pausada (0 = contando). */
+    val pausedAt: Long = 0L,
+    /** Soma das pausas já encerradas, descontada do tempo estudado. */
+    val pausedMillis: Long = 0L,
 ) {
     val active: Boolean get() = startedAt > 0L
-    fun elapsedMinutes(now: Long = System.currentTimeMillis()): Int =
-        if (!active) 0 else (((now - startedAt) / 60_000L).coerceAtLeast(0L)).toInt()
+    val paused: Boolean get() = active && pausedAt > 0L
+    /** Tempo estudado de verdade: do início até agora (ou até a pausa), menos as pausas. */
+    fun elapsedMillis(now: Long = System.currentTimeMillis()): Long =
+        if (!active) 0L else ((if (paused) pausedAt else now) - startedAt - pausedMillis).coerceAtLeast(0L)
+    fun elapsedMinutes(now: Long = System.currentTimeMillis()): Int = (elapsedMillis(now) / 60_000L).toInt()
 
     companion object {
         /** Não sabemos qual era o filtro antes (permissão negada ou sessão antiga): não mexer nele. */

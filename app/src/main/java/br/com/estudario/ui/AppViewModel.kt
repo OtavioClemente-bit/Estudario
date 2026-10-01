@@ -631,6 +631,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
     /** Devolve os minutos medidos para quem encerrou, a tela usa isso para registrar a tarefa. */
     suspend fun stopFocus(): Int = FocusSessionManager.stop(app)
+    fun toggleFocusPause() = launchCatching {
+        if (focusSession.value.paused) FocusSessionManager.resume(app) else FocusSessionManager.pause(app)
+    }
+    private val uiPrefs = app.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
+    private val _focusClockHidden = kotlinx.coroutines.flow.MutableStateFlow(uiPrefs.getBoolean("focus_hide_clock", false))
+    /** Esconde os números do cronômetro (quem fica ansioso vendo o tempo subir). Lembrado entre sessões. */
+    val focusClockHidden: StateFlow<Boolean> = _focusClockHidden
+    fun toggleFocusClockHidden() {
+        val value = !_focusClockHidden.value
+        _focusClockHidden.value = value
+        uiPrefs.edit().putBoolean("focus_hide_clock", value).apply()
+    }
     fun clearLastFocus() = launchCatching { app.preferences.clearLastFocus() }
     fun setFocusDoNotDisturb(value: Boolean) = launchCatching { app.preferences.setFocusDoNotDisturb(value) }
     fun setFocusKeepScreenOn(value: Boolean) = launchCatching { app.preferences.setFocusKeepScreenOn(value) }

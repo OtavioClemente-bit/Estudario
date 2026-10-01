@@ -359,6 +359,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
 
     // Modo foco do tópico: o cronômetro roda no topo do app; sair daqui com ele ligado pergunta antes.
     val focusHere = focusSession.active && focusSession.topicId == topicId
+    val focusClockHidden by viewModel.focusClockHidden.collectAsState()
     var focusNow by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(focusHere) { while (focusHere) { focusNow = System.currentTimeMillis(); kotlinx.coroutines.delay(1_000) } }
     var focusStopAsk by remember { mutableStateOf(false) }
@@ -496,7 +497,14 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                         onClick = { focusStopAsk = true },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(14.dp),
-                    ) { Icon(Icons.Outlined.Timer, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Foco · ${br.com.estudario.ui.focus.focusClock(focusSession, focusNow)}") }
+                    ) {
+                        Icon(if (focusSession.paused) Icons.Outlined.Pause else Icons.Outlined.Timer, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
+                        Text(when {
+                            focusSession.paused -> "Foco pausado"
+                            focusClockHidden -> "Foco ativo"
+                            else -> "Foco · ${br.com.estudario.ui.focus.focusClock(focusSession, focusNow)}"
+                        })
+                    }
                     else FilledTonalButton(
                         onClick = {
                             if (focusSession.active) focusSwitchAsk = true

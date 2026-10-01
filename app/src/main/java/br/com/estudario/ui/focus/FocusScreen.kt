@@ -150,7 +150,7 @@ fun FocusScreen(
     val namesById = remember(subjects) { subjects.associate { it.id to it.name } }
     val subjectOptions = remember(subjects) { subjects.map { FocusSubjectOption(it.id, it.name) } }
     val totalMinutes = history.sumOf { it.durationSeconds.coerceAtLeast(0L) } / 60L
-    val elapsedSeconds = if (session.active) ((now - session.startedAt) / 1_000L).coerceAtLeast(0L) else 0L
+    val elapsedSeconds = session.elapsedMillis(now) / 1_000L
     val dndActive = wantsDnd && dndGranted
 
     val contentModifier = if (embedded) {
