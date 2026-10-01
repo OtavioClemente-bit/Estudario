@@ -205,7 +205,7 @@ fun EditalPromptBuilderDialog(viewModel: AppViewModel, selectedCompetitionId: Lo
         description = "Lê o PDF oficial, extrai matérias e tópicos e mostra tudo para você revisar antes de salvar. Usa 1 geração de edital do seu plano.",
         enabled = target != null && options.source == EditalSource.ATTACH_PDF,
         disabledReason = when {
-            target == null -> "Disponível para concursos já criados no app. Crie o concurso primeiro, na aba Concursos."
+            target == null -> "Disponível para concursos já criados no app. Crie o concurso primeiro, na aba Edital."
             options.source != EditalSource.ATTACH_PDF -> "Para gerar pelo Estudário, anexe o PDF oficial do edital."
             else -> null
         },
@@ -716,7 +716,7 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
             "Objetivo",
             "Isso define o ritmo e o equilíbrio entre teoria, questões e revisão.",
             when {
-                competition == null -> "Crie ou importe um concurso na aba Concursos antes de gerar o plano."
+                competition == null -> "Crie ou importe um concurso na aba Edital antes de gerar o plano."
                 competitionSubjects.isEmpty() -> "Este concurso ainda não tem matérias. Importe o edital primeiro."
                 options.planName.isBlank() -> "Dê um nome ao plano."
                 else -> null
@@ -852,7 +852,7 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
 
     GenerationWizard(
         title = "Plano de estudos com o assistente",
-        subtitle = competition?.name ?: "Crie um concurso na aba Concursos primeiro",
+        subtitle = competition?.name ?: "Crie um concurso na aba Edital primeiro",
         steps = steps,
         summary = summary,
         prompt = prompt,

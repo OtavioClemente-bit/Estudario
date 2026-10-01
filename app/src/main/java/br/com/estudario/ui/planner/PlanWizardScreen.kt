@@ -182,7 +182,7 @@ fun PlanWizardScreen(
                             competitions.forEach { item ->
                                 FilterChip(competitionId == item.id, { competitionId = item.id }, { Text(item.name) })
                             }
-                            if (selectedSubjects.isEmpty()) Aviso("Este concurso ainda não tem matérias. Adicione as matérias primeiro, na aba Concursos.")
+                            if (selectedSubjects.isEmpty()) Aviso("Este concurso ainda não tem matérias. Adicione as matérias primeiro, na aba Edital.")
                             else Text("${selectedSubjects.size} matéria(s) • ${selectedTopics.size} tópico(s) • ${selectedTopics.count { it.status == TopicStatus.NAO_ESTUDADO }} ainda não estudado(s)", style = MaterialTheme.typography.bodyMedium)
                         }
                         2 -> {

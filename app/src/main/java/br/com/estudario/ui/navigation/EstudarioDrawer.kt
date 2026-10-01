@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.Bookmarks
@@ -201,7 +202,7 @@ fun estudarioDrawerSections(
         "Estudos",
         listOf(
             DrawerEntry("Meus concursos", Icons.Outlined.FolderOpen, onMySyllabi, "my-syllabi"),
-            DrawerEntry("Concursos", Icons.Outlined.Checklist, onSyllabus, "syllabus"),
+            DrawerEntry("Edital", Icons.AutoMirrored.Outlined.LibraryBooks, onSyllabus, "syllabus"),
             DrawerEntry("Plano de estudos", Icons.Outlined.CalendarMonth, onPlan, "plan"),
             DrawerEntry("Treinar questões", Icons.Outlined.School, onTrain, "train"),
             DrawerEntry("Caderno de estudo", Icons.Outlined.Bookmarks, onNotebook, "notebook"),
@@ -246,6 +247,8 @@ fun EstudarioTopBar(
     windowInsets: WindowInsets = WindowInsets.statusBars,
     profileModifier: Modifier = Modifier,
     menuModifier: Modifier = Modifier,
+    /** Atalho extra à direita, antes da busca (ex.: cronômetro do foco recolhido). */
+    trailing: @Composable () -> Unit = {},
 ) {
     Row(
         Modifier
@@ -281,8 +284,10 @@ fun EstudarioTopBar(
                 style = MaterialTheme.typography.titleSmall,
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
+            trailing()
         } else {
             Spacer(Modifier.weight(1f))
+            trailing()
             IconAction(Icons.Outlined.Search, "Pesquisar", onSearch)
             Spacer(Modifier.width(EstudarioSpacing.hairline))
             Box(

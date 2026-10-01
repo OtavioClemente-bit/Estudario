@@ -357,6 +357,44 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
     val topicSources = sources.filter { it.topicId == topicId }
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
 
+    // Modo foco do tópico: o cronômetro roda no topo do app; sair daqui com ele ligado pergunta antes.
+    val focusHere = focusSession.active && focusSession.topicId == topicId
+    var focusNow by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(focusHere) { while (focusHere) { focusNow = System.currentTimeMillis(); kotlinx.coroutines.delay(1_000) } }
+    var focusStopAsk by remember { mutableStateOf(false) }
+    var focusLeaveAsk by remember { mutableStateOf(false) }
+    var focusSwitchAsk by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = focusHere && !completionBusy) { focusLeaveAsk = true }
+    if (focusLeaveAsk) AlertDialog(
+        onDismissRequest = { focusLeaveAsk = false },
+        icon = { Icon(Icons.Outlined.Timer, null) },
+        title = { Text("Parar o cronômetro?") },
+        text = { Text("Você está há ${focusSession.elapsedMinutes(focusNow).coerceAtLeast(1)} min estudando ${topic.title}. Se continuar contando, o cronômetro segue no topo do app.") },
+        confirmButton = { TextButton(onClick = { focusLeaveAsk = false; scope.launch { viewModel.stopFocus(); onBack() } }) { Text("Parar e salvar") } },
+        dismissButton = { TextButton(onClick = { focusLeaveAsk = false; onBack() }) { Text("Continuar contando") } },
+    )
+    if (focusStopAsk) AlertDialog(
+        onDismissRequest = { focusStopAsk = false },
+        icon = { Icon(Icons.Outlined.Timer, null) },
+        title = { Text("Encerrar o foco?") },
+        text = { Text("${br.com.estudario.ui.focus.focusClock(focusSession, focusNow)} de estudo em ${topic.title} vão para o seu histórico. Para registrar o tópico como estudado, use Concluir estudo.") },
+        confirmButton = { TextButton(onClick = { focusStopAsk = false; scope.launch { viewModel.stopFocus() } }) { Text("Encerrar e salvar") } },
+        dismissButton = { TextButton(onClick = { focusStopAsk = false }) { Text("Continuar") } },
+    )
+    if (focusSwitchAsk) AlertDialog(
+        onDismissRequest = { focusSwitchAsk = false },
+        icon = { Icon(Icons.Outlined.Timer, null) },
+        title = { Text("Já tem um foco rodando") },
+        text = { Text("O cronômetro está contando ${focusSession.title.ifBlank { "outra sessão" }}. Encerrar e salvar aquela sessão e começar aqui?") },
+        confirmButton = {
+            TextButton(onClick = {
+                focusSwitchAsk = false
+                scope.launch { viewModel.stopFocus(); viewModel.startFocus(topic.title, topicId = topicId, taskId = taskId) }
+            }) { Text("Começar aqui") }
+        },
+        dismissButton = { TextButton(onClick = { focusSwitchAsk = false }) { Text("Cancelar") } },
+    )
+
     val topicTheories = theories.filter { it.topicId == topicId }.sortedByDescending { it.updatedAt }
     val topicSummaries = summaries.filter { it.topicId == topicId }
     val topicSnippets = snippets.filter { it.topicId == topicId }
@@ -454,8 +492,16 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                     Icon(icon, null); Spacer(Modifier.width(10.dp)); Text(label, style = MaterialTheme.typography.titleSmall)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FilledTonalButton(
-                        onClick = { viewModel.startFocus(topic.title, topicId = topicId, taskId = taskId); onFocus() },
+                    if (focusHere) Button(
+                        onClick = { focusStopAsk = true },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp),
+                    ) { Icon(Icons.Outlined.Timer, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Foco · ${br.com.estudario.ui.focus.focusClock(focusSession, focusNow)}") }
+                    else FilledTonalButton(
+                        onClick = {
+                            if (focusSession.active) focusSwitchAsk = true
+                            else { viewModel.startFocus(topic.title, topicId = topicId, taskId = taskId); onFocus() }
+                        },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(14.dp),
                     ) { Icon(Icons.Outlined.Timer, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Modo foco") }

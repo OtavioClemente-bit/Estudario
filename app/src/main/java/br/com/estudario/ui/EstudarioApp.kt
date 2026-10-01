@@ -40,6 +40,8 @@ import br.com.estudario.ui.planner.PlanTransferUiState
 import br.com.estudario.ui.planner.StudyPlanViewModel
 import br.com.estudario.ui.planner.StudyPlanViewModelFactory
 import androidx.activity.compose.BackHandler
+import br.com.estudario.ui.focus.FocusSessionSheet
+import br.com.estudario.ui.focus.FocusTimerBar
 import br.com.estudario.ui.components.LoadingDialog
 import br.com.estudario.ui.profile.BadgeCelebrationScreen
 import br.com.estudario.ui.profile.BadgesScreen
@@ -168,6 +170,12 @@ private fun MainNavigation(viewModel: AppViewModel) {
     val currentRoute = entry?.destination?.route
     val focusSession by viewModel.focusSession.collectAsState()
     var showFocusOverlay by rememberSaveable { mutableStateOf(false) }
+    var focusBarCollapsed by rememberSaveable { mutableStateOf(false) }
+    var focusSheetOpen by remember { mutableStateOf(false) }
+    val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+    val focusDnd by viewModel.focusDoNotDisturb.collectAsState()
+    val focusKeepOn by viewModel.focusKeepScreenOn.collectAsState()
+    val focusScope = rememberCoroutineScope()
     var focusClockNow by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(focusSession.active, focusSession.startedAt) {
         while (focusSession.active) {
@@ -209,10 +217,10 @@ private fun MainNavigation(viewModel: AppViewModel) {
     // chamada "Mais" para guardar o que não coube.
     val destinations = listOf(
         Destination("home", "Início", Icons.Rounded.Home, Icons.Outlined.Home),
-        Destination("syllabus", "Concursos", Icons.Rounded.Checklist, Icons.Outlined.Checklist),
-        Destination("focus", "Foco", Icons.Rounded.Timer, Icons.Outlined.Timer),
+        Destination("syllabus", "Edital", Icons.Rounded.LibraryBooks, Icons.Outlined.LibraryBooks),
         Destination("plan", "Plano", Icons.Rounded.CalendarMonth, Icons.Outlined.CalendarMonth),
-        Destination("train", "Treinar", Icons.Rounded.School, Icons.Outlined.School),
+        Destination("train", "Treinar", Icons.Rounded.Quiz, Icons.Outlined.Quiz),
+        Destination("notebook", "Caderno", Icons.Rounded.Bookmarks, Icons.Outlined.Bookmarks),
     )
     val showBottom = currentRoute in destinations.map { it.route }
     val drawerGestureDisabled = currentRoute in setOf(
@@ -311,8 +319,10 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     onOpenMenu = { drawerScope.launch { drawerState.open() } },
                     onSearch = { navController.navigate("search") },
                     onProfile = { navController.navigate("profile") },
+                    // A seta passa pelo mesmo caminho do voltar do celular: a tela pode perguntar antes
+                    // de sair (ex.: parar o cronômetro do tópico, sair da prova do simulado).
                     onBack = if (showBottom || currentRoute in setOf("focus", "review-session/{id}", "quiz/{count}/{topic}/{subject}/{mode}/{board}/{difficulty}", "plan-quiz/{taskId}/{count}/{topic}/{subject}")) null else ({
-                        if (!navController.popBackStack()) navController.navigate("home")
+                        backDispatcher?.onBackPressed() ?: run { if (!navController.popBackStack()) navController.navigate("home") }
                     }),
                     title = when {
                         currentRoute == "profile" -> "Perfil"
@@ -327,6 +337,15 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     },
                     profileModifier = if (showBottom) Modifier.tourTarget(TourKey.HOME_PROFILE, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.HOME_PROFILE, it) } else Modifier,
                     menuModifier = Modifier.tourTarget(TourKey.NAV_MENU, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.NAV_MENU, it) },
+                    trailing = { if (focusBarCollapsed) br.com.estudario.ui.focus.FocusTimerPill(focusSession, focusClockNow) { focusBarCollapsed = false } },
+                )
+                FocusTimerBar(
+                    session = focusSession,
+                    now = focusClockNow,
+                    collapsed = focusBarCollapsed,
+                    onOpen = { focusSheetOpen = true },
+                    onCollapse = { focusBarCollapsed = true },
+                    onExpand = { focusBarCollapsed = false },
                 )
                 // Gerações da IA que seguem em segundo plano, visíveis em qualquer tela.
                 // Uma vez só: mostra que o botão Estudário abre um menu com o resto do app.
@@ -355,26 +374,12 @@ private fun MainNavigation(viewModel: AppViewModel) {
             bottomBar = {
                 if (showBottom) NavigationBar(windowInsets = WindowInsets.navigationBars, modifier = Modifier.testTag("main-bottom-navigation")) {
                     destinations.forEach { destination ->
-                        val selected = if (destination.route == "focus") showFocusOverlay else currentRoute == destination.route
+                        val selected = currentRoute == destination.route
                         val tourKey = tourKeyForRoute(destination.route)
                         NavigationBarItem(
                             selected = selected,
-                            onClick = {
-                                if (destination.route == "focus") showFocusOverlay = true
-                                else navegarAba(destination.route)
-                            },
-                            icon = {
-                                if (destination.route == "focus") {
-                                    val elapsedMinutes = focusSession.elapsedMinutes(focusClockNow)
-                                    FocusNavigationIcon(
-                                        active = focusSession.active,
-                                        elapsedLabel = if (elapsedMinutes < 1) "menos de 1 min" else "$elapsedMinutes min",
-                                        onClick = { showFocusOverlay = true },
-                                    )
-                                } else {
-                                    Icon(if (selected) destination.selected else destination.unselected, null)
-                                }
-                            },
+                            onClick = { navegarAba(destination.route) },
+                            icon = { Icon(if (selected) destination.selected else destination.unselected, null) },
                             label = { Text(destination.label, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
                             modifier = if (tourKey != null) Modifier.tourTarget(tourKey, tourStep?.key) { viewModel.reportTourTargetBounds(tourKey, it) } else Modifier,
                         )
@@ -475,13 +480,13 @@ private fun MainNavigation(viewModel: AppViewModel) {
                 }
                 composable("topic/{id}") { backStack ->
                     val id = backStack.arguments?.getString("id")?.toLongOrNull() ?: 0
-                    TopicDetailScreen(viewModel, id, planViewModel = planViewModel, onBack = { navController.popBackStack() }, onQuiz = { navController.navigate("quiz/15/$id/0/random/_/_") }, onTheory = { navController.navigate("theory/$it") }, onFocus = { showFocusOverlay = true }, onOpenTopic = { navController.navigate("topic/$it") }, onTheoryAt = { theoryId, block -> navController.navigate("theory/$theoryId?block=$block") })
+                    TopicDetailScreen(viewModel, id, planViewModel = planViewModel, onBack = { navController.popBackStack() }, onQuiz = { navController.navigate("quiz/15/$id/0/random/_/_") }, onTheory = { navController.navigate("theory/$it") }, onFocus = {}, onOpenTopic = { navController.navigate("topic/$it") }, onTheoryAt = { theoryId, block -> navController.navigate("theory/$theoryId?block=$block") })
                 }
                 composable("topic/{id}/task/{taskId}") { backStack ->
                     val id = backStack.arguments?.getString("id")?.toLongOrNull() ?: 0
                     val taskId = backStack.arguments?.getString("taskId")
                     // A rota mantém a origem da tarefa para sincronizar a conclusão do tópico com o plano.
-                    TopicDetailScreen(viewModel, id, taskId = taskId, planViewModel = planViewModel, onBack = { navController.popBackStack() }, onQuiz = { navController.navigate("quiz/15/$id/0/random/_/_") }, onTheory = { navController.navigate("theory/$it") }, onFocus = { showFocusOverlay = true }, onOpenTopic = { navController.navigate("topic/$it") }, onTheoryAt = { theoryId, block -> navController.navigate("theory/$theoryId?block=$block") })
+                    TopicDetailScreen(viewModel, id, taskId = taskId, planViewModel = planViewModel, onBack = { navController.popBackStack() }, onQuiz = { navController.navigate("quiz/15/$id/0/random/_/_") }, onTheory = { navController.navigate("theory/$it") }, onFocus = {}, onOpenTopic = { navController.navigate("topic/$it") }, onTheoryAt = { theoryId, block -> navController.navigate("theory/$theoryId?block=$block") })
                 }
                 composable("theory/{id}?block={block}", arguments = listOf(androidx.navigation.navArgument("block") { type = androidx.navigation.NavType.IntType; defaultValue = -1 })) { backStack ->
                     TheoryReaderScreen(
@@ -545,6 +550,18 @@ private fun MainNavigation(viewModel: AppViewModel) {
                 onOpenPlan = { showFocusOverlay = false; navegarAba("plan") },
             )
         }
+        if (focusSheetOpen && focusSession.active) FocusSessionSheet(
+            session = focusSession,
+            now = focusClockNow,
+            doNotDisturb = focusDnd,
+            keepScreenOn = focusKeepOn,
+            onDoNotDisturb = viewModel::setFocusDoNotDisturb,
+            onKeepScreenOn = viewModel::setFocusKeepScreenOn,
+            onStop = { focusSheetOpen = false; focusScope.launch { viewModel.stopFocus() } },
+            onOpenTopic = focusSession.topicId?.let { id -> { focusSheetOpen = false; navController.navigate("topic/$id") { launchSingleTop = true } } },
+            onHistory = { focusSheetOpen = false; navController.navigate("focus-history") },
+            onDismiss = { focusSheetOpen = false },
+        )
         TransferDialog(viewModel)
         // Comemoração da sequência: só na primeira atividade que fecha a meta do dia, e nunca por
         // cima de um guia em andamento.
