@@ -26,6 +26,35 @@ import org.junit.Test
 
 class AiReviewViewModelTest {
     @Test
+    fun quotaRejectionBeforeJobDoesNotClaimAnalysisStartedOrOfferAnEndlessRetry() {
+        val pending = AiReviewPendingRequestIdentity("quota-request", "quota-key", ownerUserId = TEST_USER)
+        val jobs = PendingIdentityFailureJobs(pending, startError = br.com.estudario.data.ai.AiApiException("DEVICE_QUOTA_EXHAUSTED", 429))
+        val viewModel = createViewModel(jobs = jobs)
+        await { viewModel.state.value.access.kind == AiReviewAccessKind.READY }
+        generate(viewModel, "content://edital", "edital.pdf")
+        await { viewModel.state.value.content is AiReviewContent.Failure }
+        val failure = viewModel.state.value.content as AiReviewContent.Failure
+        assertEquals(br.com.estudario.data.ai.DEVICE_QUOTA_MESSAGE, failure.message)
+        assertEquals(false, failure.canRetry)
+        viewModel.retry()
+        Thread.sleep(100)
+        assertTrue(jobs.recoveredRequests.isEmpty())
+        assertEquals(1, jobs.startCalls)
+    }
+
+    @Test
+    fun restoredQuotaRejectionIsFriendlyAndDoesNotOfferRetry() {
+        val jobs = PendingIdentityFailureJobs(AiReviewPendingRequestIdentity("request", "key", ownerUserId = TEST_USER),
+            recoveryError = br.com.estudario.data.ai.AiApiException("DEVICE_QUOTA_EXHAUSTED", 429))
+        val sessions = FakeSessionStore(AiReviewPersistedSession(42L, "TRT-3", "request", "", "key", ownerUserId = TEST_USER))
+        val viewModel = createViewModel(jobs = jobs, sessions = sessions)
+        await { viewModel.state.value.content is AiReviewContent.Failure }
+        val failure = viewModel.state.value.content as AiReviewContent.Failure
+        assertEquals(br.com.estudario.data.ai.DEVICE_QUOTA_MESSAGE, failure.message)
+        assertEquals(false, failure.canRetry)
+    }
+
+    @Test
     fun switchingAccountsInvalidatesUnconfirmedPreparationAndRechecksAccess() {
         val currentUser = MutableStateFlow("user-a")
         val jobs = FakeJobs()
@@ -657,6 +686,8 @@ class AiReviewViewModelTest {
     private inner class PendingIdentityFailureJobs(
         private val pending: AiReviewPendingRequestIdentity,
         private val failStart: Boolean = true,
+        private val startError: Throwable = IllegalStateException("request persisted before transport"),
+        private val recoveryError: Throwable? = null,
     ) : AiReviewJobs {
         override suspend fun prepare(target: AiReviewTarget) = preparedFixture(target)
         var startCalls = 0
@@ -664,12 +695,13 @@ class AiReviewViewModelTest {
 
         override suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted {
             startCalls += 1
-            if (failStart) throw AiReviewStartException(pending, IllegalStateException("request persisted before transport"))
+            if (failStart) throw AiReviewStartException(pending, startError)
             return AiReviewStarted(job(AiJobStatus.SUCCEEDED), pending.copy(ownerUserId = TEST_USER).asStartedIdentity()!!)
         }
 
         override suspend fun recover(requestId: String): AiReviewStarted {
             recoveredRequests += requestId
+            recoveryError?.let { throw it }
             return AiReviewStarted(job(AiJobStatus.SUCCEEDED), pending.copy(ownerUserId = TEST_USER).asStartedIdentity() ?: AiReviewRequestIdentity(requestId, "job-recovered", pending.idempotencyKey, TEST_USER))
         }
 

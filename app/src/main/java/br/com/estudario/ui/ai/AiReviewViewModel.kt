@@ -18,6 +18,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import br.com.estudario.data.ai.AiJob
 import br.com.estudario.data.ai.AiApiException
+import br.com.estudario.data.ai.AI_QUOTA_REJECTION_CODES
+import br.com.estudario.data.ai.DEVICE_QUOTA_MESSAGE
 import br.com.estudario.data.ai.AiAuthenticationRequiredException
 import br.com.estudario.data.ai.AiJobRequestStore
 import br.com.estudario.data.ai.AiProcessTimeoutException
@@ -186,7 +188,7 @@ class DefaultAiReviewJobs(
         matching.firstOrNull { it.requestId == preferredRequestId }?.let {
             return started(repository.recover(it.requestId, onRequestPersisted))
         }
-        val active = matching.filter { it.status !in setOf("SUCCEEDED", "FAILED", "CANCELLED", "EXPIRED") }
+        val active = matching.filter { it.creationRejectionCode == null && it.status !in setOf("SUCCEEDED", "FAILED", "CANCELLED", "EXPIRED") }
         if (active.size > 1) throw AiRecoveryAmbiguousException()
         val request = active.singleOrNull() ?: matching.maxByOrNull { it.createdAtEpochMillis } ?: return null
         return started(repository.recover(request.requestId, onRequestPersisted))
@@ -580,7 +582,8 @@ class AiReviewViewModel(
     }
 
     fun retry() {
-        if (_state.value.content !is AiReviewContent.Failure) return
+        val failure = _state.value.content as? AiReviewContent.Failure ?: return
+        if (!failure.canRetry) return
         if (appliedReconciliationRequired) {
             viewModelScope.launch { refreshAccessAndRestore() }
             return
@@ -596,12 +599,7 @@ class AiReviewViewModel(
                 .onFailure { error ->
                     if (error is CancellationException) throw error
                     if (epoch != flowEpoch) return@onFailure
-                    _state.value = _state.value.copy(
-                        content = AiReviewContent.Failure(
-                            message = safeMessage(error),
-                            terminalStatus = null,
-                        ),
-                    )
+                    fail(error)
                 }
         }
     }
@@ -662,7 +660,7 @@ class AiReviewViewModel(
             appliedReconciliationRequired = false
             hasAppliedLocally = true
             val outboxId = saved.outboxId
-        val restoredSyncState = outboxId?.let { runCatching { syncState(it) }.getOrNull() }
+            val restoredSyncState = outboxId?.let { runCatching { syncState(it) }.getOrNull() }
                 ?: RemoteSyllabusSyncState.PENDING
             if (epoch != flowEpoch) return
             _state.value = _state.value.copy(content = AiReviewContent.Applied(restoredSyncState))
@@ -677,7 +675,7 @@ class AiReviewViewModel(
                     applier.findApplied(targetId, savedJobId)
                 } catch (error: Throwable) {
                     if (error is CancellationException) throw error
-                    fail(safeMessage(error))
+                    fail(error)
                     return
                 }
                 if (epoch != flowEpoch) return
@@ -715,7 +713,7 @@ class AiReviewViewModel(
             }
             runCatching { jobs.recover(saved.requestId, requestContextWriter(flowEpoch)) }
                 .onSuccess { started -> if (epoch == flowEpoch) { identity = started.identity; render(started.job, started.identity, saved.draftJson) } }
-                .onFailure { if (it is CancellationException) throw it; if (epoch == flowEpoch) fail(safeMessage(it)) }
+                .onFailure { if (it is CancellationException) throw it; if (epoch == flowEpoch) fail(it) }
         } else {
             runCatching { jobs.recoverPersistedForTarget(targetId, initialTarget?.entryId, requestContextWriter(flowEpoch)) }
                 .onSuccess { recovered ->
@@ -727,7 +725,7 @@ class AiReviewViewModel(
                         render(recovered.job, recovered.identity)
                     }
                 }
-                .onFailure { if (it is CancellationException) throw it; if (epoch == flowEpoch) fail(safeMessage(it)) }
+                .onFailure { if (it is CancellationException) throw it; if (epoch == flowEpoch) fail(it) }
         }
     }
 
@@ -779,6 +777,12 @@ class AiReviewViewModel(
                 if (persistedIdentity != null) {
                     pendingIdentity = persistedIdentity
                 }
+                val cause = startFailure.cause ?: startFailure
+                if (recoveredIdentity == null && cause is AiApiException && cause.code in AI_QUOTA_REJECTION_CODES) {
+                    persistedIdentity?.let { savePending(it) }
+                    fail(cause)
+                    return
+                }
                 if (recoveredIdentity != null) {
                     identity = recoveredIdentity
                     pendingSource = null
@@ -806,15 +810,15 @@ class AiReviewViewModel(
                         )
                         recoverUntilTerminal(knownIdentity.requestId)
                     } else {
-                        fail("A análise foi iniciada e será retomada com a mesma solicitação. Tente novamente.")
+                        fail("Não foi possível confirmar o início da análise. Tente novamente para retomar a mesma solicitação.")
                     }
                 } else {
-                    fail("A análise foi iniciada e será retomada com a mesma solicitação. Tente novamente.")
+                    fail(cause)
                 }
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
                 if (epoch != flowEpoch) return
-                fail(safeMessage(error))
+                fail(error)
             }
         }
     }
@@ -879,15 +883,15 @@ class AiReviewViewModel(
                 // The existing job is still non-terminal; keep polling the same request.
             } catch (error: AiApiException) {
                 if (!error.isTransientForJobRecovery()) {
-                    fail(safeMessage(error))
+                    fail(error)
                     return
                 }
             } catch (error: AiAuthenticationRequiredException) {
-                fail(safeMessage(error))
+                fail(error)
                 return
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
-                fail(safeMessage(error))
+                fail(error)
                 return
             }
             delay(retryDelay)
@@ -1006,8 +1010,20 @@ class AiReviewViewModel(
         _state.value = _state.value.copy(content = AiReviewContent.Failure(message, canRetry = identity != null || pendingIdentity != null || appliedReconciliationRequired))
     }
 
+    private fun fail(error: Throwable) {
+        val cause = (error as? AiReviewStartException)?.cause ?: error
+        val quotaRejected = cause is AiApiException && cause.code in AI_QUOTA_REJECTION_CODES
+        _state.value = _state.value.copy(content = AiReviewContent.Failure(
+            safeMessage(cause), canRetry = !quotaRejected && (identity != null || pendingIdentity != null || appliedReconciliationRequired),
+        ))
+    }
+
     private fun safeMessage(error: Throwable): String = when (error) {
-        is AiApiException -> if (error.code == "INTEGRITY_REQUIRED" || error.code == "INTEGRITY_FAILED") {
+        is AiApiException -> if (error.code == "DEVICE_QUOTA_EXHAUSTED") {
+            DEVICE_QUOTA_MESSAGE
+        } else if (error.code == "QUOTA_EXHAUSTED") {
+            "A cota de geração desta conta foi atingida. Confira seu plano e uso no Perfil."
+        } else if (error.code == "INTEGRITY_REQUIRED" || error.code == "INTEGRITY_FAILED") {
             "Não foi possível confirmar que este é o app original da Google Play. Instale ou atualize o Estudário pela Play Store e tente novamente."
         } else if (error.code == "INTEGRITY_UNAVAILABLE") {
             "A verificação de segurança do Google está indisponível agora. Tente novamente em alguns minutos."
@@ -1028,8 +1044,8 @@ class AiReviewViewModel(
 }
 
 private fun AiApiException.isTransientForJobRecovery(): Boolean =
-    status == 0 || status == 408 || status == 425 || status == 429 || status >= 500 ||
-        code == "NETWORK_UNAVAILABLE" || code == "HTTP_TIMEOUT"
+    code !in AI_QUOTA_REJECTION_CODES && (status == 0 || status == 408 || status == 425 || status == 429 || status >= 500 ||
+        code == "NETWORK_UNAVAILABLE" || code == "HTTP_TIMEOUT")
 
 class AiRecoveryAmbiguousException : IllegalStateException(
     "More than one unfinished AI request exists for this syllabus; automatic recovery was stopped.",

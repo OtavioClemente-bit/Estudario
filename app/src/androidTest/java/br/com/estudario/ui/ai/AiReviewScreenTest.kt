@@ -32,6 +32,19 @@ class AiReviewScreenTest {
     @get:Rule val compose = createComposeRule()
 
     @Test
+    fun localPreparationUsesTheFullProcessDesignWithoutClaimingRemoteAnalysis() {
+        compose.setContent {
+            EstudarioTheme(false) {
+                AiReviewScreen(state = AiReviewUiState.gate(42L, "PMMG", AiReviewAccessState.READY).copy(content = AiReviewContent.Preparing))
+            }
+        }
+        compose.onNodeWithText("Preparando seu edital").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Processando").assertIsDisplayed()
+        compose.onNodeWithText("Esta conferência acontece no celular e não consome gerações.").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Analisando seu edital").assertDoesNotExist()
+    }
+
+    @Test
     fun unauthenticatedGateKeepsSelectedTargetAndReturnsToItAfterLogin() {
         var loginRequested = false
         compose.setContent {

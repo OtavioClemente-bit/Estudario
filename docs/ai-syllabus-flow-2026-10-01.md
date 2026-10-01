@@ -51,3 +51,23 @@ deno check --no-config --node-modules-dir=none supabase/functions/ai-syllabus-jo
 ```
 
 Os testes instrumentados usam o emulador Pixel_7/API 35, APIs simuladas e banco local. Não consomem quota de IA real nem alteram dados do celular do usuário.
+
+## Regressão após o teste na versão 29 — versão 3.3.2 (30)
+
+As imagens posteriores mostraram uma recusa `DEVICE_QUOTA_EXHAUSTED` e a mensagem incorreta de que a análise já havia começado. A solicitação era persistida antes de receber um job ID; o wrapper de início descartava a causa na apresentação e tratava essa recusa como recuperação pendente. O retry também não traduzia a quota e não respeitava `canRetry`.
+
+- Recusas explícitas de quota sem job ID recebido agora são persistidas em `creationRejectionCode`, um campo opcional compatível com solicitações antigas. A recuperação automática ignora essas solicitações. Timeout e resultado de criação desconhecido continuam recuperando a mesma chave.
+- Uma retomada explicitamente solicitada ao repositório pode reconsultar a criação preservando a chave. Essa retomada continua sujeita à quota do servidor. Jobs já conhecidos continuam sendo recuperados normalmente.
+- Início, restauração e retry mostram a mesma mensagem amigável de quota. A ação de retry é desabilitada nesse caso, inclusive na função do ViewModel. O app não afirma que uma análise começou quando não recebeu a confirmação do servidor.
+- Preparação local e envio voltaram a usar `EstudarioProcessView`, com livro animado, etapas e layout completo. A preparação informa que acontece no celular e não consome gerações; o código do job só aparece durante processamento confirmado.
+
+### Diagnóstico remoto somente de leitura
+
+A regra em produção permite uma geração de edital no plano grátis, por aparelho, durante toda a vida do acesso grátis. A consulta dos registros do aparelho associado às tentativas recentes encontrou uma geração concluída e três falhas. A função remota exclui FAILED, EXPIRED e CANCELLED da contagem. Não foram alterados jobs, quota, plano, funções ou banco remoto. A atualização do Android não libera esse limite nem comprova uma nova geração real.
+
+### Verificação da regressão
+
+- Antes da correção: o novo teste do repositório falhou porque a recuperação voltou a chamar a criação recusada; os três novos testes no emulador reproduziram a mensagem incorreta, o erro técnico sem tradução e o layout de preparação ausente.
+- Depois da correção: **454 testes JVM passaram** e **40 testes instrumentados passaram**, incluindo ViewModel, tela, recuperação durável e entrada real do seletor. APIs simuladas, sem geração remota.
+- Build debug, APK de instrumentação e bundle release executados. Não há formatador Kotlin configurado; `git diff --check` executado. O lint Android continua com os 11 erros previamente identificados em outros arquivos; a indentação do trecho de restauração de sincronização foi corrigida, sem baseline ou supressões.
+- Evidências locais: `work/ai-quota-red.log`, `work/ai-quota-instrument-red.log`, `work/ai-quota-green.log`, `work/ai-quota-instrument-green.log` e `work/ai-quota-release-checks.log`.

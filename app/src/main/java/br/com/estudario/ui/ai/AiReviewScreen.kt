@@ -63,6 +63,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.key
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -133,7 +134,7 @@ fun AiReviewScreen(
         containerColor = MaterialTheme.colorScheme.background,
     ) { padding ->
         val content = state.content
-        if (content is AiReviewContent.Processing) {
+        if (content is AiReviewContent.Processing || content == AiReviewContent.Preparing || content == AiReviewContent.Submitting) {
             // A análise ocupa a tela inteira: é o momento em que a pessoa só acompanha.
             Column(
                 Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 12.dp),
@@ -141,18 +142,30 @@ fun AiReviewScreen(
             ) {
                 TargetChip(state.targetTitle)
                 Spacer(Modifier.height(8.dp))
-                EstudarioProcessView(
-                    title = "Analisando seu edital",
-                    stages = SyllabusAnalysisStages,
+                key(content::class) { EstudarioProcessView(
+                    title = when (content) {
+                        AiReviewContent.Preparing -> "Preparando seu edital"
+                        AiReviewContent.Submitting -> "Iniciando sua análise"
+                        else -> "Analisando seu edital"
+                    },
+                    stages = when (content) {
+                        AiReviewContent.Preparing -> listOf("Lendo o PDF neste dispositivo", "Conferindo o conteúdo programático", "Preparando a conferência das informações")
+                        AiReviewContent.Submitting -> listOf("Confirmando a solicitação", "Enviando e vinculando o PDF com segurança", "Aguardando o início da análise")
+                        else -> SyllabusAnalysisStages
+                    },
                     footer = {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
-                                "Costuma levar de 1 a 3 minutos. Se a conexão cair, a análise pode ser retomada.",
+                                when (content) {
+                                    AiReviewContent.Preparing -> "Esta conferência acontece no celular e não consome gerações."
+                                    AiReviewContent.Submitting -> "Sua confirmação foi recebida. Estamos preparando a solicitação para análise."
+                                    else -> "Costuma levar de 1 a 3 minutos. Se a conexão cair, a análise pode ser retomada."
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
                             )
-                            Text(
+                            if (content is AiReviewContent.Processing) Text(
                                 "Código da análise: ${content.jobId}",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontFamily = FontFamily.Monospace,
@@ -160,7 +173,7 @@ fun AiReviewScreen(
                             )
                         }
                     },
-                )
+                ) }
             }
             return@Scaffold
         }
@@ -185,14 +198,7 @@ fun AiReviewScreen(
                     )
                 }
                 is AiReviewContent.Processing -> Unit
-                AiReviewContent.Preparing -> item {
-                    Text("Conferindo o PDF neste dispositivo…")
-                    EstudarioBookLoader(size = 40.dp)
-                }
-                AiReviewContent.Submitting -> item {
-                    Text("Preparando e vinculando sua análise…")
-                    EstudarioBookLoader(size = 40.dp)
-                }
+                AiReviewContent.Preparing, AiReviewContent.Submitting -> Unit
                 is AiReviewContent.Confirmation -> item {
                     AiSourceConfirmation(content, state.access, preferences ?: AiSyllabusPreferences(competitionName = state.targetTitle, role = ""), onPreferencesChange, onPickSource, onConfirmGeneration, onLogin)
                 }

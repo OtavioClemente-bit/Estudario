@@ -28,3 +28,6 @@ object DeviceIdentity {
 
 /** Mesma frase em todas as telas que falam com a IA. */
 const val DEVICE_QUOTA_MESSAGE = "As gerações grátis deste celular já foram usadas, mesmo trocando de conta. Assine um plano em Perfil > Planos e uso para continuar."
+
+/** Explicit refusals; 429 rate limits and transport errors must remain recoverable. */
+internal val AI_QUOTA_REJECTION_CODES = setOf("DEVICE_QUOTA_EXHAUSTED", "QUOTA_EXHAUSTED")

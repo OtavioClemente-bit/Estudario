@@ -11,6 +11,45 @@ import org.junit.Test
 
 class AiSyllabusRepositoryTest {
     @Test
+    fun quotaRejectedCreationDoesNotKeepRunningInBackgroundAndCanBeExplicitlyResumed() = runTest {
+        val api = FakeAiApiClient()
+        api.createFailure = AiApiException("DEVICE_QUOTA_EXHAUSTED", 429)
+        val store = InMemoryAiJobRequestStore()
+        val repository = repository(api, store)
+        assertTrue(runCatching { repository.start("content://edital") }.exceptionOrNull() is AiApiException)
+        val saved = store.list().single()
+        assertNull(saved.jobId)
+        repository.recoverPendingJobs()
+        repository.recoverPendingJobs()
+        assertEquals(1, api.createCalls)
+        assertEquals(0, api.uploadCalls)
+        assertTrue(api.processedJobIds.isEmpty())
+        val blocked = runCatching { repository.recover(saved.requestId) }.exceptionOrNull()
+        assertEquals("DEVICE_QUOTA_EXHAUSTED", (blocked as AiApiException).code)
+        assertEquals(1, api.createCalls)
+        api.createFailure = null
+        repository.resumeOrRetry(saved.requestId)
+        assertEquals(saved.idempotencyKey, store.list().single().idempotencyKey)
+        assertEquals(1, api.idempotencyKeys.distinct().size)
+        assertEquals(1, api.processedJobIds.size)
+    }
+
+    @Test
+    fun unknownCreationOutcomeStillRecoversWithTheSameKey() = runTest {
+        val api = FakeAiApiClient()
+        api.createFailure = AiApiException("HTTP_TIMEOUT", 504)
+        val store = InMemoryAiJobRequestStore()
+        val repository = repository(api, store)
+        assertTrue(runCatching { repository.start("content://edital") }.isFailure)
+        val saved = store.list().single()
+        api.createFailure = null
+        repository.recoverPendingJobs()
+        assertEquals(saved.idempotencyKey, store.list().single().idempotencyKey)
+        assertEquals(1, api.idempotencyKeys.distinct().size)
+        assertEquals(1, api.processedJobIds.size)
+    }
+
+    @Test
     fun localPreparationHasNoAuthJobUploadOrQuotaSideEffects() = runTest {
         val api = FakeAiApiClient()
         val store = InMemoryAiJobRequestStore()
@@ -505,6 +544,7 @@ private class InMemoryAiJobRequestStore : AiJobRequestStore {
 private class FakeAiApiClient(
     var nextJob: AiJob = fakeJob(AiJobStatus.PROCESSING),
 ) : AiApiClient {
+    var createFailure: Throwable? = null
     var awaitFailure: Throwable? = null
     var uploadFailure = false
     var createCalls = 0
@@ -519,6 +559,7 @@ private class FakeAiApiClient(
     override suspend fun createOrGetJob(idempotencyKey: String, source: AiSourceMetadata, sourceReady: Boolean): AiCreateJob {
         createCalls += 1
         idempotencyKeys += idempotencyKey
+        createFailure?.let { throw it }
         val jobId = existingJobId ?: "job-${createCalls}".also { existingJobId = it }
         return AiCreateJob(
             jobId = jobId,

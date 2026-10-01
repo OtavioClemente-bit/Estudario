@@ -41,6 +41,8 @@ data class PersistedAiJobRequest(
     val targetTitle: String? = null,
     val updatedAtEpochMillis: Long = System.currentTimeMillis(),
     val preferences: AiSyllabusPreferences? = null,
+    /** A definite quota refusal before we received a job ID, not an unknown network outcome. */
+    val creationRejectionCode: String? = null,
 )
 
 interface AiJobRequestStore {
@@ -178,6 +180,10 @@ class DefaultAiSyllabusRepository(
         requireAuthenticated()
         val stored = requestStore.get(requestId) ?: throw IllegalArgumentException("AI request not found.")
         requireOwnedByCurrentUser(stored)
+        if (stored.jobId == null && stored.creationRejectionCode != null) {
+            onRequestPersisted(stored)
+            throw AiApiException(stored.creationRejectionCode, 429)
+        }
         stored.jobId?.let { jobId ->
             val visible = api.getJob(jobId)
             require(visible.jobId == jobId && visible.feature == AiFeature.SYLLABUS_GENERATION)
@@ -211,6 +217,7 @@ class DefaultAiSyllabusRepository(
             uploadPath = null,
             sourceUploaded = false,
             status = null,
+            creationRejectionCode = null,
             sourceHash = source.sha256,
             sourceBytes = source.bytes.size.toLong(),
             sourcePath = durablePrevious.sourcePath,
@@ -230,6 +237,10 @@ class DefaultAiSyllabusRepository(
         requireAuthenticated()
         val request = requestStore.get(requestId) ?: throw IllegalArgumentException("AI request not found.")
         requireOwnedByCurrentUser(request)
+        // Only an explicit user retry may recheck a previously refused creation. Keep its key.
+        if (request.jobId == null && request.creationRejectionCode != null) {
+            requestStore.save(request.copy(creationRejectionCode = null))
+        }
         val status = request.status?.let { runCatching { AiJobStatus.valueOf(it) }.getOrNull() }
         if (status in RETRYABLE_TERMINAL_STATUSES) {
             retryFailedLocked(requestId, onRequestPersisted)
@@ -277,6 +288,7 @@ class DefaultAiSyllabusRepository(
         var firstFailure: Throwable? = null
         requestStore.list()
             .filter { it.ownerUserId == ownerUserId }
+            .filter { it.jobId != null || it.creationRejectionCode == null }
             .filter { it.status !in setOf(AiJobStatus.SUCCEEDED.name, AiJobStatus.FAILED.name, AiJobStatus.EXPIRED.name, AiJobStatus.CANCELLED.name) }
             .forEach { request ->
                 try {
@@ -315,17 +327,27 @@ class DefaultAiSyllabusRepository(
         // Ler o texto do PDF leva de um a alguns segundos: nunca na thread da tela.
         val sourceMetadata = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { source.toMetadata() }
         val sourceReady = current.sourceUploaded && current.uploadPath != null
-        val created = api.createOrGetJob(
-            current.idempotencyKey,
-            sourceMetadata.copy(objectPath = current.uploadPath.takeIf { sourceReady }),
-            sourceReady = sourceReady,
-            preferences = current.preferences,
-        )
+        val created = try {
+            api.createOrGetJob(
+                current.idempotencyKey,
+                sourceMetadata.copy(objectPath = current.uploadPath.takeIf { sourceReady }),
+                sourceReady = sourceReady,
+                preferences = current.preferences,
+            )
+        } catch (error: AiApiException) {
+            if (current.jobId == null && error.code in AI_QUOTA_REJECTION_CODES) {
+                val rejected = current.copy(creationRejectionCode = error.code, updatedAtEpochMillis = System.currentTimeMillis())
+                requestStore.save(rejected)
+                onRequestPersisted(rejected)
+            }
+            throw error
+        }
         current = current.copy(
             jobId = created.jobId,
             uploadPath = created.uploadTarget.path,
             sourceUploaded = sourceReady || created.sourceBound,
             status = created.status.name,
+            creationRejectionCode = null,
             updatedAtEpochMillis = System.currentTimeMillis(),
         )
         requestStore.save(current)
