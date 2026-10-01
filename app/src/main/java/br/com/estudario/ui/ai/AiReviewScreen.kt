@@ -86,6 +86,9 @@ import br.com.estudario.ui.theme.estudarioColors
 import java.util.UUID
 
 /** As etapas narradas enquanto a IA lê o edital. São o caminho real do trabalho, na ordem. */
+internal val PreparationStages = listOf("Abrindo o PDF", "Procurando o conteúdo programático", "Separando as matérias")
+internal const val PREPARATION_STAGE_MILLIS = 650L
+
 internal val SyllabusAnalysisStages = listOf(
     "Enviando o PDF com segurança",
     "Lendo as páginas do edital",
@@ -142,24 +145,19 @@ fun AiReviewScreen(
             ) {
                 TargetChip(state.targetTitle)
                 Spacer(Modifier.height(8.dp))
-                key(content::class) { EstudarioProcessView(
-                    title = when (content) {
-                        AiReviewContent.Preparing -> "Preparando seu edital"
-                        AiReviewContent.Submitting -> "Iniciando sua análise"
-                        else -> "Analisando seu edital"
-                    },
-                    stages = when (content) {
-                        AiReviewContent.Preparing -> listOf("Lendo o PDF neste dispositivo", "Conferindo o conteúdo programático", "Preparando a conferência das informações")
-                        AiReviewContent.Submitting -> listOf("Confirmando a solicitação", "Enviando e vinculando o PDF com segurança", "Aguardando o início da análise")
-                        else -> SyllabusAnalysisStages
-                    },
+                // Duas fases só: a leitura no celular (curta) e a análise. Enviar e analisar são a
+                // mesma espera para a pessoa, então o relógio e as etapas não recomeçam no meio.
+                val preparing = content == AiReviewContent.Preparing
+                key(preparing) { EstudarioProcessView(
+                    title = if (preparing) "Lendo seu edital" else "Analisando seu edital",
+                    stages = if (preparing) PreparationStages else SyllabusAnalysisStages,
+                    stageMillis = if (preparing) PREPARATION_STAGE_MILLIS else 16_000L,
                     footer = {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
                                 when (content) {
-                                    AiReviewContent.Preparing -> "Esta conferência acontece no celular e não consome gerações."
-                                    AiReviewContent.Submitting -> "Sua confirmação foi recebida. Estamos preparando a solicitação para análise."
-                                    else -> "Costuma levar de 1 a 3 minutos. Se a conexão cair, a análise pode ser retomada."
+                                    AiReviewContent.Preparing -> "No próprio celular, sem gastar geração."
+                                    else -> "Costuma levar de 1 a 3 minutos. Se sair do app, a análise continua e o resultado espera por você aqui."
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -241,6 +239,7 @@ fun AiReviewScreen(
 
 // ------------------------------------------------------------------------------------ cabeçalho
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun AiSourceConfirmation(
     content: AiReviewContent.Confirmation,
@@ -252,33 +251,137 @@ private fun AiSourceConfirmation(
     onLogin: () -> Unit,
 ) {
     var editing by remember(content.source.attemptId) { mutableStateOf(false) }
+    var allSubjects by remember(content.source.attemptId) { mutableStateOf(false) }
+    val preflight = content.preflight
+    val kind = preflight.kind
+    val found = preflight.contentPages != null || preflight.subjects.isNotEmpty()
     Column(Modifier.fillMaxWidth().testTag("ai_source_confirmation"), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Confira antes de gerar", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-        Text("Concurso: ${preferences.competitionName}\nCargo/área: ${preferences.role}\nArquivo: ${content.source.fileName}")
-        content.preflight.documentIdentification?.let { Text("Documento identificado (conferência local):\n$it") }
-        content.preflight.warnings.forEach { Text(it, color = MaterialTheme.colorScheme.tertiary) }
-        val kind = content.preflight.kind
-        when (kind) {
-            SyllabusPreflightKind.NOT_AN_EDITAL -> InlineError("Este arquivo não parece ser um edital ou conteúdo programático. Escolha o PDF oficial do concurso para continuar.")
-            SyllabusPreflightKind.CONTENT_NOT_FOUND -> InlineError("Não foi localizado conteúdo programático suficiente neste documento. Escolha o edital completo ou o anexo com as matérias.")
-            SyllabusPreflightKind.CANNOT_VALIDATE -> Text("Não foi possível validar este arquivo antes da análise. Você pode trocar o PDF ou continuar mesmo assim.")
-            else -> Unit
-        }
-        Text("A análise utiliza o conteúdo do PDF. Nenhuma geração ou reserva de cota foi feita nesta etapa.", style = MaterialTheme.typography.bodySmall)
-        OutlinedButton(onClick = onPickSource, modifier = Modifier.fillMaxWidth()) { Text(if (content.preflight.canGenerate) "Trocar PDF" else "Escolher outro PDF") }
-        TextButton(onClick = { editing = !editing }) { Text("Editar informações") }
-        if (editing || !preferences.isComplete) AiSyllabusPreferencesForm(preferences, onPreferencesChange)
-        if (access.kind == AiReviewAccessKind.UNAUTHENTICATED) PrimaryAction("Entrar para continuar", onLogin)
-        if (access.kind == AiReviewAccessKind.DENIED) Text(access.reasonCode.toUserMessage())
-        if (content.preflight.canGenerate) {
-            Button(onClick = onConfirm, enabled = preferences.isComplete && access.kind == AiReviewAccessKind.READY, modifier = Modifier.fillMaxWidth().testTag("ai_confirm_generation")) {
-                Text(when (kind) {
-                    SyllabusPreflightKind.CANNOT_VALIDATE -> "Continuar mesmo assim"
-                    SyllabusPreflightKind.VALID_WITH_WARNING -> "Continuar com este edital"
-                    else -> "Gerar com o Assistente Estudário"
-                })
+        Text(
+            when {
+                !preflight.canGenerate -> "Este PDF não serve"
+                found -> "Lemos seu edital"
+                else -> "Confira antes de gerar"
+            },
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        // Só o que a leitura achou com segurança. O que não deu para confirmar simplesmente não aparece.
+        if (found) Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                preflight.contentPages?.let { pages ->
+                    val plural = pages.contains('-') || pages.contains(',')
+                    FindingRow(
+                        Icons.Outlined.FactCheck,
+                        "Conteúdo programático encontrado",
+                        if (plural) "Páginas $pages do PDF. Só elas vão para a análise." else "Página $pages do PDF. Só ela vai para a análise.",
+                    )
+                }
+                if (preflight.subjects.isNotEmpty()) {
+                    FindingRow(Icons.Outlined.AccountTree, "${preflight.subjects.size} matérias identificadas", "Os tópicos de cada uma saem na análise.")
+                    val shown = if (allSubjects) preflight.subjects else preflight.subjects.take(8)
+                    androidx.compose.foundation.layout.FlowRow(
+                        Modifier.padding(start = 36.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        shown.forEach { subject ->
+                            Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
+                                Text(subject, Modifier.padding(horizontal = 10.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                            }
+                        }
+                        if (preflight.subjects.size > shown.size) Surface(
+                            onClick = { allSubjects = true },
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        ) {
+                            Text("+${preflight.subjects.size - shown.size}", Modifier.padding(horizontal = 10.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
         }
+        preflight.warnings.forEach { warning ->
+            Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = .55f), modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(Icons.Outlined.WarningAmber, null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(20.dp))
+                    Text(warning, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                }
+            }
+        }
+        when (kind) {
+            SyllabusPreflightKind.NOT_AN_EDITAL -> InlineError("Este arquivo não parece ser um edital ou conteúdo programático. Escolha o PDF oficial do concurso para continuar.")
+            SyllabusPreflightKind.CONTENT_NOT_FOUND -> InlineError("Não achamos as matérias neste documento. Escolha o edital completo ou o anexo com o conteúdo programático.")
+            SyllabusPreflightKind.CANNOT_VALIDATE -> if (!found) Text(
+                "Não deu para conferir este PDF no celular (pode ser digitalizado). A análise lê o arquivo mesmo assim.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            else -> Unit
+        }
+        // O que vai ser gerado: concurso, cargo e arquivo, com edição à mão.
+        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                InfoLine("Concurso", preferences.competitionName.ifBlank { "Não informado" })
+                InfoLine("Cargo/área", preferences.role.ifBlank { "Não informado" })
+                InfoLine("Arquivo", content.source.fileName)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { editing = !editing }) { Text(if (editing) "Fechar edição" else "Editar informações") }
+                    if (preflight.canGenerate) TextButton(onClick = onPickSource) { Text("Trocar PDF") }
+                }
+                if (editing || !preferences.isComplete) AiSyllabusPreferencesForm(preferences, onPreferencesChange)
+            }
+        }
+        if (access.kind == AiReviewAccessKind.UNAUTHENTICATED) PrimaryAction("Entrar para continuar", onLogin)
+        if (access.kind == AiReviewAccessKind.DENIED) Text(access.reasonCode.toUserMessage())
+        if (preflight.canGenerate) {
+            Button(
+                onClick = onConfirm,
+                enabled = preferences.isComplete && access.kind == AiReviewAccessKind.READY,
+                modifier = Modifier.fillMaxWidth().height(54.dp).testTag("ai_confirm_generation"),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    when (kind) {
+                        SyllabusPreflightKind.CANNOT_VALIDATE -> "Continuar mesmo assim"
+                        SyllabusPreflightKind.VALID_WITH_WARNING -> "Continuar com este edital"
+                        else -> "Gerar com o Assistente Estudário"
+                    },
+                )
+            }
+            Text(
+                "Ler o PDF não gastou nenhuma geração. Só a análise conta.",
+                Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        } else {
+            Button(onClick = onPickSource, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) { Text("Escolher outro PDF") }
+        }
+    }
+}
+
+@Composable
+private fun FindingRow(icon: ImageVector, title: String, detail: String) {
+    val tone = estudarioColors().completed
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.size(24.dp).clip(CircleShape).background(tone.copy(alpha = .16f)), contentAlignment = Alignment.Center) {
+            Icon(icon, null, Modifier.size(15.dp), tint = tone)
+        }
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun InfoLine(label: String, value: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(label, Modifier.width(84.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 

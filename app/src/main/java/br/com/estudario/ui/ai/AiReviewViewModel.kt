@@ -513,7 +513,12 @@ class AiReviewViewModel(
         preparedSource = null
         _state.value = _state.value.copy(content = AiReviewContent.Preparing)
         try {
+            val startedAt = System.currentTimeMillis()
             val prepared = jobs.prepare(target)
+            // A leitura costuma levar menos de um segundo: segura a tela até as três etapas
+            // aparecerem, senão ela pisca e some antes de dar para ler.
+            val minimum = PREPARATION_STAGE_MILLIS * PreparationStages.size + 250L
+            kotlinx.coroutines.delay((minimum - (System.currentTimeMillis() - startedAt)).coerceAtLeast(0L))
             if (epoch != flowEpoch) return
             preparedSource = prepared
             pendingSource = AiReviewSource(prepared.uri, prepared.fileName)

@@ -9,6 +9,10 @@ data class SyllabusPreflightResult(
     val kind: SyllabusPreflightKind,
     val documentIdentification: String? = null,
     val warnings: List<String> = emptyList(),
+    /** Páginas do conteúdo programático achado no celular, ex.: "95-103". null quando não achou com segurança. */
+    val contentPages: String? = null,
+    /** Matérias lidas nos títulos do conteúdo. Vazio quando a leitura não é confiável: aí não mostramos nada. */
+    val subjects: List<String> = emptyList(),
 ) {
     val canGenerate: Boolean get() = kind !in setOf(SyllabusPreflightKind.NOT_AN_EDITAL, SyllabusPreflightKind.CONTENT_NOT_FOUND)
 }
@@ -42,7 +46,11 @@ object SyllabusPreflight {
             val line = normalize(it)
             it.length in 8..240 && (official.containsMatchIn(line) || Regex("policia|tribunal|ministerio|universidade|prefeitura|secretaria|soldad|analista|tecnico").containsMatchIn(line))
         }.distinct().take(5).joinToString("\n").takeIf(String::isNotBlank)
-        fun result(kind: SyllabusPreflightKind, warnings: List<String> = emptyList()) = SyllabusPreflightResult(kind, identification, warnings)
+        val section = runCatching { EditalSectionFinder.select(pages) }.getOrNull()?.takeIf { it.focused }
+        val contentPages = section?.pages?.split(", ")?.filterNot { it == "1" }?.joinToString(", ")?.takeIf(String::isNotBlank)
+        val subjects = section?.let { SubjectHeadings.find(it.text) }.orEmpty()
+        fun result(kind: SyllabusPreflightKind, warnings: List<String> = emptyList()) =
+            SyllabusPreflightResult(kind, identification, warnings, contentPages.takeIf { kind != SyllabusPreflightKind.NOT_AN_EDITAL }, subjects)
         // Missing page text makes absence of a section unreliable (including mixed/scanned PDFs).
         val incomplete = pages.isEmpty() || pages.any { it.count(Char::isLetter) < 40 } || pages.sumOf { it.length } > EditalSectionFinder.MAX_CHARS
         if (text.count(Char::isLetter) < 100) return result(SyllabusPreflightKind.CANNOT_VALIDATE)
@@ -97,5 +105,39 @@ object SyllabusPreflight {
             when { a.length > b.length -> i++; b.length > a.length -> j++; else -> { i++; j++ } }
         }
         return differences + (a.length - i) + (b.length - j) <= 1
+    }
+}
+
+/**
+ * Lê os títulos das matérias no conteúdo programático ("LÍNGUA PORTUGUESA", "1. DIREITO PENAL").
+ * Prefere títulos em linha própria; se o edital escreve tudo corrido (PMMG), pega o título em caixa
+ * alta antes do primeiro item. Só devolve algo quando o resultado parece uma lista de matérias.
+ */
+internal object SubjectHeadings {
+    private const val UPPER = "A-ZÁÉÍÓÚÂÊÔÃÕÇÀ"
+    private val OWN_LINE = Regex("""^\s*(?:\d{1,2}\s*[.)]?\s+)?([$UPPER][$UPPER\-,/ ]{3,80}[$UPPER])\s*:?\s*$""")
+    private val INLINE = Regex("""(?:^|\s)(?:\d{1,2}\s*[.)]?\s+)?([$UPPER][$UPPER\-,/ ]{3,70}?[$UPPER])(?=\s*(?:[:.]|\d|\s[A-Z][a-zà-ú]|$))""", RegexOption.MULTILINE)
+    private val NOT_SUBJECT = Regex("""^(ANEXO|EDITAL|PROGRAMA|CONTE[ÚU]DO|CONHECIMENTOS|PROVA|CARGO|NOTA|OBS|DATA|LOCAL|BIBLIOGRAFIA|REFER|P[ÁA]GINA)""")
+    private val CONNECTORS = setOf("DE", "DA", "DO", "DAS", "DOS", "E", "AO", "À", "A", "EM")
+
+    fun find(text: String): List<String> {
+        // A capa (página 1) vai junto para a IA, mas os títulos dela são do concurso, não matérias.
+        val withoutCover = if (text.startsWith("--- Página 1 ---")) text.substringAfter("\n--- Página ", "").let { if (it.isEmpty()) "" else "--- Página $it" } else text
+        val lines = withoutCover.lines().filterNot { it.startsWith("--- Página") }
+        val ownLine = lines.mapNotNull { OWN_LINE.matchEntire(it)?.groupValues?.get(1) }.mapNotNull(::clean).distinct()
+        val found = if (ownLine.size >= 4) ownLine else INLINE.findAll(lines.joinToString("\n")).map { it.groupValues[1] }.mapNotNull(::clean).distinct().toList()
+        return found.takeIf { it.size in 2..40 }.orEmpty()
+    }
+
+    private fun clean(raw: String): String? {
+        val value = raw.replace(Regex("\\s+"), " ").trim().trimEnd(',', '-', '/')
+        if (NOT_SUBJECT.containsMatchIn(value)) return null
+        val words = value.split(' ')
+        if (words.size > 8 || value.count(Char::isLetter) < 6) return null
+        val meaningful = words.filter { it !in CONNECTORS }
+        // Nome solto (assinatura, sigla): duas palavras curtas sem conector não é matéria.
+        if (words.size == 2 && meaningful.none { it.length >= 7 }) return null
+        if (meaningful.size == 1 && meaningful[0].length < 7) return null
+        return value.lowercase().split(' ').mapIndexed { i, w -> if (i > 0 && w.uppercase() in CONNECTORS) w else w.replaceFirstChar(Char::uppercase) }.joinToString(" ")
     }
 }

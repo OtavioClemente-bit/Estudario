@@ -117,7 +117,7 @@ class EditalSectionFinderTest {
         (1..4).forEach { n ->
             val pages = java.io.File(dir, "e$n.txt").readText().split('\u000c').dropLast(1)
             val r = EditalSectionFinder.select(pages)!!
-            println("REAL e$n pages=${r.pages} focused=${r.focused} chars=${r.text.length} start=${r.text.substringAfter("---\n").lines().drop(1).take(2)} end=${r.text.takeLast(120).replace('\n', ' ')}")
+            println("REAL e$n subjects=${SubjectHeadings.find(r.text)} pages=${r.pages} focused=${r.focused} chars=${r.text.length} start=${r.text.substringAfter("---\n").lines().drop(1).take(2)} end=${r.text.takeLast(120).replace('\n', ' ')}")
         }
     }
 }
