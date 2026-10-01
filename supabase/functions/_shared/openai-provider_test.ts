@@ -237,7 +237,7 @@ Deno.test("bounds and times out diagnostic error-body reads", async () => {
             return new Promise(() => {});
           },
         }),
-        { status: 429 },
+        { status: 503 },
       ),
   });
   const error = await assertRejects(
@@ -245,7 +245,7 @@ Deno.test("bounds and times out diagnostic error-body reads", async () => {
     OpenAiProviderError,
   );
   assertEquals(error.outcome, "PROVIDER_REJECTED");
-  assertEquals(error.diagnostics?.status, 429);
+  assertEquals(error.diagnostics?.status, 503);
   assertEquals(error.diagnostics?.type, null);
 });
 
@@ -270,7 +270,7 @@ Deno.test("bounds diagnostic streams that emit only empty chunks", async () => {
             }
           },
         }),
-        { status: 429 },
+        { status: 503 },
       ),
   });
   const error = await assertRejects(
@@ -339,7 +339,9 @@ Deno.test("classifies HTTP rejection and retains only safe diagnostics", async (
     () => provider.start(source),
     OpenAiProviderError,
   );
-  assertEquals(error.outcome, "PROVIDER_REJECTED");
+  // 429 ao criar: nada foi criado na OpenAI, então é "não enviado" e o app tenta de novo.
+  assertEquals(error.outcome, "NOT_SENT");
+  assertEquals(error.code, "OPENAI_RATE_LIMITED");
   assertEquals(error.diagnostics, {
     status: 429,
     type: "invalid_request_error",
@@ -679,4 +681,18 @@ Deno.test("keeps only a short safe code when the provider reports a failure", as
   });
   const response = await provider.retrieve("resp-3");
   assertEquals(response.failureCode, "server_error");
+});
+
+Deno.test("falta de crédito (insufficient_quota) não é tratada como limite por minuto", async () => {
+  const provider = createOpenAiProvider({
+    apiKey: "test-key",
+    fetcher: async () =>
+      new Response(
+        JSON.stringify({ error: { type: "insufficient_quota", code: "insufficient_quota", message: "quota" } }),
+        { status: 429 },
+      ),
+  });
+  const error = await assertRejects(() => provider.start(source), OpenAiProviderError);
+  assertEquals(error.outcome, "PROVIDER_REJECTED");
+  assertEquals(error.code, "OPENAI_PROVIDER_ERROR");
 });

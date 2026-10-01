@@ -414,6 +414,9 @@ class AiReviewViewModel(
     private var recoveredSourceTarget: AiReviewTarget? = null
     private var recoveryJob: Job? = null
     private var flowEpoch = 0L
+    /** Tentativas automáticas depois de recusa por limite por minuto da OpenAI, nesta análise. */
+    private var rateLimitRetries = 0
+    private val rateLimitRetriedJobs = mutableSetOf<String>()
     /** Respostas do formulário obrigatório; sem elas a geração não começa. */
     val preferences: StateFlow<AiSyllabusPreferences?> = _preferences.asStateFlow()
     private val startMutex = Mutex()
@@ -538,6 +541,7 @@ class AiReviewViewModel(
     }
 
     fun confirmGeneration() {
+        rateLimitRetries = 0
         val confirmation = _state.value.content as? AiReviewContent.Confirmation ?: return
         val preferences = _preferences.value?.takeIf { it.isComplete } ?: return
         if (!confirmation.preflight.canGenerate || _state.value.access.kind != AiReviewAccessKind.READY) return
@@ -834,6 +838,23 @@ class AiReviewViewModel(
         persistedDraftJson: String? = null,
     ) {
         if (requestIdentity.ownerUserId == null || requestIdentity.ownerUserId != userIdProvider()) return
+        // Muita gente gerando ao mesmo tempo: a geração foi devolvida e pedimos de novo sozinhos,
+        // com espera crescente. A pessoa continua vendo a análise, sem erro na tela.
+        if (job.status == AiJobStatus.FAILED && job.errorCode == RATE_LIMITED && job.jobId in rateLimitRetriedJobs) return
+        if (job.status == AiJobStatus.FAILED && job.errorCode == RATE_LIMITED && rateLimitRetries < RATE_LIMIT_DELAYS_SECONDS.size) {
+            rateLimitRetriedJobs += job.jobId
+            val wait = RATE_LIMIT_DELAYS_SECONDS[rateLimitRetries++]
+            val epoch = flowEpoch
+            _state.value = _state.value.copy(content = AiReviewContent.Processing(job.jobId, requestIdentity.idempotencyKey), access = AiReviewAccessState.READY)
+            viewModelScope.launch {
+                kotlinx.coroutines.delay(wait * 1_000L)
+                if (epoch != flowEpoch) return@launch
+                runCatching { jobs.resumeOrRetry(requestIdentity.requestId, requestContextWriter(flowEpoch)) }
+                    .onSuccess { started -> if (epoch == flowEpoch) { identity = started.identity; render(started.job, started.identity) } }
+                    .onFailure { error -> if (error is CancellationException) throw error; if (epoch == flowEpoch) fail(error) }
+            }
+            return
+        }
         val content = when {
             job.status == AiJobStatus.SUCCEEDED && job.proposal != null -> AiReviewContent.Review(
                 persistedDraftJson?.let { AiReviewDraftCodec.decode(it) } ?: AiSyllabusDraft.fromProposal(targetId, targetTitle, job.proposal),

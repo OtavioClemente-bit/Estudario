@@ -19,7 +19,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 
 /** Onde a geração de texto está, do acesso até o resultado. */
@@ -41,6 +43,9 @@ sealed interface AiTextJobState {
  * "content:42"): o id em andamento fica salvo, então fechar a tela ou o app não perde a geração
  * nem cria outra, ao voltar ele retoma o mesmo job.
  */
+internal const val RATE_LIMITED = "OPENAI_RATE_LIMITED"
+internal val RATE_LIMIT_DELAYS_SECONDS = listOf(20L, 45L, 90L, 180L)
+
 class AiTextJobViewModel(
     private val app: EstudarioApplication,
     private val feature: AiFeature,
@@ -88,7 +93,11 @@ class AiTextJobViewModel(
     fun start(input: JsonObject, context: String? = null) {
         if (_state.value is AiTextJobState.Generating) return
         work?.cancel()
-        work = viewModelScope.launch {
+        prefs.edit().putString("$targetKey:input", input.toString()).putInt("$targetKey:rateRetries", 0).apply()
+        work = viewModelScope.launch { create(input, context) }
+    }
+
+    private suspend fun create(input: JsonObject, context: String?) {
             _state.value = AiTextJobState.Generating
             try {
                 // Chave nova a cada tentativa: repetir a mesma devolveria o job antigo (inclusive
@@ -100,12 +109,11 @@ class AiTextJobViewModel(
                 if (error is kotlinx.coroutines.CancellationException) throw error
                 _state.value = failureOf(error)
             }
-        }
     }
 
     /** O resultado já foi entregue à tela; esquece o job para a próxima vez começar do zero. */
     fun consumeResult() {
-        prefs.edit().remove(targetKey).remove("$targetKey:ctx").apply()
+        prefs.edit().remove(targetKey).remove("$targetKey:ctx").remove("$targetKey:input").remove("$targetKey:rateRetries").apply()
     }
 
     private suspend fun follow(jobId: String) {
@@ -114,6 +122,8 @@ class AiTextJobViewModel(
             val job = app.aiTextJobClient.await(jobId)
             if (job.status == AiJobStatus.SUCCEEDED && job.proposal != null) {
                 _state.value = AiTextJobState.Done(job.proposal, prefs.getString("$targetKey:ctx", null))
+            } else if (job.errorCode == RATE_LIMITED && retryAfterRateLimit()) {
+                return
             } else {
                 prefs.edit().remove(targetKey).remove("$targetKey:ctx").apply()
                 _state.value = AiTextJobState.Failed(
@@ -130,6 +140,21 @@ class AiTextJobViewModel(
                 failureOf(error)
             }
         }
+    }
+
+    /**
+     * Muita gente gerando ao mesmo tempo: a OpenAI recusou por limite por minuto e a geração foi
+     * devolvida. Espera um pouco (cada vez mais) e pede de novo, sem a pessoa fazer nada.
+     */
+    private suspend fun retryAfterRateLimit(): Boolean {
+        val input = prefs.getString("$targetKey:input", null)?.let { runCatching { Json.parseToJsonElement(it) as JsonObject }.getOrNull() } ?: return false
+        val attempt = prefs.getInt("$targetKey:rateRetries", 0)
+        if (attempt >= RATE_LIMIT_DELAYS_SECONDS.size) return false
+        val context = prefs.getString("$targetKey:ctx", null)
+        prefs.edit().remove(targetKey).putInt("$targetKey:rateRetries", attempt + 1).apply()
+        delay(RATE_LIMIT_DELAYS_SECONDS[attempt] * 1_000L)
+        create(input, context)
+        return true
     }
 
     private fun failureOf(error: Throwable): AiTextJobState = failureMessage(error).also {

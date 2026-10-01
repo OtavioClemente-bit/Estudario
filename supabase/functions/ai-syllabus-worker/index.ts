@@ -395,6 +395,11 @@ function deadlineExceeded(job: SyllabusWorkerJob, now: Date): boolean {
     Date.parse(job.processingDeadlineAt) <= now.getTime();
 }
 
+/** A OpenAI aceitou o pedido mas recusou rodar por limite por minuto: o app tenta de novo. */
+function rateLimited(response: ProviderResponse): boolean {
+  return response.status === "failed" && response.failureCode === "rate_limit_exceeded";
+}
+
 function terminalProviderStatus(status: ProviderResponse["status"]): boolean {
   return status === "failed" || status === "cancelled" ||
     status === "expired" || status === "incomplete";
@@ -501,7 +506,7 @@ async function processResponse(
       dependencies,
       job,
       lease,
-      "PROVIDER_RESULT_UNAVAILABLE",
+      rateLimited(response) ? "OPENAI_RATE_LIMITED" : "PROVIDER_RESULT_UNAVAILABLE",
       "FAILED",
       false,
       response.usage,
@@ -636,6 +641,8 @@ async function processReconciliation(
         : "FAILED";
       const code = response.status === "incomplete"
         ? "PROVIDER_INCOMPLETE"
+        : rateLimited(response)
+        ? "OPENAI_RATE_LIMITED"
         : "PROVIDER_RESULT_UNAVAILABLE";
       await finalizeFailure(
         dependencies,

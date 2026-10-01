@@ -105,6 +105,7 @@ export class OpenAiProviderError extends Error {
       | "OPENAI_API_KEY_MISSING"
       | "OPENAI_TIMEOUT"
       | "OPENAI_PROVIDER_ERROR"
+      | "OPENAI_RATE_LIMITED"
       | "OPENAI_RESPONSE_INVALID",
     public readonly outcome: Exclude<ProviderStartOutcome, "ACCEPTED">,
     public readonly diagnostics?: OpenAiProviderDiagnostics,
@@ -508,15 +509,25 @@ export function createOpenAiProvider(
         );
       }
       if (!response.ok) {
+        const diagnostics = await rejectionDiagnostics(
+          response,
+          timeoutPromise,
+          diagnosticModel,
+          sensitiveValues,
+        );
+        // Limite por minuto ao criar: a OpenAI não criou nada, então é seguro tratar como não
+        // enviado (a cota volta) e o app tenta de novo daqui a pouco. Falta de crédito
+        // (insufficient_quota) não entra: esperar não resolve.
+        if (
+          response.status === 429 && init.method === "POST" &&
+          path === "/responses" && diagnostics.code !== "insufficient_quota"
+        ) {
+          throw new OpenAiProviderError("OPENAI_RATE_LIMITED", "NOT_SENT", diagnostics);
+        }
         throw new OpenAiProviderError(
           "OPENAI_PROVIDER_ERROR",
           "PROVIDER_REJECTED",
-          await rejectionDiagnostics(
-            response,
-            timeoutPromise,
-            diagnosticModel,
-            sensitiveValues,
-          ),
+          diagnostics,
         );
       }
       let payload: unknown;

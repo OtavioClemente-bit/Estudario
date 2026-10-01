@@ -41,6 +41,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -331,15 +332,17 @@ class SimulationService(
     private suspend fun generate(simulationId: Long) {
         val simulation = dao.simulation(simulationId) ?: return
         val parts = decodeParts(simulation.partsJson)
+        // No máximo duas partes ao mesmo tempo: todas juntas estouram o limite por minuto da OpenAI.
+        val slots = kotlinx.coroutines.sync.Semaphore(2)
         coroutineScope {
             parts.withIndex().filter { it.value.status != "DONE" }.map { (index, part) ->
-                async { runPart(simulationId, index, part) }
+                async { slots.withPermit { runPart(simulationId, index, part) } }
             }.awaitAll()
         }
         finishGeneration(simulationId)
     }
 
-    private suspend fun runPart(simulationId: Long, index: Int, start: SimulationPart) {
+    private suspend fun runPart(simulationId: Long, index: Int, start: SimulationPart, rateRetry: Int = 0) {
         var part = start
         try {
             if (part.jobId == null) {
@@ -354,7 +357,13 @@ class SimulationService(
                     storeQuestions(simulationId, index, part, proposal)
                     updatePart(simulationId, index) { it.copy(status = "DONE", error = null) }
                 }
-                else -> updatePart(simulationId, index) {
+                else -> if (job.errorCode == br.com.estudario.ui.ai.RATE_LIMITED && rateRetry < br.com.estudario.ui.ai.RATE_LIMIT_DELAYS_SECONDS.size) {
+                    // Muita gente gerando agora: a parte foi devolvida; espera e pede de novo.
+                    kotlinx.coroutines.delay(br.com.estudario.ui.ai.RATE_LIMIT_DELAYS_SECONDS[rateRetry] * 1_000L)
+                    val fresh = part.copy(jobId = null, status = "PENDING", error = null, key = "sim-$simulationId-${UUID.randomUUID()}-rl")
+                    updatePart(simulationId, index) { fresh }
+                    runPart(simulationId, index, fresh, rateRetry + 1)
+                } else updatePart(simulationId, index) {
                     it.copy(status = "FAILED", error = "Não consegui gerar esta parte com qualidade. A cota dela foi devolvida; tente de novo.")
                 }
             }
