@@ -1,3 +1,4 @@
+import { SYLLABUS_SOURCE_TITLE_LIMIT } from "./syllabus-text-limits.ts";
 // Entrada dos jobs de texto (conteúdo de tópico e plano de estudo).
 //
 // É o único dado que o modelo recebe além do prompt fixo, então passa por aqui antes de virar
@@ -81,6 +82,7 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 export function text(value: unknown, field: string, max = MAX_TEXT): string {
   if (typeof value !== "string") throw new TextJobInputError(field);
   // Controle e quebras viram espaço: o texto entra num prompt e não pode forjar seções dele.
+  // deno-lint-ignore no-control-regex
   const clean = value.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
   if (clean.length === 0 || clean.length > max) throw new TextJobInputError(field);
   return clean;
@@ -123,7 +125,7 @@ export function parseContentJobInput(value: unknown): ContentJobInput {
       ? null
       : oneOf(value.sphere, "sphere", ["FEDERAL", "ESTADUAL", "MUNICIPAL"] as const),
     subjectName: text(value.subjectName, "subjectName"),
-    topicPath: path.map((item, index) => text(item, `topicPath.${index}`, MAX_LONG_TEXT)),
+    topicPath: path.map((item, index) => text(item, `topicPath.${index}`, SYLLABUS_SOURCE_TITLE_LIMIT)),
     scopeCovers: optionalText(value.scopeCovers, "scopeCovers", MAX_LONG_TEXT),
     scopeExcludes: optionalText(value.scopeExcludes, "scopeExcludes", MAX_LONG_TEXT),
     options: parseContentOptions(value.options),

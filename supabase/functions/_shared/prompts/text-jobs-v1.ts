@@ -30,6 +30,7 @@ Nada genérico (material de cursinho bom, não texto de enciclopédia):
 - Questões e flashcards seguem a mesma regra: situação concreta, nada de "Qual a importância de X?" ou "Assinale a alternativa correta sobre X" sem conteúdo.
 
 Recorte:
+- No caminho do tópico, os ancestrais fornecem somente contexto. O último item é o tópico selecionado e define o escopo do material. Não gere o conteúdo inteiro do pai nem dos irmãos ao estudar um filho.
 - Preencha scope.covers com o que ESTE item do edital pede e scope.excludes com o que é do mesmo assunto mas fica fora. Escreva só o que está em covers.
 - A palavra do edital define a profundidade: "noções", "conceitos básicos", "fundamentos" e "aspectos gerais" são teto (panorama); "análise", "aplicação" e "interpretação" pedem caso concreto e exceção.
 - Dê mais espaço ao que tem histórico de cobrança em provas; o resto, mais curto.
@@ -69,6 +70,7 @@ export function contentUserPrompt(input: ContentJobInput): string {
   if (input.sphere) lines.push(`- Esfera: ${input.sphere.toLowerCase()}`);
   lines.push(`- Matéria: ${input.subjectName}`);
   lines.push(`- Tópico do edital: ${input.topicPath.join(" › ")}`);
+  lines.push(`- Tópico selecionado (escopo): ${input.topicPath.at(-1)}`);
   if (input.scopeCovers) lines.push(`- Recorte já anotado (cobre): ${input.scopeCovers}`);
   if (input.scopeExcludes) lines.push(`- Recorte já anotado (não cobre): ${input.scopeExcludes}`);
   const o = input.options;

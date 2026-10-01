@@ -1,3 +1,4 @@
+import { SYLLABUS_SHORT_NAME_LIMIT, SYLLABUS_SOURCE_TITLE_LIMIT, SYLLABUS_DESCRIPTION_LIMIT } from "./syllabus-text-limits.ts";
 import { CURRENT_AI_SCHEMA_VERSION } from "./contracts.ts";
 
 export type JsonSchema = Record<string, unknown>;
@@ -20,9 +21,9 @@ const warningSchema: JsonSchema = {
       ],
     },
     severity: { type: "string", enum: ["INFO", "WARNING", "ERROR"] },
-    message: { type: "string", minLength: 1, pattern: "\\S" },
+    message: { type: "string", minLength: 1, maxLength: SYLLABUS_DESCRIPTION_LIMIT, pattern: "\\S" },
     sourcePages: { $ref: "#/$defs/sourcePages" },
-    ambiguity: { anyOf: [{ type: "null" }, { type: "string", minLength: 1, pattern: "\\S" }] },
+    ambiguity: { anyOf: [{ type: "null" }, { type: "string", minLength: 1, maxLength: SYLLABUS_DESCRIPTION_LIMIT, pattern: "\\S" }] },
   },
 };
 
@@ -31,7 +32,7 @@ const topicSchema: JsonSchema = {
   additionalProperties: false,
   required: ["name", "position", "children", "sourcePages"],
   properties: {
-    name: { type: "string", minLength: 1, pattern: "\\S" },
+    name: { type: "string", minLength: 1, maxLength: SYLLABUS_SOURCE_TITLE_LIMIT, pattern: "\\S" },
     position: { type: "integer", minimum: 0 },
     children: {
       type: "array",
@@ -52,9 +53,9 @@ const proposalSchemaV1: JsonSchema = {
   required: ["schemaVersion", "promptVersion", "modelVersion", "documentTitle", "subjects", "warnings", "ambiguities"],
   properties: {
     schemaVersion: { type: "integer", enum: [CURRENT_AI_SCHEMA_VERSION] },
-    promptVersion: { type: "string", minLength: 1, pattern: "\\S" },
-    modelVersion: { type: "string", minLength: 1, pattern: "\\S" },
-    documentTitle: { type: "string", minLength: 1, pattern: "\\S" },
+    promptVersion: { type: "string", minLength: 1, maxLength: SYLLABUS_SHORT_NAME_LIMIT, pattern: "\\S" },
+    modelVersion: { type: "string", minLength: 1, maxLength: SYLLABUS_SHORT_NAME_LIMIT, pattern: "\\S" },
+    documentTitle: { type: "string", minLength: 1, maxLength: SYLLABUS_SOURCE_TITLE_LIMIT, pattern: "\\S" },
     subjects: {
       type: "array",
       minItems: 1,
@@ -64,7 +65,7 @@ const proposalSchemaV1: JsonSchema = {
         additionalProperties: false,
         required: ["name", "position", "suggestedPriority", "topics", "sourcePages"],
         properties: {
-          name: { type: "string", minLength: 1, pattern: "\\S" },
+          name: { type: "string", minLength: 1, maxLength: SYLLABUS_SHORT_NAME_LIMIT, pattern: "\\S" },
           position: { type: "integer", minimum: 0 },
           suggestedPriority: { type: "string", enum: ["LOW", "NORMAL", "HIGH"] },
           topics: {
@@ -78,7 +79,7 @@ const proposalSchemaV1: JsonSchema = {
       },
     },
     warnings: { type: "array", items: { $ref: "#/$defs/warning" } },
-    ambiguities: { type: "array", items: { type: "string", minLength: 1, pattern: "\\S" } },
+    ambiguities: { type: "array", items: { type: "string", minLength: 1, maxLength: SYLLABUS_DESCRIPTION_LIMIT, pattern: "\\S" } },
   },
   $defs: {
     // Source page uniqueness is enforced locally by the proposal parser.

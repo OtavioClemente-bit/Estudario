@@ -33,6 +33,25 @@ import java.util.concurrent.atomic.AtomicInteger
 @RunWith(AndroidJUnit4::class)
 class SyllabusApplicationServiceTest {
     @Test
+    fun appliesLiteralLongParentAndChildrenToRoomWithoutGeneratingParentContent() = runDatabase { database ->
+        val literal = InstrumentationRegistry.getInstrumentation().context.assets.open("long-topic-name.txt").bufferedReader().use { it.readText().trimEnd() }
+        val targetId = database.dao().insertCompetition(CompetitionEntity(name = "TRT"))
+        val proposal = AiSyllabusProposal(1, "syllabus-v1", "model", "Edital", listOf(
+            AiSubjectProposal("TI", 0, AiPriority.NORMAL, listOf(AiTopicProposal(literal, 0, listOf(
+                AiTopicProposal("Modelos preditivos", 0, emptyList(), listOf(2)),
+                AiTopicProposal("Avaliação de modelos", 1, emptyList(), listOf(2)),
+            ), listOf(2))), listOf(2)),
+        ), emptyList(), emptyList())
+        SyllabusApplicationService(database).applyReviewedSyllabus(targetId, AiSyllabusDraft.fromProposal(targetId, "TRT", proposal), "long-parent-job")
+        val subject = database.dao().subjectsFor(targetId).single()
+        val stored = database.dao().topicsFor(subject.id)
+        val parent = stored.single { it.parentTopicId == null }
+        assertEquals(430, parent.title.length)
+        assertEquals(literal, parent.title)
+        assertEquals(2, stored.count { it.parentTopicId == parent.id })
+    }
+
+    @Test
     fun appliesOfficialPackageKeepingTargetIdentityAndPendingOutbox() = runDatabase { database ->
             val targetId = database.dao().insertCompetition(CompetitionEntity(name = "Edital local", remoteSyllabusId = "remote-41"))
             val service = SyllabusApplicationService(database)

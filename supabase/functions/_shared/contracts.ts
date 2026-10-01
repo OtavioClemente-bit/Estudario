@@ -1,3 +1,4 @@
+import { SYLLABUS_SHORT_NAME_LIMIT, SYLLABUS_SOURCE_TITLE_LIMIT, SYLLABUS_DESCRIPTION_LIMIT } from "./syllabus-text-limits.ts";
 export const CURRENT_AI_SCHEMA_VERSION = 1 as const;
 export const SUPPORTED_AI_SCHEMA_VERSIONS = [CURRENT_AI_SCHEMA_VERSION] as const;
 
@@ -194,6 +195,24 @@ function nullableString(value: unknown, path: string): string | null {
   return value === null ? null : stringValue(value, path);
 }
 
+function syllabusText(
+  value: unknown,
+  path: string,
+  limit: number,
+  multiline = false,
+): string {
+  const result = stringValue(value, path);
+  const invalid = [...result].some((character) => {
+    const code = character.charCodeAt(0);
+    const control = code <= 31 || (code >= 127 && code <= 159);
+    return control && !(multiline && "\n\r\t".includes(character));
+  });
+  if (result.length > limit || invalid) {
+    fail(path, "invalid syllabus text");
+  }
+  return result;
+}
+
 function integer(value: unknown, path: string, minimum = 0): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value < minimum) {
     fail(path, `must be an integer >= ${minimum}`);
@@ -273,9 +292,9 @@ function warning(value: unknown, path: string): AiWarning {
   return {
     code: enumValue(required(item, "code", path), WARNING_CODES, `${path}.code`),
     severity: enumValue(required(item, "severity", path), WARNING_SEVERITIES, `${path}.severity`),
-    message: stringValue(required(item, "message", path), `${path}.message`),
+    message: syllabusText(required(item, "message", path), `${path}.message`, SYLLABUS_DESCRIPTION_LIMIT, true),
     sourcePages: pages(required(item, "sourcePages", path), `${path}.sourcePages`),
-    ambiguity: nullableString(required(item, "ambiguity", path), `${path}.ambiguity`),
+    ambiguity: required(item, "ambiguity", path) === null ? null : syllabusText(item.ambiguity, `${path}.ambiguity`, SYLLABUS_DESCRIPTION_LIMIT, true),
   };
 }
 
@@ -285,7 +304,7 @@ function topic(value: unknown, path: string): AiTopicProposal {
   const children = arrayValue(required(item, "children", path), `${path}.children`).map((child, index) => topic(child, `${path}.children[${index}]`));
   assertDistinct(children.map((child) => child.position), `${path}.children`);
   return {
-    name: stringValue(required(item, "name", path), `${path}.name`),
+    name: syllabusText(required(item, "name", path), `${path}.name`, SYLLABUS_SOURCE_TITLE_LIMIT, true),
     position: integer(required(item, "position", path), `${path}.position`),
     children,
     sourcePages: pages(required(item, "sourcePages", path), `${path}.sourcePages`),
@@ -298,7 +317,7 @@ function subject(value: unknown, path: string): AiSubjectProposal {
   const topics = arrayValue(required(item, "topics", path), `${path}.topics`, 1).map((item, index) => topic(item, `${path}.topics[${index}]`));
   assertDistinct(topics.map((item) => item.position), `${path}.topics`);
   return {
-    name: stringValue(required(item, "name", path), `${path}.name`),
+    name: syllabusText(required(item, "name", path), `${path}.name`, SYLLABUS_SHORT_NAME_LIMIT),
     position: integer(required(item, "position", path), `${path}.position`),
     suggestedPriority: enumValue(required(item, "suggestedPriority", path), PRIORITIES, `${path}.suggestedPriority`),
     topics,
@@ -311,13 +330,13 @@ export function parseAiSyllabusProposal(value: unknown): AiSyllabusProposal {
   exactKeys(item, ["schemaVersion", "promptVersion", "modelVersion", "documentTitle", "subjects", "warnings", "ambiguities"], "proposal");
   const subjects = arrayValue(required(item, "subjects", "proposal"), "proposal.subjects", 1).map((value, index) => subject(value, `proposal.subjects[${index}]`));
   assertDistinct(subjects.map((value) => value.position), "proposal.subjects");
-  const ambiguities = arrayValue(required(item, "ambiguities", "proposal"), "proposal.ambiguities").map((value, index) => stringValue(value, `proposal.ambiguities[${index}]`));
+  const ambiguities = arrayValue(required(item, "ambiguities", "proposal"), "proposal.ambiguities").map((value, index) => syllabusText(value, `proposal.ambiguities[${index}]`, SYLLABUS_DESCRIPTION_LIMIT, true));
   if (new Set(ambiguities).size !== ambiguities.length) fail("proposal.ambiguities", "must not contain duplicate entries");
   return {
     schemaVersion: assertSupportedSchemaVersion(required(item, "schemaVersion", "proposal"), "proposal.schemaVersion"),
-    promptVersion: stringValue(required(item, "promptVersion", "proposal"), "proposal.promptVersion"),
-    modelVersion: stringValue(required(item, "modelVersion", "proposal"), "proposal.modelVersion"),
-    documentTitle: stringValue(required(item, "documentTitle", "proposal"), "proposal.documentTitle"),
+    promptVersion: syllabusText(required(item, "promptVersion", "proposal"), "proposal.promptVersion", SYLLABUS_SHORT_NAME_LIMIT),
+    modelVersion: syllabusText(required(item, "modelVersion", "proposal"), "proposal.modelVersion", SYLLABUS_SHORT_NAME_LIMIT),
+    documentTitle: syllabusText(required(item, "documentTitle", "proposal"), "proposal.documentTitle", SYLLABUS_SOURCE_TITLE_LIMIT, true),
     subjects,
     warnings: arrayValue(required(item, "warnings", "proposal"), "proposal.warnings").map((value, index) => warning(value, `proposal.warnings[${index}]`)),
     ambiguities,

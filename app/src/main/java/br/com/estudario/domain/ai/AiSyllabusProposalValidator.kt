@@ -2,6 +2,7 @@ package br.com.estudario.domain.ai
 
 import br.com.estudario.data.ai.CURRENT_AI_SCHEMA_VERSION
 import br.com.estudario.data.ai.AiWarning
+import br.com.estudario.data.ai.AiSyllabusTextLimits
 import java.util.Collections
 import java.util.IdentityHashMap
 
@@ -9,19 +10,20 @@ class AiSyllabusDraftValidationException(message: String) : IllegalArgumentExcep
 
 object AiSyllabusProposalValidator {
     const val MAX_TOPIC_DEPTH: Int = 32
-    private const val MAX_NAME_LENGTH: Int = 200
+    private const val MAX_NAME_LENGTH: Int = AiSyllabusTextLimits.SHORT_NAME
+    const val MAX_TOPIC_NAME_LENGTH: Int = AiSyllabusTextLimits.SOURCE_TITLE
     // Descriptive warnings can explain several discrepancies and contain line breaks.
-    const val MAX_DESCRIPTION_LENGTH: Int = 8_000
+    const val MAX_DESCRIPTION_LENGTH: Int = AiSyllabusTextLimits.DESCRIPTION
 
     fun validateDraft(draft: AiSyllabusDraft): AiSyllabusDraft {
         if (draft.targetSyllabusId <= 0) fail("targetSyllabusId must be positive")
-        requireName(draft.targetTitle, "targetTitle")
-        draft.titleOverride?.let { requireName(it, "titleOverride") }
-        requireName(draft.sourceVersion, "sourceVersion")
+        requireShortName(draft.targetTitle, "targetTitle")
+        draft.titleOverride?.let { requireShortName(it, "titleOverride") }
+        requireShortName(draft.sourceVersion, "sourceVersion")
         if (draft.proposal.schemaVersion != CURRENT_AI_SCHEMA_VERSION) fail("unsupported proposal.schemaVersion")
-        requireName(draft.proposal.promptVersion, "proposal.promptVersion")
-        requireName(draft.proposal.modelVersion, "proposal.modelVersion")
-        requireName(draft.proposal.documentTitle, "proposal.documentTitle")
+        requireShortName(draft.proposal.promptVersion, "proposal.promptVersion")
+        requireShortName(draft.proposal.modelVersion, "proposal.modelVersion")
+        requireSourceTitle(draft.proposal.documentTitle, "proposal.documentTitle")
         if (draft.sourceSchemaVersion != draft.proposal.schemaVersion) {
             fail("sourceSchemaVersion does not match proposal.schemaVersion")
         }
@@ -46,7 +48,7 @@ object AiSyllabusProposalValidator {
         val topicIds = HashSet<String>()
         draft.subjects.forEachIndexed { subjectIndex, subject ->
             val subjectPath = "subjects[$subjectIndex]"
-            requireName(subject.name, "$subjectPath.name")
+            requireShortName(subject.name, "$subjectPath.name")
             requireExternalId(subject.externalId, "$subjectPath.externalId")
             if (!subjectIds.add(subject.externalId)) fail("$subjectPath.externalId: duplicate externalId ${subject.externalId}")
             requirePosition(subject.position, "$subjectPath.position")
@@ -58,7 +60,7 @@ object AiSyllabusProposalValidator {
 
     fun bindToTarget(draft: AiSyllabusDraft, targetSyllabusId: Long, targetTitle: String): AiSyllabusDraft {
         if (targetSyllabusId <= 0) fail("targetSyllabusId must be positive")
-        requireName(targetTitle, "targetTitle")
+        requireShortName(targetTitle, "targetTitle")
         return draft.copy(targetSyllabusId = targetSyllabusId, targetTitle = targetTitle.trim(), titleOverride = null)
     }
 
@@ -78,7 +80,7 @@ object AiSyllabusProposalValidator {
     ) {
         if (!visiting.add(topic)) fail("$path: cycle detected")
         if (depth > MAX_TOPIC_DEPTH) fail("$path: depth exceeds $MAX_TOPIC_DEPTH")
-        requireName(topic.name, "$path.name")
+        requireSourceTitle(topic.name, "$path.name")
         requireExternalId(topic.externalId, "$path.externalId")
         if (!allTopicIds.add(topic.externalId)) fail("$path.externalId: duplicate externalId ${topic.externalId}")
         requirePosition(topic.position, "$path.position")
@@ -101,8 +103,12 @@ object AiSyllabusProposalValidator {
         }
     }
 
-    private fun requireName(value: String, path: String) {
-        if (value.isBlank() || value.length > MAX_NAME_LENGTH || value.any { it.isISOControl() }) fail("$path: invalid name")
+    private fun requireShortName(value: String, path: String) {
+        if (!AiSyllabusTextLimits.validShortName(value)) fail("$path: invalid name")
+    }
+
+    private fun requireSourceTitle(value: String, path: String) {
+        if (!AiSyllabusTextLimits.validSourceTitle(value)) fail("$path: invalid source title")
     }
 
     private fun requireExternalId(value: String, path: String) {
@@ -131,7 +137,7 @@ object AiSyllabusProposalValidator {
 
     private fun fail(message: String): Nothing = throw AiSyllabusDraftValidationException(message)
     private fun requireDescription(value: String, path: String) {
-        if (value.isBlank() || value.length > MAX_DESCRIPTION_LENGTH || value.any { it.isISOControl() && it !in "\n\r\t" }) fail("$path: invalid description")
+        if (!AiSyllabusTextLimits.validDescription(value)) fail("$path: invalid description")
     }
 
     private val SHA256 = Regex("[0-9a-fA-F]{64}")

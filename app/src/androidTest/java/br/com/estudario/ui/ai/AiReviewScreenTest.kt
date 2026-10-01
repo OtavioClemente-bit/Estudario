@@ -1,7 +1,9 @@
 package br.com.estudario.ui.ai
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -30,6 +32,26 @@ import org.junit.Test
 
 class AiReviewScreenTest {
     @get:Rule val compose = createComposeRule()
+
+    @Test
+    fun longLiteralParentWrapsEditsAndDoesNotDisableUse() {
+        val literal = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().context.assets.open("long-topic-name.txt").bufferedReader().use { it.readText().trimEnd() }
+        val initial = draft()
+        val parent = initial.subjects.single().topics.first().copy(name = literal)
+        val reviewed = initial.copy(subjects = listOf(initial.subjects.single().copy(topics = listOf(parent))))
+        val current = mutableStateOf(AiReviewUiState.review(42L, "TRT-3", reviewed))
+        var applied = false
+        compose.setContent {
+            EstudarioTheme(false) {
+                AiReviewScreen(state = current.value, onApply = { applied = true }, onDraftChange = { current.value = current.value.copy(content = AiReviewContent.Review(it)) })
+            }
+        }
+        compose.onNodeWithTag("ai_topic_name_0_0").performScrollTo().assertTextContains(literal)
+        compose.onNodeWithTag("ai_topic_name_0_0").performTextInput("\nContexto revisado")
+        compose.runOnIdle { assertTrue(current.value.draft().subjects.single().topics.single().name.contains(literal)) }
+        compose.onNodeWithText("Usar este edital").performScrollTo().assertIsEnabled().performClick()
+        compose.runOnIdle { assertTrue(applied) }
+    }
 
     @Test
     fun localPreparationUsesTheFullProcessDesignWithoutClaimingRemoteAnalysis() {

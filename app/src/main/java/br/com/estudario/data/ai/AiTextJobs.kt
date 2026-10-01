@@ -144,7 +144,7 @@ object TopicContentAiInput {
             put("competitionName", competition.name.take(300))
             role?.takeIf(String::isNotBlank)?.let { put("role", it.take(300)) }
             put("subjectName", subject.name.take(300))
-            put("topicPath", buildJsonArray { path.takeLast(6).forEach { add(JsonPrimitive(it.take(800))) } })
+            put("topicPath", buildJsonArray { path.takeLast(6).forEach { add(JsonPrimitive(AiSyllabusTextLimits.contentTitle(it))) } })
             topic.scopeCovers?.takeIf(String::isNotBlank)?.let { put("scopeCovers", it.take(800)) }
             topic.scopeExcludes?.takeIf(String::isNotBlank)?.let { put("scopeExcludes", it.take(800)) }
         }

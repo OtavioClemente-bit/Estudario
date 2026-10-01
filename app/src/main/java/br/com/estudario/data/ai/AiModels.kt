@@ -128,14 +128,14 @@ private fun AiSyllabusProposal.validate() {
     if (schemaVersion != CURRENT_AI_SCHEMA_VERSION) {
         throw ContractValidationException("proposal.schemaVersion: unsupported schema version $schemaVersion")
     }
-    requireText(promptVersion, "proposal.promptVersion")
-    requireText(modelVersion, "proposal.modelVersion")
-    requireText(documentTitle, "proposal.documentTitle")
+    requireShortName(promptVersion, "proposal.promptVersion")
+    requireShortName(modelVersion, "proposal.modelVersion")
+    requireSourceTitle(documentTitle, "proposal.documentTitle")
     if (subjects.isEmpty()) throw ContractValidationException("proposal.subjects: must not be empty")
     requireUniquePositions(subjects.map { it.position }, "proposal.subjects")
     subjects.forEachIndexed { index, subject -> subject.validate("proposal.subjects[$index]") }
     warnings.validateWarnings("proposal.warnings")
-    ambiguities.forEachIndexed { index, ambiguity -> requireText(ambiguity, "proposal.ambiguities[$index]") }
+    ambiguities.forEachIndexed { index, ambiguity -> requireDescription(ambiguity, "proposal.ambiguities[$index]") }
     if (ambiguities.size != ambiguities.toSet().size) throw ContractValidationException("proposal.ambiguities: duplicate entries")
 }
 
@@ -178,7 +178,7 @@ private fun AiJob.validate() {
 }
 
 private fun AiSubjectProposal.validate(path: String) {
-    requireText(name, "$path.name")
+    requireShortName(name, "$path.name")
     requirePosition(position, "$path.position")
     if (topics.isEmpty()) throw ContractValidationException("$path.topics: must not be empty")
     requireUniquePositions(topics.map { it.position }, "$path.topics")
@@ -187,7 +187,7 @@ private fun AiSubjectProposal.validate(path: String) {
 }
 
 private fun AiTopicProposal.validate(path: String) {
-    requireText(name, "$path.name")
+    requireSourceTitle(name, "$path.name")
     requirePosition(position, "$path.position")
     requireUniquePositions(children.map { it.position }, "$path.children")
     children.forEachIndexed { index, child -> child.validate("$path.children[$index]") }
@@ -196,9 +196,9 @@ private fun AiTopicProposal.validate(path: String) {
 
 private fun List<AiWarning>.validateWarnings(path: String) {
     forEachIndexed { index, warning ->
-        requireText(warning.message, "$path[$index].message")
+        requireDescription(warning.message, "$path[$index].message")
         requirePages(warning.sourcePages, "$path[$index].sourcePages")
-        warning.ambiguity?.let { requireText(it, "$path[$index].ambiguity") }
+        warning.ambiguity?.let { requireDescription(it, "$path[$index].ambiguity") }
     }
 }
 
@@ -211,8 +211,16 @@ private fun AiQuota.validate(path: String) {
     resetAt?.let { requireContractInstant(it, "$path.resetAt") }
 }
 
-private fun requireText(value: String, path: String) {
-    if (value.isBlank()) throw ContractValidationException("$path: must be non-empty")
+private fun requireShortName(value: String, path: String) {
+    if (!AiSyllabusTextLimits.validShortName(value)) throw ContractValidationException("$path: invalid short name")
+}
+
+private fun requireSourceTitle(value: String, path: String) {
+    if (!AiSyllabusTextLimits.validSourceTitle(value)) throw ContractValidationException("$path: invalid source title")
+}
+
+private fun requireDescription(value: String, path: String) {
+    if (!AiSyllabusTextLimits.validDescription(value)) throw ContractValidationException("$path: invalid description")
 }
 
 internal fun requireContractText(value: String, path: String) {

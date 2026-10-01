@@ -138,7 +138,7 @@ internal object AiContentRequest {
             // O órgão decide qual estatuto vale; sem resposta da pessoa, vale o próprio concurso.
             .put("agency", options.agency.trim().ifBlank { competition.name }.take(160))
             .put("subjectName", subject.name.take(300))
-            .put("topicPath", JSONArray(pathOf(target, topics).map { it.take(800) }))
+            .put("topicPath", JSONArray(pathOf(target, topics).map(AiSyllabusTextLimits::contentTitle)))
             .put("options", JSONObject()
                 .put("blocks", JSONArray(ContentBlock.entries.filter { it in blocks }.map { it.name }))
                 .put("depth", when (options.depth.name) { "ESSENTIAL" -> "ESSENTIAL"; "BOOK" -> "BOOK"; else -> "DEEP" })

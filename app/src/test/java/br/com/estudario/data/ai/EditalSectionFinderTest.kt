@@ -6,6 +6,22 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class EditalSectionFinderTest {
+    @Test
+    fun trtAnnexPreservesGeneralApplicabilityAndBothTiCandidateRoles() {
+        val pages = listOf(
+            "TRIBUNAL REGIONAL DO TRABALHO DA 3ª REGIÃO",
+            "ANEXO II - CONTEÚDOS PROGRAMÁTICOS\nCONHECIMENTOS GERAIS\nPara todos os cargos, exceto Medicina.\nLÍNGUA PORTUGUESA ${filler(300)}",
+            "CONHECIMENTOS ESPECÍFICOS\nTÉCNICO JUDICIÁRIO - ÁREA APOIO ESPECIALIZADO - ESPECIALIDADE TECNOLOGIA DA INFORMAÇÃO\nRedes ${filler(300)}",
+            "CONHECIMENTOS ESPECÍFICOS\nANALISTA JUDICIÁRIO - ÁREA APOIO ESPECIALIZADO - ESPECIALIDADE TECNOLOGIA DA INFORMAÇÃO\nBanco de Dados ${filler(300)}",
+            "ANEXO III - CRONOGRAMA ${filler(300)}",
+        )
+        val selected = EditalSectionFinder.select(pages)!!
+        for (expected in listOf("CONHECIMENTOS GERAIS", "exceto Medicina", "LÍNGUA PORTUGUESA", "TÉCNICO JUDICIÁRIO", "ANALISTA JUDICIÁRIO", "Redes", "Banco de Dados")) {
+            assertTrue(expected, selected.text.contains(expected))
+        }
+        assertFalse(selected.text.contains("CRONOGRAMA"))
+    }
+
     private fun filler(words: Int) = List(words) { "regra" }.joinToString(" ")
 
     /** Edital típico: regras, sumário que cita o anexo, anexo II de conteúdo e anexo III do teste físico. */
