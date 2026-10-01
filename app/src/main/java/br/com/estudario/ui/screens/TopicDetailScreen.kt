@@ -7,7 +7,11 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
@@ -46,8 +50,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = null, planViewModel: StudyPlanViewModel, onBack: () -> Unit, onQuiz: () -> Unit, onTheory: (Long) -> Unit, onFocus: () -> Unit, onOpenTopic: (Long) -> Unit = {}) {
+fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = null, planViewModel: StudyPlanViewModel, onBack: () -> Unit, onQuiz: () -> Unit, onTheory: (Long) -> Unit, onFocus: () -> Unit, onOpenTopic: (Long) -> Unit = {}, onTheoryAt: (Long, Int) -> Unit = { id, _ -> onTheory(id) }) {
     val topics by viewModel.topics.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
     val summaries by viewModel.summaries.collectAsState()
@@ -352,345 +357,501 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
     val topicSources = sources.filter { it.topicId == topicId }
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item {
-            val titleBlock: @Composable (Modifier) -> Unit = { mod ->
-                Column(mod) {
-                    br.com.estudario.ui.components.ExpandableText(topic.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, collapsedLines = 4)
-                    Text(listOfNotNull(subject?.name, parent?.title).joinToString(" › "), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(topic.contentOriginType.displayName(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+    val topicTheories = theories.filter { it.topicId == topicId }.sortedByDescending { it.updatedAt }
+    val topicSummaries = summaries.filter { it.topicId == topicId }
+    val topicSnippets = snippets.filter { it.topicId == topicId }
+    val recallSnippets = topicSnippets.filter { it.kind == SnippetKind.RECUPERACAO && !SavedFlashcards.isSavedCard(it) }
+    val tipSnippets = topicSnippets.filter { it.kind != SnippetKind.RECUPERACAO }
+    val topicConcepts = errorConcepts.filter { it.topicId == topicId }
+        .sortedWith(compareByDescending<br.com.estudario.data.local.ErrorConceptEntity> { it.errorCount }.thenByDescending { it.lastErrorAt ?: 0 })
+    val studied = completedNow || topic.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO
+    // Retoma de verdade: a teoria que ficou pela metade, depois a que não foi aberta.
+    val resumeTheory = topicTheories.firstOrNull { theory ->
+        theory.lastReadBlock >= 0 && theory.lastReadBlock < studyBlocks(theory.markdown).lastIndex
+    } ?: topicTheories.firstOrNull { it.lastReadBlock < 0 }
+    val readPercent = topicTheories.firstOrNull()?.let { theory ->
+        val blocks = studyBlocks(theory.markdown).size.coerceAtLeast(1)
+        if (theory.lastReadBlock < 0) 0 else ((theory.lastReadBlock + 1) * 100 / blocks).coerceIn(0, 100)
+    }
+    val accuracy = if (answered == 0) null else correct * 100 / answered
+    val priority = topicPriorityState(topic, topics).effectivePriority
+    var menuOpen by remember { mutableStateOf(false) }
+    val tabs = listOf(
+        "Teoria" to topicTheories.size,
+        "Revisão" to (topicSummaries.size + recallSnippets.size),
+        "Dicas" to tipSnippets.size,
+        "Questões" to topicQuestions.size,
+        "Erros" to topicConcepts.size,
+        "Histórico" to 0,
+    )
+
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        // ---------------------------------------------------------------- cabeçalho
+        item(key = "header") {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.Top) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            listOfNotNull(subject?.name, parent?.title).joinToString("  ›  ").uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 2,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        )
+                        ExpandableText(topic.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, collapsedLines = 4)
+                    }
+                    Box {
+                        IconButton(onClick = { menuOpen = true }) { Icon(Icons.Outlined.MoreVert, "Mais ações") }
+                        DropdownMenu(menuOpen, onDismissRequest = { menuOpen = false }) {
+                            if (childTopics.isEmpty()) DropdownMenuItem(text = { Text("Gerar material com o Estudário") }, leadingIcon = { Icon(Icons.Outlined.AutoAwesome, null) }, onClick = { menuOpen = false; showContentPrompt = true })
+                            DropdownMenuItem(text = { Text("Prioridade deste tópico") }, leadingIcon = { Icon(Icons.Outlined.Flag, null) }, onClick = { menuOpen = false; showPriority = true })
+                            DropdownMenuItem(
+                                text = { Text(if (queueItem == null) "Adicionar à fila" else "Já está na fila") },
+                                leadingIcon = { Icon(Icons.Outlined.PlaylistAdd, null) },
+                                enabled = queueItem == null,
+                                onClick = { menuOpen = false; viewModel.enqueue(topic.id) },
+                            )
+                            DropdownMenuItem(text = { Text("Importar arquivo .estudo") }, leadingIcon = { Icon(Icons.Outlined.FileOpen, null) }, onClick = { menuOpen = false; importLauncher.launch(arrayOf("*/*")) })
+                            if (studied) DropdownMenuItem(text = { Text("Desmarcar como estudado") }, leadingIcon = { Icon(Icons.Outlined.Undo, null) }, onClick = { menuOpen = false; desmarcar = true })
+                        }
+                    }
                 }
-            }
-            val actions: @Composable () -> Unit = {
-                if (childTopics.isEmpty()) IconButton(onClick = { showContentPrompt = true }) { Icon(Icons.Outlined.AutoAwesome, "Gerar com o Estudário", tint = MaterialTheme.colorScheme.primary) }
-                IconButton(onClick = { showPriority = true }) { Icon(Icons.Outlined.Flag, "Definir prioridade", tint = MaterialTheme.colorScheme.primary) }
-                IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) { Icon(Icons.Outlined.FileOpen, "Importar arquivo .estudo") }
-            }
-            // Em tela estreita/fonte grande, os três botões ao lado espremiam o título numa coluna
-            // estreita (uma palavra por linha). Aí o título ocupa a largura toda e os botões descem.
-            if (estudarioLayout().prefersStacking) {
-                Column {
-                    titleBlock(Modifier.fillMaxWidth())
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { actions() }
-                }
-            } else {
-                Row {
-                    titleBlock(Modifier.weight(1f))
-                    actions()
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TopicChip(
+                        if (studied) "Estudado" else "Não estudado",
+                        if (studied) Icons.Outlined.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                        if (studied) estudarioColorsCompleted() else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    TopicChip("Prioridade ${PriorityPresentation.label(priority).lowercase()}", Icons.Outlined.Flag, MaterialTheme.colorScheme.primary, onClick = { showPriority = true })
+                    if (taskId != null) TopicChip("No plano de hoje", Icons.Outlined.Event, MaterialTheme.colorScheme.tertiary)
                 }
             }
         }
-        item {
-            ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Domínio ${MasteryCalculator.label(mastery)}", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).padding(end = 8.dp))
-                        Text("$mastery%", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    }
-                    LinearProgressIndicator({ mastery / 100f }, Modifier.fillMaxWidth())
-                    val coverage = listOf(topic.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO, theories.any { it.topicId == topicId && it.lastReadBlock >= 0 }, answered > 0, completedReviews > 0).count { it } * 25
-                    Text("Cobertura $coverage% • Questões: ${if (answered == 0) "amostra insuficiente" else "${correct * 100 / answered}% ($answered)"} • Revisões: $completedReviews", style = MaterialTheme.typography.bodySmall)
-                    Text("Prioridade: ${PriorityPresentation.label(topicPriorityState(topic, topics).effectivePriority)}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                    if (taskId != null) {
-                        // O vínculo permite sincronizar esta conclusão com a atividade correspondente.
-                        Text("Atividade vinculada ao plano", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    }
-                    // Estudar de verdade este tópico: cronômetro rodando e Não Perturbe ligado.
+
+        // ---------------------------------------------------------------- progresso e ação principal
+        item(key = "progress") {
+            Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TopicStat("$mastery%", "Domínio · ${MasteryCalculator.label(mastery).lowercase()}", null, Modifier.weight(1f))
+                    StatDivider()
+                    TopicStat(readPercent?.let { "$it%" } ?: "-", "Leitura", null, Modifier.weight(1f))
+                    StatDivider()
+                    TopicStat(accuracy?.let { "$it%" } ?: "-", if (answered == 0) "Acerto" else "Acerto · $answered", null, Modifier.weight(1f))
+                }
+            }
+        }
+        item(key = "actions") {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                val (label, icon, action) = when {
+                    childTopics.isNotEmpty() -> Triple("Ver os ${childTopics.size} subtópicos", Icons.Outlined.AccountTree, { selectedTab = 0 })
+                    resumeTheory != null && resumeTheory.lastReadBlock >= 0 -> Triple("Continuar leitura · ${readPercent ?: 0}%", Icons.Outlined.MenuBook, { onTheory(resumeTheory.id) })
+                    resumeTheory != null -> Triple("Começar a teoria", Icons.Outlined.MenuBook, { onTheory(resumeTheory.id) })
+                    topicQuestions.isNotEmpty() -> Triple("Treinar ${topicQuestions.size} questões", Icons.Outlined.Quiz, onQuiz)
+                    else -> Triple("Gerar material com o Estudário", Icons.Outlined.AutoAwesome, { showContentPrompt = true })
+                }
+                Button(onClick = action, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) {
+                    Icon(icon, null); Spacer(Modifier.width(10.dp)); Text(label, style = MaterialTheme.typography.titleSmall)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     FilledTonalButton(
                         onClick = { viewModel.startFocus(topic.title, topicId = topicId, taskId = taskId); onFocus() },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text("Estudar com modo foco") }
-                    if (topic.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO) {
-                        // Dá para voltar atrás: desmarcar cancela as revisões pendentes e devolve o
-                        // tópico para "não estudado", sem apagar sessões nem revisões já feitas.
-                        TextButton(onClick = { desmarcar = true }, contentPadding = PaddingValues(0.dp)) { Text("Desmarcar como estudado") }
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp),
+                    ) { Icon(Icons.Outlined.Timer, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Modo foco") }
+                    if (studied) OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
+                        Icon(Icons.Outlined.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Concluído")
+                    } else OutlinedButton(onClick = { finishStudy = true }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
+                        Icon(Icons.Outlined.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Concluir estudo")
                     }
                 }
+                if (completedNow) Text("Estudo registrado. As revisões D+1, D+7 e D+30 já estão na agenda.", style = MaterialTheme.typography.bodySmall, color = estudarioColorsCompleted())
             }
         }
-        if (!topic.scopeCovers.isNullOrBlank() || !topic.scopeExcludes.isNullOrBlank()) {
-            item {
-                // O recorte que a IA declarou antes de escrever. Fica visível para a pessoa bater
-                // com o edital dela, é a defesa contra estudar o que não vai cair.
-                ElevatedCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Recorte deste item do edital", fontWeight = FontWeight.Bold)
-                        topic.scopeCovers?.takeIf { it.isNotBlank() }?.let { cobre ->
-                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text("COBRE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.secondary)
-                                Text(cobre, style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                        topic.scopeExcludes?.takeIf { it.isNotBlank() }?.let { fora ->
-                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text("FICA DE FORA", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.error)
-                                Text(fora, style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                        Text(
-                            "Confira com o edital na mão. Se não bater, gere o conteúdo de novo pelo botão ✨.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+
+        // ---------------------------------------------------------------- abas (grudam no topo)
+        stickyHeader(key = "tabs") {
+            Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxWidth()) {
+                ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 0.dp, containerColor = MaterialTheme.colorScheme.background, divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }) {
+                    tabs.forEachIndexed { index, (label, count) ->
+                        Tab(
+                            selected = selectedTab == index,
+                            onClick = { selectedTab = index },
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(label, fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Medium)
+                                    if (count > 0) {
+                                        Spacer(Modifier.width(6.dp))
+                                        Surface(shape = RoundedCornerShape(50), color = if (selectedTab == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest) {
+                                            Text("$count", Modifier.padding(horizontal = 7.dp, vertical = 1.dp), style = MaterialTheme.typography.labelSmall, color = if (selectedTab == index) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                }
+                            },
                         )
                     }
                 }
             }
         }
-        if (topicSources.isNotEmpty()) {
-            item {
-                // De onde a IA tirou o conteúdo deste tópico. Fica aqui, ao lado do material, para a
-                // conferência ser possível no momento em que a dúvida aparece.
-                var abertas by remember { mutableStateOf(false) }
-                ElevatedCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(Modifier.fillMaxWidth().clickable { abertas = !abertas }, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text("Fontes deste conteúdo", fontWeight = FontWeight.Bold)
-                                Text(
-                                    "${topicSources.count { it.kind == br.com.estudario.data.local.SourceKind.OFICIAL }} oficial(is) • ${topicSources.count { it.kind == br.com.estudario.data.local.SourceKind.COMPLEMENTAR }} complementar(es)",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+
+        when (selectedTab) {
+            // ------------------------------------------------------------ TEORIA
+            0 -> {
+                if (childTopics.isNotEmpty()) item(key = "children") {
+                    SectionCard("Dividido em ${childTopics.size} subtópicos", "No edital este item junta várias matérias. O material é gerado em cada subtópico, para sair completo.") {
+                        childTopics.forEach { child ->
+                            Surface(onClick = { onOpenTopic(child.id) }, shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
+                                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(if (child.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO) Icons.Outlined.CheckCircle else Icons.Outlined.SubdirectoryArrowRight, null, tint = MaterialTheme.colorScheme.primary)
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(child.title, Modifier.weight(1f), maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                    Icon(Icons.Outlined.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
-                            Icon(if (abertas) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, if (abertas) "Recolher" else "Ver fontes")
-                        }
-                        if (abertas) topicSources.forEach { fonte ->
-                            SourceCard(
-                                fonte = fonte,
-                                topicTitle = null,
-                                onOpenTopic = {},
-                                onOpenUrl = { url -> runCatching { uriHandler.openUri(url) } },
-                                showTopic = false,
-                            )
                         }
                     }
+                } else if (topicTheories.isEmpty()) item(key = "no-theory") {
+                    EmptyState("Ainda não tem teoria aqui", "Escolha o que quer receber (teoria, resumo, flashcards, questões) e o Estudário gera para este tópico.", "Gerar com o Estudário") { showContentPrompt = true }
                 }
-            }
-        }
-        item {
-            // Retoma de verdade: primeiro a teoria que ficou pela metade (no ponto em que parou),
-            // depois a que ainda não foi aberta, e só então as questões.
-            val topicTheoryList = theories.filter { it.topicId == topicId }.sortedByDescending { it.updatedAt }
-            val inProgressTheory = topicTheoryList.firstOrNull { theory ->
-                theory.lastReadBlock >= 0 && theory.lastReadBlock < br.com.estudario.ui.components.studyBlocks(theory.markdown).lastIndex
-            }
-            val unreadTheory = topicTheoryList.firstOrNull { it.lastReadBlock < 0 }
-            val resumeTheory = inProgressTheory ?: unreadTheory
-            Button(
-                onClick = { if (resumeTheory != null) onTheory(resumeTheory.id) else if (topicQuestions.isNotEmpty()) onQuiz() else finishStudy = true },
-                modifier = Modifier.fillMaxWidth(),
-            ) { Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Continuar de onde parei") }
-        }
-        if (completedNow) item {
-            ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-                Text("ESTUDO CONCLUÍDO ✓\nO próximo item da fila não será iniciado automaticamente.", Modifier.padding(16.dp), fontWeight = FontWeight.Bold)
-            }
-        }
-        item {
-            // Lado a lado quando cabe; em tela estreita ou fonte grande, um botão por linha.
-            FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = if (estudarioLayout().prefersStacking) 1 else Int.MAX_VALUE, verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = { finishStudy = true },
-                    enabled = !completedNow && topic.status == br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO,
-                     modifier = Modifier.weight(1f),
-                ) {
-                    Icon(Icons.Outlined.Check, null)
-                    Spacer(Modifier.width(4.dp))
-                    Text(if (completedNow || topic.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO) "Estudo concluído ✓" else "Estudo concluído hoje")
-                }
-                OutlinedButton(onClick = { if (queueItem == null) viewModel.enqueue(topic.id) }, enabled = queueItem == null, modifier = Modifier.weight(1f)) { Text(if (queueItem == null) "Adicionar à fila" else "Na fila") }
-            }
-        }
-        item {
-            ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 0.dp) {
-                listOf("TEORIA", "REVISÃO", "DICAS", "QUESTÕES", "ERROS", "HISTÓRICO").forEachIndexed { index, label ->
-                    Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(label) })
-                }
-            }
-        }
-        if (selectedTab == 0) {
-        item {
-            Text("Teoria completa", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        }
-        val topicTheories = theories.filter { it.topicId == topicId }
-        if (childTopics.isNotEmpty()) item {
-            ElevatedCard {
-                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Este item foi dividido em ${childTopics.size} subtópicos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("No edital ele junta várias matérias. Para o material sair completo, gere a teoria em cada subtópico.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    childTopics.forEach { child ->
-                        OutlinedButton(onClick = { onOpenTopic(child.id) }, modifier = Modifier.fillMaxWidth()) { Text(child.title, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
-                    }
-                }
-            }
-        } else if (topicTheories.isEmpty()) item { EmptyState("Teoria ainda não importada", "Escolha o que quer receber (teoria, resumo, questões) e gere com o Estudário.", "Gerar com o Estudário") { showContentPrompt = true } }
-        topicTheories.forEach { theory ->
-            item(key = "theory-${theory.id}") {
-                ElevatedCard(onClick = { onTheory(theory.id) }) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.MenuBook, null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.width(10.dp))
-                            Text(theory.title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                topicTheories.forEach { theory ->
+                    item(key = "theory-${theory.id}") {
+                        val blocks = remember(theory.markdown) { studyBlocks(theory.markdown) }
+                        val chapters = remember(blocks) {
+                            blocks.withIndex().filter { it.value.trimStart().startsWith("## ") || it.value.trimStart().startsWith("# ") && it.index > 0 }
+                                .map { it.index to it.value.trimStart().trimStart('#').trim().lineSequence().first() }
                         }
-                        val blockCount = br.com.estudario.ui.components.studyBlocks(theory.markdown).size.coerceAtLeast(1)
-                        val readPercent = if (theory.lastReadBlock < 0) 0 else ((theory.lastReadBlock + 1) * 100 / blockCount).coerceIn(0, 100)
-                        LinearProgressIndicator({ readPercent / 100f }, Modifier.fillMaxWidth())
-                        Text("$readPercent% lido • ${theoryMarks.count { it.theoryId == theory.id }} marcação(ões)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Button(onClick = { onTheory(theory.id) }, Modifier.fillMaxWidth()) { Text(if (theory.lastReadBlock > 0) "Continuar leitura" else "Começar leitura") }
-                    }
-                }
-            }
-        }
-        // Anotações do próprio tópico: escritas aqui, reunidas também no Caderno de estudo.
-        val topicNotes = userNotes.filter { it.topicId == topicId }
-        item(key = "topic-notes-header") {
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("Minhas anotações", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                TextButton(onClick = { editingNote = br.com.estudario.data.local.UserNoteEntity(topicId = topicId, text = "") }) {
-                    Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Nova")
-                }
-            }
-        }
-        if (topicNotes.isEmpty()) item(key = "topic-notes-empty") {
-            Text("Escreva com suas palavras o que precisa lembrar deste tópico. As anotações também ficam no Caderno de estudo.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        topicNotes.forEach { note ->
-            item(key = "topic-note-${note.id}") {
-                ElevatedCard(onClick = { editingNote = note }, modifier = Modifier.fillMaxWidth()) {
-                    Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Icon(Icons.Outlined.EditNote, null, tint = MaterialTheme.colorScheme.primary)
-                        Text(note.text, Modifier.weight(1f), maxLines = 6, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                    }
-                }
-            }
-        }
-        }
-        if (selectedTab == 1) {
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Resumo e flashcards", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                TextButton(onClick = { creating = true }) { Icon(Icons.Outlined.Add, null); Text("Novo") }
-            }
-        }
-        val topicSummaries = summaries.filter { it.topicId == topicId }
-        if (topicSummaries.isEmpty()) item { EmptyState("Sem resumos", "Adicione Markdown ou importe um pacote .estudo.") }
-        topicSummaries.forEach { summary ->
-            item(key = "summary-${summary.id}") {
-                // A revisão rápida vira baralho de flashcards; o resumo completo segue como leitura.
-                val isDeck = summary.kind == SummaryKind.RAPIDO
-                val deckSize = if (isDeck) remember(summary.markdown) { br.com.estudario.ui.components.FlashcardParser.parse(summary.markdown).size } else 0
-                ElevatedCard(onClick = { if (isDeck) deckFor = summary else expandedSummary = summary }) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(Modifier.fillMaxWidth()) {
-                            Column(Modifier.weight(1f)) { Text(if (isDeck && summary.title.equals("Revisão rápida", ignoreCase = true)) "Flashcards" else summary.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold); Text(if (isDeck) "FLASHCARDS · $deckSize cartões · toque para praticar" else "RESUMO COMPLETO", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary) }
-                            if (isDeck) IconButton(onClick = { viewModel.updateSummary(summary.copy(isFavorite = !summary.isFavorite)) }) { Icon(if (summary.isFavorite) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder, if (summary.isFavorite) "Remover dos flashcards salvos" else "Salvar flashcards") }
-                            IconButton(onClick = { editor = summary }) { Icon(Icons.Outlined.Edit, "Editar") }
-                            IconButton(onClick = { viewModel.deleteSummary(summary) }) { Icon(Icons.Outlined.Delete, "Excluir") }
+                        val percent = if (theory.lastReadBlock < 0) 0 else ((theory.lastReadBlock + 1) * 100 / blocks.size.coerceAtLeast(1)).coerceIn(0, 100)
+                        val marks = theoryMarks.count { it.theoryId == theory.id }
+                        Surface(onClick = { onTheory(theory.id) }, shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(44.dp)) {
+                                        Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.MenuBook, null, tint = MaterialTheme.colorScheme.primary) }
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(theory.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                        Text(
+                                            listOfNotNull("${chapters.size.coerceAtLeast(1)} capítulo(s)", "$percent% lido", if (marks > 0) "$marks grifo(s)" else null).joinToString(" · "),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                                LinearProgressIndicator({ percent / 100f }, Modifier.fillMaxWidth(), strokeCap = androidx.compose.ui.graphics.StrokeCap.Round)
+                                if (chapters.size > 1) Column {
+                                    chapters.forEachIndexed { position, (blockIndex, title) ->
+                                        val done = theory.lastReadBlock >= (chapters.getOrNull(position + 1)?.first ?: blocks.size) - 1
+                                        val current = !done && theory.lastReadBlock >= blockIndex - 1 && theory.lastReadBlock >= 0
+                                        Row(
+                                            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onTheoryAt(theory.id, blockIndex) }.padding(vertical = 9.dp, horizontal = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Icon(
+                                                when { done -> Icons.Outlined.CheckCircle; current -> Icons.Outlined.PlayCircle; else -> Icons.Outlined.RadioButtonUnchecked },
+                                                null,
+                                                Modifier.size(20.dp),
+                                                tint = when { done -> estudarioColorsCompleted(); current -> MaterialTheme.colorScheme.primary; else -> MaterialTheme.colorScheme.outline },
+                                            )
+                                            Spacer(Modifier.width(12.dp))
+                                            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                        }
+                                    }
+                                }
+                            }
                         }
-                        Text(summary.markdown.replace("#", "").replace("**", "").take(160), maxLines = 3, color = MaterialTheme.colorScheme.onSurfaceVariant, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
                 }
-            }
-        }
-        }
-        val topicSnippets = snippets.filter { it.topicId == topicId }
-        if (selectedTab == 1 || selectedTab == 2) {
-        val visibleSnippets = topicSnippets.filter { if (selectedTab == 1) it.kind == SnippetKind.RECUPERACAO else it.kind != SnippetKind.RECUPERACAO }
-        if (visibleSnippets.isNotEmpty()) item {
-            Column {
-                Text(if (selectedTab == 1) "Memorização ativa" else "Dicas e pegadinhas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                if (selectedTab != 1) Text("Toque na ☆ para guardar a dica no Caderno de estudo, na aba Dicas.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        visibleSnippets.groupBy { it.kind }.forEach { (kind, values) ->
-            item(key = "snippet-title-$kind") { Text(when (kind) { SnippetKind.BIZU -> "Dicas"; SnippetKind.PEGADINHA -> "Pegadinhas"; SnippetKind.RECUPERACAO -> "Perguntas para lembrar" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-            values.forEach { snippet ->
-                item(key = "snippet-${snippet.id}") {
-                    if (kind == SnippetKind.RECUPERACAO) {
-                        br.com.estudario.ui.components.RecallCard(snippet.text, snippet.answer, revealKey = snippet.id) {
-                            IconButton(onClick = { viewModel.saveSnippet(snippet.copy(isFavorite = !snippet.isFavorite)) }) { Icon(if (snippet.isFavorite) Icons.Outlined.Star else Icons.Outlined.StarBorder, "Favoritar") }
+                if (!topic.scopeCovers.isNullOrBlank() || !topic.scopeExcludes.isNullOrBlank() || topicSources.isNotEmpty()) item(key = "about") {
+                    // Recorte e fontes: o que a IA declarou cobrir e de onde tirou. Fica junto da
+                    // teoria, para conferir no momento em que a dúvida aparece.
+                    var open by remember { mutableStateOf(false) }
+                    SectionCard(
+                        "Sobre este conteúdo",
+                        "O que este item do edital cobre e de onde veio o material",
+                        trailing = { Icon(if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null) },
+                        onHeaderClick = { open = !open },
+                    ) {
+                        if (open) {
+                            topic.scopeCovers?.takeIf { it.isNotBlank() }?.let { LabeledBlock("COBRE", it, MaterialTheme.colorScheme.secondary) }
+                            topic.scopeExcludes?.takeIf { it.isNotBlank() }?.let { LabeledBlock("FICA DE FORA", it, MaterialTheme.colorScheme.error) }
+                            if (topicSources.isNotEmpty()) {
+                                Text("FONTES", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                                topicSources.forEach { fonte ->
+                                    SourceCard(fonte = fonte, topicTitle = null, onOpenTopic = {}, onOpenUrl = { url -> runCatching { uriHandler.openUri(url) } }, showTopic = false)
+                                }
+                            }
                         }
-                        return@item
                     }
-                    ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = when (kind) { SnippetKind.PEGADINHA -> MaterialTheme.colorScheme.errorContainer; SnippetKind.BIZU -> MaterialTheme.colorScheme.tertiaryContainer; else -> MaterialTheme.colorScheme.secondaryContainer })) {
-                        Row(Modifier.padding(14.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            Text(snippet.text, Modifier.weight(1f))
-                            val tipContext = androidx.compose.ui.platform.LocalContext.current
-                            IconButton(onClick = {
-                                viewModel.saveSnippet(snippet.copy(isFavorite = !snippet.isFavorite))
-                                android.widget.Toast.makeText(tipContext, if (snippet.isFavorite) "Tirada do Caderno" else "Salva no Caderno › Dicas", android.widget.Toast.LENGTH_SHORT).show()
-                            }) { Icon(if (snippet.isFavorite) Icons.Outlined.Star else Icons.Outlined.StarBorder, if (snippet.isFavorite) "Tirar do caderno" else "Salvar no caderno", tint = if (snippet.isFavorite) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Unspecified) }
+                }
+                val topicNotes = userNotes.filter { it.topicId == topicId }
+                item(key = "notes-header") {
+                    SectionHeader("Minhas anotações", "Também ficam no Caderno de estudo") {
+                        TextButton(onClick = { editingNote = br.com.estudario.data.local.UserNoteEntity(topicId = topicId, text = "") }) {
+                            Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Nova")
+                        }
+                    }
+                }
+                if (topicNotes.isEmpty()) item(key = "notes-empty") {
+                    Text("Escreva com suas palavras o que precisa lembrar deste tópico.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                topicNotes.forEach { note ->
+                    item(key = "note-${note.id}") {
+                        Surface(onClick = { editingNote = note }, shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = .5f), modifier = Modifier.fillMaxWidth()) {
+                            Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Icon(Icons.Outlined.EditNote, null, tint = MaterialTheme.colorScheme.secondary)
+                                Text(note.text, Modifier.weight(1f), maxLines = 6, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                            }
                         }
                     }
                 }
             }
-        }
-        }
-        if (selectedTab == 3) {
-        item {
-            Text("Questões", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            ElevatedCard {
-                Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Column(Modifier.weight(1f)) {
-                        Text("${topicQuestions.size}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                        Text("${topicQuestions.count { it.question.answerCount == 0 }} nunca respondidas • ${topicQuestions.count { it.question.isFavorite }} favoritas", style = MaterialTheme.typography.bodySmall)
+
+            // ------------------------------------------------------------ REVISÃO
+            1 -> {
+                val decks = topicSummaries.filter { it.kind == SummaryKind.RAPIDO }
+                val fullSummaries = topicSummaries.filter { it.kind != SummaryKind.RAPIDO }
+                if (topicSummaries.isEmpty() && recallSnippets.isEmpty()) item(key = "review-empty") {
+                    EmptyState("Nada para revisar ainda", "Gere resumo, flashcards e perguntas de memorização para revisar este tópico em minutos.", "Gerar com o Estudário") { showContentPrompt = true }
+                }
+                decks.forEach { deck ->
+                    item(key = "deck-${deck.id}") {
+                        val size = remember(deck.markdown) { FlashcardParser.parse(deck.markdown).size }
+                        Surface(onClick = { deckFor = deck }, shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primary, modifier = Modifier.fillMaxWidth()) {
+                            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("FLASHCARDS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = .8f))
+                                    Text("$size cartões para praticar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
+                                    Text(
+                                        if (decks.size > 1 && !deck.title.equals("Revisão rápida", ignoreCase = true)) deck.title else "Tente lembrar antes de virar. Salve só os que interessam.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = .85f),
+                                        maxLines = 2,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    )
+                                }
+                                IconButton(onClick = { viewModel.updateSummary(deck.copy(isFavorite = !deck.isFavorite)) }) {
+                                    Icon(if (deck.isFavorite) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder, if (deck.isFavorite) "Tirar baralho do Caderno" else "Salvar baralho no Caderno", tint = MaterialTheme.colorScheme.onPrimary)
+                                }
+                                Icon(Icons.Outlined.PlayCircle, "Praticar", Modifier.size(40.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                            }
+                        }
                     }
-                    Button(onClick = onQuiz, enabled = topicQuestions.isNotEmpty()) { Text("Treinar tópico") }
+                }
+                fullSummaries.forEach { summary ->
+                    item(key = "summary-${summary.id}") {
+                        Surface(onClick = { expandedSummary = summary }, shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(start = 16.dp, top = 12.dp, bottom = 14.dp, end = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Outlined.Article, null, tint = MaterialTheme.colorScheme.primary)
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text("RESUMO", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                                        Text(summary.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2)
+                                    }
+                                    IconButton(onClick = { editor = summary }) { Icon(Icons.Outlined.Edit, "Editar", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                    IconButton(onClick = { viewModel.deleteSummary(summary) }) { Icon(Icons.Outlined.DeleteOutline, "Excluir", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                }
+                                Text(plainPreview(summary.markdown).take(220), maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 12.dp))
+                            }
+                        }
+                    }
+                }
+                if (recallSnippets.isNotEmpty()) {
+                    item(key = "recall-header") { SectionHeader("Memorização ativa", "Responda de cabeça, depois confira. ★ guarda no Caderno.") }
+                    recallSnippets.forEach { snippet ->
+                        item(key = "recall-${snippet.id}") {
+                            RecallCard(snippet.text, snippet.answer, revealKey = snippet.id) {
+                                IconButton(onClick = { viewModel.saveSnippet(snippet.copy(isFavorite = !snippet.isFavorite)) }) {
+                                    Icon(if (snippet.isFavorite) Icons.Outlined.Star else Icons.Outlined.StarBorder, if (snippet.isFavorite) "Tirar do Caderno" else "Guardar no Caderno", tint = if (snippet.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                }
+                item(key = "summary-new") {
+                    TextButton(onClick = { creating = true }) { Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Escrever meu próprio resumo") }
+                }
+            }
+
+            // ------------------------------------------------------------ DICAS
+            2 -> {
+                if (tipSnippets.isEmpty()) item(key = "tips-empty") {
+                    EmptyState("Sem dicas ainda", "Dicas e pegadinhas de banca vêm junto com o material gerado para este tópico.", "Gerar com o Estudário") { showContentPrompt = true }
+                } else item(key = "tips-header") { SectionHeader("Dicas e pegadinhas", "O que costuma decidir a questão. ★ guarda no Caderno.") }
+                tipSnippets.sortedBy { it.kind }.forEach { snippet ->
+                    item(key = "tip-${snippet.id}") {
+                        val trap = snippet.kind == SnippetKind.PEGADINHA
+                        val accent = if (trap) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary
+                        Surface(shape = RoundedCornerShape(16.dp), color = (if (trap) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.tertiaryContainer).copy(alpha = .55f), modifier = Modifier.fillMaxWidth()) {
+                            Row(Modifier.height(IntrinsicSize.Min)) {
+                                Box(Modifier.width(4.dp).fillMaxHeight().background(accent))
+                                Column(Modifier.weight(1f).padding(start = 14.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(if (trap) Icons.Outlined.Warning else Icons.Outlined.Lightbulb, null, Modifier.size(16.dp), tint = accent)
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(if (trap) "PEGADINHA" else "DICA", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = accent)
+                                    }
+                                    Text(snippet.text, style = MaterialTheme.typography.bodyMedium)
+                                }
+                                IconButton(onClick = { viewModel.saveSnippet(snippet.copy(isFavorite = !snippet.isFavorite)) }) {
+                                    Icon(if (snippet.isFavorite) Icons.Outlined.Star else Icons.Outlined.StarBorder, if (snippet.isFavorite) "Tirar do Caderno" else "Guardar no Caderno", tint = if (snippet.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ------------------------------------------------------------ QUESTÕES
+            3 -> {
+                item(key = "questions-summary") {
+                    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Row {
+                                TopicStat("${topicQuestions.size}", "questões", null, Modifier.weight(1f))
+                                TopicStat("${topicQuestions.count { it.question.answerCount == 0 }}", "nunca vistas", null, Modifier.weight(1f))
+                                TopicStat(accuracy?.let { "$it%" } ?: "-", "de acerto", null, Modifier.weight(1f))
+                            }
+                            Button(onClick = onQuiz, enabled = topicQuestions.isNotEmpty(), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                                Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Treinar este tópico")
+                            }
+                        }
+                    }
+                }
+                if (subject != null) item(key = "questions-more") {
+                    val subjectTopicIds = topics.asSequence().filter { it.subjectId == subject.id }.map { it.id }.toSet()
+                    val subjectQuestionCount = questions.count { it.question.topicId in subjectTopicIds }
+                    SectionCard(
+                        if (topicQuestions.isEmpty()) "Gere as primeiras questões" else "Quer mais questões?",
+                        if (subjectQuestionCount == 0) "Questões inéditas no estilo da banca, com explicação de cada alternativa."
+                        else "O Estudário compara com as $subjectQuestionCount questões que você já tem nesta matéria para não repetir.",
+                    ) {
+                        OutlinedButton(onClick = { showAdditionalQuestionPrompt = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                            Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Gerar com o Estudário")
+                        }
+                    }
+                }
+            }
+
+            // ------------------------------------------------------------ ERROS
+            4 -> {
+                if (topicConcepts.isEmpty()) item(key = "errors-empty") {
+                    EmptyState("Nenhum erro por aqui", "Quando você errar uma questão deste tópico, o conceito por trás do erro aparece aqui, para atacar o padrão e não só a questão.")
+                } else item(key = "errors-header") { SectionHeader("Onde você erra", "Conceitos por trás dos seus erros, do mais frequente ao menos.") }
+                topicConcepts.forEach { concept ->
+                    item(key = "concept-${concept.id}") {
+                        Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), modifier = Modifier.fillMaxWidth()) {
+                            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
+                                Surface(shape = RoundedCornerShape(10.dp), color = if (concept.mastered) estudarioColorsCompleted().copy(alpha = .15f) else MaterialTheme.colorScheme.errorContainer) {
+                                    Text("${concept.errorCount}×", Modifier.padding(horizontal = 10.dp, vertical = 6.dp), fontWeight = FontWeight.Bold, color = if (concept.mastered) estudarioColorsCompleted() else MaterialTheme.colorScheme.error)
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(concept.title, fontWeight = FontWeight.SemiBold)
+                                    concept.summary.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                    Text(if (concept.mastered) "Corrigido" else "Prioridade ${concept.priority.name.lowercase()}", style = MaterialTheme.typography.labelSmall, color = if (concept.mastered) estudarioColorsCompleted() else MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ------------------------------------------------------------ HISTÓRICO
+            else -> {
+                val history = buildList<Triple<Long, String, androidx.compose.ui.graphics.vector.ImageVector>> {
+                    studySessions.filter { it.topicId == topicId }.forEach { add(Triple(it.completedAt, "Estudo concluído", Icons.Outlined.School)) }
+                    reviewHistory.filter { it.topicId == topicId }.forEach { add(Triple(it.reviewedAt, "Revisão feita", Icons.Outlined.Replay)) }
+                    recentAttempts.forEach { add(Triple(it.answeredAt, if (it.correct) "Acertou uma questão" else "Errou uma questão", if (it.correct) Icons.Outlined.CheckCircle else Icons.Outlined.Cancel)) }
+                }.sortedByDescending { it.first }.take(30)
+                if (history.isEmpty()) item(key = "history-empty") { EmptyState("Sem histórico ainda", "Estudos, revisões e questões deste tópico aparecem aqui, em ordem.") }
+                history.forEachIndexed { index, (time, label, icon) ->
+                    item(key = "history-$index-$time") {
+                        val formatter = remember { java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy · HH:mm") }
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
+                            Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.size(36.dp)) {
+                                Box(contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) }
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                                Text(java.time.Instant.ofEpochMilli(time).atZone(java.time.ZoneId.systemDefault()).format(formatter), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
                 }
             }
         }
-        if (subject != null) item {
-            val subjectTopicIds = topics.asSequence().filter { it.subjectId == subject.id }.map { it.id }.toSet()
-            val subjectQuestionCount = questions.count { it.question.topicId in subjectTopicIds }
-            ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Precisa de mais questões?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text(
-                        if (subjectQuestionCount == 0) "Gere as primeiras questões para este tópico."
-                        else "O Estudário vai comparar com as $subjectQuestionCount questões já cadastradas nesta matéria para evitar repetições.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
-                    Button(onClick = { showAdditionalQuestionPrompt = true }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Outlined.AutoAwesome, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Gerar com o Estudário")
-                    }
+        item(key = "bottom-space") { Spacer(Modifier.height(24.dp)) }
+    }
+}
+
+@Composable
+private fun estudarioColorsCompleted(): androidx.compose.ui.graphics.Color = br.com.estudario.ui.theme.estudarioColors().completed
+
+@Composable
+private fun TopicChip(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, tint: androidx.compose.ui.graphics.Color, onClick: (() -> Unit)? = null) {
+    val content: @Composable () -> Unit = {
+        Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, Modifier.size(14.dp), tint = tint)
+            Spacer(Modifier.width(5.dp))
+            Text(label, style = MaterialTheme.typography.labelMedium, color = tint, fontWeight = FontWeight.SemiBold)
+        }
+    }
+    if (onClick != null) Surface(onClick = onClick, shape = RoundedCornerShape(50), color = tint.copy(alpha = .1f)) { content() }
+    else Surface(shape = RoundedCornerShape(50), color = tint.copy(alpha = .1f)) { content() }
+}
+
+@Composable
+private fun TopicStat(value: String, label: String, progress: Float?, modifier: Modifier) {
+    Column(modifier.padding(horizontal = 10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        if (progress != null) LinearProgressIndicator({ progress.coerceIn(0f, 1f) }, Modifier.fillMaxWidth().height(4.dp), strokeCap = androidx.compose.ui.graphics.StrokeCap.Round)
+    }
+}
+
+@Composable
+private fun StatDivider() {
+    Box(Modifier.width(1.dp).height(44.dp).background(MaterialTheme.colorScheme.outlineVariant))
+}
+
+@Composable
+private fun SectionHeader(title: String, subtitle: String? = null, action: @Composable () -> Unit = {}) {
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        action()
+    }
+}
+
+@Composable
+private fun SectionCard(title: String, subtitle: String?, trailing: @Composable () -> Unit = {}, onHeaderClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
+    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.fillMaxWidth().then(if (onHeaderClick != null) Modifier.clickable(onClick = onHeaderClick) else Modifier),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
+                trailing()
             }
+            content()
         }
-        }
-        if (selectedTab == 4) {
-        item { Text("Erros por conceito", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-        val topicConcepts = errorConcepts.filter { it.topicId == topicId }.sortedWith(compareByDescending<br.com.estudario.data.local.ErrorConceptEntity> { it.errorCount }.thenByDescending { it.lastErrorAt ?: 0 })
-        if (topicConcepts.isEmpty()) item { EmptyState("Nenhum conceito recorrente", "Os conceitos serão organizados quando houver respostas erradas.") }
-        topicConcepts.forEach { concept ->
-            item(key = "concept-${concept.id}") {
-                ListItem(
-                    headlineContent = { Text(concept.title, fontWeight = FontWeight.SemiBold) },
-                    supportingContent = { Text("${concept.errorCount} erro(s) • ${if (concept.mastered) "corrigido" else "prioridade ${concept.priority.name.lowercase()}"}${concept.summary.takeIf { it.isNotBlank() }?.let { "\n$it" }.orEmpty()}") },
-                    leadingContent = { Icon(Icons.Outlined.ErrorOutline, null, tint = MaterialTheme.colorScheme.error) },
-                )
-            }
-        }
-        }
-        if (selectedTab == 5) {
-        item { Text("Histórico", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-        val history = buildList<Pair<Long, String>> {
-            studySessions.filter { it.topicId == topicId }.forEach { add(it.completedAt to "Estudo concluído") }
-            reviewHistory.filter { it.topicId == topicId }.forEach { add(it.reviewedAt to "Revisão realizada") }
-            recentAttempts.forEach { add(it.answeredAt to if (it.correct) "Questão correta" else "Questão errada") }
-        }.sortedByDescending { it.first }.take(30)
-        if (history.isEmpty()) item { EmptyState("Sem histórico", "As atividades concluídas aparecerão aqui.") }
-        history.forEachIndexed { index, event ->
-            item(key = "history-$index-${event.first}") {
-                val date = java.time.Instant.ofEpochMilli(event.first).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                ListItem(headlineContent = { Text(event.second) }, supportingContent = { Text(date.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))) }, leadingContent = { Icon(Icons.Outlined.History, null) })
-            }
-        }
-        }
+    }
+}
+
+@Composable
+private fun LabeledBlock(label: String, text: String, color: androidx.compose.ui.graphics.Color) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = color)
+        Text(text, style = MaterialTheme.typography.bodySmall)
     }
 }
 
