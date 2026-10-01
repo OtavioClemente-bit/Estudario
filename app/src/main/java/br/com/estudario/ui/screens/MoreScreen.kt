@@ -169,7 +169,7 @@ fun MoreScreen(
 @Composable
 private fun Group(title: String, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title.uppercase(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 4.dp))
+        Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp, top = 4.dp))
         Surface(shape = EstudarioShapes.panel, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { content() }
         }
@@ -179,7 +179,7 @@ private fun Group(title: String, content: @Composable () -> Unit) {
 @Composable
 private fun ToggleRow(icon: ImageVector, title: String, description: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+        IconTile(icon)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
@@ -194,7 +194,7 @@ private fun ToggleRow(icon: ImageVector, title: String, description: String, che
 private fun LinkRow(icon: ImageVector, title: String, description: String, onClick: () -> Unit) {
     Surface(onClick = onClick, color = androidx.compose.ui.graphics.Color.Transparent) {
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+            IconTile(icon)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
@@ -202,5 +202,13 @@ private fun LinkRow(icon: ImageVector, title: String, description: String, onCli
             }
             Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+/** Ícone em bloco de cor suave: o mesmo padrão das folhas de ação, para o app inteiro falar igual. */
+@Composable
+private fun IconTile(icon: ImageVector) {
+    Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = .7f), modifier = Modifier.size(40.dp)) {
+        androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(21.dp), tint = MaterialTheme.colorScheme.primary) }
     }
 }

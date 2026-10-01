@@ -8,6 +8,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.AutoAwesome
@@ -119,7 +121,7 @@ fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: 
         if (pendingErrors > 0) add(Recommendation("Refazer seus erros", "$pendingErrors questões em que você mais erra do que acerta.", Icons.Outlined.Replay, MaterialTheme.colorScheme.error, QuizConfig(pendingErrors.coerceIn(5, 20), mode = "errors")))
         if (weakest != null && (weakest.accuracy ?: 100) < 70) add(Recommendation("Reforçar ${weakest.name}", "Sua matéria mais fraca: ${weakest.accuracy}% de acerto em ${weakest.answered} respostas.", Icons.Outlined.TrendingDown, colors.attention, QuizConfig(15, subjectId = weakest.id, mode = "smart")))
         add(Recommendation("Desafio do dia", "10 questões entre erros recorrentes, revisões atrasadas e tópicos de menor domínio.", Icons.Outlined.Bolt, MaterialTheme.colorScheme.primary, QuizConfig(10, mode = "daily")))
-        if (neverAnswered > 0 && size < 3) add(Recommendation("Avançar com questões novas", "$neverAnswered questões que você ainda não viu.", Icons.Outlined.FiberNew, colors.completed, QuizConfig(10, mode = "new")))
+        if (neverAnswered > 0 && size < 3) add(Recommendation("Avançar com questões novas", "$neverAnswered questões que você ainda não viu.", Icons.Outlined.Explore, colors.completed, QuizConfig(10, mode = "new")))
     }.take(3)
     val boards = questions.mapNotNull { it.question.board?.takeIf(String::isNotBlank) }.distinct().sorted()
 
@@ -159,17 +161,15 @@ fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: 
             Surface(shape = EstudarioShapes.spotlight, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Text("SEU DIAGNÓSTICO", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(accuracy?.let { "$it%" } ?: "-", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                            Text(if (accuracy == null) "Resolva questões para ver seu acerto" else "de acerto geral", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                        }
-                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            DiagnosisLine("$answered", "respostas")
-                            DiagnosisLine("$pendingErrors", "erros pendentes")
-                            DiagnosisLine("$neverAnswered", "nunca vistas")
-                        }
+                    // Quatro números alinhados, todos com o mesmo peso: nada de traço solto quando ainda
+                    // não há respostas, a frase embaixo explica.
+                    Row(Modifier.fillMaxWidth()) {
+                        DiagnosisStat(accuracy?.let { "$it%" } ?: "0%", "acerto", Modifier.weight(1f))
+                        DiagnosisStat("$answered", "respostas", Modifier.weight(1f))
+                        DiagnosisStat("$pendingErrors", "a refazer", Modifier.weight(1f))
+                        DiagnosisStat("$neverAnswered", "inéditas", Modifier.weight(1f))
                     }
+                    if (accuracy == null) Text("Resolva as primeiras questões para o diagnóstico mostrar seu acerto por matéria.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     if (weakest != null) Text(
                         "Ponto fraco agora: ${weakest.name} (${weakest.accuracy}% de acerto).",
                         style = MaterialTheme.typography.bodySmall,
@@ -307,18 +307,47 @@ private fun DiagnosisLine(value: String, label: String) {
 }
 
 @Composable
+private fun DiagnosisStat(value: String, label: String, modifier: Modifier) {
+    Column(modifier, horizontalAlignment = Alignment.Start) {
+        Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = .8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/**
+ * Cartão de treino sugerido: ícone em bloco na cor do tipo de treino, o porquê da sugestão e a
+ * duração estimada. O cartão inteiro é o botão; a seta só indica que abre.
+ */
+@Composable
 private fun RecommendationCard(recommendation: Recommendation, modifier: Modifier = Modifier, onStart: () -> Unit) {
-    Surface(onClick = onStart, shape = EstudarioShapes.panel, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = modifier.fillMaxWidth()) {
+    Surface(
+        onClick = onStart,
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .6f)),
+        modifier = modifier.fillMaxWidth(),
+    ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(Modifier.size(44.dp).clip(CircleShape).background(recommendation.accent.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
-                Icon(recommendation.icon, null, tint = recommendation.accent)
+            Box(Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(recommendation.accent.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+                Icon(recommendation.icon, null, Modifier.size(24.dp), tint = recommendation.accent)
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(recommendation.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(recommendation.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(recommendation.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("${recommendation.config.count} questões", style = MaterialTheme.typography.labelSmall, color = recommendation.accent, fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                    MetaPill("${recommendation.config.count} questões", recommendation.accent)
+                    Spacer(Modifier.width(6.dp))
+                    MetaPill("~${(recommendation.config.count * 1.5).toInt()} min", MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
-            FilledIconButton(onClick = onStart) { Icon(Icons.Outlined.PlayArrow, "Começar") }
+            Icon(Icons.AutoMirrored.Outlined.ArrowForward, "Começar", tint = MaterialTheme.colorScheme.outline)
         }
+    }
+}
+
+@Composable
+private fun MetaPill(text: String, color: Color) {
+    Surface(shape = RoundedCornerShape(50), color = color.copy(alpha = .1f)) {
+        Text(text, Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = color)
     }
 }

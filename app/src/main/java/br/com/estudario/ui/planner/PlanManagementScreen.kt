@@ -14,6 +14,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import br.com.estudario.ui.components.ConfirmDialog
 import br.com.estudario.domain.planner.PlanPriority
+import br.com.estudario.ui.components.ActionSheet
+import br.com.estudario.ui.components.SheetAction
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 
 /**
  * Excluir plano é a única ação daqui que não tem volta, então a conversa é direta: o que some, o
@@ -64,6 +70,7 @@ private fun ExcluirPlanoDialog(
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PlanManagementScreen(
     state: ActivePlanUiState,
@@ -83,9 +90,12 @@ fun PlanManagementScreen(
 ) {
     var confirm by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
     confirm?.let { (message, action) -> ConfirmDialog("Confirmar alteração", message, onDismiss = { confirm = null }, onConfirm = action) }
+    androidx.activity.compose.BackHandler(onBack = onBack)
 
     var excluir by remember { mutableStateOf<StudyPlanEntity?>(null) }
     var execucoes by remember { mutableStateOf<Int?>(null) }
+    var planMenu by remember { mutableStateOf<StudyPlanEntity?>(null) }
+    var subjectPriority by remember { mutableStateOf<Long?>(null) }
     LaunchedEffect(excluir?.id) {
         execucoes = excluir?.let { plano -> runCatching { executionCount(plano.id) }.getOrNull() }
     }
@@ -98,28 +108,133 @@ fun PlanManagementScreen(
             onConfirm = { excluir = null; onDelete(plano.id) },
         )
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Gerenciar planos", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); TextButton(onClick = onBack) { Text("Voltar") } } }
-        if (state.activePlan != null) item { ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text("Contexto compacto", fontWeight = FontWeight.Bold); Text("Somente planejamento, métricas e alertas, sem teorias ou enunciados.", style = MaterialTheme.typography.bodySmall); Row { TextButton(onClick = onContextJson) { Text("Exportar JSON") }; TextButton(onClick = onContextText) { Text("Exportar texto") } } } } }
-        if (state.activePlan != null) item { ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Disponibilidade e matérias", fontWeight = FontWeight.Bold); TextButton(onClick = onEditAvailability) { Text("Editar horas") } }
-            state.planSubjects.forEach { subject -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Column(Modifier.weight(1f)) { Text(subject.subjectNameSnapshot); Text(subject.priority.name, style = MaterialTheme.typography.labelSmall) }; TextButton(onClick = { val values = PlanPriority.entries; onUpdateSubject(subject.subjectId, values[(subject.priority.ordinal + 1) % values.size], subject.paused) }) { Text("Prioridade") }; Switch(subject.paused, { onUpdateSubject(subject.subjectId, subject.priority, it) }) } }
-        } } }
-        items(state.allPlans, key = { it.id }) { plan ->
-            ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Text(plan.name, fontWeight = FontWeight.Bold)
-                Text(listOfNotNull(if (plan.active) "Ativo" else null, if (plan.masterPlan) "Plano Mestre" else null, if (plan.archived) "Arquivado" else null).ifEmpty { listOf("Inativo") }.joinToString(" • "))
-                Text("Revisão ${plan.revision} • ${plan.objective}", style = MaterialTheme.typography.bodySmall)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (!plan.archived && !plan.active) TextButton(onClick = { confirm = "O plano ativo atual será desativado, sem apagar o histórico." to { onActivate(plan.id) } }) { Text("Ativar") }
-                    if (!plan.archived && !plan.masterPlan) TextButton(onClick = { confirm = "O Plano Mestre anterior será desmarcado, preservando todos os dados." to { onMaster(plan.id) } }) { Text("Tornar Mestre") }
-                    TextButton(onClick = { onDuplicate(plan.id, "${plan.name}, cópia") }) { Text("Duplicar") }
-                    TextButton(onClick = { onExport(plan) }) { Text("Exportar") }
-                    if (!plan.archived) TextButton(onClick = { confirm = "O plano ficará consultável, mas deixará de alimentar Hoje/Semana/Mês/Ano." to { onArchive(plan.id) } }) { Text("Arquivar") }
-                    else TextButton(onClick = { onRestore(plan.id) }) { Text("Restaurar") }
-                    TextButton(onClick = { excluir = plan }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Excluir") }
+    planMenu?.let { plan ->
+        ActionSheet(
+            title = plan.name,
+            subtitle = planStatus(plan),
+            actions = buildList {
+                if (!plan.archived && !plan.active) add(SheetAction(Icons.Outlined.PlayCircle, "Ativar este plano", "O ativo atual é desativado, sem apagar o histórico") { confirm = "O plano ativo atual será desativado, sem apagar o histórico." to { onActivate(plan.id) } })
+                if (!plan.archived && !plan.masterPlan) add(SheetAction(Icons.Outlined.Star, "Tornar Plano Mestre", "O plano de referência para o ano todo") { confirm = "O Plano Mestre anterior será desmarcado, preservando todos os dados." to { onMaster(plan.id) } })
+                add(SheetAction(Icons.Outlined.ContentCopy, "Duplicar", "Uma cópia para testar outra estratégia") { onDuplicate(plan.id, "${plan.name}, cópia") })
+                add(SheetAction(Icons.Outlined.IosShare, "Exportar arquivo .plano") { onExport(plan) })
+                if (!plan.archived) add(SheetAction(Icons.Outlined.Archive, "Arquivar", "Sai de Hoje/Semana/Mês/Ano; o histórico fica") { confirm = "O plano ficará consultável, mas deixará de alimentar Hoje/Semana/Mês/Ano." to { onArchive(plan.id) } })
+                else add(SheetAction(Icons.Outlined.Unarchive, "Restaurar") { onRestore(plan.id) })
+                add(SheetAction(Icons.Outlined.DeleteOutline, "Excluir plano", "Apaga o cronograma e as tarefas dele", destructive = true) { excluir = plan })
+            },
+            onDismiss = { planMenu = null },
+        )
+    }
+    subjectPriority?.let { id ->
+        val subject = state.planSubjects.firstOrNull { it.subjectId == id }
+        if (subject != null) ActionSheet(
+            title = subject.subjectNameSnapshot,
+            subtitle = "Prioridade no plano: ${priorityLabel(subject.priority)}",
+            actions = PlanPriority.entries.map { level ->
+                SheetAction(Icons.Outlined.Flag, priorityLabel(level), if (level == subject.priority) "Atual" else null) { onUpdateSubject(subject.subjectId, level, subject.paused) }
+            },
+            onDismiss = { subjectPriority = null },
+        )
+    }
+
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Voltar") }
+                Column(Modifier.weight(1f)) {
+                    Text("Meus planos", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text("Ajuste o plano ativo e organize os outros", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-            } }
+            }
+        }
+        state.activePlan?.let { active ->
+            item {
+                Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("PLANO ATIVO", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                        Text(active.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text(active.objective, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer, maxLines = 3)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilledTonalButton(onClick = onEditAvailability, shape = RoundedCornerShape(12.dp)) { Icon(Icons.Outlined.Schedule, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Horas por dia") }
+                            OutlinedButton(onClick = { planMenu = active }, shape = RoundedCornerShape(12.dp)) { Icon(Icons.Outlined.MoreHoriz, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Mais") }
+                        }
+                    }
+                }
+            }
+            if (state.planSubjects.isNotEmpty()) {
+                item { SectionLabel("Matérias no plano", "Toque para mudar a prioridade. Pausar tira a matéria do cronograma até você voltar.") }
+                item {
+                    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(vertical = 6.dp)) {
+                            state.planSubjects.forEachIndexed { index, subject ->
+                                if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .5f))
+                                Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(subject.subjectNameSnapshot, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = if (subject.paused) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+                                        Text(if (subject.paused) "Pausada" else "Prioridade ${priorityLabel(subject.priority).lowercase()}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    AssistChip(onClick = { subjectPriority = subject.subjectId }, label = { Text(priorityLabel(subject.priority)) }, leadingIcon = { Icon(Icons.Outlined.Flag, null, Modifier.size(16.dp)) }, enabled = !subject.paused)
+                                    Spacer(Modifier.width(8.dp))
+                                    Switch(!subject.paused, { onUpdateSubject(subject.subjectId, subject.priority, !it) })
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        val others = state.allPlans.filterNot { it.id == state.activePlan?.id }
+        if (others.isNotEmpty()) {
+            item { SectionLabel("Outros planos", null) }
+            items(others, key = { it.id }) { plan ->
+                Surface(
+                    onClick = { planMenu = plan },
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .6f)),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(42.dp)) {
+                            Box(contentAlignment = Alignment.Center) { Icon(if (plan.archived) Icons.Outlined.Archive else Icons.Outlined.CalendarMonth, null, tint = MaterialTheme.colorScheme.secondary) }
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(plan.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2)
+                            Text(planStatus(plan), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Icon(Icons.Outlined.MoreVert, "Ações do plano", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+        if (state.activePlan != null) item {
+            SectionLabel("Para a sua IA", "Resumo do plano (métricas e alertas, sem teoria) para pedir ajustes a outra IA.")
+        }
+        if (state.activePlan != null) item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(onClick = onContextText, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) { Text("Copiar texto") }
+                OutlinedButton(onClick = onContextJson, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) { Text("Exportar JSON") }
+            }
         }
     }
+}
+
+@Composable
+private fun SectionLabel(title: String, subtitle: String?) {
+    Column(Modifier.padding(top = 6.dp)) {
+        Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    }
+}
+
+private fun planStatus(plan: StudyPlanEntity): String =
+    listOfNotNull(if (plan.active) "Ativo" else null, if (plan.masterPlan) "Plano Mestre" else null, if (plan.archived) "Arquivado" else null)
+        .ifEmpty { listOf("Inativo") }.joinToString(" · ") + " · revisão ${plan.revision}"
+
+private fun priorityLabel(priority: PlanPriority): String = when (priority.name) {
+    "CRITICAL" -> "Crítica"
+    "HIGH" -> "Alta"
+    "MEDIUM" -> "Média"
+    "LOW" -> "Baixa"
+    else -> priority.name.lowercase().replaceFirstChar(Char::uppercase)
 }
