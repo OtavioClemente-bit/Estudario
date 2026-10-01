@@ -10,6 +10,8 @@ class AiSyllabusDraftValidationException(message: String) : IllegalArgumentExcep
 object AiSyllabusProposalValidator {
     const val MAX_TOPIC_DEPTH: Int = 32
     private const val MAX_NAME_LENGTH: Int = 200
+    // Descriptive warnings can explain several discrepancies and contain line breaks.
+    const val MAX_DESCRIPTION_LENGTH: Int = 8_000
 
     fun validateDraft(draft: AiSyllabusDraft): AiSyllabusDraft {
         if (draft.targetSyllabusId <= 0) fail("targetSyllabusId must be positive")
@@ -33,6 +35,7 @@ object AiSyllabusProposalValidator {
         if (!draft.warnings.containsAll(draft.proposal.warnings)) fail("warnings must retain the proposal warnings")
         if (!draft.ambiguities.containsAll(draft.proposal.ambiguities)) fail("ambiguities must retain the proposal ambiguities")
         validateWarnings(draft.warnings)
+        draft.ambiguities.forEachIndexed { index, text -> requireDescription(text, "ambiguities[$index]") }
         if (draft.ambiguities.any(String::isBlank) || draft.ambiguities.size != draft.ambiguities.toSet().size) {
             fail("ambiguities must be unique and non-empty")
         }
@@ -120,13 +123,16 @@ object AiSyllabusProposalValidator {
 
     private fun validateWarnings(warnings: List<AiWarning>) {
         warnings.forEachIndexed { index, warning ->
-            requireName(warning.message, "warnings[$index].message")
+            requireDescription(warning.message, "warnings[$index].message")
             requirePages(warning.sourcePages, "warnings[$index].sourcePages")
-            warning.ambiguity?.let { requireName(it, "warnings[$index].ambiguity") }
+            warning.ambiguity?.let { requireDescription(it, "warnings[$index].ambiguity") }
         }
     }
 
     private fun fail(message: String): Nothing = throw AiSyllabusDraftValidationException(message)
+    private fun requireDescription(value: String, path: String) {
+        if (value.isBlank() || value.length > MAX_DESCRIPTION_LENGTH || value.any { it.isISOControl() && it !in "\n\r\t" }) fail("$path: invalid description")
+    }
 
     private val SHA256 = Regex("[0-9a-fA-F]{64}")
 }

@@ -34,6 +34,10 @@ data class AiReviewTarget(
     val sourceName: String? = null,
     /** Respostas já dadas no assistente de edital; preenchem o formulário da IA do Estudário. */
     val preferences: AiSyllabusPreferences? = null,
+    val awaitingConfirmation: Boolean = sourceUri != null || preferences != null,
+    val snapshotPath: String? = null,
+    val sourceHash: String? = null,
+    val entryId: String = java.util.UUID.randomUUID().toString(),
 )
 
 data class AiReviewSource(val uri: String, val fileName: String?)
@@ -60,6 +64,12 @@ object AiReviewRecovery {
 
 sealed interface AiReviewContent {
     data object Gate : AiReviewContent
+    data object Preparing : AiReviewContent
+    data object Submitting : AiReviewContent
+    data class Confirmation(
+        val source: br.com.estudario.data.ai.PreparedSyllabusSource,
+        val preflight: br.com.estudario.data.ai.SyllabusPreflightResult,
+    ) : AiReviewContent
     data class Processing(
         val jobId: String,
         val idempotencyKey: String,

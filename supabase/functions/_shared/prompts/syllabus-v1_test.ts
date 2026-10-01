@@ -1,9 +1,41 @@
-import { assert, assertEquals, assertStringIncludes } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { parseSyllabusGenerationOptions, syllabusUserPrompt } from "./syllabus-v1.ts";
+import {
+  assert,
+  assertEquals,
+  assertStringIncludes,
+} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import {
+  parseSyllabusGenerationOptions,
+  SYLLABUS_SYSTEM_PROMPT,
+  syllabusUserPrompt,
+} from "./syllabus-v1.ts";
+
+Deno.test("syllabus source remains authoritative even when user context conflicts", () => {
+  assertStringIncludes(SYLLABUS_SYSTEM_PROMPT, "sole authoritative source");
+  assertStringIncludes(SYLLABUS_SYSTEM_PROMPT, "Do not search the web");
+  assertStringIncludes(SYLLABUS_SYSTEM_PROMPT, "DOCUMENT_MISMATCH");
+  assertStringIncludes(
+    SYLLABUS_SYSTEM_PROMPT,
+    "refuse extraction rather than inventing placeholders",
+  );
+  const options = parseSyllabusGenerationOptions({
+    competitionName: "TRT 3 REGIAO TI",
+    role: "Soldado",
+  });
+  assertStringIncludes(
+    syllabusUserPrompt(options),
+    "never infer missing subjects",
+  );
+});
 
 Deno.test("syllabus options require competition and role", () => {
-  assertEquals(parseSyllabusGenerationOptions({ competitionName: "TRT-3", role: "" }), null);
-  assertEquals(parseSyllabusGenerationOptions({ competitionName: "", role: "Analista" }), null);
+  assertEquals(
+    parseSyllabusGenerationOptions({ competitionName: "TRT-3", role: "" }),
+    null,
+  );
+  assertEquals(
+    parseSyllabusGenerationOptions({ competitionName: "", role: "Analista" }),
+    null,
+  );
   assertEquals(parseSyllabusGenerationOptions("x"), null);
 });
 

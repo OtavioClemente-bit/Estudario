@@ -33,7 +33,7 @@ object EditalPdfText {
         result
     }
 
-    private fun pages(bytes: ByteArray): List<String> = PDDocument.load(bytes).use { document ->
+    internal fun pages(bytes: ByteArray): List<String> = PDDocument.load(bytes).use { document ->
         val stripper = PDFTextStripper()
         (1..document.numberOfPages).map { page ->
             stripper.startPage = page

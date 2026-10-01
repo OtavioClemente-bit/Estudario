@@ -77,6 +77,7 @@ class EstudarioApplication : Application() {
             accessTokenProvider = SupabaseAiTokenProvider(supabaseAuthRepository),
             sourceSnapshots = FilePdfSourceSnapshotStore(File(filesDir, "ai-syllabus-sources")),
             userIdProvider = { supabaseAuthRepository.currentUserId() },
+            scheduleRecovery = { AiJobRecoveryWorker.enqueue(this, ensureFollowUp = true) },
         )
     }
     /** Conteúdo de tópico e plano pela IA do Estudário: mesma função e mesmo login do edital. */

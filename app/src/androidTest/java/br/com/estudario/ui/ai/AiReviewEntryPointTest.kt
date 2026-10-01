@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import br.com.estudario.data.ai.AiFeature
 import br.com.estudario.data.ai.AiJob
@@ -24,7 +25,7 @@ class AiReviewEntryPointTest {
     @get:Rule val compose = createComposeRule()
 
     @Test
-    fun productionEntryPointPickerCallbackPersistsPermissionBeforeStartingJob() {
+    fun productionEntryPointPickerPreparesLocallyAndWaitsForExplicitConfirmation() {
         val picker = CapturingPdfPicker()
         val permission = RecordingPermission()
         val jobs = RecordingJobs()
@@ -44,8 +45,11 @@ class AiReviewEntryPointTest {
         }
         compose.waitUntil { viewModel.state.value.access.kind == AiReviewAccessKind.READY }
         compose.onNodeWithTag("ai_pref_role").performTextInput("Analista")
-        compose.onNodeWithText("Selecionar PDF do edital").performClick()
+        compose.onNodeWithText("Selecionar PDF do edital").performScrollTo().performClick()
         picker.resultCallback!!.invoke(selectedUri)
+        compose.waitUntil { viewModel.state.value.content is AiReviewContent.Confirmation }
+        assertTrue(jobs.startedUris.isEmpty())
+        compose.onNodeWithTag("ai_confirm_generation").performClick()
         compose.waitUntil { jobs.startedUris.size == 1 }
 
         assertEquals(listOf(selectedUri), permission.persistedUris)
@@ -72,7 +76,7 @@ class AiReviewEntryPointTest {
         }
         compose.waitUntil { viewModel.state.value.access.kind == AiReviewAccessKind.READY }
         compose.onNodeWithTag("ai_pref_role").performTextInput("Analista")
-        compose.onNodeWithText("Selecionar PDF do edital").performClick()
+        compose.onNodeWithText("Selecionar PDF do edital").performScrollTo().performClick()
         picker.resultCallback!!.invoke(Uri.parse("content://provider/edital.pdf"))
         compose.waitUntil { permission.persistedUris.size == 1 }
 
@@ -127,6 +131,7 @@ class AiReviewEntryPointTest {
     }
 
     private class RecordingJobs : AiReviewJobs {
+        override suspend fun prepare(target: AiReviewTarget) = preparedFixture(target)
         val startedUris = mutableListOf<String>()
         override suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted {
             startedUris += uri

@@ -44,14 +44,14 @@ class AiJobRecoveryWorker(
 
         fun shouldRetry(runAttemptCount: Int): Boolean = runAttemptCount < MAX_ATTEMPTS - 1
 
-        fun enqueue(context: Context) {
+        fun enqueue(context: Context, ensureFollowUp: Boolean = false) {
             val request = OneTimeWorkRequestBuilder<AiJobRecoveryWorker>()
                 .setConstraints(recoveryConstraints())
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, BACKOFF_SECONDS, TimeUnit.SECONDS)
                 .build()
             WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
                 UNIQUE_WORK_NAME,
-                ExistingWorkPolicy.KEEP,
+                if (ensureFollowUp) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.KEEP,
                 request,
             )
         }

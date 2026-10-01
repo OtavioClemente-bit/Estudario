@@ -103,17 +103,17 @@ class AiJobRecoveryWorkerTest {
 
         val first = AiJobRecoveryWorker(Application(), workerParameters(), repository).doWork()
         assertEquals(androidx.work.ListenableWorker.Result.retry(), first)
-        assertEquals(AiJobStatus.PROCESSING.name, store.value.status)
+        assertEquals(AiJobStatus.RESERVED.name, store.value.status)
         assertEquals("job-stable", store.value.jobId)
 
         val second = AiJobRecoveryWorker(Application(), workerParameters(), repository).doWork()
 
         assertEquals(androidx.work.ListenableWorker.Result.success(), second)
         assertEquals(1, api.processCalls)
-        assertEquals(1, api.awaitCalls)
+        assertEquals(0, api.awaitCalls)
         assertEquals(1, api.idempotencyKeys.distinct().size)
         assertEquals(listOf("job-stable"), api.processedJobIds)
-        assertEquals(listOf("job-stable"), api.awaitedJobIds)
+        assertTrue(api.awaitedJobIds.isEmpty())
     }
 
     private fun workerParameters(): WorkerParameters = WorkerParameters(

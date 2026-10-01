@@ -83,8 +83,8 @@ class AiReviewScreenTest {
             }
         }
 
-        compose.onNodeWithText("Configure a geração").assertIsDisplayed()
-        compose.onNodeWithText("Selecionar PDF do edital").performClick()
+        compose.onNodeWithText("Pronto para analisar o edital").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Selecionar PDF do edital").performScrollTo().performClick()
         compose.runOnIdle { assertTrue(picked) }
     }
 

@@ -70,7 +70,7 @@ class AiReviewDurableRecoveryTest {
 
         try {
             await { firstViewModel.state.value.access.kind == AiReviewAccessKind.READY }
-            firstViewModel.provideSource("content://fixture/edital.pdf", "edital.pdf")
+            generate(firstViewModel, "content://fixture/edital.pdf", "edital.pdf")
             awaitSuspend {
                 sessions.load(42L, TEST_USER)?.jobId == "job-1" &&
                     requestStore.list().singleOrNull()?.status == AiJobStatus.PROCESSING.name
@@ -91,7 +91,7 @@ class AiReviewDurableRecoveryTest {
                     appliedResult(targetId, jobId)
                 },
             )
-            await { recreatedViewModel.state.value.content is AiReviewContent.Applied }
+            await { recreatedViewModel.state.value.content is AiReviewContent.Review }
 
             val persisted = requestStore.list().single()
             assertEquals("job-1", persisted.jobId)
@@ -100,8 +100,8 @@ class AiReviewDurableRecoveryTest {
             assertEquals(1, firstTransport.createdJobIds.distinct().size)
             assertTrue(secondTransport.createRequests.isEmpty())
             assertEquals("job-1", sessions.load(42L, TEST_USER)?.jobId)
-            assertEquals(true, sessions.load(42L, TEST_USER)?.applied)
-            assertEquals(1, autoApplyCalls)
+            assertEquals(false, sessions.load(42L, TEST_USER)?.applied)
+            assertEquals(0, autoApplyCalls)
         } finally {
             firstTransport.releaseProcess.complete(Unit)
             dataStoreScope.cancel()
@@ -154,13 +154,13 @@ class AiReviewDurableRecoveryTest {
                 },
             )
 
-            await { viewModel.state.value.content is AiReviewContent.Applied }
+            await { viewModel.state.value.content is AiReviewContent.Review }
 
             assertTrue(transport.createRequests.isEmpty())
             assertEquals("job-1", requestStore.list().single().jobId)
             assertEquals("same-idempotency-key", sessions.load(42L, TEST_USER)?.idempotencyKey)
-            assertEquals(true, sessions.load(42L, TEST_USER)?.applied)
-            assertEquals(1, autoApplyCalls)
+            assertEquals(false, sessions.load(42L, TEST_USER)?.applied)
+            assertEquals(0, autoApplyCalls)
         } finally {
             dataStoreScope.cancel()
             file.delete()
@@ -210,7 +210,7 @@ class AiReviewDurableRecoveryTest {
             }
 
             assertEquals(null, targets.load("user-a"))
-            assertEquals(AiReviewTarget(42L, "TRT-3", "content://legacy", "edital.pdf"), targets.loadUnownedLegacy())
+            assertEquals("content://legacy", targets.loadUnownedLegacy()?.sourceUri)
         } finally {
             dataStoreScope.cancel()
             file.delete()
@@ -242,7 +242,7 @@ class AiReviewDurableRecoveryTest {
                 database = database,
             )
             await { firstViewModel.state.value.access.kind == AiReviewAccessKind.READY }
-            firstViewModel.start("content://fixture/applied.pdf", "applied.pdf")
+            generate(firstViewModel, "content://fixture/applied.pdf", "applied.pdf")
             await { firstViewModel.state.value.content is AiReviewContent.Review }
 
             val review = firstViewModel.state.value.content as AiReviewContent.Review
@@ -330,7 +330,7 @@ class AiReviewDurableRecoveryTest {
             )
 
             await { firstViewModel.state.value.access.kind == AiReviewAccessKind.READY }
-            firstViewModel.start("content://fixture/applied.pdf", "applied.pdf")
+            generate(firstViewModel, "content://fixture/applied.pdf", "applied.pdf")
             await { firstViewModel.state.value.content is AiReviewContent.Review }
             firstViewModel.apply()
             await { firstViewModel.state.value.content == AiReviewContent.Applied(RemoteSyllabusSyncState.PENDING) }
@@ -385,7 +385,7 @@ class AiReviewDurableRecoveryTest {
 
         try {
             await { firstViewModel.state.value.access.kind == AiReviewAccessKind.READY }
-            firstViewModel.provideSource("content://fixture/edital.pdf", "edital.pdf")
+            generate(firstViewModel, "content://fixture/edital.pdf", "edital.pdf")
             await { firstViewModel.state.value.content is AiReviewContent.Processing }
 
             val persisted = requestStore.list().single()
@@ -399,16 +399,16 @@ class AiReviewDurableRecoveryTest {
             val secondTransport = ScriptedTransport(phase = Phase.RECOVER)
             val secondJobs = DefaultAiReviewJobs(repository(secondTransport, requestStore, snapshots), requestStore) { TEST_USER }
             val recreatedViewModel = createViewModel(context, secondJobs, sessions, targetStore)
-            await { recreatedViewModel.state.value.content is AiReviewContent.Applied }
+            await { recreatedViewModel.state.value.content is AiReviewContent.Review }
 
             val allCreateHeaders = (firstTransport.createRequests + secondTransport.createRequests)
                 .map { it.headers["Idempotency-Key"] }
-            assertEquals(3, allCreateHeaders.size)
+            assertEquals(2, allCreateHeaders.size)
             assertEquals(setOf(persisted.idempotencyKey), allCreateHeaders.toSet())
             assertEquals(setOf("job-1"), (firstTransport.createdJobIds + secondTransport.createdJobIds).toSet())
             assertEquals(1, requestStore.list().size)
             assertEquals(AiJobStatus.SUCCEEDED.name, requestStore.list().single().status)
-            assertEquals(true, sessions.load(42L, TEST_USER)?.applied)
+            assertEquals(false, sessions.load(42L, TEST_USER)?.applied)
         } finally {
             dataStoreScope.cancel()
             file.delete()
@@ -436,6 +436,13 @@ class AiReviewDurableRecoveryTest {
         syncPollDelayMillis = 1L,
         userIdProvider = { TEST_USER },
     )
+
+    private fun generate(viewModel: AiReviewViewModel, uri: String, name: String) {
+        viewModel.updatePreferences(br.com.estudario.data.ai.AiSyllabusPreferences("TRT-3", "Analista"))
+        viewModel.start(uri, name)
+        await { viewModel.state.value.content is AiReviewContent.Confirmation }
+        viewModel.confirmGeneration()
+    }
 
     private fun repository(
         transport: AiHttpTransport,
@@ -481,6 +488,7 @@ class AiReviewDurableRecoveryTest {
     )
 
     private class PersistedAppliedTestJobs : AiReviewJobs {
+        override suspend fun prepare(target: AiReviewTarget) = preparedFixture(target)
         var recoverCalls = 0
 
         override suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted = started()
@@ -573,7 +581,7 @@ class AiReviewDurableRecoveryTest {
                 }
                 return AiHttpResponse(
                     status = 201,
-                    body = """{"jobId":"job-1","status":"${if (phase == Phase.RECOVER) "PROCESSING" else "RESERVED"}","uploadPath":"user/job-1.pdf","sourceBound":${phase == Phase.RECOVER}}""",
+                    body = """{"jobId":"job-1","status":"${if (phase == Phase.RECOVER) "PROCESSING" else "RESERVED"}","uploadPath":"user/job-1.pdf","sourceBound":${phase == Phase.RECOVER || org.json.JSONObject(request.body?.toString(Charsets.UTF_8) ?: "{}").getJSONObject("source").optBoolean("ready")}}""",
                 )
             }
             if (request.method == "POST" && request.path.startsWith("/storage/v1/object/")) {

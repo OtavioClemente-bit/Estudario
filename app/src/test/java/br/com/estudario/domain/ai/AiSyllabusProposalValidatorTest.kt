@@ -12,6 +12,28 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AiSyllabusProposalValidatorTest {
+    @Test fun `descriptive warning text still rejects unsafe and excessive values`() {
+        for (message in listOf("", "invalid\u0000text", "x".repeat(AiSyllabusProposalValidator.MAX_DESCRIPTION_LENGTH + 1))) {
+            val warning = AiWarning(AiWarningCode.DOCUMENT_MISMATCH, AiWarningSeverity.WARNING, message, listOf(1), null)
+            val error = runCatching { AiSyllabusProposalValidator.validateDraft(AiSyllabusDraft.fromProposal(7L, "PMMG", proposal(warnings = listOf(warning)))) }.exceptionOrNull()
+            assertTrue(error is AiSyllabusDraftValidationException)
+        }
+    }
+
+    @Test fun `long descriptive mismatch warning does not prevent official application`() {
+        for (severity in listOf(AiWarningSeverity.INFO, AiWarningSeverity.WARNING)) {
+            val warning = AiWarning(
+                AiWarningCode.DOCUMENT_MISMATCH, severity,
+                "O documento enviado corresponde a outro concurso. Confira a instituição e o cargo antes de usar este edital. ".repeat(4),
+                listOf(1), "A identificação na capa diverge do contexto informado. ".repeat(6),
+            )
+            val reviewed = AiSyllabusDraft.fromProposal(7L, "PMMG", proposal(warnings = listOf(warning)))
+            val parsed = br.com.estudario.data.transfer.EstudoPackageParser.parse(AiSyllabusToEstudoMapper.toOfficialPackage(reviewed))
+            assertEquals(warning.message.trim(), parsed.warnings.single().message)
+            assertEquals("PMMG", parsed.competitionName)
+        }
+    }
+
     @Test fun `rejects blank and control-character names`() {
         val draft = draft(subjects = listOf(subject(name = "\u0000")))
 

@@ -11,6 +11,98 @@ import org.junit.Test
 
 class AiSyllabusRepositoryTest {
     @Test
+    fun localPreparationHasNoAuthJobUploadOrQuotaSideEffects() = runTest {
+        val api = FakeAiApiClient()
+        val store = InMemoryAiJobRequestStore()
+        val repository = DefaultAiSyllabusRepository(api, PdfSourceReader(CountingPdfSourceProvider()), store, AiAccessTokenProvider { null }, sourceSnapshots = InMemoryPdfSourceSnapshotStore())
+        val prepared = repository.prepare("content://local", "local.pdf")
+        assertTrue(prepared.sha256.isNotBlank())
+        assertTrue(store.list().isEmpty())
+        assertEquals(0, api.createCalls)
+        assertEquals(0, api.uploadCalls)
+        assertTrue(api.processedJobIds.isEmpty())
+    }
+
+    @Test
+    fun recoveryIsScheduledAfterDurableSaveEvenWhenUiCallbackIsInterrupted() = runTest {
+        val api = FakeAiApiClient()
+        val store = InMemoryAiJobRequestStore()
+        var scheduled = 0
+        val repository = DefaultAiSyllabusRepository(api, PdfSourceReader(CountingPdfSourceProvider()), store, AiAccessTokenProvider { "jwt" }, sourceSnapshots = InMemoryPdfSourceSnapshotStore(), userIdProvider = { "user-test" }, scheduleRecovery = { scheduled++ })
+        assertTrue(runCatching {
+            repository.start("content://edital") {
+                assertEquals(1, store.list().size)
+                assertEquals(1, scheduled)
+                throw kotlinx.coroutines.CancellationException("screen destroyed")
+            }
+        }.isFailure)
+        assertEquals(1, scheduled)
+        repository.recover(store.list().single().requestId)
+        assertEquals(1, api.processedJobIds.size)
+        assertEquals(1, api.idempotencyKeys.distinct().size)
+    }
+
+    @Test
+    fun repeatedConfirmationKeepsOneRequestAndExplicitContext() = runTest {
+        val api = FakeAiApiClient(nextJob = fakeJob(AiJobStatus.SUCCEEDED))
+        val store = InMemoryAiJobRequestStore()
+        val repository = repository(api, store)
+        val source = repository.prepare("content://pmmg", "pmmg.pdf")
+        val preferences = AiSyllabusPreferences("PMMG", "SOLDADO")
+        repository.startPrepared(source, 42, "PMMG", preferences)
+        repository.startPrepared(source, 42, "PMMG", preferences)
+        assertEquals(1, store.list().size)
+        assertEquals(1, api.idempotencyKeys.distinct().size)
+        assertEquals(1, api.processedJobIds.size)
+        assertEquals(preferences, store.list().single().preferences)
+    }
+
+    @Test
+    fun confirmationUsesCheckedSnapshotAndReplacementGetsNewHashAndKey() = runTest {
+        val api = StatefulFakeAiApiClient(nextJob = fakeJob(AiJobStatus.SUCCEEDED))
+        val provider = MutablePdfSourceProvider()
+        val store = InMemoryAiJobRequestStore()
+        val repository = repository(api, store, provider)
+        val original = repository.prepare("content://edital", "edital.pdf")
+        provider.bytes = "%PDF-replacement".toByteArray()
+        repository.startPrepared(original, 42, "PMMG", AiSyllabusPreferences("PMMG", "SOLDADO"))
+        assertEquals(original.sha256, store.list().single().sourceHash)
+        assertEquals(1, provider.opens)
+        val replacement = repository.prepare("content://edital", "edital.pdf")
+        repository.startPrepared(replacement, 42, "PMMG", AiSyllabusPreferences("PMMG", "SOLDADO"))
+        assertNotEquals(original.sha256, replacement.sha256)
+        assertNotEquals(original.attemptId, replacement.attemptId)
+        assertEquals(2, store.list().map { it.idempotencyKey }.distinct().size)
+        assertEquals(2, api.uniqueJobIds.size)
+    }
+
+    @Test
+    fun processTimeoutKeepsReservedUntilServerConfirmsProcessing() = runTest {
+        val api = StatefulFakeAiApiClient()
+        api.processFailure = AiProcessTimeoutException("stateful-job-1")
+        val store = InMemoryAiJobRequestStore()
+        val repository = repository(api, store)
+        assertTrue(runCatching { repository.start("content://edital") }.isFailure)
+        assertEquals(AiJobStatus.RESERVED.name, store.list().single().status)
+        assertTrue(store.list().single().sourceUploaded)
+    }
+    @Test
+    fun reservedServerJobIsProcessedEvenWhenLocalStatusSaysProcessing() = runTest {
+        val api = FakeAiApiClient(nextJob = fakeJob(AiJobStatus.RESERVED))
+        val store = InMemoryAiJobRequestStore()
+        val repository = repository(api, store)
+        repository.start("content://edital", "edital.pdf")
+        val saved = store.values.values.single()
+        store.save(saved.copy(status = AiJobStatus.PROCESSING.name))
+        api.processedJobIds.clear()
+
+        repository.recover(saved.requestId)
+
+        assertEquals(listOf("job-1"), api.processedJobIds)
+        assertEquals(saved.idempotencyKey, store.values.values.single().idempotencyKey)
+    }
+
+    @Test
     fun requestContextIsPersistedBeforeAnyRemoteJobCall() = runTest {
         val api = FakeAiApiClient()
         val store = InMemoryAiJobRequestStore()
@@ -202,6 +294,7 @@ class AiSyllabusRepositoryTest {
     @Test
     fun recoveryAfterUploadTimeoutResumesUploadAndProcessingWithSameJob() = runTest {
         val api = FakeAiApiClient()
+        api.visibleStatus = AiJobStatus.RESERVED
         api.uploadFailure = true
         val store = InMemoryAiJobRequestStore()
         val repository = repository(api, store)
@@ -417,6 +510,7 @@ private class FakeAiApiClient(
     var createCalls = 0
     var uploadCalls = 0
     var getJobCalls = 0
+    var visibleStatus: AiJobStatus? = null
     private var existingJobId: String? = null
     val idempotencyKeys = mutableListOf<String>()
     val awaitedJobIds = mutableListOf<String>()
@@ -446,7 +540,7 @@ private class FakeAiApiClient(
 
     override suspend fun getJob(jobId: String, timeoutMillis: Long?): AiJob {
         getJobCalls += 1
-        return nextJob.copy(jobId = jobId)
+        return nextJob.copy(jobId = jobId, status = visibleStatus ?: nextJob.status)
     }
 
     override suspend fun awaitJob(

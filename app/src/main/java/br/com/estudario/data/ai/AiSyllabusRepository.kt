@@ -8,6 +8,12 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import br.com.estudario.data.remote.AiAccessTokenProvider
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -84,7 +90,38 @@ class DefaultAiSyllabusRepository(
     private val pollingPolicy: AiPollingPolicy = AiPollingPolicy(),
     private val sourceSnapshots: PdfSourceSnapshotStore,
     private val userIdProvider: () -> String? = { null },
+    private val scheduleRecovery: () -> Unit = {},
 ) : AiJobRecoveryRepository {
+    /** Local IO only: no authentication, job, upload or quota reservation. */
+    suspend fun prepare(
+        uri: String,
+        fileName: String? = null,
+        snapshotPath: String? = null,
+        expectedHash: String? = null,
+        attemptId: String? = null,
+    ): PreparedSyllabusSource = withContext(Dispatchers.IO) {
+        val source = if (snapshotPath == null) sourceReader.read(uri, fileName)
+            else sourceSnapshots.read(snapshotPath, fileName ?: "edital.pdf")
+        if (expectedHash != null && source.sha256 != expectedHash) throw PdfSourceChangedException(expectedHash, source.sha256)
+        val path = snapshotPath ?: sourceSnapshots.save(source)
+        val pages = runCatching { EditalPdfText.pages(source.bytes) }.getOrDefault(emptyList())
+        PreparedSyllabusSource(uri, source.fileName, path, source.sha256, source.bytes.size.toLong(), pages, attemptId ?: UUID.randomUUID().toString())
+    }
+
+    /** Called by the explicit confirmation action, with the exact bytes checked locally. */
+    suspend fun startPrepared(
+        prepared: PreparedSyllabusSource,
+        targetSyllabusId: Long,
+        targetTitle: String,
+        preferences: AiSyllabusPreferences,
+        onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit = {},
+    ): AiJob {
+        require(preferences.isComplete && prepared.preflight(preferences).canGenerate)
+        val source = withContext(Dispatchers.IO) { sourceSnapshots.read(prepared.snapshotPath, prepared.fileName) }
+        if (source.sha256 != prepared.sha256 || source.bytes.size.toLong() != prepared.sizeBytes) throw PdfSourceChangedException(prepared.sha256, source.sha256)
+        return startSource(source.copy(uri = prepared.uri), prepared.snapshotPath, targetSyllabusId, targetTitle, preferences, onRequestPersisted, prepared.attemptId)
+    }
+
     suspend fun start(
         uri: String,
         fileName: String? = null,
@@ -93,12 +130,25 @@ class DefaultAiSyllabusRepository(
         preferences: AiSyllabusPreferences? = null,
         onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit = {},
     ): AiJob {
+        requireAuthenticatedUser()
+        val source = withContext(Dispatchers.IO) { sourceReader.read(uri, fileName) }
+        val sourcePath = withContext(Dispatchers.IO) { sourceSnapshots.save(source) }
+        return startSource(source, sourcePath, targetSyllabusId, targetTitle, preferences, onRequestPersisted)
+    }
+
+    private suspend fun startSource(
+        source: PdfSource,
+        sourcePath: String,
+        targetSyllabusId: Long?,
+        targetTitle: String?,
+        preferences: AiSyllabusPreferences?,
+        onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit,
+        confirmedAttemptId: String? = null,
+    ): AiJob {
         val ownerUserId = requireAuthenticatedUser()
-        val source = sourceReader.read(uri, fileName)
-        val sourcePath = sourceSnapshots.save(source)
         val request = PersistedAiJobRequest(
-            requestId = UUID.randomUUID().toString(),
-            idempotencyKey = UUID.randomUUID().toString(),
+            requestId = confirmedAttemptId ?: UUID.randomUUID().toString(),
+            idempotencyKey = confirmedAttemptId ?: UUID.randomUUID().toString(),
             sourceUri = source.uri,
             fileName = source.fileName,
             mimeType = source.mimeType,
@@ -110,20 +160,32 @@ class DefaultAiSyllabusRepository(
             targetTitle = targetTitle,
             preferences = preferences,
         )
-        requestStore.save(request)
-        onRequestPersisted(request)
-        return continueRequest(request, source, onRequestPersisted)
+        return requestLock(request.requestId).withLock {
+            if (requestStore.get(request.requestId) != null) return@withLock recoverLocked(request.requestId, onRequestPersisted)
+            requestStore.save(request)
+            scheduleRecovery()
+            onRequestPersisted(request)
+            continueRequest(request, source, onRequestPersisted)
+        }
     }
 
     suspend fun recover(
         requestId: String,
         onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit = {},
-    ): AiJob {
+    ): AiJob = requestLock(requestId).withLock { recoverLocked(requestId, onRequestPersisted) }
+
+    private suspend fun recoverLocked(requestId: String, onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit): AiJob {
         requireAuthenticated()
         val stored = requestStore.get(requestId) ?: throw IllegalArgumentException("AI request not found.")
         requireOwnedByCurrentUser(stored)
-        stored.jobId?.takeIf { stored.status != AiJobStatus.RESERVED.name }?.let { jobId ->
-            return awaitExisting(stored, jobId, onRequestPersisted)
+        stored.jobId?.let { jobId ->
+            val visible = api.getJob(jobId)
+            require(visible.jobId == jobId && visible.feature == AiFeature.SYLLABUS_GENERATION)
+            val refreshed = stored.copy(status = visible.status.name, updatedAtEpochMillis = System.currentTimeMillis())
+            requestStore.save(refreshed)
+            onRequestPersisted(refreshed)
+            if (visible.status.name in TERMINAL_STATUSES) return visible
+            if (visible.status == AiJobStatus.PROCESSING) return awaitExisting(refreshed, jobId, onRequestPersisted)
         }
         val (request, source) = durableSource(stored)
         return continueRequest(request, source, onRequestPersisted)
@@ -132,7 +194,9 @@ class DefaultAiSyllabusRepository(
     suspend fun retryFailed(
         requestId: String,
         onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit = {},
-    ): AiJob {
+    ): AiJob = requestLock(requestId).withLock { retryFailedLocked(requestId, onRequestPersisted) }
+
+    private suspend fun retryFailedLocked(requestId: String, onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit): AiJob {
         requireAuthenticated()
         val previous = requestStore.get(requestId) ?: throw IllegalArgumentException("AI request not found.")
         requireOwnedByCurrentUser(previous)
@@ -145,6 +209,7 @@ class DefaultAiSyllabusRepository(
             idempotencyKey = UUID.randomUUID().toString(),
             jobId = null,
             uploadPath = null,
+            sourceUploaded = false,
             status = null,
             sourceHash = source.sha256,
             sourceBytes = source.bytes.size.toLong(),
@@ -152,6 +217,7 @@ class DefaultAiSyllabusRepository(
             updatedAtEpochMillis = System.currentTimeMillis(),
         )
         requestStore.save(retry)
+        scheduleRecovery()
         onRequestPersisted(retry)
         return continueRequest(retry, source, onRequestPersisted)
     }
@@ -160,15 +226,15 @@ class DefaultAiSyllabusRepository(
     suspend fun resumeOrRetry(
         requestId: String,
         onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit = {},
-    ): AiJob {
+    ): AiJob = requestLock(requestId).withLock {
         requireAuthenticated()
         val request = requestStore.get(requestId) ?: throw IllegalArgumentException("AI request not found.")
         requireOwnedByCurrentUser(request)
         val status = request.status?.let { runCatching { AiJobStatus.valueOf(it) }.getOrNull() }
-        return if (status in RETRYABLE_TERMINAL_STATUSES) {
-            retryFailed(requestId, onRequestPersisted)
+        if (status in RETRYABLE_TERMINAL_STATUSES) {
+            retryFailedLocked(requestId, onRequestPersisted)
         } else {
-            recover(requestId, onRequestPersisted)
+            recoverLocked(requestId, onRequestPersisted)
         }
     }
 
@@ -203,25 +269,27 @@ class DefaultAiSyllabusRepository(
         )
         requestStore.save(adopted)
         onRequestPersisted(adopted)
-        return visibleJob
+        return if (visibleJob.status == AiJobStatus.RESERVED) recover(request.requestId, onRequestPersisted) else visibleJob
     }
 
     override suspend fun recoverPendingJobs(): List<AiJob> = buildList {
         val ownerUserId = requireAuthenticatedUser()
+        var firstFailure: Throwable? = null
         requestStore.list()
             .filter { it.ownerUserId == ownerUserId }
             .filter { it.status !in setOf(AiJobStatus.SUCCEEDED.name, AiJobStatus.FAILED.name, AiJobStatus.EXPIRED.name, AiJobStatus.CANCELLED.name) }
             .forEach { request ->
-                val (durableRequest, source) = durableSource(request)
-                if (durableRequest.jobId != null && durableRequest.status != AiJobStatus.RESERVED.name) {
-                    add(awaitExisting(durableRequest, durableRequest.jobId))
-                } else {
-                    add(continueRequest(durableRequest, source))
+                try {
+                    add(recover(request.requestId))
+                } catch (error: Throwable) {
+                    if (error is CancellationException) throw error
+                    if (firstFailure == null) firstFailure = error
                 }
             }
+        firstFailure?.let { throw it }
     }
 
-    private suspend fun durableSource(request: PersistedAiJobRequest): Pair<PersistedAiJobRequest, PdfSource> {
+    private suspend fun durableSource(request: PersistedAiJobRequest): Pair<PersistedAiJobRequest, PdfSource> = withContext(Dispatchers.IO) {
         val path = request.sourcePath
         val (durableRequest, source) = if (path == null) {
             val read = sourceReader.read(request.sourceUri, request.fileName)
@@ -235,7 +303,7 @@ class DefaultAiSyllabusRepository(
         if (source.mimeType != request.mimeType || source.bytes.size.toLong() != request.sourceBytes || source.sha256 != request.sourceHash) {
             throw PdfSourceChangedException(request.sourceHash, source.sha256)
         }
-        return durableRequest to source
+        durableRequest to source
     }
 
     private suspend fun continueRequest(
@@ -263,6 +331,9 @@ class DefaultAiSyllabusRepository(
         requestStore.save(current)
         onRequestPersisted(current)
 
+        if (created.status.name in TERMINAL_STATUSES || created.status == AiJobStatus.PROCESSING) {
+            return awaitExisting(current, created.jobId, onRequestPersisted)
+        }
         if (!created.sourceBound) {
             api.uploadSource(created.uploadTarget, source)
             current = current.copy(sourceUploaded = true, updatedAtEpochMillis = System.currentTimeMillis())
@@ -274,6 +345,8 @@ class DefaultAiSyllabusRepository(
                 sourceReady = true,
                 preferences = current.preferences,
             )
+            check(bound.sourceBound) { "AI source binding was not confirmed." }
+            check(bound.jobId == created.jobId) { "AI source binding changed job identity." }
             current = current.copy(
                 jobId = bound.jobId,
                 uploadPath = bound.uploadTarget.path,
@@ -284,7 +357,7 @@ class DefaultAiSyllabusRepository(
             requestStore.save(current)
             onRequestPersisted(current)
         }
-        if (current.status in TERMINAL_STATUSES) {
+        if (current.status in TERMINAL_STATUSES || current.status == AiJobStatus.PROCESSING.name) {
             return awaitExisting(current, current.jobId ?: error("AI job id is missing."), onRequestPersisted)
         }
         return processAndAwait(current, onRequestPersisted)
@@ -295,18 +368,11 @@ class DefaultAiSyllabusRepository(
         onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit,
     ): AiJob {
         val jobId = request.jobId ?: error("AI job id must be persisted before processing.")
-        try {
-            val acceptedStatus = api.processJob(jobId)
-            val processing = request.copy(status = acceptedStatus.name, updatedAtEpochMillis = System.currentTimeMillis())
-            requestStore.save(processing)
-            onRequestPersisted(processing)
-            return awaitExisting(processing, jobId, onRequestPersisted)
-        } catch (error: AiProcessTimeoutException) {
-            val pending = request.copy(jobId = jobId, status = AiJobStatus.PROCESSING.name, updatedAtEpochMillis = System.currentTimeMillis())
-            requestStore.save(pending)
-            onRequestPersisted(pending)
-            throw error
-        }
+        val acceptedStatus = api.processJob(jobId)
+        val processing = request.copy(status = acceptedStatus.name, updatedAtEpochMillis = System.currentTimeMillis())
+        requestStore.save(processing)
+        onRequestPersisted(processing)
+        return awaitExisting(processing, jobId, onRequestPersisted)
     }
 
     private suspend fun awaitExisting(
@@ -314,18 +380,11 @@ class DefaultAiSyllabusRepository(
         jobId: String,
         onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit = {},
     ): AiJob {
-        return try {
-            val job = api.awaitJob(jobId, pollingPolicy)
-            val updated = request.copy(jobId = job.jobId, status = job.status.name, updatedAtEpochMillis = System.currentTimeMillis())
-            requestStore.save(updated)
-            onRequestPersisted(updated)
-            job
-        } catch (error: AiProcessTimeoutException) {
-            val pending = request.copy(jobId = jobId, status = AiJobStatus.PROCESSING.name, updatedAtEpochMillis = System.currentTimeMillis())
-            requestStore.save(pending)
-            onRequestPersisted(pending)
-            throw error
-        }
+        val job = api.awaitJob(jobId, pollingPolicy)
+        val updated = request.copy(jobId = job.jobId, status = job.status.name, updatedAtEpochMillis = System.currentTimeMillis())
+        requestStore.save(updated)
+        onRequestPersisted(updated)
+        return job
     }
 
     private fun requireAuthenticated() {
@@ -351,7 +410,11 @@ class DefaultAiSyllabusRepository(
         sourceText = EditalPdfText.of(bytes, sha256),
     )
 
+    private fun requestLock(requestId: String): Mutex = REQUEST_LOCKS.computeIfAbsent(requestId) { Mutex() }
+
     private companion object {
+        // Shared by foreground and WorkManager repository instances. Remote process also claims atomically.
+        val REQUEST_LOCKS = ConcurrentHashMap<String, Mutex>()
         val RETRYABLE_TERMINAL_STATUSES = setOf(
             AiJobStatus.FAILED,
             AiJobStatus.EXPIRED,

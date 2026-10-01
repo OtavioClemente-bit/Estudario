@@ -129,7 +129,13 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
     val editalAttachment: StateFlow<br.com.estudario.ui.prompt.PromptAttachment?> = _editalAttachment.asStateFlow()
     fun setEditalAttachment(value: br.com.estudario.ui.prompt.PromptAttachment?) { _editalAttachment.value = value }
 
-    fun selectedAiTarget(): AiReviewTarget? = state.value.competition?.let { AiReviewTarget(it.id, it.name) }
+    fun selectedAiTarget(): AiReviewTarget? = state.value.competition?.let { competition ->
+        val snapshot = state.value.snapshot
+        AiReviewTarget(competition.id, competition.name, preferences = br.com.estudario.data.ai.AiSyllabusPreferences(
+            competitionName = competition.name,
+            role = snapshot.role.takeIf { snapshot.competitionId == competition.id }.orEmpty(),
+        ))
+    }
 
     /** Called only after the AI proposal was applied locally and its outbox row was created. */
     fun onAiSyllabusApplied() = viewModelScope.launch {
@@ -184,12 +190,14 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun selectCompetition(competition: CompetitionEntity) = viewModelScope.launch {
+        if (state.value.snapshot.competitionId != competition.id) _editalAttachment.value = null
         app.preferences.updateInitialSetup {
             it.copy(
                 status = InitialSetupStatus.IN_PROGRESS,
                 step = InitialSetupStep.EXAM_DATE,
                 competitionId = competition.id,
                 competitionName = competition.name,
+                role = it.role.takeIf { _ -> it.competitionId == competition.id }.orEmpty(),
             )
         }
         repository.setPrimary(competition.id)

@@ -5,6 +5,7 @@ import br.com.estudario.ui.prompt.OptionSection
 import br.com.estudario.data.prompt.EditalScope
 import br.com.estudario.data.prompt.EditalDetail
 import br.com.estudario.data.ai.AiSyllabusPreferences
+import br.com.estudario.data.ai.SyllabusPreflightKind
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -111,6 +112,8 @@ fun AiReviewScreen(
     onSyncAck: () -> Unit = {},
     preferences: AiSyllabusPreferences? = null,
     onPreferencesChange: (AiSyllabusPreferences) -> Unit = {},
+    onConfirmGeneration: () -> Unit = {},
+    onEditInformation: () -> Unit = {},
 ) {
     var addingSubject by remember { mutableStateOf(false) }
     var localAppliedNotified by remember(state.targetSyllabusId) { mutableStateOf(false) }
@@ -182,6 +185,17 @@ fun AiReviewScreen(
                     )
                 }
                 is AiReviewContent.Processing -> Unit
+                AiReviewContent.Preparing -> item {
+                    Text("Conferindo o PDF neste dispositivo…")
+                    EstudarioBookLoader(size = 40.dp)
+                }
+                AiReviewContent.Submitting -> item {
+                    Text("Preparando e vinculando sua análise…")
+                    EstudarioBookLoader(size = 40.dp)
+                }
+                is AiReviewContent.Confirmation -> item {
+                    AiSourceConfirmation(content, state.access, preferences ?: AiSyllabusPreferences(competitionName = state.targetTitle, role = ""), onPreferencesChange, onPickSource, onConfirmGeneration, onLogin)
+                }
                 is AiReviewContent.Review -> item {
                     AiDraftEditor(
                         draft = content.draft,
@@ -195,7 +209,7 @@ fun AiReviewScreen(
                         onCancelReplacement = onCancelReplacement,
                     )
                 }
-                is AiReviewContent.Failure -> item { AiFailure(content, onRetry, onFallback) }
+                is AiReviewContent.Failure -> item { AiFailure(content, onRetry, onFallback, onPickSource, onEditInformation) }
                 is AiReviewContent.Applied -> item {
                     AiApplied(content.syncState)
                     LaunchedEffect(content.syncState) {
@@ -220,6 +234,47 @@ fun AiReviewScreen(
 }
 
 // ------------------------------------------------------------------------------------ cabeçalho
+
+@Composable
+private fun AiSourceConfirmation(
+    content: AiReviewContent.Confirmation,
+    access: AiReviewAccessState,
+    preferences: AiSyllabusPreferences,
+    onPreferencesChange: (AiSyllabusPreferences) -> Unit,
+    onPickSource: () -> Unit,
+    onConfirm: () -> Unit,
+    onLogin: () -> Unit,
+) {
+    var editing by remember(content.source.attemptId) { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().testTag("ai_source_confirmation"), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text("Confira antes de gerar", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+        Text("Concurso: ${preferences.competitionName}\nCargo/área: ${preferences.role}\nArquivo: ${content.source.fileName}")
+        content.preflight.documentIdentification?.let { Text("Documento identificado (conferência local):\n$it") }
+        content.preflight.warnings.forEach { Text(it, color = MaterialTheme.colorScheme.tertiary) }
+        val kind = content.preflight.kind
+        when (kind) {
+            SyllabusPreflightKind.NOT_AN_EDITAL -> InlineError("Este arquivo não parece ser um edital ou conteúdo programático. Escolha o PDF oficial do concurso para continuar.")
+            SyllabusPreflightKind.CONTENT_NOT_FOUND -> InlineError("Não foi localizado conteúdo programático suficiente neste documento. Escolha o edital completo ou o anexo com as matérias.")
+            SyllabusPreflightKind.CANNOT_VALIDATE -> Text("Não foi possível validar este arquivo antes da análise. Você pode trocar o PDF ou continuar mesmo assim.")
+            else -> Unit
+        }
+        Text("A análise utiliza o conteúdo do PDF. Nenhuma geração ou reserva de cota foi feita nesta etapa.", style = MaterialTheme.typography.bodySmall)
+        OutlinedButton(onClick = onPickSource, modifier = Modifier.fillMaxWidth()) { Text(if (content.preflight.canGenerate) "Trocar PDF" else "Escolher outro PDF") }
+        TextButton(onClick = { editing = !editing }) { Text("Editar informações") }
+        if (editing || !preferences.isComplete) AiSyllabusPreferencesForm(preferences, onPreferencesChange)
+        if (access.kind == AiReviewAccessKind.UNAUTHENTICATED) PrimaryAction("Entrar para continuar", onLogin)
+        if (access.kind == AiReviewAccessKind.DENIED) Text(access.reasonCode.toUserMessage())
+        if (content.preflight.canGenerate) {
+            Button(onClick = onConfirm, enabled = preferences.isComplete && access.kind == AiReviewAccessKind.READY, modifier = Modifier.fillMaxWidth().testTag("ai_confirm_generation")) {
+                Text(when (kind) {
+                    SyllabusPreflightKind.CANNOT_VALIDATE -> "Continuar mesmo assim"
+                    SyllabusPreflightKind.VALID_WITH_WARNING -> "Continuar com este edital"
+                    else -> "Gerar com o Assistente Estudário"
+                })
+            }
+        }
+    }
+}
 
 @Composable
 private fun TargetHeader(title: String) {
@@ -611,7 +666,7 @@ private fun AddTopicDialog(child: Boolean, onDismiss: () -> Unit, onAdd: (String
 // ------------------------------------------------------------------------------------ fim
 
 @Composable
-private fun AiFailure(content: AiReviewContent.Failure, onRetry: () -> Unit, onFallback: () -> Unit) {
+private fun AiFailure(content: AiReviewContent.Failure, onRetry: () -> Unit, onFallback: () -> Unit, onPickSource: () -> Unit, onEditInformation: () -> Unit) {
     Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(Modifier.size(64.dp).clip(CircleShape).background(MaterialTheme.colorScheme.errorContainer), contentAlignment = Alignment.Center) {
@@ -621,6 +676,8 @@ private fun AiFailure(content: AiReviewContent.Failure, onRetry: () -> Unit, onF
             Text(content.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
             Spacer(Modifier.height(4.dp))
             if (content.canRetry) PrimaryAction("Tentar novamente", onRetry)
+            OutlinedButton(onClick = onPickSource, modifier = Modifier.fillMaxWidth().testTag("ai_failure_change_source")) { Text("Trocar PDF") }
+            TextButton(onClick = onEditInformation) { Text("Editar informações") }
             OutlinedButton(onClick = onFallback, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
                 Text("Importar .estudo ou montar manualmente")
             }

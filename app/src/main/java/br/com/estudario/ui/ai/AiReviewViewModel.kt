@@ -13,6 +13,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import br.com.estudario.EstudarioApplication
 import br.com.estudario.data.ai.AiSyllabusPreferences
+import br.com.estudario.data.ai.PreparedSyllabusSource
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import br.com.estudario.data.ai.AiJob
 import br.com.estudario.data.ai.AiApiException
 import br.com.estudario.data.ai.AiAuthenticationRequiredException
@@ -72,6 +75,9 @@ class AiReviewStartException(
 }
 
 interface AiReviewJobs {
+    suspend fun prepare(target: AiReviewTarget): PreparedSyllabusSource = error("Local PDF preparation is unavailable.")
+    suspend fun startPrepared(targetId: Long, targetTitle: String, source: PreparedSyllabusSource, preferences: AiSyllabusPreferences, onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit): AiReviewStarted =
+        start(targetId, targetTitle, source.uri, source.fileName, preferences, onRequestPersisted)
     suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted
     suspend fun start(
         targetId: Long,
@@ -97,6 +103,8 @@ interface AiReviewJobs {
         targetId: Long,
         onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit = {},
     ): AiReviewStarted? = null
+    suspend fun recoverPersistedForTarget(targetId: Long, preferredRequestId: String?, onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit): AiReviewStarted? =
+        recoverPersistedForTarget(targetId, onRequestPersisted)
     suspend fun retryFailed(requestId: String): AiReviewStarted
     suspend fun resumeOrRetry(requestId: String): AiReviewStarted = recover(requestId)
     suspend fun resumeOrRetry(
@@ -112,6 +120,16 @@ class DefaultAiReviewJobs(
     private val requestStore: AiJobRequestStore,
     private val userIdProvider: () -> String?,
 ) : AiReviewJobs {
+    override suspend fun prepare(target: AiReviewTarget) = repository.prepare(
+        requireNotNull(target.sourceUri), target.sourceName, target.snapshotPath, target.sourceHash, target.entryId,
+    )
+
+    override suspend fun startPrepared(targetId: Long, targetTitle: String, source: PreparedSyllabusSource, preferences: AiSyllabusPreferences, onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit): AiReviewStarted = try {
+        started(repository.startPrepared(source, targetId, targetTitle, preferences, onRequestPersisted))
+    } catch (error: Throwable) {
+        if (error is CancellationException || error is AiProcessTimeoutException) throw error
+        throw AiReviewStartException(requestStore.get(source.attemptId)?.toPendingIdentity(), error)
+    }
     override suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted =
         start(targetId, "", uri, fileName) {}
 
@@ -139,6 +157,7 @@ class DefaultAiReviewJobs(
         } catch (timeout: AiProcessTimeoutException) {
             throw timeout
         } catch (error: Throwable) {
+            if (error is CancellationException) throw error
             val persisted = requestStore.list()
                 .asSequence()
                 .filterNot { it.requestId in knownRequestIds }
@@ -159,11 +178,17 @@ class DefaultAiReviewJobs(
     override suspend fun recoverPersistedForTarget(
         targetId: Long,
         onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit,
-    ): AiReviewStarted? {
+    ): AiReviewStarted? = recoverPersistedForTarget(targetId, null, onRequestPersisted)
+
+    override suspend fun recoverPersistedForTarget(targetId: Long, preferredRequestId: String?, onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit): AiReviewStarted? {
         val owner = userIdProvider()?.takeIf(String::isNotBlank) ?: return null
         val matching = requestStore.list().filter { it.ownerUserId == owner && it.targetSyllabusId == targetId }
-        if (matching.size > 1) throw AiRecoveryAmbiguousException()
-        val request = matching.singleOrNull() ?: return null
+        matching.firstOrNull { it.requestId == preferredRequestId }?.let {
+            return started(repository.recover(it.requestId, onRequestPersisted))
+        }
+        val active = matching.filter { it.status !in setOf("SUCCEEDED", "FAILED", "CANCELLED", "EXPIRED") }
+        if (active.size > 1) throw AiRecoveryAmbiguousException()
+        val request = active.singleOrNull() ?: matching.maxByOrNull { it.createdAtEpochMillis } ?: return null
         return started(repository.recover(request.requestId, onRequestPersisted))
     }
 
@@ -286,6 +311,11 @@ class DataStoreAiReviewTargetStore(private val dataStore: DataStore<Preferences>
         val title: String,
         val sourceUri: String? = null,
         val sourceName: String? = null,
+        val preferences: AiSyllabusPreferences? = null,
+        val awaitingConfirmation: Boolean = false,
+        val snapshotPath: String? = null,
+        val sourceHash: String? = null,
+        val entryId: String = "legacy",
     )
 
     override suspend fun load(): AiReviewTarget? = null
@@ -300,7 +330,7 @@ class DataStoreAiReviewTargetStore(private val dataStore: DataStore<Preferences>
                 runCatching { listOf(json.decodeFromString<StoredTarget>(raw)) }.getOrDefault(emptyList())
             }
         }.orEmpty().filter { it.ownerUserId == null }
-        return stored.singleOrNull()?.let { AiReviewTarget(it.id, it.title, it.sourceUri, it.sourceName) }
+        return stored.singleOrNull()?.let { it.target() }
     }
 
     override suspend fun load(ownerUserId: String): AiReviewTarget? = dataStore.data.first()[key]
@@ -310,7 +340,7 @@ class DataStoreAiReviewTargetStore(private val dataStore: DataStore<Preferences>
             }
         }
         ?.firstOrNull { it.ownerUserId == ownerUserId }
-        ?.let { AiReviewTarget(it.id, it.title, it.sourceUri, it.sourceName) }
+        ?.let { it.target() }
 
     override suspend fun save(target: AiReviewTarget, ownerUserId: String) {
         dataStore.edit { preferences ->
@@ -319,7 +349,7 @@ class DataStoreAiReviewTargetStore(private val dataStore: DataStore<Preferences>
                     runCatching { listOf(json.decodeFromString<StoredTarget>(raw)) }.getOrDefault(emptyList())
                 }
             }.orEmpty()
-            val updated = StoredTarget(ownerUserId, target.id, target.title, target.sourceUri, target.sourceName)
+            val updated = storedTarget(target, ownerUserId)
             preferences[key] = json.encodeToString(stored.filterNot { it.ownerUserId == ownerUserId } + updated)
         }
     }
@@ -331,7 +361,7 @@ class DataStoreAiReviewTargetStore(private val dataStore: DataStore<Preferences>
                     runCatching { listOf(json.decodeFromString<StoredTarget>(raw)) }.getOrDefault(emptyList())
                 }
             }.orEmpty()
-            val updated = StoredTarget(ownerUserId, target.id, target.title, target.sourceUri, target.sourceName)
+            val updated = storedTarget(target, ownerUserId)
             preferences[key] = json.encodeToString(stored.filterNot {
                 it.ownerUserId == ownerUserId || (it.ownerUserId == null && it.id == target.id)
             } + updated)
@@ -349,6 +379,9 @@ class DataStoreAiReviewTargetStore(private val dataStore: DataStore<Preferences>
             if (remaining.isEmpty()) preferences.remove(key) else preferences[key] = json.encodeToString(remaining)
         }
     }
+
+    private fun StoredTarget.target() = AiReviewTarget(id, title, sourceUri, sourceName, preferences, awaitingConfirmation, snapshotPath, sourceHash, entryId)
+    private fun storedTarget(target: AiReviewTarget, owner: String) = StoredTarget(owner, target.id, target.title, target.sourceUri, target.sourceName, target.preferences, target.awaitingConfirmation, target.snapshotPath, target.sourceHash, target.entryId)
 }
 
 class AiReviewViewModel(
@@ -366,39 +399,60 @@ class AiReviewViewModel(
     private val syncState: suspend (Long) -> RemoteSyllabusSyncState? = { null },
     private val syncPollDelayMillis: Long = 1_000L,
     private val jobRecoveryRetryDelayMillis: Long = 2_000L,
+    private val initialTarget: AiReviewTarget? = null,
 ) : AndroidViewModel(application) {
     private val _state = MutableStateFlow(AiReviewUiState.gate(targetId, targetTitle, AiReviewAccessState.LOADING))
     val state: StateFlow<AiReviewUiState> = _state.asStateFlow()
     private var identity: AiReviewRequestIdentity? = null
     private var pendingIdentity: AiReviewPendingRequestIdentity? = null
     private var pendingSource: AiReviewSource? = null
-    private val _preferences = MutableStateFlow<AiSyllabusPreferences?>(null)
+    private val _preferences = MutableStateFlow<AiSyllabusPreferences?>(initialTarget?.preferences ?: AiSyllabusPreferences(competitionName = targetTitle, role = ""))
+    private var preparedSource: PreparedSyllabusSource? = null
+    private var preparingTarget: AiReviewTarget? = initialTarget?.takeIf { it.awaitingConfirmation && it.sourceUri != null }
+    private var recoveredSourceTarget: AiReviewTarget? = null
+    private var recoveryJob: Job? = null
+    private var flowEpoch = 0L
     /** Respostas do formulário obrigatório; sem elas a geração não começa. */
     val preferences: StateFlow<AiSyllabusPreferences?> = _preferences.asStateFlow()
     private val startMutex = Mutex()
     private val sessionMutex = Mutex()
     private var hasAppliedLocally = false
     private var appliedReconciliationRequired = false
-    private var autoApplyRequestedJobId: String? = null
 
     init {
         require(jobRecoveryRetryDelayMillis > 0L)
     }
 
     init {
-        viewModelScope.launch { refreshAccessAndRestore() }
+        recoveryJob = viewModelScope.launch {
+            if (preparingTarget != null) prepareSource(requireNotNull(preparingTarget))
+            refreshAccessAndRestore()
+        }
         viewModelScope.launch {
             var first = true
+            var previousUserId = userIdProvider()
             userIdFlow.distinctUntilChanged().collect { currentUserId ->
                 if (first) {
                     first = false
+                    previousUserId = currentUserId
                     return@collect
                 }
-                val activeOwner = identity?.ownerUserId ?: pendingIdentity?.ownerUserId
-                if (activeOwner != null && activeOwner != currentUserId) {
+                if (previousUserId != currentUserId) {
+                    val wasAnonymousPreparation = previousUserId == null && identity == null && pendingIdentity == null && preparedSource != null
+                    previousUserId = currentUserId
+                    if (wasAnonymousPreparation) {
+                        onLoginReturned()
+                        return@collect
+                    }
+                    flowEpoch++
+                    recoveryJob?.cancel()
                     identity = null
                     pendingIdentity = null
                     pendingSource = null
+                    preparedSource = null
+                    preparingTarget = null
+                    recoveredSourceTarget = null
+                    _preferences.value = AiSyllabusPreferences(competitionName = targetTitle, role = "")
                     hasAppliedLocally = false
                     _state.value = AiReviewUiState.gate(targetId, targetTitle, AiReviewAccessState.UNAUTHENTICATED)
                     refreshAccessAndRestore()
@@ -410,17 +464,24 @@ class AiReviewViewModel(
     fun requestLogin() = loginLauncher.launch(::onLoginReturned)
 
     fun onLoginReturned() {
-        viewModelScope.launch { refreshAccessAndRestore() }
+        recoveryJob?.cancel()
+        recoveryJob = viewModelScope.launch { refreshAccessAndRestore() }
     }
 
     fun updatePreferences(value: AiSyllabusPreferences) {
+        if (_state.value.content is AiReviewContent.Submitting || _state.value.content is AiReviewContent.Processing) return
         _preferences.value = value
+        if (_state.value.content is AiReviewContent.Confirmation) preparedSource?.let { _state.value = _state.value.copy(content = AiReviewContent.Confirmation(it, it.preflight(value))) }
+        viewModelScope.launch { persistPreparation() }
     }
 
     fun start(uri: String, fileName: String?) {
+        if (_state.value.content is AiReviewContent.Processing || _state.value.content is AiReviewContent.Submitting) return
+        flowEpoch++
+        recoveryJob?.cancel()
         viewModelScope.launch {
             startMutex.withLock {
-                if (_state.value.content is AiReviewContent.Processing) return@withLock
+                if (_state.value.content is AiReviewContent.Processing || _state.value.content is AiReviewContent.Submitting) return@withLock
                 val ownerUserId = userIdProvider()
                 if (ownerUserId != null) {
                     sessionMutex.withLock {
@@ -433,15 +494,74 @@ class AiReviewViewModel(
                 identity = null
                 pendingIdentity = null
                 pendingSource = AiReviewSource(uri, fileName)
-                _state.value = AiReviewUiState.gate(targetId, targetTitle, _state.value.access)
+                prepareSource(AiReviewTarget(targetId, targetTitle, uri, fileName, _preferences.value))
             }
-            startPendingIfReady()
+            refreshAccessAndRestore()
         }
     }
 
     fun provideSource(uri: String, fileName: String?) {
-        pendingSource = AiReviewSource(uri, fileName)
-        viewModelScope.launch { startPendingIfReady() }
+        if (initialTarget != null || preparedSource?.uri == uri) return
+        start(uri, fileName)
+    }
+
+    private suspend fun prepareSource(target: AiReviewTarget) {
+        val epoch = flowEpoch
+        preparingTarget = target
+        preparedSource = null
+        _state.value = _state.value.copy(content = AiReviewContent.Preparing)
+        try {
+            val prepared = jobs.prepare(target)
+            if (epoch != flowEpoch) return
+            preparedSource = prepared
+            pendingSource = AiReviewSource(prepared.uri, prepared.fileName)
+            persistPreparation()
+            if (epoch != flowEpoch) return
+            _state.value = _state.value.copy(content = AiReviewContent.Confirmation(prepared, prepared.preflight(requireNotNull(_preferences.value))))
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            fail("Não foi possível ler este PDF. Escolha outro arquivo para continuar.")
+        }
+    }
+
+    private suspend fun persistPreparation() {
+        val source = preparedSource ?: return
+        val owner = userIdProvider()?.takeIf(String::isNotBlank) ?: return
+        targetStore?.save(AiReviewTarget(targetId, targetTitle, source.uri, source.fileName, _preferences.value, true, source.snapshotPath, source.sha256, source.attemptId), owner)
+    }
+
+    fun confirmGeneration() {
+        val confirmation = _state.value.content as? AiReviewContent.Confirmation ?: return
+        val preferences = _preferences.value?.takeIf { it.isComplete } ?: return
+        if (!confirmation.preflight.canGenerate || _state.value.access.kind != AiReviewAccessKind.READY) return
+        // Synchronous transition consumes repeated taps before the coroutine starts.
+        _state.value = _state.value.copy(content = AiReviewContent.Submitting)
+        val epoch = flowEpoch
+        val owner = userIdProvider()
+        viewModelScope.launch { if (epoch == flowEpoch && owner == userIdProvider()) startConfirmed(confirmation.source, preferences) }
+    }
+
+    fun editInformation() {
+        flowEpoch++
+        if (preparedSource == null) {
+            val previous = recoveredSourceTarget ?: return
+            recoveryJob?.cancel()
+            viewModelScope.launch {
+                identity = null
+                pendingIdentity = null
+                prepareSource(previous.copy(awaitingConfirmation = true, entryId = java.util.UUID.randomUUID().toString()))
+            }
+            return
+        }
+        preparedSource?.let { source ->
+            val fresh = source.copy(attemptId = java.util.UUID.randomUUID().toString())
+            preparedSource = fresh
+            identity = null
+            pendingIdentity = null
+            _state.value = _state.value.copy(content = AiReviewContent.Confirmation(fresh, fresh.preflight(requireNotNull(_preferences.value))))
+            preparingTarget = AiReviewTarget(targetId, targetTitle, source.uri, source.fileName, _preferences.value)
+            viewModelScope.launch { persistPreparation() }
+        }
     }
 
     fun changeDraft(draft: AiSyllabusDraft) {
@@ -460,24 +580,22 @@ class AiReviewViewModel(
     }
 
     fun retry() {
+        if (_state.value.content !is AiReviewContent.Failure) return
         if (appliedReconciliationRequired) {
             viewModelScope.launch { refreshAccessAndRestore() }
             return
         }
         val requestId = identity?.requestId ?: pendingIdentity?.requestId ?: return
-        val retryJobId = identity?.jobId ?: pendingIdentity?.jobId
-        val retryIdempotencyKey = identity?.idempotencyKey ?: pendingIdentity?.idempotencyKey
-        if (retryJobId != null && retryIdempotencyKey != null) {
-            _state.value = _state.value.copy(
-                content = AiReviewContent.Processing(retryJobId, retryIdempotencyKey),
-            )
-        }
+        val epoch = flowEpoch
+        _state.value = _state.value.copy(content = AiReviewContent.Submitting)
         viewModelScope.launch {
             runCatching {
-                jobs.resumeOrRetry(requestId, ::saveRequestContext)
+                jobs.resumeOrRetry(requestId, requestContextWriter(flowEpoch))
             }
-                .onSuccess { started -> identity = started.identity; render(started.job, started.identity) }
+                .onSuccess { started -> if (epoch == flowEpoch) { identity = started.identity; render(started.job, started.identity) } }
                 .onFailure { error ->
+                    if (error is CancellationException) throw error
+                    if (epoch != flowEpoch) return@onFailure
                     _state.value = _state.value.copy(
                         content = AiReviewContent.Failure(
                             message = safeMessage(error),
@@ -526,18 +644,27 @@ class AiReviewViewModel(
     }
 
     private suspend fun refreshAccessAndRestore() {
+        val epoch = flowEpoch
         val access = runCatching { accessGateway.check().toUiState() }
-            .getOrElse { AiReviewAccessState.denied("ACCESS_UNAVAILABLE") }
+            .getOrElse { if (it is CancellationException) throw it; AiReviewAccessState.denied("ACCESS_UNAVAILABLE") }
+        if (epoch != flowEpoch) return
         _state.value = _state.value.copy(access = access)
-        if (access.kind != AiReviewAccessKind.READY) return
+        if (preparingTarget != null || _state.value.content is AiReviewContent.Confirmation) {
+            persistPreparation()
+            return
+        }
+        if (initialTarget?.awaitingConfirmation == true && initialTarget.sourceUri == null) return
+        if (access.kind == AiReviewAccessKind.UNAUTHENTICATED || access.kind == AiReviewAccessKind.LOADING) return
         val ownerUserId = userIdProvider()?.takeIf(String::isNotBlank) ?: return
         val saved = sessions.load(targetId, ownerUserId)
+        if (epoch != flowEpoch) return
         if (saved?.applied == true) {
             appliedReconciliationRequired = false
             hasAppliedLocally = true
             val outboxId = saved.outboxId
-            val restoredSyncState = outboxId?.let { runCatching { syncState(it) }.getOrNull() }
+        val restoredSyncState = outboxId?.let { runCatching { syncState(it) }.getOrNull() }
                 ?: RemoteSyllabusSyncState.PENDING
+            if (epoch != flowEpoch) return
             _state.value = _state.value.copy(content = AiReviewContent.Applied(restoredSyncState))
             if (outboxId != null && restoredSyncState == RemoteSyllabusSyncState.PENDING) watchSync(outboxId)
             return
@@ -549,9 +676,11 @@ class AiReviewViewModel(
                 val appliedResult = try {
                     applier.findApplied(targetId, savedJobId)
                 } catch (error: Throwable) {
+                    if (error is CancellationException) throw error
                     fail(safeMessage(error))
                     return
                 }
+                if (epoch != flowEpoch) return
                 if (appliedResult != null) {
                     if (appliedResult.localSyllabusId != targetId ||
                         appliedResult.sourceJobId != savedJobId ||
@@ -567,6 +696,7 @@ class AiReviewViewModel(
                     appliedReconciliationRequired = false
                     val restoredSyncState = runCatching { syncState(appliedResult.outboxId) }.getOrNull()
                         ?: appliedResult.state
+                    if (epoch != flowEpoch) return
                     _state.value = _state.value.copy(content = AiReviewContent.Applied(restoredSyncState))
                     if (restoredSyncState == RemoteSyllabusSyncState.PENDING) watchSync(appliedResult.outboxId)
                     return
@@ -583,25 +713,26 @@ class AiReviewViewModel(
             if (identity != null) {
                 _state.value = AiReviewUiState.processing(targetId, targetTitle, saved.jobId, saved.idempotencyKey, access)
             }
-            runCatching { jobs.recover(saved.requestId, ::saveRequestContext) }
-                .onSuccess { started -> identity = started.identity; render(started.job, started.identity, saved.draftJson, applyRecoveredSuccess = true) }
-                .onFailure { fail(safeMessage(it)) }
+            runCatching { jobs.recover(saved.requestId, requestContextWriter(flowEpoch)) }
+                .onSuccess { started -> if (epoch == flowEpoch) { identity = started.identity; render(started.job, started.identity, saved.draftJson) } }
+                .onFailure { if (it is CancellationException) throw it; if (epoch == flowEpoch) fail(safeMessage(it)) }
         } else {
-            runCatching { jobs.recoverPersistedForTarget(targetId, ::saveRequestContext) }
+            runCatching { jobs.recoverPersistedForTarget(targetId, initialTarget?.entryId, requestContextWriter(flowEpoch)) }
                 .onSuccess { recovered ->
+                    if (epoch != flowEpoch) return@onSuccess
                     if (recovered == null) {
-                        startPendingIfReady()
+                        return@onSuccess
                     } else {
                         identity = recovered.identity
-                        render(recovered.job, recovered.identity, applyRecoveredSuccess = true)
+                        render(recovered.job, recovered.identity)
                     }
                 }
-                .onFailure { fail(safeMessage(it)) }
+                .onFailure { if (it is CancellationException) throw it; if (epoch == flowEpoch) fail(safeMessage(it)) }
         }
     }
 
-    private suspend fun startPendingIfReady() {
-        val source = pendingSource ?: return
+    private suspend fun startConfirmed(source: PreparedSyllabusSource, preferences: AiSyllabusPreferences) {
+        val epoch = flowEpoch
         if (_state.value.access.kind != AiReviewAccessKind.READY) return
         startMutex.withLock {
             if (identity != null || pendingIdentity != null ||
@@ -612,15 +743,20 @@ class AiReviewViewModel(
             try {
                 val ownerUserId = userIdProvider()?.takeIf(String::isNotBlank)
                     ?: throw AiAuthenticationRequiredException()
-                targetStore?.save(AiReviewTarget(targetId, targetTitle, source.uri, source.fileName), ownerUserId)
-                val started = jobs.start(targetId, targetTitle, source.uri, source.fileName, _preferences.value?.takeIf { it.isComplete }, ::saveRequestContext)
+                sessions.clear(targetId, ownerUserId)
+                if (epoch != flowEpoch || ownerUserId != userIdProvider()) return
+                preparingTarget = null
+                val started = jobs.startPrepared(targetId, targetTitle, source, preferences, requestContextWriter(flowEpoch))
+                if (epoch != flowEpoch) return
                 identity = started.identity
                 pendingIdentity = null
                 pendingSource = null
                 save(started.identity, null)
                 render(started.job, started.identity)
             } catch (timeout: AiProcessTimeoutException) {
+                if (epoch != flowEpoch) return
                 val recoveredIdentity = jobs.identityForJob(timeout.jobId)
+                if (epoch != flowEpoch) return
                 if (recoveredIdentity != null) {
                     identity = recoveredIdentity
                     pendingIdentity = AiReviewPendingRequestIdentity(
@@ -637,6 +773,7 @@ class AiReviewViewModel(
                     fail("A análise continua no servidor, mas não foi possível recuperar seus dados locais.")
                 }
             } catch (startFailure: AiReviewStartException) {
+                if (epoch != flowEpoch) return
                 val recoveredIdentity = startFailure.identity
                 val persistedIdentity = startFailure.pendingIdentity
                 if (persistedIdentity != null) {
@@ -675,6 +812,8 @@ class AiReviewViewModel(
                     fail("A análise foi iniciada e será retomada com a mesma solicitação. Tente novamente.")
                 }
             } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                if (epoch != flowEpoch) return
                 fail(safeMessage(error))
             }
         }
@@ -684,7 +823,6 @@ class AiReviewViewModel(
         job: AiJob,
         requestIdentity: AiReviewRequestIdentity,
         persistedDraftJson: String? = null,
-        applyRecoveredSuccess: Boolean = false,
     ) {
         if (requestIdentity.ownerUserId == null || requestIdentity.ownerUserId != userIdProvider()) return
         val content = when {
@@ -708,31 +846,32 @@ class AiReviewViewModel(
                 canRetry = false,
                 terminalStatus = job.status,
             )
-            job.status == AiJobStatus.RESERVED || job.status == AiJobStatus.PROCESSING ->
+            job.status == AiJobStatus.RESERVED -> AiReviewContent.Submitting
+            job.status == AiJobStatus.PROCESSING ->
                 AiReviewContent.Processing(job.jobId, requestIdentity.idempotencyKey)
             else -> error("Unhandled AI job status: ${job.status}")
         }
         _state.value = _state.value.copy(content = content, access = AiReviewAccessState.READY)
-        val recoveredReview = applyRecoveredSuccess && content is AiReviewContent.Review
         if (content is AiReviewContent.Failure) {
             viewModelScope.launch {
-                sessionMutex.withLock { sessions.clear(targetId, requestIdentity.ownerUserId) }
+                sessionMutex.withLock {
+                    val current = sessions.load(targetId, requestIdentity.ownerUserId)
+                    if (current?.requestId == requestIdentity.requestId && identity?.jobId == requestIdentity.jobId) sessions.clear(targetId, requestIdentity.ownerUserId)
+                }
             }
-        } else if (!recoveredReview) {
+        } else {
             viewModelScope.launch { save(requestIdentity, (content as? AiReviewContent.Review)?.draft) }
-        }
-        if (recoveredReview && autoApplyRequestedJobId != job.jobId) {
-            autoApplyRequestedJobId = job.jobId
-            apply()
         }
     }
 
     /** Continues observing the same persisted job after a bounded poll times out or the network blips. */
     private suspend fun recoverUntilTerminal(requestId: String) {
+        val epoch = flowEpoch
         var retryDelay = jobRecoveryRetryDelayMillis
-        while (identity?.requestId == requestId && _state.value.content is AiReviewContent.Processing) {
+        while (identity?.requestId == requestId && (_state.value.content is AiReviewContent.Processing || _state.value.content is AiReviewContent.Submitting)) {
             try {
-                val started = jobs.recover(requestId, ::saveRequestContext)
+                val started = jobs.recover(requestId, requestContextWriter(flowEpoch))
+                if (epoch != flowEpoch) return
                 identity = started.identity
                 render(started.job, started.identity)
                 if (started.job.status in TERMINAL_STATUSES) return
@@ -747,6 +886,7 @@ class AiReviewViewModel(
                 fail(safeMessage(error))
                 return
             } catch (error: Throwable) {
+                if (error is CancellationException) throw error
                 fail(safeMessage(error))
                 return
             }
@@ -756,6 +896,8 @@ class AiReviewViewModel(
     }
 
     private suspend fun save(requestIdentity: AiReviewRequestIdentity, draft: AiSyllabusDraft?) {
+        if (identity?.requestId != requestIdentity.requestId || identity?.jobId != requestIdentity.jobId ||
+            _state.value.content is AiReviewContent.Preparing || _state.value.content is AiReviewContent.Confirmation) return
         pendingIdentity = AiReviewPendingRequestIdentity(
             requestIdentity.requestId,
             requestIdentity.idempotencyKey,
@@ -792,16 +934,26 @@ class AiReviewViewModel(
         }
     }
 
-    private suspend fun saveRequestContext(request: PersistedAiJobRequest) {
+    private fun requestContextWriter(epoch: Long): suspend (PersistedAiJobRequest) -> Unit = { request ->
+        if (epoch == flowEpoch) saveRequestContext(request, epoch)
+    }
+
+    private suspend fun saveRequestContext(request: PersistedAiJobRequest, epoch: Long) {
         val ownerUserId = request.ownerUserId ?: return
         if (ownerUserId != userIdProvider() || request.targetSyllabusId != targetId) return
         pendingIdentity = request.toPendingIdentity()
+        recoveredSourceTarget = AiReviewTarget(targetId, targetTitle, request.sourceUri, request.fileName, request.preferences, false, request.sourcePath, request.sourceHash, request.requestId)
+        if (initialTarget?.preferences == null && preparedSource == null) request.preferences?.let { _preferences.value = it }
+        targetStore?.save(AiReviewTarget(targetId, targetTitle, request.sourceUri, request.fileName, request.preferences, false, request.sourcePath, request.sourceHash, request.requestId), ownerUserId)
+        if (epoch != flowEpoch || ownerUserId != userIdProvider()) return
         request.jobId?.let { jobId ->
             identity = request.toIdentity()
             _state.value = _state.value.copy(
-                content = AiReviewContent.Processing(jobId, request.idempotencyKey),
+                content = if (request.status == AiJobStatus.PROCESSING.name) AiReviewContent.Processing(jobId, request.idempotencyKey) else AiReviewContent.Submitting,
             )
         }
+        val previous = sessions.load(targetId, ownerUserId)?.takeIf { it.requestId == request.requestId && it.jobId == request.jobId }
+        if (epoch != flowEpoch || ownerUserId != userIdProvider()) return
         sessions.save(
             AiReviewPersistedSession(
                 targetId = targetId,
@@ -810,6 +962,7 @@ class AiReviewViewModel(
                 jobId = request.jobId.orEmpty(),
                 idempotencyKey = request.idempotencyKey,
                 ownerUserId = ownerUserId,
+                draftJson = previous?.draftJson,
             ),
         )
     }
@@ -849,7 +1002,9 @@ class AiReviewViewModel(
         }
     }
 
-    private fun fail(message: String) { _state.value = _state.value.copy(content = AiReviewContent.Failure(message)) }
+    private fun fail(message: String) {
+        _state.value = _state.value.copy(content = AiReviewContent.Failure(message, canRetry = identity != null || pendingIdentity != null || appliedReconciliationRequired))
+    }
 
     private fun safeMessage(error: Throwable): String = when (error) {
         is AiApiException -> if (error.code == "INTEGRITY_REQUIRED" || error.code == "INTEGRITY_FAILED") {
@@ -885,6 +1040,7 @@ class AiReviewViewModelFactory(
     private val targetId: Long,
     private val targetTitle: String,
     private val loginLauncher: AiReviewLoginLauncher = AiReviewLoginLauncher {},
+    private val initialTarget: AiReviewTarget? = null,
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         val app = application as EstudarioApplication
@@ -913,6 +1069,7 @@ class AiReviewViewModelFactory(
                 }
             },
             loginLauncher = loginLauncher,
+            initialTarget = initialTarget,
             syncState = { id -> app.database.dao().remoteSyllabusSyncById(id)?.state },
         ) as T
     }

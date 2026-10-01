@@ -320,7 +320,7 @@ fun InitialSetupFlow(
                         onClearEditalAttachment = { viewModel.setEditalAttachment(null) },
                         onOpenIntegratedAi = { attachment ->
                             viewModel.selectedAiTarget()?.let {
-                                appViewModel.openAiReview(it.id, it.title, attachment?.uri?.toString(), attachment?.name)
+                                appViewModel.openAiReview(it.id, it.title, attachment?.uri?.toString(), attachment?.name, it.preferences)
                             }
                         },
                     )

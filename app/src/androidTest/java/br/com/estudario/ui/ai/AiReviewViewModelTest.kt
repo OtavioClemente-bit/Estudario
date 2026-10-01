@@ -26,6 +26,77 @@ import org.junit.Test
 
 class AiReviewViewModelTest {
     @Test
+    fun switchingAccountsInvalidatesUnconfirmedPreparationAndRechecksAccess() {
+        val currentUser = MutableStateFlow("user-a")
+        val jobs = FakeJobs()
+        val viewModel = createViewModel(jobs = jobs, userIdProvider = { currentUser.value }, userIdFlow = currentUser,
+            initialTarget = AiReviewTarget(42L, "PMMG", "content://user-a", "a.pdf", br.com.estudario.data.ai.AiSyllabusPreferences("PMMG", "Soldado")))
+        await { viewModel.state.value.content is AiReviewContent.Confirmation && viewModel.state.value.access.kind == AiReviewAccessKind.READY }
+        currentUser.value = "user-b"
+        await { viewModel.state.value.content is AiReviewContent.Gate }
+        assertEquals("", viewModel.preferences.value?.role)
+        viewModel.confirmGeneration()
+        assertEquals(0, jobs.startCalls)
+    }
+
+    @Test
+    fun preparingAndEditingDoesNotStartAJobAndExplicitContextNeverLeaks() {
+        val jobs = FakeJobs(blockStart = true)
+        val oldSessions = FakeSessionStore(AiReviewPersistedSession(42L, "TRT 3 REGIAO TI", "old", "old-job", "old-key", ownerUserId = TEST_USER))
+        val target = AiReviewTarget(42L, "PMMG", "content://pmmg", "pmmg.pdf", br.com.estudario.data.ai.AiSyllabusPreferences("PMMG", "SOLDADO"))
+        val viewModel = createViewModel(jobs = jobs, sessions = oldSessions, initialTarget = target)
+        await { viewModel.state.value.content is AiReviewContent.Confirmation && viewModel.state.value.access.kind == AiReviewAccessKind.READY }
+        assertEquals(0, jobs.startCalls)
+        assertTrue(jobs.recoveredRequests.isEmpty())
+        assertEquals("PMMG", viewModel.preferences.value?.competitionName)
+        viewModel.confirmGeneration()
+        viewModel.confirmGeneration()
+        await { jobs.startCalls == 1 }
+        assertEquals("PMMG", jobs.sentPreferences?.competitionName)
+        assertEquals("SOLDADO", jobs.sentPreferences?.role)
+        jobs.release.complete(Unit)
+        await { viewModel.state.value.content is AiReviewContent.Review }
+    }
+
+    @Test
+    fun replacementPdfCreatesFreshConfirmationAndDoesNotRetryFailedSource() {
+        val jobs = FakeJobs()
+        val viewModel = createViewModel(jobs = jobs)
+        await { viewModel.state.value.access.kind == AiReviewAccessKind.READY }
+        generate(viewModel, "content://first", "first.pdf")
+        await { viewModel.state.value.content is AiReviewContent.Review }
+        val firstKey = jobs.confirmedAttempts.single()
+        viewModel.start("content://replacement", "replacement.pdf")
+        await { viewModel.state.value.content is AiReviewContent.Confirmation }
+        assertEquals(1, jobs.startCalls)
+        assertEquals("Analista", viewModel.preferences.value?.role)
+        viewModel.confirmGeneration()
+        await { jobs.startCalls == 2 }
+        assertTrue(firstKey != jobs.confirmedAttempts.last())
+        assertEquals(listOf("content://first", "content://replacement"), jobs.uris)
+    }
+
+    @Test
+    fun failedGenerationCanPrepareAnotherPdfWithoutRetryingOldJob() {
+        val jobs = FakeJobs()
+        jobs.nextStatus = AiJobStatus.FAILED
+        val viewModel = createViewModel(jobs = jobs)
+        await { viewModel.state.value.access.kind == AiReviewAccessKind.READY }
+        generate(viewModel, "content://broken", "broken.pdf")
+        await { viewModel.state.value.content is AiReviewContent.Failure }
+        val oldAttempt = jobs.confirmedAttempts.single()
+        viewModel.start("content://correct", "correct.pdf")
+        await { viewModel.state.value.content is AiReviewContent.Confirmation }
+        assertEquals(1, jobs.startCalls)
+        assertEquals("Analista", viewModel.preferences.value?.role)
+        jobs.nextStatus = AiJobStatus.SUCCEEDED
+        viewModel.confirmGeneration()
+        await { viewModel.state.value.content is AiReviewContent.Review }
+        assertTrue(oldAttempt != jobs.confirmedAttempts.last())
+        assertEquals(listOf("content://broken", "content://correct"), jobs.uris)
+    }
+
+    @Test
     fun switchingAccountsHidesAndDoesNotRecoverThePreviousUsersJob() {
         val currentUser = MutableStateFlow("user-a")
         val sessions = FakeSessionStore(
@@ -39,13 +110,16 @@ class AiReviewViewModelTest {
             userIdFlow = currentUser,
         )
 
-        await { jobs.recoveredRequests == listOf("request-a") }
+        await { jobs.recoveredRequests.isNotEmpty() && (viewModel.state.value.content as? AiReviewContent.Processing)?.jobId == "job-1" }
         assertEquals("job-1", (viewModel.state.value.content as AiReviewContent.Processing).jobId)
 
         currentUser.value = "user-b"
 
         await { viewModel.state.value.content == AiReviewContent.Gate }
-        assertEquals(listOf("request-a"), jobs.recoveredRequests)
+        assertEquals(listOf("request-a"), jobs.recoveredRequests.distinct())
+        val recoveryCount = jobs.recoveredRequests.size
+        Thread.sleep(100)
+        assertEquals(recoveryCount, jobs.recoveredRequests.size)
     }
 
     @Test
@@ -55,8 +129,8 @@ class AiReviewViewModelTest {
         val viewModel = createViewModel(jobs = jobs, sessions = sessions)
         await { viewModel.state.value.access.kind == AiReviewAccessKind.READY }
 
-        viewModel.start("content://edital", "edital.pdf")
-        viewModel.start("content://edital", "edital.pdf")
+        generate(viewModel, "content://edital", "edital.pdf")
+        viewModel.confirmGeneration()
         await { jobs.startCalls == 1 }
         assertEquals(listOf(42L), jobs.targetIds)
         assertEquals(listOf("content://edital"), jobs.uris)
@@ -70,11 +144,11 @@ class AiReviewViewModelTest {
     @Test
     fun selectedTargetAndSourceArePersistedBeforeJobRepositoryStarts() {
         val targetStore = FakeTargetStore()
-        val jobs = FakeJobs(beforeStart = { assertEquals(AiReviewTarget(42L, "TRT-3", "content://edital", "edital.pdf"), targetStore.current) })
+        val jobs = FakeJobs(beforeStart = { assertEquals("content://edital", targetStore.current?.sourceUri) })
         val viewModel = createViewModel(jobs = jobs, targetStore = targetStore)
         await { viewModel.state.value.access.kind == AiReviewAccessKind.READY }
 
-        viewModel.start("content://edital", "edital.pdf")
+        generate(viewModel, "content://edital", "edital.pdf")
 
         await { jobs.startCalls == 1 }
     }
@@ -101,7 +175,7 @@ class AiReviewViewModelTest {
         val viewModel = createViewModel(jobs = jobs, sessions = sessions, jobRecoveryRetryDelayMillis = 1L)
 
         await { viewModel.state.value.access.kind == AiReviewAccessKind.READY }
-        viewModel.start("content://edital", "edital.pdf")
+        generate(viewModel, "content://edital", "edital.pdf")
 
         await { viewModel.state.value.content is AiReviewContent.Failure }
         val failure = viewModel.state.value.content as AiReviewContent.Failure
@@ -125,7 +199,7 @@ class AiReviewViewModelTest {
         val viewModel = createViewModel(jobs = jobs, sessions = sessions, jobRecoveryRetryDelayMillis = 1L)
 
         await { viewModel.state.value.access.kind == AiReviewAccessKind.READY }
-        viewModel.start("content://edital", "edital.pdf")
+        generate(viewModel, "content://edital", "edital.pdf")
 
         await { viewModel.state.value.content is AiReviewContent.Failure }
         val failure = viewModel.state.value.content as AiReviewContent.Failure
@@ -217,26 +291,24 @@ class AiReviewViewModelTest {
         assertEquals(1, loginLaunches)
         access.result = AiReviewAccessResult(true, true)
         returnedFromLogin!!.invoke()
-        viewModel.start("content://after-login", "edital.pdf")
+        generate(viewModel, "content://after-login", "edital.pdf")
         await { jobs.startCalls == 1 }
         assertEquals(42L, jobs.targetIds.single())
     }
 
     @Test
-    fun genericFailureAfterCreatedRequestKeepsIdentityForRetry() {
+    fun genericFailureAfterCreatedRequestRecoversSameIdentityWithoutNewGeneration() {
         val identity = AiReviewRequestIdentity("request-after-upload", "job-after-upload", "idem-after-upload", TEST_USER)
         val jobs = FailOnceAfterCreatedRequestJobs(identity)
         val sessions = FakeSessionStore()
         val viewModel = createViewModel(jobs = jobs, sessions = sessions)
         await { viewModel.state.value.access.kind == AiReviewAccessKind.READY }
 
-        viewModel.start("content://edital", "edital.pdf")
-        await { viewModel.state.value.content is AiReviewContent.Processing }
-        assertEquals(identity.jobId, (viewModel.state.value.content as AiReviewContent.Processing).jobId)
+        generate(viewModel, "content://edital", "edital.pdf")
+        await { viewModel.state.value.content is AiReviewContent.Review }
+        await { sessions.saved.lastOrNull()?.jobId == identity.jobId }
         assertEquals(identity.idempotencyKey, sessions.saved.last().idempotencyKey)
 
-        viewModel.retry()
-        await { viewModel.state.value.content is AiReviewContent.Review }
         assertEquals(1, jobs.startCalls)
         assertEquals(listOf(identity.requestId), jobs.recoveredRequests)
         assertEquals(identity, jobs.recoveredIdentity)
@@ -250,7 +322,7 @@ class AiReviewViewModelTest {
         val firstViewModel = createViewModel(jobs = firstJobs, sessions = sessions)
         await { firstViewModel.state.value.access.kind == AiReviewAccessKind.READY }
 
-        firstViewModel.start("content://edital", "edital.pdf")
+        generate(firstViewModel, "content://edital", "edital.pdf")
         await { sessions.saved.any { it.requestId == pending.requestId } }
         assertEquals("", sessions.saved.last().jobId)
         assertEquals(pending.idempotencyKey, sessions.saved.last().idempotencyKey)
@@ -291,13 +363,13 @@ class AiReviewViewModelTest {
         )
         val jobs = NonterminalRetryJobs()
         val viewModel = createViewModel(jobs = jobs, sessions = sessions)
-        await { jobs.recoveredRequests.size == 1 }
+        await { jobs.recoveredRequests.size == 1 && viewModel.state.value.content is AiReviewContent.Processing }
 
         viewModel.retry()
-        await { jobs.recoveredRequests.size == 2 }
+        assertEquals(1, jobs.recoveredRequests.size)
 
         assertEquals(emptyList<String>(), jobs.retryFailedRequests)
-        assertEquals(listOf(requestId, requestId), jobs.recoveredRequests)
+        assertEquals(listOf(requestId), jobs.recoveredRequests)
         assertEquals("job-original", (viewModel.state.value.content as AiReviewContent.Processing).jobId)
         assertEquals("idem-original", (viewModel.state.value.content as AiReviewContent.Processing).idempotencyKey)
     }
@@ -318,10 +390,10 @@ class AiReviewViewModelTest {
 
         viewModel.retry()
         await { jobs.retryFailedRequests.size > 1 || jobs.recoveredRequests.size > 1 }
-        assertEquals(listOf(requestId, requestId), jobs.retryFailedRequests)
+        assertEquals(listOf(requestId), jobs.retryFailedRequests)
         assertEquals(listOf(requestId, requestId), jobs.recoveredRequests)
         await { viewModel.state.value.content is AiReviewContent.Processing }
-        await { sessions.saved.lastOrNull()?.idempotencyKey == "idem-retry" }
+        await { sessions.saved.lastOrNull()?.idempotencyKey == "idem-original" }
         assertEquals(requestId, sessions.saved.last().requestId)
     }
 
@@ -365,7 +437,7 @@ class AiReviewViewModelTest {
                 syncState = { _ -> if (polls++ == 0) RemoteSyllabusSyncState.PENDING else RemoteSyllabusSyncState.SYNCED },
                 syncPollDelayMillis = 1L,
             )
-            viewModel.start("content://edital", "edital.pdf")
+            generate(viewModel, "content://edital", "edital.pdf")
             await { viewModel.state.value.content is AiReviewContent.Review }
 
             viewModel.apply()
@@ -391,10 +463,11 @@ class AiReviewViewModelTest {
         jobRecoveryRetryDelayMillis: Long = 2_000L,
         userIdProvider: () -> String? = { TEST_USER },
         userIdFlow: Flow<String?> = flowOf(TEST_USER),
+        initialTarget: AiReviewTarget? = null,
     ) = AiReviewViewModel(
         application = ApplicationProvider.getApplicationContext(),
         targetId = 42L,
-        targetTitle = "TRT-3",
+        targetTitle = initialTarget?.title ?: "TRT-3",
         jobs = jobs,
         applier = applier,
         sessions = sessions,
@@ -406,7 +479,15 @@ class AiReviewViewModelTest {
         jobRecoveryRetryDelayMillis = jobRecoveryRetryDelayMillis,
         userIdProvider = userIdProvider,
         userIdFlow = userIdFlow,
+        initialTarget = initialTarget,
     )
+
+    private fun generate(viewModel: AiReviewViewModel, uri: String, name: String) {
+        viewModel.updatePreferences(br.com.estudario.data.ai.AiSyllabusPreferences("TRT-3", "Analista"))
+        viewModel.start(uri, name)
+        await { viewModel.state.value.content is AiReviewContent.Confirmation }
+        viewModel.confirmGeneration()
+    }
 
     private fun await(condition: () -> Boolean) {
         repeat(200) {
@@ -444,6 +525,7 @@ class AiReviewViewModelTest {
         private val terminalStatus: AiJobStatus,
         private val firstRecoveryError: Boolean = false,
     ) : AiReviewJobs {
+        override suspend fun prepare(target: AiReviewTarget) = preparedFixture(target)
         var startCalls = 0
         var recoverCalls = 0
         var retryFailedCalls = 0
@@ -479,6 +561,7 @@ class AiReviewViewModelTest {
         private val status: AiJobStatus,
         private val includeProposal: Boolean = true,
     ) : AiReviewJobs {
+        override suspend fun prepare(target: AiReviewTarget) = preparedFixture(target)
         val recoveredRequests = mutableListOf<String>()
 
         override suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted = error("must not start another job")
@@ -510,11 +593,21 @@ class AiReviewViewModelTest {
         private val beforeStart: () -> Unit = {},
         private val identityOwner: String = TEST_USER,
     ) : AiReviewJobs {
+        override suspend fun prepare(target: AiReviewTarget) = preparedFixture(target)
         var startCalls = 0
         val targetIds = mutableListOf<Long>()
         val uris = mutableListOf<String>()
         val recoveredRequests = mutableListOf<String>()
         val release = CompletableDeferred<Unit>()
+        var sentPreferences: br.com.estudario.data.ai.AiSyllabusPreferences? = null
+        val confirmedAttempts = mutableListOf<String>()
+        var nextStatus = AiJobStatus.SUCCEEDED
+
+        override suspend fun startPrepared(targetId: Long, targetTitle: String, source: br.com.estudario.data.ai.PreparedSyllabusSource, preferences: br.com.estudario.data.ai.AiSyllabusPreferences, onRequestPersisted: suspend (br.com.estudario.data.ai.PersistedAiJobRequest) -> Unit): AiReviewStarted {
+            sentPreferences = preferences
+            confirmedAttempts += source.attemptId
+            return start(targetId, source.uri, source.fileName)
+        }
 
         override suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted {
             beforeStart()
@@ -522,7 +615,7 @@ class AiReviewViewModelTest {
             targetIds += targetId
             uris += uri
             if (blockStart) release.await()
-            return AiReviewStarted(job(AiJobStatus.SUCCEEDED), AiReviewRequestIdentity("request-1", "job-1", "idem-1", identityOwner))
+            return AiReviewStarted(job(nextStatus), AiReviewRequestIdentity("request-1", "job-1", "idem-1", identityOwner))
         }
 
         override suspend fun recover(requestId: String): AiReviewStarted {
@@ -539,6 +632,7 @@ class AiReviewViewModelTest {
     private inner class FailOnceAfterCreatedRequestJobs(
         private val identity: AiReviewRequestIdentity,
     ) : AiReviewJobs {
+        override suspend fun prepare(target: AiReviewTarget) = preparedFixture(target)
         var startCalls = 0
         val recoveredRequests = mutableListOf<String>()
         var recoveredIdentity: AiReviewRequestIdentity? = null
@@ -564,6 +658,7 @@ class AiReviewViewModelTest {
         private val pending: AiReviewPendingRequestIdentity,
         private val failStart: Boolean = true,
     ) : AiReviewJobs {
+        override suspend fun prepare(target: AiReviewTarget) = preparedFixture(target)
         var startCalls = 0
         val recoveredRequests = mutableListOf<String>()
 
@@ -587,6 +682,7 @@ class AiReviewViewModelTest {
     private inner class RetryDispatchJobs(
         private val terminalStatus: AiJobStatus,
     ) : AiReviewJobs {
+        override suspend fun prepare(target: AiReviewTarget) = preparedFixture(target)
         val recoveredRequests = mutableListOf<String>()
         val retryFailedRequests = mutableListOf<String>()
         private var currentStatus = terminalStatus
@@ -614,6 +710,7 @@ class AiReviewViewModelTest {
     }
 
     private inner class NonterminalRetryJobs : AiReviewJobs {
+        override suspend fun prepare(target: AiReviewTarget) = preparedFixture(target)
         val recoveredRequests = mutableListOf<String>()
         val retryFailedRequests = mutableListOf<String>()
 
@@ -634,6 +731,7 @@ class AiReviewViewModelTest {
     }
 
     private inner class FailOnceTerminalRetryJobs : AiReviewJobs {
+        override suspend fun prepare(target: AiReviewTarget) = preparedFixture(target)
         val recoveredRequests = mutableListOf<String>()
         val retryFailedRequests = mutableListOf<String>()
 
@@ -659,6 +757,7 @@ class AiReviewViewModelTest {
     }
 
     private inner class PartialTerminalRetryJobs : AiReviewJobs {
+        override suspend fun prepare(target: AiReviewTarget) = preparedFixture(target)
         var persistedStatus = AiJobStatus.CANCELLED
         val recoveredRequests = mutableListOf<String>()
         val retryFailedRequests = mutableListOf<String>()

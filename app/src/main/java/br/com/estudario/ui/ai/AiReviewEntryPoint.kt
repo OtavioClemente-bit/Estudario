@@ -85,13 +85,14 @@ fun AiReviewEntryPoint(
         }
     }
     val actualReviewViewModel: AiReviewViewModel = reviewViewModel ?: viewModel(
-        key = "ai-review-${target.id}",
-        factory = remember(target.id, target.title, onLoginRequested) {
+        key = "ai-review-${target.id}-${target.entryId}",
+        factory = remember(target, onLoginRequested) {
             AiReviewViewModelFactory(
                 application,
                 target.id,
                 target.title,
                 onLoginRequested?.let(::AiReviewLoginLauncher) ?: localLoginLauncher,
+                target,
             )
         },
     )
@@ -100,7 +101,7 @@ fun AiReviewEntryPoint(
     // Voltar do sistema fecha a tela da IA e devolve ao passo de onde ela foi aberta.
     // Fechar durante a análise não perde nada: ela segue em segundo plano e o aviso do topo reabre a revisão.
     val closeOrBackground: () -> Unit = {
-        if (state.content is AiReviewContent.Processing && onReopen != null) {
+        if ((state.content is AiReviewContent.Processing || state.content is AiReviewContent.Submitting) && onReopen != null) {
             val id = "edital:${target.id}"
             BackgroundAiTasks.start(id, target.title, "Edital", null, open = onReopen) {
                 val done = actualReviewViewModel.state.first { it.content is AiReviewContent.Review || it.content is AiReviewContent.Failure }.content
@@ -113,9 +114,10 @@ fun AiReviewEntryPoint(
     }
     androidx.activity.compose.BackHandler(enabled = !loginOpen) { closeOrBackground() }
     LaunchedEffect(target.sourceUri, target.sourceName) {
-        // Preferências antes da fonte: a fonte pode disparar a geração, que já leva as respostas.
-        target.preferences?.let(actualReviewViewModel::updatePreferences)
-        target.sourceUri?.let { actualReviewViewModel.provideSource(it, target.sourceName) }
+        if (reviewViewModel != null) {
+            target.preferences?.let(actualReviewViewModel::updatePreferences)
+            target.sourceUri?.let { actualReviewViewModel.provideSource(it, target.sourceName) }
+        }
     }
     val sourcePicker = pdfPicker ?: rememberAiReviewPdfPicker()
     val sourcePermission = pdfPermission ?: remember(context) { ContentResolverAiPdfUriPermission(context.contentResolver) }
@@ -134,7 +136,7 @@ fun AiReviewEntryPoint(
         state = state,
         sourceError = sourceError,
         onLogin = actualReviewViewModel::requestLogin,
-        onPickSource = { sourcePicker.launch(onPdfResult) },
+        onPickSource = { sourceError = null; sourcePicker.launch(onPdfResult) },
         onDraftChange = actualReviewViewModel::changeDraft,
         onApply = actualReviewViewModel::apply,
         onConfirmReplacement = actualReviewViewModel::confirmReplacement,
@@ -146,6 +148,8 @@ fun AiReviewEntryPoint(
         onSyncAck = onSyncAck,
         preferences = preferences,
         onPreferencesChange = actualReviewViewModel::updatePreferences,
+        onConfirmGeneration = actualReviewViewModel::confirmGeneration,
+        onEditInformation = actualReviewViewModel::editInformation,
     )
     if (loginOpen) {
         AccountLoginDialog(
