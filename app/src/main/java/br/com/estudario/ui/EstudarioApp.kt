@@ -192,7 +192,6 @@ private fun MainNavigation(viewModel: AppViewModel) {
             delay(1_000)
         }
     }
-    LaunchedEffect(seenTours != null) { if (seenTours?.contains(TourId.EDITAL.name) == false) viewModel.maybeStartTour(TourId.EDITAL) }
     // Nenhum guia abre por cima de uma importação em andamento: a pessoa está no meio de um
     // diálogo, e o guia aparecendo ali é o que fazia a tela parecer travada depois de importar.
     val appTransfer by viewModel.transfer.collectAsState()
@@ -255,9 +254,12 @@ private fun MainNavigation(viewModel: AppViewModel) {
         drawerScope.launch { drawerState.close() }
         navController.navigate(route) { launchSingleTop = true }
     }
+    // Pelo menu, a aba sempre abre no começo dela. Restaurar a pilha salva levava de volta à mesma
+    // tela interna (ex.: um tópico) e parecia que o toque não tinha feito nada.
     fun abrirAbaDoMenu(route: String) {
         drawerScope.launch { drawerState.close() }
-        navController.navigate(route) { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true }
+        if (route == "home") { if (!navController.popBackStack("home", inclusive = false)) navController.navigate("home") { launchSingleTop = true }; return }
+        navController.navigate(route) { popUpTo("home"); launchSingleTop = true }
     }
     fun voltarParaInicio() {
         if (!navController.popBackStack("home", inclusive = false)) {
@@ -299,7 +301,8 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     currentRoute = currentRoute,
                     sections = estudarioDrawerSections(
                         onMySyllabi = { abrirDoMenu("my-syllabi") },
-                        onNotebook = { abrirDoMenu("notebook") },
+                        onNotebook = { abrirAbaDoMenu("notebook") },
+                        onHome = { abrirAbaDoMenu("home") },
                         onSyllabus = { abrirAbaDoMenu("syllabus") },
                         onPlan = { abrirAbaDoMenu("plan") },
                         onTrain = { abrirAbaDoMenu("train") },
@@ -692,15 +695,9 @@ private fun TourPickerDialog(seen: Set<String>, onDismiss: () -> Unit, onStart: 
         text = {
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Escolha um guia para ver passo a passo.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TutorialVideo.entries.forEach { video ->
-                    ListItem(
-                        headlineContent = { Text("Vídeo: ${video.title}") },
-                        supportingContent = { Text(video.description) },
-                        leadingContent = { Icon(Icons.Outlined.PlayCircleOutline, null) },
-                        modifier = Modifier.clickable { onWatchVideo(video) },
-                    )
-                }
-                TourId.entries.forEach { tour ->
+                // Guias de edital e de material saíram: o fluxo novo de criar concurso e gerar no
+                // tópico já se explica sozinho, e os vídeos mostravam telas antigas.
+                TourId.entries.filterNot { it == TourId.EDITAL || it == TourId.CONTENT }.forEach { tour ->
                     ListItem(
                         headlineContent = { Text(tour.title) },
                         supportingContent = { Text(tour.subtitle) },

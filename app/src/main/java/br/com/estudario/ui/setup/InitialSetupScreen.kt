@@ -185,8 +185,20 @@ fun InitialSetupFlow(
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
 
+    // Aberto pela aba Plano ("novo plano"): Cancelar volta ao app e devolve a configuração como estava.
+    val planPrefs = remember(context) { context.getSharedPreferences(PLAN_MODE_PREFS, android.content.Context.MODE_PRIVATE) }
+    val planMode = remember(snapshot.status) { planPrefs.contains(PLAN_MODE_PREVIOUS_STATUS) }
+    val planFirstStep = snapshot.step == InitialSetupStep.SUBJECT_PRIORITY
+    fun cancelPlanMode() = viewModel.cancelPlanMode(
+        planPrefs.getString(PLAN_MODE_PREVIOUS_STATUS, null),
+        planPrefs.getString(PLAN_MODE_PREVIOUS_STEP, null),
+    ).also { planPrefs.edit().remove(PLAN_MODE_PREVIOUS_STATUS).remove(PLAN_MODE_PREVIOUS_STEP).apply() }
+
     // Voltar do sistema volta um passo, igual à seta do topo; só na primeira tela ele sai do app.
-    androidx.activity.compose.BackHandler(enabled = snapshot.step != InitialSetupStep.INTRO) { viewModel.goBack() }
+    // No novo plano, voltar da primeira etapa do plano sai do assistente.
+    androidx.activity.compose.BackHandler(enabled = snapshot.step != InitialSetupStep.INTRO) {
+        if (planMode && planFirstStep) cancelPlanMode() else viewModel.goBack()
+    }
 
     LaunchedEffect(snapshot.status) {
         if (snapshot.status == InitialSetupStatus.NOT_STARTED) viewModel.begin()
@@ -247,21 +259,26 @@ fun InitialSetupFlow(
             TopAppBar(
                 title = {
                     Text(
-                        if (snapshot.step == InitialSetupStep.READY) "Seu ponto de partida" else "Configuração inicial",
+                        when {
+                            snapshot.step == InitialSetupStep.READY -> "Seu ponto de partida"
+                            planMode -> "Novo plano"
+                            else -> "Configuração inicial"
+                        },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
                 },
                 navigationIcon = {
                     if (snapshot.step != InitialSetupStep.INTRO) {
-                        androidx.compose.material3.IconButton(onClick = viewModel::goBack) {
+                        androidx.compose.material3.IconButton(onClick = { if (planMode && planFirstStep) cancelPlanMode() else viewModel.goBack() }) {
                             Icon(Icons.Outlined.ArrowBack, contentDescription = "Voltar")
                         }
                     }
                 },
                 actions = {
                     if (snapshot.step != InitialSetupStep.READY) {
-                        TextButton(onClick = viewModel::defer) { Text("Configurar depois") }
+                        if (planMode) TextButton(onClick = { cancelPlanMode() }) { Text("Cancelar") }
+                        else TextButton(onClick = viewModel::defer) { Text("Configurar depois") }
                     }
                 },
             )
@@ -344,7 +361,10 @@ fun InitialSetupFlow(
                     )
                     InitialSetupStep.PLAN_METHOD -> PlanMethodStep(snapshot, uiState, operation, viewModel, picker)
                     InitialSetupStep.PLAN_REVIEW -> PlanReviewStep(snapshot, uiState, viewModel)
-                    InitialSetupStep.READY -> ReadyStep(onFinish = { viewModel.finish(); onFinished() })
+                    InitialSetupStep.READY -> ReadyStep(onFinish = {
+                        planPrefs.edit().remove(PLAN_MODE_PREVIOUS_STATUS).remove(PLAN_MODE_PREVIOUS_STEP).apply()
+                        viewModel.finish(); onFinished()
+                    })
                 }
             }
         }

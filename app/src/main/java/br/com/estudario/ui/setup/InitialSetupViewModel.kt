@@ -605,6 +605,13 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
         app.preferences.updateInitialSetup { it.copy(status = InitialSetupStatus.COMPLETED, step = InitialSetupStep.READY) }
     }
 
+    /** Sai do "novo plano" sem mexer no resto: a configuração volta ao status e à etapa de antes. */
+    fun cancelPlanMode(previousStatus: String?, previousStep: String?) = viewModelScope.launch {
+        val status = previousStatus?.let { runCatching { InitialSetupStatus.valueOf(it) }.getOrNull() } ?: InitialSetupStatus.COMPLETED
+        val step = previousStep?.let { runCatching { InitialSetupStep.valueOf(it) }.getOrNull() } ?: InitialSetupStep.READY
+        app.preferences.updateInitialSetup { it.copy(status = status, step = step) }
+    }
+
     fun reportError(message: String) { _operation.value = SetupOperation.Error(message) }
 
     fun clearOperation() { _operation.value = SetupOperation.Idle }
@@ -628,3 +635,8 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
             InitialSetupWorkspace.hasExistingData(competitions.size, plans.size)
     }
 }
+
+/** Preferências do modo "novo plano" (assistente aberto pela aba Plano). */
+const val PLAN_MODE_PREFS = "estudario_ui"
+const val PLAN_MODE_PREVIOUS_STATUS = "plan_mode_previous_status"
+const val PLAN_MODE_PREVIOUS_STEP = "plan_mode_previous_step"

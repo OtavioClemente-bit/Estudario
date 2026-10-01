@@ -14,6 +14,7 @@ import br.com.estudario.data.preferences.FocusSessionPrefs
 import br.com.estudario.data.local.FocusSessionOrigin
 import br.com.estudario.focus.FocusSessionManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -557,6 +558,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val notificationDestination: StateFlow<String?> = _notificationDestination.asStateFlow()
 
     fun addCompetition(name: String) = launchCatching { if (name.isNotBlank()) repository.addCompetition(name) }
+    /** Cria e devolve o id, para a tela já seguir com o edital, a montagem manual ou a importação. */
+    suspend fun createCompetition(name: String): Long = repository.addCompetition(name)
     fun reportIncomingFileError(message: String) { _transfer.value = TransferState.Error(message) }
     /** Liga o loading assim que a pessoa escolhe um arquivo, antes da leitura começar. */
     fun beginIncomingFile() { _transfer.value = TransferState.Loading }
@@ -638,6 +641,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun startPlanSetup(competitionId: Long?) = launchCatching {
         val competition = competitionId?.let { id -> app.database.dao().competitionsOnce().firstOrNull { it.id == id } }
+        // Modo "novo plano": o assistente sabe que veio da aba Plano, mostra Cancelar e, ao sair,
+        // devolve a configuração ao estado em que estava (normalmente já concluída).
+        val previous = app.preferences.initialSetup.first()
+        app.getSharedPreferences(br.com.estudario.ui.setup.PLAN_MODE_PREFS, android.content.Context.MODE_PRIVATE).edit()
+            .putString(br.com.estudario.ui.setup.PLAN_MODE_PREVIOUS_STATUS, previous.status.name)
+            .putString(br.com.estudario.ui.setup.PLAN_MODE_PREVIOUS_STEP, previous.step.name)
+            .apply()
         app.preferences.updateInitialSetup { current ->
             if (competition == null) current.copy(status = InitialSetupStatus.IN_PROGRESS, step = br.com.estudario.domain.setup.InitialSetupStep.COMPETITION)
             else current.copy(
