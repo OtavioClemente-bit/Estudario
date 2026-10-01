@@ -79,7 +79,16 @@ data class SubjectPerformance(
     val topics: List<TopicPerformance>,
 )
 
-data class DailyActivityPoint(val date: LocalDate, val eventCount: Int)
+/** Um dia do gráfico: quanto aconteceu, quantas questões, quantas certas e quantos minutos de estudo. */
+data class DailyActivityPoint(
+    val date: LocalDate,
+    val eventCount: Int,
+    val attempts: Int = 0,
+    val correct: Int = 0,
+    val minutes: Int = 0,
+) {
+    val accuracyPercent: Int? get() = if (attempts == 0) null else correct * 100 / attempts
+}
 data class PerformanceRecommendation(val message: String, val evidence: String)
 
 data class StudyPerformanceResult(
@@ -153,12 +162,31 @@ object StudyPerformanceEvaluator {
             }
         }
         input.attempts.forEach { record(it.answeredAt) }
+        // Por dia, para os gráficos: questões e acertos, e minutos de estudo somando sessões e plano.
+        val dayAttempts = mutableMapOf<LocalDate, Int>()
+        val dayCorrect = mutableMapOf<LocalDate, Int>()
+        val dayMinutes = mutableMapOf<LocalDate, Long>()
+        fun dayOf(at: Instant): LocalDate? = at.takeIf { currentWindow.includes(it) }?.atZone(zone)?.toLocalDate()
+            ?.takeIf { !it.isBefore(activityStart) && !it.isAfter(activityEndDate) }
+        input.attempts.forEach { attempt ->
+            val day = dayOf(attempt.answeredAt) ?: return@forEach
+            dayAttempts[day] = (dayAttempts[day] ?: 0) + 1
+            if (attempt.correct) dayCorrect[day] = (dayCorrect[day] ?: 0) + 1
+        }
+        (input.studySessions + input.questionSessions).forEach { session ->
+            val day = dayOf(session.completedAt) ?: return@forEach
+            dayMinutes[day] = (dayMinutes[day] ?: 0) + session.durationSeconds / 60
+        }
+        input.executions.forEach { execution ->
+            val day = dayOf(execution.completedAt) ?: return@forEach
+            dayMinutes[day] = (dayMinutes[day] ?: 0) + execution.actualMinutes
+        }
         input.reviews.forEach { record(it.reviewedAt) }
         input.studySessions.forEach { record(it.completedAt) }
         input.questionSessions.forEach { record(it.completedAt) }
         input.executions.forEach { record(it.completedAt) }
         val dailyActivity = generateSequence(activityStart) { date -> date.plusDays(1).takeIf { it <= activityEndDate } }
-            .map { DailyActivityPoint(it, eventCounts[it] ?: 0) }
+            .map { DailyActivityPoint(it, eventCounts[it] ?: 0, dayAttempts[it] ?: 0, dayCorrect[it] ?: 0, (dayMinutes[it] ?: 0).toInt()) }
             .toList()
 
         return StudyPerformanceResult(
