@@ -21,49 +21,92 @@ object EditalSectionFinder {
     /** Teto de texto enviado (~110 mil tokens, abaixo do maior edital que já passou pelo servidor). */
     const val MAX_CHARS = 400_000
 
+    /** Abaixo disso não é o conteúdo de verdade (é um título solto, uma citação). */
+    private const val MIN_SECTION_CHARS = 1_500
+
     private val START = Regex(
-        """conte[úu]dos?\s+program[áa]ticos?|objetos?\s+de\s+avalia[çc][ãa]o|conhecimentos\s+(?:b[áa]sicos|gerais|espec[íi]ficos)\s*[:\-\u2013]|programa\s+das?\s+(?:provas|disciplinas)""",
+        """conte[úu]dos?\s+program[áa]ticos?|objetos?\s+de\s+avalia[çc][ãa]o|conhecimentos\s+(?:b[áa]sicos|gerais|espec[íi]ficos)|programas?\s+(?:das?\s+(?:provas|disciplinas|mat[ée]rias)|de\s+mat[ée]rias)""",
         RegexOption.IGNORE_CASE,
     )
-    /** Título de anexo no topo da página ("ANEXO III \u2013 ..."). */
-    private val ANNEX_HEADING = Regex("""\banexo\s+(?:[ivxlc]+|\d+)\b\s*[-\u2013\u2014:.]?\s*(.{0,120})""", RegexOption.IGNORE_CASE)
-    private val CONTENT_WORDS = Regex("""conte[úu]do|program[áa]tic|conhecimentos|disciplinas|mat[ée]rias|objetos?\s+de\s+avalia""", RegexOption.IGNORE_CASE)
 
-    /** Outro anexo começou (cronograma, tabelas do teste físico, modelos...): fim do conteúdo. */
-    private fun startsOtherAnnex(page: String): Boolean {
-        val head = page.take(300)
-        val match = ANNEX_HEADING.find(head) ?: return false
-        return !CONTENT_WORDS.containsMatchIn(match.groupValues[1])
+    /**
+     * Título de anexo: "ANEXO III - ...", "ANEXO 2: ...", "ANEXO “B” - ..." (PMMG usa letras entre
+     * aspas). O separador é obrigatório, para não confundir com "conforme o Anexo I deste edital".
+     */
+    private val ANNEX_HEADING = Regex(
+        """\banexo\s+(?:[“"'][a-z]{1,2}[”"']|[ivxlc]+|\d+)\s*[-\u2013\u2014:.]\s*(\S.{0,120})""",
+        RegexOption.IGNORE_CASE,
+    )
+    private val CONTENT_WORDS = Regex(
+        """conte[úu]do|program[áa]tic|programa\s+d|conhecimentos|disciplinas|mat[ée]rias|objetos?\s+de\s+avalia|bibliografia""",
+        RegexOption.IGNORE_CASE,
+    )
+    /** Linha de sumário ("ANEXO B - PROGRAMA ........ 95"): cita o anexo, mas não é ele. */
+    private val TOC = Regex("""\.{4,}|…{2,}|_{4,}""")
+
+    private data class Line(val page: Int, val text: String)
+
+    private enum class Kind { CONTENT_ANNEX, CONTENT_TITLE, OTHER_ANNEX, NONE }
+
+    private fun kind(line: String): Kind {
+        if (TOC.containsMatchIn(line)) return Kind.NONE
+        ANNEX_HEADING.find(line)?.let { match ->
+            return if (CONTENT_WORDS.containsMatchIn(match.groupValues[1])) Kind.CONTENT_ANNEX else Kind.OTHER_ANNEX
+        }
+        // Título solto ("CONTEÚDO PROGRAMÁTICO", "CONHECIMENTOS BÁSICOS"): linha curta e em caixa alta.
+        val trimmed = line.trim()
+        if (trimmed.length in 8..90 && START.containsMatchIn(trimmed)) {
+            val letters = trimmed.filter(Char::isLetter)
+            if (letters.isNotEmpty() && letters.count(Char::isUpperCase) >= letters.length * 0.7) return Kind.CONTENT_TITLE
+        }
+        return Kind.NONE
     }
 
     /**
-     * Escolhe as páginas. Procura o último bloco que se anuncia como conteúdo programático (o
-     * sumário do começo também cita o nome, mas o anexo de verdade vem depois e é mais denso) e
-     * segue até outro anexo começar.
+     * Escolhe o texto. Lê linha a linha: o conteúdo programático começa num título de anexo de
+     * conteúdo ("ANEXO II - CONTEÚDO PROGRAMÁTICO", "ANEXO “B” - PROGRAMA DE MATÉRIAS") ou, se o
+     * edital não usa anexos, num título solto em caixa alta, e vai até o próximo anexo que não é de
+     * conteúdo (cronograma, teste físico, modelos). Começa e termina no meio da página quando
+     * preciso, então as regras do edital antes dele não vão junto. Entre vários candidatos, fica o
+     * trecho mais longo: o sumário e as citações nas regras são curtos.
      */
     fun select(pages: List<String>): AiSourceText? {
         if (pages.isEmpty() || pages.all { it.isBlank() }) return null
-        val starts = pages.indices.filter { START.containsMatchIn(pages[it]) }
-        val start = starts.lastOrNull { index -> isRealSection(pages, index) } ?: starts.firstOrNull()
-        val chosen = if (start == null) pages.indices.toList() else {
-            val end = ((start + 1) until pages.size).firstOrNull { startsOtherAnnex(pages[it]) } ?: pages.size
-            (listOf(0) + (start until end)).distinct()
+        val lines = pages.flatMapIndexed { page, text -> text.lines().map { Line(page, it) } }
+        val kinds = lines.map { kind(it.text) }
+
+        fun sectionFrom(start: Int): IntRange {
+            val end = ((start + 1) until lines.size).firstOrNull { kinds[it] == Kind.OTHER_ANNEX } ?: lines.size
+            return start until end
         }
-        val focused = start != null && chosen.size < pages.size
-        val text = chosen.joinToString("\n\n") { "--- Página ${it + 1} ---\n${pages[it].trim()}" }
-        return AiSourceText(
-            text = if (text.length > MAX_CHARS) text.take(MAX_CHARS) else text,
-            pages = ranges(chosen.map { it + 1 }),
-            totalPages = pages.size,
-            focused = focused,
-        )
+        fun length(range: IntRange) = range.sumOf { lines[it].text.length + 1 }
+        fun best(kind: Kind) = lines.indices.filter { kinds[it] == kind }.map(::sectionFrom)
+            .filter { length(it) >= MIN_SECTION_CHARS }.maxByOrNull(::length)
+
+        val section = best(Kind.CONTENT_ANNEX) ?: best(Kind.CONTENT_TITLE)
+        if (section == null) {
+            // Não achou: manda tudo, menos os anexos de formulário/modelo no fim (só atrapalham).
+            val firstForm = lines.indices.firstOrNull { kinds[it] == Kind.OTHER_ANNEX && lines[it].page >= pages.size / 2 }
+            val keep = if (firstForm == null) pages.indices.toList() else (0..lines[firstForm].page).toList()
+            val keptLines = lines.indices.filter { lines[it].page in keep && (firstForm == null || it < firstForm) }
+            return build(lines, keptLines, pages.size, focused = false)
+        }
+        val firstPage = lines.indices.filter { lines[it].page == 0 && lines[it].page != lines[section.first].page }
+        return build(lines, firstPage + section.toList(), pages.size, focused = true)
     }
 
-    /** Página de anexo de verdade: o título aparece no começo e a página tem conteúdo longo. */
-    private fun isRealSection(pages: List<String>, index: Int): Boolean {
-        val page = pages[index]
-        val at = START.find(page)?.range?.first ?: return false
-        return at < 600 && page.length > 800
+    private fun build(lines: List<Line>, chosen: List<Int>, totalPages: Int, focused: Boolean): AiSourceText {
+        // Página que só entrou com o cabeçalho antes do próximo anexo não conta.
+        val byPage = chosen.groupBy { lines[it].page }.filter { (page, indices) -> page == 0 || indices.sumOf { lines[it].text.trim().length } >= 120 }.toSortedMap()
+        val text = byPage.entries.joinToString("\n\n") { (page, indices) ->
+            "--- Página ${page + 1} ---\n" + indices.joinToString("\n") { lines[it].text }.trim()
+        }
+        return AiSourceText(
+            text = if (text.length > MAX_CHARS) text.take(MAX_CHARS) else text,
+            pages = ranges(byPage.keys.map { it + 1 }),
+            totalPages = totalPages,
+            focused = focused && byPage.size < totalPages,
+        )
     }
 
     internal fun ranges(numbers: List<Int>): String {

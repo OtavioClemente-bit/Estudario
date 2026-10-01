@@ -61,4 +61,47 @@ class EditalSectionFinderTest {
     fun intervalosDePaginas() {
         assertEquals("1, 51-54, 60", EditalSectionFinder.ranges(listOf(1, 51, 52, 53, 54, 60)))
     }
+
+    @Test
+    fun anexoComLetraEntreAspasDaPmmg() {
+        val pages = listOf(
+            "Edital DRH/CRS nº 11/2026 CFO/2027\nCONCURSO PÚBLICO ${filler(100)}",
+            "Edital DRH/CRS nº 11/2026 CFO/2027\nSUMÁRIO\nANEXO “B” - PROGRAMA DE MATÉRIAS ............ 95\nANEXO “C” - CIDADES ........ 104",
+            "Edital DRH/CRS nº 11/2026 CFO/2027\n7.8 Disciplinas da prova ${filler(300)}",
+            "Edital DRH/CRS nº 11/2026 CFO/2027\nANEXO “A” - CALENDÁRIO DE ATIVIDADES ${filler(200)}",
+            "Edital DRH/CRS nº 11/2026 CFO/2027\nANEXO “B” - PROGRAMA DE MATÉRIAS\n1. LÍNGUA PORTUGUESA ${filler(300)}",
+            "Edital DRH/CRS nº 11/2026 CFO/2027\n4. DIREITO CONSTITUCIONAL ${filler(300)}",
+            "Edital DRH/CRS nº 11/2026 CFO/2027\nANEXO “C” - CIDADES DE OPÇÃO ${filler(200)}",
+            "Edital DRH/CRS nº 11/2026 CFO/2027\nANEXO “D” - MODELO DE DECLARAÇÃO ${filler(200)}",
+        )
+        val result = EditalSectionFinder.select(pages)!!
+        assertEquals("1, 5-6", result.pages)
+        assertTrue(result.focused)
+        assertFalse(result.text.contains("CIDADES DE OPÇÃO"))
+    }
+
+    @Test
+    fun anexoQueComecaNoMeioDaPaginaNaoLevaAsRegras() {
+        val pages = listOf(
+            "Capa ${filler(100)}",
+            "19.9 Dos dados pessoais ${filler(200)}\nANEXO I \u2013 CONTEÚDO PROGRAMÁTICO\nCONHECIMENTOS BÁSICOS\nLÍNGUA PORTUGUESA ${filler(300)}",
+            "NOÇÕES DE DIREITO ADMINISTRATIVO ${filler(300)}\nANEXO II - REQUISITOS E ATRIBUIÇÕES DO CARGO ${filler(100)}",
+        )
+        val result = EditalSectionFinder.select(pages)!!
+        assertEquals("1-3", result.pages)
+        assertFalse(result.text.contains("Dos dados pessoais"))
+        assertFalse(result.text.contains("REQUISITOS"))
+        assertTrue(result.text.contains("DIREITO ADMINISTRATIVO"))
+    }
+
+    @Test
+    fun editaisReais() {
+        val dir = java.io.File(System.getenv("EDITAIS_DIR") ?: "none")
+        if (!dir.exists()) return
+        (1..4).forEach { n ->
+            val pages = java.io.File(dir, "e$n.txt").readText().split('\u000c').dropLast(1)
+            val r = EditalSectionFinder.select(pages)!!
+            println("REAL e$n pages=${r.pages} focused=${r.focused} chars=${r.text.length} start=${r.text.substringAfter("---\n").lines().drop(1).take(2)} end=${r.text.takeLast(120).replace('\n', ' ')}")
+        }
+    }
 }
