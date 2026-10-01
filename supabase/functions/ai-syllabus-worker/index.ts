@@ -98,6 +98,33 @@ export interface SyllabusWorkerJob {
   generationOptions?: SyllabusGenerationOptions | null;
 }
 
+export interface AiCostEntry {
+  jobId: string;
+  feature: string;
+  kind: "MAIN" | "REVIEW";
+  model: string | null;
+  response: ProviderResponse;
+}
+
+/** Registra o custo de uma resposta terminada. Nunca atrapalha o job: erro aqui é ignorado. */
+export async function meterCost(
+  dependencies: SyllabusWorkerDependencies,
+  job: SyllabusWorkerJob,
+  kind: AiCostEntry["kind"],
+  response: ProviderResponse,
+): Promise<void> {
+  if (response.status === "queued" || response.status === "in_progress") return;
+  try {
+    await dependencies.jobs.recordCost?.({
+      jobId: job.id,
+      feature: job.feature ?? "SYLLABUS_GENERATION",
+      kind,
+      model: modelOf(dependencies, job) ?? null,
+      response,
+    });
+  } catch { /* medir custo nunca derruba a geração */ }
+}
+
 export interface SyllabusWorkerStore {
   claimReconciliation(
     now: Date,
@@ -131,6 +158,8 @@ export interface SyllabusWorkerStore {
     recoverable: boolean,
   ): Promise<void>;
   markRetry(jobId: string, lease: Lease): Promise<void>;
+  /** Medição de custo (melhor esforço): uma linha por resposta da OpenAI. */
+  recordCost?(entry: AiCostEntry): Promise<void>;
   captureUsage(
     jobId: string,
     lease: Lease,
@@ -461,6 +490,7 @@ async function processResponse(
   now: Date,
 ): Promise<void> {
   await dependencies.jobs.assertLease(job.id, lease);
+  await meterCost(dependencies, job, "MAIN", response);
   if (deadlineExceeded(job, now)) {
     if (response.status === "queued" || response.status === "in_progress") {
       const cancellation = await providerCall(
@@ -634,6 +664,7 @@ async function processReconciliation(
         now(),
       );
     } else {
+      await meterCost(dependencies, job, "MAIN", response);
       const terminalStatus = response.status === "cancelled"
         ? "CANCELLED"
         : response.status === "expired"
@@ -1187,6 +1218,32 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
       p_recoverable: recoverable,
       ...leaseRpcArgs(lease),
     });
+  }
+  async recordCost(entry: AiCostEntry): Promise<void> {
+    const response = await this.fetcher(
+      `${this.environment.supabaseUrl.replace(/\/$/, "")}/rest/v1/ai_job_costs?on_conflict=response_id`,
+      {
+        method: "POST",
+        headers: {
+          ...workerBackendHeaders(this.environment),
+          "content-type": "application/json",
+          prefer: "resolution=ignore-duplicates,return=minimal",
+        },
+        body: JSON.stringify({
+          job_id: entry.jobId,
+          feature: entry.feature,
+          kind: entry.kind,
+          response_id: entry.response.id,
+          model: entry.model,
+          status: entry.response.status,
+          input_tokens: entry.response.usage?.inputTokens ?? null,
+          cached_input_tokens: entry.response.cachedInputTokens ?? null,
+          output_tokens: entry.response.usage?.outputTokens ?? null,
+          web_search_calls: entry.response.webSearchCalls ?? 0,
+        }),
+      },
+    );
+    await response.body?.cancel().catch(() => {});
   }
   async markRetry(jobId: string, lease: Lease): Promise<void> {
     await this.rpc("increment_ai_job_retry", {

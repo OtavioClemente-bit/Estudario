@@ -1,4 +1,5 @@
 import type { AiJobSpec, SyllabusWorkerJob } from "../ai-syllabus-worker/index.ts";
+import { meterCost } from "../ai-syllabus-worker/index.ts";
 import {
   AI_STUDY_PLAN_SCHEMA,
   AI_STUDY_PLAN_SCHEMA_VERSION,
@@ -66,6 +67,7 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
       provider: dependencies.provider,
       jobId: job.id,
       model: resolveOpenAiModel(dependencies.modelForJob?.(job) ?? dependencies.model),
+      onFinished: (response) => meterCost(dependencies, job, "REVIEW", response),
       context: [input.competitionName, input.role, input.board ? `banca ${input.board}` : null, input.subjectName, input.topicPath.join(" › ")]
         .filter(Boolean).join(" · "),
     });
@@ -140,6 +142,7 @@ export const SIMULATION_JOB_SPEC: AiJobSpec = {
       provider: dependencies.provider,
       jobId: job.id,
       model: resolveOpenAiModel(dependencies.modelForJob?.(job) ?? dependencies.model),
+      onFinished: (response) => meterCost(dependencies, job, "REVIEW", response),
       context: [input.competitionName, input.role, input.board ? `banca ${input.board}` : null, "simulado"].filter(Boolean).join(" · "),
     });
     return withSimulationReview(part, review, expected, input) as unknown as WorkerProposal;

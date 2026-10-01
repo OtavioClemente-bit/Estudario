@@ -30,6 +30,9 @@ export interface ProviderResponse {
   usage: ProviderUsage | null;
   /** Código curto que a OpenAI dá quando a resposta falha (ex.: server_error). Só letras e _. */
   failureCode?: string | null;
+  /** Para medir custo: pesquisas na web feitas e tokens de entrada que vieram do cache. */
+  webSearchCalls?: number;
+  cachedInputTokens?: number;
 }
 
 /** Motivo da falha num formato seguro para guardar: nada de texto livre vindo da OpenAI. */
@@ -399,7 +402,25 @@ function parseResponse(value: unknown): ProviderResponse {
     outputText: outputText(row.output_text ?? row.output),
     usage: usage(row.usage),
     failureCode: failureCode(row),
+    ...costDetails(row),
   };
+}
+
+/** Quantas pesquisas na web a resposta fez e quanto da entrada veio do cache (mais barato). */
+function costDetails(row: Record<string, unknown>): Pick<ProviderResponse, "webSearchCalls" | "cachedInputTokens"> {
+  const result: Pick<ProviderResponse, "webSearchCalls" | "cachedInputTokens"> = {};
+  if (Array.isArray(row.output)) {
+    const searches = row.output.filter((item) =>
+      item !== null && typeof item === "object" && (item as Record<string, unknown>).type === "web_search_call"
+    ).length;
+    if (searches > 0) result.webSearchCalls = searches;
+  }
+  const details = (row.usage as Record<string, unknown> | undefined)?.input_tokens_details;
+  const cached = details !== null && typeof details === "object"
+    ? (details as Record<string, unknown>).cached_tokens
+    : undefined;
+  if (typeof cached === "number" && Number.isSafeInteger(cached) && cached > 0) result.cachedInputTokens = cached;
+  return result;
 }
 
 function openAiCompatibleSchema(value: JsonSchema): JsonSchema {

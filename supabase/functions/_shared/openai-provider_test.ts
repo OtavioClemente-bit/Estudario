@@ -696,3 +696,23 @@ Deno.test("falta de crédito (insufficient_quota) não é tratada como limite po
   assertEquals(error.outcome, "PROVIDER_REJECTED");
   assertEquals(error.code, "OPENAI_PROVIDER_ERROR");
 });
+
+Deno.test("conta pesquisas na web e entrada do cache para medir custo", async () => {
+  const provider = createOpenAiProvider({
+    apiKey: "test-key",
+    fetcher: async () =>
+      Response.json({
+        id: "resp_cost",
+        status: "completed",
+        output: [
+          { type: "web_search_call", id: "ws_1", status: "completed" },
+          { type: "web_search_call", id: "ws_2", status: "completed" },
+          { type: "message", content: [{ type: "output_text", text: "{}" }] },
+        ],
+        usage: { input_tokens: 1000, output_tokens: 200, total_tokens: 1200, input_tokens_details: { cached_tokens: 600 } },
+      }),
+  });
+  const response = await provider.start(source);
+  assertEquals(response.webSearchCalls, 2);
+  assertEquals(response.cachedInputTokens, 600);
+});

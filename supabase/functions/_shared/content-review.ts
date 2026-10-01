@@ -193,6 +193,8 @@ export interface ReviewRunOptions {
   pollMs?: number;
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
+  /** Recebe a resposta final do revisor, para medir custo. */
+  onFinished?: (response: ProviderResponse) => Promise<void>;
 }
 
 /** Roda o revisor e devolve a revisão, ou null se não deu (quem chama segue com o original). */
@@ -226,6 +228,7 @@ export async function runContentReview(content: Json, options: ReviewRunOptions)
       await sleep(options.pollMs ?? 4_000);
       response = await options.provider.retrieve(response.id);
     }
+    await options.onFinished?.(response).catch(() => undefined);
     if (response.status !== "completed") return null;
     return parseReview(response.outputText, { promptVersion: REVIEW_PROMPT_VERSION, schemaVersion: REVIEW_SCHEMA_VERSION });
   } catch {
