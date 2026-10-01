@@ -202,7 +202,7 @@ fun estudarioDrawerSections(
         "Estudos",
         listOf(
             DrawerEntry("Meus concursos", Icons.Outlined.FolderOpen, onMySyllabi, "my-syllabi"),
-            DrawerEntry("Edital", Icons.AutoMirrored.Outlined.LibraryBooks, onSyllabus, "syllabus"),
+            DrawerEntry("Concursos", Icons.AutoMirrored.Outlined.LibraryBooks, onSyllabus, "syllabus"),
             DrawerEntry("Plano de estudos", Icons.Outlined.CalendarMonth, onPlan, "plan"),
             DrawerEntry("Treinar questões", Icons.Outlined.School, onTrain, "train"),
             DrawerEntry("Caderno de estudo", Icons.Outlined.Bookmarks, onNotebook, "notebook"),

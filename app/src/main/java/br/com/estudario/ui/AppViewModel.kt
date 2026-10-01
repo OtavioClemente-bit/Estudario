@@ -631,6 +631,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
     /** Devolve os minutos medidos para quem encerrou, a tela usa isso para registrar a tarefa. */
     suspend fun stopFocus(): Int = FocusSessionManager.stop(app)
+
+    /**
+     * Abre o mesmo assistente do primeiro acesso, já no concurso, começando na parte do plano
+     * (prioridade, dificuldade, disponibilidade, perfil, revisão). Sem concurso, começa do início.
+     */
+    fun startPlanSetup(competitionId: Long?) = launchCatching {
+        val competition = competitionId?.let { id -> app.database.dao().competitionsOnce().firstOrNull { it.id == id } }
+        app.preferences.updateInitialSetup { current ->
+            if (competition == null) current.copy(status = InitialSetupStatus.IN_PROGRESS, step = br.com.estudario.domain.setup.InitialSetupStep.COMPETITION)
+            else current.copy(
+                status = InitialSetupStatus.IN_PROGRESS,
+                step = br.com.estudario.domain.setup.InitialSetupStep.SUBJECT_PRIORITY,
+                competitionId = competition.id,
+                competitionName = competition.name,
+            )
+        }
+    }
     fun toggleFocusPause() = launchCatching {
         if (focusSession.value.paused) FocusSessionManager.resume(app) else FocusSessionManager.pause(app)
     }

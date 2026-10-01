@@ -150,7 +150,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
     }
     LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
-            ScreenTitle("Edital", "Cada tópico vira material de estudo") {
+            ScreenTitle("Concursos", "Cada tópico vira material de estudo") {
                 Row {
                     IconButton(onClick = onHelp) { Icon(Icons.Outlined.HelpOutline, "Como montar o edital") }
                     IconButton(

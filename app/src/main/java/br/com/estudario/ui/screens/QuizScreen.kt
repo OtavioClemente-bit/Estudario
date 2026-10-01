@@ -11,7 +11,10 @@ import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.Close
-import br.com.estudario.ui.components.SwipeToHide
+import androidx.compose.ui.draw.alpha
+import androidx.compose.material.icons.outlined.Undo
+import androidx.compose.material.icons.outlined.StrikethroughS
+import androidx.compose.foundation.background
 import br.com.estudario.ui.components.offerUndo
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -172,10 +175,15 @@ fun QuizScreen(
     val selected = selections[current.question.id]
     val confirmed = results.containsKey(current.question.id)
     val correct = results[current.question.id]
-    fun hideCurrent() {
-        val hidden = current.question.id
-        viewModel.setQuestionsHidden(listOf(hidden), true)
-        scope.launch { snackbar.offerUndo("Questão ocultada") { viewModel.setQuestionsHidden(listOf(hidden), false) } }
+    // Alternativas riscadas, como na prova de papel: "id da questão:letra". Só ajuda a pensar,
+    // não muda a resposta nem é salvo.
+    val eliminated = remember { mutableStateMapOf<String, Boolean>() }
+    fun isEliminated(key: String) = eliminated["${current.question.id}:$key"] == true
+    fun toggleEliminated(key: String) {
+        val id = "${current.question.id}:$key"
+        val now = eliminated[id] != true
+        eliminated[id] = now
+        if (now && selections[current.question.id] == key) selections.remove(current.question.id)
     }
     Box(Modifier.fillMaxSize()) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -203,21 +211,20 @@ fun QuizScreen(
                     },
                     topic = topics.firstOrNull { it.id == current.question.topicId }?.title,
                 )
-                IconButton(onClick = ::hideCurrent) { Icon(Icons.Outlined.Close, "Ocultar esta questão") }
             }
         }
         item(key = "enunciado-${current.question.id}") {
-            SwipeToHide(onHide = ::hideCurrent) {
-                Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.background) {
-                    Column {
-                        current.question.board?.let { AssistChip(onClick = {}, label = { Text(listOfNotNull(it, current.question.year?.toString()).joinToString(" • ")) }) }
-                        Spacer(Modifier.height(8.dp))
-                        MarkdownText(current.question.statement)
-                        Spacer(Modifier.height(8.dp))
-                        QuestionProvenance(current.question)
-                        Text("Não serve para você? Deslize para o lado para ocultar.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
+            Column {
+                current.question.board?.let { AssistChip(onClick = {}, label = { Text(listOfNotNull(it, current.question.year?.toString()).joinToString(" • ")) }) }
+                Spacer(Modifier.height(8.dp))
+                MarkdownText(current.question.statement)
+                Spacer(Modifier.height(8.dp))
+                QuestionProvenance(current.question)
+                if (!confirmed && current.options.size > 2) Text(
+                    "Em dúvida? Arraste para o lado as alternativas que você descarta, para riscá-las.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
         val certoErrado = current.options.size == 2 &&
@@ -261,24 +268,35 @@ fun QuizScreen(
                 }
             }
         } else current.options.sortedBy { it.position }.forEach { option ->
-            item(key = option.id) {
+            item(key = "opt-${current.question.id}-${option.id}") {
                 val reveal = confirmed && !simulation
+                val crossed = isEliminated(option.key) && !reveal
                 val container = when {
                     reveal && option.isCorrect -> MaterialTheme.colorScheme.secondaryContainer
                     reveal && option.key == selected && !option.isCorrect -> MaterialTheme.colorScheme.errorContainer
                     option.key == selected -> MaterialTheme.colorScheme.primaryContainer
                     else -> MaterialTheme.colorScheme.surface
                 }
-                Surface(
-                    modifier = Modifier.fillMaxWidth().selectable(selected = option.key == selected, enabled = !confirmed || simulation) { selections[current.question.id] = option.key },
-                    shape = RoundedCornerShape(12.dp),
-                    color = container,
-                    border = BorderStroke(1.dp, if (option.key == selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
-                ) {
-                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = option.key == selected, onClick = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("${option.key}) ${option.text}", Modifier.weight(1f))
+                SwipeToEliminate(crossed = crossed, enabled = !confirmed || simulation, onToggle = { toggleEliminated(option.key) }) {
+                    Surface(
+                        // Riscada: tocar desfaz o risco em vez de marcar, para não marcar sem querer.
+                        modifier = Modifier.fillMaxWidth().selectable(selected = option.key == selected, enabled = !confirmed || simulation) {
+                            if (crossed) toggleEliminated(option.key) else selections[current.question.id] = option.key
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        color = container,
+                        border = BorderStroke(1.dp, if (option.key == selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
+                    ) {
+                        Row(Modifier.padding(14.dp).alpha(if (crossed) 0.4f else 1f), verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = option.key == selected, onClick = null, enabled = !crossed)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "${option.key}) ${option.text}",
+                                Modifier.weight(1f),
+                                textDecoration = if (crossed) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+                            )
+                            if (crossed) Icon(Icons.Outlined.Undo, "Desfazer risco", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }
@@ -419,4 +437,40 @@ private fun QuizResult(
             Text(if (isPlanTask) "Voltar ao plano" else "Voltar ao treino")
         }
     }
+}
+
+/**
+ * Arrastar uma alternativa para qualquer lado risca ou desfaz o risco. O fundo mostra o que vai
+ * acontecer; a alternativa volta para o lugar (não sai da tela), só muda de estado.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeToEliminate(crossed: Boolean, enabled: Boolean, onToggle: () -> Unit, content: @Composable () -> Unit) {
+    val toggle by rememberUpdatedState(onToggle)
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value != SwipeToDismissBoxValue.Settled) toggle()
+            false
+        },
+        positionalThreshold = { total -> total * 0.3f },
+    )
+    SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = enabled,
+        enableDismissFromEndToStart = enabled,
+        backgroundContent = {
+            val toLeft = state.dismissDirection == SwipeToDismissBoxValue.EndToStart
+            Box(
+                Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp)).padding(horizontal = 20.dp),
+                contentAlignment = if (toLeft) Alignment.CenterEnd else Alignment.CenterStart,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(if (crossed) Icons.Outlined.Undo else Icons.Outlined.StrikethroughS, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (crossed) "Desfazer" else "Riscar", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        },
+        content = { content() },
+    )
 }

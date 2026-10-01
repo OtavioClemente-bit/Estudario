@@ -150,7 +150,7 @@ fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: 
             }
         }
         if (questions.isEmpty()) {
-            item { EmptyState("Sem questões ainda", "Na aba Edital, abra um tópico e gere o material com questões. Elas aparecem aqui para treinar.") }
+            item { EmptyState("Sem questões ainda", "Na aba Concursos, abra um tópico e gere o material com questões. Elas aparecem aqui para treinar.") }
             return@LazyColumn
         }
 

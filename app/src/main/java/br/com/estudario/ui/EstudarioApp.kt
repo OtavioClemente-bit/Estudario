@@ -226,7 +226,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
     // chamada "Mais" para guardar o que não coube.
     val destinations = listOf(
         Destination("home", "Início", Icons.Rounded.Home, Icons.Outlined.Home),
-        Destination("syllabus", "Edital", Icons.Rounded.LibraryBooks, Icons.Outlined.LibraryBooks),
+        Destination("syllabus", "Concursos", Icons.Rounded.LibraryBooks, Icons.Outlined.LibraryBooks),
         Destination("plan", "Plano", Icons.Rounded.CalendarMonth, Icons.Outlined.CalendarMonth),
         Destination("train", "Treinar", Icons.Rounded.Quiz, Icons.Outlined.Quiz),
         Destination("notebook", "Caderno", Icons.Rounded.Bookmarks, Icons.Outlined.Bookmarks),

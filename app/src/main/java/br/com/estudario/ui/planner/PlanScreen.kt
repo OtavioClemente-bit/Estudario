@@ -148,7 +148,7 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
                                 .tourTarget(TourKey.PLAN_MANAGE, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_MANAGE, it) },
                         ) { Icon(Icons.Outlined.MoreVert, "Mais opções do plano") }
                         DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
-                            DropdownMenuItem(text = { Text("Novo plano") }, leadingIcon = { Icon(Icons.Outlined.Add, null) }, onClick = { more = false; wizard = true })
+                            DropdownMenuItem(text = { Text("Novo plano") }, leadingIcon = { Icon(Icons.Outlined.Add, null) }, onClick = { more = false; appViewModel.startPlanSetup((competitions.firstOrNull { it.isPrimary } ?: competitions.firstOrNull())?.id) })
                             DropdownMenuItem(text = { Text("Meus planos e ajustes") }, leadingIcon = { Icon(Icons.Outlined.Tune, null) }, onClick = { more = false; management = true })
                             DropdownMenuItem(text = { Text("Importar arquivo .plano") }, leadingIcon = { Icon(Icons.Outlined.FileOpen, null) }, onClick = { more = false; pickPlanFile() })
                         }
@@ -160,7 +160,7 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
             LoadingScreen("Carregando seu plano", "Reunindo tarefas, metas e revisões…")
         } else if (state.activePlan == null) {
             EscolhaDeCaminho(
-                onSemIa = { wizard = true },
+                onSemIa = { appViewModel.startPlanSetup((competitions.firstOrNull { it.isPrimary } ?: competitions.firstOrNull())?.id) },
                 onComIa = { promptGenerator = true },
                 onImportar = pickPlanFile,
                 onSelecionar = { management = true },
