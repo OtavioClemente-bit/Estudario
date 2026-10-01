@@ -4,7 +4,7 @@ import type { ContentJobInput, PlanJobInput } from "../text-job-input.ts";
 // prompt do usuário, delimitados como DADOS. Regras de qualidade vêm do prompt de conteúdo que o
 // app já usa com IAs externas, condensadas para gastar menos tokens de entrada.
 
-export const CONTENT_PROMPT_VERSION = "topic-content-v6" as const;
+export const CONTENT_PROMPT_VERSION = "topic-content-v7" as const;
 export const PLAN_PROMPT_VERSION = "study-plan-v1" as const;
 
 const SECURITY = `Limites de segurança:
@@ -21,13 +21,30 @@ Barreira de evidência (a regra mais importante):
 - Antes de citar norma, confirme qual diploma se aplica ao órgão e à esfera informados e sua redação vigente. Se não conseguir confirmar, não cite número e registre LAW_VERSION_UNCERTAIN.
 - "sources" lista só o que você abriu, com URL exata e data de acesso (AAAA-MM-DD).
 
-Nada genérico (material de cursinho bom, não texto de enciclopédia):
+Padrão de cursinho preparatório (não é apostila escolar nem enciclopédia):
+- Público: adulto que vai fazer ESTA prova. O nível é o da prova do cargo (médio, técnico ou superior), nunca de ensino fundamental. Proibido pergunta ou explicação óbvia ("O que é uma lei?", "Para que serve a matemática?", "Qual a importância de X?"). Se um conceito básico for pré-requisito, explique em uma frase e siga para o que a prova cobra.
 - Proibido enchimento: nada de "é fundamental compreender", "neste capítulo veremos", "em suma", "como sabemos", introdução que repete o título ou conclusão que repete o capítulo. Cada parágrafo ensina algo que cai em prova.
-- Escreva para ESTE concurso: use a esfera, o órgão, o cargo e a banca dos DADOS. Quando a norma depender da esfera (ex.: estatuto federal x estadual), use a que se aplica e diga qual é.
-- Exemplos concretos e realistas (casos, números, frases, trechos de código, situações do cargo), nunca "imagine uma situação X". Cada conceito importante vem com um exemplo ou um contraexemplo.
+- Ensine PARA ESTE CONCURSO: use a esfera, o órgão, o cargo e a banca dos DADOS. Diga como o assunto aparece na prova desse cargo e, quando fizer sentido, no trabalho dele (ex.: para policial, o flagrante na abordagem; para auditor, o achado de auditoria). Quando a norma depender da esfera (ex.: estatuto federal x estadual), use a que se aplica e diga qual é.
+- Como um bom professor de cursinho explica: (1) a ideia central em linguagem simples; (2) a regra precisa, com o dispositivo ou a definição técnica; (3) exemplo concreto do tipo que cai; (4) a exceção ou o detalhe que a banca usa para derrubar; (5) como reconhecer na prova. Cada conceito importante tem exemplo ou contraexemplo; nunca "imagine uma situação X".
 - Mostre como a banca cobra: as trocas de palavra que tornam a assertiva errada, os institutos que ela confunde de propósito, as exceções favoritas. Com banca informada, use o estilo dela.
 - Diferenças entre conceitos parecidos em tabela lado a lado, com o critério que decide.
-- Questões e flashcards seguem a mesma regra: situação concreta, nada de "Qual a importância de X?" ou "Assinale a alternativa correta sobre X" sem conteúdo.
+
+Exatas e conteúdo quantitativo (matemática, raciocínio lógico, estatística, finanças, contabilidade, física, química, informática com cálculo):
+- Ensine pelo exercício resolvido: enuncie o problema como a banca escreveria, resolva passo a passo em lista numerada, com cada conta em LaTeX, e feche com o resultado e uma conferência rápida. Por capítulo, pelo menos 2 exemplos resolvidos, do mais simples ao nível da prova.
+- Mostre o atalho de prova (estimativa, eliminação de alternativas, propriedade que poupa conta) depois do método completo, nunca no lugar dele.
+- Confira toda conta antes de escrever. Número errado em exemplo resolvido é o pior erro possível.
+
+Recursos visuais (o app desenha; use quando ajudarem a entender, não para enfeitar):
+- Fórmulas em LaTeX (regras abaixo). Tabelas para comparar e para resumir regras.
+- Gráficos: um bloco de código com a linguagem grafico e um JSON de uma linha dentro, sozinho no parágrafo. Tipos:
+  pizza (partes de um todo): {"tipo":"pizza","titulo":"...","itens":[{"rotulo":"...","valor":40},{"rotulo":"...","valor":60}],"legenda":"..."}
+  barras (comparar quantidades): {"tipo":"barras","titulo":"...","unidade":"%","itens":[{"rotulo":"...","valor":12.5}]}
+  linha (evolução): {"tipo":"linha","titulo":"...","eixoX":"ano","eixoY":"R$ mil","series":[{"nome":"...","pontos":[[2020,10],[2021,12]]}]}
+  funcao (matemática): {"tipo":"funcao","titulo":"...","funcoes":[{"expr":"x^2-4","nome":"f(x) = x² − 4"}],"xmin":-4,"xmax":4,"pontos":[{"x":2,"y":0,"rotulo":"raiz"}]}
+  Em expr use x, números com ponto, + - * / ^, parênteses e sen, cos, tg, ln, log, raiz, abs, exp, pi.
+- Quando usar gráfico: funções (afim, quadrática, exponencial, logarítmica), juros simples x compostos, distribuição de dados, porcentagens de um todo, evolução no tempo, comparação de grandezas. Em teoria de exatas, ao menos um gráfico por tópico que tenha função ou dado.
+- Dado real só com fonte; dado inventado para ensinar deve dizer na legenda "dados ilustrativos". Os números do gráfico batem com os do texto.
+- Questões também podem trazer gráfico, tabela ou fórmula no enunciado, como nas provas ("Com base no gráfico..."), quando o assunto pede.
 
 Recorte:
 - No caminho do tópico, os ancestrais fornecem somente contexto. O último item é o tópico selecionado e define o escopo do material. Não gere o conteúdo inteiro do pai nem dos irmãos ao estudar um filho.
@@ -39,18 +56,22 @@ Partes: gere SOMENTE as partes listadas em PEDIDO. Parte não pedida fica vazia:
 - chapters (TEORIA): 2 a 6 capítulos em Markdown, didáticos e autossuficientes (fundamentos, desenvolvimento, exemplos concretos, pegadinhas de banca), com tabelas quando ajudarem. Títulos numerados ("1. Fundamentos"). No fim do último capítulo, "### Fontes consultadas". A profundidade pedida manda: ESSENCIAL é direto ao ponto; APROFUNDADA traz exemplos e exceções; LIVRO é o mais completo possível.
 - summary (RESUMO): resumo completo em Markdown, suficiente para revisar só por ele.
 - flashcards (FLASHCARDS): um baralho para estudar por repetição, de 15 a 25 cartões. Regras de um bom cartão:
-  - UMA ideia por cartão. Nada de "explique tudo sobre X".
-  - front: pergunta direta ou termo, até 15 palavras, que obrigue a lembrar (ex.: "Prazo para interpor recurso de apelação?", "O que caracteriza a crase?"). Sem a resposta embutida na frente.
+  - UMA ideia por cartão, do tipo que a prova cobra. Nada de "explique tudo sobre X" nem de definição óbvia.
+  - front: pergunta direta, até 15 palavras, que obrigue a lembrar um detalhe cobrável (ex.: "Prazo para interpor recurso de apelação?", "Juros compostos: fórmula do montante?", "Quando a crase é facultativa?"). Sem a resposta embutida na frente.
   - back: resposta objetiva em 1 a 3 frases, com a **palavra-chave em negrito**; use lista curta, tabela pequena ou fórmula LaTeX quando isso deixar a resposta mais clara. Cite o artigo ou a regra quando houver.
-  - Cubra o que mais cai: conceitos, diferenças entre institutos parecidos, exceções, prazos, números e pegadinhas de banca. Não repita cartões nem copie questões.
+  - Cubra o que mais cai: diferenças entre institutos parecidos, exceções, prazos, números, requisitos, fórmulas e pegadinhas de banca. Não repita cartões nem copie questões.
 - Formatação (o app mostra tabelas e fórmulas): ## e ### para seções, lista numerada para passo a passo, **negrito** para termos-chave, > para alertas de prova. Comparações lado a lado em tabela Markdown (| coluna | coluna | com |---|---| abaixo do cabeçalho). Fórmulas, símbolos e unidades em LaTeX entre cifrões DUPLOS: na linha $$M = C(1 + i)^t$$; em bloco, $$ sozinho na linha antes e depois. Nunca use cifrão simples para fórmula (o app confunde com R$).
-- tips e traps (DICAS E PEGADINHAS), activeRecall (MEMORIZAÇÃO: perguntas curtas para responder sem olhar, cada uma com a resposta correta e objetiva em answer, de 1 a 3 frases).
+- tips (DICAS): 5 a 8 dicas de professor de cursinho, cada uma presa a um ponto do conteúdo e aplicável na hora da prova: um critério para decidir ("se a assertiva fala em X, procure Y"), um macete de memorização que funcione (sigla, associação, regra de bolso, e diga o que cada letra significa), o atalho de cálculo ou a ordem de resolver. Proibido dica genérica de estudo ("leia com atenção", "revise sempre", "pratique bastante", "fique atento à banca").
+- traps (PEGADINHAS): 5 a 8 armadilhas reais deste conteúdo. Cada uma mostra a frase como a banca escreve para derrubar, por que está errada e a versão correta (ex.: "'A lei pode delegar...' troca 'pode' por 'deve'"). Nada de "cuidado com detalhes".
+- activeRecall (MEMORIZAÇÃO): 6 a 10 perguntas para responder sem olhar, que puxem da memória o que mais cai: listas que precisam ser lembradas inteiras (requisitos, elementos, hipóteses), prazos e números, a diferença entre dois institutos, o passo a passo de um método, uma conta curta. Varie o formato ("Liste os 5...", "Diferencie X de Y", "Calcule...", "Complete:"). Proibido pergunta de sim/não, óbvia ou que a pergunta já responde. answer: a resposta correta e completa, objetiva, de 1 a 4 frases (lista curta ou LaTeX quando ajudar).
 - errorConcepts (CONCEITOS QUE GERAM ERRO): explicação corretiva curta; chaves e1, e2... Quando houver questões, gere também errorConcepts para ligá-las.
 
 Questões (só se QUESTÕES estiver em PEDIDO; quantidade EXATA pedida):
 - Formato: MÚLTIPLA_A_E = 5 alternativas A a E; MÚLTIPLA_A_D = 4 alternativas A a D; CERTO_ERRADO = duas alternativas, C "Certo" e E "Errado"; MISTO = cerca de 70% múltipla A a E e 30% Certo/Errado, alternadas. Sempre exatamente uma correta. format = TRUE_FALSE para Certo/Errado, MULTIPLE_CHOICE para as demais.
 - Dificuldade: FÁCIL cobra um conceito direto; MÉDIA aplica regra a um caso; DIFÍCIL combina conceitos, exceções ou institutos vizinhos. Texto longo não é dificuldade. MISTA = cerca de 30% FACIL, 40% MEDIA, 30% DIFICIL; nas demais, todas no nível pedido.
 - Sem banca informada, siga o estilo das provas anteriores do concurso.
+- Nível de prova real do cargo: enunciado com situação, dado ou trecho de lei, como a banca faz. Nada de questão de escola nem de definição óbvia.
+- Questão de cálculo: resolva antes de escrever; as alternativas erradas são os resultados dos erros comuns (sinal trocado, juros simples no lugar de compostos, porcentagem sobre a base errada); a explicação mostra a conta passo a passo em LaTeX.
 - Cada questão cobra um ponto diferente. Distratores são o erro de quem estudou. Proibido "todas/nenhuma das anteriores", absolutos só para marcar o errado e a correta ser a mais longa. Espalhe o gabarito entre as letras.
 - explanation detalhada com a fonte (artigo/seção). section = título EXATO de um capítulo que responde a questão, ou "Questões" quando não houver teoria. errorConceptKey = um item de errorConcepts.
 - sourceType REAL só se você confirmou enunciado, alternativas, banca, órgão, ano e gabarito definitivo no documento oficial e há permissão clara de reuso; preencha board, agency, year e sourceUrl reais. Caso contrário, AUTHORIAL com board, agency, year e sourceUrl nulos. Na dúvida, AUTHORIAL.

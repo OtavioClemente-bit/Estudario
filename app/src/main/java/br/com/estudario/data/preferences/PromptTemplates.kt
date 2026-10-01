@@ -182,8 +182,11 @@ FONTES (campo "fontes"), OBRIGATÓRIO:
 RESUMO COMPLETO E REVISÃO RÁPIDA:
 - O summary consolida toda a teoria de modo estruturado, ainda detalhado o bastante para estudar.
 - O quickReview é uma revisão de poucos minutos: conceitos-chave, diferenças, fórmulas e regras.
-- Em tips, escreva dicas objetivas de prova. Em traps, erros e confusões típicas de prova.
-- Em activeRecall, escreva perguntas curtas que obriguem o aluno a lembrar sem olhar a resposta, cada uma com a resposta correta e objetiva em "resposta".
+- Nível de cursinho preparatório para a prova deste cargo, nunca de escola: nada de pergunta óbvia ou definição que qualquer um sabe.
+- Em tips, dicas de professor de cursinho presas a um ponto do conteúdo: critério para decidir na prova, macete de memorização que funcione (explique a sigla), atalho de cálculo. Proibido dica genérica ("leia com atenção", "revise sempre").
+- Em traps, a frase como a banca escreve para derrubar, por que está errada e a versão certa.
+- Em activeRecall, perguntas que puxem da memória o que mais cai (listas de requisitos, prazos, diferenças entre institutos, passos de um método, uma conta curta), cada uma com a resposta correta e completa em "resposta". Proibido pergunta de sim/não ou que já se responde sozinha.
+- Em exatas, ensine com exercícios resolvidos passo a passo, contas em LaTeX, e use gráficos quando houver função ou dado.
 - Em errorConcepts, agrupe conceitos que provavelmente originam erros, com título e explicação corretiva.
 
 PROIBIDO INVENTAR:

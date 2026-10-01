@@ -21,7 +21,12 @@ object DebugSeed {
         repository.loadDemoData()
         val dao = db.dao()
         seedActivity(db)
-        val theory = dao.theoriesOnce().firstOrNull { it.externalId == "demo-teoria-hash" } ?: return
+        var theory = dao.theoriesOnce().firstOrNull { it.externalId == "demo-teoria-hash" } ?: return
+        // Um capítulo de exemplo com gráficos e fórmulas, para ver o leitor desenhando tudo.
+        if (!theory.markdown.contains("```grafico")) {
+            theory = theory.copy(markdown = CHART_DEMO + "\n\n" + theory.markdown)
+            dao.updateTheory(theory)
+        }
         if (dao.theoryMarksOnce().any { it.theoryId == theory.id }) return
         val topicId = theory.topicId
         dao.insertTheoryMark(TheoryMarkEntity(theoryId = theory.id, blockIndex = 2, quote = theory.markdown.split("\n\n").getOrElse(2) { theory.title }, note = "Cai muito: efeito avalanche."))
@@ -38,6 +43,24 @@ object DebugSeed {
         dao.insertSnippet(TopicSnippetEntity(topicId = topicId, kind = SnippetKind.RECUPERACAO, text = "O que é efeito avalanche?", answer = "Mudar um bit da entrada muda muito a saída.", isFavorite = true, externalId = "flashcard:debug:1"))
         dao.insertNote(UserNoteEntity(text = "Revisar SHA-256 x MD5 antes da prova.", topicId = topicId))
     }
+
+    private val CHART_DEMO = """
+## Exemplo visual (demonstração)
+
+Juros compostos crescem mais rápido que juros simples porque o juro de cada mês entra na base do mês seguinte: ${'$'}${'$'}M = C(1 + i)^t${'$'}${'$'}
+
+```grafico
+{"tipo":"funcao","titulo":"R$ 1.000 a 10% ao mês","funcoes":[{"expr":"1000*(1+0.1)^x","nome":"Compostos"},{"expr":"1000*(1+0.1x)","nome":"Simples"}],"xmin":0,"xmax":12,"pontos":[{"x":12,"y":3138.43,"rotulo":"R$ 3.138"}]}
+```
+
+```grafico
+{"tipo":"pizza","titulo":"Peso das matérias na prova","itens":[{"rotulo":"Português","valor":30},{"rotulo":"Direito","valor":40},{"rotulo":"Raciocínio lógico","valor":20},{"rotulo":"Informática","valor":10}],"legenda":"dados ilustrativos"}
+```
+
+```grafico
+{"tipo":"barras","titulo":"Acerto médio por banca","unidade":"%","itens":[{"rotulo":"Cebraspe","valor":58},{"rotulo":"FGV","valor":63},{"rotulo":"FCC","valor":71}],"legenda":"dados ilustrativos"}
+```
+""".trimIndent()
 
     /** Duas semanas de respostas e sessões, para os gráficos de Desempenho terem o que mostrar. */
     private suspend fun seedActivity(db: AppDatabase) {

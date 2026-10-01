@@ -10,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -31,6 +32,21 @@ import kotlin.math.roundToInt
  */
 @Composable
 fun StudyMarkdown(markdown: String, modifier: Modifier = Modifier, textSizeSp: Float? = null, onLongPress: (() -> Unit)? = null, onTap: (() -> Unit)? = null) {
+    // Gráficos (```grafico) são desenhados pelo app; o resto segue no Markdown.
+    val parts = remember(markdown) { splitCharts(markdown) }
+    if (parts.size == 1 && parts[0].second == null) {
+        MarkdownTextView(parts[0].first, modifier, textSizeSp, onLongPress, onTap)
+        return
+    }
+    androidx.compose.foundation.layout.Column(modifier) {
+        parts.forEach { (text, chart) ->
+            if (chart != null) StudyChartView(chart) else MarkdownTextView(text, androidx.compose.ui.Modifier.fillMaxWidth(), textSizeSp, onLongPress, onTap)
+        }
+    }
+}
+
+@Composable
+private fun MarkdownTextView(markdown: String, modifier: Modifier, textSizeSp: Float?, onLongPress: (() -> Unit)?, onTap: (() -> Unit)?) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val size = textSizeSp ?: MaterialTheme.typography.bodyLarge.fontSize.value
