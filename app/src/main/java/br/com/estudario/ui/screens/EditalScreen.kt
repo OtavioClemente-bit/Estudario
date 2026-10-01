@@ -342,7 +342,6 @@ internal fun SubjectCard(subject: SubjectEntity, topics: List<TopicEntity>, expa
         actions = listOf(
             SheetAction(Icons.Outlined.Add, "Novo tópico", "Um item do edital que ficou de fora") { onAddTopic() },
             SheetAction(Icons.Outlined.Flag, "Prioridade da matéria", "Quanto ela pesa na prova") { onPriority() },
-            SheetAction(Icons.Outlined.AutoAwesome, "Gerar material da matéria", "Teoria, flashcards e questões dos tópicos") { onGenerateContent(null) },
             SheetAction(Icons.Outlined.DeleteOutline, "Excluir matéria", "Apaga os tópicos e o material dela", destructive = true) { viewModel.deleteSubject(subject) },
         ),
         onDismiss = { menu = false },
