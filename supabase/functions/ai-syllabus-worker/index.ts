@@ -160,6 +160,9 @@ export interface SyllabusWorkerStore {
   markRetry(jobId: string, lease: Lease): Promise<void>;
   /** Medição de custo (melhor esforço): uma linha por resposta da OpenAI. */
   recordCost?(entry: AiCostEntry): Promise<void>;
+  cachedContent?(key: string, promptVersion: string, userId: string, maxAgeDays: number): Promise<Record<string, unknown> | null>;
+  storeContent?(key: string, promptVersion: string, userId: string, jobId: string, proposal: Record<string, unknown>): Promise<void>;
+  markServed?(key: string, userId: string): Promise<void>;
   /** Revisão já concluída deste job (nova tentativa não paga o revisor de novo). */
   completedReviewId?(jobId: string): Promise<string | null>;
   captureUsage(
@@ -228,6 +231,8 @@ export interface AiJobSpec {
   usesSource: boolean;
   tools?: unknown[];
   prompts(job: SyllabusWorkerJob): { systemPrompt: string; userPrompt: string };
+  /** Material pronto que dispensa a chamada ao provedor (reaproveitado de outro pedido igual). */
+  cached?(job: SyllabusWorkerJob, dependencies: SyllabusWorkerDependencies): Promise<WorkerProposal | null>;
   validate(
     raw: string,
     expected: ExpectedVersions,
@@ -775,6 +780,12 @@ export async function processSyllabusJob(
         );
         return true;
       }
+      // Mesmo pedido já gerado e revisado por outra pessoa: entrega o pronto, sem custo de IA.
+      const cached = spec.cached ? await spec.cached(job, dependencies).catch(() => null) : null;
+      if (cached) {
+        await dependencies.jobs.finalizeSuccess(job.id, lease, cached, cached.warnings, null);
+        return true;
+      }
       if (dependencies.jobs.markProviderStarted) {
         await dependencies.jobs.markProviderStarted(job.id, lease);
       }
@@ -1245,6 +1256,41 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
         }),
       },
     );
+    await response.body?.cancel().catch(() => {});
+  }
+  private rest(path: string, init: RequestInit = {}): Promise<Response> {
+    return this.fetcher(`${this.environment.supabaseUrl.replace(/\/$/, "")}/rest/v1/${path}`, {
+      ...init,
+      headers: { ...workerBackendHeaders(this.environment), "content-type": "application/json", ...(init.headers ?? {}) },
+    });
+  }
+  async cachedContent(key: string, promptVersion: string, userId: string, maxAgeDays: number): Promise<Record<string, unknown> | null> {
+    const k = encodeURIComponent(key);
+    const served = await this.rest(`ai_content_cache_served?select=cache_key&cache_key=eq.${k}&user_id=eq.${encodeURIComponent(userId)}&limit=1`);
+    if (!served.ok || ((await served.json()) as unknown[]).length > 0) return null;
+    const since = new Date(Date.now() - maxAgeDays * 86_400_000).toISOString();
+    const response = await this.rest(
+      `ai_content_cache?select=proposal&cache_key=eq.${k}&prompt_version=eq.${encodeURIComponent(promptVersion)}&created_at=gte.${encodeURIComponent(since)}&limit=1`,
+    );
+    if (!response.ok) return null;
+    const rows = await response.json() as Array<{ proposal?: Record<string, unknown> }>;
+    return rows[0]?.proposal ?? null;
+  }
+  async storeContent(key: string, promptVersion: string, userId: string, jobId: string, proposal: Record<string, unknown>): Promise<void> {
+    const saved = await this.rest("ai_content_cache?on_conflict=cache_key,prompt_version", {
+      method: "POST",
+      headers: { prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({ cache_key: key, prompt_version: promptVersion, proposal, source_job_id: jobId, created_at: new Date().toISOString(), hits: 0 }),
+    });
+    await saved.body?.cancel().catch(() => {});
+    await this.markServed(key, userId);
+  }
+  async markServed(key: string, userId: string): Promise<void> {
+    const response = await this.rest("ai_content_cache_served?on_conflict=cache_key,user_id", {
+      method: "POST",
+      headers: { prefer: "resolution=ignore-duplicates,return=minimal" },
+      body: JSON.stringify({ cache_key: key, user_id: userId }),
+    });
     await response.body?.cancel().catch(() => {});
   }
   async completedReviewId(jobId: string): Promise<string | null> {

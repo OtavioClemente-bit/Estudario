@@ -23,6 +23,7 @@ import {
 import { type ExpectedVersions, validateStudyPlan, validateTopicContent } from "./text-job-validators.ts";
 import { applyReview, type ContentReview, runContentReview } from "./content-review.ts";
 import { resolveOpenAiModel } from "./openai-provider.ts";
+import { CACHE_MAX_AGE_DAYS, contentCacheKey } from "./content-cache.ts";
 import {
   AI_SIMULATION_SCHEMA,
   parseSimulationJobInput,
@@ -59,7 +60,33 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
     systemPrompt: CONTENT_SYSTEM_PROMPT,
     userPrompt: contentUserPrompt(inputOf<ContentJobInput>(job, parseContentJobInput)),
   }),
+  cached: async (job, dependencies) => {
+    const store = dependencies.jobs;
+    if (!store.cachedContent || !store.markServed) return null;
+    const key = await contentCacheKey(inputOf<ContentJobInput>(job, parseContentJobInput));
+    const proposal = await store.cachedContent(key, CONTENT_PROMPT_VERSION, job.userId, CACHE_MAX_AGE_DAYS);
+    if (!proposal) return null;
+    await store.markServed(key, job.userId);
+    return proposal as unknown as WorkerProposal;
+  },
   validate: async (raw, expected, job, dependencies) => {
+    const result = await validateContent(raw, expected, job, dependencies);
+    // Guarda para o próximo pedido igual; falha aqui nunca derruba a entrega.
+    const input = inputOf<ContentJobInput>(job, parseContentJobInput);
+    await contentCacheKey(input)
+      .then((key) => dependencies.jobs.storeContent?.(key, CONTENT_PROMPT_VERSION, job.userId, job.id, result as unknown as Record<string, unknown>))
+      .catch(() => undefined);
+    return result;
+  },
+};
+
+async function validateContent(
+  raw: string,
+  expected: ExpectedVersions,
+  job: SyllabusWorkerJob,
+  dependencies: Parameters<AiJobSpec["validate"]>[3],
+): Promise<WorkerProposal> {
+  {
     const input = inputOf<ContentJobInput>(job, parseContentJobInput);
     const content = validateTopicContent(raw, expected, { ...input.options, questionCount: questionsDelivered(raw, input.options.questionCount) });
     if (Deno.env.get("CONTENT_REVIEW_ENABLED") === "false") return keepRequestedQuestions(content, input.options.questionCount) as unknown as WorkerProposal;
@@ -73,8 +100,8 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
         .filter(Boolean).join(" · "),
     });
     return withReview(content, review, expected, input) as unknown as WorkerProposal;
-  },
-};
+  }
+}
 
 /** Questões pedidas a mais, de reserva: as que o revisor remover são repostas por elas. */
 export const RESERVE_QUESTIONS = 2;

@@ -272,3 +272,45 @@ Deno.test("worker rejects a plan that uses a topic the app never sent", async ()
   assert(events.includes("failure:SCHEMA_MISMATCH:FAILED"));
   assert(!events.includes("success"));
 });
+
+function cachingStore(job: SyllabusWorkerJob, saved: Map<string, Record<string, unknown>>, served: Set<string>) {
+  const base = store(job);
+  Object.assign(base.jobs, {
+    async cachedContent(key: string, _v: string, userId: string) { return served.has(`${key}:${userId}`) ? null : saved.get(key) ?? null; },
+    async storeContent(key: string, _v: string, userId: string, _j: string, proposal: Record<string, unknown>) { saved.set(key, proposal); served.add(`${key}:${userId}`); },
+    async markServed(key: string, userId: string) { served.add(`${key}:${userId}`); },
+  });
+  return base;
+}
+
+Deno.test("same topic for another person comes from the cache, without calling the provider", async () => {
+  const saved = new Map<string, Record<string, unknown>>();
+  const served = new Set<string>();
+  let starts = 0;
+  const provider: OpenAiProvider = {
+    start: () => { starts++; return Promise.resolve(completed(JSON.stringify(content()))); },
+    retrieve: () => Promise.reject(new Error("no retrieve")),
+    cancel: () => Promise.reject(new Error("no cancel")),
+  };
+  const run = async (userId: string) => {
+    const job = { ...textJob("CONTENT_GENERATION", contentInput), userId };
+    const { jobs, proposals } = cachingStore(job, saved, served);
+    await processSyllabusJob({ jobs, provider, source: () => Promise.reject(new Error("no pdf")), specForJob: textSpecFor, now: () => new Date("2026-09-28T12:01:00Z") });
+    return proposals.length;
+  };
+  assertEquals(await run("ana"), 1);
+  assertEquals(starts, 2); // geração + revisor
+  assertEquals(await run("bia"), 1);
+  assertEquals(starts, 2, "bia recebe o material guardado");
+  assertEquals(await run("ana"), 1);
+  assertEquals(starts, 4, "ana pediu de novo: ganha outro material");
+});
+
+Deno.test("cache key ignores accents, case and spacing but not the options", async () => {
+  const { contentCacheKey } = await import("../_shared/content-cache.ts");
+  const input = parseContentJobInput(contentInput);
+  const same = parseContentJobInput({ ...contentInput, competitionName: `  ${contentInput.competitionName.toUpperCase()} ` });
+  assertEquals(await contentCacheKey(input), await contentCacheKey(same));
+  const other = parseContentJobInput({ ...contentInput, options: { ...input.options, difficulty: "EASY" } });
+  assert(await contentCacheKey(input) !== await contentCacheKey(other));
+});
