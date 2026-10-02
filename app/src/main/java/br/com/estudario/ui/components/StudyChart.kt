@@ -82,6 +82,9 @@ sealed interface StudyChart {
         val marks: List<Pair<String?, Pair<Double, Double>>>,
     ) : StudyChart
 
+    /** Figura de geometria ou de física (triângulo com os lados, vetores...). Ver [GeometryFigure]. */
+    data class Geometry(override val title: String?, override val caption: String?, val figure: GeometryFigure) : StudyChart
+
     companion object {
         const val FENCE = "grafico"
         private val json = Json { isLenient = true; ignoreUnknownKeys = true }
@@ -118,6 +121,7 @@ sealed interface StudyChart {
                     }.orEmpty().take(8)
                     if (curves.isEmpty() || xMax <= xMin) null else Function(title, caption, curves, xMin, xMax, marks)
                 }
+                "geometria", "figura", "geometry", "fisica" -> GeometryFigure.parse(root, title, caption)?.let { Geometry(title, caption, it) }
                 else -> null
             }
         }.getOrNull()
@@ -333,6 +337,7 @@ fun StudyChartView(chart: StudyChart, modifier: Modifier = Modifier) {
                     }
                     Legend(chart.curves.mapIndexed { i, c -> (c.name ?: "f${i + 1}") to tones[i % tones.size] })
                 }
+                is StudyChart.Geometry -> GeometryCanvas(chart.figure)
             }
             chart.caption?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant) }
         }

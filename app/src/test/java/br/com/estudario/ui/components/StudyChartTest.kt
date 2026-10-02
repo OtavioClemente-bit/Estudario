@@ -79,4 +79,20 @@ class StudyChartTest {
     fun marcasDoEixo() {
         assertEquals(listOf(0.0, 2.0, 4.0, 6.0, 8.0, 10.0), niceTicks(0.0, 10.0))
     }
+
+    @Test
+    fun geometriaTrianguloRetangulo() {
+        val chart = StudyChart.parse("""{"tipo":"geometria","titulo":"Pitágoras","pontos":[{"nome":"A","x":0,"y":0},{"nome":"B","x":4,"y":0},{"nome":"C","x":0,"y":3}],"poligonos":[["A","B","C"]],"segmentos":[{"de":"B","ate":"C","rotulo":"a = 5"}],"angulos":[{"vertice":"A","de":"B","ate":"C","reto":true}]}""")
+        assertTrue(chart is StudyChart.Geometry)
+        val figure = (chart as StudyChart.Geometry).figure
+        assertEquals(3, figure.points.size)
+        assertEquals(1, figure.polygons.size)
+        assertTrue(figure.angles.single().right)
+    }
+
+    @Test
+    fun geometriaIgnoraPontoInexistente() {
+        val chart = StudyChart.parse("""{"tipo":"figura","pontos":[{"nome":"A","x":0,"y":0}],"segmentos":[{"de":"A","ate":"Z"}]}""")
+        assertNull(chart)
+    }
 }

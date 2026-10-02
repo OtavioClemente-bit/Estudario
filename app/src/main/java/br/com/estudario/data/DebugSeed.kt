@@ -27,6 +27,10 @@ object DebugSeed {
             theory = theory.copy(markdown = CHART_DEMO + "\n\n" + theory.markdown)
             dao.updateTheory(theory)
         }
+        if (!theory.markdown.contains("\"geometria\"")) {
+            theory = theory.copy(markdown = GEOMETRY_DEMO + "\n\n" + theory.markdown)
+            dao.updateTheory(theory)
+        }
         if (dao.theoryMarksOnce().any { it.theoryId == theory.id }) return
         val topicId = theory.topicId
         dao.insertTheoryMark(TheoryMarkEntity(theoryId = theory.id, blockIndex = 2, quote = theory.markdown.split("\n\n").getOrElse(2) { theory.title }, note = "Cai muito: efeito avalanche."))
@@ -43,6 +47,18 @@ object DebugSeed {
         dao.insertSnippet(TopicSnippetEntity(topicId = topicId, kind = SnippetKind.RECUPERACAO, text = "O que é efeito avalanche?", answer = "Mudar um bit da entrada muda muito a saída.", isFavorite = true, externalId = "flashcard:debug:1"))
         dao.insertNote(UserNoteEntity(text = "Revisar SHA-256 x MD5 antes da prova.", topicId = topicId))
     }
+
+    private val GEOMETRY_DEMO = """
+## Figuras (demonstração)
+
+```grafico
+{"tipo":"geometria","titulo":"Teorema de Pitágoras","pontos":[{"nome":"A","x":0,"y":0},{"nome":"B","x":4,"y":0},{"nome":"C","x":0,"y":3}],"poligonos":[["A","B","C"]],"segmentos":[{"de":"A","ate":"B","rotulo":"b = 4"},{"de":"A","ate":"C","rotulo":"c = 3"},{"de":"B","ate":"C","rotulo":"a = 5"}],"angulos":[{"vertice":"A","de":"B","ate":"C","reto":true},{"vertice":"B","de":"C","ate":"A","rotulo":"θ"}],"legenda":"a² = b² + c², então 5² = 4² + 3²"}
+```
+
+```grafico
+{"tipo":"geometria","titulo":"Plano inclinado","pontos":[{"nome":"O","x":0,"y":0},{"nome":"P","x":6,"y":0},{"nome":"Q","x":6,"y":3},{"nome":"M","x":4,"y":2},{"nome":"Pe","x":4,"y":0.4},{"nome":"N","x":3.4,"y":3.2}],"nomesDosPontos":false,"poligonos":[["O","P","Q"]],"vetores":[{"de":"M","ate":"Pe","rotulo":"P"},{"de":"M","ate":"N","rotulo":"N"}],"angulos":[{"vertice":"O","de":"P","ate":"Q","rotulo":"α"}]}
+```
+""".trimIndent()
 
     private val CHART_DEMO = """
 ## Exemplo visual (demonstração)
