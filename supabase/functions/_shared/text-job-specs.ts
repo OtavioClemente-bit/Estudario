@@ -26,6 +26,7 @@ import { applyReview, type ContentReview, runContentReview } from "./content-rev
 import { resolveOpenAiModel } from "./openai-provider.ts";
 import { CACHE_MAX_AGE_DAYS, contentCacheKey } from "./content-cache.ts";
 import { hasDraftExplanation, repairTopicContent } from "./content-repair.ts";
+import { runQuestionTopUp } from "./question-topup.ts";
 import {
   AI_SIMULATION_SCHEMA,
   parseSimulationJobInput,
@@ -110,7 +111,47 @@ async function validateContent(
       context: [input.competitionName, input.role, input.board ? `banca ${input.board}` : null, input.subjectName, input.topicPath.join(" › ")]
         .filter(Boolean).join(" · "),
     });
-    return withReview(content, review, expected, input) as unknown as WorkerProposal;
+    const reviewed = withReview(content, review, expected, input);
+    return await completeQuestions(reviewed, expected, input, job, dependencies) as unknown as WorkerProposal;
+  }
+}
+
+/**
+ * Questões com defeito saem do material; se a reserva não cobriu, as que faltam são escritas numa
+ * chamada curta e passam pelo mesmo conserto e validação. Se der errado, fica o que já havia.
+ */
+async function completeQuestions(
+  content: Record<string, unknown>,
+  expected: ExpectedVersions,
+  input: ContentJobInput,
+  job: SyllabusWorkerJob,
+  dependencies: Parameters<AiJobSpec["validate"]>[3],
+): Promise<Record<string, unknown>> {
+  const current = Array.isArray(content.questions) ? content.questions as Record<string, unknown>[] : [];
+  const missing = input.options.questionCount - current.length;
+  if (missing <= 0) return content;
+  const extra = await runQuestionTopUp(
+    {
+      content,
+      missing,
+      questionStyle: input.options.questionStyle,
+      difficulty: input.options.difficulty,
+      context: [input.competitionName, input.role, input.board ? `banca ${input.board}` : null, input.subjectName, input.topicPath.join(" › ")].filter(Boolean).join(" · "),
+    },
+    {
+      provider: dependencies.provider,
+      jobId: job.id,
+      model: resolveOpenAiModel(dependencies.modelForJob?.(job) ?? dependencies.model),
+      onFinished: (response) => meterCost(dependencies, job, "TOPUP", response),
+    },
+  );
+  if (extra.length === 0) return content;
+  try {
+    const merged = repairTopicContent(JSON.stringify({ ...content, questions: [...current, ...extra] }), input.options, 0);
+    const count = (JSON.parse(merged).questions as unknown[]).length;
+    return validateTopicContent(merged, expected, { ...input.options, questionCount: count }) as Record<string, unknown>;
+  } catch {
+    return content;
   }
 }
 

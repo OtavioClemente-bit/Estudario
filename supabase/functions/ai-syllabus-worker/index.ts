@@ -101,7 +101,7 @@ export interface SyllabusWorkerJob {
 export interface AiCostEntry {
   jobId: string;
   feature: string;
-  kind: "MAIN" | "REVIEW";
+  kind: "MAIN" | "REVIEW" | "TOPUP";
   model: string | null;
   response: ProviderResponse;
 }

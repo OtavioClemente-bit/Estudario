@@ -330,3 +330,26 @@ Deno.test("only Portuguese material asks the model to reason more", () => {
   assertEquals(spec.reasoningEffort?.(textJob("CONTENT_GENERATION", contentInput)), undefined);
   assertEquals(spec.reasoningEffort?.(textJob("CONTENT_GENERATION", { ...contentInput, subjectName: "Língua Portuguesa" })), "medium");
 });
+
+Deno.test("missing questions are written by a short top-up call without web search", async () => {
+  const { jobs, proposals } = store(textJob("CONTENT_GENERATION", contentInput));
+  const starts: ProviderStartInput[] = [];
+  const provider: OpenAiProvider = {
+    start: (input) => {
+      starts.push(input);
+      if (input.feature === "CONTENT_TOPUP") {
+        return Promise.resolve(completed(JSON.stringify({ questions: [question(20), question(21), question(22)] })));
+      }
+      // Geração com só 7 questões; o revisor responde algo que não é revisão (segue o original).
+      return Promise.resolve(completed(JSON.stringify(content({ questions: Array.from({ length: 7 }, (_, i) => question(i)) }))));
+    },
+    retrieve: () => Promise.reject(new Error("no retrieve")),
+    cancel: () => Promise.reject(new Error("no cancel")),
+  };
+  await processSyllabusJob({ jobs, provider, source: () => Promise.reject(new Error("no pdf")), specForJob: textSpecFor, now: () => new Date("2026-09-28T12:01:00Z") });
+  const topUp = starts.find((s) => s.feature === "CONTENT_TOPUP");
+  assert(topUp, "chamou a reposição");
+  assertEquals(topUp.tools, undefined);
+  assert(topUp.userPrompt!.includes("exatamente 3"));
+  assertEquals(((proposals[0] as { questions: unknown[] }).questions).length, 10);
+});
