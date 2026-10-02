@@ -283,7 +283,10 @@ internal object EstudoPackageParser {
         val markdown = if (chapters != null && chapters.length() > 0) chapters.objects().mapIndexed { i, chapter ->
             val chapterTitle = firstText(chapter, "titulo", "title") ?: "Capítulo ${i + 1}"
             val body = firstText(chapter, "markdown", "content") ?: throw EstudoPackageException("$label: capítulo sem conteúdo.")
-            "## $chapterTitle\n\n$body"
+            // O texto do capítulo costuma já começar com o título; não repete o cabeçalho.
+            val firstLine = body.trimStart().lineSequence().first()
+            val repeatsTitle = firstLine.startsWith("#") && firstLine.trimStart('#').trim().trim('*').trim().equals(chapterTitle.trim(), true)
+            if (repeatsTitle) body.trimStart() else "## $chapterTitle\n\n$body"
         }.joinToString("\n\n") else firstText(item, "markdown", "content").orEmpty()
         if (markdown.isBlank()) throw EstudoPackageException("$label: informe markdown ou capítulos.")
         TheoryPlan(id, title, if (markdown.startsWith("# ")) markdown else "# $title\n\n$markdown")

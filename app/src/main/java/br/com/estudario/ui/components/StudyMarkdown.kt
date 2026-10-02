@@ -166,5 +166,9 @@ fun studyBlocks(markdown: String): List<String> {
         if (trimmed.isEmpty() && !inFence && !inMath) flush() else current.append(line).append('\n')
     }
     flush()
-    return blocks
+    // Capítulo cujo texto já abre com o próprio título ("## 1. X" seguido de "## 1. X"): mostra uma vez só.
+    return blocks.filterIndexed { i, block -> i == 0 || headingText(block)?.let { it != headingText(blocks[i - 1]) } ?: true }
 }
+
+private fun headingText(block: String): String? = block.trim().takeIf { it.startsWith("#") && '\n' !in it }
+    ?.trimStart('#')?.trim()?.trim('*')?.trim()?.lowercase()
