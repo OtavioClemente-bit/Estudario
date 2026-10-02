@@ -259,6 +259,7 @@ fun HomeScreen(
                                     title = it.entity.topicNameSnapshot ?: it.entity.subjectNameSnapshot ?: "Sessão de estudos",
                                     subtitle = listOfNotNull(it.entity.type.displayNamePtBr(), minutesLabelPtBr(it.entity.plannedMinutes), it.entity.subjectNameSnapshot.takeIf { _ -> it.entity.topicNameSnapshot != null }).joinToString(" · "),
                                     done = it.entity.status == PlanTaskStatus.CONCLUIDA,
+                                    current = it.entity.id == focusTask?.entity?.id && it.entity.status != PlanTaskStatus.CONCLUIDA,
                                 )
                             },
                             plannedMinutes = planState.todayPlannedMinutes,
@@ -282,7 +283,9 @@ fun HomeScreen(
                 .toList()
             NextUpUi(items = remaining, remainingToday = remaining.size, fromQueue = true)
         } ?: nextUpToday(planState, focusTask)
-        if (nextUp.items.isNotEmpty()) {
+        // Com a missão do dia na tela, o "Depois" repetiria as mesmas tarefas: só aparece para a fila.
+        val missionShown = activePlan != null && todayLoad.isNotEmpty()
+        if (nextUp.items.isNotEmpty() && (!missionShown || nextUp.fromQueue)) {
             item { Spacer(Modifier.height(EstudarioSpacing.medium)) }
             item {
                 Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {

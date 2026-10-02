@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.components.AlertDialog
 import br.com.estudario.ui.theme.estudarioLayout
 import br.com.estudario.ui.theme.screenPadding
 import android.content.Context

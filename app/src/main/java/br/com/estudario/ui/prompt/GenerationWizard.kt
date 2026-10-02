@@ -1,5 +1,6 @@
 package br.com.estudario.ui.prompt
 
+import br.com.estudario.ui.components.AlertDialog
 import android.widget.Toast
 import br.com.estudario.ui.theme.EstudarioShapes
 import androidx.compose.runtime.LaunchedEffect
@@ -51,7 +52,6 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FileOpen
 import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard

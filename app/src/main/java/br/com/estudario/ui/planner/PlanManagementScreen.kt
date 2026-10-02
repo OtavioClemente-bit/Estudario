@@ -1,5 +1,6 @@
 package br.com.estudario.ui.planner
 
+import br.com.estudario.ui.components.AlertDialog
 import br.com.estudario.ui.theme.screenPadding
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn

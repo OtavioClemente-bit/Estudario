@@ -1,5 +1,6 @@
 package br.com.estudario.ui.ai
 
+import br.com.estudario.ui.components.AlertDialog
 import br.com.estudario.ui.prompt.ToggleRow
 import br.com.estudario.ui.prompt.OptionSection
 import br.com.estudario.data.prompt.EditalScope
@@ -44,7 +45,6 @@ import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.SubdirectoryArrowRight
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.WarningAmber
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -860,8 +860,8 @@ private fun List<AiSyllabusDraftTopic>.reindexTopics(): List<AiSyllabusDraftTopi
 private fun AiSyllabusPreferencesForm(value: AiSyllabusPreferences, onChange: (AiSyllabusPreferences) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         OptionSection("1. Concurso", required = true) {
-            OutlinedTextField(value.competitionName, { onChange(value.copy(competitionName = it)) }, Modifier.fillMaxWidth().testTag("ai_pref_competition"), singleLine = true, label = { Text("Nome do concurso *") }, isError = value.competitionName.isBlank())
-            OutlinedTextField(value.role, { onChange(value.copy(role = it)) }, Modifier.fillMaxWidth().testTag("ai_pref_role"), singleLine = true, label = { Text("Cargo ou área *") }, isError = value.role.isBlank())
+            OutlinedTextField(value.competitionName, { onChange(value.copy(competitionName = it)) }, Modifier.fillMaxWidth().testTag("ai_pref_competition"), singleLine = true, label = { Text("Nome do concurso *") }, placeholder = { Text("Ex.: Polícia Federal") })
+            OutlinedTextField(value.role, { onChange(value.copy(role = it)) }, Modifier.fillMaxWidth().testTag("ai_pref_role"), singleLine = true, label = { Text("Cargo ou área *") }, placeholder = { Text("Ex.: Agente de Polícia") }, supportingText = { Text("É por ele que achamos as suas matérias no edital.") })
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value.board, { onChange(value.copy(board = it)) }, Modifier.weight(1f), singleLine = true, label = { Text("Banca") })
                 OutlinedTextField(value.year, { onChange(value.copy(year = it.filter(Char::isDigit).take(4))) }, Modifier.weight(0.6f), singleLine = true, label = { Text("Ano") })

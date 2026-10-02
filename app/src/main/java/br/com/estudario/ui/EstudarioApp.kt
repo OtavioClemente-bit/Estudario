@@ -1,5 +1,6 @@
 package br.com.estudario.ui
 
+import br.com.estudario.ui.components.AlertDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll

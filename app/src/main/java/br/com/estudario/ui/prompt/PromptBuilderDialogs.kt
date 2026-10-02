@@ -158,7 +158,7 @@ fun EditalPromptBuilderDialog(viewModel: AppViewModel, selectedCompetitionId: Lo
                 competitions.forEach { competition -> FilterChip(selected = competition.id == targetId, onClick = { targetId = competition.id }, label = { Text(competition.name) }) }
             }
             if (target == null) {
-                OutlinedTextField(options.competitionName, { options = options.copy(competitionName = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Nome do concurso *") }, placeholder = { Text("Ex.: TRT 3ª Região") })
+                OutlinedTextField(options.competitionName, { options = options.copy(competitionName = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Nome do concurso *") }, placeholder = { Text("Ex.: Polícia Federal") })
             }
             OutlinedTextField(options.role, { options = options.copy(role = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cargo ou área *") }, placeholder = { Text("Ex.: Analista Judiciário, Área Administrativa") })
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -473,10 +473,10 @@ private val ContentGenerationStages = listOf(
 
 /** O que o Estudário garante em todo material, mostrado enquanto ele trabalha. */
 private val ContentCommitments = listOf(
-    "Fontes oficiais primeiro: leis, órgãos públicos, tribunais e bancas.",
-    "Lei citada na redação que vale hoje.",
-    "Sem fonte, não entra: nada é inventado.",
-    "Você confere tudo, com as fontes, antes de salvar.",
+    "Feito para o seu concurso" to "Escrito para o cargo e a banca informados, no nível em que o assunto é cobrado na prova.",
+    "Base em fontes oficiais" to "Legislação, órgãos públicos e bancas vêm primeiro. Cada fonte consultada fica listada no material.",
+    "Revisão de fatos" to "Uma segunda verificação confere artigos, prazos, números, contas e gabaritos antes da entrega.",
+    "Você decide o que salvar" to "Nada entra no seu caderno sem a sua revisão. Se a geração não for concluída, ela volta para o seu saldo.",
 )
 
 /**
@@ -511,7 +511,7 @@ private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, on
                         footer = {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 ContentCommitmentsCard()
-                                Text("Costuma levar de 2 a 4 minutos, porque cada fonte é conferida. Pode continuar usando o app: avisamos quando estiver pronto para você revisar e salvar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                Text("Leva em média de 2 a 4 minutos, porque as fontes são consultadas e conferidas. Você pode continuar usando o app: avisaremos assim que o material estiver pronto para revisão.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                                 androidx.compose.material3.OutlinedButton(onClick = onBackground) { Text("Continuar em segundo plano") }
                                 TextButton(onClick = onClose) { Text("Cancelar geração", color = MaterialTheme.colorScheme.error) }
                             }
@@ -1013,13 +1013,16 @@ private fun ContentCommitmentsCard() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.VerifiedUser, null, Modifier.size(20.dp), tint = br.com.estudario.ui.theme.estudarioColors().completed)
                 Spacer(Modifier.width(8.dp))
-                Text("Nosso compromisso com o seu material", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text("Como preparamos seu material", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             }
-            ContentCommitments.forEach { line ->
+            ContentCommitments.forEach { (head, line) ->
                 Row(verticalAlignment = Alignment.Top) {
                     Icon(Icons.Outlined.CheckCircle, null, Modifier.size(18.dp).padding(top = 1.dp), tint = br.com.estudario.ui.theme.estudarioColors().completed)
                     Spacer(Modifier.width(8.dp))
-                    Text(line, style = MaterialTheme.typography.bodySmall)
+                    Column {
+                        Text(head, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        Text(line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }

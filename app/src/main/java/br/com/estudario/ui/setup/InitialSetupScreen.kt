@@ -1,5 +1,6 @@
 package br.com.estudario.ui.setup
 
+import br.com.estudario.ui.components.AlertDialog
 import br.com.estudario.ui.theme.estudarioLayout
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -56,7 +57,6 @@ import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.UploadFile
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
@@ -502,7 +502,8 @@ private fun CompetitionStep(
 ) {
     var name by rememberSaveable(snapshot.competitionId) { mutableStateOf(snapshot.competitionName) }
     var role by rememberSaveable(snapshot.competitionId) { mutableStateOf(snapshot.role) }
-    val canContinue = name.trim().length >= 2
+    // O cargo decide quais matérias valem no edital: sem ele a leitura do PDF pode pegar as de outro cargo.
+    val canContinue = name.trim().length >= 2 && role.trim().length >= 2
     SetupPage(
         eyebrow = "Seu objetivo",
         title = "Qual concurso você vai prestar?",
@@ -520,9 +521,9 @@ private fun CompetitionStep(
                 }
             }
         }
-        OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nome do concurso") }, placeholder = { Text("Ex.: TRF 3ª Região") }, singleLine = true)
+        OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nome do concurso") }, placeholder = { Text("Ex.: Polícia Federal") }, singleLine = true)
         Spacer(Modifier.height(10.dp))
-        OutlinedTextField(role, { role = it }, Modifier.fillMaxWidth(), label = { Text("Cargo ou área (opcional)") }, placeholder = { Text("Ex.: Analista judiciário") }, singleLine = true)
+        OutlinedTextField(role, { role = it }, Modifier.fillMaxWidth(), label = { Text("Cargo ou área") }, placeholder = { Text("Ex.: Agente de Polícia") }, supportingText = { Text("Muitos editais têm vários cargos: é por ele que achamos as suas matérias.") }, singleLine = true)
         if (selected != null && selected.name.equals(name.trim(), true)) {
             Spacer(Modifier.height(12.dp))
             AssistChip(onClick = { }, label = { Text("Concurso já salvo neste aparelho") }, leadingIcon = { Icon(Icons.Outlined.CheckCircle, null) })

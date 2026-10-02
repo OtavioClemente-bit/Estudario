@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.components.AlertDialog
 import br.com.estudario.ui.theme.screenPadding
 import android.content.Context
 import android.net.Uri
@@ -114,13 +115,13 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
     contentPromptFor?.let { (subjectId, topicIds) -> ContentPromptBuilderDialog(viewModel, subjectId, topicIds, onDismiss = { contentPromptFor = null }, onPickFile = pickFile) }
     if (addCompetition) NewCompetitionDialog(
         onDismiss = { addCompetition = false },
-        onCreate = { name, path ->
+        onCreate = { name, role, path ->
             addCompetition = false
             scope.launch {
                 val id = viewModel.createCompetition(name)
                 selectedCompetitionId = id
                 when (path) {
-                    NewCompetitionPath.EDITAL -> viewModel.openAiReview(id, name.trim())
+                    NewCompetitionPath.EDITAL -> viewModel.openAiReview(id, name.trim(), preferences = br.com.estudario.data.ai.AiSyllabusPreferences(competitionName = name.trim(), role = role.trim()))
                     NewCompetitionPath.MANUAL -> addSubject = true
                     NewCompetitionPath.IMPORT -> pickFile()
                 }
@@ -506,8 +507,9 @@ private enum class NewCompetitionPath { EDITAL, MANUAL, IMPORT }
 
 /** Novo concurso: o nome e por onde começar. Ler o edital é o caminho recomendado. */
 @Composable
-private fun NewCompetitionDialog(onDismiss: () -> Unit, onCreate: (String, NewCompetitionPath) -> Unit) {
+private fun NewCompetitionDialog(onDismiss: () -> Unit, onCreate: (String, String, NewCompetitionPath) -> Unit) {
     var name by remember { mutableStateOf("") }
+    var role by remember { mutableStateOf("") }
     var path by remember { mutableStateOf(NewCompetitionPath.EDITAL) }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -519,7 +521,17 @@ private fun NewCompetitionDialog(onDismiss: () -> Unit, onCreate: (String, NewCo
                     { name = it.take(120) },
                     Modifier.fillMaxWidth(),
                     label = { Text("Nome do concurso") },
-                    placeholder = { Text("Ex.: TRT 3ª Região, Analista de TI") },
+                    placeholder = { Text("Ex.: Polícia Federal") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                )
+                OutlinedTextField(
+                    role,
+                    { role = it.take(120) },
+                    Modifier.fillMaxWidth(),
+                    label = { Text(if (path == NewCompetitionPath.EDITAL) "Cargo ou área" else "Cargo ou área (opcional)") },
+                    placeholder = { Text("Ex.: Agente de Polícia") },
+                    supportingText = if (path == NewCompetitionPath.EDITAL) ({ Text("É por ele que achamos as suas matérias no edital.") }) else null,
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
                 )
@@ -529,7 +541,7 @@ private fun NewCompetitionDialog(onDismiss: () -> Unit, onCreate: (String, NewCo
                 PathOption(path == NewCompetitionPath.IMPORT, Icons.Outlined.FileOpen, "Importar arquivo .estudo", "Um edital já organizado em arquivo.") { path = NewCompetitionPath.IMPORT }
             }
         },
-        confirmButton = { Button(onClick = { onCreate(name, path) }, enabled = name.isNotBlank(), shape = RoundedCornerShape(12.dp)) { Text("Criar") } },
+        confirmButton = { Button(onClick = { onCreate(name, role, path) }, enabled = name.isNotBlank() && (path != NewCompetitionPath.EDITAL || role.isNotBlank()), shape = RoundedCornerShape(12.dp)) { Text("Criar") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
 }

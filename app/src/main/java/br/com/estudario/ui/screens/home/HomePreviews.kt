@@ -31,7 +31,7 @@ private fun HomePreviewScaffold(
     performance: PerformanceUi?,
     standing: StandingUi,
     nextUp: NextUpUi = NextUpUi(emptyList(), 0),
-    contest: ActiveContestUi? = ActiveContestUi("TRT 3ª Região", "Analista Judiciário, Tecnologia da Informação"),
+    contest: ActiveContestUi? = ActiveContestUi("Polícia Federal", "Agente de Polícia"),
 ) {
     EstudarioTheme {
         Surface(color = MaterialTheme.colorScheme.background) {
@@ -235,7 +235,7 @@ private fun HomeNoPlanPreview() {
         pace = PaceUi.Unknown,
         performance = null,
         standing = fakeStanding.copy(streakDays = 0, bestStreakDays = 0, level = 2, levelTitle = "Iniciante", totalXp = 120, levelFraction = 0.2f, xpIntoLevel = 20, xpForNextLevel = 100),
-        contest = ActiveContestUi("TRT 3ª Região", null),
+        contest = ActiveContestUi("Polícia Federal", null),
     )
 }
 
