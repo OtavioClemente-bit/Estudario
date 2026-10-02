@@ -582,6 +582,10 @@ class EstudoPackageService(private val db: AppDatabase) {
     }
 
     /** Runs the same official import boundary while the caller owns the Room transaction. */
+    /** Id do banco dentro de um id provisório do app ("topico-40" → 40), ou null. */
+    private fun localId(prefix: String, externalId: String?): Long? =
+        externalId?.takeIf { it.startsWith(prefix) }?.removePrefix(prefix)?.toLongOrNull()
+
     internal suspend fun importInTransaction(
         text: String,
         mode: ImportMode = ImportMode.SKIP,
@@ -596,6 +600,7 @@ class EstudoPackageService(private val db: AppDatabase) {
             ?.let { id -> competitions.firstOrNull { it.id == id } ?: throw EstudoPackageException("O edital selecionado não foi encontrado.") }
         val currentCompetition = selectedCompetition
             ?: dao.competitionByExternalId(plan.competitionId)
+            ?: localId("concurso-", plan.competitionId)?.let { id -> competitions.firstOrNull { it.id == id } }
             ?: competitions.firstOrNull { it.name.equals(plan.competitionName, true) }
         validateExternalIdConflicts(plan, currentCompetition?.id)
         val competitionId = currentCompetition?.id ?: dao.insertCompetition(
@@ -632,7 +637,8 @@ class EstudoPackageService(private val db: AppDatabase) {
 
         plan.subjects.sortedBy { it.position }.forEach { subjectPlan ->
             val currentSubject = dao.subjectByExternalId(subjectPlan.externalId)?.takeIf { it.competitionId == competitionId }
-                ?: dao.subjectsFor(competitionId).firstOrNull { it.name.equals(subjectPlan.name, true) }
+                ?: localId("materia-", subjectPlan.externalId)?.let { id -> dao.subjectsFor(competitionId).firstOrNull { it.id == id } }
+                ?: dao.subjectsFor(competitionId).firstOrNull { it.name.trim().equals(subjectPlan.name, true) }
             val subjectId = currentSubject?.id ?: dao.insertSubject(
                 SubjectEntity(
                     competitionId = competitionId,
@@ -667,8 +673,11 @@ class EstudoPackageService(private val db: AppDatabase) {
 
             suspend fun importTopic(p: TopicPlan, parentId: Long?) {
                 val externalId = p.externalId
+                // Material gerado no app aponta para o tópico pelo id do banco ("topico-40") quando ele
+                // ainda não tem id externo: é o tópico exato, sem depender do nome bater letra por letra.
                 val oldTopic = dao.topicByExternalId(externalId)?.takeIf { it.subjectId == subjectId }
-                    ?: knownTopics.firstOrNull { it.parentTopicId == parentId && it.title.equals(p.title, true) }
+                    ?: localId("topico-", externalId)?.let { id -> dao.topic(id) }?.takeIf { it.subjectId == subjectId }
+                    ?: knownTopics.firstOrNull { it.parentTopicId == parentId && it.title.trim().equals(p.title, true) }
                 val legacyAssessment = p.priorityAssessment ?: p.priority.takeIf { p.legacyPriorityProvided }?.asAssessment()
                 val topicId = oldTopic?.id ?: dao.insertTopic(TopicEntity(subjectId = subjectId, parentTopicId = parentId, title = p.title, description = p.description, position = p.position, notes = p.notes, priority = p.priority, externalId = externalId, contentOriginType = p.originType, scopeCovers = p.scopeCovers, scopeExcludes = p.scopeExcludes, assessedPriorityScore = legacyAssessment?.score ?: 50, assessedPrioritySource = legacyAssessment?.source ?: PrioritySource.DEFAULT, assessedPriorityConfidence = legacyAssessment?.confidence ?: 0f, assessedPriorityRationale = legacyAssessment?.rationale, assessedPriorityEvidenceJson = legacyAssessment?.evidenceJson() ?: "[]", hasAssessedPriority = legacyAssessment != null)).also { id ->
                     topicsCreated++
