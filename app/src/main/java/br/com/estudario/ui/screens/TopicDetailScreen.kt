@@ -487,7 +487,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                     childTopics.isNotEmpty() -> Triple("Ver os ${childTopics.size} subtópicos", Icons.Outlined.AccountTree, { selectedTab = 0 })
                     resumeTheory != null && resumeTheory.lastReadBlock >= 0 -> Triple("Continuar leitura · ${readPercent ?: 0}%", Icons.Outlined.MenuBook, { onTheory(resumeTheory.id) })
                     resumeTheory != null -> Triple("Começar a teoria", Icons.Outlined.MenuBook, { onTheory(resumeTheory.id) })
-                    topicQuestions.isNotEmpty() -> Triple("Treinar ${topicQuestions.size} questões", Icons.Outlined.Quiz, onQuiz)
+                    topicQuestions.isNotEmpty() -> Triple("Treinar ${topicQuestions.size} ${if (topicQuestions.size == 1) "questão" else "questões"}", Icons.Outlined.Quiz, onQuiz)
                     else -> Triple("Gerar material com o Estudário", Icons.Outlined.AutoAwesome, { showContentPrompt = true })
                 }
                 Button(onClick = action, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) {

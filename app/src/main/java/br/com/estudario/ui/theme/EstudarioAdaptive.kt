@@ -23,7 +23,7 @@ import kotlin.math.roundToInt
  *
  * 1. **Fonte amortecida.** A preferência da pessoa é respeitada (fonte maior continua maior), mas o
  *    crescimento é suavizado e tem teto: `1 + (sistema - 1) × [FONT_GROWTH_DAMPING]`, preso entre
- *    [MIN_FONT_SCALE] e [MAX_FONT_SCALE]. Fonte 1,15 vira ~1,09; fonte 1,3 vira ~1,18; fonte 2,0
+ *    [MIN_FONT_SCALE] e [MAX_FONT_SCALE], sobre a base [DEFAULT_FONT_FACTOR]. Fonte padrão vira 0,9; 1,3 vira ~1,06; fonte 2,0
  *    chega no teto. Em telas muito estreitas o teto é menor ([MAX_FONT_SCALE_NARROW]).
  * 2. **Densidade proporcional.** Se a largura útil fica abaixo de [REFERENCE_WIDTH_DP] (aparelho
  *    pequeno ou "tamanho da tela" aumentado), a densidade é reduzida na mesma proporção, tudo encolhe
@@ -33,8 +33,11 @@ import kotlin.math.roundToInt
  * Todos os números moram aqui. Mudar o comportamento do app inteiro é mudar uma constante.
  */
 object EstudarioAdaptiveScale {
-    /** Largura (dp) para a qual o layout foi desenhado. Abaixo disso, a densidade é compensada. */
-    const val REFERENCE_WIDTH_DP = 360f
+    /**
+     * Largura (dp) para a qual o layout foi desenhado. Abaixo disso, a densidade é compensada.
+     * 392: a maioria dos Samsung e Motorola tem 360 a 384 dp e cortava rótulos lado a lado.
+     */
+    const val REFERENCE_WIDTH_DP = 392f
 
     /** Altura (dp) mínima confortável. Telas mais baixas (ex.: 16:9 pequeno) também são compensadas. */
     const val REFERENCE_HEIGHT_DP = 600f
@@ -45,9 +48,16 @@ object EstudarioAdaptiveScale {
     /** Fração do aumento de fonte do sistema que o app aplica. */
     const val FONT_GROWTH_DAMPING = 0.6f
 
+    /**
+     * Quanto a fonte padrão do sistema vale no app. O layout foi desenhado com fonte pequena; na
+     * fonte padrão (a de quase todo mundo) os textos estouravam as linhas. 0,9 deixa a fonte padrão
+     * próxima da que o layout foi pensado, e a pessoa que aumenta a fonte continua vendo maior.
+     */
+    const val DEFAULT_FONT_FACTOR = 0.9f
+
     const val MIN_FONT_SCALE = 0.85f
-    const val MAX_FONT_SCALE = 1.30f
-    const val MAX_FONT_SCALE_NARROW = 1.20f
+    const val MAX_FONT_SCALE = 1.15f
+    const val MAX_FONT_SCALE_NARROW = 1.08f
 
     /** Fator de densidade para a tela, em dp "crus" do sistema. Nunca amplia: só compensa telas pequenas. */
     fun densityScale(screenWidthDp: Int, screenHeightDp: Int): Float {
@@ -63,7 +73,7 @@ object EstudarioAdaptiveScale {
     /** Escala de fonte efetiva a partir da escolhida no sistema. [effectiveWidthDp] já considera a densidade ajustada. */
     fun fontScale(systemFontScale: Float, effectiveWidthDp: Float): Float {
         if (systemFontScale <= 0f) return 1f
-        val damped = if (systemFontScale <= 1f) systemFontScale else 1f + (systemFontScale - 1f) * FONT_GROWTH_DAMPING
+        val damped = DEFAULT_FONT_FACTOR * if (systemFontScale <= 1f) systemFontScale else 1f + (systemFontScale - 1f) * FONT_GROWTH_DAMPING
         val ceiling = if (effectiveWidthDp < REFERENCE_WIDTH_DP + 20f) MAX_FONT_SCALE_NARROW else MAX_FONT_SCALE
         return damped.coerceIn(MIN_FONT_SCALE, ceiling)
     }

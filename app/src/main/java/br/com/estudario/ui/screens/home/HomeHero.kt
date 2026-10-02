@@ -76,7 +76,10 @@ fun HomeHero(
                     Box(Modifier.fillMaxWidth((coverage.percent / 100f).coerceIn(0.015f, 1f)).fillMaxHeight().clip(CircleShape).background(MaterialTheme.colorScheme.primary))
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            // FlowRow: sem espaço, o que não cabe desce para a linha de baixo em vez de virar uma
+            // coluna de letras ("D o m í n i o").
+            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(Icons.Outlined.LocalFireDepartment, null, Modifier.size(18.dp), tint = estudarioColors().attention)
                     Text(if (standing.streakDays == 0) "Comece a sequência hoje" else "${standing.streakDays} ${if (standing.streakDays == 1) "dia" else "dias"} seguidos", style = MaterialTheme.typography.labelLarge, color = on)
