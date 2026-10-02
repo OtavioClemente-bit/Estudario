@@ -103,7 +103,7 @@ fun ReviewSessionScreen(viewModel: AppViewModel, reviewId: Long, onBack: () -> U
                     item(key = option.id) {
                         val color = when { answered != null && option.isCorrect -> MaterialTheme.colorScheme.secondaryContainer; answered == false && option.key == selected -> MaterialTheme.colorScheme.errorContainer; option.key == selected -> MaterialTheme.colorScheme.primaryContainer; else -> MaterialTheme.colorScheme.surface }
                         Surface(onClick = { if (answered == null) selected = option.key }, color = color, shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), modifier = Modifier.fillMaxWidth()) {
-                            Text("${option.key}) ${option.text}", Modifier.padding(14.dp))
+                            br.com.estudario.ui.components.StudyInlineText("${option.key}) ${option.text}", Modifier.padding(14.dp), onTap = { if (answered == null) selected = option.key })
                         }
                     }
                 }

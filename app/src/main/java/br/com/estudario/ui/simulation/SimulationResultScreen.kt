@@ -230,7 +230,7 @@ private fun CorrectionCard(number: Int, row: QuestionWithOptions, selected: Stri
             }
             topic?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, maxLines = 2) }
             if (!open) {
-                Text(row.question.statement, maxLines = 3, style = MaterialTheme.typography.bodySmall, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(br.com.estudario.ui.components.plainFormulaText(row.question.statement), maxLines = 3, style = MaterialTheme.typography.bodySmall, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 return@Column
             }
             MarkdownText(row.question.statement)
@@ -240,7 +240,7 @@ private fun CorrectionCard(number: Int, row: QuestionWithOptions, selected: Stri
                     option.key == selected -> MaterialTheme.colorScheme.error
                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                 }
-                Text("${option.key}) ${option.text}", color = color, fontWeight = if (option.isCorrect || option.key == selected) FontWeight.SemiBold else FontWeight.Normal, style = MaterialTheme.typography.bodyMedium)
+                br.com.estudario.ui.components.StudyInlineText("${option.key}) ${option.text}", color = color, fontWeight = if (option.isCorrect || option.key == selected) FontWeight.SemiBold else FontWeight.Normal, style = MaterialTheme.typography.bodyMedium)
             }
             Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
                 Column(Modifier.fillMaxWidth().padding(12.dp)) { MarkdownText(row.question.explanation) }

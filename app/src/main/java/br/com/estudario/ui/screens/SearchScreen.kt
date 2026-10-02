@@ -50,5 +50,5 @@ fun SearchScreen(
 }
 
 @Composable private fun ResultCard(type: String, title: String, subtitle: String, onClick: () -> Unit) {
-    ElevatedCard(onClick = onClick) { Column(Modifier.padding(14.dp)) { Text(type.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary); Text(title, fontWeight = FontWeight.Bold); if (subtitle.isNotBlank()) Text(subtitle, maxLines = 2, style = MaterialTheme.typography.bodySmall, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) } }
+    ElevatedCard(onClick = onClick) { Column(Modifier.padding(14.dp)) { Text(type.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary); Text(br.com.estudario.ui.components.plainFormulaText(title), fontWeight = FontWeight.Bold); if (subtitle.isNotBlank()) Text(br.com.estudario.ui.components.plainFormulaText(subtitle), maxLines = 2, style = MaterialTheme.typography.bodySmall, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) } }
 }

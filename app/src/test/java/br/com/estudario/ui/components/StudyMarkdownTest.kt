@@ -50,6 +50,13 @@ class StudyMarkdownTest {
     }
 
     @Test
+    fun formulaViraTextoSimplesNasPrevias() {
+        assertEquals("Uma função é dada por f(x)=-2(x+1)(x-4). Qual?", plainFormulaText("Uma função é dada por \$\$f(x)=-2(x+1)(x-4)\$\$. Qual?"))
+        assertEquals("y_v=-Δ/4a e Δ ≤ 0", plainFormulaText("\$\$y_v=-\\frac{\\Delta}{4a}\$\$ e \$\$\\Delta \\le 0\$\$"))
+        assertEquals("Texto sem fórmula", plainFormulaText("Texto sem fórmula"))
+    }
+
+    @Test
     fun capituloQueRepeteOTituloMostraUmaVezSo() {
         val blocks = studyBlocks("## 1. Fundamentos\n\n## 1. Fundamentos\n\nTexto.\n\n## 2. Outro\n\nMais.")
         assertEquals(listOf("## 1. Fundamentos", "Texto.", "## 2. Outro", "Mais."), blocks)

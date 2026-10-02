@@ -287,7 +287,7 @@ fun StudyNotebookScreen(
                                 Row(Modifier.padding(start = 14.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.Top) {
                                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         KindPill(if (trap) "PEGADINHA" else "DICA", if (trap) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.tertiaryContainer)
-                                        Text(snippet.text, style = MaterialTheme.typography.bodyMedium)
+                                        br.com.estudario.ui.components.StudyInlineText(snippet.text, style = MaterialTheme.typography.bodyMedium)
                                     }
                                     IconButton(onClick = { viewModel.saveSnippet(snippet.copy(isFavorite = false)) }) { Icon(Icons.Outlined.Star, "Tirar do caderno", tint = MaterialTheme.colorScheme.primary) }
                                 }
@@ -396,7 +396,7 @@ private fun fold(value: String): String = Normalizer.normalize(value.lowercase()
 private val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
 
 /** Trecho de teoria sem a sintaxe do Markdown, para a prévia do caderno. */
-internal fun plainPreview(markdown: String): String = markdown
+internal fun plainPreview(markdown: String): String = br.com.estudario.ui.components.plainFormulaText(markdown)
     .lines()
     .filterNot { it.trim().matches(Regex("""^\|?\s*:?-{3,}.*""")) }
     .joinToString(" ") { it.trim().removePrefix(">").trim() }

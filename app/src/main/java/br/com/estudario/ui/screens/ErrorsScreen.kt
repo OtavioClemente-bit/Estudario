@@ -270,7 +270,7 @@ private fun ErrorCard(
                 }
             }
             if (path.isNotBlank()) Text(path, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(item.question.statement, style = MaterialTheme.typography.bodyMedium, maxLines = if (expanded) Int.MAX_VALUE else 4, overflow = TextOverflow.Ellipsis)
+            Text(br.com.estudario.ui.components.plainFormulaText(item.question.statement), style = MaterialTheme.typography.bodyMedium, maxLines = if (expanded) Int.MAX_VALUE else 4, overflow = TextOverflow.Ellipsis)
 
             // Sua resposta ao lado da correta: o erro inteiro em uma olhada.
             if (entry.selectedAnswer != null || entry.correctAnswer != null) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

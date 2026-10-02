@@ -244,3 +244,25 @@ private class TextCenteredFormulaSpan(theme: MarkwonTheme, private val formula: 
         canvas.restore()
     }
 }
+
+private val latexSymbols = mapOf(
+    """\cdot""" to "·", """\times""" to "×", """\div""" to "÷", """\leq""" to "≤", """\le""" to "≤", """\geq""" to "≥", """\ge""" to "≥",
+    """\neq""" to "≠", """\ne""" to "≠", """\approx""" to "≈", """\infty""" to "∞", """\pm""" to "±", """\Delta""" to "Δ", """\pi""" to "π",
+    """\alpha""" to "α", """\beta""" to "β", """\theta""" to "θ", """\rho""" to "ρ", """\mu""" to "μ", """\Omega""" to "Ω", """\cup""" to "∪",
+    """\cap""" to "∩", """\in""" to "∈", """\to""" to "→", """\Rightarrow""" to "⇒", """\%""" to "%", """\$""" to "$", """\,""" to " ", """\;""" to " ",
+)
+
+/**
+ * Fórmula LaTeX como texto simples, para prévias de uma ou poucas linhas (lista de questões,
+ * Caderno): "$$\frac{a}{b} \le x^2$$" vira "a/b ≤ x^2", sem os cifrões nem as barras.
+ */
+fun plainFormulaText(text: String): String {
+    if (!text.contains("\$\$") && !text.contains('\\')) return text
+    var out = StudyMarkdownNormalizer.normalize(text).replace("\$\$", "")
+    out = out.replace(Regex("""\\frac\{([^{}]*)\}\{([^{}]*)\}"""), "($1)/($2)").replace(Regex("""\(([^()\s+\-]+)\)/"""), "$1/").replace(Regex("""/\(([^()\s+\-]+)\)"""), "/$1")
+    out = out.replace(Regex("""\\sqrt\{([^{}]*)\}"""), "√($1)")
+    out = out.replace(Regex("""\\(?:text|mathrm|mathbf|operatorname)\{([^{}]*)\}"""), "$1")
+    out = out.replace(Regex("""\\mathbb\{R\}"""), "ℝ").replace(Regex("""\\mathbb\{N\}"""), "ℕ").replace(Regex("""\\mathbb\{Z\}"""), "ℤ")
+    latexSymbols.entries.sortedByDescending { it.key.length }.forEach { (latex, symbol) -> out = out.replace(latex, symbol) }
+    return out.replace(Regex("""\\left|\\right"""), "").replace(Regex("""\\[a-zA-Z]+"""), "").replace("{", "").replace("}", "").replace(Regex("""[ \t]+"""), " ").trim()
+}

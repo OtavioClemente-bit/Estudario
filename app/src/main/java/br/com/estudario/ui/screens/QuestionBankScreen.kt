@@ -126,7 +126,7 @@ fun QuestionBankScreen(viewModel: AppViewModel, onBack: () -> Unit, onStart: (Qu
             ElevatedCard {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) { Text(topic?.title ?: "Tópico", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary); IconButton(onClick = { viewModel.toggleQuestionFavorite(row.question) }) { Icon(if (row.question.isFavorite) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, "Favoritar") } }
-                    Text(row.question.statement, maxLines = 4, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Text(br.com.estudario.ui.components.plainFormulaText(row.question.statement), maxLines = 4, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     Text(listOfNotNull(row.question.board, row.question.agency, row.question.year?.toString(), row.question.difficulty?.name).joinToString(" • ") + " • ${row.question.answerCount} resposta(s)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     QuestionProvenance(row.question)
                     if (showHidden) TextButton(onClick = { viewModel.setQuestionsHidden(listOf(row.question.id), false) }) { Icon(Icons.Outlined.Restore, null); Spacer(Modifier.width(4.dp)); Text("Restaurar") }
