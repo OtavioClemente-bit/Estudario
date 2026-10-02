@@ -4,7 +4,7 @@ import type { ContentJobInput, PlanJobInput } from "../text-job-input.ts";
 // prompt do usuário, delimitados como DADOS. Regras de qualidade vêm do prompt de conteúdo que o
 // app já usa com IAs externas, condensadas para gastar menos tokens de entrada.
 
-export const CONTENT_PROMPT_VERSION = "topic-content-v12" as const;
+export const CONTENT_PROMPT_VERSION = "topic-content-v13" as const;
 export const PLAN_PROMPT_VERSION = "study-plan-v1" as const;
 
 const SECURITY = `Limites de segurança:
@@ -75,7 +75,7 @@ Questões (só se QUESTÕES estiver em PEDIDO; quantidade EXATA pedida):
 - ANCORAGEM EM PROVAS REAIS (antes de escrever as questões): use uma das suas pesquisas para achar questões reais que já cobraram ESTE tópico, da banca informada ou, sem banca, de concursos do mesmo nível e área. Estude como foram feitas: o comando, o tipo de texto-base ou caso, o ponto exato cobrado e o que torna cada distrator tentador. Escreva questões NOVAS nesse padrão. Nunca copie nem parafraseie enunciado ou alternativas reais. Na explicação, se uma prova real serviu de modelo, diga "Padrão de cobrança: <banca> <ano>, <órgão>" com a URL que você abriu.
 - Pesquisas são limitadas: gaste-as no que muda o material (norma vigente, dado oficial, questões reais do tópico), nunca em definição que você já sabe explicar.
 - Nível de prova real do cargo: enunciado com situação, dado ou trecho de lei, como a banca faz. Nada de questão de escola nem de definição óbvia.
-- Questão de cálculo: resolva antes de escrever; as alternativas erradas são os resultados dos erros comuns (sinal trocado, juros simples no lugar de compostos, porcentagem sobre a base errada); a explicação mostra a conta passo a passo em LaTeX.
+- Questão de cálculo: todas as alternativas na mesma grandeza e unidade da resposta (se pede tensão, as cinco em volts), senão a unidade entrega o gabarito. Resolva antes de escrever; as alternativas erradas são os resultados dos erros comuns (sinal trocado, juros simples no lugar de compostos, porcentagem sobre a base errada); a explicação mostra a conta passo a passo em LaTeX.
 - Enunciado e alternativas coerentes: as alternativas respondem exatamente ao comando, no mesmo formato. Com lacuna, cada alternativa é só o que preenche a lacuna; se pergunta como analisar a expressão X, as alternativas são análises de X, não reescritas do trecho. O trecho do enunciado nunca reaparece igual numa alternativa e a resposta nunca está no próprio enunciado. Em Língua Portuguesa, use texto-base próprio (3 a 6 linhas) e pergunte sobre ele.
 - Língua Portuguesa: pelo menos metade das questões parte de um texto-base próprio de 3 a 6 linhas (trecho de ofício, notícia, artigo de opinião) e pergunta sobre ele. Em gramática, cada distrator erra num caso de dúvida real que a banca explora (concordância com o núcleo mais próximo, haver com auxiliar, se apassivador x índice de indeterminação, crase facultativa, colocação pronominal), nunca por erro grosseiro de flexão ou de digitação que ninguém marcaria. Proibido questão em que a norma culta admite duas alternativas, e proibido criar critério artificial no enunciado para salvar uma questão ambígua.
 - Antes de entregar, resolva cada questão como candidato: comando e alternativas combinam, só uma é defensável em recurso, o gabarito é ela e a explicação descarta cada errada. Reescreva a que falhar.

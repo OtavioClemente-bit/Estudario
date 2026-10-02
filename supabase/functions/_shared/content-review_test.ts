@@ -18,7 +18,7 @@ const content = () => ({
 
 Deno.test("fixes replace text everywhere except sources", () => {
   const { content: out, applied } = applyReview(content(), {
-    fixes: [{ wrong: "15 dias", correct: "30 dias", reason: "art. 13 §1º" }, { wrong: "não existe", correct: "x", reason: "" }],
+    fixes: [{ wrong: "A posse ocorre em até 15 dias", correct: "A posse ocorre em até 30 dias", reason: "art. 13 §1º" }, { wrong: "não existe", correct: "x", reason: "" }],
     answerFixes: [],
     removeQuestions: [],
     removeFlashcards: [],
@@ -104,4 +104,17 @@ Deno.test("reserve questions fill the gap left by removed ones", async () => {
   // O revisor tirou duas: as reservas entram e nada é cortado.
   assertEquals((keepRequestedQuestions({ questions: [1, 3, 5, 6] }, 4).questions as number[]), [1, 3, 5, 6]);
   assertEquals(keepRequestedQuestions({ questions: [] }, 0).questions, []);
+});
+
+Deno.test("a short fix that appears in more than one place is skipped, so it cannot leak into another question", () => {
+  const material = {
+    chapters: [{ title: "1. Ohm", markdown: "Texto." }],
+    questions: [
+      { statement: "Q1", options: [{ key: "A", text: "0,75 A", correct: true }], explanation: "x" },
+      { statement: "Q3: pontos (0,25 A; 5 V) e (0,75 A; 15 V)", options: [], explanation: "y" },
+    ],
+  };
+  const { content: out, applied } = applyReview(material, { fixes: [{ wrong: "0,75 A", correct: "1,08 V", reason: "" }], answerFixes: [], removeQuestions: [], removeFlashcards: [] });
+  assertEquals(applied, 0);
+  assert(JSON.stringify(out.questions).includes("(0,75 A; 15 V)"));
 });

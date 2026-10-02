@@ -123,6 +123,19 @@ function replaceEverywhere(value: unknown, wrong: string, correct: string, count
   return value;
 }
 
+const SHORT_FIX = 16;
+
+function occurrences(content: Json, wrong: string): number {
+  let total = 0;
+  for (const [key, item] of Object.entries(content)) {
+    if (PROTECTED_FIELDS.has(key)) continue;
+    const counter = { hits: 0 };
+    replaceEverywhere(structuredClone(item), wrong, wrong, counter);
+    total += counter.hits;
+  }
+  return total;
+}
+
 const PROTECTED_FIELDS = new Set(["schemaVersion", "promptVersion", "modelVersion", "sources", "warnings", "scope"]);
 
 /** Aplica a revisão sem nunca quebrar o formato: trechos que não existem são ignorados. */
@@ -131,6 +144,9 @@ export function applyReview(content: Json, review: ContentReview): { content: Js
   let applied = 0;
   for (const fix of review.fixes) {
     if (fix.wrong.trim().length < 3 || fix.wrong === fix.correct) continue;
+    // Trecho curto ("0,75 A") costuma aparecer em mais de um lugar, e a troca vazava para outra
+    // questão que estava certa. Curto só é trocado se for único; frase longa vale em todo lugar.
+    if (fix.wrong.trim().length < SHORT_FIX && occurrences(result, fix.wrong) > 1) continue;
     const counter = { hits: 0 };
     result = Object.fromEntries(Object.entries(result).map(([key, item]) =>
       PROTECTED_FIELDS.has(key) ? [key, item] : [key, replaceEverywhere(item, fix.wrong, fix.correct, counter)]
