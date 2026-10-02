@@ -34,3 +34,14 @@ Deno.test("repair fixes what is safe and drops only the broken question", () => 
 Deno.test("repair leaves invalid JSON untouched", () => {
   assertEquals(repairTopicContent("{oops", options, 2), "{oops");
 });
+
+Deno.test("question whose explanation admits it needs fixing is dropped", () => {
+  const raw = JSON.stringify({
+    chapters: [{ title: "1. Função quadrática", markdown: "x" }, { title: "2. Gráfico", markdown: "y" }],
+    errorConcepts: [{ key: "e1" }],
+    questions: [question("Q1"), question("Q10", { explanation: "F = 240 N. Portanto, com a correção da alternativa A para 240 N, ela é a única correta." })],
+    sources: [],
+  });
+  const out = JSON.parse(repairTopicContent(raw, options, 2));
+  assertEquals(out.questions.map((q: { statement: string }) => q.statement), ["Q1"]);
+});

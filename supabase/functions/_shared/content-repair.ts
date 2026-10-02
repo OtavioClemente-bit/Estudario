@@ -39,6 +39,16 @@ function validUrl(value: unknown): boolean {
   }
 }
 
+/**
+ * Explicação em que o próprio modelo admite que a questão está errada ("com a correção da
+ * alternativa A", "a alternativa correta deveria refletir"): o gabarito não é confiável.
+ */
+const DRAFT_EXPLANATION = /deve(?:ria)? ser corrigid|com a corre[cç][aã]o d[ao]|deveria refletir|observando as op[cç][oõ]es|gabarito (?:deve|precisa) ser|alternativa .{0,20}precisa ser ajustad/i;
+
+export function hasDraftExplanation(question: Record<string, unknown>): boolean {
+  return typeof question.explanation === "string" && DRAFT_EXPLANATION.test(question.explanation);
+}
+
 export function repairTopicContent(raw: string, options: ContentGenerationOptions, reserve: number): string {
   let value: Json;
   try {
@@ -100,7 +110,7 @@ export function repairTopicContent(raw: string, options: ContentGenerationOption
     }).filter((q) => {
       // Questão sem conserto seguro sai; a reserva cobre o lugar dela.
       const statement = text(q.statement).toLowerCase();
-      if (!statement || statements.has(statement) || !text(q.explanation)) return false;
+      if (!statement || statements.has(statement) || !text(q.explanation) || hasDraftExplanation(q)) return false;
       const answers = Array.isArray(q.options) ? q.options.filter(isObject) : [];
       const keys = answers.map((option) => String(option.key)).join();
       const expected = q.format === "TRUE_FALSE" ? "C,E" : options.questionStyle === "FOUR_OPTIONS" ? "A,B,C,D" : "A,B,C,D,E";

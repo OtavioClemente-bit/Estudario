@@ -25,7 +25,7 @@ import { type ExpectedVersions, validateStudyPlan, validateTopicContent } from "
 import { applyReview, type ContentReview, runContentReview } from "./content-review.ts";
 import { resolveOpenAiModel } from "./openai-provider.ts";
 import { CACHE_MAX_AGE_DAYS, contentCacheKey } from "./content-cache.ts";
-import { repairTopicContent } from "./content-repair.ts";
+import { hasDraftExplanation, repairTopicContent } from "./content-repair.ts";
 import {
   AI_SIMULATION_SCHEMA,
   parseSimulationJobInput,
@@ -157,7 +157,9 @@ export function withReview(
     const questions = (reviewed.questions as unknown[]).length;
     if (input.options.questionCount > 0 && questions === 0) continue;
     try {
-      const kept = keepRequestedQuestions(reviewed, input.options.questionCount);
+      // A correção do revisor também pode deixar texto de rascunho na explicação: essa questão sai.
+      const clean = { ...reviewed, questions: (reviewed.questions as Record<string, unknown>[]).filter((q) => !hasDraftExplanation(q)) };
+      const kept = keepRequestedQuestions(clean, input.options.questionCount);
       return validateTopicContent(JSON.stringify(kept), expected, { ...input.options, questionCount: (kept.questions as unknown[]).length });
     } catch {
       // Tenta a próxima forma, mais conservadora.
