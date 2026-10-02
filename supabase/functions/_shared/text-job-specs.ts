@@ -75,7 +75,10 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
   cached: async (job, dependencies) => {
     const store = dependencies.jobs;
     if (!store.cachedContent || !store.markServed) return null;
-    const key = await contentCacheKey(inputOf<ContentJobInput>(job, parseContentJobInput));
+    const input = inputOf<ContentJobInput>(job, parseContentJobInput);
+    // Pedido de "mais questões" depende do que a pessoa já tem: nunca vem do material guardado.
+    if (input.avoidStatements.length > 0) return null;
+    const key = await contentCacheKey(input);
     const proposal = await store.cachedContent(key, CONTENT_PROMPT_VERSION, job.userId, CACHE_MAX_AGE_DAYS);
     if (!proposal) return null;
     await store.markServed(key, job.userId);

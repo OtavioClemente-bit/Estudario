@@ -25,7 +25,11 @@ export interface ContentJobInput {
   scopeExcludes: string | null;
   /** O que a pessoa escolheu no assistente. Pedidos antigos, sem o campo, recebem o pacote completo. */
   options: ContentGenerationOptions;
+  /** Enunciados das questões que a pessoa já tem no tópico ("Gerar mais questões"): não repetir. */
+  avoidStatements: string[];
 }
+
+export const MAX_AVOID_STATEMENTS = 60;
 
 export const CONTENT_BLOCKS = [
   "THEORY", "SUMMARY", "QUICK_REVIEW", "TIPS_TRAPS", "ACTIVE_RECALL", "QUESTIONS", "ERROR_CONCEPTS",
@@ -129,7 +133,16 @@ export function parseContentJobInput(value: unknown): ContentJobInput {
     scopeCovers: optionalText(value.scopeCovers, "scopeCovers", MAX_LONG_TEXT),
     scopeExcludes: optionalText(value.scopeExcludes, "scopeExcludes", MAX_LONG_TEXT),
     options: parseContentOptions(value.options),
+    avoidStatements: parseAvoidStatements(value.avoidStatements),
   };
+}
+
+function parseAvoidStatements(value: unknown): string[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new TextJobInputError("avoidStatements");
+  return value.slice(0, MAX_AVOID_STATEMENTS)
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .map((item) => item.replace(/\p{Cc}/gu, " ").trim().slice(0, 300));
 }
 
 function parseContentOptions(value: unknown): ContentGenerationOptions {

@@ -121,7 +121,8 @@ fun AiAccessSummary(
                     }
                 }
             }
-            AiFeature.entries.forEach { feature ->
+            // O plano de estudo saiu do app: não aparece mais na lista do que está disponível.
+            AiFeature.entries.filter { it != AiFeature.PLAN_GENERATION }.forEach { feature ->
                 val display = state.items[feature] ?: return@forEach
                 val (label, icon) = when (feature) {
                     AiFeature.SYLLABUS_GENERATION -> "Edital" to Icons.Outlined.Description

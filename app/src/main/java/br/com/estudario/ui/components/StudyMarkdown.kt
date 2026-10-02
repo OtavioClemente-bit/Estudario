@@ -50,22 +50,22 @@ fun StudyInlineText(
  * tabelas e fórmulas LaTeX (`$$...$$`, na linha ou em bloco). As cores seguem o tema do app.
  */
 @Composable
-fun StudyMarkdown(markdown: String, modifier: Modifier = Modifier, textSizeSp: Float? = null, onLongPress: (() -> Unit)? = null, onTap: (() -> Unit)? = null, textColor: androidx.compose.ui.graphics.Color? = null) {
+fun StudyMarkdown(markdown: String, modifier: Modifier = Modifier, textSizeSp: Float? = null, onLongPress: (() -> Unit)? = null, onTap: (() -> Unit)? = null, textColor: androidx.compose.ui.graphics.Color? = null, centered: Boolean = false) {
     // Gráficos (```grafico) são desenhados pelo app; o resto segue no Markdown.
     val parts = remember(markdown) { splitCharts(markdown) }
     if (parts.size == 1 && parts[0].second == null) {
-        MarkdownTextView(parts[0].first, modifier, textSizeSp, onLongPress, onTap, textColor)
+        MarkdownTextView(parts[0].first, modifier, textSizeSp, onLongPress, onTap, textColor, centered)
         return
     }
     androidx.compose.foundation.layout.Column(modifier) {
         parts.forEach { (text, chart) ->
-            if (chart != null) StudyChartView(chart) else MarkdownTextView(text, androidx.compose.ui.Modifier.fillMaxWidth(), textSizeSp, onLongPress, onTap, textColor)
+            if (chart != null) StudyChartView(chart) else MarkdownTextView(text, androidx.compose.ui.Modifier.fillMaxWidth(), textSizeSp, onLongPress, onTap, textColor, centered)
         }
     }
 }
 
 @Composable
-private fun MarkdownTextView(markdown: String, modifier: Modifier, textSizeSp: Float?, onLongPress: (() -> Unit)?, onTap: (() -> Unit)?, textColor: androidx.compose.ui.graphics.Color? = null) {
+private fun MarkdownTextView(markdown: String, modifier: Modifier, textSizeSp: Float?, onLongPress: (() -> Unit)?, onTap: (() -> Unit)?, textColor: androidx.compose.ui.graphics.Color? = null, centered: Boolean = false) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val size = textSizeSp ?: MaterialTheme.typography.bodyLarge.fontSize.value
@@ -83,6 +83,10 @@ private fun MarkdownTextView(markdown: String, modifier: Modifier, textSizeSp: F
             }
         },
         update = { view ->
+            // Centralizado (cartões): lista e tabela continuam à esquerda, centralizadas ficam ilegíveis.
+            val center = centered && !hasBlockLayout(markdown)
+            view.gravity = if (center) android.view.Gravity.CENTER_HORIZONTAL else android.view.Gravity.START
+            view.textAlignment = if (center) android.view.View.TEXT_ALIGNMENT_CENTER else android.view.View.TEXT_ALIGNMENT_VIEW_START
             view.setTextColor(ink.toArgb())
             view.setLinkTextColor(colors.primary.toArgb())
             view.setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
@@ -243,6 +247,12 @@ private class TextCenteredFormulaSpan(theme: MarkwonTheme, private val formula: 
         formula.draw(canvas)
         canvas.restore()
     }
+}
+
+/** Texto com lista, tabela ou citação, que não fica bom centralizado. */
+internal fun hasBlockLayout(markdown: String): Boolean = markdown.lines().any { line ->
+    val t = line.trimStart()
+    t.startsWith("- ") || t.startsWith("* ") || t.startsWith("|") || t.startsWith("> ") || Regex("""^\d+[.)] """).containsMatchIn(t)
 }
 
 private val latexSymbols = mapOf(

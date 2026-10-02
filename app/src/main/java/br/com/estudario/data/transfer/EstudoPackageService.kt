@@ -716,7 +716,8 @@ class EstudoPackageService(private val db: AppDatabase) {
                 // Nova geração da IA do Estudário substitui a anterior do mesmo tópico, em vez de
                 // ficar com a teoria antiga e somar as questões. Questão já respondida ou favoritada
                 // só sai das listas (oculta), para o histórico e as estatísticas continuarem certos.
-                if (oldTopic != null && externalId != null && plan.packageId.startsWith(AI_PACKAGE_PREFIX) && (p.theories.isNotEmpty() || p.questions.isNotEmpty())) {
+                // Lote só de questões ("Gerar mais questões") não traz teoria e soma ao que existe.
+                if (oldTopic != null && externalId != null && plan.packageId.startsWith(AI_PACKAGE_PREFIX) && p.theories.isNotEmpty()) {
                     val prefix = "$externalId-"
                     dao.deleteTheoriesWithPrefix(topicId, prefix)
                     dao.deleteSummariesWithPrefix(topicId, prefix)

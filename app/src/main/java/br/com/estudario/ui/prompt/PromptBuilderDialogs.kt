@@ -629,6 +629,11 @@ fun AdditionalQuestionPromptBuilderDialog(
         WizardSummaryItem("Nível", listOf(options.difficulty.label, options.board).filter(String::isNotBlank).joinToString(" · "), 1),
     )
 
+    // Mesma IA do material, pedindo só o bloco de questões: o lote soma às questões do tópico.
+    val context = LocalContext.current
+    val application = context.applicationContext as EstudarioApplication
+    var generating by remember { mutableStateOf(false) }
+    var askLogin by remember { mutableStateOf(false) }
     GenerationWizard(
         title = "Gerar novas questões",
         subtitle = ContentPromptBuilder.pathOf(topic, subjectTopics),
@@ -639,7 +644,45 @@ fun AdditionalQuestionPromptBuilderDialog(
         onImportText = { onDismiss(); viewModel.openIncomingText(it) },
         onPickFile = { onDismiss(); onPickFile() },
         returnFileLabel = "Abrir arquivo .estudo",
+        server = ServerGenerationOption(
+            description = "Escreve ${options.questionCount} questões novas no estilo da banca, com explicação de cada alternativa, e mostra para você revisar antes de salvar. Usa 1 geração de conteúdo do seu plano.",
+            enabled = true,
+            disabledReason = null,
+            onGenerate = { if (application.supabaseAuthRepository.accessToken() == null) askLogin = true else generating = true },
+        ),
     )
+    if (askLogin) {
+        br.com.estudario.ui.ai.AccountLoginDialog(
+            onDismiss = { askLogin = false },
+            onSignedIn = { askLogin = false; generating = true },
+        )
+    }
+    if (generating) {
+        val taskId = "questions:${topic.id}"
+        val questionOptions = options.copy(blocks = setOf(ContentBlock.QUESTIONS))
+        LaunchedEffect(taskId) {
+            br.com.estudario.ui.ai.BackgroundAiTasks.start(taskId, topic.title, "Questões", competition.id) {
+                var result: String? = null
+                // Só as do próprio tópico: são as que o lote novo não pode repetir.
+                val avoid = questions.filter { it.question.topicId == topic.id && !it.question.isHidden }.map { it.question.statement }
+                application.aiContentGenerator.generate(competition, subject, subjectTopics, topic, questionOptions, avoid).collect { value ->
+                    when (value) {
+                        is AiContentProgress.Done -> result = value.estudo
+                        is AiContentProgress.Failed -> throw IllegalStateException(value.message)
+                        else -> Unit
+                    }
+                }
+                result ?: throw IllegalStateException("A geração terminou sem resultado. Tente de novo.")
+            }
+        }
+        ServerContentGenerationDialog(
+            topicTitle = topic.title,
+            taskId = taskId,
+            onDone = { estudo -> generating = false; br.com.estudario.ui.ai.BackgroundAiTasks.dismiss(taskId); onDismiss(); viewModel.openIncomingText(estudo, competition.id) },
+            onBackground = { br.com.estudario.ui.ai.BackgroundAiTasks.sendToBackground(taskId); generating = false; onDismiss() },
+            onClose = { br.com.estudario.ui.ai.BackgroundAiTasks.dismiss(taskId); generating = false },
+        )
+    }
 }
 
 private fun orderedTree(topics: List<TopicEntity>): List<Pair<TopicEntity, Int>> {

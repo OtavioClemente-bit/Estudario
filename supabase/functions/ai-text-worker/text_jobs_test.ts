@@ -367,3 +367,17 @@ Deno.test("dropped questions are recorded with stage and reason", async () => {
   await processSyllabusJob({ jobs: base.jobs, provider, source: () => Promise.reject(new Error("no pdf")), specForJob: textSpecFor, now: () => new Date("2026-09-28T12:01:00Z") });
   assertEquals(recorded, [{ stage: "GENERATION", reason: "DRAFT_EXPLANATION", statement: "Quebrada" }]);
 });
+
+Deno.test("more-questions requests list what already exists and never come from the cache", async () => {
+  const { contentUserPrompt } = await import("../_shared/prompts/text-jobs-v1.ts");
+  const input = parseContentJobInput({ ...contentInput, avoidStatements: ["Qual o prazo da posse?", 42, ""] });
+  assertEquals(input.avoidStatements, ["Qual o prazo da posse?"]);
+  assert(contentUserPrompt(input).includes("1. Qual o prazo da posse?"));
+  assertEquals(parseContentJobInput(contentInput).avoidStatements, []);
+  const spec = textSpecFor(textJob("CONTENT_GENERATION", contentInput));
+  const job = textJob("CONTENT_GENERATION", { ...contentInput, avoidStatements: ["Q?"] });
+  let asked = false;
+  const deps = { jobs: { cachedContent: () => { asked = true; return Promise.resolve({}); }, markServed: () => Promise.resolve() } };
+  assertEquals(await spec.cached!(job, deps as never), null);
+  assert(!asked);
+});

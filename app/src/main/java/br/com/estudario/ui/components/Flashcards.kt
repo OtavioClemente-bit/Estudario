@@ -216,7 +216,7 @@ fun FlashcardDeckDialog(
                                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(if (card.back.isNotBlank()) "FRENTE" else "PARA REVISAR", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                                     Spacer(Modifier.height(12.dp))
-                                    StudyMarkdown(card.front, Modifier.fillMaxWidth(), textSizeSp = if (card.back.isNotBlank()) 22f else 17f)
+                                    StudyMarkdown(card.front, Modifier.fillMaxWidth(), textSizeSp = if (card.back.isNotBlank()) 22f else 17f, centered = true)
                                     if (card.back.isNotBlank()) {
                                         Spacer(Modifier.height(28.dp))
                                         Text("Tente lembrar a resposta antes de virar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
@@ -225,12 +225,21 @@ fun FlashcardDeckDialog(
                                     }
                                 }
                             } else {
-                                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Text("VERSO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                                    Text(card.front.replace("**", ""), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                                    StudyMarkdown(card.back, Modifier.fillMaxWidth())
-                                    Spacer(Modifier.height(8.dp))
-                                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { FlipHint("Toque no cartão para voltar à pergunta") }
+                                // Verso como a frente: tudo no centro do cartão. A pergunta fica pequena em
+                                // cima, para lembrar o contexto; a resposta é o destaque.
+                                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("RESPOSTA", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                    Spacer(Modifier.height(10.dp))
+                                    Text(
+                                        plainFormulaText(card.front.replace("**", "")),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                    )
+                                    androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 16.dp).fillMaxWidth(0.4f), color = MaterialTheme.colorScheme.outlineVariant)
+                                    StudyMarkdown(card.back, Modifier.fillMaxWidth(), textSizeSp = 19f, centered = true)
+                                    Spacer(Modifier.height(24.dp))
+                                    FlipHint("Toque no cartão para voltar à pergunta")
                                 }
                             }
                         }

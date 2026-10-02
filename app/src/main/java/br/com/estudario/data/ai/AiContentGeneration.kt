@@ -46,6 +46,8 @@ class AiContentGenerator(
         topics: List<TopicEntity>,
         target: TopicEntity,
         options: ContentPromptOptions,
+        /** "Gerar mais questões": enunciados que a pessoa já tem, para o servidor não repetir. */
+        avoidStatements: List<String> = emptyList(),
     ): Flow<AiContentProgress> = flow {
         emit(AiContentProgress.Sending)
         if (!config.isConfigured) return@flow emit(AiContentProgress.Failed("A geração pelo Estudário não está disponível nesta versão do app."))
@@ -53,7 +55,9 @@ class AiContentGenerator(
             ?: return@flow emit(AiContentProgress.Failed("Entre na sua conta para gerar com o Estudário."))
         val body = JSONObject()
             .put("feature", "CONTENT_GENERATION")
-            .put("input", AiContentRequest.input(competition, subject, topics, target, options))
+            .put("input", AiContentRequest.input(competition, subject, topics, target, options).apply {
+                if (avoidStatements.isNotEmpty()) put("avoidStatements", JSONArray(avoidStatements.take(60).map { it.take(300) }))
+            })
             .toString()
         val created = try {
             withTimeout(REQUEST_TIMEOUT_MILLIS) {
