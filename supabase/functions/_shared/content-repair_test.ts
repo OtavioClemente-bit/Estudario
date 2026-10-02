@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { repairTopicContent } from "./content-repair.ts";
 import type { ContentGenerationOptions } from "./text-job-input.ts";
 
@@ -69,4 +69,23 @@ Deno.test("numeric options with different units are dropped (the unit gives the 
   });
   const out = JSON.parse(repairTopicContent(raw, options, 2));
   assertEquals(out.questions.map((q: { statement: string }) => q.statement), ["Área?"]);
+});
+
+Deno.test("answer keys stuck on A are spread out and the explanation letters follow", async () => {
+  const { balanceAnswerKeys } = await import("./content-repair.ts");
+  const make = (n: number) => ({
+    statement: `Q${n}`, format: "MULTIPLE_CHOICE",
+    options: ["A", "B", "C", "D", "E"].map((key) => ({ key, text: key === "A" ? `certa ${n}` : `errada ${key}${n}`, correct: key === "A" })),
+    explanation: "A tabela moderna segue Z. A combina corretamente período e grupo. B confunde grupo; C troca o período; D e E erram o bloco. Gabarito: A.",
+  });
+  const out = balanceAnswerKeys(Array.from({ length: 10 }, (_, i) => make(i)));
+  const keys = out.map((q) => (q.options as { key: string; correct: boolean }[]).find((o) => o.correct)!.key);
+  assert(Math.max(...["A", "B", "C", "D", "E"].map((k) => keys.filter((x) => x === k).length)) <= 3);
+  const moved = out.find((q) => (q.options as { key: string; correct: boolean }[]).find((o) => o.correct)!.key !== "A")!;
+  const to = (moved.options as { key: string; correct: boolean; text: string }[]).find((o) => o.correct)!;
+  assert(to.text.startsWith("certa"));
+  const explanation = String(moved.explanation);
+  assert(explanation.startsWith("A tabela moderna"), "o artigo A não muda");
+  assert(explanation.includes(`${to.key} combina corretamente`));
+  assert(explanation.endsWith(`Gabarito: ${to.key}.`));
 });

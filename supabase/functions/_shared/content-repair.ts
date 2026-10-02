@@ -58,6 +58,52 @@ function renameChartFences(value: unknown): unknown {
   return value;
 }
 
+// Letra citada como alternativa na explicação: "A combina…", "B e E confundem", "Gabarito: C.",
+// "alternativa D". O artigo "A" ("A tabela…") não entra porque o verbo seguinte não está na lista.
+const LETTER_REFERENCE = new RegExp(
+  "(?<![\\p{L}\\d\\u0001])([A-E])(?=\\)|[,;:.]|\\s+(?:e|ou|é|são|está|estão|está|traz|confunde|confundem|troca|trocam|inverte|invertem|ignora|ignoram|usa|usam|erra|erram|atribui|atribuem|apresenta|descreve|combina|generaliza|soma|omite|omitem|considera|calcula|resulta|resultam|aplica|desloca|mantém|informa|não|também|expressa|enuncia|reúne|embaralha|embaralham|correta|incorreta|incluem|inclui|decorre|decorrem|dobra|duplica|subtrai|mistura|reduz|amplia|restringe|nega|inventa|supõe|trata|limita|faz|leva)(?![\\p{L}\\d]))",
+  "gu",
+);
+
+function swapLetters(text: string, a: string, b: string): string {
+  // Marca cada letra encontrada antes de trocar, para "alternativa A combina" não ser trocada duas vezes.
+  const mark = (letter: string) => "\u0001" + letter;
+  return text
+    .replace(/(alternativas?\s+)([A-E])(?![\p{L}\d])/gu, (_, prefix: string, letter: string) => prefix + mark(letter))
+    .replace(LETTER_REFERENCE, mark)
+    .replace(/\u0001([A-E])/g, (_, letter: string) => (letter === a ? b : letter === b ? a : letter));
+}
+
+/**
+ * O modelo põe a correta quase sempre em "A" (9 de 10 num material), e o aluno aprende a chutar.
+ * Quando uma letra passa da conta, a alternativa correta troca de lugar com a de uma letra menos
+ * usada, e as letras citadas na explicação acompanham a troca.
+ */
+export function balanceAnswerKeys(questions: Json[]): Json[] {
+  const multiple = questions.filter((q) => q.format === "MULTIPLE_CHOICE" && Array.isArray(q.options));
+  if (multiple.length < 3) return questions;
+  const letters = (multiple[0].options as Json[]).map((option) => String(option.key));
+  const count = new Map(letters.map((letter) => [letter, 0]));
+  const correctOf = (q: Json) => String(((q.options as Json[]).find((option) => option.correct === true) ?? {}).key);
+  multiple.forEach((q) => count.set(correctOf(q), (count.get(correctOf(q)) ?? 0) + 1));
+  const limit = Math.ceil(multiple.length / letters.length) + 1;
+  return questions.map((q) => {
+    if (q.format !== "MULTIPLE_CHOICE" || !Array.isArray(q.options)) return q;
+    const from = correctOf(q);
+    if ((count.get(from) ?? 0) <= limit) return q;
+    const to = [...count.entries()].filter(([letter]) => letters.includes(letter)).sort((x, y) => x[1] - y[1])[0][0];
+    if (to === from) return q;
+    count.set(from, (count.get(from) ?? 0) - 1);
+    count.set(to, (count.get(to) ?? 0) + 1);
+    const options = (q.options as Json[]).map((option) => ({ ...option }));
+    const i = options.findIndex((option) => option.key === from);
+    const j = options.findIndex((option) => option.key === to);
+    [options[i].text, options[j].text] = [options[j].text, options[i].text];
+    [options[i].correct, options[j].correct] = [options[j].correct, options[i].correct];
+    return { ...q, options, explanation: swapLetters(String(q.explanation ?? ""), from, to) };
+  });
+}
+
 /** Por que uma questão saiu do material; fica registrado para saber o que o modelo mais erra. */
 export type DropReason =
   | "EMPTY_STATEMENT" | "DUPLICATE" | "NO_EXPLANATION" | "DRAFT_EXPLANATION" | "WRONG_OPTION_KEYS"
@@ -161,6 +207,7 @@ export function repairTopicContent(
       statements.add(text(q.statement).toLowerCase());
       return true;
     }).slice(0, options.questionCount + reserve);
+    value.questions = balanceAnswerKeys(value.questions as Json[]);
   }
 
   // Bloco de figura marcado com o tipo ("```geometria") em vez de "```grafico": o app mostrava o
