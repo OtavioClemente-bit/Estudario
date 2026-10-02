@@ -42,7 +42,7 @@ if (import.meta.main) {
         provider: createOpenAiProvider({
           background: true,
           // Teto por recurso: conteúdo é texto longo; o plano, compacto.
-          maxOutputTokens: environmentNumber("TEXT_MAX_OUTPUT_TOKENS", 24_000),
+          maxOutputTokens: environmentNumber("TEXT_MAX_OUTPUT_TOKENS", 48_000),
           timeoutMs: environmentNumber("OPENAI_TIMEOUT_MS", 30_000),
           store: true,
         }),
@@ -51,7 +51,7 @@ if (import.meta.main) {
         modelForJob: (job) => modelFor(job.feature),
         leaseSeconds: environmentNumber("AI_WORKER_LEASE_SECONDS", 300),
         maxRetries: environmentNumber("AI_MAX_RETRIES", 3),
-        maxOutputTokens: environmentNumber("TEXT_MAX_OUTPUT_TOKENS", 24_000),
+        maxOutputTokens: environmentNumber("TEXT_MAX_OUTPUT_TOKENS", 48_000),
         maxProcessingSeconds: environmentNumber("TEXT_MAX_PROCESSING_SECONDS", 900),
       }, environmentNumber("AI_WORKER_BATCH_SIZE", 1));
       return Response.json({ processed }, { headers: { "cache-control": "no-store" } });

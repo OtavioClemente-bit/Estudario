@@ -307,6 +307,16 @@ function maxSearchesFor(feature: string | undefined): number | undefined {
   return Number.isInteger(value) && value > 0 ? value : undefined;
 }
 
+/**
+ * Quanto o modelo raciocina antes de responder. O material (questões de prova com distratores
+ * sutis) pensa mais por padrão; CONTENT_REASONING_EFFORT troca o nível. Os demais usam o padrão.
+ */
+function reasoningEffortFor(feature: string | undefined): string | undefined {
+  if (feature !== "CONTENT_GENERATION") return undefined;
+  const value = environmentValue("CONTENT_REASONING_EFFORT") ?? "high";
+  return ["minimal", "low", "medium", "high"].includes(value) ? value : undefined;
+}
+
 function environmentValue(name: string): string | undefined {
   try {
     return Deno.env.get(name)?.trim() || undefined;
@@ -604,6 +614,7 @@ export function createOpenAiProvider(
               feature: input.feature ?? "SYLLABUS_GENERATION",
             },
             ...(input.tools && input.tools.length > 0 ? { tools: input.tools } : {}),
+            ...(reasoningEffortFor(input.feature) ? { reasoning: { effort: reasoningEffortFor(input.feature) } } : {}),
             ...(input.tools && input.tools.length > 0 && maxSearchesFor(input.feature) !== undefined
               ? { max_tool_calls: maxSearchesFor(input.feature) }
               : {}),
