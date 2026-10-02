@@ -154,13 +154,15 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
         } else if (state.activePlan == null) {
             EscolhaDeCaminho(
                 onSemIa = { appViewModel.startPlanSetup((competitions.firstOrNull { it.isPrimary } ?: competitions.firstOrNull())?.id) },
-                onSelecionar = { management = true },
+                onSelecionar = if (state.allPlans.isEmpty()) null else ({ management = true }),
             )
         } else {
             if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
             Column(Modifier.fillMaxSize()) {
                 CalendarScreen(
                     state = state,
+                    onEditAvailability = { editAvailability = true },
+                    onShiftRoadmapEnd = viewModel::shiftRoadmapEnd,
                     header = {
                         // O resumo do plano rola para fora da tela; as abas Hoje/Semana/Mês/Visão geral
                         // grudam no topo (sticky) para trocar de visão sem precisar voltar lá em cima.
@@ -242,7 +244,7 @@ private fun PlanSectionSelector(selected: PlanSection, onSelected: (PlanSection)
  * funciona offline e na hora; o com IA entra quando a pessoa quer um plano escrito sob medida.
  */
 @Composable
-private fun EscolhaDeCaminho(onSemIa: () -> Unit, onSelecionar: () -> Unit) {
+private fun EscolhaDeCaminho(onSemIa: () -> Unit, onSelecionar: (() -> Unit)?) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(estudarioLayout().screenGutter),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -263,7 +265,7 @@ private fun EscolhaDeCaminho(onSemIa: () -> Unit, onSelecionar: () -> Unit) {
             onClick = onSemIa,
         )
         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-            TextButton(onClick = onSelecionar) { Text("Selecionar plano existente") }
+            if (onSelecionar != null) TextButton(onClick = onSelecionar) { Text("Selecionar plano existente") }
         }
     }
 }

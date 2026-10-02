@@ -33,6 +33,8 @@ fun CalendarScreen(
     onGenerate: () -> Unit,
     /** Itens que abrem a lista e rolam junto com ela (resumo do plano, abas fixas). */
     header: LazyListScope.() -> Unit = {},
+    onEditAvailability: () -> Unit = {},
+    onShiftRoadmapEnd: (Long) -> Unit = {},
 ) {
     // Os chips "Acompanhe seu plano" (Hoje/Semana/Mês/Visão geral) escolhem qual destas visões
     // aparece, antes eles só destacavam o próprio chip e a tela sempre mostrava o dia selecionado.
@@ -48,7 +50,7 @@ fun CalendarScreen(
         )
         PlanSection.WEEK -> WeekPlanView(state = state, onFocus = onFocus, onGenerate = onGenerate, header = header)
         PlanSection.MONTH -> MonthPlanView(state = state, onFocus = onFocus, onGenerate = onGenerate, header = header)
-        PlanSection.YEAR -> OverviewPlanView(state = state, header = header)
+        PlanSection.YEAR -> OverviewPlanView(state = state, header = header, onEditAvailability = onEditAvailability, onShiftRoadmapEnd = onShiftRoadmapEnd)
     }
 }
 
@@ -316,7 +318,7 @@ private fun MonthPlanView(
 // ---------------------------------------------------------------- visão geral
 
 @Composable
-private fun OverviewPlanView(state: ActivePlanUiState, header: LazyListScope.() -> Unit) {
+private fun OverviewPlanView(state: ActivePlanUiState, header: LazyListScope.() -> Unit, onEditAvailability: () -> Unit, onShiftRoadmapEnd: (Long) -> Unit) {
     val currentTasks = state.tasks.plannedLoadTasks()
     val totalTasks = currentTasks.size
     val completedTasks = currentTasks.count { it.entity.status == br.com.estudario.domain.planner.PlanTaskStatus.CONCLUIDA }
@@ -326,6 +328,9 @@ private fun OverviewPlanView(state: ActivePlanUiState, header: LazyListScope.() 
 
     PlanList(header) {
         item { Text("Visão geral do plano", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+        // O caminho inteiro até a prova vem primeiro: é o que dá confiança no plano.
+        state.roadmap?.let { roadmap -> editalRoadmap(roadmap, onEditAvailability, onShiftRoadmapEnd) }
+        item { Text("Andamento", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp)) }
         item {
             Text(
                 "$completedTasks de $totalTasks missões concluídas desde o início do plano.",
@@ -334,7 +339,7 @@ private fun OverviewPlanView(state: ActivePlanUiState, header: LazyListScope.() 
             )
         }
         item { PlannerSummary(plannedMinutes = plannedMinutes, actualMinutes = actualMinutes, completionPercent = completionPercent, plannedLabel = "planejadas no plano", periodTitle = "Progresso do plano") }
-        item {
+        if (state.roadmap == null) item {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

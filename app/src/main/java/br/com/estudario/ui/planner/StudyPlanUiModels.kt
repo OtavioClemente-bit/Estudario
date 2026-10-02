@@ -60,6 +60,8 @@ data class ActivePlanUiState(
     val weakTopics: List<ContextWeakTopic> = emptyList(),
     /** Explicações do método que gerou as tarefas atuais. */
     val methodNotes: List<String> = emptyList(),
+    /** O edital mês a mês até a prova (ou até o prazo escolhido) e se ele cabe. */
+    val roadmap: br.com.estudario.domain.planner.EditalRoadmapResult? = null,
     val message: String? = null,
 ) {
     val todayTasks get() = tasks.filter { it.entity.scheduledEpochDay == today.toEpochDay() }

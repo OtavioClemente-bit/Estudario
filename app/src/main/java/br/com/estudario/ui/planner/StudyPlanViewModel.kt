@@ -101,7 +101,68 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
             val accuracy = if (attempts.isEmpty()) 100 else attempts.count { it.correct } * 100 / attempts.size
             if (attempts.size >= 10 && accuracy < 65) ContextWeakTopic(topics[topicId]?.title ?: return@mapNotNull null, accuracy, attempts.size) else null
         }.sortedBy { it.accuracyPercent }
-        return mapped.copy(forecastDate = forecast.estimatedDate, masterAlerts = alerts, weakTopics = weakTopics, methodNotes = methodNotes)
+        val roadmap = runCatching { roadmapFor(plan, weeklyCapacity, mapped.planSubjects) }.getOrNull()
+        return mapped.copy(forecastDate = forecast.estimatedDate, masterAlerts = alerts, weakTopics = weakTopics, methodNotes = methodNotes, roadmap = roadmap)
+    }
+
+    private val roadmapPrefs = app.getSharedPreferences("plan_roadmap", android.content.Context.MODE_PRIVATE)
+
+    /**
+     * O mapa do edital. Com data de prova, o fim é a prova e não muda. Sem data, o fim é um prazo
+     * que a pessoa escolhe (começa no tempo que o edital pede com folga) e pode ser estendido.
+     */
+    private suspend fun roadmapFor(
+        plan: br.com.estudario.data.local.planner.StudyPlanEntity,
+        weeklyCapacity: Int,
+        planSubjects: List<br.com.estudario.data.local.planner.PlanSubjectEntity>,
+    ): br.com.estudario.domain.planner.EditalRoadmapResult = withContext(Dispatchers.Default) {
+        val today = LocalDate.now()
+        val profile = runCatching { br.com.estudario.domain.planner.StudyProfile.valueOf(plan.profile) }.getOrDefault(br.com.estudario.domain.planner.StudyProfile.DO_ZERO)
+        val active = planSubjects.filter { !it.paused }
+        val subjects = active.map {
+            br.com.estudario.domain.planner.RoadmapSubject(it.subjectId, it.subjectNameSnapshot, br.com.estudario.domain.planner.StudyMethod.weightOf(it.priority, it.weightOverride))
+        }
+        val ids = active.mapTo(hashSetOf()) { it.subjectId }
+        val all = app.database.dao().topicsOnce().filter { it.subjectId in ids }
+        // Só o que é estudado de fato: tópico que virou grupo de subtópicos não conta duas vezes.
+        val parents = all.mapNotNullTo(hashSetOf()) { it.parentTopicId }
+        val leaves = all.filter { it.id !in parents }
+        val config = br.com.estudario.domain.planner.StudyMethodConfig.forProfile(profile).copy(blockMinutes = plan.blockMinutes, questionsPerTopic = plan.questionsPerTopic)
+        val estimate = br.com.estudario.domain.planner.WorkloadEstimator.estimate(
+            pendingTopics = leaves.map { br.com.estudario.domain.planner.BlueprintTopic(topicId = it.id, subjectId = it.subjectId, title = it.title, position = it.position, studied = false) },
+            config = config,
+            needs = emptyMap(),
+            includeRevisions = false,
+        ).items.associate { it.topicId to (it.theoryMinutes + it.questionMinutes) }
+        val topics = leaves.map {
+            br.com.estudario.domain.planner.RoadmapTopic(it.id, it.subjectId, it.position, it.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO, estimate[it.id] ?: plan.blockMinutes)
+        }
+        fun build(end: LocalDate, hasExam: Boolean) = br.com.estudario.domain.planner.EditalRoadmap.build(today, end, hasExam, profile, weeklyCapacity, subjects, topics)
+        val exam = plan.examEpochDay?.let(LocalDate::ofEpochDay)?.takeIf { it.isAfter(today) }
+        if (exam != null) return@withContext build(exam, hasExam = true)
+        val saved = roadmapPrefs.getLong("end_${plan.id}", Long.MIN_VALUE).takeIf { it != Long.MIN_VALUE }?.let(LocalDate::ofEpochDay)?.takeIf { it.isAfter(today.plusDays(29)) }
+        val end = saved ?: run {
+            // Sem prova: prazo inicial = quando o edital termina no ritmo atual, mais a reta final.
+            val probe = build(today.plusYears(3), hasExam = false)
+            val finish = probe.coverageDate ?: today.plusMonths(6)
+            maxOf(today.plusDays(60), finish.plusDays(java.time.temporal.ChronoUnit.DAYS.between(today, finish) / 4 + 21))
+        }
+        build(end, hasExam = false)
+    }
+
+    /** Sem data de prova: muda o prazo do plano em [days] dias (mínimo de 30 dias a partir de hoje). */
+    fun shiftRoadmapEnd(days: Long) {
+        val current = _state.value
+        val plan = current.activePlan ?: return
+        val roadmap = current.roadmap ?: return
+        if (roadmap.hasExamDate) return
+        val end = roadmap.end.plusDays(days).coerceAtLeast(LocalDate.now().plusDays(30))
+        roadmapPrefs.edit().putLong("end_${plan.id}", end.toEpochDay()).apply()
+        viewModelScope.launch {
+            val weekly = current.availability.sumOf { if (it.unavailable) 0 else it.availableMinutes }
+            val updated = runCatching { roadmapFor(plan, weekly, current.planSubjects) }.getOrNull() ?: return@launch
+            _state.update { it.copy(roadmap = updated) }
+        }
     }
 
     fun selectSection(section: PlanSection) { selected.value = section }
