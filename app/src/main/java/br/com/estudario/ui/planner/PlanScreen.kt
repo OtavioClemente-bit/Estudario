@@ -26,7 +26,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import br.com.estudario.ui.prompt.PlanPromptBuilderDialog
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.FileOpen
 import androidx.compose.material.icons.outlined.HelpOutline
@@ -106,7 +105,6 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
         )
     }
     if (wizard) PlanWizardScreen(competitions, subjects, topics, { wizard = false }) { viewModel.createPlan(it) }
-    if (promptGenerator) PlanPromptBuilderDialog(appViewModel, onDismiss = { promptGenerator = false }, onPickFile = pickPlanFile)
     if (editAvailability) AvailabilityDialog(state.availability, { editAvailability = false }) { viewModel.updateAvailability(it) }
     completion?.let { row ->
         TaskExecutionDialog(row, null, { completion = null }) { viewModel.complete(row.entity.id, it) }
@@ -146,7 +144,6 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
                         DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
                             DropdownMenuItem(text = { Text("Novo plano") }, leadingIcon = { Icon(Icons.Outlined.Add, null) }, onClick = { more = false; appViewModel.startPlanSetup((competitions.firstOrNull { it.isPrimary } ?: competitions.firstOrNull())?.id) })
                             DropdownMenuItem(text = { Text("Meus planos e ajustes") }, leadingIcon = { Icon(Icons.Outlined.Tune, null) }, onClick = { more = false; management = true })
-                            DropdownMenuItem(text = { Text("Importar arquivo .plano") }, leadingIcon = { Icon(Icons.Outlined.FileOpen, null) }, onClick = { more = false; pickPlanFile() })
                         }
                     }
                 }
@@ -157,7 +154,6 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
         } else if (state.activePlan == null) {
             EscolhaDeCaminho(
                 onSemIa = { appViewModel.startPlanSetup((competitions.firstOrNull { it.isPrimary } ?: competitions.firstOrNull())?.id) },
-                onImportar = pickPlanFile,
                 onSelecionar = { management = true },
             )
         } else {
@@ -246,7 +242,7 @@ private fun PlanSectionSelector(selected: PlanSection, onSelected: (PlanSection)
  * funciona offline e na hora; o com IA entra quando a pessoa quer um plano escrito sob medida.
  */
 @Composable
-private fun EscolhaDeCaminho(onSemIa: () -> Unit, onImportar: () -> Unit, onSelecionar: () -> Unit) {
+private fun EscolhaDeCaminho(onSemIa: () -> Unit, onSelecionar: () -> Unit) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(estudarioLayout().screenGutter),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -267,7 +263,6 @@ private fun EscolhaDeCaminho(onSemIa: () -> Unit, onImportar: () -> Unit, onSele
             onClick = onSemIa,
         )
         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-            TextButton(onClick = onImportar) { Text("Importar .plano") }
             TextButton(onClick = onSelecionar) { Text("Selecionar plano existente") }
         }
     }

@@ -116,7 +116,6 @@ fun PlanManagementScreen(
                 if (!plan.archived && !plan.active) add(SheetAction(Icons.Outlined.PlayCircle, "Ativar este plano", "O ativo atual é desativado, sem apagar o histórico") { confirm = "O plano ativo atual será desativado, sem apagar o histórico." to { onActivate(plan.id) } })
                 if (!plan.archived && !plan.masterPlan) add(SheetAction(Icons.Outlined.Star, "Tornar Plano Mestre", "O plano de referência para o ano todo") { confirm = "O Plano Mestre anterior será desmarcado, preservando todos os dados." to { onMaster(plan.id) } })
                 add(SheetAction(Icons.Outlined.ContentCopy, "Duplicar", "Uma cópia para testar outra estratégia") { onDuplicate(plan.id, "${plan.name}, cópia") })
-                add(SheetAction(Icons.Outlined.IosShare, "Exportar arquivo .plano") { onExport(plan) })
                 if (!plan.archived) add(SheetAction(Icons.Outlined.Archive, "Arquivar", "Sai de Hoje/Semana/Mês/Ano; o histórico fica") { confirm = "O plano ficará consultável, mas deixará de alimentar Hoje/Semana/Mês/Ano." to { onArchive(plan.id) } })
                 else add(SheetAction(Icons.Outlined.Unarchive, "Restaurar") { onRestore(plan.id) })
                 add(SheetAction(Icons.Outlined.DeleteOutline, "Excluir plano", "Apaga o cronograma e as tarefas dele", destructive = true) { excluir = plan })
@@ -205,15 +204,6 @@ fun PlanManagementScreen(
                         Icon(Icons.Outlined.MoreVert, "Ações do plano", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-            }
-        }
-        if (state.activePlan != null) item {
-            SectionLabel("Para a sua IA", "Resumo do plano (métricas e alertas, sem teoria) para pedir ajustes a outra IA.")
-        }
-        if (state.activePlan != null) item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = onContextText, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) { Text("Copiar texto") }
-                OutlinedButton(onClick = onContextJson, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) { Text("Exportar JSON") }
             }
         }
     }
