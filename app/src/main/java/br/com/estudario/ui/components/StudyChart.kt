@@ -330,7 +330,11 @@ fun StudyChartView(chart: StudyChart, modifier: Modifier = Modifier) {
                                     val text = measurer.measure(it, labelStyle.copy(color = colors.onSurface, fontWeight = FontWeight.Bold), softWrap = false, maxLines = 1)
                                     // Perto da borda direita o rótulo vai para a esquerda do ponto, sem quebrar letra por letra.
                                     val x = if (at.x + 8.dp.toPx() + text.size.width > size.width) at.x - 8.dp.toPx() - text.size.width else at.x + 8.dp.toPx()
-                                    drawText(text, topLeft = Offset(x.coerceAtLeast(0f), (at.y - text.size.height - 4.dp.toPx()).coerceAtLeast(0f)))
+                                    // Fundo atrás do rótulo: a curva passa por perto do ponto e cobria o texto ("V(2, -4)").
+                                    val topLeft = Offset(x.coerceAtLeast(0f), (at.y - text.size.height - 6.dp.toPx()).coerceAtLeast(0f))
+                                    val pad = 3.dp.toPx()
+                                    drawRoundRect(colors.surfaceContainerHigh, topLeft - Offset(pad, pad / 2), Size(text.size.width + 2 * pad, text.size.height + pad), androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
+                                    drawText(text, topLeft = topLeft)
                                 }
                             }
                         }

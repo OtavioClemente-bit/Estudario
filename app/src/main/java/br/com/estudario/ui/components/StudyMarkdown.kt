@@ -1,4 +1,4 @@
-package br.com.estudario.ui.components
+﻿package br.com.estudario.ui.components
 
 import android.content.Context
 import android.graphics.Typeface
@@ -27,31 +27,51 @@ import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin
 import kotlin.math.roundToInt
 
 /**
+ * Texto curto (alternativa, cartão, dica) que só passa pelo leitor de Markdown quando tem
+ * fórmula ou destaque; sem isso fica um Text comum, mais leve e com o estilo do lugar.
+ */
+@Composable
+fun StudyInlineText(
+    text: String,
+    modifier: Modifier = Modifier,
+    style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyLarge,
+    color: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
+    fontWeight: androidx.compose.ui.text.font.FontWeight? = null,
+    onTap: (() -> Unit)? = null,
+) {
+    val rich = remember(text) { "\$\$" in text || "\\(" in text || "**" in text }
+    val ink = if (color == androidx.compose.ui.graphics.Color.Unspecified) androidx.compose.material3.LocalContentColor.current else color
+    if (rich) StudyMarkdown(text, modifier, textSizeSp = style.fontSize.value, onTap = onTap, textColor = ink)
+    else androidx.compose.material3.Text(text, modifier, color = ink, style = style, fontWeight = fontWeight)
+}
+
+/**
  * Texto de estudo em Markdown completo: títulos, listas numeradas, itálico, código, citações,
  * tabelas e fórmulas LaTeX (`$$...$$`, na linha ou em bloco). As cores seguem o tema do app.
  */
 @Composable
-fun StudyMarkdown(markdown: String, modifier: Modifier = Modifier, textSizeSp: Float? = null, onLongPress: (() -> Unit)? = null, onTap: (() -> Unit)? = null) {
+fun StudyMarkdown(markdown: String, modifier: Modifier = Modifier, textSizeSp: Float? = null, onLongPress: (() -> Unit)? = null, onTap: (() -> Unit)? = null, textColor: androidx.compose.ui.graphics.Color? = null) {
     // Gráficos (```grafico) são desenhados pelo app; o resto segue no Markdown.
     val parts = remember(markdown) { splitCharts(markdown) }
     if (parts.size == 1 && parts[0].second == null) {
-        MarkdownTextView(parts[0].first, modifier, textSizeSp, onLongPress, onTap)
+        MarkdownTextView(parts[0].first, modifier, textSizeSp, onLongPress, onTap, textColor)
         return
     }
     androidx.compose.foundation.layout.Column(modifier) {
         parts.forEach { (text, chart) ->
-            if (chart != null) StudyChartView(chart) else MarkdownTextView(text, androidx.compose.ui.Modifier.fillMaxWidth(), textSizeSp, onLongPress, onTap)
+            if (chart != null) StudyChartView(chart) else MarkdownTextView(text, androidx.compose.ui.Modifier.fillMaxWidth(), textSizeSp, onLongPress, onTap, textColor)
         }
     }
 }
 
 @Composable
-private fun MarkdownTextView(markdown: String, modifier: Modifier, textSizeSp: Float?, onLongPress: (() -> Unit)?, onTap: (() -> Unit)?) {
+private fun MarkdownTextView(markdown: String, modifier: Modifier, textSizeSp: Float?, onLongPress: (() -> Unit)?, onTap: (() -> Unit)?, textColor: androidx.compose.ui.graphics.Color? = null) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val size = textSizeSp ?: MaterialTheme.typography.bodyLarge.fontSize.value
     val density = LocalDensity.current.density
-    val markwon = remember(colors, size, density) { studyMarkwon(context, colors, size, density) }
+    val ink = textColor ?: colors.onSurface
+    val markwon = remember(colors, size, density, ink) { studyMarkwon(context, colors, size, density, ink) }
     val text = remember(markdown) { StudyMarkdownNormalizer.normalize(markdown) }
     AndroidView(
         modifier = modifier,
@@ -63,10 +83,11 @@ private fun MarkdownTextView(markdown: String, modifier: Modifier, textSizeSp: F
             }
         },
         update = { view ->
-            view.setTextColor(colors.onSurface.toArgb())
+            view.setTextColor(ink.toArgb())
             view.setLinkTextColor(colors.primary.toArgb())
             view.setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
             markwon.setMarkdown(view, text)
+            centerInlineFormulas(view, markwon.configuration().theme())
             // Segurar o trecho é o gesto de marcar: o TextView recebe o toque, então o aviso vem dele.
             if (onLongPress != null) {
                 view.isLongClickable = true
@@ -80,9 +101,9 @@ private fun MarkdownTextView(markdown: String, modifier: Modifier, textSizeSp: F
     )
 }
 
-private fun studyMarkwon(context: Context, colors: ColorScheme, textSizeSp: Float, density: Float): Markwon {
+private fun studyMarkwon(context: Context, colors: ColorScheme, textSizeSp: Float, density: Float, ink: androidx.compose.ui.graphics.Color): Markwon {
     fun dp(value: Int) = (value * density).roundToInt()
-    val onSurface = colors.onSurface.toArgb()
+    val onSurface = ink.toArgb()
     return Markwon.builder(context)
         .usePlugin(MarkwonInlineParserPlugin.create())
         .usePlugin(StrikethroughPlugin.create())
@@ -138,11 +159,14 @@ private fun studyMarkwon(context: Context, colors: ColorScheme, textSizeSp: Floa
 object StudyMarkdownNormalizer {
     private val displayBrackets = Regex("""\\\[(.+?)\\]""", RegexOption.DOT_MATCHES_ALL)
     private val inlineParens = Regex("""\\\((.+?)\\\)""", RegexOption.DOT_MATCHES_ALL)
+    private val moneyFormula = Regex("""\$\$\s*(?:\\text\{)?R\\\$\}?\s*(?:\\[,;! ])?\s*([\d.,]+)\s*\$\$""")
 
     fun normalize(markdown: String): String = markdown
         .replace("\r\n", "\n")
         .replace(displayBrackets) { "\n$$\n${it.groupValues[1].trim()}\n$$\n" }
         .replace(inlineParens) { "$$${it.groupValues[1].trim()}$$" }
+        // Valor em reais escrito como fórmula ("$$R\$\,1.050,00$$") vira texto: o LaTeX não desenha o cifrão.
+        .replace(moneyFormula) { "R$ ${it.groupValues[1]}" }
 }
 
 /**
@@ -172,3 +196,51 @@ fun studyBlocks(markdown: String): List<String> {
 
 private fun headingText(block: String): String? = block.trim().takeIf { it.startsWith("#") && '\n' !in it }
     ?.trimStart('#')?.trim()?.trim('*')?.trim()?.lowercase()
+
+/**
+ * A fórmula na linha vinha centralizada na altura da linha inteira, que inclui o espaço extra
+ * entre linhas embaixo do texto, e ficava abaixo das letras. Troca o desenho dela por um que
+ * centraliza no meio das letras da própria linha.
+ */
+private fun centerInlineFormulas(view: TextView, theme: MarkwonTheme) {
+    val spannable = view.text as? android.text.Spannable ?: return
+    spannable.getSpans(0, spannable.length, io.noties.markwon.image.AsyncDrawableSpan::class.java)
+        // Só as fórmulas na linha (a classe da biblioteca não é pública); as de bloco seguem centralizadas.
+        .filter { it.javaClass.simpleName == "JLatexInlineAsyncDrawableSpan" }
+        .forEach { old ->
+        val start = spannable.getSpanStart(old)
+        val end = spannable.getSpanEnd(old)
+        val flags = spannable.getSpanFlags(old)
+        spannable.removeSpan(old)
+        spannable.setSpan(TextCenteredFormulaSpan(theme, old.getDrawable()), start, end, flags)
+    }
+}
+
+private class TextCenteredFormulaSpan(theme: MarkwonTheme, private val formula: io.noties.markwon.image.AsyncDrawable) :
+    io.noties.markwon.image.AsyncDrawableSpan(theme, formula, ALIGN_CENTER, false) {
+    override fun getSize(paint: android.graphics.Paint, text: CharSequence?, start: Int, end: Int, fm: android.graphics.Paint.FontMetricsInt?): Int {
+        if (!formula.hasResult()) return super.getSize(paint, text, start, end, fm)
+        val bounds = formula.bounds
+        if (fm != null) {
+            val letters = paint.fontMetricsInt
+            val center = (letters.ascent + letters.descent) / 2
+            val half = bounds.height() / 2
+            fm.ascent = minOf(letters.ascent, center - half)
+            fm.descent = maxOf(letters.descent, center + half)
+            fm.top = fm.ascent
+            fm.bottom = fm.descent
+        }
+        return bounds.right
+    }
+
+    override fun draw(canvas: android.graphics.Canvas, text: CharSequence?, start: Int, end: Int, x: Float, top: Int, y: Int, bottom: Int, paint: android.graphics.Paint) {
+        if (!formula.hasResult()) return super.draw(canvas, text, start, end, x, top, y, bottom, paint)
+        val letters = paint.fontMetrics
+        val center = y + (letters.ascent + letters.descent) / 2f
+        val bounds = formula.bounds
+        canvas.save()
+        canvas.translate(x, center - bounds.height() / 2f - bounds.top)
+        formula.draw(canvas)
+        canvas.restore()
+    }
+}

@@ -42,4 +42,16 @@ class StudyMarkdownTest {
         assertTrue(text.contains("$\$a^2$$"))
         assertTrue(text.contains("\n$$\nx = 1\n$$\n"))
     }
+
+    @Test
+    fun dinheiroEscritoComoFormulaViraTexto() {
+        val text = StudyMarkdownNormalizer.normalize("O lucro máximo é \$\$R\\\$\\,1.050,00\$\$, obtido com 25 unidades.")
+        assertEquals("O lucro máximo é R$ 1.050,00, obtido com 25 unidades.", text)
+    }
+
+    @Test
+    fun capituloQueRepeteOTituloMostraUmaVezSo() {
+        val blocks = studyBlocks("## 1. Fundamentos\n\n## 1. Fundamentos\n\nTexto.\n\n## 2. Outro\n\nMais.")
+        assertEquals(listOf("## 1. Fundamentos", "Texto.", "## 2. Outro", "Mais."), blocks)
+    }
 }

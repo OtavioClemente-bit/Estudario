@@ -50,7 +50,7 @@ fun RecallCard(
             Row(verticalAlignment = Alignment.Top) {
                 Icon(Icons.Outlined.Psychology, null, Modifier.size(20.dp).padding(top = 2.dp), tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(10.dp))
-                Text(question, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                StudyInlineText(question, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSecondaryContainer)
                 trailing?.invoke()
             }
             AnimatedVisibility(revealed, enter = fadeIn() + expandVertically()) {

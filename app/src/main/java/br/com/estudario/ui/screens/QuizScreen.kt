@@ -290,7 +290,14 @@ fun QuizScreen(
                         Row(Modifier.padding(14.dp).alpha(if (crossed) 0.4f else 1f), verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(selected = option.key == selected, onClick = null, enabled = !crossed)
                             Spacer(Modifier.width(8.dp))
-                            Text(
+                            if (option.text.contains("\$\$")) {
+                                // Alternativa com fórmula: o leitor de Markdown desenha o LaTeX; tocar no texto marca a alternativa.
+                                br.com.estudario.ui.components.StudyInlineText(
+                                    "${option.key}) ${option.text}",
+                                    Modifier.weight(1f),
+                                    onTap = { if (!confirmed || simulation) { if (crossed) toggleEliminated(option.key) else selections[current.question.id] = option.key } },
+                                )
+                            } else Text(
                                 "${option.key}) ${option.text}",
                                 Modifier.weight(1f),
                                 textDecoration = if (crossed) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
