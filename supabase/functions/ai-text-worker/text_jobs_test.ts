@@ -314,3 +314,13 @@ Deno.test("cache key ignores accents, case and spacing but not the options", asy
   const other = parseContentJobInput({ ...contentInput, options: { ...input.options, difficulty: "EASY" } });
   assert(await contentCacheKey(input) !== await contentCacheKey(other));
 });
+
+Deno.test("Portuguese requests carry the example questions; other subjects do not", async () => {
+  const { contentUserPrompt, isPortuguese } = await import("../_shared/prompts/text-jobs-v1.ts");
+  assert(isPortuguese("LÍNGUA PORTUGUESA (NÍVEL MÉDIO/SUPERIOR)"));
+  assert(isPortuguese("Português"));
+  assert(!isPortuguese("Raciocínio Lógico-Matemático"));
+  const input = parseContentJobInput(contentInput);
+  assert(!contentUserPrompt(input).includes("NÍVEL ESPERADO EM LÍNGUA PORTUGUESA"));
+  assert(contentUserPrompt({ ...input, subjectName: "Língua Portuguesa" }).includes("NÍVEL ESPERADO EM LÍNGUA PORTUGUESA"));
+});

@@ -4,7 +4,7 @@ import type { ContentJobInput, PlanJobInput } from "../text-job-input.ts";
 // prompt do usuário, delimitados como DADOS. Regras de qualidade vêm do prompt de conteúdo que o
 // app já usa com IAs externas, condensadas para gastar menos tokens de entrada.
 
-export const CONTENT_PROMPT_VERSION = "topic-content-v11" as const;
+export const CONTENT_PROMPT_VERSION = "topic-content-v12" as const;
 export const PLAN_PROMPT_VERSION = "study-plan-v1" as const;
 
 const SECURITY = `Limites de segurança:
@@ -106,9 +106,26 @@ export function contentUserPrompt(input: ContentJobInput): string {
   if (o.blocks.includes("THEORY")) lines.push(`- Profundidade da teoria: ${DEPTH_NAMES[o.depth]}.`);
   if (o.blocks.includes("QUESTIONS")) {
     lines.push(`- Questões: exatamente ${o.questionCount + 2} (${o.questionCount} pedidas e 2 de reserva, mesmo padrão). Formato: ${STYLE_NAMES[o.questionStyle]}. Dificuldade: ${DIFFICULTY_NAMES[o.difficulty]}.`);
+    if (isPortuguese(input.subjectName)) lines.push("", PORTUGUESE_EXAMPLES);
   }
   return lines.join("\n");
 }
+
+/** Língua Portuguesa, Português, Redação, Interpretação de textos (com ou sem acento). */
+export function isPortuguese(subjectName: string): boolean {
+  const name = subjectName.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  return /portugu|lingua patria|interpretacao de texto|redacao/.test(name);
+}
+
+// Modelo mostra melhor que regra: duas questões autorais no nível pedido. Em gramática, cada
+// alternativa errada falha num caso de dúvida real; em texto, os distratores são leituras próximas.
+const PORTUGUESE_EXAMPLES = `NÍVEL ESPERADO EM LÍNGUA PORTUGUESA (exemplos autorais só de padrão; não os copie nem cobre o mesmo ponto):
+1) "Sobre o pedido, ___ dúvidas que só a equipe técnica poderia esclarecer; ___ dois meses que o processo aguarda parecer." Assinale a alternativa que preenche as lacunas de acordo com a norma-padrão.
+A) havia — Faz (correta) | B) haviam — Fazem | C) havia — Fazem | D) existia — Faz | E) haviam — Faz
+Por que é boa: cada erro é uma dúvida real (haver existencial no plural, fazer de tempo no plural, existir no singular com sujeito plural), nenhuma alternativa tem erro de digitação e só uma combinação é aceita pela norma.
+2) Texto: "A digitalização dos processos reduziu o tempo de tramitação nas varas do trabalho. Essa mudança, contudo, exigiu dos servidores novas competências, e nem todas as unidades receberam treinamento a tempo." A expressão "Essa mudança" retoma:
+A) a redução do tempo de tramitação | B) a digitalização dos processos (correta) | C) o tempo de tramitação nas varas | D) as novas competências dos servidores | E) o treinamento das unidades
+Por que é boa: tem texto-base, o comando é claro e o distrator A é a leitura apressada que a banca explora.`;
 
 const BLOCK_NAMES = {
   THEORY: "TEORIA",

@@ -65,6 +65,7 @@ O que conferir, pesquisando na web em fontes oficiais (planalto.gov.br, sites de
 - Fórmulas, definições técnicas e regras de gramática, com o resultado dos exemplos. Refaça as contas dos exemplos resolvidos e das questões.
 - Blocos de gráfico (código com a linguagem grafico): confira se os números batem com o texto. Ao corrigir dentro deles, mude só o número ou o rótulo e mantenha o JSON válido.
 - Cada questão: a alternativa marcada como correta é mesmo a única correta? A explicação bate com o gabarito? Explicação com sobra de rascunho (frase repetida, "a alternativa X deve ser corrigida", autocorreção) também é erro: em fixes, troque o trecho pela versão limpa.
+- Questões de Língua Portuguesa, com rigor de recurso de banca: se a norma-padrão aceita mais de uma alternativa (ex.: concordância com o núcleo mais próximo no sujeito composto posposto; "a maioria dos" com verbo no singular ou no plural; crase facultativa), se o próprio enunciado cria critério artificial para salvar a questão, ou se uma alternativa errada falha por erro grosseiro sem relação com a regra cobrada ("Foram juntado", "do autos"), ponha a questão em removeQuestions.
 - Cada flashcard e cada resposta de memorização: o verso está certo?
 
 Como responder:
