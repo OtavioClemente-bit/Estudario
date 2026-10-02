@@ -324,3 +324,9 @@ Deno.test("Portuguese requests carry the example questions; other subjects do no
   assert(!contentUserPrompt(input).includes("NÍVEL ESPERADO EM LÍNGUA PORTUGUESA"));
   assert(contentUserPrompt({ ...input, subjectName: "Língua Portuguesa" }).includes("NÍVEL ESPERADO EM LÍNGUA PORTUGUESA"));
 });
+
+Deno.test("only Portuguese material asks the model to reason more", () => {
+  const spec = textSpecFor(textJob("CONTENT_GENERATION", contentInput));
+  assertEquals(spec.reasoningEffort?.(textJob("CONTENT_GENERATION", contentInput)), undefined);
+  assertEquals(spec.reasoningEffort?.(textJob("CONTENT_GENERATION", { ...contentInput, subjectName: "Língua Portuguesa" })), "medium");
+});

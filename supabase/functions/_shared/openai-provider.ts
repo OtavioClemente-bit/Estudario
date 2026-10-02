@@ -74,6 +74,8 @@ export interface ProviderStartInput {
   background?: boolean;
   maxOutputTokens?: number;
   store?: boolean;
+  /** Quanto o modelo raciocina antes de responder; sem valor, o padrão do modelo. */
+  reasoningEffort?: "low" | "medium" | "high";
 }
 
 export interface OpenAiProvider {
@@ -604,6 +606,7 @@ export function createOpenAiProvider(
               feature: input.feature ?? "SYLLABUS_GENERATION",
             },
             ...(input.tools && input.tools.length > 0 ? { tools: input.tools } : {}),
+            ...(input.reasoningEffort ? { reasoning: { effort: input.reasoningEffort } } : {}),
             ...(input.tools && input.tools.length > 0 && maxSearchesFor(input.feature) !== undefined
               ? { max_tool_calls: maxSearchesFor(input.feature) }
               : {}),

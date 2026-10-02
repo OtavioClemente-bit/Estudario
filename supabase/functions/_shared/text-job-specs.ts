@@ -9,6 +9,7 @@ import {
 import {
   CONTENT_PROMPT_VERSION,
   CONTENT_SYSTEM_PROMPT,
+  isPortuguese,
   contentUserPrompt,
   PLAN_PROMPT_VERSION,
   PLAN_SYSTEM_PROMPT,
@@ -61,6 +62,14 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
     systemPrompt: CONTENT_SYSTEM_PROMPT,
     userPrompt: contentUserPrompt(inputOf<ContentJobInput>(job, parseContentJobInput)),
   }),
+  // Questão de gramática com distrator sutil é onde o modelo mais erra: em Português ele pensa
+  // mais antes de responder. PORTUGUESE_REASONING_EFFORT troca o nível ("off" desliga).
+  reasoningEffort: (job) => {
+    const subject = (job.requestPayload?.input as { subjectName?: unknown } | undefined)?.subjectName;
+    if (typeof subject !== "string" || !isPortuguese(subject)) return undefined;
+    const level = Deno.env.get("PORTUGUESE_REASONING_EFFORT")?.trim() || "medium";
+    return level === "low" || level === "medium" || level === "high" ? level : undefined;
+  },
   cached: async (job, dependencies) => {
     const store = dependencies.jobs;
     if (!store.cachedContent || !store.markServed) return null;

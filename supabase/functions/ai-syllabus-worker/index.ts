@@ -231,6 +231,8 @@ export interface AiJobSpec {
   usesSource: boolean;
   tools?: unknown[];
   prompts(job: SyllabusWorkerJob): { systemPrompt: string; userPrompt: string };
+  /** Raciocínio pedido ao modelo para este job; sem valor, o padrão do modelo. */
+  reasoningEffort?(job: SyllabusWorkerJob): "low" | "medium" | "high" | undefined;
   /** Material pronto que dispensa a chamada ao provedor (reaproveitado de outro pedido igual). */
   cached?(job: SyllabusWorkerJob, dependencies: SyllabusWorkerDependencies): Promise<WorkerProposal | null>;
   validate(
@@ -814,6 +816,7 @@ export async function processSyllabusJob(
               feature: spec.feature,
               schemaName: spec.schemaName,
               ...(spec.tools ? { tools: spec.tools } : {}),
+              ...(spec.reasoningEffort?.(job) ? { reasoningEffort: spec.reasoningEffort(job) } : {}),
               systemPrompt: prompts.systemPrompt,
               userPrompt: prompts.userPrompt,
               promptVersion: spec.promptVersion,
