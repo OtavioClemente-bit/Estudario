@@ -96,3 +96,12 @@ Deno.test("retry reuses the finished review instead of paying for a new one", as
   assertEquals(review?.fixes, []);
   assertEquals(started, 0);
 });
+
+Deno.test("reserve questions fill the gap left by removed ones", async () => {
+  const { keepRequestedQuestions } = await import("./text-job-specs.ts");
+  const content = { questions: [1, 2, 3, 4, 5, 6] };
+  assertEquals((keepRequestedQuestions(content, 4).questions as number[]), [1, 2, 3, 4]);
+  // O revisor tirou duas: as reservas entram e nada é cortado.
+  assertEquals((keepRequestedQuestions({ questions: [1, 3, 5, 6] }, 4).questions as number[]), [1, 3, 5, 6]);
+  assertEquals(keepRequestedQuestions({ questions: [] }, 0).questions, []);
+});

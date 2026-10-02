@@ -4,7 +4,7 @@ import type { ContentJobInput, PlanJobInput } from "../text-job-input.ts";
 // prompt do usuário, delimitados como DADOS. Regras de qualidade vêm do prompt de conteúdo que o
 // app já usa com IAs externas, condensadas para gastar menos tokens de entrada.
 
-export const CONTENT_PROMPT_VERSION = "topic-content-v8" as const;
+export const CONTENT_PROMPT_VERSION = "topic-content-v9" as const;
 export const PLAN_PROMPT_VERSION = "study-plan-v1" as const;
 
 const SECURITY = `Limites de segurança:
@@ -75,6 +75,7 @@ Questões (só se QUESTÕES estiver em PEDIDO; quantidade EXATA pedida):
 - Nível de prova real do cargo: enunciado com situação, dado ou trecho de lei, como a banca faz. Nada de questão de escola nem de definição óbvia.
 - Questão de cálculo: resolva antes de escrever; as alternativas erradas são os resultados dos erros comuns (sinal trocado, juros simples no lugar de compostos, porcentagem sobre a base errada); a explicação mostra a conta passo a passo em LaTeX.
 - Enunciado e alternativas coerentes: as alternativas respondem exatamente ao comando, no mesmo formato. Com lacuna, cada alternativa é só o que preenche a lacuna; se pergunta como analisar a expressão X, as alternativas são análises de X, não reescritas do trecho. O trecho do enunciado nunca reaparece igual numa alternativa e a resposta nunca está no próprio enunciado. Em Língua Portuguesa, use texto-base próprio (3 a 6 linhas) e pergunte sobre ele.
+- Língua Portuguesa: pelo menos metade das questões parte de um texto-base próprio de 3 a 6 linhas (trecho de ofício, notícia, artigo de opinião) e pergunta sobre ele. Em gramática, cada distrator erra num caso de dúvida real que a banca explora (concordância com o núcleo mais próximo, haver com auxiliar, se apassivador x índice de indeterminação, crase facultativa, colocação pronominal), nunca por erro grosseiro de flexão ou de digitação que ninguém marcaria. Proibido questão em que a norma culta admite duas alternativas, e proibido criar critério artificial no enunciado para salvar uma questão ambígua.
 - Antes de entregar, resolva cada questão como candidato: comando e alternativas combinam, só uma é defensável em recurso, o gabarito é ela e a explicação descarta cada errada. Reescreva a que falhar.
 - Cada questão cobra um ponto diferente. Distratores são o erro de quem estudou. Proibido "todas/nenhuma das anteriores", absolutos só para marcar o errado e a correta ser a mais longa. Espalhe o gabarito entre as letras.
 - explanation detalhada com a fonte (artigo/seção). section = título EXATO de um capítulo que responde a questão, ou "Questões" quando não houver teoria. errorConceptKey = um item de errorConcepts.
@@ -102,7 +103,7 @@ export function contentUserPrompt(input: ContentJobInput): string {
   lines.push("", "PEDIDO:", `- Partes: ${o.blocks.map((block) => BLOCK_NAMES[block]).join(", ")}.`);
   if (o.blocks.includes("THEORY")) lines.push(`- Profundidade da teoria: ${DEPTH_NAMES[o.depth]}.`);
   if (o.blocks.includes("QUESTIONS")) {
-    lines.push(`- Questões: exatamente ${o.questionCount}. Formato: ${STYLE_NAMES[o.questionStyle]}. Dificuldade: ${DIFFICULTY_NAMES[o.difficulty]}.`);
+    lines.push(`- Questões: exatamente ${o.questionCount + 2} (${o.questionCount} pedidas e 2 de reserva, mesmo padrão). Formato: ${STYLE_NAMES[o.questionStyle]}. Dificuldade: ${DIFFICULTY_NAMES[o.difficulty]}.`);
   }
   return lines.join("\n");
 }

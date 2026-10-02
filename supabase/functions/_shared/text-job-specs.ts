@@ -61,8 +61,8 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
   }),
   validate: async (raw, expected, job, dependencies) => {
     const input = inputOf<ContentJobInput>(job, parseContentJobInput);
-    const content = validateTopicContent(raw, expected, input.options);
-    if (Deno.env.get("CONTENT_REVIEW_ENABLED") === "false") return content as unknown as WorkerProposal;
+    const content = validateTopicContent(raw, expected, { ...input.options, questionCount: questionsDelivered(raw, input.options.questionCount) });
+    if (Deno.env.get("CONTENT_REVIEW_ENABLED") === "false") return keepRequestedQuestions(content, input.options.questionCount) as unknown as WorkerProposal;
     const review = await runContentReview(content, {
       provider: dependencies.provider,
       jobId: job.id,
@@ -75,6 +75,27 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
     return withReview(content, review, expected, input) as unknown as WorkerProposal;
   },
 };
+
+/** Questões pedidas a mais, de reserva: as que o revisor remover são repostas por elas. */
+export const RESERVE_QUESTIONS = 2;
+
+/** Aceita de N a N + reserva questões; fora disso vale o número pedido (e a validação recusa). */
+function questionsDelivered(raw: string, requested: number): number {
+  if (requested === 0) return 0;
+  try {
+    const count = (JSON.parse(raw) as { questions?: unknown[] }).questions?.length ?? requested;
+    return count >= requested && count <= requested + RESERVE_QUESTIONS ? count : requested;
+  } catch {
+    return requested;
+  }
+}
+
+/** Fica com as N primeiras; a reserva só aparece no lugar das removidas. */
+export function keepRequestedQuestions(content: Record<string, unknown>, requested: number): Record<string, unknown> {
+  const questions = content.questions as unknown[] | undefined;
+  if (!questions || requested === 0 || questions.length <= requested) return content;
+  return { ...content, questions: questions.slice(0, requested) };
+}
 
 /**
  * Aplica a revisão e confere o formato de novo. Se a versão corrigida não passar (ex.: sobraram
@@ -97,7 +118,8 @@ export function withReview(
     const questions = (reviewed.questions as unknown[]).length;
     if (input.options.questionCount > 0 && questions === 0) continue;
     try {
-      return validateTopicContent(JSON.stringify(reviewed), expected, { ...input.options, questionCount: questions });
+      const kept = keepRequestedQuestions(reviewed, input.options.questionCount);
+      return validateTopicContent(JSON.stringify(kept), expected, { ...input.options, questionCount: (kept.questions as unknown[]).length });
     } catch {
       // Tenta a próxima forma, mais conservadora.
     }
