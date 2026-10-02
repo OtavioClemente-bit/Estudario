@@ -4,7 +4,7 @@ import type { ContentJobInput, PlanJobInput } from "../text-job-input.ts";
 // prompt do usuário, delimitados como DADOS. Regras de qualidade vêm do prompt de conteúdo que o
 // app já usa com IAs externas, condensadas para gastar menos tokens de entrada.
 
-export const CONTENT_PROMPT_VERSION = "topic-content-v7" as const;
+export const CONTENT_PROMPT_VERSION = "topic-content-v8" as const;
 export const PLAN_PROMPT_VERSION = "study-plan-v1" as const;
 
 const SECURITY = `Limites de segurança:
@@ -55,7 +55,7 @@ Recorte:
 - Dê mais espaço ao que tem histórico de cobrança em provas; o resto, mais curto.
 
 Partes: gere SOMENTE as partes listadas em PEDIDO. Parte não pedida fica vazia: lista vazia ou texto "".
-- chapters (TEORIA): 2 a 6 capítulos em Markdown, didáticos e autossuficientes (fundamentos, desenvolvimento, exemplos concretos, pegadinhas de banca), com tabelas quando ajudarem. Títulos numerados ("1. Fundamentos"). No fim do último capítulo, "### Fontes consultadas". A profundidade pedida manda: ESSENCIAL é direto ao ponto; APROFUNDADA traz exemplos e exceções; LIVRO é o mais completo possível.
+- chapters (TEORIA): 2 a 6 capítulos em Markdown, didáticos e autossuficientes (fundamentos, desenvolvimento, exemplos concretos, pegadinhas de banca), com tabelas quando ajudarem. Títulos numerados ("1. Fundamentos"); o markdown do capítulo não repete o título (o app já o mostra). No fim do último capítulo, "### Fontes consultadas". A profundidade pedida manda: ESSENCIAL é direto ao ponto; APROFUNDADA traz exemplos e exceções; LIVRO é o mais completo possível.
 - summary (RESUMO): resumo completo em Markdown, suficiente para revisar só por ele.
 - flashcards (FLASHCARDS): um baralho para estudar por repetição, de 15 a 25 cartões. Regras de um bom cartão:
   - UMA ideia por cartão, do tipo que a prova cobra. Nada de "explique tudo sobre X" nem de definição óbvia.
@@ -74,6 +74,8 @@ Questões (só se QUESTÕES estiver em PEDIDO; quantidade EXATA pedida):
 - Sem banca informada, siga o estilo das provas anteriores do concurso.
 - Nível de prova real do cargo: enunciado com situação, dado ou trecho de lei, como a banca faz. Nada de questão de escola nem de definição óbvia.
 - Questão de cálculo: resolva antes de escrever; as alternativas erradas são os resultados dos erros comuns (sinal trocado, juros simples no lugar de compostos, porcentagem sobre a base errada); a explicação mostra a conta passo a passo em LaTeX.
+- Enunciado e alternativas coerentes: as alternativas respondem exatamente ao comando, no mesmo formato. Com lacuna, cada alternativa é só o que preenche a lacuna; se pergunta como analisar a expressão X, as alternativas são análises de X, não reescritas do trecho. O trecho do enunciado nunca reaparece igual numa alternativa e a resposta nunca está no próprio enunciado. Em Língua Portuguesa, use texto-base próprio (3 a 6 linhas) e pergunte sobre ele.
+- Antes de entregar, resolva cada questão como candidato: comando e alternativas combinam, só uma é defensável em recurso, o gabarito é ela e a explicação descarta cada errada. Reescreva a que falhar.
 - Cada questão cobra um ponto diferente. Distratores são o erro de quem estudou. Proibido "todas/nenhuma das anteriores", absolutos só para marcar o errado e a correta ser a mais longa. Espalhe o gabarito entre as letras.
 - explanation detalhada com a fonte (artigo/seção). section = título EXATO de um capítulo que responde a questão, ou "Questões" quando não houver teoria. errorConceptKey = um item de errorConcepts.
 - sourceType REAL só se você confirmou enunciado, alternativas, banca, órgão, ano e gabarito definitivo no documento oficial e há permissão clara de reuso; preencha board, agency, year e sourceUrl reais. Caso contrário, AUTHORIAL com board, agency, year e sourceUrl nulos. Na dúvida, AUTHORIAL.

@@ -292,6 +292,21 @@ export function resolveOpenAiModel(model?: string): string {
   return model?.trim() || environmentValue("AI_DEFAULT_MODEL") || "gpt-6-luna";
 }
 
+/**
+ * Teto de pesquisas na web por chamada (a busca é a maior parte do custo do material).
+ * Sem a variável, não há teto: CONTENT_MAX_SEARCHES vale para a geração, REVIEW_MAX_SEARCHES
+ * para o revisor de fatos.
+ */
+function maxSearchesFor(feature: string | undefined): number | undefined {
+  const name = feature === "CONTENT_GENERATION"
+    ? "CONTENT_MAX_SEARCHES"
+    : feature === "CONTENT_REVIEW"
+    ? "REVIEW_MAX_SEARCHES"
+    : undefined;
+  const value = name ? Number(environmentValue(name)) : NaN;
+  return Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
 function environmentValue(name: string): string | undefined {
   try {
     return Deno.env.get(name)?.trim() || undefined;
@@ -589,6 +604,9 @@ export function createOpenAiProvider(
               feature: input.feature ?? "SYLLABUS_GENERATION",
             },
             ...(input.tools && input.tools.length > 0 ? { tools: input.tools } : {}),
+            ...(input.tools && input.tools.length > 0 && maxSearchesFor(input.feature) !== undefined
+              ? { max_tool_calls: maxSearchesFor(input.feature) }
+              : {}),
             background: input.background ?? background,
             ...(input.store !== undefined || store !== undefined ||
                 input.background !== undefined || background
