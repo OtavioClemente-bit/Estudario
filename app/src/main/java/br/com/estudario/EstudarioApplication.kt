@@ -151,6 +151,7 @@ class EstudarioApplication : Application() {
         // Simulado que estava sendo gerado quando o app fechou continua de onde parou.
         simulationService.resumeAll()
         StudyNotificationCoordinator.createChannels(this)
+        br.com.estudario.notifications.AiGenerationNotifications.createChannels(this)
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             StudyNotificationCoordinator.refresh(this@EstudarioApplication, preferences)
             // Sessão de foco que ficou aberta (app fechado, aparelho reiniciado) é resolvida aqui:

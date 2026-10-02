@@ -491,6 +491,18 @@ private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, on
         (status as? br.com.estudario.ui.ai.BackgroundAiTasks.Status.Ready)?.let { onDone(it.result) }
     }
     val failed = status as? br.com.estudario.ui.ai.BackgroundAiTasks.Status.Failed
+    // Primeira geração: pede (uma vez) para avisar quando ficar pronto. É o momento em que o pedido
+    // faz sentido para a pessoa, que vai esperar alguns minutos e pode sair do app.
+    val context = LocalContext.current
+    val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    LaunchedEffect(Unit) {
+        val prefs = context.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (android.os.Build.VERSION.SDK_INT >= 33 && !granted && !prefs.getBoolean("asked_ai_notifications", false)) {
+            prefs.edit().putBoolean("asked_ai_notifications", true).apply()
+            askNotifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
     androidx.compose.ui.window.Dialog(
         // Voltar ou fechar durante a geração não perde nada: ela segue em segundo plano.
         onDismissRequest = { if (failed != null) onClose() else onBackground() },

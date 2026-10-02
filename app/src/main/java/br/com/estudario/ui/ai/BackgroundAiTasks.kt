@@ -1,7 +1,10 @@
 package br.com.estudario.ui.ai
 
+import android.app.Activity
+import android.app.Application
 import android.content.Context
-import br.com.estudario.notifications.StudyNotificationCoordinator
+import android.os.Bundle
+import br.com.estudario.notifications.AiGenerationNotifications
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -15,9 +18,10 @@ import kotlinx.coroutines.launch
 /**
  * Gerações da IA que continuam quando a janela é fechada.
  *
- * A pessoa pode fechar a tela de "gerando" de propósito ou sem querer: o trabalho segue no escopo do
- * app, um aviso no topo mostra que ainda está gerando e, quando termina, o resultado espera pronto
- * para revisar. Nada se perde por um toque errado.
+ * A pessoa pode fechar a tela de "gerando" de propósito ou sem querer, ou minimizar o app: o
+ * trabalho segue no escopo do app, um aviso no topo mostra que ainda está gerando e, quando
+ * termina, o resultado espera pronto para revisar. Com o app minimizado, as notificações fazem o
+ * mesmo papel (ver [AiGenerationNotifications]). Nada se perde por um toque errado.
  */
 object BackgroundAiTasks {
     sealed interface Status {
@@ -35,7 +39,34 @@ object BackgroundAiTasks {
     val tasks: StateFlow<List<Task>> = _tasks.asStateFlow()
     private var appContext: Context? = null
 
-    fun init(context: Context) { appContext = context.applicationContext }
+    /** Telas do app abertas agora; zero = app minimizado ou fechado. */
+    private var startedActivities = 0
+    private val appVisible get() = startedActivities > 0
+
+    fun init(context: Context) {
+        appContext = context.applicationContext
+        (context.applicationContext as? Application)?.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+            override fun onActivityStarted(activity: Activity) {
+                startedActivities++
+                // Voltou para o app: o aviso de andamento sai, a própria tela mostra o progresso.
+                if (startedActivities == 1) runningTasks().forEach { AiGenerationNotifications.cancel(activity, it.id) }
+            }
+
+            override fun onActivityStopped(activity: Activity) {
+                startedActivities = (startedActivities - 1).coerceAtLeast(0)
+                // Minimizou com geração em andamento: o aviso fixo mostra que ela continua.
+                if (startedActivities == 0) runningTasks().forEach { AiGenerationNotifications.showRunning(activity, it.id, it.title, it.kind) }
+            }
+
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
+            override fun onActivityResumed(activity: Activity) = Unit
+            override fun onActivityPaused(activity: Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
+            override fun onActivityDestroyed(activity: Activity) = Unit
+        })
+    }
+
+    private fun runningTasks() = _tasks.value.filter { it.status == Status.Running }
 
     /**
      * Começa (ou reaproveita, se já estiver rodando com o mesmo [id]) uma geração. [work] devolve o
@@ -49,8 +80,11 @@ object BackgroundAiTasks {
                 onSuccess = { Status.Ready(it, competitionId) },
                 onFailure = { Status.Failed(it.message ?: "Não foi possível gerar agora. Tente de novo.") },
             )
-            upsert(find(id)?.copy(status = status) ?: Task(id, title, kind, status, false))
-            if (find(id)?.inForeground == false) notifyDone(title, kind, status)
+            val current = find(id)
+            // Terminou com o app minimizado: o resultado vai para o aviso do topo, que a pessoa vê ao voltar.
+            val unseen = current?.inForeground == false || !appVisible
+            upsert((current ?: Task(id, title, kind, status, false)).copy(status = status, inForeground = current?.inForeground == true && appVisible))
+            if (unseen) notifyDone(id, title, kind, status) else appContext?.let { AiGenerationNotifications.cancel(it, id) }
         }
     }
 
@@ -65,17 +99,17 @@ object BackgroundAiTasks {
     fun dismiss(id: String) {
         jobs.remove(id)?.let { if (it.isActive) it.cancel() }
         _tasks.update { list -> list.filterNot { it.id == id } }
+        appContext?.let { AiGenerationNotifications.cancel(it, id) }
     }
 
     private fun upsert(task: Task) = _tasks.update { list -> list.filterNot { it.id == task.id } + task }
 
-    private fun notifyDone(title: String, kind: String, status: Status) {
+    private fun notifyDone(id: String, title: String, kind: String, status: Status) {
         val context = appContext ?: return
-        val (head, body) = when (status) {
-            is Status.Ready -> "$kind pronto" to "\"$title\" está pronto. Abra o Estudário para revisar e salvar."
-            is Status.Failed -> "Não deu para gerar $kind".lowercase().replaceFirstChar { it.uppercase() } to status.message
-            Status.Running -> return
+        when (status) {
+            is Status.Ready -> AiGenerationNotifications.showReady(context, id, title, kind)
+            is Status.Failed -> AiGenerationNotifications.showFailed(context, id, title, kind, status.message)
+            Status.Running -> Unit
         }
-        runCatching { StudyNotificationCoordinator.post(context, "pending_study", ("ai:" + title).hashCode(), head, body) }
     }
 }
