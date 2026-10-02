@@ -98,6 +98,13 @@ export interface SyllabusWorkerJob {
   generationOptions?: SyllabusGenerationOptions | null;
 }
 
+/** Questão que saiu do material, com a etapa e o motivo (só registro interno). */
+export interface QuestionDrop {
+  stage: "GENERATION" | "REVIEW" | "TOPUP";
+  reason: string;
+  statement: string;
+}
+
 export interface AiCostEntry {
   jobId: string;
   feature: string;
@@ -163,6 +170,7 @@ export interface SyllabusWorkerStore {
   cachedContent?(key: string, promptVersion: string, userId: string, maxAgeDays: number): Promise<Record<string, unknown> | null>;
   storeContent?(key: string, promptVersion: string, userId: string, jobId: string, proposal: Record<string, unknown>): Promise<void>;
   markServed?(key: string, userId: string): Promise<void>;
+  recordQuestionDrops?(jobId: string, drops: QuestionDrop[]): Promise<void>;
   /** Revisão já concluída deste job (nova tentativa não paga o revisor de novo). */
   completedReviewId?(jobId: string): Promise<string | null>;
   captureUsage(
@@ -1287,6 +1295,14 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
     });
     await saved.body?.cancel().catch(() => {});
     await this.markServed(key, userId);
+  }
+  async recordQuestionDrops(jobId: string, drops: QuestionDrop[]): Promise<void> {
+    const response = await this.rest("ai_question_drops", {
+      method: "POST",
+      headers: { prefer: "return=minimal" },
+      body: JSON.stringify(drops.map((drop) => ({ job_id: jobId, stage: drop.stage, reason: drop.reason, statement: drop.statement }))),
+    });
+    await response.body?.cancel().catch(() => {});
   }
   async markServed(key: string, userId: string): Promise<void> {
     const response = await this.rest("ai_content_cache_served?on_conflict=cache_key,user_id", {

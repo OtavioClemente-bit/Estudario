@@ -49,7 +49,32 @@ export function hasDraftExplanation(question: Record<string, unknown>): boolean 
   return typeof question.explanation === "string" && DRAFT_EXPLANATION.test(question.explanation);
 }
 
-export function repairTopicContent(raw: string, options: ContentGenerationOptions, reserve: number): string {
+/** Por que uma questão saiu do material; fica registrado para saber o que o modelo mais erra. */
+export type DropReason =
+  | "EMPTY_STATEMENT" | "DUPLICATE" | "NO_EXPLANATION" | "DRAFT_EXPLANATION" | "WRONG_OPTION_KEYS"
+  | "NOT_ONE_CORRECT" | "EMPTY_OPTION" | "REVIEW_REMOVED" | "REVIEW_DRAFT";
+
+function brokenQuestion(q: Json, statements: Set<string>, options: ContentGenerationOptions): DropReason | null {
+  const statement = text(q.statement).toLowerCase();
+  if (!statement) return "EMPTY_STATEMENT";
+  if (statements.has(statement)) return "DUPLICATE";
+  if (!text(q.explanation)) return "NO_EXPLANATION";
+  if (hasDraftExplanation(q)) return "DRAFT_EXPLANATION";
+  const answers = Array.isArray(q.options) ? q.options.filter(isObject) : [];
+  const keys = answers.map((option) => String(option.key)).join();
+  const expected = q.format === "TRUE_FALSE" ? "C,E" : options.questionStyle === "FOUR_OPTIONS" ? "A,B,C,D" : "A,B,C,D,E";
+  if (keys !== expected) return "WRONG_OPTION_KEYS";
+  if (answers.filter((option) => option.correct === true).length !== 1) return "NOT_ONE_CORRECT";
+  if (answers.some((option) => !text(option.text))) return "EMPTY_OPTION";
+  return null;
+}
+
+export function repairTopicContent(
+  raw: string,
+  options: ContentGenerationOptions,
+  reserve: number,
+  onDrop?: (reason: DropReason, question: Record<string, unknown>) => void,
+): string {
   let value: Json;
   try {
     const parsed = JSON.parse(raw);
@@ -109,15 +134,12 @@ export function repairTopicContent(raw: string, options: ContentGenerationOption
       return q;
     }).filter((q) => {
       // Questão sem conserto seguro sai; a reserva cobre o lugar dela.
-      const statement = text(q.statement).toLowerCase();
-      if (!statement || statements.has(statement) || !text(q.explanation) || hasDraftExplanation(q)) return false;
-      const answers = Array.isArray(q.options) ? q.options.filter(isObject) : [];
-      const keys = answers.map((option) => String(option.key)).join();
-      const expected = q.format === "TRUE_FALSE" ? "C,E" : options.questionStyle === "FOUR_OPTIONS" ? "A,B,C,D" : "A,B,C,D,E";
-      if (keys !== expected) return false;
-      if (answers.filter((option) => option.correct === true).length !== 1) return false;
-      if (answers.some((option) => !text(option.text))) return false;
-      statements.add(statement);
+      const reason = brokenQuestion(q, statements, options);
+      if (reason) {
+        onDrop?.(reason, q);
+        return false;
+      }
+      statements.add(text(q.statement).toLowerCase());
       return true;
     }).slice(0, options.questionCount + reserve);
   }

@@ -25,7 +25,8 @@ import { type ExpectedVersions, validateStudyPlan, validateTopicContent } from "
 import { applyReview, type ContentReview, runContentReview } from "./content-review.ts";
 import { resolveOpenAiModel } from "./openai-provider.ts";
 import { CACHE_MAX_AGE_DAYS, contentCacheKey } from "./content-cache.ts";
-import { hasDraftExplanation, repairTopicContent } from "./content-repair.ts";
+import { type DropReason, hasDraftExplanation, repairTopicContent } from "./content-repair.ts";
+import type { QuestionDrop } from "../ai-syllabus-worker/index.ts";
 import { runQuestionTopUp } from "./question-topup.ts";
 import {
   AI_SIMULATION_SCHEMA,
@@ -99,9 +100,17 @@ async function validateContent(
 ): Promise<WorkerProposal> {
   {
     const input = inputOf<ContentJobInput>(job, parseContentJobInput);
-    const repaired = repairTopicContent(raw, input.options, RESERVE_QUESTIONS);
+    // Toda questão descartada fica registrada com o motivo, para saber o que o modelo mais erra.
+    const drops: QuestionDrop[] = [];
+    const dropped = (stage: QuestionDrop["stage"]) => (reason: DropReason, question: Record<string, unknown>) =>
+      drops.push({ stage, reason, statement: String(question.statement ?? "").slice(0, 300) });
+    const saveDrops = () => drops.length === 0 ? Promise.resolve() : dependencies.jobs.recordQuestionDrops?.(job.id, drops).catch(() => undefined);
+    const repaired = repairTopicContent(raw, input.options, RESERVE_QUESTIONS, dropped("GENERATION"));
     const content = validateTopicContent(repaired, expected, { ...input.options, questionCount: questionsDelivered(repaired, input.options.questionCount) });
-    if (Deno.env.get("CONTENT_REVIEW_ENABLED") === "false") return keepRequestedQuestions(content, input.options.questionCount) as unknown as WorkerProposal;
+    if (Deno.env.get("CONTENT_REVIEW_ENABLED") === "false") {
+      await saveDrops();
+      return keepRequestedQuestions(content, input.options.questionCount) as unknown as WorkerProposal;
+    }
     const review = await runContentReview(content, {
       provider: dependencies.provider,
       jobId: job.id,
@@ -111,8 +120,10 @@ async function validateContent(
       context: [input.competitionName, input.role, input.board ? `banca ${input.board}` : null, input.subjectName, input.topicPath.join(" › ")]
         .filter(Boolean).join(" · "),
     });
-    const reviewed = withReview(content, review, expected, input);
-    return await completeQuestions(reviewed, expected, input, job, dependencies) as unknown as WorkerProposal;
+    const reviewed = withReview(content, review, expected, input, dropped("REVIEW"));
+    const complete = await completeQuestions(reviewed, expected, input, job, dependencies, dropped("TOPUP"));
+    await saveDrops();
+    return complete as unknown as WorkerProposal;
   }
 }
 
@@ -126,6 +137,7 @@ async function completeQuestions(
   input: ContentJobInput,
   job: SyllabusWorkerJob,
   dependencies: Parameters<AiJobSpec["validate"]>[3],
+  onDrop?: (reason: DropReason, question: Record<string, unknown>) => void,
 ): Promise<Record<string, unknown>> {
   const current = Array.isArray(content.questions) ? content.questions as Record<string, unknown>[] : [];
   const missing = input.options.questionCount - current.length;
@@ -147,7 +159,7 @@ async function completeQuestions(
   );
   if (extra.length === 0) return content;
   try {
-    const merged = repairTopicContent(JSON.stringify({ ...content, questions: [...current, ...extra] }), input.options, 0);
+    const merged = repairTopicContent(JSON.stringify({ ...content, questions: [...current, ...extra] }), input.options, 0, onDrop);
     const count = (JSON.parse(merged).questions as unknown[]).length;
     return validateTopicContent(merged, expected, { ...input.options, questionCount: count }) as Record<string, unknown>;
   } catch {
@@ -186,6 +198,7 @@ export function withReview(
   review: ContentReview | null,
   expected: ExpectedVersions,
   input: ContentJobInput,
+  onDrop?: (reason: DropReason, question: Record<string, unknown>) => void,
 ): Record<string, unknown> {
   const warn = (message: string) => ({
     ...content,
@@ -199,9 +212,16 @@ export function withReview(
     if (input.options.questionCount > 0 && questions === 0) continue;
     try {
       // A correção do revisor também pode deixar texto de rascunho na explicação: essa questão sai.
+      const drafts = (reviewed.questions as Record<string, unknown>[]).filter(hasDraftExplanation);
       const clean = { ...reviewed, questions: (reviewed.questions as Record<string, unknown>[]).filter((q) => !hasDraftExplanation(q)) };
+      const original = Array.isArray(content.questions) ? content.questions as Record<string, unknown>[] : [];
+
       const kept = keepRequestedQuestions(clean, input.options.questionCount);
-      return validateTopicContent(JSON.stringify(kept), expected, { ...input.options, questionCount: (kept.questions as unknown[]).length });
+      const valid = validateTopicContent(JSON.stringify(kept), expected, { ...input.options, questionCount: (kept.questions as unknown[]).length });
+      // Só registra o que saiu na forma da revisão que foi de fato aplicada.
+      attempt.removeQuestions.forEach((index) => original[index] && onDrop?.("REVIEW_REMOVED", original[index]));
+      drafts.forEach((q) => onDrop?.("REVIEW_DRAFT", q));
+      return valid;
     } catch {
       // Tenta a próxima forma, mais conservadora.
     }

@@ -353,3 +353,17 @@ Deno.test("missing questions are written by a short top-up call without web sear
   assert(topUp.userPrompt!.includes("exatamente 3"));
   assertEquals(((proposals[0] as { questions: unknown[] }).questions).length, 10);
 });
+
+Deno.test("dropped questions are recorded with stage and reason", async () => {
+  const base = store(textJob("CONTENT_GENERATION", contentInput));
+  const recorded: { stage: string; reason: string }[] = [];
+  Object.assign(base.jobs, { async recordQuestionDrops(_id: string, drops: { stage: string; reason: string }[]) { recorded.push(...drops); } });
+  const broken = question(3, { explanation: "Com a correção da alternativa A para 240 N, ela é a única correta." });
+  const provider: OpenAiProvider = {
+    start: () => Promise.resolve(completed(JSON.stringify(content({ questions: [...Array.from({ length: 10 }, (_, i) => question(i)), { ...broken, statement: "Quebrada" }] })))),
+    retrieve: () => Promise.reject(new Error("no retrieve")),
+    cancel: () => Promise.reject(new Error("no cancel")),
+  };
+  await processSyllabusJob({ jobs: base.jobs, provider, source: () => Promise.reject(new Error("no pdf")), specForJob: textSpecFor, now: () => new Date("2026-09-28T12:01:00Z") });
+  assertEquals(recorded, [{ stage: "GENERATION", reason: "DRAFT_EXPLANATION", statement: "Quebrada" }]);
+});
