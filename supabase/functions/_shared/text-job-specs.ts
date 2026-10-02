@@ -24,6 +24,7 @@ import { type ExpectedVersions, validateStudyPlan, validateTopicContent } from "
 import { applyReview, type ContentReview, runContentReview } from "./content-review.ts";
 import { resolveOpenAiModel } from "./openai-provider.ts";
 import { CACHE_MAX_AGE_DAYS, contentCacheKey } from "./content-cache.ts";
+import { repairTopicContent } from "./content-repair.ts";
 import {
   AI_SIMULATION_SCHEMA,
   parseSimulationJobInput,
@@ -88,7 +89,8 @@ async function validateContent(
 ): Promise<WorkerProposal> {
   {
     const input = inputOf<ContentJobInput>(job, parseContentJobInput);
-    const content = validateTopicContent(raw, expected, { ...input.options, questionCount: questionsDelivered(raw, input.options.questionCount) });
+    const repaired = repairTopicContent(raw, input.options, RESERVE_QUESTIONS);
+    const content = validateTopicContent(repaired, expected, { ...input.options, questionCount: questionsDelivered(repaired, input.options.questionCount) });
     if (Deno.env.get("CONTENT_REVIEW_ENABLED") === "false") return keepRequestedQuestions(content, input.options.questionCount) as unknown as WorkerProposal;
     const review = await runContentReview(content, {
       provider: dependencies.provider,
@@ -106,12 +108,13 @@ async function validateContent(
 /** Questões pedidas a mais, de reserva: as que o revisor remover são repostas por elas. */
 export const RESERVE_QUESTIONS = 2;
 
-/** Aceita de N a N + reserva questões; fora disso vale o número pedido (e a validação recusa). */
+/** Aceita de 1 a N + reserva questões; fora disso vale o número pedido (e a validação recusa). */
 function questionsDelivered(raw: string, requested: number): number {
   if (requested === 0) return 0;
   try {
     const count = (JSON.parse(raw) as { questions?: unknown[] }).questions?.length ?? requested;
-    return count >= requested && count <= requested + RESERVE_QUESTIONS ? count : requested;
+    // Depois do conserto, questões defeituosas já saíram: vale o que sobrou, desde que sobre alguma.
+    return count >= 1 && count <= requested + RESERVE_QUESTIONS ? count : requested;
   } catch {
     return requested;
   }
