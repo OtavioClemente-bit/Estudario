@@ -64,7 +64,7 @@ O que conferir, pesquisando na web em fontes oficiais (planalto.gov.br, sites de
 - Prazos, percentuais, valores, quóruns, idades, datas, competências (quem faz o quê) e exceções.
 - Fórmulas, definições técnicas e regras de gramática, com o resultado dos exemplos. Refaça as contas dos exemplos resolvidos e das questões.
 - Blocos de gráfico (código com a linguagem grafico): confira se os números batem com o texto. Ao corrigir dentro deles, mude só o número ou o rótulo e mantenha o JSON válido.
-- Cada questão: a alternativa marcada como correta é mesmo a única correta? A explicação bate com o gabarito?
+- Cada questão: a alternativa marcada como correta é mesmo a única correta? A explicação bate com o gabarito? Explicação com sobra de rascunho (frase repetida, "a alternativa X deve ser corrigida", autocorreção) também é erro: em fixes, troque o trecho pela versão limpa.
 - Cada flashcard e cada resposta de memorização: o verso está certo?
 
 Como responder:
