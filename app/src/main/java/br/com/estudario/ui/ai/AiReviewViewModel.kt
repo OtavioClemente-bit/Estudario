@@ -45,6 +45,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
@@ -78,6 +79,8 @@ class AiReviewStartException(
 
 interface AiReviewJobs {
     suspend fun prepare(target: AiReviewTarget): PreparedSyllabusSource = error("Local PDF preparation is unavailable.")
+    /** Igual a [prepare], avisando cada página lida (lida, total). */
+    suspend fun prepare(target: AiReviewTarget, onPage: (Int, Int) -> Unit): PreparedSyllabusSource = prepare(target)
     suspend fun startPrepared(targetId: Long, targetTitle: String, source: PreparedSyllabusSource, preferences: AiSyllabusPreferences, onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit): AiReviewStarted =
         start(targetId, targetTitle, source.uri, source.fileName, preferences, onRequestPersisted)
     suspend fun start(targetId: Long, uri: String, fileName: String?): AiReviewStarted
@@ -122,8 +125,9 @@ class DefaultAiReviewJobs(
     private val requestStore: AiJobRequestStore,
     private val userIdProvider: () -> String?,
 ) : AiReviewJobs {
-    override suspend fun prepare(target: AiReviewTarget) = repository.prepare(
-        requireNotNull(target.sourceUri), target.sourceName, target.snapshotPath, target.sourceHash, target.entryId,
+    override suspend fun prepare(target: AiReviewTarget) = prepare(target) { _, _ -> }
+    override suspend fun prepare(target: AiReviewTarget, onPage: (Int, Int) -> Unit) = repository.prepare(
+        requireNotNull(target.sourceUri), target.sourceName, target.snapshotPath, target.sourceHash, target.entryId, onPage,
     )
 
     override suspend fun startPrepared(targetId: Long, targetTitle: String, source: PreparedSyllabusSource, preferences: AiSyllabusPreferences, onRequestPersisted: suspend (PersistedAiJobRequest) -> Unit): AiReviewStarted = try {
@@ -514,14 +518,20 @@ class AiReviewViewModel(
         val epoch = flowEpoch
         preparingTarget = target
         preparedSource = null
-        _state.value = _state.value.copy(content = AiReviewContent.Preparing)
+        _state.value = _state.value.copy(content = AiReviewContent.Preparing, preparation = PreparationProgress())
         try {
-            val startedAt = System.currentTimeMillis()
-            val prepared = jobs.prepare(target)
-            // A leitura costuma levar menos de um segundo: segura a tela até as três etapas
-            // aparecerem, senão ela pisca e some antes de dar para ler.
-            val minimum = PREPARATION_STAGE_MILLIS * PreparationStages.size + 250L
-            kotlinx.coroutines.delay((minimum - (System.currentTimeMillis() - startedAt)).coerceAtLeast(0L))
+            val prepared = jobs.prepare(target) { page, total ->
+                _state.update { it.copy(preparation = PreparationProgress(stage = 1, page = page, pages = total)) }
+            }
+            if (epoch != flowEpoch) return
+            // Procurar o conteúdo e separar as matérias é rápido; cada etapa aparece um instante
+            // e a leitura termina marcada, com a barra cheia, antes de abrir a conferência.
+            _state.update { it.copy(preparation = it.preparation?.copy(stage = 2)) }
+            kotlinx.coroutines.delay(PREPARATION_STAGE_MILLIS)
+            _state.update { it.copy(preparation = it.preparation?.copy(stage = 3)) }
+            kotlinx.coroutines.delay(PREPARATION_STAGE_MILLIS)
+            _state.update { it.copy(preparation = it.preparation?.copy(stage = PreparationStages.size)) }
+            kotlinx.coroutines.delay(PREPARATION_DONE_MILLIS)
             if (epoch != flowEpoch) return
             preparedSource = prepared
             pendingSource = AiReviewSource(prepared.uri, prepared.fileName)

@@ -92,6 +92,8 @@ data class AiReviewUiState(
     val targetTitle: String,
     val content: AiReviewContent,
     val access: AiReviewAccessState = AiReviewAccessState.UNAUTHENTICATED,
+    /** Onde está a leitura do PDF no celular, enquanto [content] é Preparing. */
+    val preparation: PreparationProgress? = null,
 ) {
     companion object {
         fun gate(
@@ -151,3 +153,17 @@ fun AiSyllabusDraft.totalTopicCount(): Int = subjects.sumOf { subject ->
 }
 
 private fun AiSyllabusDraftTopic.totalTopicCount(): Int = 1 + children.sumOf { it.totalTopicCount() }
+
+/**
+ * Leitura do PDF no celular, em etapas reais: 0 abrindo, 1 lendo páginas ([page] de [pages]),
+ * 2 procurando o conteúdo programático, 3 separando as matérias, 4 concluída.
+ */
+data class PreparationProgress(val stage: Int = 0, val page: Int = 0, val pages: Int = 0) {
+    val fraction: Float get() = when (stage) {
+        0 -> 0.05f
+        1 -> 0.08f + 0.72f * (if (pages > 0) page.toFloat() / pages else 0f)
+        2 -> 0.86f
+        3 -> 0.94f
+        else -> 1f
+    }
+}

@@ -33,12 +33,15 @@ object EditalPdfText {
         result
     }
 
-    internal fun pages(bytes: ByteArray): List<String> = PDDocument.load(bytes).use { document ->
+    /** Texto de cada página; [onPage] recebe (página lida, total) para a tela mostrar o avanço. */
+    internal fun pages(bytes: ByteArray, onPage: (Int, Int) -> Unit = { _, _ -> }): List<String> = PDDocument.load(bytes).use { document ->
         val stripper = PDFTextStripper()
-        (1..document.numberOfPages).map { page ->
+        val total = document.numberOfPages
+        onPage(0, total)
+        (1..total).map { page ->
             stripper.startPage = page
             stripper.endPage = page
-            stripper.getText(document)
+            stripper.getText(document).also { onPage(page, total) }
         }
     }
 }

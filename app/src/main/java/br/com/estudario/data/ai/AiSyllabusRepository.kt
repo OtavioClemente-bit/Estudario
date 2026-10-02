@@ -101,12 +101,13 @@ class DefaultAiSyllabusRepository(
         snapshotPath: String? = null,
         expectedHash: String? = null,
         attemptId: String? = null,
+        onPage: (Int, Int) -> Unit = { _, _ -> },
     ): PreparedSyllabusSource = withContext(Dispatchers.IO) {
         val source = if (snapshotPath == null) sourceReader.read(uri, fileName)
             else sourceSnapshots.read(snapshotPath, fileName ?: "edital.pdf")
         if (expectedHash != null && source.sha256 != expectedHash) throw PdfSourceChangedException(expectedHash, source.sha256)
         val path = snapshotPath ?: sourceSnapshots.save(source)
-        val pages = runCatching { EditalPdfText.pages(source.bytes) }.getOrDefault(emptyList())
+        val pages = runCatching { EditalPdfText.pages(source.bytes, onPage) }.getOrDefault(emptyList())
         PreparedSyllabusSource(uri, source.fileName, path, source.sha256, source.bytes.size.toLong(), pages, attemptId ?: UUID.randomUUID().toString())
     }
 

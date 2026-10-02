@@ -137,13 +137,27 @@ fun EstudarioProcessView(
     eyebrow: String? = null,
     stageMillis: Long = 5_500L,
     sceneSize: Dp = 260.dp,
+    /**
+     * Etapa real, quando quem chama sabe em que ponto está (ex.: leitura do PDF página a página).
+     * Igual a [stages].size marca tudo como feito. Sem ela, as etapas andam pelo tempo.
+     */
+    stageIndex: Int? = null,
+    /** Progresso real de 0 a 1; sem ele, a barra segue a curva por tempo. */
+    progressValue: Float? = null,
+    /** Texto da etapa atual no lugar do nome dela (ex.: "Lendo a página 23 de 88"). */
+    stageDetail: String? = null,
+    /** Texto quando tudo terminou. */
+    doneLabel: String = "Pronto",
     footer: (@Composable () -> Unit)? = null,
 ) {
     val elapsed = rememberElapsedMillis()
-    val current = if (stages.isEmpty()) 0 else min((elapsed / stageMillis).toInt(), stages.lastIndex)
+    val current = stageIndex?.coerceIn(0, stages.size)
+        ?: if (stages.isEmpty()) 0 else min((elapsed / stageMillis).toInt(), stages.lastIndex)
+    val completed = stageIndex != null && stageIndex >= stages.size
     // Curva assintótica: anda rápido no começo e desacelera, sem nunca "acabar" por conta própria.
     val expected = (stageMillis * max(stages.size, 1)).toFloat()
-    val target = (0.94f * (1f - exp(-elapsed / (expected * 0.55f)))).coerceIn(0.03f, 0.94f)
+    val target = progressValue?.coerceIn(0.03f, 1f)
+        ?: (0.94f * (1f - exp(-elapsed / (expected * 0.55f)))).coerceIn(0.03f, 0.94f)
     val progress by animateFloatAsState(target, tween(600), label = "process-progress")
 
     Column(
@@ -161,14 +175,18 @@ fun EstudarioProcessView(
             )
             Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
             if (stages.isNotEmpty()) AnimatedContent(
-                targetState = stages[current],
+                targetState = when {
+                    completed -> doneLabel
+                    stageDetail != null -> stageDetail
+                    else -> stages[current]
+                },
                 transitionSpec = {
                     (slideInVertically { it / 2 } + fadeIn(tween(350))) togetherWith (slideOutVertically { -it / 2 } + fadeOut(tween(250)))
                 },
                 label = "process-stage",
             ) { stage ->
                 Text(
-                    "$stage…",
+                    if (completed) stage else "$stage…",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -177,7 +195,7 @@ fun EstudarioProcessView(
         }
         ProcessProgressBar(progress, Modifier.fillMaxWidth(0.72f))
         Text(
-            "${if (stages.isEmpty()) "" else "Etapa ${current + 1} de ${stages.size} · "}${formatElapsed(elapsed)}",
+            "${if (stages.isEmpty() || completed) "" else "Etapa ${current + 1} de ${stages.size} · "}${formatElapsed(elapsed)}",
             style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

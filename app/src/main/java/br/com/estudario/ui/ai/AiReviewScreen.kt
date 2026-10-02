@@ -86,8 +86,11 @@ import br.com.estudario.ui.theme.estudarioColors
 import java.util.UUID
 
 /** As etapas narradas enquanto a IA lê o edital. São o caminho real do trabalho, na ordem. */
-internal val PreparationStages = listOf("Abrindo o PDF", "Procurando o conteúdo programático", "Separando as matérias")
-internal const val PREPARATION_STAGE_MILLIS = 650L
+internal val PreparationStages = listOf("Abrindo o PDF", "Lendo as páginas", "Procurando o conteúdo programático", "Separando as matérias")
+/** Quanto cada etapa rápida (procurar, separar) fica à vista antes da próxima. */
+internal const val PREPARATION_STAGE_MILLIS = 550L
+/** Quanto a leitura fica marcada como concluída antes de abrir a conferência. */
+internal const val PREPARATION_DONE_MILLIS = 900L
 
 internal val SyllabusAnalysisStages = listOf(
     "Enviando o PDF com segurança",
@@ -152,6 +155,11 @@ fun AiReviewScreen(
                     title = if (preparing) "Lendo seu edital" else "Analisando seu edital",
                     stages = if (preparing) PreparationStages else SyllabusAnalysisStages,
                     stageMillis = if (preparing) PREPARATION_STAGE_MILLIS else 16_000L,
+                    // A leitura no celular tem etapas reais (página a página); a análise segue o tempo.
+                    stageIndex = if (preparing) state.preparation?.stage ?: 0 else null,
+                    progressValue = if (preparing) state.preparation?.fraction ?: 0.05f else null,
+                    stageDetail = state.preparation?.takeIf { preparing && it.stage == 1 && it.pages > 0 }?.let { "Lendo a página ${it.page} de ${it.pages}" },
+                    doneLabel = "Leitura concluída",
                     footer = {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
