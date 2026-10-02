@@ -83,3 +83,16 @@ Deno.test("review errors never throw", async () => {
   const provider: OpenAiProvider = { start: () => Promise.reject(new Error("boom")), retrieve: () => Promise.reject(), cancel: () => Promise.reject() };
   assertEquals(await runContentReview(content(), { provider, jobId: "j", model: "m", context: "c" }), null);
 });
+
+Deno.test("retry reuses the finished review instead of paying for a new one", async () => {
+  const output = JSON.stringify({ promptVersion: REVIEW_PROMPT_VERSION, schemaVersion: 1, fixes: [], answerFixes: [], removeQuestions: [], removeFlashcards: [] });
+  let started = 0;
+  const provider: OpenAiProvider = {
+    start: () => { started++; return Promise.reject(new Error("não devia começar")); },
+    retrieve: (id) => Promise.resolve({ id, status: "completed", outputText: output, usage: null }),
+    cancel: () => Promise.reject(),
+  };
+  const review = await runContentReview(content(), { provider, jobId: "j", model: "m", context: "c", previousReviewId: () => Promise.resolve("r-antiga") });
+  assertEquals(review?.fixes, []);
+  assertEquals(started, 0);
+});

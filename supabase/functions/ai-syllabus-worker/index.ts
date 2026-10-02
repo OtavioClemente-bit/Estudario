@@ -160,6 +160,8 @@ export interface SyllabusWorkerStore {
   markRetry(jobId: string, lease: Lease): Promise<void>;
   /** Medição de custo (melhor esforço): uma linha por resposta da OpenAI. */
   recordCost?(entry: AiCostEntry): Promise<void>;
+  /** Revisão já concluída deste job (nova tentativa não paga o revisor de novo). */
+  completedReviewId?(jobId: string): Promise<string | null>;
   captureUsage(
     jobId: string,
     lease: Lease,
@@ -1244,6 +1246,18 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
       },
     );
     await response.body?.cancel().catch(() => {});
+  }
+  async completedReviewId(jobId: string): Promise<string | null> {
+    const response = await this.fetcher(
+      `${this.environment.supabaseUrl.replace(/\/$/, "")}/rest/v1/ai_job_costs?select=response_id&job_id=eq.${encodeURIComponent(jobId)}&kind=eq.REVIEW&status=eq.completed&order=created_at.desc&limit=1`,
+      { headers: workerBackendHeaders(this.environment) },
+    );
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {});
+      return null;
+    }
+    const rows = await response.json() as Array<{ response_id?: string }>;
+    return rows[0]?.response_id ?? null;
   }
   async markRetry(jobId: string, lease: Lease): Promise<void> {
     await this.rpc("increment_ai_job_retry", {

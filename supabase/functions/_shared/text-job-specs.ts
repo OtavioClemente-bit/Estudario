@@ -68,6 +68,7 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
       jobId: job.id,
       model: resolveOpenAiModel(dependencies.modelForJob?.(job) ?? dependencies.model),
       onFinished: (response) => meterCost(dependencies, job, "REVIEW", response),
+      previousReviewId: () => dependencies.jobs.completedReviewId?.(job.id) ?? Promise.resolve(null),
       context: [input.competitionName, input.role, input.board ? `banca ${input.board}` : null, input.subjectName, input.topicPath.join(" › ")]
         .filter(Boolean).join(" · "),
     });
@@ -143,6 +144,7 @@ export const SIMULATION_JOB_SPEC: AiJobSpec = {
       jobId: job.id,
       model: resolveOpenAiModel(dependencies.modelForJob?.(job) ?? dependencies.model),
       onFinished: (response) => meterCost(dependencies, job, "REVIEW", response),
+      previousReviewId: () => dependencies.jobs.completedReviewId?.(job.id) ?? Promise.resolve(null),
       context: [input.competitionName, input.role, input.board ? `banca ${input.board}` : null, "simulado"].filter(Boolean).join(" · "),
     });
     return withSimulationReview(part, review, expected, input) as unknown as WorkerProposal;

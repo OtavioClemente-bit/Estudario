@@ -188,6 +188,8 @@ export interface ReviewRunOptions {
   jobId: string;
   model: string;
   context: string;
+  /** Revisão concluída numa tentativa anterior do mesmo job: é reaproveitada em vez de paga de novo. */
+  previousReviewId?: () => Promise<string | null>;
   /** Tempo máximo esperando o revisor dentro do lease do worker. */
   budgetMs?: number;
   pollMs?: number;
@@ -203,6 +205,14 @@ export async function runContentReview(content: Json, options: ReviewRunOptions)
   const now = options.now ?? Date.now;
   const deadline = now() + (options.budgetMs ?? 150_000);
   try {
+    const previousId = await options.previousReviewId?.().catch(() => null);
+    if (previousId) {
+      const previous = await options.provider.retrieve(previousId).catch(() => null);
+      if (previous?.status === "completed") {
+        const parsed = parseReview(previous.outputText, { promptVersion: REVIEW_PROMPT_VERSION, schemaVersion: REVIEW_SCHEMA_VERSION });
+        if (parsed) return parsed;
+      }
+    }
     let response: ProviderResponse = await options.provider.start({
       jobId: options.jobId,
       // Mesma chave em nova tentativa do job: o provedor não cobra a revisão duas vezes.
