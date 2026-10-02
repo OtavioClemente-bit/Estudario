@@ -89,4 +89,41 @@ class ContentImportDuplicationTest {
         assertEquals(1, dao.subjectsFor(competitionId).size)
         assertEquals(1, dao.theoriesOnce().count { it.topicId == target.id })
     }
+
+    private fun generated(text: String, statements: List<String>) = JSONObject(proposal.toString())
+        .put("chapters", JSONArray().put(JSONObject().put("title", "1. Fundamentos").put("markdown", text)))
+        .put("summary", "Resumo $text")
+        .put("questions", JSONArray().apply {
+            statements.forEach { statement ->
+                put(JSONObject().put("statement", statement).put("difficulty", "MEDIA").put("section", "1. Fundamentos").put("explanation", "Porque sim.")
+                    .put("errorConceptKey", "e1").put("sourceType", "AUTHORIAL")
+                    .put("options", JSONArray().put(JSONObject().put("key", "A").put("text", "Certo").put("correct", true)).put(JSONObject().put("key", "B").put("text", "Errado").put("correct", false))))
+            }
+        })
+
+    @Test fun gerarDeNovoSubstituiOMaterialAnterior() = runBlocking {
+        val dao = database.dao()
+        val service = EstudoPackageService(database)
+        val a = dao.insertCompetition(CompetitionEntity(name = "PMMG"))
+        service.importInTransaction(syllabus("PMMG"), ImportMode.SKIP, a)
+        val competition = dao.competitionsOnce().first { it.id == a }
+        val subject = dao.subjectsFor(a).single()
+        val topics = dao.topicsFor(subject.id)
+        val target = topics.first { it.title == "Função afim" }
+
+        service.importInTransaction(AiContentEstudo.build(competition, subject, topics, target, generated("Versão 1", listOf("Antiga respondida?", "Antiga nova?"))), ImportMode.SKIP, a)
+        val answered = dao.questionsOnce().first { it.question.statement == "Antiga respondida?" }.question
+        dao.updateQuestion(answered.copy(answerCount = 1, correctCount = 1))
+
+        service.importInTransaction(AiContentEstudo.build(competition, subject, topics, target, generated("Versão 2", listOf("Nova 1?", "Nova 2?"))), ImportMode.SKIP, a)
+
+        val theories = dao.theoriesOnce().filter { it.topicId == target.id }
+        assertEquals(1, theories.size)
+        assertEquals(true, theories.single().markdown.contains("Versão 2"))
+        assertEquals(listOf("Resumo Versão 2"), dao.summariesOnce().filter { it.topicId == target.id }.map { it.markdown })
+        val questions = dao.questionsOnce().map { it.question }.filter { it.topicId == target.id }
+        assertEquals(setOf("Nova 1?", "Nova 2?"), questions.filter { !it.isHidden }.map { it.statement }.toSet())
+        // A respondida sai das listas mas fica para o histórico; a nunca respondida some.
+        assertEquals(listOf("Antiga respondida?"), questions.filter { it.isHidden }.map { it.statement })
+    }
 }

@@ -10,6 +10,9 @@ import java.security.MessageDigest
 
 enum class ImportMode { SKIP, UPDATE, COPY }
 
+/** Prefixo do pacote montado com o material da IA do Estudário (ver AiContentGeneration). */
+internal const val AI_PACKAGE_PREFIX = "ia-estudario-"
+
 data class SubjectImportPreview(
     val name: String,
     val topicCount: Int,
@@ -710,6 +713,18 @@ class EstudoPackageService(private val db: AppDatabase) {
                     topicsUpdated++
                 }
                 if (p.theories.isNotEmpty() || p.summaries.isNotEmpty() || p.snippets.isNotEmpty() || p.questions.isNotEmpty() || p.errorConcepts.isNotEmpty()) importedTopicIds += topicId
+                // Nova geração da IA do Estudário substitui a anterior do mesmo tópico, em vez de
+                // ficar com a teoria antiga e somar as questões. Questão já respondida ou favoritada
+                // só sai das listas (oculta), para o histórico e as estatísticas continuarem certos.
+                if (oldTopic != null && externalId != null && plan.packageId.startsWith(AI_PACKAGE_PREFIX) && (p.theories.isNotEmpty() || p.questions.isNotEmpty())) {
+                    val prefix = "$externalId-"
+                    dao.deleteTheoriesWithPrefix(topicId, prefix)
+                    dao.deleteSummariesWithPrefix(topicId, prefix)
+                    dao.deleteSnippetsWithPrefix(topicId, prefix)
+                    val (keep, drop) = dao.questionsWithPrefix(topicId, prefix).partition { it.answerCount > 0 || it.isFavorite }
+                    if (keep.isNotEmpty()) dao.setQuestionsHidden(keep.map { it.id }, true)
+                    if (drop.isNotEmpty()) dao.deleteQuestions(drop.map { it.id })
+                }
                 if (p.sources.isNotEmpty()) {
                     dao.insertSources(
                         p.sources.map { fonte ->

@@ -136,6 +136,12 @@ interface AppDao {
     @Query("DELETE FROM question_options WHERE questionId = :questionId") suspend fun deleteOptionsFor(questionId: Long)
     @Update suspend fun updateQuestion(value: QuestionEntity)
     @Query("UPDATE questions SET isHidden = :hidden WHERE id IN (:ids)") suspend fun setQuestionsHidden(ids: List<Long>, hidden: Boolean)
+    // Material do tópico gerado pela IA, pelo prefixo do id externo ("topico-40-"): é o que uma nova geração substitui.
+    @Query("DELETE FROM theory_documents WHERE topicId = :topicId AND externalId LIKE :prefix || '%'") suspend fun deleteTheoriesWithPrefix(topicId: Long, prefix: String)
+    @Query("DELETE FROM summaries WHERE topicId = :topicId AND externalId LIKE :prefix || '%'") suspend fun deleteSummariesWithPrefix(topicId: Long, prefix: String)
+    @Query("DELETE FROM topic_snippets WHERE topicId = :topicId AND externalId LIKE :prefix || '%'") suspend fun deleteSnippetsWithPrefix(topicId: Long, prefix: String)
+    @Query("SELECT * FROM questions WHERE topicId = :topicId AND externalId LIKE :prefix || '%' AND simulationId IS NULL AND isHidden = 0") suspend fun questionsWithPrefix(topicId: Long, prefix: String): List<QuestionEntity>
+    @Query("DELETE FROM questions WHERE id IN (:ids)") suspend fun deleteQuestions(ids: List<Long>)
 
     @Insert suspend fun insertAttempt(value: QuestionAttemptEntity)
     @Query("SELECT * FROM question_attempts ORDER BY answeredAt DESC") suspend fun attemptsOnce(): List<QuestionAttemptEntity>
