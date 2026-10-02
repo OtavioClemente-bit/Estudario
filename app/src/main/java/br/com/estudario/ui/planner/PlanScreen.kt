@@ -133,10 +133,6 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
             ScreenTitle("Plano", "O que estudar, quando e por quê", stackActionsWhenNarrow = false) {
                 Row {
                     IconButton(onClick = onHelp, modifier = Modifier.size(actionSize)) { Icon(Icons.Outlined.HelpOutline, "Como usar o plano") }
-                    IconButton(
-                        onClick = { promptGenerator = true },
-                        modifier = Modifier.size(actionSize).tourTarget(TourKey.PLAN_AI, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_AI, it) },
-                    ) { Icon(Icons.Outlined.AutoAwesome, "Montar com o assistente Estudário") }
                     // Ações menos usadas num menu só: o título respira e a tela fica com cara de app.
                     var more by remember { mutableStateOf(false) }
                     Box {
@@ -161,7 +157,6 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
         } else if (state.activePlan == null) {
             EscolhaDeCaminho(
                 onSemIa = { appViewModel.startPlanSetup((competitions.firstOrNull { it.isPrimary } ?: competitions.firstOrNull())?.id) },
-                onComIa = { promptGenerator = true },
                 onImportar = pickPlanFile,
                 onSelecionar = { management = true },
             )
@@ -251,14 +246,14 @@ private fun PlanSectionSelector(selected: PlanSection, onSelected: (PlanSection)
  * funciona offline e na hora; o com IA entra quando a pessoa quer um plano escrito sob medida.
  */
 @Composable
-private fun EscolhaDeCaminho(onSemIa: () -> Unit, onComIa: () -> Unit, onImportar: () -> Unit, onSelecionar: () -> Unit) {
+private fun EscolhaDeCaminho(onSemIa: () -> Unit, onImportar: () -> Unit, onSelecionar: () -> Unit) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(estudarioLayout().screenGutter),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text("Como você quer montar seu plano?", style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+        Text("Vamos montar seu plano", style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
         Text(
-            "O Estudário monta o plano a partir das suas matérias e do seu tempo. Escolha como prefere.",
+            "O Estudário monta o plano a partir do seu edital, do seu tempo e da data da prova.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -270,15 +265,6 @@ private fun EscolhaDeCaminho(onSemIa: () -> Unit, onComIa: () -> Unit, onImporta
             acao = "Montar meu plano",
             destaque = true,
             onClick = onSemIa,
-        )
-        CaminhoCard(
-            titulo = "Montar com o assistente Estudário",
-            selo = null,
-            corpo = "O assistente conversa com você sobre a prova, as horas e o que você já sabe, e escreve um plano sob medida. Se preferir, envie o pedido para a sua IA favorita.",
-            rodape = "Ideal para quem quer um plano pensado para a própria rotina.",
-            acao = "Conversar com o assistente",
-            destaque = false,
-            onClick = onComIa,
         )
         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             TextButton(onClick = onImportar) { Text("Importar .plano") }

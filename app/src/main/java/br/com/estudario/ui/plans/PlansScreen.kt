@@ -78,6 +78,9 @@ private fun featureLabel(feature: String): String = when (feature) {
     else -> feature
 }
 
+/** O plano de estudo é feito pelo app (sem IA), então não aparece como recurso com limite. */
+private val VISIBLE_FEATURES = setOf("SYLLABUS_GENERATION", "CONTENT_GENERATION", "SIMULATION_GENERATION", "QUESTION_BATCH", "AD_REWARD")
+
 private fun featureOrder(feature: String): Int = listOf(
     "SYLLABUS_GENERATION", "PLAN_GENERATION", "CONTENT_GENERATION", "SIMULATION_GENERATION", "QUESTION_BATCH", "AD_REWARD",
 ).indexOf(feature).let { if (it < 0) Int.MAX_VALUE else it }
@@ -235,7 +238,7 @@ private fun UsageSection(usage: List<AiPlanUsage>) {
     if (usage.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("SALDO ATUAL", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        usage.sortedBy { featureOrder(it.feature) }.forEach { item ->
+        usage.filter { it.feature in VISIBLE_FEATURES }.sortedBy { featureOrder(it.feature) }.forEach { item ->
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(Modifier.fillMaxWidth()) {
                     Text(featureLabel(item.feature), Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
@@ -290,6 +293,7 @@ private fun PlanCatalog(plans: List<AiPlanCatalogEntry>, currentTier: String) {
                         if (isCurrent) Text("Plano atual", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     }
                     plan.limits
+                        .filter { it.feature in VISIBLE_FEATURES }
                         .groupBy { it.feature }
                         .toSortedMap(compareBy<String> { featureOrder(it) })
                         .forEach { (feature, limits) ->

@@ -951,93 +951,15 @@ private fun PlanMethodStep(
         title = "Deixamos a primeira semana pronta?",
         description = "O plano automático é determinístico, usa o edital real e pode ser refeito quando sua rotina mudar.",
         icon = Icons.Outlined.CalendarMonth,
-        bottom = {
-            if (snapshot.planMethod == PlanCreationMethod.EXTERNAL_AI) {
-                Text("Importe o .plano gerado para revisar antes de concluir.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            } else SetupPrimaryButton("Montar meu plano", { viewModel.createAutomaticPlan() })
-        },
+        bottom = { SetupPrimaryButton("Montar meu plano", { viewModel.createAutomaticPlan() }) },
     ) {
-        // IA do Estudário: mesma entrada do prompt externo; o resultado vira .plano e passa pela
-        // mesma prévia e validação de cobertura da importação.
-        var studioPlan by rememberSaveable { mutableStateOf(false) }
-        val competitionExternalId = uiState.competition?.let(PromptIds::competition) ?: "concurso-${PromptIds.slug(snapshot.competitionName)}"
-        StudioAiCard(
-            attachment = null,
-            description = "O assistente Estudário monta o seu plano dia a dia com as suas matérias, horas e prioridades, com revisões e simulados. Você confere antes de aplicar.",
-            buttonLabel = "Montar com o assistente Estudário",
-        ) { studioPlan = true }
-        if (studioPlan) {
-            br.com.estudario.ui.ai.StudyPlanAiScreen(
-                competitionExternalId = competitionExternalId,
-                competitionName = snapshot.competitionName,
-                prepare = {
-                    val start = LocalDate.now()
-                    val exam = snapshot.examDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }?.takeIf { !it.isBefore(start) }
-                    runCatching {
-                        br.com.estudario.data.ai.StudyPlanAi.prepare(
-                            competitionExternalId,
-                            snapshot.competitionName,
-                            uiState.promptSubjects,
-                            PlanPromptOptions(
-                                startDate = start,
-                                examDate = exam,
-                                horizonWeeks = 12,
-                                dayMinutes = snapshot.availabilityMinutes,
-                                priorities = uiState.planningPrioritiesByExternalId,
-                                blockMinutes = snapshot.sessionMinutes,
-                                studyProfile = snapshot.studyProfile,
-                                planPreference = snapshot.planPreference,
-                            ),
-                        )
-                    }.getOrNull()
-                },
-                onPlano = { plano -> studioPlan = false; viewModel.inspectPlan(plano) },
-                onFallback = { studioPlan = false; viewModel.choosePlanMethod(PlanCreationMethod.EXTERNAL_AI) },
-                onClose = { studioPlan = false },
-            )
-        }
-        OrDivider("ou escolha outro caminho")
-        ChoiceCard("Montar automaticamente", "Recomendado para começar: distribui suas matérias nos dias disponíveis e já cria a primeira atividade.", snapshot.planMethod == PlanCreationMethod.AUTOMATIC, onClick = { viewModel.choosePlanMethod(PlanCreationMethod.AUTOMATIC) })
-        ChoiceCard("Enviar para sua IA favorita", "O pedido inclui o edital completo, seus tópicos e prioridades, ritmo, bloco e perfil. Depois, importe e confira o .plano.", snapshot.planMethod == PlanCreationMethod.EXTERNAL_AI, onClick = { viewModel.choosePlanMethod(PlanCreationMethod.EXTERNAL_AI) })
-        if (snapshot.planMethod == PlanCreationMethod.EXTERNAL_AI) {
-            val planStartDate = LocalDate.now()
-            val examDate = snapshot.examDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-            val examDateBeforeStart = examDate?.isBefore(planStartDate) == true
-            if (examDateBeforeStart) {
-                Text("A data da prova está antes do início do plano. Volte e escolha uma data válida para gerar a proposta.", color = MaterialTheme.colorScheme.error)
-            } else {
-                val prompt = remember(
-                    snapshot.competitionName,
-                    uiState.promptSubjects,
-                    uiState.planningPrioritiesByExternalId,
-                    snapshot.examDate,
-                    snapshot.availabilityMinutes,
-                    snapshot.sessionMinutes,
-                    snapshot.studyProfile,
-                    snapshot.planPreference,
-                    planStartDate,
-                ) {
-                    PlanPromptBuilder.build(
-                        competitionId = uiState.competition?.let(PromptIds::competition) ?: "concurso-${PromptIds.slug(snapshot.competitionName)}",
-                        competitionName = snapshot.competitionName,
-                        subjects = uiState.promptSubjects,
-                        o = PlanPromptOptions(
-                            startDate = planStartDate,
-                            examDate = examDate,
-                            dayMinutes = snapshot.availabilityMinutes,
-                            priorities = uiState.planningPrioritiesByExternalId,
-                            blockMinutes = snapshot.sessionMinutes,
-                            studyProfile = snapshot.studyProfile,
-                            planPreference = snapshot.planPreference,
-                        ),
-                    )
-                }
-                PlanPromptActionCard(prompt, onImport = { picker.launch(arrayOf("application/json", "text/plain", "*/*")) })
-            }
-            TextButton(onClick = { viewModel.choosePlanMethod(PlanCreationMethod.AUTOMATIC) }) { Text("Voltar para o plano automático") }
+        // O plano é feito pelo motor do app, sem IA: é conta de calendário (horas, pesos e
+        // revisões) e sai igual e de graça. Quem vinha de uma versão com IA volta para o automático.
+        LaunchedEffect(snapshot.planMethod) {
+            if (snapshot.planMethod != PlanCreationMethod.AUTOMATIC) viewModel.choosePlanMethod(PlanCreationMethod.AUTOMATIC)
         }
         OutlinedTextField(snapshot.planPreference, viewModel::savePlanPreference, Modifier.fillMaxWidth(), label = { Text("Alguma prioridade? (opcional)") }, placeholder = { Text("Ex.: mais questões de Constitucional") }, minLines = 2)
-        Text(if (snapshot.planMethod == PlanCreationMethod.AUTOMATIC) "A primeira versão será criada pelo motor do Estudário; essa observação fica registrada para orientar o próximo ajuste." else "A importação valida referências, datas e tarefas antes de tocar no seu plano.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("O plano é montado pelo Estudário com o seu edital, suas horas e prioridades. Essa observação fica registrada para orientar o próximo ajuste.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (operation is SetupOperation.Success) Text((operation as SetupOperation.Success).message, color = MaterialTheme.colorScheme.primary)
     }
 }

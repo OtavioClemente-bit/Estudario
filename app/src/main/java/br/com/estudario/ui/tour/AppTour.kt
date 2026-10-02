@@ -111,12 +111,11 @@ fun tourSteps(id: TourId): List<TourStep> = when (id) {
         TourStep("syllabus", null, "Fila de estudos", "No menu ⋮ de cada tópico, selecione “Adicionar à fila”. O próximo item ficará em destaque no Início até a conclusão do bloco."),
     )
     TourId.PLAN -> listOf(
-        TourStep("plan", null, "Duas formas de criar seu plano", "Você pode montar o plano no próprio app, com regras definidas para sua rotina, ou pedir ao assistente Estudário uma versão sob medida. As duas opções funcionam em conjunto."),
+        TourStep("plan", null, "Seu plano, montado pelo app", "O app monta o plano com o seu edital, as suas horas e a data da prova, e replaneja sozinho quando a rotina muda."),
         TourStep("plan", TourKey.PLAN_CREATE, "1. Monte o plano no app", "Informe sua etapa atual, a data da prova, o tempo disponível, a duração dos blocos, o peso de cada matéria e suas metas. Antes de criar, o app mostra uma prévia das horas por matéria, das fases e da previsão de conclusão do edital."),
         TourStep("plan", null, "Como o app organiza o estudo", "Revisões atrasadas vêm antes de conteúdo novo. As matérias se alternam conforme o peso definido, e os tópicos com mais erros retornam como reforço."),
         TourStep("plan", null, "Ajustes automáticos", "Quando uma atividade atrasa, ela entra no próximo replanejamento. Se você alterar o tempo disponível ou o peso de uma matéria, o cronograma é atualizado sem perder o histórico já realizado."),
-        TourStep("plan", TourKey.PLAN_AI, "2. Monte com o assistente Estudário", "Use esta opção para estratégias específicas, como uma banca ou um cronograma personalizado. Em ✨, o assistente conversa com você e monta o plano. Também dá para enviar o pedido à sua IA favorita."),
-        TourStep("plan", TourKey.PLAN_IMPORT, "Importe o arquivo .plano", "Se usou a sua IA, ela devolve um arquivo .plano. Abra-o com o Estudário, compartilhe a resposta com o app ou selecione o arquivo por aqui."),
+        TourStep("plan", TourKey.PLAN_IMPORT, "Importe o arquivo .plano", "Recebeu um arquivo .plano de alguém ou de outro aparelho? Abra-o com o Estudário ou selecione o arquivo por aqui."),
         TourStep("plan", TourKey.PLAN_TABS, "Acompanhe hoje, semana, mês e ano", "Acompanhe as tarefas do dia, registre o que realizou e consulte as metas da semana, do mês e das fases da preparação. Em Hoje, “Por que este plano” explica as regras usadas pelo cronograma."),
         TourStep("plan", TourKey.PLAN_MANAGE, "Gerencie seus planos", "Troque o plano ativo, ajuste sua disponibilidade e os pesos das matérias, ou exporte o contexto para a sua IA revisar o que já foi realizado."),
     )

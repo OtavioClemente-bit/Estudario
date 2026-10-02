@@ -39,7 +39,7 @@ class PlannerNavigationTest {
         compose.onNodeWithText("Mais").assertDoesNotExist()
         compose.onNodeWithContentDescription("Abrir perfil").assertExists()
         compose.onNodeWithText("Plano").performClick()
-        compose.onNodeWithText("Como você quer montar seu plano?").assertExists()
+        compose.onNodeWithText("Vamos montar seu plano").assertExists()
         compose.onNodeWithContentDescription("Abrir menu").performClick()
         compose.onNodeWithText("Caderno de erros").assertExists()
     }
@@ -48,7 +48,7 @@ class PlannerNavigationTest {
         openHome()
 
         compose.onNodeWithText("Plano").performClick()
-        compose.onNodeWithText("Como você quer montar seu plano?").assertIsDisplayed()
+        compose.onNodeWithText("Vamos montar seu plano").assertIsDisplayed()
         compose.onAllNodesWithText("Foco").onFirst().performClick()
 
         compose.onNodeWithTag("focus-overlay").assertIsDisplayed()
@@ -58,7 +58,7 @@ class PlannerNavigationTest {
         compose.onNodeWithContentDescription("Fechar janela").performClick()
 
         compose.onNodeWithTag("focus-overlay").assertDoesNotExist()
-        compose.onNodeWithText("Como você quer montar seu plano?").assertIsDisplayed()
+        compose.onNodeWithText("Vamos montar seu plano").assertIsDisplayed()
     }
 
     @Test fun closingFocusWindowKeepsAnActiveTimerRunning() {
