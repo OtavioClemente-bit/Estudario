@@ -45,3 +45,28 @@ Deno.test("question whose explanation admits it needs fixing is dropped", () => 
   const out = JSON.parse(repairTopicContent(raw, options, 2));
   assertEquals(out.questions.map((q: { statement: string }) => q.statement), ["Q1"]);
 });
+
+Deno.test("figure block labelled with its type is renamed so the app draws it", () => {
+  const raw = JSON.stringify({
+    chapters: [{ title: "1. Áreas", markdown: "Veja:\n\n```geometria\n{\"tipo\":\"geometria\"}\n```\n" }, { title: "2. Volume", markdown: "y" }],
+    questions: [],
+    sources: [],
+  });
+  const out = JSON.parse(repairTopicContent(raw, options, 2));
+  assertEquals(out.chapters[0].markdown, "Veja:\n\n```grafico\n{\"tipo\":\"geometria\"}\n```\n");
+});
+
+Deno.test("numeric options with different units are dropped (the unit gives the answer away)", () => {
+  const units = (texts: string[]) => ({ options: texts.map((t, i) => ({ key: "ABCDE"[i], text: t, correct: i === 1 })) });
+  const raw = JSON.stringify({
+    chapters: [{ title: "1. Função quadrática", markdown: "x" }, { title: "2. Gráfico", markdown: "y" }],
+    errorConcepts: [{ key: "e1" }],
+    questions: [
+      question("Perímetro?", units(["24 m", "26 m", "36 m²", "13 m", "52 m²"])),
+      question("Área?", units(["14 m²", "28 m²", "42 m²", "49 m²", "56 m²"])),
+    ],
+    sources: [],
+  });
+  const out = JSON.parse(repairTopicContent(raw, options, 2));
+  assertEquals(out.questions.map((q: { statement: string }) => q.statement), ["Área?"]);
+});

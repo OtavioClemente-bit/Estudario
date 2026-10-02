@@ -49,10 +49,28 @@ export function hasDraftExplanation(question: Record<string, unknown>): boolean 
   return typeof question.explanation === "string" && DRAFT_EXPLANATION.test(question.explanation);
 }
 
+const CHART_FENCE = /```[ \t]*(gr[aá]fico|geometria|figura|fun[cç][aã]o|pizza|barras|linha|chart)[ \t]*\n/gi;
+
+function renameChartFences(value: unknown): unknown {
+  if (typeof value === "string") return value.replace(CHART_FENCE, "```grafico\n");
+  if (Array.isArray(value)) return value.map(renameChartFences);
+  if (isObject(value)) return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, renameChartFences(item)]));
+  return value;
+}
+
 /** Por que uma questão saiu do material; fica registrado para saber o que o modelo mais erra. */
 export type DropReason =
   | "EMPTY_STATEMENT" | "DUPLICATE" | "NO_EXPLANATION" | "DRAFT_EXPLANATION" | "WRONG_OPTION_KEYS"
-  | "NOT_ONE_CORRECT" | "EMPTY_OPTION" | "REVIEW_REMOVED" | "REVIEW_DRAFT";
+  | "NOT_ONE_CORRECT" | "EMPTY_OPTION" | "MIXED_UNITS" | "REVIEW_REMOVED" | "REVIEW_DRAFT";
+
+// Unidade no fim de uma alternativa numérica ("26 m", "52 m²", "4800 N").
+const TRAILING_UNIT = /\d\s*(km|cm|mm|m|m²|cm²|mm²|km²|m³|cm³|kg|g|mg|kPa|Pa|kN|N|mA|A|kV|V|kΩ|Ω|kW|W|kJ|J|kWh|L|mL|s|min|h|%)\.?$/;
+
+/** Alternativas numéricas com unidades diferentes: a unidade entrega o gabarito (ou ele está errado). */
+function mixedUnits(texts: string[]): boolean {
+  const units = texts.map((value) => value.match(TRAILING_UNIT)?.[1]).filter((unit): unit is string => unit !== undefined);
+  return units.length >= 3 && units.length === texts.length && new Set(units).size > 1;
+}
 
 function brokenQuestion(q: Json, statements: Set<string>, options: ContentGenerationOptions): DropReason | null {
   const statement = text(q.statement).toLowerCase();
@@ -66,6 +84,7 @@ function brokenQuestion(q: Json, statements: Set<string>, options: ContentGenera
   if (keys !== expected) return "WRONG_OPTION_KEYS";
   if (answers.filter((option) => option.correct === true).length !== 1) return "NOT_ONE_CORRECT";
   if (answers.some((option) => !text(option.text))) return "EMPTY_OPTION";
+  if (mixedUnits(answers.map((option) => text(option.text)))) return "MIXED_UNITS";
   return null;
 }
 
@@ -143,6 +162,10 @@ export function repairTopicContent(
       return true;
     }).slice(0, options.questionCount + reserve);
   }
+
+  // Bloco de figura marcado com o tipo ("```geometria") em vez de "```grafico": o app mostrava o
+  // código. Troca o nome em todo o texto, para valer também em versões antigas do app.
+  value = renameChartFences(value) as Json;
 
   if (Array.isArray(value.sources)) {
     value.sources = value.sources.filter(isObject).map((source) => {

@@ -241,8 +241,17 @@ class Expression private constructor(private val root: Node) {
 }
 
 /** Separa o Markdown em trechos de texto e blocos ```grafico, na ordem. */
+/**
+ * Nomes de bloco que viram figura. O pedido manda `grafico`, mas o modelo às vezes usa o próprio
+ * tipo (`geometria`, `funcao`...) e aí o app mostrava o código em vez do desenho.
+ */
+private val chartFences = setOf(StudyChart.FENCE, "gráfico", "geometria", "figura", "funcao", "função", "pizza", "barras", "linha", "chart")
+
+private fun isChartFence(trimmed: String): Boolean =
+    trimmed.startsWith("```") && trimmed.removePrefix("```").trim().lowercase() in chartFences
+
 internal fun splitCharts(markdown: String): List<Pair<String, StudyChart?>> {
-    if (!markdown.contains("```${StudyChart.FENCE}")) return listOf(markdown to null)
+    if (markdown.lines().none { isChartFence(it.trim()) }) return listOf(markdown to null)
     val parts = mutableListOf<Pair<String, StudyChart?>>()
     val text = StringBuilder()
     val chart = StringBuilder()
@@ -250,7 +259,7 @@ internal fun splitCharts(markdown: String): List<Pair<String, StudyChart?>> {
     markdown.lines().forEach { line ->
         val trimmed = line.trim()
         when {
-            !inChart && trimmed.startsWith("```${StudyChart.FENCE}") -> {
+            !inChart && isChartFence(trimmed) -> {
                 if (text.isNotBlank()) parts += text.toString().trim('\n') to null
                 text.clear(); inChart = true
             }

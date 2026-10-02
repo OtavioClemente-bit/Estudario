@@ -95,4 +95,12 @@ class StudyChartTest {
         val chart = StudyChart.parse("""{"tipo":"figura","pontos":[{"nome":"A","x":0,"y":0}],"segmentos":[{"de":"A","ate":"Z"}]}""")
         assertNull(chart)
     }
+
+    @Test
+    fun blocoMarcadoComOTipoTambemViraFigura() {
+        val figura = """{"tipo":"geometria","pontos":[{"nome":"A","x":0,"y":0},{"nome":"B","x":8,"y":0},{"nome":"C","x":8,"y":5}],"poligonos":[["A","B","C"]]}"""
+        val parts = splitCharts("Antes.\n\n```geometria\n$figura\n```\n\nDepois.")
+        assertEquals(3, parts.size)
+        assertTrue(parts[1].second != null)
+    }
 }
