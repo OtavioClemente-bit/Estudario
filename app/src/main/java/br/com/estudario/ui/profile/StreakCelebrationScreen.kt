@@ -109,8 +109,10 @@ fun StreakCelebrationScreen(celebration: StreakCelebration, onClose: () -> Unit)
                 Spacer(Modifier.height(if (estudarioLayout().isShortHeight) 20.dp else 36.dp))
 
                 Box(contentAlignment = Alignment.BottomEnd) {
-                    AppMark(
-                        size = if (estudarioLayout().isShortHeight) 124.dp else 168.dp,
+                    // O Folha comemorando a sequência, com o certo verde carimbado do lado.
+                    br.com.estudario.ui.assistant.Folha(
+                        if (estudarioLayout().isShortHeight) 150.dp else 200.dp,
+                        mood = br.com.estudario.ui.assistant.FolhaMood.HAPPY,
                         modifier = Modifier.graphicsLayer { scaleX = markScale; scaleY = markScale; alpha = markAlpha },
                     )
                     Box(
@@ -164,7 +166,16 @@ fun StreakCelebrationScreen(celebration: StreakCelebration, onClose: () -> Unit)
                     horizontalArrangement = Arrangement.SpaceEvenly,
                 ) { summary.week.forEach { day -> WeekDot(day) } }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(20.dp))
+
+                if (stage >= 3) br.com.estudario.ui.assistant.FolhaSays(
+                    br.com.estudario.ui.assistant.FolhaLines.forStreak(summary.current, java.time.LocalDate.now().toEpochDay()),
+                    avatar = 0.dp,
+                    bubbleColor = Color.White.copy(alpha = 0.14f),
+                    textColor = Color.White,
+                )
+
+                Spacer(Modifier.height(16.dp))
 
                 Text(
                     if (summary.current >= summary.best && summary.current > 1) "Essa é a sua melhor sequência até agora. Continue amanhã."

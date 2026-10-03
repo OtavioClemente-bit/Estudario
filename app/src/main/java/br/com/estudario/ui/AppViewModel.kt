@@ -314,13 +314,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (bundle == null || streakSummary == null) return@combine null
             val typeById = types.associate { it.id to it.type }
             val zone = ZoneId.systemDefault()
-            val planWork = bundle.executions.mapNotNull { execution ->
-                val type = execution.taskId?.let(typeById::get) ?: return@mapNotNull null
+            // Uma tarefa pode ter vários registros (parciais e o final). Antes cada um pagava o XP
+            // base de novo, e registrar 1 minuto várias vezes virava farm: agora a tarefa é uma só,
+            // com o tempo e os acertos somados, no dia do último registro.
+            val planWork = bundle.executions.filter { it.taskId != null }.groupBy { it.taskId!! }.mapNotNull { (taskId, runs) ->
+                val type = typeById[taskId] ?: return@mapNotNull null
                 ProgressEngine.PlanWork(
-                    date = Instant.ofEpochMilli(execution.completedAt).atZone(zone).toLocalDate(),
+                    date = Instant.ofEpochMilli(runs.maxOf { it.completedAt }).atZone(zone).toLocalDate(),
                     type = type,
-                    minutes = execution.actualMinutes,
-                    correct = execution.correctAnswers,
+                    minutes = runs.sumOf { it.actualMinutes },
+                    correct = runs.sumOf { it.correctAnswers },
+                    questions = runs.sumOf { it.questionsDone },
                 )
             }
             ProgressEngine.evaluate(
@@ -493,7 +497,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
         answers.forEach { attempt -> merge(day(attempt.answeredAt)) { it.copy(questions = it.questions + 1, correct = it.correct + if (attempt.correct) 1 else 0) } }
         history.forEach { review -> merge(day(review.reviewedAt)) { it.copy(reviews = it.reviews + 1) } }
-        sessions.forEach { session -> merge(day(session.completedAt)) { it.copy(studySessions = it.studySessions + 1, minutes = it.minutes + (session.durationSeconds / 60).toInt()) } }
+        // "Tópico estudado" vale uma vez por tópico, no dia da primeira sessão dele. Antes cada
+        // sessão do modo foco num tópico contava como tópico novo (+25 XP a cada uma). O tempo de
+        // todas as sessões continua entrando nos minutos do dia.
+        val firstSessionIds = sessions.filter { it.topicId != 0L }.groupBy { it.topicId }
+            .mapTo(hashSetOf()) { (_, rows) -> rows.minBy { it.completedAt }.id }
+        sessions.forEach { session ->
+            merge(day(session.completedAt)) {
+                it.copy(
+                    studySessions = it.studySessions + if (session.id in firstSessionIds) 1 else 0,
+                    minutes = it.minutes + (session.durationSeconds / 60).toInt(),
+                )
+            }
+        }
         focusSessions.groupBy { day(it.completedAt) }.forEach { (date, rowsForDay) ->
             val totalSeconds = rowsForDay.sumOf { it.durationSeconds.coerceAtLeast(0L) }
             val freeSeconds = rowsForDay.asSequence().filter { it.origin == FocusSessionOrigin.LIVRE }

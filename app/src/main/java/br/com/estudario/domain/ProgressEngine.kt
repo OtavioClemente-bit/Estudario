@@ -122,7 +122,12 @@ object ProgressEngine {
 
     // ---------------------------------------------------------------- cálculo
 
-    data class PlanWork(val date: LocalDate, val type: PlanTaskType, val minutes: Int, val correct: Int)
+    /**
+     * Uma tarefa do plano, já somando todos os registros dela (parciais e o final): o XP base cai
+     * uma vez só por tarefa. [questions] e [correct] são as questões feitas dentro dela, que por isso
+     * não contam de novo como avulsas.
+     */
+    data class PlanWork(val date: LocalDate, val type: PlanTaskType, val minutes: Int, val correct: Int, val questions: Int = correct)
 
     data class ProgressInput(
         val today: LocalDate,
@@ -182,9 +187,13 @@ object ProgressEngine {
                 dayXp += xp
             }
             if (activity != null) {
-                // Questão fora do plano: com teto diário, para o nível não virar farm de banco.
-                val counted = activity.questions.coerceAtMost(DAILY_QUESTION_CAP)
-                val correct = activity.correct.coerceAtMost(counted)
+                // Questão fora do plano: com teto diário, para o nível não virar farm de banco. As
+                // questões feitas dentro de uma tarefa do plano já pagaram pela tarefa: saem daqui.
+                val inPlan = planByDate[date].orEmpty()
+                val avulsas = (activity.questions - inPlan.sumOf { it.questions }).coerceAtLeast(0)
+                val avulsasCorrect = (activity.correct - inPlan.sumOf { it.correct }).coerceIn(0, avulsas)
+                val counted = avulsas.coerceAtMost(DAILY_QUESTION_CAP)
+                val correct = avulsasCorrect.coerceAtMost(counted)
                 val xp = counted * QUESTION_XP + correct * CORRECT_BONUS_XP
                 questionXp += xp
                 dayXp += xp

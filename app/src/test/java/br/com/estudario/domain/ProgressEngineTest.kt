@@ -142,4 +142,26 @@ class ProgressEngineTest {
 
         assertEquals(0, ProgressEngine.evaluate(input(days = listOf(linked))).totalXp)
     }
+
+    @Test
+    fun `questoes feitas dentro da tarefa do plano nao pagam de novo como avulsas`() {
+        // 20 questões (15 certas) respondidas no quiz de uma tarefa do plano: aparecem nas
+        // tentativas do dia e na execução da tarefa. O XP é só o da tarefa.
+        val dia = DailyActivity(hoje, questions = 20, correct = 15, planTasks = 1)
+        val tarefa = ProgressEngine.PlanWork(hoje, PlanTaskType.QUESTIONS, 30, correct = 15, questions = 20)
+        val resumo = ProgressEngine.evaluate(input(days = listOf(dia), planWork = listOf(tarefa), goal = DailyGoal(500)))
+
+        assertEquals(ProgressEngine.planTaskXp(PlanTaskType.QUESTIONS, 30, 15), resumo.sources.first { it.label == "Tarefas do plano" }.xp)
+        assertTrue(resumo.sources.none { it.label == "Questões" })
+    }
+
+    @Test
+    fun `questoes alem das da tarefa continuam contando como avulsas`() {
+        val dia = DailyActivity(hoje, questions = 30, correct = 20)
+        val tarefa = ProgressEngine.PlanWork(hoje, PlanTaskType.QUESTIONS, 30, correct = 15, questions = 20)
+        val resumo = ProgressEngine.evaluate(input(days = listOf(dia), planWork = listOf(tarefa), goal = DailyGoal(500)))
+
+        // 10 avulsas, 5 certas: 10 + 5.
+        assertEquals(15, resumo.sources.first { it.label == "Questões" }.xp)
+    }
 }

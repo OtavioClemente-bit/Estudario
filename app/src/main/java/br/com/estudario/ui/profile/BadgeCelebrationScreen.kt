@@ -215,5 +215,24 @@ private fun Conteudo(badge: Badge, total: Int, index: Int) {
             Text(faixaLabel(badge.tier), color = palette.glow, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
             Text("• ${badge.category.label}", color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.labelMedium)
         }
+        Spacer(Modifier.height(22.dp))
+        // O Folha vibrando junto com a conquista.
+        Row(
+            Modifier.graphicsLayer { alpha = texto },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            br.com.estudario.ui.assistant.Folha(76.dp, mood = br.com.estudario.ui.assistant.FolhaMood.HAPPY)
+            Text(
+                br.com.estudario.ui.assistant.FolhaLines.forBadge(badge.id.hashCode().toLong()),
+                color = Color.White,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 4.dp))
+                    .background(Color.White.copy(alpha = 0.14f))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            )
+        }
     }
 }

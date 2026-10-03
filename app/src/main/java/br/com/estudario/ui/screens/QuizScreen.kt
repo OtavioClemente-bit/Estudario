@@ -1,6 +1,7 @@
 package br.com.estudario.ui.screens
 
 import br.com.estudario.ui.theme.screenPadding
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -312,9 +313,22 @@ fun QuizScreen(
             item {
                 ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = if (correct == true) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.errorContainer)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(if (correct == true) Icons.Outlined.CheckCircle else Icons.Outlined.Cancel, null, tint = if (correct == true) Color(0xFF087F5B) else MaterialTheme.colorScheme.error)
-                            Spacer(Modifier.width(8.dp)); Text(if (correct == true) "Correto" else "Incorreto", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        // O Folha reage: comemora o acerto e, no erro, fala para a pessoa seguir.
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            br.com.estudario.ui.assistant.Folha(
+                                64.dp,
+                                mood = if (correct == true) br.com.estudario.ui.assistant.FolhaMood.HAPPY else br.com.estudario.ui.assistant.FolhaMood.TALKING,
+                            )
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(if (correct == true) Icons.Outlined.CheckCircle else Icons.Outlined.Cancel, null, Modifier.size(20.dp), tint = if (correct == true) Color(0xFF087F5B) else MaterialTheme.colorScheme.error)
+                                    Spacer(Modifier.width(6.dp)); Text(if (correct == true) "Correto" else "Incorreto", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                }
+                                Text(
+                                    br.com.estudario.ui.assistant.FolhaLines.forAnswer(correct == true, current.question.id),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
                         }
                         // A dificuldade só aparece agora, depois de respondida: saber que a questão é
                         // "DIFICIL" antes muda o jeito de responder, e na prova ninguém te avisa.
@@ -423,14 +437,26 @@ private fun QuizResult(
 ) {
     val correct = results.values.count { it }
     val percent = if (questions.isEmpty()) 0 else correct * 100 / questions.size
-    Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Icon(if (percent >= 70) Icons.Outlined.CheckCircle else Icons.Outlined.Cancel, null, Modifier.size(72.dp), tint = if (percent >= 70) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.error)
-        Spacer(Modifier.height(16.dp))
+    Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        // O Folha fecha a bateria: comemora se foi bem, motiva se foi difícil.
+        br.com.estudario.ui.assistant.Folha(
+            170.dp,
+            mood = if (percent >= 60) br.com.estudario.ui.assistant.FolhaMood.HAPPY else br.com.estudario.ui.assistant.FolhaMood.TALKING,
+        )
+        Spacer(Modifier.height(8.dp))
         Text("Sessão concluída", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text("$percent%", style = MaterialTheme.typography.displayMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
         Text("$correct acertos • ${questions.size - correct} erros • ${questions.size} questões")
+        Spacer(Modifier.height(12.dp))
+        br.com.estudario.ui.assistant.FolhaSays(
+            br.com.estudario.ui.assistant.FolhaLines.forResult(percent, questions.sumOf { it.question.id }),
+            avatar = 0.dp,
+            bubbleColor = MaterialTheme.colorScheme.primaryContainer,
+            textColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        )
         Spacer(Modifier.height(10.dp))
-        br.com.estudario.ui.components.XpTag(
+        // Bateria do plano: as questões pagam pela tarefa (abaixo), não como avulsas.
+        if (planTaskXp == null) br.com.estudario.ui.components.XpTag(
             br.com.estudario.domain.ProgressEngine.XpReward(questions.size + correct),
             earned = true,
         )
