@@ -356,8 +356,8 @@ Deno.test("missing questions are written by a short top-up call without web sear
 
 Deno.test("dropped questions are recorded with stage and reason", async () => {
   const base = store(textJob("CONTENT_GENERATION", contentInput));
-  const recorded: { stage: string; reason: string }[] = [];
-  Object.assign(base.jobs, { async recordQuestionDrops(_id: string, drops: { stage: string; reason: string }[]) { recorded.push(...drops); } });
+  const recorded: { stage: string; reason: string; statement: string }[] = [];
+  Object.assign(base.jobs, { async recordQuestionDrops(_id: string, drops: { stage: string; reason: string; statement: string }[]) { recorded.push(...drops); } });
   const broken = question(3, { explanation: "Com a correção da alternativa A para 240 N, ela é a única correta." });
   const provider: OpenAiProvider = {
     start: () => Promise.resolve(completed(JSON.stringify(content({ questions: [...Array.from({ length: 10 }, (_, i) => question(i)), { ...broken, statement: "Quebrada" }] })))),
