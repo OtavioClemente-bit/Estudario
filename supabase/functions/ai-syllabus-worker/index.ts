@@ -108,7 +108,7 @@ export interface QuestionDrop {
 export interface AiCostEntry {
   jobId: string;
   feature: string;
-  kind: "MAIN" | "REVIEW" | "TOPUP" | "BOARD_PROFILE" | "BOARD_NOTE";
+  kind: "MAIN" | "REVIEW" | "TOPUP" | "BOARD_PROFILE" | "BOARD_NOTE" | "TOPIC_ROUTE";
   model: string | null;
   response: ProviderResponse;
 }
@@ -179,6 +179,12 @@ export interface SyllabusWorkerStore {
   boardProfile?(boardNorm: string): Promise<Record<string, unknown> | null>;
   saveBoardProfile?(boardNorm: string, board: string, profile: Record<string, unknown>): Promise<void>;
   saveBoardNote?(topicId: string, boardNorm: string, board: string, note: Record<string, unknown>): Promise<void>;
+  /** Enciclopédia: catálogo das matérias publicadas, rotas tópico → matérias e as matérias em si. */
+  libraryCatalog?(): Promise<Array<{ id: string; title: string; subject: string; covers: string }>>;
+  libraryRoute?(topicNorm: string, catalogSize: number): Promise<{ topicIds: string[]; coverage: "FULL" | "PARTIAL" | "NONE" } | null>;
+  saveLibraryRoute?(topicNorm: string, subjectNorm: string, route: { topicIds: string[]; coverage: string }, catalogSize: number): Promise<void>;
+  libraryMaterials?(ids: string[]): Promise<Record<string, unknown>[]>;
+  libraryBoardNote?(topicId: string, boardNorm: string, roleNorm: string): Promise<Record<string, unknown> | null>;
   recordQuestionDrops?(jobId: string, drops: QuestionDrop[]): Promise<void>;
   /** Revisão já concluída deste job (nova tentativa não paga o revisor de novo). */
   completedReviewId?(jobId: string): Promise<string | null>;
@@ -1364,6 +1370,54 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
   async recordLibraryHit(topicId: string): Promise<void> {
     const response = await this.rest("rpc/library_record_hit", { method: "POST", body: JSON.stringify({ p_topic_id: topicId }) });
     await response.body?.cancel().catch(() => {});
+  }
+  async libraryCatalog(): Promise<Array<{ id: string; title: string; subject: string; covers: string }>> {
+    const response = await this.rest("library_topics?select=id,title,subject,covers:material->scope->>covers&status=eq.PUBLISHED&order=id");
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {});
+      return [];
+    }
+    return (await response.json() as Array<{ id: string; title: string; subject: string; covers: string | null }>)
+      .map((row) => ({ ...row, covers: row.covers ?? "" }));
+  }
+  async libraryRoute(topicNorm: string, catalogSize: number): Promise<{ topicIds: string[]; coverage: "FULL" | "PARTIAL" | "NONE" } | null> {
+    // Rota feita com um catálogo de outro tamanho é refeita: pode haver matéria nova que cobre o tópico.
+    const response = await this.rest(`library_topic_routes?select=topic_ids,coverage&topic_norm=eq.${encodeURIComponent(topicNorm)}&catalog_size=eq.${catalogSize}&limit=1`);
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {});
+      return null;
+    }
+    const row = (await response.json() as Array<{ topic_ids: string[]; coverage: "FULL" | "PARTIAL" | "NONE" }>)[0];
+    return row ? { topicIds: row.topic_ids, coverage: row.coverage } : null;
+  }
+  async saveLibraryRoute(topicNorm: string, subjectNorm: string, route: { topicIds: string[]; coverage: string }, catalogSize: number): Promise<void> {
+    const response = await this.rest("library_topic_routes?on_conflict=topic_norm", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({ topic_norm: topicNorm, subject_norm: subjectNorm, topic_ids: route.topicIds, coverage: route.coverage, catalog_size: catalogSize, updated_at: new Date().toISOString() }),
+    });
+    await response.body?.cancel().catch(() => {});
+  }
+  async libraryMaterials(ids: string[]): Promise<Record<string, unknown>[]> {
+    const list = ids.map((id) => `"${id}"`).join(",");
+    const response = await this.rest(`library_topics?select=id,title,subject,version,material&status=eq.PUBLISHED&id=in.(${encodeURIComponent(list)})`);
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {});
+      return [];
+    }
+    const rows = await response.json() as Array<{ id: string; title: string; subject: string; version: number; material: Record<string, unknown> }>;
+    const byId = new Map<string, Record<string, unknown>>(rows.map((row) => [row.id, { ...row.material, id: row.id, title: row.title, subject: row.subject, version: row.version }]));
+    return ids.map((id) => byId.get(id)).filter((m): m is Record<string, unknown> => m !== undefined);
+  }
+  async libraryBoardNote(topicId: string, boardNorm: string, roleNorm: string): Promise<Record<string, unknown> | null> {
+    if (!boardNorm) return null;
+    const roles = ['""', roleNorm ? `"${roleNorm}"` : null].filter(Boolean).join(",");
+    const response = await this.rest(`library_board_notes?select=note&topic_id=eq.${encodeURIComponent(topicId)}&board_norm=eq.${encodeURIComponent(boardNorm)}&role_norm=in.(${encodeURIComponent(roles)})&order=role_norm.desc&limit=1`);
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {});
+      return null;
+    }
+    return (await response.json() as Array<{ note: Record<string, unknown> }>)[0]?.note ?? null;
   }
   async boardProfile(boardNorm: string): Promise<Record<string, unknown> | null> {
     const response = await this.rest(`library_board_profiles?select=profile&board_norm=eq.${encodeURIComponent(boardNorm)}&limit=1`);

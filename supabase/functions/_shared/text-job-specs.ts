@@ -25,7 +25,9 @@ import { type ExpectedVersions, validateStudyPlan, validateTopicContent } from "
 import { applyReview, type ContentReview, runContentReview } from "./content-review.ts";
 import { resolveOpenAiModel } from "./openai-provider.ts";
 import { CACHE_MAX_AGE_DAYS, contentCacheKey } from "./content-cache.ts";
-import { assembleFromLibrary, lookupAliases, normalizeAlias, normalizeBoard } from "./library.ts";
+import { assembleFromLibrary, composeMaterials, lookupAliases, normalizeAlias, normalizeBoard } from "./library.ts";
+import { routeTopic } from "./topic-router.ts";
+import type { LibraryHit } from "../ai-syllabus-worker/index.ts";
 import { ensureBoardNote } from "./board-notes.ts";
 import { type DropReason, hasDraftExplanation, repairTopicContent } from "./content-repair.ts";
 import type { QuestionDrop } from "../ai-syllabus-worker/index.ts";
@@ -112,8 +114,15 @@ async function libraryContent(
   const store = dependencies.jobs;
   if (!store.libraryLookup) return null;
   const aliases = lookupAliases(input);
-  const found = await store.libraryLookup(aliases, normalizeBoard(input.board), normalizeAlias(input.role));
+  let found = await store.libraryLookup(aliases, normalizeBoard(input.board), normalizeAlias(input.role));
+  // Matéria (e material) a que o recorte automático da banca se refere; num tópico montado de
+  // várias matérias, é a primeira.
+  let primary = found ? { topicId: found.topicId, material: found.material } : null;
   if (!found) {
+    const routed = await routedLibraryHit(job, input, aliases, dependencies).catch(() => null);
+    if (routed) ({ hit: found, primary } = routed);
+  }
+  if (!found || !primary) {
     if (input.avoidStatements.length === 0) {
       await store.recordLibraryMiss?.({
         subject: input.subjectName,
@@ -136,8 +145,8 @@ async function libraryContent(
       model: resolveOpenAiModel(dependencies.modelForJob?.(job) ?? dependencies.model),
       board: input.board,
       boardNorm,
-      topicId: found.topicId,
-      material: found.material,
+      topicId: primary.topicId,
+      material: primary.material,
       onFinished: (kind, response) => meterCost(dependencies, job, kind, response),
     });
   }
@@ -149,6 +158,45 @@ async function libraryContent(
   if (fresh) await store.markServed?.(servedKey, job.userId).catch(() => undefined);
   await store.recordLibraryHit?.(found.topicId).catch(() => undefined);
   return content as unknown as WorkerProposal;
+}
+
+/**
+ * Enciclopédia: o nome não bateu com nenhum apelido, então uma chamada curta escolhe as matérias
+ * que cobrem o tópico (guardada para os próximos pedidos) e o material é montado com elas.
+ */
+async function routedLibraryHit(
+  job: SyllabusWorkerJob,
+  input: ContentJobInput,
+  aliases: string[],
+  dependencies: Parameters<NonNullable<AiJobSpec["cached"]>>[1],
+): Promise<{ hit: LibraryHit; primary: { topicId: string; material: Record<string, unknown> } } | null> {
+  const store = dependencies.jobs;
+  const topicNorm = aliases[0];
+  if (!topicNorm || !store.libraryCatalog || !store.libraryMaterials || Deno.env.get("LIBRARY_ROUTER_ENABLED") === "false") return null;
+  const catalog = await store.libraryCatalog();
+  let route = await store.libraryRoute?.(topicNorm, catalog.length) ?? null;
+  if (!route) {
+    route = await routeTopic({
+      provider: dependencies.provider,
+      jobId: job.id,
+      model: resolveOpenAiModel(dependencies.modelForJob?.(job) ?? dependencies.model),
+      subject: input.subjectName,
+      topic: input.topicPath.join(" › "),
+      catalog,
+      onFinished: (response) => meterCost(dependencies, job, "TOPIC_ROUTE", response),
+    });
+    if (!route) return null;
+    await store.saveLibraryRoute?.(topicNorm, normalizeAlias(input.subjectName), route, catalog.length).catch(() => undefined);
+  }
+  if (route.coverage !== "FULL" || route.topicIds.length === 0) return null;
+  const materials = await store.libraryMaterials(route.topicIds);
+  if (materials.length !== route.topicIds.length) return null;
+  const material = composeMaterials(materials, input.topicPath.at(-1) ?? String(materials[0].title));
+  const note = await store.libraryBoardNote?.(route.topicIds[0], normalizeBoard(input.board), normalizeAlias(input.role)).catch(() => null) ?? null;
+  return {
+    hit: { topicId: route.topicIds.join("+"), version: Number(material.version ?? 1), material, note },
+    primary: { topicId: route.topicIds[0], material: materials[0] },
+  };
 }
 
 async function validateContent(

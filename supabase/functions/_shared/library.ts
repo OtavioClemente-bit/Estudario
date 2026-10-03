@@ -400,6 +400,80 @@ function fitsStyle(question: Json, style: ContentJobInput["options"]["questionSt
 const DIFFICULTY = { EASY: "FACIL", MEDIUM: "MEDIA", HARD: "DIFICIL", MIXED: null } as const;
 
 /**
+ * Junta até 3 matérias numa só, para um tópico de edital que reúne vários assuntos ("Ortografia.
+ * Acentuação. Crase."). O app aceita no máximo 6 capítulos e 6 conceitos de erro: os capítulos de
+ * cada matéria são agrupados (cabem 5, sobrando 1 para o recorte da banca) e as questões passam a
+ * apontar para o capítulo agrupado e para os conceitos que ficaram.
+ */
+export function composeMaterials(materials: Json[], title: string): Json {
+  if (materials.length === 1) return materials[0];
+  const parts = materials.slice(0, 3);
+  const perMaterial = Math.max(1, Math.floor(5 / parts.length));
+  const conceptsPer = Math.max(1, Math.floor(6 / parts.length));
+  const chapters: Json[] = [];
+  const errorConcepts: Json[] = [];
+  const questions: Json[] = [];
+  const seen = new Set<string>();
+  parts.forEach((material) => {
+    const own = material.chapters as Json[];
+    const size = Math.ceil(own.length / perMaterial);
+    const sectionOf = new Map<string, string>();
+    for (let start = 0; start < own.length; start += size) {
+      const group = own.slice(start, start + size);
+      const heading = `${String(material.title)}: ${group.map((c) => String(c.title).replace(/^\d+\.\s*/, "")).join(" / ")}`.slice(0, 200);
+      group.forEach((c) => sectionOf.set(String(c.title).trim(), heading));
+      chapters.push({ title: heading, markdown: group.map((c) => `### ${String(c.title)}\n${String(c.markdown)}`).join("\n\n") });
+    }
+    const keyOf = new Map<string, string>();
+    (material.errorConcepts as Json[]).slice(0, conceptsPer).forEach((concept) => {
+      const key = `e${errorConcepts.length + 1}`;
+      keyOf.set(String(concept.key), key);
+      errorConcepts.push({ ...concept, key });
+    });
+    for (const question of material.questions as Json[]) {
+      const statement = String(question.statement).trim().toLowerCase();
+      if (seen.has(statement)) continue;
+      seen.add(statement);
+      const section = sectionOf.get(String(question.section).trim()) ?? chapters[chapters.length - 1].title;
+      const concept = question.errorConceptKey == null ? null : keyOf.get(String(question.errorConceptKey)) ?? null;
+      questions.push({ ...question, section, errorConceptKey: concept });
+    }
+  });
+  const flat = (field: string) => parts.flatMap((m) => (m[field] as unknown[] | undefined) ?? []);
+  const sources = new Map<string, Json>();
+  for (const source of flat("sources") as Json[]) sources.set(String(source.url ?? source.title), source);
+  return {
+    id: parts.map((m) => m.id).join("+"),
+    subject: parts[0].subject,
+    title,
+    version: parts.reduce((sum, m) => sum + Number(m.version ?? 1), 0),
+    scope: {
+      covers: parts.map((m) => `${String(m.title)}: ${String((m.scope as Json).covers)}`).join(" "),
+      excludes: parts.map((m) => String((m.scope as Json).excludes)).join(" "),
+    },
+    theoryTitle: title,
+    chapters,
+    summary: parts.map((m) => `**${String(m.title)}.** ${String(m.summary)}`).join("\n\n"),
+    // Intercala para que o recorte de 30/10 itens traga um pouco de cada matéria.
+    flashcards: interleave(parts.map((m) => m.flashcards as Json[])),
+    tips: interleave(parts.map((m) => m.tips as string[])),
+    traps: interleave(parts.map((m) => m.traps as string[])),
+    activeRecall: interleave(parts.map((m) => m.activeRecall as Json[])),
+    errorConcepts,
+    questions,
+    sources: [...sources.values()],
+  };
+}
+
+function interleave<T>(lists: T[][]): T[] {
+  const out: T[] = [];
+  for (let i = 0; lists.some((list) => i < (list?.length ?? 0)); i++) {
+    for (const list of lists) if (list && i < list.length) out.push(list[i]);
+  }
+  return out;
+}
+
+/**
  * Material no formato da IA, montado da biblioteca. Nulo quando a biblioteca não cobre o pedido
  * (questões insuficientes no estilo pedido): aí a IA gera, como antes.
  */
