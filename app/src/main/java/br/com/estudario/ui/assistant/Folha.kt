@@ -57,8 +57,7 @@ enum class FolhaMood {
 }
 
 private val Ink = Color(0xFF26215C)
-private val PageLine = Color(0xFFC9C5F5)
-private val Stack = Color(0xFFD9D6FF)
+private val PageLine = Color(0xFFD8D4E6)
 private val Cap = Color(0xFF231C6B)
 private val CapTop = Color(0xFF2F2789)
 private val Gold = Color(0xFFF5B83D)
@@ -189,6 +188,11 @@ private fun DrawScope.drawFolha(t: Float, mood: FolhaMood, blink: Float, look: O
                 Brush.radialGradient(listOf(Ink.copy(alpha = 0.28f), Color.Transparent), center = Offset(50f, 95f), radius = 36f - lift * 1.6f),
                 radius = 36f - lift * 1.6f, center = Offset(50f, 95f),
             )
+            // Núcleo mais escuro e justo: o peso do livro no chão; some quando ele sobe.
+            drawCircle(
+                Brush.radialGradient(listOf(Ink.copy(alpha = 0.30f * (1f - lift / 6f).coerceIn(0.3f, 1f)), Color.Transparent), center = Offset(50f, 95f), radius = 26f),
+                radius = 26f, center = Offset(50f, 95f),
+            )
         }
         if (mood == FolhaMood.THINKING) drawSparkles(t, behind = true)
 
@@ -196,8 +200,7 @@ private fun DrawScope.drawFolha(t: Float, mood: FolhaMood, blink: Float, look: O
             scale(squashX, squashY, pivot = Offset(50f, 88f)) {
                 rotate(tilt, pivot = Offset(50f, 80f)) {
                     drawArms(t, mood)
-                    drawBook()
-                    drawRibbon(t, mood)
+                    drawBook(t, mood)
                     drawPageLines(t, mood)
                     drawFace(t, mood, blink, look, wink, gulp)
                     drawCap(t, tilt)
@@ -209,42 +212,99 @@ private fun DrawScope.drawFolha(t: Float, mood: FolhaMood, blink: Float, look: O
     }
 }
 
-private fun leftPage(dy: Float = 0f, dx: Float = 0f) = Path().apply {
-    moveTo(12f + dx, 40f + dy)
-    quadraticTo(30f + dx, 36.5f + dy, 48.5f + dx, 43f + dy)
-    lineTo(48.5f + dx, 87f + dy)
-    quadraticTo(30f + dx, 80.5f + dy, 12f + dx, 84f + dy)
+/**
+ * Uma página aberta. As duas se encontram na lombada (x = 50), sem fresta: a página sobe
+ * saindo da costura, faz a barriga e cai um pouco na borda, como papel de verdade.
+ * [side] -1 é a esquerda, 1 a direita; [drop] e [spread] descem e abrem a borda (para o bloco).
+ */
+private fun page(side: Float, drop: Float = 0f, spread: Float = 0f) = Path().apply {
+    fun x(v: Float) = 50f + side * (v + spread * (v / 38f))
+    moveTo(x(0f), 44f + drop * 0.2f)
+    cubicTo(x(10f), 37.6f, x(26f), 36.4f, x(38f), 40.4f + drop)
+    lineTo(x(38f), 84.4f + drop)
+    cubicTo(x(26f), 80.6f + drop, x(10f), 81.4f + drop, x(0f), 87f + drop)
     close()
 }
 
-private fun rightPage(dy: Float = 0f, dx: Float = 0f) = Path().apply {
-    moveTo(51.5f + dx, 43f + dy)
-    quadraticTo(70f + dx, 36.5f + dy, 88f + dx, 40f + dy)
-    lineTo(88f + dx, 84f + dy)
-    quadraticTo(70f + dx, 80.5f + dy, 51.5f + dx, 87f + dy)
+/** A beirada do bloco de páginas: a espessura entre a página de cima e a capa. */
+private fun pageBlock(side: Float, depth: Float) = Path().apply {
+    val outer = 50f + side * 38f
+    val outerLow = 50f + side * (38f + depth * 0.45f)
+    moveTo(outer, 40.4f)
+    lineTo(outer, 84.4f)
+    cubicTo(50f + side * 26f, 80.6f, 50f + side * 10f, 81.4f, 50f, 87f)
+    lineTo(50f, 87f + depth)
+    cubicTo(50f + side * 10f, 81.4f + depth, 50f + side * 26.5f, 80.6f + depth, outerLow, 84.4f + depth)
+    lineTo(outerLow, 41.6f + depth * 0.3f)
     close()
 }
 
-private fun DrawScope.drawBook() {
-    // Capa por trás, aparecendo nas bordas: dá peso de livro de verdade.
+private val Paper = Color(0xFFFFFDF8)
+private val PaperMid = Color(0xFFF7F4EE)
+private val PaperEdge = Color(0xFFE9E4DA)
+private val PaperEdgeDark = Color(0xFFCFC8BC)
+private val Gutter = Color(0xFF3A3170)
+
+private fun DrawScope.drawBook(t: Float, mood: FolhaMood) {
+    // Capa dura com espessura: a borda escura embaixo é o papelão visto de lado.
     val cover = Path().apply {
-        moveTo(9f, 43f); quadraticTo(30f, 40f, 50f, 46f); quadraticTo(70f, 40f, 91f, 43f)
-        lineTo(91f, 88f); quadraticTo(70f, 85f, 50f, 92f); quadraticTo(30f, 85f, 9f, 88f); close()
+        moveTo(8.5f, 43.5f); cubicTo(22f, 40.5f, 38f, 41.5f, 50f, 47.5f); cubicTo(62f, 41.5f, 78f, 40.5f, 91.5f, 43.5f)
+        lineTo(91.5f, 89f); cubicTo(78f, 86.4f, 62f, 87.4f, 50f, 93f); cubicTo(38f, 87.4f, 22f, 86.4f, 8.5f, 89f); close()
     }
-    drawPath(cover, Brush.verticalGradient(listOf(Color(0xFF4A3FD8), Color(0xFF2C22A8)), startY = 40f, endY = 92f))
-    // Bloco de folhas.
-    for (layer in 3 downTo 1) {
-        val dy = layer * 1.3f
-        drawPath(leftPage(dy, -layer * 0.6f), Stack.copy(alpha = 0.6f + 0.13f * (3 - layer)))
-        drawPath(rightPage(dy, layer * 0.6f), Stack.copy(alpha = 0.6f + 0.13f * (3 - layer)))
+    translate(0f, 1.7f) { drawPath(cover, Color(0xFF1A1370)) }
+    drawPath(cover, Brush.verticalGradient(listOf(Color(0xFF5247E0), Color(0xFF3A2FC4), Color(0xFF2A209E)), startY = 41f, endY = 93f))
+    // Brilho de tecido da capa, vindo da luz de cima à esquerda.
+    drawPath(cover, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.14f), Color.Transparent), start = Offset(8f, 44f), end = Offset(40f, 70f)))
+
+    // A fita sai de baixo do bloco de folhas e dobra sobre a borda da capa.
+    drawRibbon(t, mood)
+
+    // Bloco de folhas: a beirada de papel com as folhas riscadas finas, não degraus.
+    for (side in floatArrayOf(-1f, 1f)) {
+        val block = pageBlock(side, 3.6f)
+        drawPath(block, Brush.verticalGradient(listOf(PaperEdge, PaperEdgeDark), startY = 80f, endY = 91f))
+        for (i in 1..4) {
+            val d = i * 0.72f
+            val p = Path().apply {
+                moveTo(50f + side * (38f + d * 0.45f), 84.4f + d)
+                cubicTo(50f + side * 26.2f, 80.6f + d, 50f + side * 10f, 81.4f + d, 50f, 87f + d)
+            }
+            drawPath(p, Color(0xFF8C8270).copy(alpha = 0.22f), style = Stroke(0.28f))
+        }
+        // Beirada lateral: mesmas linhas finas, na vertical.
+        for (i in 1..3) {
+            val x = 50f + side * (38f + i * 0.42f)
+            drawLine(Color(0xFF8C8270).copy(alpha = 0.18f), Offset(x, 41f + i * 0.3f), Offset(x, 84.4f + i * 0.9f), 0.25f)
+        }
     }
-    drawPath(leftPage(), Brush.horizontalGradient(listOf(Color.White, Color(0xFFF6F5FF), Color(0xFFDDDAF9)), startX = 12f, endX = 48.5f))
-    drawPath(rightPage(), Brush.horizontalGradient(listOf(Color(0xFFDDDAF9), Color(0xFFF6F5FF), Color.White), startX = 51.5f, endX = 88f))
-    // Dobra no meio.
-    drawRect(
-        Brush.horizontalGradient(listOf(Color.Transparent, Color(0x403326CE), Color.Transparent), startX = 45f, endX = 55f),
-        topLeft = Offset(45f, 42f), size = Size(10f, 46f),
+
+    // Páginas de cima: papel levemente quente, mais claro onde a luz bate.
+    val left = page(-1f)
+    val right = page(1f)
+    drawPath(left, Brush.horizontalGradient(listOf(PaperMid, Paper, Paper, PaperMid), startX = 12f, endX = 50f))
+    drawPath(right, Brush.horizontalGradient(listOf(PaperMid, Paper, Paper, Color(0xFFF1EDE6)), startX = 50f, endX = 88f))
+    // A curva da página entrando na costura: sombra macia que só escurece colada ao meio.
+    val gutterStops = arrayOf(
+        0f to Color.Transparent,
+        0.55f to Gutter.copy(alpha = 0.035f),
+        0.85f to Gutter.copy(alpha = 0.10f),
+        1f to Gutter.copy(alpha = 0.20f),
     )
+    drawPath(left, Brush.horizontalGradient(*gutterStops, startX = 39f, endX = 50f))
+    drawPath(right, Brush.horizontalGradient(*gutterStops, startX = 61f, endX = 50f))
+    // Leve queda de luz nas bordas externas, onde a página desce.
+    drawPath(left, Brush.horizontalGradient(listOf(Gutter.copy(alpha = 0.06f), Color.Transparent), startX = 12f, endX = 17f))
+    drawPath(right, Brush.horizontalGradient(listOf(Color.Transparent, Gutter.copy(alpha = 0.08f)), startX = 83f, endX = 88f))
+    // A costura em si: um fio, quase nada.
+    drawLine(Gutter.copy(alpha = 0.16f), Offset(50f, 44.3f), Offset(50f, 86.8f), 0.35f)
+    // Fio de luz na borda de cima de cada página, onde o papel faz a barriga.
+    for (side in floatArrayOf(-1f, 1f)) {
+        val rim = Path().apply {
+            moveTo(50f + side * 3f, 41.9f)
+            cubicTo(50f + side * 12f, 37.9f, 50f + side * 26f, 36.9f, 50f + side * 36.5f, 40.2f)
+        }
+        drawPath(rim, Color.White.copy(alpha = 0.9f), style = Stroke(0.5f, cap = StrokeCap.Round))
+    }
 }
 
 /** Linhas de texto discretas nas páginas; pensando, elas vão sendo escritas. */
@@ -375,19 +435,45 @@ private fun DrawScope.drawCap(t: Float, tilt: Float) {
     drawCircle(Color(0xFFFFE3A0), 0.7f, Offset(button.x - 0.5f, button.y - 0.5f))
 }
 
-/** A fita verde, que marca a página: pende da lombada e balança; triste, ela murcha. */
+/**
+ * A fita verde de marcar página, de cetim. Ela nasce presa na costura (por baixo do bloco de
+ * folhas), deita sobre a capa, dobra na quina e cai pendurada com peso; só a ponta balança.
+ * Triste, ela pende mais curta e parada.
+ */
 private fun DrawScope.drawRibbon(t: Float, mood: FolhaMood) {
-    val sway = if (mood == FolhaMood.SAD) 0f else sin(t * 1.9f + 0.6f) * 2.4f
-    val top = Offset(53f, 84f)
-    val len = if (mood == FolhaMood.SAD) 9f else 13f
-    val tip = Offset(top.x + 1.5f + sway, top.y + len)
+    val sad = mood == FolhaMood.SAD
+    val sway = if (sad) 0f else sin(t * 1.9f + 0.6f) * 1.3f
+    val w = 3.4f
+    val x0 = 51.4f
+    // Trecho deitado na capa, do bloco até a quina (y ~94.7, contando a espessura).
+    val lieTop = 86f
+    val edge = 94.6f
+    val hang = if (sad) 3.2f else 5.4f
+    val tipY = edge + hang
+    val tipX = x0 + 0.5f + sway
     val ribbon = Path().apply {
-        moveTo(top.x, top.y); lineTo(top.x + 4f, top.y)
-        quadraticTo(top.x + 4f + sway * 0.4f, top.y + len * 0.6f, tip.x + 2.2f, tip.y)
-        lineTo(tip.x, tip.y - 2.4f); lineTo(tip.x - 2.2f, tip.y)
-        quadraticTo(top.x + sway * 0.4f, top.y + len * 0.6f, top.x, top.y); close()
+        moveTo(x0, lieTop); lineTo(x0 + w, lieTop)
+        lineTo(x0 + w + 0.3f, edge)
+        quadraticTo(x0 + w + 0.3f + sway * 0.3f, edge + hang * 0.5f, tipX + w, tipY)
+        lineTo(tipX + w / 2f, tipY - 1.6f)
+        lineTo(tipX, tipY)
+        quadraticTo(x0 + 0.3f + sway * 0.3f, edge + hang * 0.5f, x0 + 0.3f, edge)
+        close()
     }
-    drawPath(ribbon, Brush.horizontalGradient(listOf(MintDark, Mint, Color(0xFFB4F3D9)), startX = top.x - 1f, endX = top.x + 5f + sway))
+    // Sombra da fita na capa (só no trecho deitado) e no ar logo atrás dela.
+    translate(0.7f, 0.5f) { drawPath(ribbon, Color(0xFF0E0A45).copy(alpha = 0.35f)) }
+    drawPath(ribbon, Brush.horizontalGradient(listOf(MintDark, Mint, Color(0xFFC6F7E2), Mint), startX = x0, endX = x0 + w + 0.6f + sway))
+    // Onde ela entra por baixo das folhas: escurece, porque ali não chega luz.
+    drawRect(
+        Brush.verticalGradient(listOf(Color(0xFF0E0A45).copy(alpha = 0.45f), Color.Transparent), startY = 88f, endY = 91.5f),
+        topLeft = Offset(x0, 88f), size = Size(w + 0.3f, 3.5f),
+    )
+    // A dobra na quina da capa: uma faixa de luz e logo abaixo a sombra da curva.
+    drawLine(Color.White.copy(alpha = 0.55f), Offset(x0 + 0.5f, edge - 0.4f), Offset(x0 + w, edge - 0.4f), 0.5f)
+    drawRect(
+        Brush.verticalGradient(listOf(Color(0xFF1F7A5A).copy(alpha = 0.55f), Color.Transparent), startY = edge, endY = edge + 1.8f),
+        topLeft = Offset(x0 + 0.3f, edge), size = Size(w, 1.8f),
+    )
 }
 
 /** Estrelinhas girando em volta enquanto ele gera; as de trás passam por trás do livro. */
