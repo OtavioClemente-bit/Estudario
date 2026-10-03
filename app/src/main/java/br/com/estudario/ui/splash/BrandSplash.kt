@@ -71,11 +71,12 @@ private val Smooth = CubicBezierEasing(0.2f, 0f, 0f, 1f)
  */
 @Composable
 fun BrandSplash(ready: Boolean, onFinished: () -> Unit) {
-    val open = remember { Animatable(0f) }
+    // Já começa meio aberto e com o brilho aceso: o primeiro quadro tem a marca, nunca um azul vazio.
+    val open = remember { Animatable(0.35f) }
     val lines = remember { Animatable(0f) }
     val check = remember { Animatable(0f) }
     val ribbon = remember { Animatable(0f) }
-    val glow = remember { Animatable(0f) }
+    val glow = remember { Animatable(0.7f) }
     val title = remember { Animatable(0f) }
     val tagline = remember { Animatable(0f) }
     val loader = remember { Animatable(0f) }
@@ -99,8 +100,8 @@ fun BrandSplash(ready: Boolean, onFinished: () -> Unit) {
     }
 
     LaunchedEffect(Unit) {
-        launch { glow.animateTo(1f, tween(900, easing = Smooth)) }
-        open.animateTo(1f, tween(620, easing = Smooth))
+        launch { glow.animateTo(1f, tween(500, easing = Smooth)) }
+        open.animateTo(1f, tween(480, easing = Smooth))
         launch { lines.animateTo(1f, tween(560, easing = LinearEasing)) }
         launch { delay(260); check.animateTo(1f, tween(420, easing = Smooth)) }
         launch { delay(380); ribbon.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow)) }

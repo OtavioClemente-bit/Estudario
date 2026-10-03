@@ -53,8 +53,16 @@ class MainActivity : ComponentActivity() {
             var showSplash by rememberSaveable { mutableStateOf(coldStart) }
             val onboarding by viewModel.hasCompletedOnboarding.collectAsState()
             val tours by viewModel.seenTours.collectAsState()
+            // O app por trás só começa a montar depois do primeiro quadro da abertura: montar tudo
+            // junto atrasava esse quadro e a pessoa via quase um segundo de azul vazio.
+            var mountApp by rememberSaveable { mutableStateOf(!coldStart) }
+            if (!mountApp) androidx.compose.runtime.LaunchedEffect(Unit) {
+                androidx.compose.runtime.withFrameNanos { }
+                androidx.compose.runtime.withFrameNanos { }
+                mountApp = true
+            }
             Box(Modifier.fillMaxSize()) {
-                EstudarioApp(viewModel)
+                if (mountApp) EstudarioApp(viewModel)
                 if (showSplash) BrandSplash(ready = onboarding != null && tours != null, onFinished = { showSplash = false })
             }
         }
