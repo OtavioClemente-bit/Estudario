@@ -278,6 +278,23 @@ export function validateLibraryMaterial(material: Json): Json {
       c.fail(`questions[${index}]: a explicação copia o próprio item; diga com o texto-base por que ele está certo ou errado`);
     }
   });
+  // Certo/Errado feito copiando uma alternativa de outra questão é a mesma questão duas vezes; e a
+  // explicação herdada ainda fala de "alternativas" que o item C/E não tem.
+  const optionTexts = new Set<string>();
+  questions.forEach((q) => ((q.options as Json[] | undefined) ?? []).forEach((o) => {
+    const text = String(o.text ?? "").trim();
+    if (text.length >= 30) optionTexts.add(text);
+  }));
+  let mirrored = 0;
+  questions.forEach((q, index) => {
+    if (q.format !== "TRUE_FALSE") return;
+    const statement = String(q.statement ?? "");
+    if ([...optionTexts].some((text) => statement.includes(text))) mirrored++;
+    if (/\b(alternativas?|op[çc](ão|ões))\b/i.test(String(q.explanation ?? ""))) {
+      c.fail(`questions[${index}]: item Certo/Errado com explicação que fala de alternativas/opções; explique o próprio item`);
+    }
+  });
+  if (mirrored > 2) c.fail(`questions: ${mirrored} itens Certo/Errado repetem uma alternativa de outra questão; crie itens próprios`);
   // Troca automática de palavra deixa frase quebrada ("qualquer o desmatamento").
   const garbled = /\bqualquer\s+(o|a|os|as)\b/i;
   questions.forEach((q, index) => {
