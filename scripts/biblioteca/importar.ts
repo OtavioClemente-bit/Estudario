@@ -113,6 +113,9 @@ for (const { path, value } of await jsonFiles("editais")) {
         problems.push(`${path}: "${text}" aponta para ${id}, que não existe em conteudo/materias`);
         continue;
       }
+      // O banco guarda apelidos de até 400 caracteres; tópico de edital mais longo que isso é
+      // atendido pela enciclopédia (rota tópico → matérias), não pelo apelido.
+      if (alias.length > 400) continue;
       const owner = aliasOwner.get(alias);
       if (owner && owner !== id) problems.push(`${path}: "${text}" aponta para ${id}, mas esse texto já é de ${owner}`);
       aliasOwner.set(alias, id);
