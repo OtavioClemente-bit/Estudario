@@ -83,6 +83,21 @@ fun BrandSplash(ready: Boolean, onFinished: () -> Unit) {
     val isReady by rememberUpdatedState(ready)
     val finish by rememberUpdatedState(onFinished)
 
+    // Ícones claros na barra de status sobre o índigo; ao sair, volta ao que o tema pedia.
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val window = (view.context as? android.app.Activity)?.window
+        val controller = window?.let { androidx.core.view.WindowCompat.getInsetsController(it, view) }
+        val before = controller?.isAppearanceLightStatusBars
+        val beforeNav = controller?.isAppearanceLightNavigationBars
+        controller?.isAppearanceLightStatusBars = false
+        controller?.isAppearanceLightNavigationBars = false
+        onDispose {
+            before?.let { controller.isAppearanceLightStatusBars = it }
+            beforeNav?.let { controller.isAppearanceLightNavigationBars = it }
+        }
+    }
+
     LaunchedEffect(Unit) {
         launch { glow.animateTo(1f, tween(900, easing = Smooth)) }
         open.animateTo(1f, tween(620, easing = Smooth))
