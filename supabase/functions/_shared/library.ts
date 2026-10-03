@@ -413,16 +413,26 @@ export function assembleFromLibrary(
   const wants = (block: string) => options.blocks.includes(block as never);
   const avoid = new Set(input.avoidStatements.map((statement) => statement.trim().toLowerCase()));
   const wanted = DIFFICULTY[options.difficulty];
-  const pick = (pool: Json[]) =>
-    shuffled(pool.filter((q) =>
-      fitsStyle(q, options.questionStyle) && (wanted === null || q.difficulty === wanted) &&
-      !avoid.has(String(q.statement).trim().toLowerCase())
-    ), seed);
-  // Questões do recorte da banca primeiro; depois as da matéria.
-  const questions = [...pick((note?.questions as Json[] | undefined) ?? []), ...pick(material.questions as Json[])]
+  // Primeiro as do nível pedido; se não bastarem, completa com o nível mais próximo (difícil →
+  // médio → fácil). Assim um pedido "difícil" sai da biblioteca em vez de ir inteiro para a IA.
+  const nearest: Record<string, string[]> = { FACIL: ["FACIL", "MEDIA", "DIFICIL"], MEDIA: ["MEDIA", "DIFICIL", "FACIL"], DIFICIL: ["DIFICIL", "MEDIA", "FACIL"] };
+  const usable = (pool: Json[]) =>
+    pool.filter((q) => fitsStyle(q, options.questionStyle) && !avoid.has(String(q.statement).trim().toLowerCase()));
+  const boardPool = usable((note?.questions as Json[] | undefined) ?? []);
+  const topicPool = usable(material.questions as Json[]);
+  // Em cada nível, as questões do recorte da banca vêm antes das da matéria.
+  const tier = (level: string | null) => [
+    ...shuffled(boardPool.filter((q) => level === null || q.difficulty === level), seed),
+    ...shuffled(topicPool.filter((q) => level === null || q.difficulty === level), seed),
+  ];
+  const ordered = wanted === null ? tier(null) : nearest[wanted].flatMap(tier);
+  const questions = ordered
     .slice(0, options.questionCount)
     .map((question) => structuredClone(question));
   if (questions.length < options.questionCount) return null;
+  // As que completaram a cota vêm de nível vizinho; o app espera o nível pedido em todas, como na
+  // geração por IA (content-repair faz o mesmo).
+  if (wanted !== null) for (const question of questions) question.difficulty = wanted;
 
   const chapters = wants("THEORY") ? structuredClone(material.chapters as Json[]) : [];
   const board = typeof note?.board === "string" ? note.board : input.board;

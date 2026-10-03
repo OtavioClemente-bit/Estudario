@@ -128,3 +128,18 @@ Deno.test("recorte da banca entra como capítulo, dicas e questões primeiro", (
   assertEquals((content.tips as string[])[0], "Dica da VUNESP sobre gráficos");
   assertEquals((content.questions as Json[])[0].statement, "Questão no estilo VUNESP sobre tarifa de táxi como função afim.");
 });
+
+Deno.test("dificuldade pedida sem questões suficientes completa com o nível mais próximo", () => {
+  const m = material();
+  const five = (m.questions as Json[]).filter((q) => (q.options as Json[]).length === 5);
+  const hard = five.filter((q) => q.difficulty === "DIFICIL").length;
+  const medium = five.filter((q) => q.difficulty === "MEDIA").length;
+  const count = hard + medium;
+  const out = assembleFromLibrary(m, null, { board: null, options: { ...ALL, blocks: ["QUESTIONS"], questionStyle: "FIVE_OPTIONS", difficulty: "HARD", questionCount: count }, avoidStatements: [] }, "s")!;  const picked = (out.questions as Json[]).map((q) => String(q.statement));
+  const hardStatements = new Set(five.filter((q) => q.difficulty === "DIFICIL").map((q) => String(q.statement)));
+  assert(hard < count, "o teste precisa de menos difíceis do que o pedido");
+  assertEquals(picked.length, count);
+  assertEquals(picked.slice(0, hard).every((s) => hardStatements.has(s)), true);
+  assertEquals(picked.slice(hard).some((s) => hardStatements.has(s)), false);
+  assertEquals((out.questions as Json[]).every((q) => q.difficulty === "DIFICIL"), true);
+});
