@@ -11,6 +11,15 @@ import androidx.activity.viewModels
 import androidx.core.content.IntentCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import br.com.estudario.ui.splash.BrandSplash
 import br.com.estudario.ui.AppViewModel
 import br.com.estudario.ui.EstudarioApp
 import br.com.estudario.ui.theme.EstudarioAdaptiveScale
@@ -36,10 +45,19 @@ class MainActivity : ComponentActivity() {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        // Mantém a splash na tela só até sabermos se é a primeira abertura (mostra o tour)
-        // ou uma abertura normal (vai direto para a navegação principal).
-        splashScreen.setKeepOnScreenCondition { viewModel.hasCompletedOnboarding.value == null || viewModel.seenTours.value == null }
-        setContent { EstudarioApp(viewModel) }
+        // A splash do sistema sai no primeiro quadro, sem animação de saída: a abertura em Compose
+        // começa na mesma cor, com o livro no mesmo lugar, e segura a tela até o app estar pronto.
+        splashScreen.setOnExitAnimationListener { it.remove() }
+        val coldStart = savedInstanceState == null
+        setContent {
+            var showSplash by rememberSaveable { mutableStateOf(coldStart) }
+            val onboarding by viewModel.hasCompletedOnboarding.collectAsState()
+            val tours by viewModel.seenTours.collectAsState()
+            Box(Modifier.fillMaxSize()) {
+                EstudarioApp(viewModel)
+                if (showSplash) BrandSplash(ready = onboarding != null && tours != null, onFinished = { showSplash = false })
+            }
+        }
         // Ao girar a tela a Activity é recriada com o mesmo intent: não importa o arquivo duas vezes.
         if (savedInstanceState == null) {
             handleIncomingFile(intent)
