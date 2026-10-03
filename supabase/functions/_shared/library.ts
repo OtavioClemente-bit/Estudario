@@ -306,7 +306,8 @@ export function validateLibraryMaterial(material: Json): Json {
     }
   });
   // Troca automática de palavra deixa frase quebrada ("qualquer o desmatamento").
-  const garbled = /\bqualquer\s+(o|a|os|as)\b/i;
+  // (?!\p{L}): "qualquer ação" não é "qualquer a" (o \b do JS trata "ç" como fim de palavra).
+  const garbled = /\bqualquer\s+(o|a|os|as)(?!\p{L})/iu;
   questions.forEach((q, index) => {
     const texts = [q.statement, q.explanation, ...((q.options as Json[] | undefined) ?? []).map((o) => o.text)];
     if (texts.some((t) => garbled.test(String(t ?? "")))) c.fail(`questions[${index}]: frase quebrada com "qualquer o/a"; revise o texto`);
