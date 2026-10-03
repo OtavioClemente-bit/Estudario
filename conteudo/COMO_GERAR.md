@@ -44,6 +44,19 @@ Assim, quem estuda para bombeiro recebe a matéria canônica mais o recorte **de
   - explicação de pelo menos 120 caracteres que diz por que a certa está certa **e** por que as
     outras estão erradas;
   - `section` igual ao título exato de um capítulo.
+- **Nível de prova, não de exercício.** Compare cada questão com provas reais da banca. Enunciado
+  de uma linha com distrator óbvio ("o ônibus causou a chuva") não serve.
+  - **Interpretação de texto** sempre traz um texto-base de verdade (de 8 a 25 linhas, no
+    enunciado), e de 3 a 5 questões trabalham o mesmo texto: ideia central, inferência, sentido de
+    palavra no contexto, referência de pronome, reescrita que mantém o sentido.
+  - Distrator bom é o que um candidato preparado quase marca: extrapola um pouco, troca
+    "alguns" por "todos", inverte causa e efeito, usa palavra do texto com sentido errado.
+- **Sem pista no tamanho.** A alternativa certa não pode ser quase sempre a mais longa (nem a mais
+  curta). Escreva as alternativas com tamanho parecido; o conferidor recusa se a certa for a mais
+  longa ou a mais curta em mais de 40% das questões.
+- **Explicação própria em cada questão.** Nada de frase de molde colada em todas ("A alternativa
+  indicada é a única compatível…"). O conferidor recusa a frase que se repetir em mais de 15% das
+  explicações.
 - **Questões reais de prova:** prefira questões autorais no estilo das bancas (`"sourceType":
   "AUTHORIAL"`, com `board`, `agency`, `year` e `sourceUrl` em `null`). Só use `"REAL"` com link,
   banca e ano verdadeiros e conferidos.

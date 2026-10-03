@@ -224,6 +224,34 @@ export function validateLibraryMaterial(material: Json): Json {
   });
   const multiple = questions.length - trueFalse;
   if (multiple >= 10 && Math.max(0, ...letters.values()) > multiple * 0.4) c.fail("questions: gabarito concentrado demais numa letra");
+  // Quem chuta "a mais longa" (ou "a mais curta") não pode acertar quase sempre.
+  const extremes = { longest: 0, shortest: 0 };
+  questions.filter((q) => q.format === "MULTIPLE_CHOICE").forEach((q) => {
+    const sizes = ((q.options as Json[] | undefined) ?? []).map((o) => String(o.text ?? "").length);
+    const right = ((q.options as Json[] | undefined) ?? []).findIndex((o) => o.correct === true);
+    if (right < 0) return;
+    const unique = (value: number) => sizes.filter((size) => size === value).length === 1;
+    if (sizes[right] === Math.max(...sizes) && unique(sizes[right])) extremes.longest++;
+    if (sizes[right] === Math.min(...sizes) && unique(sizes[right])) extremes.shortest++;
+  });
+  if (multiple >= 10 && extremes.longest > multiple * 0.4) {
+    c.fail(`questions: a alternativa certa é a mais longa em ${extremes.longest} de ${multiple} (máximo 40%); equilibre o tamanho das alternativas`);
+  }
+  if (multiple >= 10 && extremes.shortest > multiple * 0.4) {
+    c.fail(`questions: a alternativa certa é a mais curta em ${extremes.shortest} de ${multiple} (máximo 40%); equilibre o tamanho das alternativas`);
+  }
+  // Explicação de verdade fala da questão: a mesma frase colada em muitas é texto de molde.
+  const sentences = new Map<string, number>();
+  questions.forEach((q) => {
+    for (const sentence of new Set(String(q.explanation ?? "").split(/(?<=[.!?])\s+/).map((s) => s.trim()))) {
+      if (sentence.length >= 40) sentences.set(sentence, (sentences.get(sentence) ?? 0) + 1);
+    }
+  });
+  for (const [sentence, total] of sentences) {
+    if (questions.length >= 20 && total > questions.length * 0.15) {
+      c.fail(`questions: a frase "${sentence.slice(0, 80)}…" se repete em ${total} explicações; explique cada questão de forma própria`);
+    }
+  }
 
   c.list(material.sources, "sources", 1, 12).forEach((source, index) => {
     if (!["OFICIAL", "COMPLEMENTAR"].includes(String(source.kind))) c.fail(`sources[${index}].kind: OFICIAL ou COMPLEMENTAR`);
