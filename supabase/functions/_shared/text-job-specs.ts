@@ -26,6 +26,7 @@ import { applyReview, type ContentReview, runContentReview } from "./content-rev
 import { resolveOpenAiModel } from "./openai-provider.ts";
 import { CACHE_MAX_AGE_DAYS, contentCacheKey } from "./content-cache.ts";
 import { assembleFromLibrary, lookupAliases, normalizeAlias, normalizeBoard } from "./library.ts";
+import { ensureBoardNote } from "./board-notes.ts";
 import { type DropReason, hasDraftExplanation, repairTopicContent } from "./content-repair.ts";
 import type { QuestionDrop } from "../ai-syllabus-worker/index.ts";
 import { runQuestionTopUp } from "./question-topup.ts";
@@ -124,6 +125,21 @@ async function libraryContent(
       }).catch(() => undefined);
     }
     return null;
+  }
+  // Matéria pronta sem recorte desta banca: faz o recorte uma vez (perfil da banca + tópico) e guarda.
+  const boardNorm = normalizeBoard(input.board);
+  if (!found.note && input.board && boardNorm && Deno.env.get("BOARD_NOTES_ENABLED") !== "false") {
+    found.note = await ensureBoardNote({
+      provider: dependencies.provider,
+      store,
+      jobId: job.id,
+      model: resolveOpenAiModel(dependencies.modelForJob?.(job) ?? dependencies.model),
+      board: input.board,
+      boardNorm,
+      topicId: found.topicId,
+      material: found.material,
+      onFinished: (kind, response) => meterCost(dependencies, job, kind, response),
+    });
   }
   const fresh = input.avoidStatements.length === 0;
   const servedKey = `lib:${found.topicId}@${found.version}:${await contentCacheKey(input)}`;

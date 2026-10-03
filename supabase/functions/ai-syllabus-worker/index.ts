@@ -108,7 +108,7 @@ export interface QuestionDrop {
 export interface AiCostEntry {
   jobId: string;
   feature: string;
-  kind: "MAIN" | "REVIEW" | "TOPUP";
+  kind: "MAIN" | "REVIEW" | "TOPUP" | "BOARD_PROFILE" | "BOARD_NOTE";
   model: string | null;
   response: ProviderResponse;
 }
@@ -175,6 +175,10 @@ export interface SyllabusWorkerStore {
   libraryLookup?(aliases: string[], boardNorm: string, roleNorm: string): Promise<LibraryHit | null>;
   recordLibraryHit?(topicId: string): Promise<void>;
   recordLibraryMiss?(miss: LibraryMiss): Promise<void>;
+  /** Perfil da banca (pesquisado uma vez) e recortes automáticos guardados para todos. */
+  boardProfile?(boardNorm: string): Promise<Record<string, unknown> | null>;
+  saveBoardProfile?(boardNorm: string, board: string, profile: Record<string, unknown>): Promise<void>;
+  saveBoardNote?(topicId: string, boardNorm: string, board: string, note: Record<string, unknown>): Promise<void>;
   recordQuestionDrops?(jobId: string, drops: QuestionDrop[]): Promise<void>;
   /** Revisão já concluída deste job (nova tentativa não paga o revisor de novo). */
   completedReviewId?(jobId: string): Promise<string | null>;
@@ -1359,6 +1363,32 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
   }
   async recordLibraryHit(topicId: string): Promise<void> {
     const response = await this.rest("rpc/library_record_hit", { method: "POST", body: JSON.stringify({ p_topic_id: topicId }) });
+    await response.body?.cancel().catch(() => {});
+  }
+  async boardProfile(boardNorm: string): Promise<Record<string, unknown> | null> {
+    const response = await this.rest(`library_board_profiles?select=profile&board_norm=eq.${encodeURIComponent(boardNorm)}&limit=1`);
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {});
+      return null;
+    }
+    const rows = await response.json() as Array<{ profile: Record<string, unknown> }>;
+    return rows[0]?.profile ?? null;
+  }
+  async saveBoardProfile(boardNorm: string, board: string, profile: Record<string, unknown>): Promise<void> {
+    const response = await this.rest("library_board_profiles?on_conflict=board_norm", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({ board_norm: boardNorm, board, profile, updated_at: new Date().toISOString() }),
+    });
+    await response.body?.cancel().catch(() => {});
+  }
+  async saveBoardNote(topicId: string, boardNorm: string, board: string, note: Record<string, unknown>): Promise<void> {
+    // ignore-duplicates: um recorte revisado (MANUAL) já gravado nunca é trocado pelo automático.
+    const response = await this.rest("library_board_notes?on_conflict=topic_id,board_norm,role_norm", {
+      method: "POST",
+      headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
+      body: JSON.stringify({ topic_id: topicId, board_norm: boardNorm, role_norm: "", board, role: null, version: 1, note, origin: "AUTO" }),
+    });
     await response.body?.cancel().catch(() => {});
   }
   async recordLibraryMiss(miss: LibraryMiss): Promise<void> {

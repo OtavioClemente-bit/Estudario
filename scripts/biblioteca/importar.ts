@@ -168,9 +168,11 @@ await rest("library_topics?on_conflict=id", "POST", [...materials.values()].map(
 // Apelidos e recortes espelham o repositório: o que saiu daqui sai do banco.
 await rest("library_topic_aliases?alias_norm=not.is.null", "DELETE");
 await rest("library_topic_aliases", "POST", [...aliasOwner].map(([alias_norm, topic_id]) => ({ alias_norm, topic_id })));
-await rest("library_board_notes?topic_id=not.is.null", "DELETE");
+// Só os recortes escritos aqui (MANUAL) são refeitos; os automáticos ficam, salvo quando um
+// recorte revisado da mesma banca os substitui (upsert abaixo).
+await rest("library_board_notes?origin=eq.MANUAL", "DELETE");
 if (notes.length > 0) {
-  await rest("library_board_notes", "POST", notes.map((n) => ({
+  await rest("library_board_notes?on_conflict=topic_id,board_norm,role_norm", "POST", notes.map((n) => ({
     topic_id: n.topic,
     board_norm: n.boardNorm,
     role_norm: n.roleNorm,
@@ -178,6 +180,7 @@ if (notes.length > 0) {
     role: n.value.role ?? null,
     version: n.value.version,
     note: n.value,
-  })));
+    origin: "MANUAL",
+  })), "resolution=merge-duplicates,return=minimal");
 }
 console.log(`Publicado: ${materials.size} matéria(s), ${aliasOwner.size} apelido(s), ${notes.length} recorte(s).`);
