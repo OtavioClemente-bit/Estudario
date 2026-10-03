@@ -125,9 +125,7 @@ fun AiGenerationScreen(
 private fun Hero(copy: AiGenerationCopy) {
     Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(aiGradient())) {
         Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(Modifier.size(48.dp).clip(RoundedCornerShape(15.dp)).background(Color.White.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.AutoAwesome, null, tint = Color.White)
-            }
+            br.com.estudario.ui.assistant.FolhaTalking(76.dp, copy.heroTitle + copy.heroText, onClick = {})
             Text(copy.heroTitle, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
             Text(copy.heroText, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.88f))
             copy.benefits.forEach { (icon, text) -> Benefit(icon, text) }

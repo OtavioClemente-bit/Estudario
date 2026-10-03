@@ -54,8 +54,8 @@ private fun TaskRow(task: BackgroundAiTasks.Task, onOpen: (String, Long?) -> Uni
     ) {
         Row(Modifier.padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             when (status) {
-                BackgroundAiTasks.Status.Running -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                is BackgroundAiTasks.Status.Ready -> Icon(Icons.Outlined.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary)
+                BackgroundAiTasks.Status.Running -> br.com.estudario.ui.assistant.Folha(36.dp, mood = br.com.estudario.ui.assistant.FolhaMood.THINKING)
+                is BackgroundAiTasks.Status.Ready -> br.com.estudario.ui.assistant.Folha(36.dp, mood = br.com.estudario.ui.assistant.FolhaMood.HAPPY)
                 is BackgroundAiTasks.Status.Failed -> Icon(Icons.Outlined.ErrorOutline, null, tint = MaterialTheme.colorScheme.error)
             }
             Column(Modifier.weight(1f)) {

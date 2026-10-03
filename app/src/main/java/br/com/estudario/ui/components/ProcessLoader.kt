@@ -105,9 +105,10 @@ fun EstudarioProcessScene(size: Dp, modifier: Modifier = Modifier, sheets: Int =
 
     Box(modifier.size(size).semantics { contentDescription = "Processando" }, contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) { drawScene(time, palette, sheets, reduced) }
-        BookFlipping(
-            size = size * 0.46f,
-            reduced = reduced,
+        // O Folha no meio, lendo e escrevendo, enquanto as folhas chegam voando até ele.
+        br.com.estudario.ui.assistant.Folha(
+            size = size * 0.56f,
+            mood = br.com.estudario.ui.assistant.FolhaMood.THINKING,
             modifier = Modifier.graphicsLayer {
                 val o = opening.value
                 rotationY = (1f - o) * 88f

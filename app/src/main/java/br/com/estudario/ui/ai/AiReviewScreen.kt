@@ -449,10 +449,7 @@ private fun AiGate(
         // Apresentação: o que a IA faz, em três linhas, sobre o degradê da IA.
         Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(aiGradient())) {
             Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Box(
-                    Modifier.size(48.dp).clip(RoundedCornerShape(15.dp)).background(Color.White.copy(alpha = 0.18f)),
-                    contentAlignment = Alignment.Center,
-                ) { Icon(Icons.Outlined.AutoAwesome, null, tint = Color.White) }
+                br.com.estudario.ui.assistant.FolhaTalking(76.dp, "Monte seu edital com o Estudário. Envie o PDF oficial.", onClick = {})
                 Text("Monte seu edital com o Estudário", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
                 Text(
                     "Envie o PDF oficial e receba o edital organizado em matérias e tópicos, pronto para revisar.",

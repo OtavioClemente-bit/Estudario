@@ -317,10 +317,11 @@ private fun ReviewPage(
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-                        Surface(Modifier.size(36.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primary) {}
-                        Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onPrimary)
-                    }
+                    // Tocar no Folha é o mesmo que "Gerar com o Estudário".
+                    br.com.estudario.ui.assistant.FolhaTalking(
+                        52.dp, server.description,
+                        onClick = if (ready && server.enabled) server.onGenerate else null,
+                    )
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text("Assistente Estudário", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)

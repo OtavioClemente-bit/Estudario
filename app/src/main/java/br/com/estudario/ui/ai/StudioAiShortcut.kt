@@ -34,7 +34,7 @@ fun StudioAiShortcut(text: String, buttonLabel: String, enabled: Boolean, onClic
     Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(aiGradient()).alpha(if (enabled) 1f else 0.6f)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Icon(Icons.Outlined.AutoAwesome, null, tint = Color.White)
+                br.com.estudario.ui.assistant.Folha(44.dp, onClick = if (enabled) onClick else null)
                 Text("Assistente Estudário", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
                 Text(
                     "BETA",

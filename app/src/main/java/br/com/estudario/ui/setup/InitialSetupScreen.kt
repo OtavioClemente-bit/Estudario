@@ -466,7 +466,7 @@ private fun IntroStep(onContinue: () -> Unit) {
                 ),
             ),
             contentAlignment = Alignment.Center,
-        ) { br.com.estudario.ui.components.EstudarioGlyph(size = 104.dp) }
+        ) { br.com.estudario.ui.assistant.Folha(150.dp, mood = br.com.estudario.ui.assistant.FolhaMood.HAPPY, onClick = onContinue) }
         SetupCard {
             IntroPoint(Icons.Outlined.School, "Seu objetivo", "A prova que você quer e, se souber, a data.")
             IntroPoint(Icons.Outlined.Description, "Suas matérias", "Pelo edital, por arquivo ou montadas à mão.")
@@ -1132,11 +1132,9 @@ internal fun SetupHeader(
     italicDescription: Boolean = false,
 ) {
     Row(verticalAlignment = Alignment.Top) {
-        Box(
-            Modifier.padding(top = 26.dp).size(36.dp).clip(androidx.compose.foundation.shape.CircleShape).background(MaterialTheme.colorScheme.primary),
-            contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onPrimary) }
-        Spacer(Modifier.width(10.dp))
+        // O Folha fazendo a pergunta: fala enquanto ela aparece e depois fica ouvindo.
+        br.com.estudario.ui.assistant.FolhaTalking(52.dp, title + description.orEmpty(), Modifier.padding(top = 18.dp))
+        Spacer(Modifier.width(6.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(
                 Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)).padding(horizontal = 10.dp, vertical = 4.dp),
@@ -1331,10 +1329,7 @@ private fun StudioAiCard(
     Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(br.com.estudario.ui.ai.aiGradient())) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(
-                    Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.18f)),
-                    contentAlignment = Alignment.Center,
-                ) { Icon(Icons.Outlined.AutoAwesome, null, tint = Color.White) }
+                br.com.estudario.ui.assistant.Folha(60.dp, onClick = {})
                 Column(Modifier.weight(1f)) {
                     Text("Assistente Estudário", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
                     Text("Mais rápido: tudo dentro do app", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.85f))

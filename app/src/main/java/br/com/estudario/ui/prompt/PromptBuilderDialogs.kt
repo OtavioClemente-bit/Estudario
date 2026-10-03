@@ -530,8 +530,8 @@ private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, on
                         },
                     )
                 } else {
-                    Spacer(Modifier.height(48.dp))
-                    Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(32.dp))
+                    br.com.estudario.ui.assistant.Folha(132.dp, mood = br.com.estudario.ui.assistant.FolhaMood.SAD)
                     Text("Não deu certo desta vez", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
                     Text(failed.message, textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     androidx.compose.material3.Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("Voltar") }
