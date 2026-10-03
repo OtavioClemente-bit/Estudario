@@ -75,6 +75,7 @@ import br.com.estudario.ui.theme.EstudarioSpacing
 import br.com.estudario.ui.tour.TourKey
 import br.com.estudario.ui.tour.tourTarget
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
@@ -129,8 +130,26 @@ fun HomeScreen(
     val planState by planViewModel.state.collectAsState()
     val queue by viewModel.queue.collectAsState()
     val tourStep by viewModel.tourStep.collectAsState()
+    val theories by viewModel.theories.collectAsState()
 
-    val competition = competitions.firstOrNull { it.isPrimary } ?: competitions.firstOrNull()
+    // "Gerar o material deste tópico" na missão do dia abre o mesmo gerador do tópico.
+    var generateFor by remember { mutableStateOf<TopicEntity?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let {
+            viewModel.beginIncomingFile()
+            scope.launch {
+                val text = withContext(Dispatchers.IO) { runCatching { context.contentResolver.openInputStream(it)?.use { s -> s.readBytes().toString(Charsets.UTF_8) } }.getOrNull() }
+                if (text.isNullOrBlank()) viewModel.reportIncomingFileError("Não foi possível ler o arquivo escolhido.") else viewModel.openIncomingText(text, null)
+            }
+        }
+    }
+    generateFor?.let { topic ->
+        br.com.estudario.ui.prompt.ContentPromptBuilderDialog(viewModel, topic.subjectId, setOf(topic.id), onDismiss = { generateFor = null }, onPickFile = { importLauncher.launch(arrayOf("*/*")) })
+    }
+
+    val competition =competitions.firstOrNull { it.isPrimary } ?: competitions.firstOrNull()
 
     val metrics by produceState<HomeMetrics?>(
         null, competition?.id, subjects, topics, questions, attempts, errors, reviews,
@@ -242,6 +261,11 @@ fun HomeScreen(
                     modifier = Modifier.tourTarget(TourKey.HOME_MISSION, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.HOME_MISSION, it) },
                     practiceAvailable = questions.isNotEmpty(),
                     onPractice = { onQuiz(10, "daily") },
+                    onGenerate = (currentStudy as? CurrentStudyUiState.Ready)?.task?.topicId
+                        ?.takeIf { id -> theories.none { it.topicId == id } && questions.none { it.question.topicId == id } }
+                        ?.let { id -> topics.firstOrNull { it.id == id } }
+                        ?.let { topic -> { generateFor = topic } },
+                    generateModifier = Modifier.tourTarget(TourKey.HOME_GENERATE, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.HOME_GENERATE, it) },
                 )
             }
         }

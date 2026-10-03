@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.dp
  */
 enum class TourId(val title: String, val subtitle: String) {
     WELCOME("Conheça o Estudário", "Menu, Início, Plano e o primeiro material, em 5 passos"),
+    WELCOME_START("Comece pelo seu concurso", "Para quem pulou a configuração: menu, Início e Concursos"),
     EDITAL("Primeiros passos", "Criar o concurso e montar as matérias"),
     CONTENT("Conteúdo das matérias", "Gerar teoria, resumos e questões; revisões e fila"),
     PLAN("Plano de estudos", "Montar o plano e acompanhar"),
@@ -83,7 +84,7 @@ enum class HelpGuide(val title: String, val subtitle: String, val tour: TourId) 
 fun helpGuideOptions(): List<HelpGuide> = listOf(HelpGuide.EDITAL, HelpGuide.MATERIAL)
 
 enum class TourKey {
-    HOME_PROFILE, HOME_MISSION,
+    HOME_PROFILE, HOME_MISSION, HOME_GENERATE,
     NAV_MENU, NAV_EDITAL, NAV_PLAN, EDITAL_CREATE, EDITAL_AI, EDITAL_IMPORT, SUBJECT_AI,
     PLAN_AI, PLAN_IMPORT, PLAN_CREATE, PLAN_TABS, PLAN_MANAGE,
     TRAIN_DAILY, TRAIN_MODES, TRAIN_START,
@@ -102,7 +103,15 @@ fun tourSteps(id: TourId): List<TourStep> = when (id) {
         TourStep("home", TourKey.NAV_MENU, "Menu", "Revisões, desempenho, caderno de erros, backup e ajuda ficam aqui."),
         TourStep("home", TourKey.HOME_MISSION, "Início", "Todo dia, aqui aparece o que estudar agora e a sua missão do dia."),
         TourStep("home", TourKey.NAV_PLAN, "Plano", "Seu cronograma até a prova. Ele se ajusta sozinho quando a rotina muda."),
-        TourStep("syllabus", TourKey.SUBJECT_AI, "Gere seu primeiro material", "Abra a matéria e toque em Gerar no tópico: o Estudário escreve a teoria, os flashcards e as questões."),
+        TourStep("home", TourKey.HOME_GENERATE, "Gere seu primeiro material", "Na primeira missão do dia, toque em Gerar: o Assistente escreve a teoria, os flashcards e as questões do tópico."),
+    )
+    // Quem pulou a configuração ainda não tem concurso: o giro termina em Concursos, onde ele nasce.
+    TourId.WELCOME_START -> listOf(
+        TourStep("home", null, "Bem-vindo ao Estudário", "Um giro rápido de 5 passos. Use as setas."),
+        TourStep("home", TourKey.NAV_MENU, "Menu", "Revisões, desempenho, caderno de erros, backup e ajuda ficam aqui."),
+        TourStep("home", TourKey.NAV_EDITAL, "Concursos", "Tudo começa aqui: o seu concurso, com as matérias e os tópicos do edital."),
+        TourStep("syllabus", TourKey.EDITAL_AI, "Monte pelo edital", "Toque em ✨ e anexe o PDF do edital: o Assistente organiza as matérias e os tópicos para você revisar."),
+        TourStep("syllabus", TourKey.EDITAL_CREATE, "Ou crie do seu jeito", "No +, crie o concurso e adicione as matérias à mão. Depois, o plano e o material saem daqui."),
     )
     TourId.EDITAL -> listOf(
         TourStep("home", null, "Bem-vindo ao Estudário", "Este guia apresenta três etapas da sua preparação: organizar o edital, criar o plano e treinar. Use as setas para avançar sem interagir com a tela principal."),
@@ -163,8 +172,8 @@ fun tourKeyForRoute(route: String): TourKey? = when (route) {
  * Guia que abre sozinho: só o de boas-vindas, na primeira abertura. Os outros continuam no menu de
  * ajuda; abrir um guia em cada aba nova cansava e ninguém lia.
  */
-fun tourForRoute(route: String?): TourId? = when (route) {
-    "home" -> TourId.WELCOME
+fun tourForRoute(route: String?, setupSkipped: Boolean = false): TourId? = when (route) {
+    "home" -> if (setupSkipped) TourId.WELCOME_START else TourId.WELCOME
     else -> null
 }
 
@@ -290,3 +299,6 @@ fun TourOverlay(
         }
     }
 }
+
+/** Os dois giros de boas-vindas: quem viu um não vê o outro. */
+val WELCOME_TOURS = setOf(TourId.WELCOME, TourId.WELCOME_START)

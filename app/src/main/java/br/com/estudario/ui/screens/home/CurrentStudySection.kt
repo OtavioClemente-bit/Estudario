@@ -13,6 +13,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -48,6 +53,8 @@ fun CurrentStudySection(
     modifier: Modifier = Modifier,
     practiceAvailable: Boolean = false,
     onPractice: () -> Unit = {},
+    onGenerate: (() -> Unit)? = null,
+    generateModifier: Modifier = Modifier,
 ) {
     Column(
         modifier
@@ -67,7 +74,7 @@ fun CurrentStudySection(
                 is CurrentStudyUiState.NoPlan -> NoPlanBody(onPrimaryAction, practiceAvailable, onPractice)
                 is CurrentStudyUiState.NoTaskToday -> NoTaskTodayBody(practiceAvailable, onPractice)
                 is CurrentStudyUiState.DayComplete -> DayCompleteBody(current)
-                is CurrentStudyUiState.Ready -> ReadyBody(current, onPrimaryAction)
+                is CurrentStudyUiState.Ready -> ReadyBody(current, onPrimaryAction, onGenerate, generateModifier)
             }
         }
     }
@@ -83,7 +90,7 @@ private fun Eyebrow(text: String) {
 }
 
 @Composable
-private fun ReadyBody(state: CurrentStudyUiState.Ready, onStart: () -> Unit) {
+private fun ReadyBody(state: CurrentStudyUiState.Ready, onStart: () -> Unit, onGenerate: (() -> Unit)?, generateModifier: Modifier) {
     val task = state.task
     Column(verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.medium)) {
         Eyebrow(if (state.progressFraction != null) "Continuando" else "Agora")
@@ -127,12 +134,33 @@ private fun ReadyBody(state: CurrentStudyUiState.Ready, onStart: () -> Unit) {
                 trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
             )
         }
-        Button(
-            onClick = onStart,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-        ) {
-            Text(task.ctaLabel, style = MaterialTheme.typography.labelLarge)
+        if (onGenerate != null) {
+            // Tópico ainda sem teoria nem questões: o primeiro passo é gerar o material dele.
+            Text(
+                "Este tópico ainda não tem material. O Assistente escreve a teoria, os flashcards e as questões.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Button(
+                onClick = onGenerate,
+                modifier = generateModifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+            ) {
+                Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Gerar o material deste tópico", style = MaterialTheme.typography.labelLarge)
+            }
+            OutlinedButton(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
+                Text(task.ctaLabel, style = MaterialTheme.typography.labelLarge)
+            }
+        } else {
+            Button(
+                onClick = onStart,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+            ) {
+                Text(task.ctaLabel, style = MaterialTheme.typography.labelLarge)
+            }
         }
     }
 }

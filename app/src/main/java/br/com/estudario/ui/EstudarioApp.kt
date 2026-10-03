@@ -60,6 +60,7 @@ import br.com.estudario.ui.tour.tourForRoute
 import br.com.estudario.ui.tour.tourKeyForRoute
 import br.com.estudario.ui.tour.tourSteps
 import br.com.estudario.ui.tour.tourTarget
+import br.com.estudario.ui.tour.WELCOME_TOURS
 import br.com.estudario.ui.navigation.EstudarioDrawerContent
 import br.com.estudario.ui.library.MySyllabiScreen
 import br.com.estudario.ui.library.MySyllabiViewModel
@@ -199,9 +200,12 @@ private fun MainNavigation(viewModel: AppViewModel) {
     val planTransfer by planViewModel.transfer.collectAsState()
     val planBusy by planViewModel.busy.collectAsState()
     val importandoAlgo = appTransfer != TransferState.Idle || planTransfer != PlanTransferUiState.Idle || planBusy != null
-    LaunchedEffect(currentRoute, activeTour, seenTours, importandoAlgo) {
-        val tour = tourForRoute(currentRoute) ?: return@LaunchedEffect
+    val initialSetupState by viewModel.initialSetup.collectAsState()
+    LaunchedEffect(currentRoute, activeTour, seenTours, importandoAlgo, initialSetupState?.status) {
+        val tour = tourForRoute(currentRoute, setupSkipped = initialSetupState?.status == InitialSetupStatus.DEFERRED) ?: return@LaunchedEffect
         if (importandoAlgo) return@LaunchedEffect
+        // Um só giro de boas-vindas por pessoa, venha ela da configuração completa ou pulada.
+        if (tour in WELCOME_TOURS && WELCOME_TOURS.any { seenTours?.contains(it.name) == true }) return@LaunchedEffect
         // O guia de perfil só entra depois do de primeiros passos: dois guias emendados na primeira
         // abertura cansam, e ele só faz sentido quando já existe XP para mostrar.
         if (tour == TourId.PROFILE && seenTours?.contains(TourId.EDITAL.name) != true) return@LaunchedEffect
@@ -360,7 +364,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                 var drawerHintSeen by remember { mutableStateOf(hintPrefs.getBoolean("drawer_hint_seen", false)) }
                 LaunchedEffect(drawerState.isOpen) { if (drawerState.isOpen && !drawerHintSeen) { drawerHintSeen = true; hintPrefs.edit().putBoolean("drawer_hint_seen", true).apply() } }
                 // O tour de boas-vindas já apresenta o menu: depois dele, esta dica não aparece.
-                if (!drawerHintSeen && currentRoute == "home" && tourStep == null && seenTours?.contains(TourId.WELCOME.name) != true) {
+                if (!drawerHintSeen && currentRoute == "home" && tourStep == null && WELCOME_TOURS.none { seenTours?.contains(it.name) == true }) {
                     Surface(
                         onClick = { drawerScope.launch { drawerState.open() } },
                         shape = br.com.estudario.ui.theme.EstudarioShapes.row,
@@ -699,7 +703,7 @@ private fun TourPickerDialog(seen: Set<String>, onDismiss: () -> Unit, onStart: 
                 Text("Escolha um guia para ver passo a passo.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 // Guias de edital e de material saíram: o fluxo novo de criar concurso e gerar no
                 // tópico já se explica sozinho, e os vídeos mostravam telas antigas.
-                TourId.entries.filterNot { it == TourId.EDITAL || it == TourId.CONTENT }.forEach { tour ->
+                TourId.entries.filterNot { it == TourId.EDITAL || it == TourId.CONTENT || it == TourId.WELCOME_START }.forEach { tour ->
                     ListItem(
                         headlineContent = { Text(tour.title) },
                         supportingContent = { Text(tour.subtitle) },
