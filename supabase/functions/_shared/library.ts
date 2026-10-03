@@ -301,7 +301,7 @@ export function validateLibraryMaterial(material: Json): Json {
   if (mirrored > 2) c.fail(`questions: ${mirrored} itens Certo/Errado repetem uma alternativa de outra questão; crie itens próprios`);
   // Enchimento colado depois do ponto ("…à Bahia. após a missão") para igualar tamanho.
   questions.forEach((q, index) => {
-    if (((q.options as Json[] | undefined) ?? []).some((o) => /\.\s+[a-zà-ú]/.test(String(o.text ?? "")))) {
+    if (((q.options as Json[] | undefined) ?? []).some((o) => /[^.]\.\s+[a-zà-ú]/.test(String(o.text ?? "")))) {
       c.fail(`questions[${index}]: alternativa com trecho colado depois do ponto final; reescreva a frase inteira`);
     }
   });
