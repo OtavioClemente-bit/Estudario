@@ -51,7 +51,7 @@ fun FolhaSays(
     }
     val talking = shown < text.length
     Row(modifier, verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Folha(avatar, mood = if (talking) FolhaMood.TALKING else FolhaMood.IDLE, onClick = onFolhaClick)
+        if (avatar > 0.dp) Folha(avatar, mood = if (talking) FolhaMood.TALKING else FolhaMood.IDLE, onClick = onFolhaClick)
         Box(
             Modifier
                 .weight(1f)

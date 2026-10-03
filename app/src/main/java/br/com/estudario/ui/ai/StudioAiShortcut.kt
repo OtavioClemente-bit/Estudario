@@ -57,7 +57,7 @@ fun StudioAiShortcut(text: String, buttonLabel: String, enabled: Boolean, onClic
                     disabledContentColor = Color(0xFF3B34C4).copy(alpha = 0.6f),
                 ),
             ) {
-                Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(18.dp))
+                br.com.estudario.ui.assistant.Folha(26.dp)
                 Spacer(Modifier.width(8.dp))
                 Text(buttonLabel)
             }

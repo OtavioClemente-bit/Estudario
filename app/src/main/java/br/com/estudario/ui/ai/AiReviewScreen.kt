@@ -348,7 +348,7 @@ private fun AiSourceConfirmation(
                 modifier = Modifier.fillMaxWidth().height(54.dp).testTag("ai_confirm_generation"),
                 shape = RoundedCornerShape(16.dp),
             ) {
-                Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(18.dp))
+                br.com.estudario.ui.assistant.Folha(26.dp)
                 Spacer(Modifier.width(8.dp))
                 Text(
                     when (kind) {
@@ -571,7 +571,7 @@ private fun AiDraftEditor(
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                br.com.estudario.ui.assistant.Folha(30.dp)
                 Text("PROPOSTA DO ESTUDÁRIO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             }
             Text("Confira antes de usar", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)

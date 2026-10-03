@@ -257,8 +257,17 @@ fun TourOverlay(
                     Text(tour.title.uppercase(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
                     TextButton(onClick = onSkip) { Text("Pular guia") }
                 }
-                Text(step.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text(step.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // Quem apresenta o app é o Folha: ele fala cada passo enquanto o texto aparece.
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    br.com.estudario.ui.assistant.FolhaTalking(60.dp, step.description)
+                    Text(step.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                }
+                br.com.estudario.ui.assistant.FolhaSays(
+                    step.description,
+                    avatar = 0.dp,
+                    bubbleColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+                    textColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
                 step.video?.let { video ->
                     OutlinedButton(onClick = { onWatchVideo(video) }, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Outlined.PlayCircleOutline, null)

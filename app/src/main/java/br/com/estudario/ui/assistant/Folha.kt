@@ -24,6 +24,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -79,6 +80,8 @@ fun Folha(
     modifier: Modifier = Modifier,
     mood: FolhaMood = FolhaMood.IDLE,
     onClick: (() -> Unit)? = null,
+    /** 0 a 1: uma folha acabou de chegar até ele (a cena de processamento avisa); ele "engole" e brilha. */
+    gulp: Float = 0f,
 ) {
     val time by produceState(0f) {
         val start = withFrameNanos { it }
@@ -155,13 +158,14 @@ fun Folha(
             blink = if (mood == FolhaMood.HAPPY) 0f else blink,
             look = Offset(lookX.value, lookY.value),
             wink = wink,
-            bounce = bounce.value,
+            bounce = maxOf(bounce.value, gulp * 0.45f),
+            gulp = gulp,
         )
     }
 }
 
 /** Desenho do Folha numa grade de 100 x 100. */
-private fun DrawScope.drawFolha(t: Float, mood: FolhaMood, blink: Float, look: Offset, wink: Boolean, bounce: Float) {
+private fun DrawScope.drawFolha(t: Float, mood: FolhaMood, blink: Float, look: Offset, wink: Boolean, bounce: Float, gulp: Float = 0f) {
     val k = size.minDimension / 100f
     val hop = when (mood) {
         FolhaMood.HAPPY -> -abs(sin(t * 5.2f)) * 5f
@@ -195,7 +199,7 @@ private fun DrawScope.drawFolha(t: Float, mood: FolhaMood, blink: Float, look: O
                     drawBook()
                     drawRibbon(t, mood)
                     drawPageLines(t, mood)
-                    drawFace(t, mood, blink, look, wink)
+                    drawFace(t, mood, blink, look, wink, gulp)
                     drawCap(t, tilt)
                 }
             }
@@ -261,7 +265,7 @@ private fun DrawScope.drawPageLines(t: Float, mood: FolhaMood) {
     line(83f, 79.5f, 18f, -0.03f, 5, true)
 }
 
-private fun DrawScope.drawFace(t: Float, mood: FolhaMood, blink: Float, look: Offset, wink: Boolean) {
+private fun DrawScope.drawFace(t: Float, mood: FolhaMood, blink: Float, look: Offset, wink: Boolean, gulp: Float = 0f) {
     val eyeL = Offset(31f + look.x * 1.6f, 61f + look.y * 1.4f)
     val eyeR = Offset(69f + look.x * 1.6f, 61f + look.y * 1.4f)
 
@@ -301,6 +305,16 @@ private fun DrawScope.drawFace(t: Float, mood: FolhaMood, blink: Float, look: Of
 
     // Boca.
     val m = Offset(50f, 73f)
+    if (gulp > 0.08f) {
+        // "Nham": boca redonda recebendo a folha, com brilho saindo das páginas.
+        val r = 1.5f + 3.2f * gulp
+        drawOval(Ink, topLeft = Offset(m.x - r, m.y - r * 1.1f), size = Size(r * 2, r * 2.2f))
+        for (i in 0 until 4) {
+            val a = i * (PI.toFloat() / 2f) + 0.5f
+            star(Offset(50f + cos(a) * (22f + 14f * (1f - gulp)), 58f + sin(a) * (16f + 10f * (1f - gulp))), 1.8f * gulp, Spark.copy(alpha = gulp))
+        }
+        return
+    }
     when (mood) {
         FolhaMood.TALKING -> {
             // Fala com ritmo de sílabas, não um abre e fecha mecânico.
@@ -462,4 +476,23 @@ private fun DrawScope.drawArms(t: Float, mood: FolhaMood) {
             arm(rs, Offset(96f, 78f - sin(t * 2.1f) * 1.2f))
         }
     }
+}
+
+/**
+ * O Folha como imagem, para o ícone grande das notificações (fora do Compose). O ícone pequeno da
+ * barra continua monocromático, como o Android exige; este aparece colorido ao lado do texto.
+ */
+fun folhaBitmap(sizePx: Int, mood: FolhaMood = FolhaMood.HAPPY): android.graphics.Bitmap {
+    val image = androidx.compose.ui.graphics.ImageBitmap(sizePx, sizePx)
+    val canvas = androidx.compose.ui.graphics.Canvas(image)
+    androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(
+        androidx.compose.ui.unit.Density(1f),
+        androidx.compose.ui.unit.LayoutDirection.Ltr,
+        canvas,
+        Size(sizePx.toFloat(), sizePx.toFloat()),
+    ) {
+        // Um quadro "bonito": olhos abertos, borla no meio do balanço.
+        drawFolha(t = 0.35f, mood = mood, blink = 0f, look = Offset(0.3f, -0.2f), wink = false, bounce = 0f)
+    }
+    return image.asAndroidBitmap()
 }

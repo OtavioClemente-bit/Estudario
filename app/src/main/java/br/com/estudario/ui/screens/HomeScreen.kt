@@ -177,7 +177,7 @@ fun HomeScreen(
                 Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
                     ElevatedCard {
                         Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary)
+                            br.com.estudario.ui.assistant.Folha(36.dp)
                             Column(Modifier.weight(1f)) {
                                 Text("Seu plano ainda pode ficar mais completo", style = MaterialTheme.typography.titleSmall)
                                 Text("Retome a configuração quando quiser e deixe a Home trabalhar a seu favor.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

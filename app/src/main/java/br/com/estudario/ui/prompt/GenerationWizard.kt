@@ -333,7 +333,7 @@ private fun ReviewPage(
                     Text(server.disabledReason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
                 Button(onClick = server.onGenerate, enabled = ready && server.enabled, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Gerar com o Estudário")
+                    br.com.estudario.ui.assistant.Folha(26.dp); Spacer(Modifier.width(8.dp)); Text("Gerar com o Estudário")
                 }
             }
         }
@@ -390,7 +390,7 @@ private fun ReviewPage(
 private fun AssistantBubble(text: String, hint: String? = null) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         Box(Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
-            Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimary)
+            br.com.estudario.ui.assistant.Folha(26.dp)
         }
         Spacer(Modifier.width(10.dp))
         Surface(

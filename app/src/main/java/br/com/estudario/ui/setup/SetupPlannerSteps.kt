@@ -246,7 +246,7 @@ internal fun PlanSummaryStep(
 ) {
     var completedStages by remember(snapshot, subjects, topics) { mutableStateOf(0) }
     val today = remember { LocalDate.now() }
-    val computation = produceWizardResult(snapshot, subjects, topics, officialPriorities) {
+    val computation = produceWizardResult(snapshot, subjects, topics, officialPriorities, minMillis = WIZARD_THINKING_MS + 500L) {
         SetupPlannerPreviewFactory.build(
             snapshot = snapshot,
             subjects = subjects,

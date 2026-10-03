@@ -109,6 +109,8 @@ fun EstudarioProcessScene(size: Dp, modifier: Modifier = Modifier, sheets: Int =
         br.com.estudario.ui.assistant.Folha(
             size = size * 0.56f,
             mood = br.com.estudario.ui.assistant.FolhaMood.THINKING,
+            // Cada folha chega a cada FLIGHT_SECONDS / sheets; logo depois da chegada ele "engole".
+            gulp = if (reduced) 0f else (1f - (time % (FLIGHT_SECONDS / sheets)) / 0.38f).coerceIn(0f, 1f),
             modifier = Modifier.graphicsLayer {
                 val o = opening.value
                 rotationY = (1f - o) * 88f

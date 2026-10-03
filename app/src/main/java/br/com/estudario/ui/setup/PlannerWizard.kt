@@ -70,6 +70,9 @@ import kotlinx.coroutines.withContext
  */
 internal const val WIZARD_MIN_TRANSITION_MS = 400L
 
+/** Quanto o Folha "pensa" antes de mostrar como entendeu a preparação: o bastante para ser visto. */
+internal const val WIZARD_THINKING_MS = 3600L
+
 sealed interface WizardComputation<out T> {
     data object Running : WizardComputation<Nothing>
     data class Ready<T>(val value: T) : WizardComputation<T>
@@ -84,6 +87,7 @@ sealed interface WizardComputation<out T> {
 @Composable
 internal fun <T> produceWizardResult(
     vararg keys: Any?,
+    minMillis: Long = WIZARD_MIN_TRANSITION_MS,
     compute: suspend () -> T,
 ): WizardComputation<T> {
     var state by remember(*keys) { mutableStateOf<WizardComputation<T>>(WizardComputation.Running) }
@@ -92,7 +96,7 @@ internal fun <T> produceWizardResult(
         val startedAt = System.currentTimeMillis()
         val value = withContext(Dispatchers.Default) { compute() }
         val elapsed = System.currentTimeMillis() - startedAt
-        if (elapsed < WIZARD_MIN_TRANSITION_MS) delay(WIZARD_MIN_TRANSITION_MS - elapsed)
+        if (elapsed < minMillis) delay(minMillis - elapsed)
         state = WizardComputation.Ready(value)
     }
     return state
@@ -161,12 +165,7 @@ internal fun WizardFeedback(text: String?, modifier: Modifier = Modifier) {
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.Top,
             ) {
-                Icon(
-                    Icons.Outlined.AutoAwesome,
-                    null,
-                    Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
+                br.com.estudario.ui.assistant.Folha(30.dp, mood = br.com.estudario.ui.assistant.FolhaMood.TALKING)
                 Text(
                     text.orEmpty(),
                     style = MaterialTheme.typography.bodyMedium,
@@ -190,16 +189,31 @@ internal fun WizardProcessing(
     completed: Int,
     modifier: Modifier = Modifier,
 ) {
+    // O cálculo é instantâneo; as etapas são marcadas uma a uma, no ritmo de quem está pensando,
+    // para a pessoa ver o Folha trabalhando nas respostas dela. Nunca passa do que já terminou.
+    var shown by remember { mutableStateOf(0) }
+    LaunchedEffect(stages.size) {
+        while (shown < stages.size) { delay(WIZARD_THINKING_MS / (stages.size + 1)); shown++ }
+    }
+    val visibleDone = minOf(shown, completed)
     Column(
-        modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 32.dp).testTag("wizard_processing"),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+        modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 24.dp).testTag("wizard_processing"),
+        verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            EstudarioBookLoader(size = 34.dp)
-            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-        }
+        br.com.estudario.ui.assistant.Folha(190.dp, mood = br.com.estudario.ui.assistant.FolhaMood.THINKING)
+        Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Text(
+            stages.getOrNull(visibleDone)?.let { "$it…" } ?: "Pronto!",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        androidx.compose.material3.LinearProgressIndicator(
+            progress = { visibleDone / stages.size.coerceAtLeast(1).toFloat() },
+            modifier = Modifier.fillMaxWidth(0.7f).padding(vertical = 4.dp),
+        )
         stages.forEachIndexed { index, stage ->
-            val done = index < completed
+            val done = index < visibleDone
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     if (done) "✓" else "·",

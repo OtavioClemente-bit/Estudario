@@ -447,7 +447,7 @@ private fun TopicRow(topic: TopicEntity, depth: Int, viewModel: AppViewModel, ha
         }
         if (!hasContent && childCount == 0) {
             FilledTonalButton(onClick = onGenerateContent, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp), modifier = Modifier.height(34.dp)) {
-                Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Gerar", style = MaterialTheme.typography.labelMedium)
+                br.com.estudario.ui.assistant.Folha(22.dp); Spacer(Modifier.width(4.dp)); Text("Gerar", style = MaterialTheme.typography.labelMedium)
             }
         }
         IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Opções do tópico") }

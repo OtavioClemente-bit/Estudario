@@ -88,7 +88,10 @@ object StudyNotificationCoordinator {
         "Seu lembrete está funcionando. Abra o app e continue de onde parou.",
     )
 
-    internal fun post(context: Context, channel: String, id: Int, title: String, body: String) {
+    internal fun post(
+        context: Context, channel: String, id: Int, title: String, body: String,
+        mood: br.com.estudario.ui.assistant.FolhaMood = br.com.estudario.ui.assistant.FolhaMood.HAPPY,
+    ) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -100,6 +103,9 @@ object StudyNotificationCoordinator {
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            // O Folha chamando, ao lado do texto.
+            .setLargeIcon(runCatching { br.com.estudario.ui.assistant.folhaBitmap(256, mood) }.getOrNull())
+            .setSubText("Folha, seu assistente")
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
@@ -126,7 +132,16 @@ class DailyStudyReminderWorker(context: Context, params: WorkerParameters) : Cor
             queued > 0 -> "Há $queued item(ns) na sua fila de estudos. Continue do próximo bloco."
             else -> "Abra o Estudário e avance um tópico hoje. Consistência vale mais que uma sessão perfeita."
         }
-        StudyNotificationCoordinator.post(applicationContext, "study_reminders", 1001, "Seu estudo de hoje está esperando", body)
+        // O Folha chamando para estudar, com uma fala diferente a cada dia.
+        val calls = listOf(
+            "Ei, bora estudar?",
+            "Seu estudo de hoje está esperando",
+            "Um bloquinho hoje e a posse fica mais perto",
+            "Tô aqui com o seu plano pronto!",
+            "Bora manter a sequência?",
+        )
+        val title = calls[java.time.LocalDate.now().dayOfYear % calls.size]
+        StudyNotificationCoordinator.post(applicationContext, "study_reminders", 1001, title, body)
         StudyNotificationCoordinator.scheduleDaily(applicationContext, app.preferences.reminderHour.first(), app.preferences.reminderMinute.first())
         return Result.success()
     }

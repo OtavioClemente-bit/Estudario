@@ -1084,17 +1084,35 @@ private fun PlanReviewStep(snapshot: InitialSetupSnapshot, uiState: InitialSetup
 
 @Composable
 private fun ReadyStep(onFinish: () -> Unit) {
-    SetupPage(
-        eyebrow = "Tudo pronto",
-        title = "Agora você tem um próximo passo claro.",
-        description = "Seu edital, sua rotina e seu primeiro plano já estão organizados. Quando quiser, ajuste os detalhes; hoje basta começar.",
-        icon = Icons.Outlined.CheckCircle,
-        bottom = { SetupPrimaryButton("Ir para minha Home", onFinish) },
+    // O fim da conversa: o Folha comemorando no meio da tela e chamando para o primeiro estudo.
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = estudarioLayout().screenGutter),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        SetupCard {
-            Icon(Icons.Outlined.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
-            Text("Sua primeira atividade está esperando na Home.", fontWeight = FontWeight.SemiBold)
+        Column(
+            Modifier.weight(1f).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
+        ) {
+            var talking by remember { mutableStateOf(true) }
+            LaunchedEffect(Unit) { kotlinx.coroutines.delay(2800); talking = false }
+            br.com.estudario.ui.assistant.Folha(
+                210.dp,
+                mood = if (talking) br.com.estudario.ui.assistant.FolhaMood.TALKING else br.com.estudario.ui.assistant.FolhaMood.HAPPY,
+                onClick = onFinish,
+            )
+            Text(
+                "TUDO PRONTO",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+            )
+            br.com.estudario.ui.assistant.FolhaSays(
+                "Seu edital, sua rotina e seu plano estão organizados. A primeira atividade já está te esperando. Bora começar?",
+                avatar = 0.dp,
+            )
         }
+        SetupBottomBar { SetupPrimaryButton("Começar a estudar", onFinish) }
     }
 }
 
@@ -1357,7 +1375,7 @@ private fun StudioAiCard(
                 shape = RoundedCornerShape(16.dp),
                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF3B34C4)),
             ) {
-                Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(18.dp))
+                br.com.estudario.ui.assistant.Folha(26.dp)
                 Spacer(Modifier.width(8.dp))
                 Text(buttonLabel, style = MaterialTheme.typography.titleSmall)
             }

@@ -444,7 +444,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                     Box {
                         IconButton(onClick = { menuOpen = true }) { Icon(Icons.Outlined.MoreVert, "Mais ações") }
                         DropdownMenu(menuOpen, onDismissRequest = { menuOpen = false }) {
-                            if (childTopics.isEmpty()) DropdownMenuItem(text = { Text("Gerar material com o Estudário") }, leadingIcon = { Icon(Icons.Outlined.AutoAwesome, null) }, onClick = { menuOpen = false; showContentPrompt = true })
+                            if (childTopics.isEmpty()) DropdownMenuItem(text = { Text("Gerar material com o Estudário") }, leadingIcon = { br.com.estudario.ui.assistant.Folha(28.dp) }, onClick = { menuOpen = false; showContentPrompt = true })
                             DropdownMenuItem(text = { Text("Prioridade deste tópico") }, leadingIcon = { Icon(Icons.Outlined.Flag, null) }, onClick = { menuOpen = false; showPriority = true })
                             DropdownMenuItem(
                                 text = { Text(if (queueItem == null) "Adicionar à fila" else "Já está na fila") },
@@ -783,7 +783,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                         else "O Estudário compara com as $subjectQuestionCount questões que você já tem nesta matéria para não repetir.",
                     ) {
                         OutlinedButton(onClick = { showAdditionalQuestionPrompt = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                            Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Gerar com o Estudário")
+                            br.com.estudario.ui.assistant.Folha(26.dp); Spacer(Modifier.width(8.dp)); Text("Gerar com o Estudário")
                         }
                     }
                 }

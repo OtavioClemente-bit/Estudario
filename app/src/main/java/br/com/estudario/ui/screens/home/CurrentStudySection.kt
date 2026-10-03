@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
@@ -93,7 +94,26 @@ private fun Eyebrow(text: String) {
 private fun ReadyBody(state: CurrentStudyUiState.Ready, onStart: () -> Unit, onGenerate: (() -> Unit)?, generateModifier: Modifier) {
     val task = state.task
     Column(verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.medium)) {
-        Eyebrow(if (state.progressFraction != null) "Continuando" else "Agora")
+        // O Folha em cima do estudo de agora, chamando para começar; tocar nele já começa.
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Eyebrow(if (state.progressFraction != null) "Continuando" else "Agora")
+                Text(
+                    when {
+                        onGenerate != null -> "Vamos preparar o material deste tópico?"
+                        state.progressFraction != null -> "Bora terminar o que começamos?"
+                        else -> "Bora? Seu próximo estudo está aqui."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp, bottomStart = 14.dp, bottomEnd = 4.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
+            br.com.estudario.ui.assistant.FolhaTalking(72.dp, "Bora? Seu próximo estudo está aqui.", onClick = onGenerate ?: onStart)
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
             SubjectBar(task.subjectName, height = 48.dp)
             Column(
@@ -146,7 +166,7 @@ private fun ReadyBody(state: CurrentStudyUiState.Ready, onStart: () -> Unit, onG
                 modifier = generateModifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
             ) {
-                Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(18.dp))
+                br.com.estudario.ui.assistant.Folha(26.dp)
                 Spacer(Modifier.width(8.dp))
                 Text("Gerar o material deste tópico", style = MaterialTheme.typography.labelLarge)
             }
