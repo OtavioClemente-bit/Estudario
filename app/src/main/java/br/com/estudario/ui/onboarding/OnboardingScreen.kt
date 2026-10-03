@@ -37,6 +37,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Autorenew
+import androidx.compose.material.icons.outlined.Bedtime
+import androidx.compose.material.icons.outlined.EventAvailable
+import androidx.compose.material.icons.outlined.Quiz
+import androidx.compose.material.icons.outlined.Replay
+import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.LocalFireDepartment
@@ -87,8 +93,12 @@ private data class OnboardingPage(val eyebrow: String, val title: String, val bo
 
 private val pages = listOf(
     OnboardingPage("Seu edital", "Seu edital vira\num plano de estudo", "Envie o PDF e o Estudário organiza as matérias e monta o caminho até a prova."),
-    OnboardingPage("Estudário IA", "Teoria, flashcards\ne questões para você", "Cada tópico vira material completo, com questões no estilo da banca e fonte conferida."),
-    OnboardingPage("Sua evolução", "Estude todo dia e\nveja a aprovação chegar", "Revisões no momento certo, sequência de dias e o seu domínio crescendo a cada sessão."),
+    OnboardingPage("Assistente", "Teoria, flashcards\ne questões para você", "Cada tópico vira material completo, com questões no estilo da banca e fonte conferida."),
+    OnboardingPage("Plano de estudo", "Você abre o app e\njá sabe o que estudar", "O plano diz a matéria, a atividade e o tempo de cada dia, e se ajusta sozinho quando a rotina muda."),
+    OnboardingPage("Revisões", "Revise no momento\ncerto, antes de esquecer", "O conteúdo volta em 1, 7 e 30 dias, quando a memória começa a falhar. É assim que ele fica."),
+    OnboardingPage("Treino", "Questões, simulados e\num caderno de erros", "Simulado com tempo de prova, nota na hora, e cada erro volta para você até virar acerto."),
+    OnboardingPage("Modo foco", "Celular silencioso,\ncabeça no estudo", "Um toque e o app liga o Não Perturbe, mantém a tela acesa e conta o seu tempo real de estudo."),
+    OnboardingPage("Sua evolução", "Estude todo dia e\nveja a aprovação chegar", "Sequência de dias, emblemas e o seu domínio do edital crescendo a cada sessão."),
 )
 
 private val Indigo = Color(0xFF4F46E5)
@@ -125,6 +135,10 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                             when (index) {
                                 0 -> EditalScene(active)
                                 1 -> MaterialScene(active)
+                                2 -> PlanScene(active)
+                                3 -> ReviewScene(active)
+                                4 -> TrainScene(active)
+                                5 -> FocusScene(active)
                                 else -> ProgressScene(active)
                             }
                         }
@@ -470,6 +484,283 @@ private fun WeekCard(active: Boolean) {
                     Box(Modifier.size(22.dp).clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
                         if (on) Icon(Icons.Outlined.Check, null, Modifier.size(13.dp), tint = Color.White)
                         else Text(day, style = MaterialTheme.typography.labelSmall, color = Color(0xFF9CA3AF))
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- cena: o plano do dia
+
+@Composable
+private fun PlanScene(active: Boolean) {
+    Box(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 16.dp), contentAlignment = Alignment.Center) {
+        Entrance(active, 0) { TodayCard(active) }
+        Box(Modifier.align(Alignment.TopEnd).offset(x = (-2).dp, y = 10.dp)) {
+            Entrance(active, 1) {
+                SceneCard(Modifier.floating(8)) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.EventAvailable, null, Modifier.size(20.dp), tint = Indigo)
+                        Spacer(Modifier.width(6.dp))
+                        Column {
+                            Text("Prova em", style = MaterialTheme.typography.labelSmall, color = Color(0xFF6B7280))
+                            Text("87 dias", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = Color(0xFF111827))
+                        }
+                    }
+                }
+            }
+        }
+        Box(Modifier.align(Alignment.BottomStart).offset(x = 2.dp, y = (-4).dp)) {
+            Entrance(active, 3) {
+                Row(
+                    Modifier.floating(9).shadow(10.dp, RoundedCornerShape(50)).clip(RoundedCornerShape(50)).background(Mint).padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Outlined.Autorenew, null, Modifier.size(16.dp), tint = Color(0xFF064E3B))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Replanejado sozinho", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = Color(0xFF064E3B))
+                }
+            }
+        }
+    }
+}
+
+/** O dia do plano: as tarefas vão sendo concluídas uma a uma, e a barra do dia enche junto. */
+@Composable
+private fun TodayCard(active: Boolean) {
+    var done by remember { mutableStateOf(0) }
+    LaunchedEffect(active) {
+        done = 0
+        while (active) { delay(900); done = (done + 1) % 4; if (done == 0) delay(600) }
+    }
+    val tasks = listOf(
+        Triple("Teoria · Lei 8.112", "50 min", Indigo),
+        Triple("Questões · Português", "30 min", Color(0xFFDB2777)),
+        Triple("Revisão · Crase", "15 min", Color(0xFF0EA5E9)),
+    )
+    val dayFill by animateFloatAsState(done / 3f, tween(500), label = "day")
+    SceneCard(Modifier.width(240.dp).floating(10, amplitude = 4.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Hoje", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color(0xFF111827))
+                Spacer(Modifier.weight(1f))
+                Text("1h35", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = Indigo)
+            }
+            Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)).background(Color(0xFFEEF2FF))) {
+                Box(Modifier.fillMaxWidth(dayFill).fillMaxHeight().clip(RoundedCornerShape(50)).background(Brush.horizontalGradient(listOf(Indigo, Violet))))
+            }
+            tasks.forEachIndexed { i, (title, time, color) ->
+                val checked = i < done
+                val box by animateColorAsState(if (checked) Mint else Color.Transparent, tween(250), label = "task$i")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.width(4.dp).height(30.dp).clip(RoundedCornerShape(50)).background(color))
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = if (checked) Color(0xFF9CA3AF) else Color(0xFF111827))
+                        Text(time, style = MaterialTheme.typography.labelSmall, color = Color(0xFF6B7280))
+                    }
+                    Box(
+                        Modifier.size(22.dp).clip(CircleShape).background(box).then(if (checked) Modifier else Modifier.background(Color(0xFFF1F5F9))),
+                        contentAlignment = Alignment.Center,
+                    ) { if (checked) Icon(Icons.Outlined.Check, null, Modifier.size(14.dp), tint = Color.White) }
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- cena: revisões espaçadas
+
+@Composable
+private fun ReviewScene(active: Boolean) {
+    Box(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 16.dp), contentAlignment = Alignment.Center) {
+        Entrance(active, 0) { MemoryCurveCard(active) }
+        Box(Modifier.align(Alignment.TopStart).offset(x = 4.dp, y = 6.dp)) {
+            Entrance(active, 2) {
+                SceneCard(Modifier.floating(11)) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Replay, null, Modifier.size(20.dp), tint = Color(0xFF0EA5E9))
+                        Spacer(Modifier.width(6.dp))
+                        Text("3 revisões hoje", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = Color(0xFF111827))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A curva do esquecimento: a lembrança cai com o tempo e cada revisão a devolve ao topo, caindo
+ * cada vez mais devagar. A linha é desenhada da esquerda para a direita quando a página entra.
+ */
+@Composable
+private fun MemoryCurveCard(active: Boolean) {
+    var go by remember { mutableStateOf(false) }
+    LaunchedEffect(active) { if (active) { delay(300); go = true } else go = false }
+    val draw by animateFloatAsState(if (go) 1f else 0f, tween(2200, easing = LinearEasing), label = "curve")
+    val reviews = listOf(0.22f to "D+1", 0.5f to "D+7", 0.82f to "D+30")
+    SceneCard(Modifier.width(270.dp).floating(12, amplitude = 4.dp)) {
+        Column(Modifier.padding(16.dp)) {
+            Text("Quanto você lembra", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = Color(0xFF111827))
+            Spacer(Modifier.height(10.dp))
+            Canvas(Modifier.fillMaxWidth().height(110.dp)) {
+                val w = size.width
+                val h = size.height
+                // Linhas de grade discretas.
+                repeat(3) { i -> drawLine(Color(0xFFF1F5F9), androidx.compose.ui.geometry.Offset(0f, h * (i + 1) / 4f), androidx.compose.ui.geometry.Offset(w, h * (i + 1) / 4f), 2f) }
+                // Lembrança em cada x: decai desde a última revisão, mais devagar depois de cada uma.
+                fun memory(x: Float): Float {
+                    var last = 0f
+                    var rate = 6f
+                    reviews.forEach { (rx, _) -> if (x >= rx) { last = rx; rate /= 2.4f } }
+                    return kotlin.math.exp(-(x - last) * rate)
+                }
+                val path = androidx.compose.ui.graphics.Path()
+                val steps = 120
+                val until = (steps * draw).toInt()
+                for (s in 0..until) {
+                    val x = s / steps.toFloat()
+                    val y = h - memory(x) * (h - 8.dp.toPx()) - 4.dp.toPx()
+                    if (s == 0) path.moveTo(x * w, y) else path.lineTo(x * w, y)
+                }
+                drawPath(path, Brush.horizontalGradient(listOf(Color(0xFFF43F5E), Indigo, Mint)), style = Stroke(4.dp.toPx(), cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                reviews.forEach { (rx, _) ->
+                    if (draw >= rx) {
+                        val c = androidx.compose.ui.geometry.Offset(rx * w, 4.dp.toPx() + 0f)
+                        drawCircle(Color.White, 7.dp.toPx(), c)
+                        drawCircle(Mint, 5.dp.toPx(), c)
+                    }
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Box(Modifier.fillMaxWidth()) {
+                reviews.forEach { (rx, label) ->
+                    val shown = draw >= rx
+                    val alpha by animateFloatAsState(if (shown) 1f else 0f, tween(300), label = label)
+                    Box(Modifier.fillMaxWidth(rx).graphicsLayer { this.alpha = alpha }, contentAlignment = Alignment.CenterEnd) {
+                        Text(label, Modifier.offset(x = 14.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color(0xFF059669))
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- cena: treino e simulado
+
+@Composable
+private fun TrainScene(active: Boolean) {
+    Box(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 16.dp)) {
+        Box(Modifier.align(Alignment.TopStart).offset(x = 2.dp, y = 6.dp)) { Entrance(active, 0) { SimuladoCard(active) } }
+        Box(Modifier.align(Alignment.BottomEnd).offset(x = (-2).dp, y = (-8).dp)) { Entrance(active, 2) { ErrorBackCard() } }
+    }
+}
+
+@Composable
+private fun SimuladoCard(active: Boolean) {
+    var seconds by remember { mutableStateOf(5_000) }
+    LaunchedEffect(active) { while (active) { delay(1000); seconds -= 1 } }
+    var go by remember { mutableStateOf(false) }
+    LaunchedEffect(active) { if (active) { delay(500); go = true } else go = false }
+    val score by animateFloatAsState(if (go) 0.8f else 0f, tween(1400, easing = FastOutSlowInEasing), label = "score")
+    SceneCard(Modifier.width(220.dp).rotate(-3f).floating(13)) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Chip(Icons.Outlined.Quiz, "Simulado", Color(0xFFDB2777))
+                Spacer(Modifier.weight(1f))
+                Icon(Icons.Outlined.Timer, null, Modifier.size(15.dp), tint = Color(0xFF6B7280))
+                Spacer(Modifier.width(3.dp))
+                Text(
+                    "%02d:%02d:%02d".format(seconds / 3600, seconds % 3600 / 60, seconds % 60),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF374151),
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(78.dp), contentAlignment = Alignment.Center) {
+                    Canvas(Modifier.size(78.dp)) {
+                        drawArc(Color(0xFFFCE7F3), 0f, 360f, false, style = Stroke(9.dp.toPx()))
+                        rotate(-90f) { drawArc(Brush.sweepGradient(0f to Color(0xFFDB2777), 0.8f to Violet, 1f to Color(0xFFDB2777)), 0f, 360f * score, false, style = Stroke(9.dp.toPx(), cap = StrokeCap.Round)) }
+                    }
+                    Text("${(score * 10).toInt()}/10", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color(0xFF111827))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text("Acertos", style = MaterialTheme.typography.labelSmall, color = Color(0xFF6B7280))
+                    Text("Acima da média", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = Color(0xFF059669))
+                    Spacer(Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        repeat(10) { i -> Box(Modifier.size(width = 7.dp, height = 14.dp).clip(RoundedCornerShape(3.dp)).background(if (i < (score * 10).toInt()) Mint else Color(0xFFFCA5A5))) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** O caderno de erros devolvendo a questão errada: ela vai e volta, até virar acerto. */
+@Composable
+private fun ErrorBackCard() {
+    val t = rememberInfiniteTransition(label = "errorBack")
+    val spin by t.animateFloat(0f, -360f, infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing)), label = "spin")
+    SceneCard(Modifier.width(210.dp).rotate(3f).floating(14)) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFFFF7ED)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.Replay, null, Modifier.size(24.dp).graphicsLayer { rotationZ = spin }, tint = Color(0xFFF97316))
+            }
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Text("Caderno de erros", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = Color(0xFF111827))
+                Text("Essa questão volta\nem 3 dias", style = MaterialTheme.typography.labelSmall, color = Color(0xFF6B7280))
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- cena: modo foco
+
+@Composable
+private fun FocusScene(active: Boolean) {
+    var left by remember { mutableStateOf(25 * 60) }
+    LaunchedEffect(active) { left = 25 * 60; while (active) { delay(1000); left = if (left > 0) left - 1 else 25 * 60 } }
+    var dnd by remember { mutableStateOf(false) }
+    LaunchedEffect(active) { dnd = false; if (active) { delay(900); dnd = true } }
+    Box(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 16.dp), contentAlignment = Alignment.Center) {
+        Entrance(active, 0) {
+            Box(Modifier.size(180.dp).floating(15, amplitude = 4.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(180.dp).shadow(22.dp, CircleShape).clip(CircleShape).background(Color(0xFF1E1B4B)))
+                Canvas(Modifier.size(150.dp)) {
+                    drawArc(Color.White.copy(alpha = 0.1f), 0f, 360f, false, style = Stroke(10.dp.toPx()))
+                    rotate(-90f) { drawArc(Brush.sweepGradient(0f to Violet, 0.6f to Indigo, 1f to Violet), 0f, 360f * left / (25 * 60f), false, style = Stroke(10.dp.toPx(), cap = StrokeCap.Round)) }
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("%02d:%02d".format(left / 60, left % 60), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black, color = Color.White)
+                    Text("Direito Constitucional", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
+                }
+            }
+        }
+        Box(Modifier.align(Alignment.TopStart).offset(x = 2.dp, y = 8.dp)) {
+            Entrance(active, 1) {
+                val bg by animateColorAsState(if (dnd) Color.White else Color.White.copy(alpha = 0.5f), tween(400), label = "dnd")
+                Row(
+                    Modifier.floating(16).shadow(10.dp, RoundedCornerShape(50)).clip(RoundedCornerShape(50)).background(bg).padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Outlined.Bedtime, null, Modifier.size(16.dp), tint = Indigo)
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (dnd) "Não perturbe ligado" else "Ligando…", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = Color(0xFF111827))
+                }
+            }
+        }
+        Box(Modifier.align(Alignment.BottomEnd).offset(x = (-2).dp, y = (-8).dp)) {
+            Entrance(active, 2) {
+                SceneCard(Modifier.floating(17)) {
+                    Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                        Text("Hoje", style = MaterialTheme.typography.labelSmall, color = Color(0xFF6B7280))
+                        Text("2h10 de foco", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = Color(0xFF111827))
                     }
                 }
             }

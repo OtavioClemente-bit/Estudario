@@ -258,7 +258,7 @@ private fun Hero(currentTier: String?, renewsAt: String?, onDismiss: () -> Unit)
                     Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(16.dp), tint = Color.White)
                         Spacer(Modifier.width(6.dp))
-                        Text("Estudário IA", style = MaterialTheme.typography.labelLarge, color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Assistente Estudário", style = MaterialTheme.typography.labelLarge, color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
                 Spacer(Modifier.weight(1f))
