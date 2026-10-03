@@ -170,6 +170,11 @@ export interface SyllabusWorkerStore {
   cachedContent?(key: string, promptVersion: string, userId: string, maxAgeDays: number): Promise<Record<string, unknown> | null>;
   storeContent?(key: string, promptVersion: string, userId: string, jobId: string, proposal: Record<string, unknown>): Promise<void>;
   markServed?(key: string, userId: string): Promise<void>;
+  wasServed?(key: string, userId: string): Promise<boolean>;
+  /** Biblioteca de matérias prontas: matéria do primeiro apelido que bater e o recorte da banca. */
+  libraryLookup?(aliases: string[], boardNorm: string, roleNorm: string): Promise<LibraryHit | null>;
+  recordLibraryHit?(topicId: string): Promise<void>;
+  recordLibraryMiss?(miss: LibraryMiss): Promise<void>;
   recordQuestionDrops?(jobId: string, drops: QuestionDrop[]): Promise<void>;
   /** Revisão já concluída deste job (nova tentativa não paga o revisor de novo). */
   completedReviewId?(jobId: string): Promise<string | null>;
@@ -215,6 +220,22 @@ export interface SyllabusWorkerDependencies {
   specForJob?: (job: SyllabusWorkerJob) => AiJobSpec;
   /** Modelo por recurso; sem ele, vale [model]. */
   modelForJob?: (job: SyllabusWorkerJob) => string | undefined;
+}
+
+export interface LibraryHit {
+  topicId: string;
+  version: number;
+  material: Record<string, unknown>;
+  note: Record<string, unknown> | null;
+}
+
+export interface LibraryMiss {
+  subject: string;
+  topic: string;
+  board: string | null;
+  subjectNorm: string;
+  topicNorm: string;
+  boardNorm: string;
 }
 
 /** O que o worker finaliza: qualquer proposta versionada com seus avisos. */
@@ -1309,6 +1330,44 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
       method: "POST",
       headers: { prefer: "resolution=ignore-duplicates,return=minimal" },
       body: JSON.stringify({ cache_key: key, user_id: userId }),
+    });
+    await response.body?.cancel().catch(() => {});
+  }
+  async wasServed(key: string, userId: string): Promise<boolean> {
+    const response = await this.rest(
+      `ai_content_cache_served?select=cache_key&cache_key=eq.${encodeURIComponent(key)}&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
+    );
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {});
+      return false;
+    }
+    return ((await response.json()) as unknown[]).length > 0;
+  }
+  async libraryLookup(aliases: string[], boardNorm: string, roleNorm: string): Promise<LibraryHit | null> {
+    if (aliases.length === 0) return null;
+    const response = await this.rest("rpc/library_lookup", {
+      method: "POST",
+      body: JSON.stringify({ p_aliases: aliases, p_board: boardNorm, p_role: roleNorm }),
+    });
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {});
+      return null;
+    }
+    const rows = await response.json() as Array<{ topic_id: string; version: number; material: Record<string, unknown>; note: Record<string, unknown> | null }>;
+    const row = rows[0];
+    return row ? { topicId: row.topic_id, version: row.version, material: row.material, note: row.note ?? null } : null;
+  }
+  async recordLibraryHit(topicId: string): Promise<void> {
+    const response = await this.rest("rpc/library_record_hit", { method: "POST", body: JSON.stringify({ p_topic_id: topicId }) });
+    await response.body?.cancel().catch(() => {});
+  }
+  async recordLibraryMiss(miss: LibraryMiss): Promise<void> {
+    const response = await this.rest("rpc/library_record_miss", {
+      method: "POST",
+      body: JSON.stringify({
+        p_subject: miss.subject, p_topic: miss.topic, p_board: miss.board,
+        p_subject_norm: miss.subjectNorm, p_topic_norm: miss.topicNorm, p_board_norm: miss.boardNorm,
+      }),
     });
     await response.body?.cancel().catch(() => {});
   }

@@ -25,6 +25,7 @@ import { type ExpectedVersions, validateStudyPlan, validateTopicContent } from "
 import { applyReview, type ContentReview, runContentReview } from "./content-review.ts";
 import { resolveOpenAiModel } from "./openai-provider.ts";
 import { CACHE_MAX_AGE_DAYS, contentCacheKey } from "./content-cache.ts";
+import { assembleFromLibrary, lookupAliases, normalizeAlias, normalizeBoard } from "./library.ts";
 import { type DropReason, hasDraftExplanation, repairTopicContent } from "./content-repair.ts";
 import type { QuestionDrop } from "../ai-syllabus-worker/index.ts";
 import { runQuestionTopUp } from "./question-topup.ts";
@@ -74,8 +75,10 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
   },
   cached: async (job, dependencies) => {
     const store = dependencies.jobs;
-    if (!store.cachedContent || !store.markServed) return null;
     const input = inputOf<ContentJobInput>(job, parseContentJobInput);
+    const fromLibrary = await libraryContent(job, input, dependencies).catch(() => null);
+    if (fromLibrary) return fromLibrary;
+    if (!store.cachedContent || !store.markServed) return null;
     // Pedido de "mais questões" depende do que a pessoa já tem: nunca vem do material guardado.
     if (input.avoidStatements.length > 0) return null;
     const key = await contentCacheKey(input);
@@ -94,6 +97,43 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
     return result;
   },
 };
+
+/**
+ * Material montado da biblioteca de matérias prontas (sem custo de IA). "Mais questões" também sai
+ * daqui, sem repetir as que a pessoa já tem. Quem já recebeu o mesmo pedido e pede de novo quer
+ * outro material: segue para a IA. Tópico que não está na biblioteca entra na fila do que gerar.
+ */
+async function libraryContent(
+  job: SyllabusWorkerJob,
+  input: ContentJobInput,
+  dependencies: Parameters<NonNullable<AiJobSpec["cached"]>>[1],
+): Promise<WorkerProposal | null> {
+  const store = dependencies.jobs;
+  if (!store.libraryLookup) return null;
+  const aliases = lookupAliases(input);
+  const found = await store.libraryLookup(aliases, normalizeBoard(input.board), normalizeAlias(input.role));
+  if (!found) {
+    if (input.avoidStatements.length === 0) {
+      await store.recordLibraryMiss?.({
+        subject: input.subjectName,
+        topic: input.topicPath.join(" › "),
+        board: input.board,
+        subjectNorm: normalizeAlias(input.subjectName),
+        topicNorm: aliases[0] ?? "",
+        boardNorm: normalizeBoard(input.board),
+      }).catch(() => undefined);
+    }
+    return null;
+  }
+  const fresh = input.avoidStatements.length === 0;
+  const servedKey = `lib:${found.topicId}@${found.version}:${await contentCacheKey(input)}`;
+  if (fresh && await store.wasServed?.(servedKey, job.userId)) return null;
+  const content = assembleFromLibrary(found.material, found.note, input, `${job.id}:${job.userId}`);
+  if (!content) return null;
+  if (fresh) await store.markServed?.(servedKey, job.userId).catch(() => undefined);
+  await store.recordLibraryHit?.(found.topicId).catch(() => undefined);
+  return content as unknown as WorkerProposal;
+}
 
 async function validateContent(
   raw: string,
