@@ -61,6 +61,11 @@ class MainActivity : ComponentActivity() {
                 androidx.compose.runtime.withFrameNanos { }
                 mountApp = true
             }
+            // Vitrine do Folha (só debug/preview): `--ez folhaShowcase true`, para ver todos os humores sem login.
+            if (BuildConfig.DEBUG && intent?.getBooleanExtra("folhaShowcase", false) == true) {
+                br.com.estudario.ui.assistant.FolhaShowcase()
+                return@setContent
+            }
             Box(Modifier.fillMaxSize()) {
                 if (mountApp) EstudarioApp(viewModel)
                 if (showSplash) BrandSplash(ready = onboarding != null && tours != null, onFinished = { showSplash = false })
