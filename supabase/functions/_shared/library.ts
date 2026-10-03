@@ -240,6 +240,42 @@ export function validateLibraryMaterial(material: Json): Json {
   if (multiple >= 10 && extremes.shortest > multiple * 0.4) {
     c.fail(`questions: a alternativa certa é a mais curta em ${extremes.shortest} de ${multiple} (máximo 40%); equilibre o tamanho das alternativas`);
   }
+  // Rabicho de molde: a mesma expressão colada no fim de muitas alternativas ("…, no contexto do
+  // relato") só serve para igualar tamanho e vira pista (a certa costuma ser a que não tem).
+  const tails = new Map<string, number>();
+  let optionCount = 0;
+  questions.forEach((q) => {
+    ((q.options as Json[] | undefined) ?? []).forEach((o) => {
+      optionCount++;
+      const text = String(o.text ?? "").trim().replace(/[.;!?]+$/, "");
+      const comma = text.lastIndexOf(",");
+      if (comma < 0) return;
+      const tail = text.slice(comma + 1).trim().toLowerCase();
+      if (tail.length >= 12 && tail.split(/\s+/).length >= 3) tails.set(tail, (tails.get(tail) ?? 0) + 1);
+    });
+  });
+  for (const [tail, total] of tails) {
+    if (total > Math.max(4, optionCount * 0.03)) {
+      c.fail(`questions: ${total} alternativas terminam em ", ${tail}"; tire o rabicho de molde e iguale o tamanho com conteúdo`);
+    }
+  }
+  // Pergunta de verdade varia: a mesma última linha de enunciado em quase todas é molde.
+  const asks = new Map<string, number>();
+  questions.forEach((q) => {
+    const ask = String(q.statement ?? "").trim().split("\n").pop()!.replace(/^\d+[.)]\s*/, "").trim().toLowerCase();
+    if (ask.length >= 20) asks.set(ask, (asks.get(ask) ?? 0) + 1);
+  });
+  for (const [ask, total] of asks) {
+    if (questions.length >= 20 && total > questions.length * 0.2) {
+      c.fail(`questions: a pergunta "${ask.slice(0, 80)}" aparece em ${total} questões; varie o que se pergunta (inferência, sentido no contexto, referência, reescrita…)`);
+    }
+  }
+  // Troca automática de palavra deixa frase quebrada ("qualquer o desmatamento").
+  const garbled = /\bqualquer\s+(o|a|os|as)\b/i;
+  questions.forEach((q, index) => {
+    const texts = [q.statement, q.explanation, ...((q.options as Json[] | undefined) ?? []).map((o) => o.text)];
+    if (texts.some((t) => garbled.test(String(t ?? "")))) c.fail(`questions[${index}]: frase quebrada com "qualquer o/a"; revise o texto`);
+  });
   // Explicação de verdade fala da questão: a mesma frase colada em muitas é texto de molde.
   const sentences = new Map<string, number>();
   questions.forEach((q) => {

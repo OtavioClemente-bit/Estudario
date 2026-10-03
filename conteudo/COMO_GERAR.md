@@ -54,6 +54,14 @@ Assim, quem estuda para bombeiro recebe a matéria canônica mais o recorte **de
 - **Sem pista no tamanho.** A alternativa certa não pode ser quase sempre a mais longa (nem a mais
   curta). Escreva as alternativas com tamanho parecido; o conferidor recusa se a certa for a mais
   longa ou a mais curta em mais de 40% das questões.
+- **Nada de rabicho de molde nas alternativas.** Não cole a mesma expressão no fim de várias
+  alternativas para igualar tamanho (", no contexto do relato", ", segundo a passagem
+  apresentada"…). Iguale o tamanho com conteúdo de verdade. O conferidor recusa a expressão final
+  que se repetir em mais de 4 alternativas (ou 3% delas).
+- **Varie a pergunta.** A mesma pergunta ("Qual síntese preserva a ideia central…") em mais de 20%
+  das questões é recusada.
+- **Revise o português depois de qualquer troca automática.** Frase quebrada como "qualquer o
+  desmatamento" é recusada.
 - **Explicação própria em cada questão.** Nada de frase de molde colada em todas ("A alternativa
   indicada é a única compatível…"). O conferidor recusa a frase que se repetir em mais de 15% das
   explicações.
