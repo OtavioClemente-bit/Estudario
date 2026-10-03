@@ -270,6 +270,14 @@ export function validateLibraryMaterial(material: Json): Json {
       c.fail(`questions: a pergunta "${ask.slice(0, 80)}" aparece em ${total} questões; varie o que se pergunta (inferência, sentido no contexto, referência, reescrita…)`);
     }
   }
+  // Explicação que só repete o item (e ainda o põe entre aspas como se fosse do texto) não explica
+  // nada e esconde gabarito errado.
+  questions.forEach((q, index) => {
+    const item = String(q.statement ?? "").trim().split("\n").pop()!.replace(/^\d+[.)]\s*/, "").trim();
+    if (item.length >= 30 && String(q.explanation ?? "").includes(item)) {
+      c.fail(`questions[${index}]: a explicação copia o próprio item; diga com o texto-base por que ele está certo ou errado`);
+    }
+  });
   // Troca automática de palavra deixa frase quebrada ("qualquer o desmatamento").
   const garbled = /\bqualquer\s+(o|a|os|as)\b/i;
   questions.forEach((q, index) => {
