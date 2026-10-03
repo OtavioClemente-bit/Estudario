@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
@@ -202,6 +203,7 @@ private fun DrawScope.drawFolha(t: Float, mood: FolhaMood, blink: Float, look: O
                     drawArms(t, mood)
                     drawBook(t, mood)
                     drawPageLines(t, mood)
+                    if (mood == FolhaMood.THINKING) drawTurningPage(t)
                     drawFace(t, mood, blink, look, wink, gulp)
                     drawCap(t, tilt)
                 }
@@ -255,6 +257,15 @@ private fun DrawScope.drawBook(t: Float, mood: FolhaMood) {
     drawPath(cover, Brush.verticalGradient(listOf(Color(0xFF5247E0), Color(0xFF3A2FC4), Color(0xFF2A209E)), startY = 41f, endY = 93f))
     // Brilho de tecido da capa, vindo da luz de cima à esquerda.
     drawPath(cover, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.14f), Color.Transparent), start = Offset(8f, 44f), end = Offset(40f, 70f)))
+    // Trama de linho da capa: dois fios cruzados, quase invisíveis, que pegam a luz.
+    clipPath(cover) {
+        var x = -50f
+        while (x < 100f) {
+            drawLine(Color.White.copy(alpha = 0.045f), Offset(x, 40f), Offset(x + 54f, 95f), 0.3f)
+            drawLine(Color.Black.copy(alpha = 0.06f), Offset(x + 54f, 40f), Offset(x, 95f), 0.3f)
+            x += 1.5f
+        }
+    }
 
     // A fita sai de baixo do bloco de folhas e dobra sobre a borda da capa.
     drawRibbon(t, mood)
@@ -292,6 +303,11 @@ private fun DrawScope.drawBook(t: Float, mood: FolhaMood) {
     )
     drawPath(left, Brush.horizontalGradient(*gutterStops, startX = 39f, endX = 50f))
     drawPath(right, Brush.horizontalGradient(*gutterStops, startX = 61f, endX = 50f))
+    // Grão do papel: fibras e pontinhos fixos, como em folha de verdade.
+    for (s in PaperGrain) {
+        if (s.long) drawLine(Color(0xFF9A8F7A).copy(alpha = s.alpha), Offset(s.x, s.y), Offset(s.x + 1.4f, s.y + 0.3f), 0.18f, StrokeCap.Round)
+        else drawCircle(Color(0xFF9A8F7A).copy(alpha = s.alpha), s.r, Offset(s.x, s.y))
+    }
     // Leve queda de luz nas bordas externas, onde a página desce.
     drawPath(left, Brush.horizontalGradient(listOf(Gutter.copy(alpha = 0.06f), Color.Transparent), startX = 12f, endX = 17f))
     drawPath(right, Brush.horizontalGradient(listOf(Color.Transparent, Gutter.copy(alpha = 0.08f)), startX = 83f, endX = 88f))
@@ -307,12 +323,91 @@ private fun DrawScope.drawBook(t: Float, mood: FolhaMood) {
     }
 }
 
+private class Grain(val x: Float, val y: Float, val r: Float, val alpha: Float, val long: Boolean)
+
+/** Sempre os mesmos grãos (semente fixa), longe da costura e das bordas das páginas. */
+private val PaperGrain: List<Grain> = Random(7).let { rnd ->
+    List(80) {
+        val side = if (it % 2 == 0) -1f else 1f
+        Grain(
+            x = 50f + side * (3f + rnd.nextFloat() * 32f),
+            y = 44f + rnd.nextFloat() * 36f,
+            r = 0.15f + rnd.nextFloat() * 0.22f,
+            alpha = 0.05f + rnd.nextFloat() * 0.08f,
+            long = rnd.nextInt(4) == 0,
+        )
+    }
+}
+
+/** Fatia do ciclo de "pensando" (2,4 s) em que a página vira; o resto é escrita. */
+private const val TurnShare = 0.32f
+
+/**
+ * Pensando, ele folheia: a página da direita descola da costura, sobe na nossa direção, passa
+ * por cima e deita na esquerda. Ela vira em volta da lombada (a largura vista é o cosseno do
+ * ângulo), levanta no meio do caminho, tem o verso um pouco mais escuro e joga sombra na
+ * página de baixo.
+ */
+private fun DrawScope.drawTurningPage(t: Float) {
+    val cycle = (t % 2.4f) / 2.4f
+    val raw = (cycle / TurnShare).coerceIn(0f, 1f)
+    if (raw <= 0f || raw >= 1f) return
+    val p = raw * raw * (3f - 2f * raw)
+    val ang = PI.toFloat() * p
+    val c = cos(ang)
+    val lift = sin(ang)
+    val edgeX = 50f + 38f * c
+    val w = edgeX - 50f
+    val up = lift * 6f
+    val dir = if (c >= 0f) 1f else -1f
+    val sheet = Path().apply {
+        moveTo(50f, 44f)
+        cubicTo(50f + w * 0.28f, 37.6f - up * 0.7f, 50f + w * 0.7f, 36.4f - up, edgeX, 40.4f - up * 0.8f)
+        // A borda solta enverga um pouco, como papel no ar.
+        quadraticTo(edgeX + dir * 2.2f * lift, 62f - up, edgeX, 84.4f - up * 0.8f)
+        cubicTo(50f + w * 0.7f, 80.6f - up, 50f + w * 0.28f, 81.4f - up * 0.5f, 50f, 87f)
+        close()
+    }
+    // Sombra na página de baixo: mais forte e mais larga quando a folha está em pé.
+    translate(dir * 2.5f * lift, 2.2f * lift) {
+        drawPath(sheet, Gutter.copy(alpha = 0.13f * lift))
+    }
+    val front = c >= 0f
+    val facing = abs(c)
+    val base = if (front) Paper else Color(0xFFF2EEE6)
+    if (abs(w) > 0.6f) {
+        drawPath(
+            sheet,
+            Brush.horizontalGradient(
+                listOf(
+                    androidx.compose.ui.graphics.lerp(base, Gutter, 0.16f + 0.1f * lift),
+                    androidx.compose.ui.graphics.lerp(base, Gutter, 0.05f * (1f - facing)),
+                    androidx.compose.ui.graphics.lerp(base, Color.White, 0.5f * facing),
+                ),
+                startX = 50f, endX = edgeX,
+            ),
+        )
+        // O texto que estava escrito vai junto, achatado pela perspectiva (só na frente).
+        if (front) {
+            val ink = PageLine.copy(alpha = facing)
+            for ((y, len) in listOf(45f to 0.5f, 49f to 0.7f, 79.5f to 0.45f)) {
+                val yy = y - up * 0.85f
+                drawLine(ink, Offset(50f + w * 0.88f, yy), Offset(50f + w * (0.88f - len), yy + 1.5f * (len - 0.4f)), 1.6f * (0.5f + 0.5f * facing), StrokeCap.Round)
+            }
+        }
+    }
+    // Fio de luz na borda solta.
+    drawLine(Color.White.copy(alpha = 0.8f), Offset(edgeX, 40.6f - up * 0.8f), Offset(edgeX + dir * 1.6f * lift, 62f - up), 0.45f, StrokeCap.Round)
+    drawPath(sheet, Gutter.copy(alpha = 0.18f), style = Stroke(0.25f))
+}
+
 /** Linhas de texto discretas nas páginas; pensando, elas vão sendo escritas. */
 private fun DrawScope.drawPageLines(t: Float, mood: FolhaMood) {
     val writing = mood == FolhaMood.THINKING
     val cycle = (t % 2.4f) / 2.4f
     fun line(x0: Float, y0: Float, len: Float, slope: Float, index: Int, mirror: Boolean) {
-        val p = if (!writing) 1f else ((cycle * 6f - index).coerceIn(0f, 1f))
+        // Primeiro a página vira (drawTurningPage), depois o texto novo vai sendo escrito.
+        val p = if (!writing) 1f else (((cycle - TurnShare) / (1f - TurnShare) * 6f - index).coerceIn(0f, 1f))
         if (p <= 0f) return
         val x1 = if (mirror) x0 - len * p else x0 + len * p
         drawLine(PageLine, Offset(x0, y0), Offset(x1, y0 + slope * len * p), 1.6f, StrokeCap.Round)
