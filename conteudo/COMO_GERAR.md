@@ -54,6 +54,13 @@ Assim, quem estuda para bombeiro recebe a matéria canônica mais o recorte **de
 - **Sem pista no tamanho.** A alternativa certa não pode ser quase sempre a mais longa (nem a mais
   curta). Escreva as alternativas com tamanho parecido; o conferidor recusa se a certa for a mais
   longa ou a mais curta em mais de 40% das questões.
+- **Escreva cada questão à mão, uma por uma.** É proibido usar script (Python, TS etc.) que monte
+  enunciados, alternativas, explicações ou itens Certo/Errado a partir de moldes, ou que "corrija"
+  o JSON em massa para passar no conferidor. Questão gerada por molde sai com distrator impossível
+  ("ao determinação", "a à proposta"), enunciado que entrega a resposta e duas alternativas certas.
+  Script só para tarefas mecânicas (validar, contar, formatar o JSON).
+- **Confira o gabarito lendo as cinco alternativas**: só uma pode servir, e todas precisam ser
+  frases que um candidato preparado consideraria.
 - **Nada de rabicho de molde nas alternativas.** Não cole a mesma expressão no fim de várias
   alternativas para igualar tamanho (", no contexto do relato", ", segundo a passagem
   apresentada"…). Iguale o tamanho com conteúdo de verdade. O conferidor recusa a expressão final
