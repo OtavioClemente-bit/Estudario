@@ -359,7 +359,8 @@ private fun MainNavigation(viewModel: AppViewModel) {
                 val hintPrefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
                 var drawerHintSeen by remember { mutableStateOf(hintPrefs.getBoolean("drawer_hint_seen", false)) }
                 LaunchedEffect(drawerState.isOpen) { if (drawerState.isOpen && !drawerHintSeen) { drawerHintSeen = true; hintPrefs.edit().putBoolean("drawer_hint_seen", true).apply() } }
-                if (!drawerHintSeen && currentRoute == "home" && tourStep == null) {
+                // O tour de boas-vindas já apresenta o menu: depois dele, esta dica não aparece.
+                if (!drawerHintSeen && currentRoute == "home" && tourStep == null && seenTours?.contains(TourId.WELCOME.name) != true) {
                     Surface(
                         onClick = { drawerScope.launch { drawerState.open() } },
                         shape = br.com.estudario.ui.theme.EstudarioShapes.row,

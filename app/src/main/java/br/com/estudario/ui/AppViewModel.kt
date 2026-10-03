@@ -778,7 +778,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val finishedImport = _transfer.value is TransferState.Success
         _transfer.value = TransferState.Idle
         // Primeiro edital importado: ensina a gerar o conteúdo das matérias.
-        if (finishedImport && pendingContentTour) { pendingContentTour = false; maybeStartTour(TourId.CONTENT) }
+        // O guia de conteúdo não abre mais sozinho: o de boas-vindas já termina apontando para gerar.
+        if (finishedImport && pendingContentTour) pendingContentTour = false
     }
 
     private fun launchCatching(block: suspend () -> Unit) = viewModelScope.launch {
