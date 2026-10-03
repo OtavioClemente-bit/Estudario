@@ -4,6 +4,9 @@ Leia `conteudo/COMO_GERAR.md` inteiro antes de começar. As matérias
 `portugues/interpretacao-textual.json` e `portugues/generos-textuais.json` são o **modelo de
 qualidade** aprovado: siga o padrão delas.
 
+> **Uma matéria por vez.** Se o pedido disser qual (ex.: "só crase"), faça só ela, com o recorte e
+> o vínculo no edital, rode o conferidor e entregue. As outras ficam para os próximos pedidos.
+
 ## O que criar
 
 Quatro matérias novas, cada uma com o recorte IDECAN e o tópico ligado no edital:
