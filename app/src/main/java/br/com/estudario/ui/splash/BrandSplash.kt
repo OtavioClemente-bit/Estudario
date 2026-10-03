@@ -335,3 +335,24 @@ private fun rightPage(x: (Float) -> Float, dy: Float, dx: Float) = Path().apply 
     quadraticTo(x(74f) + dx, 75.5f + dy, x(57f) + dx, 82f + dy)
     close()
 }
+
+/**
+ * O livro da abertura em tamanho livre, para outras telas da marca (entrada com a conta): monta-se
+ * uma vez (abre, escreve, marca o certo, a fita cai) e depois fica flutuando de leve.
+ */
+@Composable
+fun AnimatedBrandBook(size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
+    val open = remember { Animatable(0.2f) }
+    val lines = remember { Animatable(0f) }
+    val check = remember { Animatable(0f) }
+    val ribbon = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        open.animateTo(1f, tween(520, easing = Smooth))
+        launch { lines.animateTo(1f, tween(560, easing = LinearEasing)) }
+        launch { delay(260); check.animateTo(1f, tween(420, easing = Smooth)) }
+        launch { delay(380); ribbon.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow)) }
+    }
+    val infinite = rememberInfiniteTransition(label = "brand-book")
+    val breathe by infinite.animateFloat(0f, 1f, infiniteRepeatable(tween(2400, easing = Smooth), RepeatMode.Reverse), label = "breathe")
+    Canvas(modifier.size(size)) { drawRealisticBook(open.value, lines.value, check.value, ribbon.value, breathe) }
+}

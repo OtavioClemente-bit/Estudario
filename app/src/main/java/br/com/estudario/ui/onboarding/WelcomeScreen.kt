@@ -32,7 +32,7 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.graphics.Brush
-import br.com.estudario.ui.components.EstudarioGlyph
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
@@ -197,13 +197,16 @@ private fun WelcomeHero() {
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            // O mesmo livro da abertura: monta-se ao chegar e fica flutuando, com os anéis pulsando.
+            val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "welcome-rings").animateFloat(
+                0f, 1f,
+                androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(2400), androidx.compose.animation.core.RepeatMode.Reverse),
+                label = "pulse",
+            )
             Box(contentAlignment = Alignment.Center) {
-                Box(Modifier.size(168.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.06f)))
-                Box(Modifier.size(134.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.10f)))
-                Box(
-                    Modifier.size(100.dp).clip(RoundedCornerShape(30.dp)).background(Color.White),
-                    contentAlignment = Alignment.Center,
-                ) { EstudarioGlyph(size = 64.dp) }
+                Box(Modifier.size(176.dp + 10.dp * pulse).clip(CircleShape).background(Color.White.copy(alpha = 0.05f + 0.03f * pulse)))
+                Box(Modifier.size(140.dp + 6.dp * pulse).clip(CircleShape).background(Color.White.copy(alpha = 0.10f)))
+                br.com.estudario.ui.splash.AnimatedBrandBook(size = 132.dp)
             }
             Text(
                 "ESTUDÁRIO",
