@@ -780,4 +780,3 @@ private fun PageIndicator(count: Int, current: Int) {
         }
     }
 }
-
