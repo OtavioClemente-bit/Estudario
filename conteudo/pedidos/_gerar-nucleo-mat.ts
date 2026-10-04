@@ -18,7 +18,7 @@ const RULE = "- REGRAS DE MATEMÁTICA: teoria com fórmulas, propriedades e exem
 // Recursos visuais: o mesmo formato que o app desenha (copiado do prompt do servidor).
 const server = Deno.readTextFileSync("../supabase/functions/_shared/prompts/text-jobs-v1.ts");
 const VISUAIS = "━━ RECURSOS VISUAIS (o app desenha) ━━\n" +
-  server.slice(server.indexOf("Recursos visuais"), server.indexOf("\nRecorte:")).trim().replace(/^Recursos visuais[^\n]*\n/, "Use quando ajudarem a entender, não para enfeitar.\n") +
+  server.slice(server.indexOf("Recursos visuais"), server.indexOf("\nRecorte:")).trim().replace(/^Recursos visuais[^\n]*\n/, "Use quando ajudarem a entender, não para enfeitar.\n").replace("Fórmulas em LaTeX (regras abaixo).", "Fórmulas em LaTeX entre cifrões DUPLOS: na linha $$M = C(1 + i)^t$$; em bloco, $$ sozinho na linha antes e depois. Nunca use cifrão simples nem \\( \\) (o app confunde com R$); no JSON a barra do LaTeX vira \\\\ (\\\\frac). Valor em reais fica fora da fórmula, em texto (\"R$ 1.050,00\").") +
   '\n- No JSON, o bloco fica dentro da string (markdown, statement ou explanation) com \\n nas quebras e aspas internas escapadas: "texto\\n\\n```grafico\\n{\\"tipo\\":\\"barras\\", ...}\\n```\\n\\nmais texto".' +
   "\n- Em cada matéria: ao menos 1 gráfico ou figura por capítulo quando o assunto tem função, dado ou forma, e pelo menos 6 questões com gráfico, figura ou tabela no enunciado (em estatística e geometria, pelo menos 12). Confira que os números do desenho batem com o texto e com o gabarito.\n\n";
 
