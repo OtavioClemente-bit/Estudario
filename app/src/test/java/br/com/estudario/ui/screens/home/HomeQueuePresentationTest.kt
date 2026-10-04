@@ -10,7 +10,7 @@ import org.junit.Test
 class HomeQueuePresentationTest {
     @Test
     fun queueTopicIsShownAsCurrentBeforePlanTask() {
-        val queue = StudyTaskUi("queue:1", 1L, "Direito", "Constitucional", "Fila de estudos", "", "Abrir tópico", false)
+        val queue = StudyTaskUi("queue:1", 1L, "Direito", "Constitucional", "Próximo da sua fila", "", "Abrir tópico", false)
         val plan = StudyTaskUi("plan:1", 2L, "Português", "Concordância", "Plano", "30 min", "Continuar", true)
 
         assertEquals(queue, currentHomeTask(queue, plan))
@@ -25,7 +25,7 @@ class HomeQueuePresentationTest {
 
     @Test
     fun queueTopicCanBeCurrentWithoutAPlan() {
-        val queue = StudyTaskUi("queue:1", 1L, "Direito", "Constitucional", "Fila de estudos", "", "Abrir tópico", false)
+        val queue = StudyTaskUi("queue:1", 1L, "Direito", "Constitucional", "Próximo da sua fila", "", "Abrir tópico", false)
 
         assertEquals(queue, currentHomeTask(queueTask = queue, planTask = null))
     }
@@ -38,7 +38,7 @@ class HomeQueuePresentationTest {
         assertEquals("Direito", mapped.subjectName)
         assertEquals("Tópico 1", mapped.topicName)
         assertEquals(1L, mapped.topicId)
-        assertEquals("Fila de estudos", mapped.activityLabel)
+        assertEquals("Próximo da sua fila", mapped.activityLabel)
         assertEquals("", mapped.durationLabel)
         assertEquals("Abrir tópico", mapped.ctaLabel)
         assertEquals(false, mapped.scheduledForToday)
