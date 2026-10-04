@@ -11,6 +11,7 @@ import androidx.activity.viewModels
 import androidx.core.content.IntentCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.collectAsState
@@ -45,6 +46,16 @@ class MainActivity : ComponentActivity() {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Mantém o login do Google vivo: ao abrir o app e a cada 10 minutos com ele na tela, a
+        // sessão é renovada em silêncio antes de vencer (sem isso a pessoa "caía" depois de 1 hora).
+        lifecycleScope.launch {
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+                while (true) {
+                    br.com.estudario.ui.ai.GoogleAccountSignIn.renewIfNeeded(this@MainActivity)
+                    kotlinx.coroutines.delay(10 * 60 * 1_000L)
+                }
+            }
+        }
         // A splash do sistema sai no primeiro quadro, sem animação de saída: a abertura em Compose
         // começa na mesma cor, com o livro no mesmo lugar, e segura a tela até o app estar pronto.
         splashScreen.setOnExitAnimationListener { it.remove() }

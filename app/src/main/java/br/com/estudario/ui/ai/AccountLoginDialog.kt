@@ -5,6 +5,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Lock
@@ -44,40 +48,63 @@ private fun GoogleLoginDialog(onDismiss: () -> Unit, onSignedIn: () -> Unit) {
     val scope = rememberCoroutineScope()
     var busy by rememberSaveable { mutableStateOf(false) }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
-    AlertDialog(
+    val entrar: () -> Unit = {
+        scope.launch {
+            busy = true
+            error = null
+            GoogleAccountSignIn.signIn(context)
+                .onSuccess { onSignedIn() }
+                .onFailure { error = it.message?.takeIf { message -> message != GoogleAccountSignIn.CANCELLED } }
+            busy = false
+        }
+    }
+    androidx.compose.ui.window.Dialog(
         onDismissRequest = { if (!busy) onDismiss() },
-        icon = { Icon(Icons.Outlined.Lock, null) },
-        title = { Text("Entrar na conta Estudário") },
-        text = {
-            Column {
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        br.com.estudario.ui.brand.Surface(
+            modifier = Modifier.padding(horizontal = 20.dp).widthIn(max = 440.dp),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface,
+        ) {
+            Column(
+                Modifier.padding(horizontal = 22.dp, vertical = 24.dp),
+                horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                br.com.estudario.ui.assistant.Folha(
+                    104.dp,
+                    mood = if (busy) br.com.estudario.ui.assistant.FolhaMood.THINKING else br.com.estudario.ui.assistant.FolhaMood.WAVE,
+                )
+                Text("Falta só entrar", style = MaterialTheme.typography.headlineSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.Black)
                 Text(
-                    "Entre com a sua conta Google, a mesma do Google Play. Uma conta só para tudo: seu plano, as gerações do Estudário e o backup do seu estudo.",
+                    "Com a sua conta Google, a mesma do Play, o Estudário gera seu material e guarda tudo com segurança.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
-                error?.let {
-                    Spacer(Modifier.height(8.dp))
-                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    LoginReason(br.com.estudario.ui.brand.Glyph.Pencil, "Teoria, flashcards e questões do seu edital")
+                    LoginReason(br.com.estudario.ui.brand.Glyph.Cloud, "Backup no seu Drive, sem perder nada")
+                    LoginReason(br.com.estudario.ui.brand.Glyph.Phone, "Trocou de celular? Entra e continua de onde parou")
                 }
+                error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                }
+                br.com.estudario.ui.onboarding.GoogleSignInButton(loading = busy, onClick = entrar)
+                TextButton(enabled = !busy, onClick = onDismiss) { Text("Agora não") }
             }
-        },
-        confirmButton = {
-            Button(
-                enabled = !busy,
-                onClick = {
-                    scope.launch {
-                        busy = true
-                        error = null
-                        GoogleAccountSignIn.signIn(context)
-                            .onSuccess { onSignedIn() }
-                            .onFailure { error = it.message?.takeIf { message -> message != GoogleAccountSignIn.CANCELLED } }
-                        busy = false
-                    }
-                },
-            ) { Text(if (busy) "Entrando…" else "Continuar com Google") }
-        },
-        dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text("Cancelar") } },
-    )
+        }
+    }
+}
+
+@Composable
+private fun LoginReason(glyph: br.com.estudario.ui.brand.Glyph, text: String) {
+    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        br.com.estudario.ui.brand.BrandIcon(glyph, size = 30.dp)
+        Spacer(Modifier.width(12.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+    }
 }
 
 @Composable

@@ -227,7 +227,8 @@ fun QuizScreen(
             Column {
                 current.question.board?.let { AssistChip(onClick = {}, label = { Text(listOfNotNull(it, current.question.year?.toString()).joinToString(" • ")) }) }
                 Spacer(Modifier.height(8.dp))
-                MarkdownText(current.question.statement)
+                // O enunciado é o protagonista: letra maior que as alternativas.
+                br.com.estudario.ui.components.StudyMarkdown(current.question.statement, Modifier.fillMaxWidth(), textSizeSp = 19f)
                 Spacer(Modifier.height(8.dp))
                 QuestionProvenance(current.question)
                 if (!confirmed && current.options.size > 2) Text(
@@ -313,8 +314,8 @@ fun QuizScreen(
                             } else Text(
                                 option.text,
                                 Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = if (tileState == AnswerState.IDLE) FontWeight.Medium else FontWeight.Bold,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (tileState == AnswerState.IDLE) FontWeight.Normal else FontWeight.SemiBold,
                                 textDecoration = if (crossed) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
                             )
                             if (crossed) Icon(Icons.Outlined.Undo, "Desfazer risco", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)

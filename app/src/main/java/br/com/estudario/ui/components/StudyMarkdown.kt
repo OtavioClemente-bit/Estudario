@@ -52,7 +52,7 @@ fun StudyInlineText(
 @Composable
 fun StudyMarkdown(markdown: String, modifier: Modifier = Modifier, textSizeSp: Float? = null, onLongPress: (() -> Unit)? = null, onTap: (() -> Unit)? = null, textColor: androidx.compose.ui.graphics.Color? = null, centered: Boolean = false) {
     // Gráficos (```grafico) são desenhados pelo app; o resto segue no Markdown.
-    val parts = remember(markdown) { splitCharts(markdown) }
+    val parts = remember(markdown) { splitCharts(centerLoneFormulas(markdown)) }
     if (parts.size == 1 && parts[0].second == null) {
         MarkdownTextView(parts[0].first, modifier, textSizeSp, onLongPress, onTap, textColor, centered)
         return
@@ -277,4 +277,21 @@ fun plainFormulaText(text: String): String {
     out = out.replace(Regex("""\\mathbb\{R\}"""), "ℝ").replace(Regex("""\\mathbb\{N\}"""), "ℕ").replace(Regex("""\\mathbb\{Z\}"""), "ℤ")
     latexSymbols.entries.sortedByDescending { it.key.length }.forEach { (latex, symbol) -> out = out.replace(latex, symbol) }
     return out.replace(Regex("""\\left|\\right"""), "").replace(Regex("""\\[a-zA-Z]+"""), "").replace("{", "").replace("}", "").replace(Regex("""[ \t]+"""), " ").trim()
+}
+
+/**
+ * Fórmula sozinha numa linha (`$$x^2$$` no meio do texto) vira fórmula de bloco, centralizada e
+ * com respiro em volta, como num livro. Fórmula no meio da frase continua na linha.
+ */
+private const val D = "$"
+private val LoneFormula = Regex("""^\s*\${D}\${D}([^${D}]+)\${D}\${D}\s*${D}""")
+
+internal fun centerLoneFormulas(markdown: String): String {
+    if (!markdown.contains("$D$D")) return markdown
+    var inFence = false
+    return markdown.lines().joinToString("\n") { line ->
+        if (line.trimStart().startsWith("```")) inFence = !inFence
+        val m = if (inFence) null else LoneFormula.matchEntire(line)
+        if (m == null) line else "\n$D$D\n" + m.groupValues[1].trim() + "\n$D$D\n"
+    }
 }

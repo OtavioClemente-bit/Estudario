@@ -54,6 +54,11 @@ fun ProfileAvatar(
     modifier: Modifier = Modifier,
     ring: Boolean = false,
 ) {
+    PresetAvatar.of(photoPath)?.let { preset ->
+        val ringModifier = if (!ring) Modifier else Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape).padding(3.dp)
+        Box(modifier.size(size).then(ringModifier), contentAlignment = Alignment.Center) { PresetAvatarArt(preset, size) }
+        return
+    }
     val bitmap by produceState<ImageBitmap?>(null, photoPath) {
         value = photoPath?.let { path ->
             withContext(Dispatchers.IO) {
@@ -83,5 +88,35 @@ fun ProfileAvatar(
                 )
             }
         }
+    }
+}
+
+/**
+ * Avatares do Estudário para quem não quer usar foto. Ficam guardados como `avatar:<chave>` no
+ * mesmo lugar da foto, então o resto do app (menu, topo, perfil) mostra sem saber a diferença.
+ */
+enum class PresetAvatar(val key: String, val label: String, val top: Color, val bottom: Color, val glyph: br.com.estudario.ui.brand.Glyph?) {
+    FOLHA("folha", "Folha", Color(0xFF6C5CFF), Color(0xFF3326CE), null),
+    CAPELO("capelo", "Formatura", Color(0xFF34D399), Color(0xFF0E8F63), br.com.estudario.ui.brand.Glyph.Cap),
+    LAMPADA("lampada", "Ideia", Color(0xFFFFC857), Color(0xFFE08A00), br.com.estudario.ui.brand.Glyph.Bulb),
+    ALVO("alvo", "Foco", Color(0xFFFF8A7A), Color(0xFFD9443A), br.com.estudario.ui.brand.Glyph.Target),
+    TROFEU("trofeu", "Aprovação", Color(0xFF5CC8FF), Color(0xFF1C7FC4), br.com.estudario.ui.brand.Glyph.Trophy);
+
+    val path: String get() = "avatar:$key"
+
+    companion object {
+        fun of(path: String?): PresetAvatar? = path?.takeIf { it.startsWith("avatar:") }?.removePrefix("avatar:")?.let { k -> entries.firstOrNull { it.key == k } }
+    }
+}
+
+@Composable
+fun PresetAvatarArt(avatar: PresetAvatar, size: Dp, modifier: Modifier = Modifier) {
+    Box(
+        modifier.size(size).clip(CircleShape)
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(avatar.top, avatar.bottom))),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (avatar.glyph == null) br.com.estudario.ui.assistant.Folha(size * 0.86f)
+        else br.com.estudario.ui.brand.BrandIcon(avatar.glyph, size = size * 0.62f)
     }
 }

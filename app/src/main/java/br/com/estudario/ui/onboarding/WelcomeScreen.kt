@@ -253,7 +253,7 @@ private fun BenefitDivider() {
  * Conectando, o "G" dá lugar ao livro folheando: a espera tem a cara do Estudário.
  */
 @Composable
-private fun GoogleSignInButton(loading: Boolean, onClick: () -> Unit) {
+internal fun GoogleSignInButton(loading: Boolean, onClick: () -> Unit) {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val container = if (dark) Color(0xFF131314) else Color(0xFFFFFFFF)
     val border = if (dark) Color(0xFF8E918F) else Color(0xFF747775)

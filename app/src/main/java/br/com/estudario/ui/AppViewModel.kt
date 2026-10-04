@@ -458,6 +458,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun consumeCelebration() { _celebration.value = null }
     fun setUserName(value: String) = launchCatching { app.preferences.setUserName(value) }
     fun setDailyGoal(value: Int) = launchCatching { app.preferences.setDailyGoalQuestions(value) }
+    /** Avatar do Estudário no lugar da foto; apaga a foto antiga para não ocupar espaço. */
+    fun setProfileAvatar(path: String) = launchCatching { app.preferences.setUserPhotoPath(path); withContext(Dispatchers.IO) { deleteOldPhotos(null) } }
+
     fun clearProfilePhoto() = launchCatching { app.preferences.setUserPhotoPath(null); withContext(Dispatchers.IO) { deleteOldPhotos(null) } }
 
     /** Copia a foto escolhida para dentro do app, reduzida, o URI da galeria não sobrevive ao reinício. */

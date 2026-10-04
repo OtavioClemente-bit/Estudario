@@ -33,6 +33,8 @@ import br.com.estudario.ui.brand.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -131,9 +133,17 @@ fun ProfileScreen(
         }
     }
 
+    var avatarSheet by remember { mutableStateOf(false) }
     val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let(viewModel::setProfilePhoto)
     }
+    if (avatarSheet) AvatarPickerSheet(
+        current = profile.photoPath,
+        onPick = { viewModel.setProfileAvatar(it.path); avatarSheet = false },
+        onGallery = { avatarSheet = false; pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+        onRemove = { viewModel.clearProfilePhoto(); avatarSheet = false },
+        onDismiss = { avatarSheet = false },
+    )
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         val data = pendingBackup
         if (uri != null && data != null) scope.launch(Dispatchers.IO) { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(data) } }
@@ -177,7 +187,7 @@ fun ProfileScreen(
         showTopBar = showInternalTopBar,
         onBack = onBack,
         onEditName = { editName = true },
-        onChangePhoto = { pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+        onChangePhoto = { avatarSheet = true },
         onRemovePhoto = viewModel::clearProfilePhoto,
         onBadges = onBadges,
         onDailyGoalChange = viewModel::setDailyGoal,
@@ -824,5 +834,43 @@ private fun ProfileNoAccountDarkPreview() {
             onDailyGoalChange = {}, onBackup = {}, onRestore = {},
             onExportBackup = {}, onImportBackup = {},
         )
+    }
+}
+
+/** Escolher a imagem do perfil: um dos avatares do Estudário ou uma foto da galeria. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AvatarPickerSheet(current: String?, onPick: (br.com.estudario.ui.components.PresetAvatar) -> Unit, onGallery: () -> Unit, onRemove: () -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text("Sua imagem no Estudário", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+            Text("Escolha um dos nossos personagens ou use uma foto sua.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            androidx.compose.foundation.layout.FlowRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                br.com.estudario.ui.components.PresetAvatar.entries.forEach { avatar ->
+                    val chosen = current == avatar.path
+                    Column(
+                        Modifier.clip(RoundedCornerShape(18.dp)).clickable { onPick(avatar) }.padding(6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Box(
+                            Modifier.size(78.dp).then(
+                                if (chosen) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, CircleShape).padding(4.dp) else Modifier,
+                            ),
+                            contentAlignment = Alignment.Center,
+                        ) { br.com.estudario.ui.components.PresetAvatarArt(avatar, 70.dp) }
+                        Text(avatar.label, style = MaterialTheme.typography.labelMedium, fontWeight = if (chosen) FontWeight.Black else FontWeight.SemiBold)
+                    }
+                }
+            }
+            OutlinedButton(onClick = onGallery, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.PhotoCamera, null, Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Usar uma foto da galeria")
+            }
+            if (current != null) TextButton(onClick = onRemove, modifier = Modifier.fillMaxWidth()) { Text("Remover imagem") }
+        }
     }
 }

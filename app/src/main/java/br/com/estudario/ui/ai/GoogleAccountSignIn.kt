@@ -53,6 +53,40 @@ object GoogleAccountSignIn {
         runCatching { CredentialManager.create(context).clearCredentialState(androidx.credentials.ClearCredentialStateRequest()) }
     }
 
+    /**
+     * Mantém a pessoa conectada. A sessão do servidor vale cerca de uma hora e o app não guarda
+     * token de renovação (decisão de segurança); então, quando ela está para vencer, o app pede ao
+     * Android um novo comprovante da conta Google já autorizada, sem mostrar tela, e renova.
+     * Quem saiu da conta de propósito (e-mail apagado) não é reconectado.
+     */
+    suspend fun renewIfNeeded(context: Context, marginSeconds: Long = 600) {
+        if (!available) return
+        val app = context.applicationContext as EstudarioApplication
+        if (app.preferences.userEmail.first().isBlank()) return
+        val repo = app.supabaseAuthRepository
+        val expiresAt = repo.sessionExpiresAt()
+        val now = System.currentTimeMillis() / 1_000
+        if (repo.accessToken() != null && expiresAt != null && expiresAt - now > marginSeconds) return
+        runCatching {
+            val google = silentCredential(context)
+            repo.signInWithGoogle(SupabaseGoogleCredential(google.idToken))
+        }
+    }
+
+    private suspend fun silentCredential(context: Context): GoogleIdTokenCredential {
+        val option = com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
+            .setServerClientId(BuildConfig.GOOGLE_WEB_CLIENT_ID)
+            .setFilterByAuthorizedAccounts(true)
+            .setAutoSelectEnabled(true)
+            .build()
+        val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
+        val credential = CredentialManager.create(context).getCredential(context, request).credential
+        if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+            return GoogleIdTokenCredential.createFrom(credential.data)
+        }
+        throw IllegalStateException("Sem credencial silenciosa.")
+    }
+
     /** Só o ID token (usado onde a sessão é tratada por fora). */
     suspend fun idToken(context: Context): Result<String> = runCatching { credential(context).idToken }
 

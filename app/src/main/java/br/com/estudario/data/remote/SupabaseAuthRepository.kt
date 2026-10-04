@@ -128,6 +128,9 @@ interface SupabaseAuthRepository {
 
     /** Returns the user ID for the same ready, unexpired session that supplies [accessToken]. */
     fun currentUserId(): String? = null
+
+    /** When the stored session expires (epoch seconds), or null with no session. Used to renew early. */
+    fun sessionExpiresAt(): Long? = null
 }
 
 class DefaultSupabaseAuthRepository(
@@ -192,6 +195,9 @@ class DefaultSupabaseAuthRepository(
             }
         }
     }
+
+    override fun sessionExpiresAt(): Long? =
+        (sessionStore.current() as? SupabaseSessionState.Ready)?.session?.expiresAtEpochSeconds
 
     override fun accessToken(): String? {
         val session = (sessionStore.current() as? SupabaseSessionState.Ready)?.session ?: return null
