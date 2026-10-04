@@ -38,7 +38,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import br.com.estudario.ui.brand.OutlinedButton
-import androidx.compose.material3.Surface
+import br.com.estudario.ui.brand.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable

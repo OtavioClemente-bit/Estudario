@@ -27,7 +27,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.PlayCircleOutline
 import br.com.estudario.ui.brand.Button
-import androidx.compose.material3.Card
+import br.com.estudario.ui.brand.Card
 import androidx.compose.material3.CardDefaults
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.MaterialTheme

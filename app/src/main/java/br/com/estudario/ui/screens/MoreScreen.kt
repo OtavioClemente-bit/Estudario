@@ -33,7 +33,7 @@ import androidx.compose.material3.HorizontalDivider
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.OutlinedButton
-import androidx.compose.material3.Surface
+import br.com.estudario.ui.brand.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -208,7 +208,5 @@ private fun LinkRow(icon: ImageVector, title: String, description: String, onCli
 /** Ícone em bloco de cor suave: o mesmo padrão das folhas de ação, para o app inteiro falar igual. */
 @Composable
 private fun IconTile(icon: ImageVector) {
-    Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = .7f), modifier = Modifier.size(40.dp)) {
-        androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(21.dp), tint = MaterialTheme.colorScheme.primary) }
-    }
+    Icon(icon, null, Modifier.size(38.dp), tint = MaterialTheme.colorScheme.primary)
 }

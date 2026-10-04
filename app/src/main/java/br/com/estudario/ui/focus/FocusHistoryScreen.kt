@@ -20,12 +20,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Timer
-import androidx.compose.material3.Card
+import br.com.estudario.ui.brand.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import br.com.estudario.ui.brand.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState

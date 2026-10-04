@@ -16,7 +16,7 @@ import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
+import br.com.estudario.ui.brand.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.MaterialTheme

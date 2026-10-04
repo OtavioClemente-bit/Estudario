@@ -6,6 +6,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.Surface
+import br.com.estudario.ui.brand.OutlinedCard
+import br.com.estudario.ui.brand.ElevatedCard
 import br.com.estudario.ui.brand.OutlinedButton
 import br.com.estudario.ui.brand.Button
 import br.com.estudario.ui.brand.Icon

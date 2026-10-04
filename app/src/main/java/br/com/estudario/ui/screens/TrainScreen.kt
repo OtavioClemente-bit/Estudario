@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.TrendingDown
 import androidx.compose.material.icons.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.Surface
 import br.com.estudario.ui.brand.Button
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.runtime.*
@@ -330,9 +331,7 @@ private fun RecommendationCard(recommendation: Recommendation, modifier: Modifie
         modifier = modifier.fillMaxWidth(),
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(recommendation.accent.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
-                Icon(recommendation.icon, null, Modifier.size(24.dp), tint = recommendation.accent)
-            }
+            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { Icon(recommendation.icon, null, Modifier.size(43.dp), tint = recommendation.accent) }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(recommendation.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(recommendation.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

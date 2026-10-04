@@ -30,7 +30,7 @@ import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.OutlinedButton
-import androidx.compose.material3.Surface
+import br.com.estudario.ui.brand.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -116,9 +116,7 @@ private fun VerdictCard(roadmap: EditalRoadmapResult, onEditAvailability: () -> 
     Surface(shape = RoundedCornerShape(24.dp), color = tone.copy(alpha = 0.12f), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(Modifier.size(40.dp).clip(CircleShape).background(tone.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
-                    Icon(icon, null, tint = tone)
-                }
+                Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { Icon(icon, null, tint = tone, modifier = Modifier.size(36.dp)) }
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             }
             Text(body, style = MaterialTheme.typography.bodyMedium)

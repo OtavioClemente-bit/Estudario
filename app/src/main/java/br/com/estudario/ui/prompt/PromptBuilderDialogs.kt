@@ -25,7 +25,7 @@ import br.com.estudario.ui.theme.EstudarioShapes
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Color
-import androidx.compose.material3.Surface
+import br.com.estudario.ui.brand.Surface
 import androidx.compose.material.icons.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Summarize
@@ -56,7 +56,7 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ElevatedCard
+import br.com.estudario.ui.brand.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -500,7 +500,7 @@ private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, on
         onDismissRequest = { if (failed != null) onClose() else onBackground() },
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = true, dismissOnClickOutside = false),
     ) {
-        androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        br.com.estudario.ui.brand.Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(
                 Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -1051,7 +1051,7 @@ private fun PrioritySelector(selected: PlanPriority, onSelect: (PlanPriority) ->
  */
 @Composable
 private fun ContentCommitmentsCard() {
-    androidx.compose.material3.Surface(
+    br.com.estudario.ui.brand.Surface(
         shape = br.com.estudario.ui.theme.EstudarioShapes.panel,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth(),

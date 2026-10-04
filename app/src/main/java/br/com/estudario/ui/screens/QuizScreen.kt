@@ -21,6 +21,8 @@ import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.Surface
+import br.com.estudario.ui.brand.ElevatedCard
 import br.com.estudario.ui.brand.FilledTonalButton
 import br.com.estudario.ui.brand.OutlinedButton
 import br.com.estudario.ui.brand.Button

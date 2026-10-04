@@ -19,7 +19,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import br.com.estudario.ui.brand.Button
-import androidx.compose.material3.ElevatedCard
+import br.com.estudario.ui.brand.ElevatedCard
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text

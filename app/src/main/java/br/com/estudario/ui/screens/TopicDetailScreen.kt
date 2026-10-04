@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.Surface
 import br.com.estudario.ui.brand.FilledTonalButton
 import br.com.estudario.ui.brand.OutlinedButton
 import br.com.estudario.ui.brand.Button
@@ -584,8 +585,8 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                         Surface(onClick = { onTheory(theory.id) }, shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(44.dp)) {
-                                        Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.MenuBook, null, tint = MaterialTheme.colorScheme.primary) }
+                                    Surface(shape = RoundedCornerShape(12.dp), color = androidx.compose.ui.graphics.Color.Transparent, modifier = Modifier.size(44.dp)) {
+                                        Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.MenuBook, null, Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary) }
                                     }
                                     Spacer(Modifier.width(12.dp))
                                     Column(Modifier.weight(1f)) {

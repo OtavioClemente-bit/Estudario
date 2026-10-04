@@ -52,7 +52,7 @@ import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.ButtonDefaults
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import br.com.estudario.ui.brand.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -708,9 +708,7 @@ private fun ErrorBackCard() {
     val spin by t.animateFloat(0f, -360f, infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing)), label = "spin")
     SceneCard(Modifier.width(210.dp).rotate(3f).floating(14)) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFFFF7ED)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.Replay, null, Modifier.size(24.dp).graphicsLayer { rotationZ = spin }, tint = Color(0xFFF97316))
-            }
+            Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Replay, null, Modifier.size(38.dp).graphicsLayer { rotationZ = spin }, tint = Color(0xFFF97316)) }
             Spacer(Modifier.width(10.dp))
             Column {
                 Text("Caderno de erros", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = Color(0xFF111827))

@@ -54,7 +54,7 @@ import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
+import br.com.estudario.ui.brand.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -397,10 +397,7 @@ private fun InfoLine(label: String, value: String) {
 private fun TargetHeader(title: String) {
     Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(
-                Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Outlined.Description, null, tint = MaterialTheme.colorScheme.onPrimaryContainer) }
+            Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Description, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(38.dp)) }
             Column(Modifier.weight(1f)) {
                 Text("EDITAL SELECIONADO", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                 Text(title, Modifier.testTag("ai_selected_target"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -522,9 +519,7 @@ internal fun Benefit(icon: ImageVector, text: String) {
 @Composable
 internal fun GateStatus(icon: ImageVector, title: String, description: String, tone: StatusTone) {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Top) {
-        Box(Modifier.size(40.dp).clip(CircleShape).background(tone.container), contentAlignment = Alignment.Center) {
-            Icon(icon, null, Modifier.size(21.dp), tint = tone.content)
-        }
+        Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(36.dp), tint = tone.content) }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -783,9 +778,7 @@ private fun AddTopicDialog(child: Boolean, onDismiss: () -> Unit, onAdd: (String
 private fun AiFailure(content: AiReviewContent.Failure, onRetry: () -> Unit, onFallback: () -> Unit, onPickSource: () -> Unit, onEditInformation: () -> Unit) {
     Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.size(64.dp).clip(CircleShape).background(MaterialTheme.colorScheme.errorContainer), contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.ErrorOutline, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onErrorContainer)
-            }
+            Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.ErrorOutline, null, Modifier.size(58.dp), tint = MaterialTheme.colorScheme.onErrorContainer) }
             Text("Não deu certo desta vez", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             Text(content.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
             Spacer(Modifier.height(4.dp))
@@ -808,9 +801,7 @@ private fun AiApplied(syncState: RemoteSyllabusSyncState) {
     }
     Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.size(72.dp).clip(CircleShape).background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.CheckCircle, null, Modifier.size(38.dp), tint = estudarioColors().completed)
-            }
+            Box(Modifier.size(72.dp), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.CheckCircle, null, Modifier.size(65.dp), tint = estudarioColors().completed) }
             Text("Edital pronto", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(icon, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)

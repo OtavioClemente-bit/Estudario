@@ -28,7 +28,7 @@ import androidx.compose.material.icons.outlined.OfflineBolt
 import androidx.compose.material3.HorizontalDivider
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import br.com.estudario.ui.brand.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -150,10 +150,7 @@ fun AiAccessSummary(
 private fun FeatureRow(label: String, icon: ImageVector, display: AiFeatureDisplay) {
     val tone = display.tone()
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(
-            Modifier.size(36.dp).clip(CircleShape).background(tone.container),
-            contentAlignment = Alignment.Center,
-        ) { Icon(icon, null, Modifier.size(19.dp), tint = tone.content) }
+        Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(32.dp), tint = tone.content) }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
             StatusPill(display.availabilityCopy, tone)

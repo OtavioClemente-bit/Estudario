@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.Surface
 import br.com.estudario.ui.brand.FilledTonalButton
 import br.com.estudario.ui.brand.OutlinedButton
 import br.com.estudario.ui.brand.Icon
@@ -197,8 +198,8 @@ fun PlanManagementScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(42.dp)) {
-                            Box(contentAlignment = Alignment.Center) { Icon(if (plan.archived) Icons.Outlined.Archive else Icons.Outlined.CalendarMonth, null, tint = MaterialTheme.colorScheme.secondary) }
+                        Surface(shape = RoundedCornerShape(12.dp), color = Color.Transparent, modifier = Modifier.size(42.dp)) {
+                            Box(contentAlignment = Alignment.Center) { Icon(if (plan.archived) Icons.Outlined.Archive else Icons.Outlined.CalendarMonth, null, Modifier.size(38.dp), tint = MaterialTheme.colorScheme.secondary) }
                         }
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
