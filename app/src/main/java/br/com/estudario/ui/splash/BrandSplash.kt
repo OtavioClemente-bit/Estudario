@@ -72,10 +72,9 @@ private val Smooth = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 @Composable
 fun BrandSplash(ready: Boolean, onFinished: () -> Unit) {
     // Já começa meio aberto e com o brilho aceso: o primeiro quadro tem a marca, nunca um azul vazio.
-    val open = remember { Animatable(0.35f) }
-    val lines = remember { Animatable(0f) }
-    val check = remember { Animatable(0f) }
-    val ribbon = remember { Animatable(0f) }
+    // 1 = escondido embaixo da tela, 0 = no lugar.
+    val rise = remember { Animatable(1f) }
+    val hello = remember { Animatable(0f) }
     val glow = remember { Animatable(0.7f) }
     val title = remember { Animatable(0f) }
     val tagline = remember { Animatable(0f) }
@@ -100,19 +99,18 @@ fun BrandSplash(ready: Boolean, onFinished: () -> Unit) {
     }
 
     LaunchedEffect(Unit) {
-        launch { glow.animateTo(1f, tween(500, easing = Smooth)) }
-        open.animateTo(1f, tween(480, easing = Smooth))
-        launch { lines.animateTo(1f, tween(560, easing = LinearEasing)) }
-        launch { delay(260); check.animateTo(1f, tween(420, easing = Smooth)) }
-        launch { delay(380); ribbon.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow)) }
-        launch { delay(300); title.animateTo(1f, tween(700, easing = Smooth)) }
-        launch { delay(650); tagline.animateTo(1f, tween(600, easing = Smooth)) }
-        delay(800)
-        loader.animateTo(1f, tween(400, easing = Smooth))
-        // Tempo mínimo para a marca terminar de se apresentar; depois, só espera o app.
-        delay(450)
-        while (!isReady) delay(40)
-        exit.animateTo(1f, tween(420, easing = Smooth))
+        // O Folha sobe de baixo da tela, quica e dá tchau. Tudo em menos de um segundo:
+        // abertura é cumprimento, não espera.
+        launch { glow.animateTo(1f, tween(400, easing = Smooth)) }
+        launch { rise.animateTo(0f, spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMediumLow)) }
+        launch { delay(260); hello.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium)) }
+        launch { delay(180); title.animateTo(1f, tween(420, easing = Smooth)) }
+        launch { delay(380); tagline.animateTo(1f, tween(380, easing = Smooth)) }
+        delay(820)
+        // Se o app ainda estiver carregando, a barra aparece; normalmente nem dá tempo.
+        if (!isReady) launch { loader.animateTo(1f, tween(250, easing = Smooth)) }
+        while (!isReady) delay(30)
+        exit.animateTo(1f, tween(260, easing = Smooth))
         finish()
     }
 
@@ -139,15 +137,30 @@ fun BrandSplash(ready: Boolean, onFinished: () -> Unit) {
                 )
             },
     ) {
-        val bookSize = (maxWidth * 0.46f).coerceAtMost(220.dp)
+        val folhaSize = (maxWidth * 0.48f).coerceAtMost(230.dp)
+        val travel = maxHeight
         Column(
             Modifier.fillMaxSize().padding(horizontal = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
             Spacer(Modifier.weight(0.9f))
-            Canvas(Modifier.size(bookSize)) {
-                drawRealisticBook(open.value, lines.value, check.value, ribbon.value, breathe)
+            Box(contentAlignment = Alignment.TopEnd) {
+                br.com.estudario.ui.assistant.Folha(
+                    folhaSize,
+                    Modifier.graphicsLayer { translationY = rise.value * travel.toPx() },
+                    mood = br.com.estudario.ui.assistant.FolhaMood.WAVE,
+                )
+                Text(
+                    "Oi!",
+                    color = SplashIndigo,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier
+                        .graphicsLayer { scaleX = hello.value; scaleY = hello.value; alpha = hello.value.coerceIn(0f, 1f) }
+                        .background(Color.White, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                )
             }
             Spacer(Modifier.height(28.dp))
             Wordmark(title.value)

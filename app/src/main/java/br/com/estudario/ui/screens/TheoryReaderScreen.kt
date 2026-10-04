@@ -160,7 +160,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
         if (!markHintSeen && blocks.isNotEmpty()) {
             Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Row(Modifier.padding(start = 14.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Icon(Icons.Outlined.TouchApp, null, tint = MaterialTheme.colorScheme.primary)
+                    br.com.estudario.ui.assistant.Folha(40.dp, mood = br.com.estudario.ui.assistant.FolhaMood.TALKING)
                     Text("Toque em qualquer parágrafo para grifar, anotar ou copiar. Os grifos ficam no Caderno de estudo, no tópico desta teoria.", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                     IconButton(onClick = { markHintSeen = true; readerPrefs.edit().putBoolean(MARK_HINT_SEEN, true).apply() }) { Icon(Icons.Outlined.Close, "Fechar dica") }
                 }
@@ -201,13 +201,23 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                         verticalAlignment = Alignment.Top,
                     ) {
                         Box(Modifier.width(4.dp).fillMaxHeight().background(if (mark != null) highlighter else androidx.compose.ui.graphics.Color.Transparent))
-                        br.com.estudario.ui.components.StudyMarkdown(
-                            block,
-                            Modifier.weight(1f).padding(start = 10.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
-                            textSizeSp = MaterialTheme.typography.bodyLarge.fontSize.value * textScale,
-                            onLongPress = { editingIndex = index; markHintSeen = true; readerPrefs.edit().putBoolean(MARK_HINT_SEEN, true).apply() },
-                            onTap = { selected = if (selected == index) null else index },
-                        )
+                        val callout = br.com.estudario.ui.components.calloutKindOf(block)
+                        val markdown: @Composable (Modifier, String) -> Unit = { m, text ->
+                            br.com.estudario.ui.components.StudyMarkdown(
+                                text,
+                                m,
+                                textSizeSp = MaterialTheme.typography.bodyLarge.fontSize.value * textScale,
+                                onLongPress = { editingIndex = index; markHintSeen = true; readerPrefs.edit().putBoolean(MARK_HINT_SEEN, true).apply() },
+                                onTap = { selected = if (selected == index) null else index },
+                            )
+                        }
+                        if (callout != null) {
+                            br.com.estudario.ui.components.CalloutFrame(callout, Modifier.weight(1f).padding(vertical = 4.dp)) {
+                                markdown(Modifier.padding(start = 10.dp, end = 12.dp, bottom = 8.dp), br.com.estudario.ui.components.calloutBody(block))
+                            }
+                        } else {
+                            markdown(Modifier.weight(1f).padding(start = 10.dp, end = 12.dp, top = 10.dp, bottom = 10.dp), block)
+                        }
                     }
                     if (!mark?.note.isNullOrBlank()) Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(8.dp), modifier = Modifier.padding(start = 12.dp, top = 4.dp)) { Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { Icon(Icons.Outlined.EditNote, null); Text(mark!!.note, Modifier.weight(1f)) } }
                 }
@@ -215,9 +225,9 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
             item {
                 Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Outlined.TaskAlt, null, Modifier.size(38.dp), tint = MaterialTheme.colorScheme.primary)
-                        Text("Fim da teoria", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("Ao chegar até aqui, o progresso é registrado automaticamente como 100%.")
+                        br.com.estudario.ui.assistant.Folha(110.dp, mood = br.com.estudario.ui.assistant.FolhaMood.HAPPY)
+                        Text("Teoria concluída!", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("Leitura registrada como 100%. Agora vale treinar com as questões do tópico para fixar.", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     }
                 }
             }

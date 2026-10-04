@@ -81,11 +81,18 @@ fun MetricCard(title: String, value: String, supporting: String, color: Color = 
 
 @Composable
 fun EmptyState(title: String, body: String, actionLabel: String? = null, onAction: (() -> Unit)? = null) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Icon(Icons.Outlined.Inbox, null, Modifier.size(44.dp), tint = MaterialTheme.colorScheme.primary)
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+    // Lugar vazio é com o Folha: ele aparece, olha em volta e diz o que fazer. Tocar nele faz a ação.
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        br.com.estudario.ui.assistant.Folha(112.dp, onClick = onAction)
+        Surface(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+            color = MaterialTheme.colorScheme.primaryContainer,
+            border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+        ) {
+            Text(title, Modifier.padding(horizontal = 16.dp, vertical = 10.dp), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer, textAlign = TextAlign.Center)
+        }
         Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-        if (actionLabel != null && onAction != null) Button(onClick = onAction) { Text(actionLabel) }
+        if (actionLabel != null && onAction != null) Button(onClick = onAction, modifier = Modifier.fillMaxWidth()) { Text(actionLabel) }
     }
 }
 

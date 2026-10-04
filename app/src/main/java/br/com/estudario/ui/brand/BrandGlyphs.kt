@@ -38,7 +38,7 @@ import kotlin.math.sin
 enum class Glyph {
     House, Books, OpenBook, Calendar, Timer, Clipboard, Notebook, Bookmark, Cap, Spark, Check, Flag,
     Lock, Star, Trophy, Medal, Bulb, Warning, Fire, Bolt, Heart, Bell, Chart, Cycle, Target, Folder,
-    Gear, Help, Person, Shield, Cards, Dice, Play, Cloud, Doc, Pencil, Sun, Moon, Phone, Gem, Brain,
+    Gear, Help, Person, Shield, Cards, Dice, Play, Cloud, Doc, Pencil, Sun, Moon, Phone, Gem, Brain, Trap,
 }
 
 object BrandPalette {
@@ -399,6 +399,17 @@ private class GlyphPainter(val d: DrawScope, val muted: Boolean) {
             clay(poly(28f, 18f, 72f, 18f, 90f, 38f, 50f, 86f, 10f, 38f), B.Sky, round = 4f)
             line(B.Paper.copy(alpha = 0.7f), 3f, Offset(12f, 38f), Offset(88f, 38f))
             line(B.Paper.copy(alpha = 0.5f), 3f, Offset(38f, 18f), Offset(32f, 38f), Offset(50f, 84f))
+        }
+        Glyph.Trap -> {
+            // Ratoeira: a base de madeira, a mola armada e o queijo de isca. É a pegadinha da banca.
+            clay(rr(8f, 58f, 84f, 24f, 8f), B.Brown)
+            line(lerp(B.Brown, B.Ink, 0.3f), 2.5f, Offset(16f, 66f), Offset(84f, 66f))
+            d.drawPath(arch(40f, 62f, 18f), dark(B.Steel), style = Stroke(5f, cap = StrokeCap.Round))
+            d.drawPath(arch(40f, 60f, 18f), c(B.Steel), style = Stroke(4f, cap = StrokeCap.Round))
+            line(B.Steel, 4f, Offset(40f, 60f), Offset(40f, 52f))
+            clay(poly(56f, 58f, 90f, 58f, 90f, 34f), B.Amber, depth = 4f, round = 4f)
+            dot(lerp(B.Amber, B.Brown, 0.45f), 80f, 50f, 3f)
+            dot(lerp(B.Amber, B.Brown, 0.45f), 70f, 54f, 2.2f)
         }
         Glyph.Brain -> {
             val br = Path().apply {

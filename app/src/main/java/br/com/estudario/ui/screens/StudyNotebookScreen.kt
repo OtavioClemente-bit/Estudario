@@ -414,14 +414,8 @@ private fun TopicHeader(title: String) {
 }
 
 @Composable
-private fun EmptyHint(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, body: String) {
-    Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(icon, null, Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary)
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
-        }
-    }
+private fun EmptyHint(@Suppress("UNUSED_PARAMETER") icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, body: String) {
+    br.com.estudario.ui.components.EmptyState(title, body)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

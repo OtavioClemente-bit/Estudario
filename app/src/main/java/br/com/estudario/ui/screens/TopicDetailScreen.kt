@@ -741,24 +741,12 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                 } else item(key = "tips-header") { SectionHeader("Dicas e pegadinhas", "O que costuma decidir a questão. ★ guarda no Caderno.") }
                 tipSnippets.sortedBy { it.kind }.forEach { snippet ->
                     item(key = "tip-${snippet.id}") {
-                        val trap = snippet.kind == SnippetKind.PEGADINHA
-                        val accent = if (trap) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary
-                        Surface(shape = RoundedCornerShape(16.dp), color = (if (trap) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.tertiaryContainer).copy(alpha = .55f), modifier = Modifier.fillMaxWidth()) {
-                            Row(Modifier.height(IntrinsicSize.Min)) {
-                                Box(Modifier.width(4.dp).fillMaxHeight().background(accent))
-                                Column(Modifier.weight(1f).padding(start = 14.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(if (trap) Icons.Outlined.Warning else Icons.Outlined.Lightbulb, null, Modifier.size(16.dp), tint = accent)
-                                        Spacer(Modifier.width(6.dp))
-                                        Text(if (trap) "PEGADINHA" else "DICA", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = accent)
-                                    }
-                                    br.com.estudario.ui.components.StudyInlineText(snippet.text, style = MaterialTheme.typography.bodyMedium)
-                                }
-                                IconButton(onClick = { viewModel.saveSnippet(snippet.copy(isFavorite = !snippet.isFavorite)) }) {
-                                    Icon(if (snippet.isFavorite) Icons.Outlined.Star else Icons.Outlined.StarBorder, if (snippet.isFavorite) "Tirar do Caderno" else "Guardar no Caderno", tint = if (snippet.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                        }
+                        br.com.estudario.ui.components.TipCard(
+                            text = snippet.text,
+                            trap = snippet.kind == SnippetKind.PEGADINHA,
+                            favorite = snippet.isFavorite,
+                            onToggleFavorite = { viewModel.saveSnippet(snippet.copy(isFavorite = !snippet.isFavorite)) },
+                        )
                     }
                 }
             }

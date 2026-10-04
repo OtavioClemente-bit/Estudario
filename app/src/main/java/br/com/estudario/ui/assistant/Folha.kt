@@ -55,6 +55,8 @@ enum class FolhaMood {
     HAPPY,
     /** Deu errado: sobrancelhas tristes, fita caída. */
     SAD,
+    /** Chegando ou saindo: braço lá no alto, acenando. */
+    WAVE,
 }
 
 private val Ink = Color(0xFF26215C)
@@ -478,7 +480,7 @@ private fun DrawScope.drawFace(t: Float, mood: FolhaMood, blink: Float, look: Of
             drawOval(Ink, topLeft = Offset(m.x - 4.2f, m.y - h / 2), size = Size(8.4f, h))
             if (h > 3f) drawOval(Cheek, topLeft = Offset(m.x - 2.4f, m.y + h / 2 - 2.2f), size = Size(4.8f, 2f))
         }
-        FolhaMood.HAPPY -> {
+        FolhaMood.HAPPY, FolhaMood.WAVE -> {
             val p = Path().apply { moveTo(m.x - 6f, m.y - 1.5f); quadraticTo(m.x, m.y + 9f, m.x + 6f, m.y - 1.5f); close() }
             drawPath(p, Ink)
             drawOval(Cheek, topLeft = Offset(m.x - 3f, m.y + 2f), size = Size(6f, 2.6f))
@@ -651,6 +653,11 @@ private fun DrawScope.drawArms(t: Float, mood: FolhaMood) {
         FolhaMood.THINKING -> {
             arm(ls, Offset(4f, 76f + sin(t * 1.5f)))
             arm(rs, Offset(93f, 70f + sin(t * 2.2f) * 1.5f))
+        }
+        FolhaMood.WAVE -> {
+            val wave = sin(t * 13f) * 9f
+            arm(ls, Offset(4f, 78f))
+            arm(rs, Offset(100f + wave * 0.4f, 30f + wave * 0.5f))
         }
         FolhaMood.IDLE -> {
             arm(ls, Offset(4f, 78f + sin(t * 2.1f) * 1.2f))

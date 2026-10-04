@@ -22,6 +22,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -163,20 +164,25 @@ fun EstudarioProcessView(
         ?: (0.94f * (1f - exp(-elapsed / (expected * 0.55f)))).coerceIn(0.03f, 0.94f)
     val progress by animateFloatAsState(target, tween(600), label = "process-progress")
 
+    // Uma peça só: o título, o Folha trabalhando, o balão em que ele conta o que está fazendo e a
+    // trilha das etapas. Tudo no mesmo eixo, para o olho não ficar caçando informação pela tela.
     Column(
-        modifier.fillMaxWidth(),
+        modifier.fillMaxWidth().widthIn(max = 460.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        EstudarioProcessScene(sceneSize)
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (eyebrow != null) Text(
                 eyebrow.uppercase(),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
             )
-            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        }
+        EstudarioProcessScene(sceneSize.coerceAtMost(220.dp))
+        FolhaSpeech {
             if (stages.isNotEmpty()) AnimatedContent(
                 targetState = when {
                     completed -> doneLabel
@@ -190,19 +196,23 @@ fun EstudarioProcessView(
             ) { stage ->
                 Text(
                     if (completed) stage else "$stage…",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
+            Text(
+                "${if (stages.isEmpty() || completed) "" else "Etapa ${current + 1} de ${stages.size} · "}${formatElapsed(elapsed)}",
+                style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
-        ProcessProgressBar(progress, Modifier.fillMaxWidth(0.72f))
-        Text(
-            "${if (stages.isEmpty() || completed) "" else "Etapa ${current + 1} de ${stages.size} · "}${formatElapsed(elapsed)}",
-            style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (stages.size > 1) StageChecklist(stages, current, Modifier.widthIn(max = 420.dp).fillMaxWidth())
+        if (stages.size > 1) StageTrail(stages.size, if (completed) stages.size else current, progress, Modifier.fillMaxWidth())
+        else ProcessProgressBar(progress, Modifier.fillMaxWidth(0.72f))
         footer?.invoke()
     }
 }
@@ -248,6 +258,74 @@ fun EstudarioProcessDialog(title: String, message: String? = null, steps: List<S
 }
 
 // ------------------------------------------------------------------------------------ partes
+
+/** Balão de fala do Folha: a pontinha aponta para ele, logo acima. */
+@Composable
+private fun FolhaSpeech(content: @Composable ColumnScope.() -> Unit) {
+    val bubble = MaterialTheme.colorScheme.primaryContainer
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Canvas(Modifier.size(width = 22.dp, height = 10.dp)) {
+            drawPath(androidx.compose.ui.graphics.Path().apply { moveTo(size.width / 2, 0f); lineTo(size.width, size.height); lineTo(0f, size.height); close() }, bubble)
+        }
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(bubble).padding(horizontal = 18.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            content = content,
+        )
+    }
+}
+
+/**
+ * A trilha das etapas: bolinhas ligadas por um caminho que vai se enchendo. Feita tem o certo,
+ * a atual pulsa, as próximas esperam em cinza. Ocupa uma linha, por mais etapas que existam.
+ */
+@Composable
+private fun StageTrail(count: Int, current: Int, progress: Float, modifier: Modifier = Modifier) {
+    val done = estudarioColors().completed
+    val active = MaterialTheme.colorScheme.primary
+    val idle = MaterialTheme.colorScheme.outlineVariant
+    val onDone = estudarioColors().onCompleted
+    val pulse by rememberInfiniteTransition(label = "trail").animateFloat(
+        0f, 1f, infiniteRepeatable(tween(1_100, easing = LinearEasing), RepeatMode.Restart), label = "trail-pulse",
+    )
+    Canvas(modifier.height(34.dp)) {
+        val r = 11.dp.toPx()
+        val y = size.height / 2
+        val step = if (count > 1) (size.width - 2 * r) / (count - 1) else 0f
+        fun x(i: Int) = r + step * i
+        val line = 6.dp.toPx()
+        drawLine(idle, Offset(x(0), y), Offset(x(count - 1), y), line, StrokeCap.Round)
+        // A parte cheia vai até a etapa atual e avança um pouco dentro dela conforme o tempo passa.
+        val within = ((progress * count) - current).coerceIn(0f, 0.85f)
+        val reach = if (current >= count) x(count - 1) else x(current) + step * within
+        drawLine(done, Offset(x(0), y), Offset(reach, y), line, StrokeCap.Round)
+        for (i in 0 until count) {
+            val c = Offset(x(i), y)
+            when {
+                i < current -> {
+                    drawCircle(lerpColor(done, Color.Black, 0.25f), r, c.copy(y = c.y + 2.dp.toPx()))
+                    drawCircle(done, r, c)
+                    val tick = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(c.x - r * 0.42f, c.y); lineTo(c.x - r * 0.1f, c.y + r * 0.32f); lineTo(c.x + r * 0.45f, c.y - r * 0.32f)
+                    }
+                    drawPath(tick, onDone, style = androidx.compose.ui.graphics.drawscope.Stroke(2.6.dp.toPx(), cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                }
+                i == current -> {
+                    drawCircle(active.copy(alpha = 0.35f * (1f - pulse)), r * (1f + 0.6f * pulse), c)
+                    drawCircle(lerpColor(active, Color.Black, 0.25f), r, c.copy(y = c.y + 2.dp.toPx()))
+                    drawCircle(active, r, c)
+                    drawCircle(Color.White, r * 0.38f, c)
+                }
+                else -> {
+                    drawCircle(idle, r * 0.72f, c)
+                }
+            }
+        }
+    }
+}
+
+private fun lerpColor(a: Color, b: Color, f: Float) = androidx.compose.ui.graphics.lerp(a, b, f)
 
 @Composable
 private fun ProcessProgressBar(progress: Float?, modifier: Modifier = Modifier) {
