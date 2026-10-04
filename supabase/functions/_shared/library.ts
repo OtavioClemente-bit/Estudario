@@ -80,7 +80,7 @@ export const LIBRARY_MIN = {
 // "TODO" só em maiúsculas: "todo"/"Todo" é palavra comum em português.
 const PLACEHOLDERS = {
   test: (value: string) =>
-    /lorem ipsum|a ser preenchid|\[inserir|\[completar|conte[uú]do gen[eé]rico|xxx/i.test(value) || /\bTODO\b/.test(value),
+    /lorem ipsum|a ser preenchid|\[inserir|\[completar|conte[uú]do gen[eé]rico/i.test(value) || /\bxxx\b/.test(value) || /\bTODO\b/.test(value),
 };
 const KEYS = ["e1", "e2", "e3", "e4", "e5", "e6"];
 
