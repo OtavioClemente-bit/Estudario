@@ -15,6 +15,13 @@ instr = instr.replace(/━━ RECORTE[\s\S]*?(?=━━ CONFERÊNCIA FINAL)/, "�
 const head = "══════════════════════════════════════════════════════════════\nMATÉRIAS DESTE PEDIDO\n══════════════════════════════════════════════════════════════\nPúblico: concursos de nível médio e superior (polícias, tribunais, bancos, carreiras militares). Matérias gerais, sem banca específica.\n\n";
 const RULE = "- REGRAS DE MATEMÁTICA: teoria com fórmulas, propriedades e exemplos resolvidos passo a passo. Problemas com enunciado completo e dados suficientes (contextos de concurso: escalas de plantão, compras, salários, estoques, viaturas, agências). Resolva cada questão por inteiro ANTES de definir o gabarito e confira a conta; mostre a resolução na explicação (até 1.200 caracteres). Distratores vêm de erros típicos (somar porcentagens sucessivas, inverter a proporção, esquecer um caso, trocar arranjo por combinação). Certo/Errado no estilo Cebraspe: uma afirmação sobre um problema dado.";
 
+// Recursos visuais: o mesmo formato que o app desenha (copiado do prompt do servidor).
+const server = Deno.readTextFileSync("../supabase/functions/_shared/prompts/text-jobs-v1.ts");
+const VISUAIS = "━━ RECURSOS VISUAIS (o app desenha) ━━\n" +
+  server.slice(server.indexOf("Recursos visuais"), server.indexOf("\nRecorte:")).trim().replace(/^Recursos visuais[^\n]*\n/, "Use quando ajudarem a entender, não para enfeitar.\n") +
+  '\n- No JSON, o bloco fica dentro da string (markdown, statement ou explanation) com \\n nas quebras e aspas internas escapadas: "texto\\n\\n```grafico\\n{\\"tipo\\":\\"barras\\", ...}\\n```\\n\\nmais texto".' +
+  "\n- Em cada matéria: ao menos 1 gráfico ou figura por capítulo quando o assunto tem função, dado ou forma, e pelo menos 6 questões com gráfico, figura ou tabela no enunciado (em estatística e geometria, pelo menos 12). Confira que os números do desenho batem com o texto e com o gabarito.\n\n";
+
 const materias: [string, string, string[], string][] = [
   ["porcentagem", "Porcentagem e variação percentual", ["Porcentagem", "Porcentagem e variação percentual", "Cálculo de porcentagem", "Aumentos e descontos sucessivos"], "cálculo de porcentagem; fração e número decimal equivalentes; aumento e desconto (fator multiplicativo); aumentos e descontos sucessivos; variação percentual e ponto percentual; porcentagem de porcentagem; lucro e prejuízo sobre custo e sobre venda; problemas com juros não incluídos (ficam em matemática financeira)."],
   ["razao-proporcao", "Razão, proporção e divisão proporcional", ["Razão e proporção", "Razões e proporções", "Divisão proporcional", "Grandezas proporcionais"], "razão e proporção; propriedades das proporções; grandezas diretamente e inversamente proporcionais; divisão em partes diretamente e inversamente proporcionais; escala; velocidade média e densidade como razões; misturas."],
@@ -43,6 +50,6 @@ ${RULE}`;
 
 for (let i = 0; i < materias.length; i += 2) {
   const n = i / 2 + 1;
-  Deno.writeTextFileSync(`pedidos/mat-lote-${String(n).padStart(2, "0")}.txt`, head + materias.slice(i, i + 2).map((m, k) => block(m, k + 1)).join("\n\n") + "\n\n\n" + instr);
+  Deno.writeTextFileSync(`pedidos/mat-lote-${String(n).padStart(2, "0")}.txt`, head + materias.slice(i, i + 2).map((m, k) => block(m, k + 1)).join("\n\n") + "\n\n\n" + VISUAIS + instr);
 }
 console.log(`${materias.length} matérias em ${materias.length / 2} lotes`);
