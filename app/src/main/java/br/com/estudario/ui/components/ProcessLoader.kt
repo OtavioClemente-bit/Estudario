@@ -658,19 +658,10 @@ private fun DrawScope.drawSheet(kind: Sheet, at: Offset, h: Float, tiltDeg: Floa
     }
 }
 
-/** Brilho de quatro pontas. */
+/** Marca de chegada de uma folha. */
 private fun DrawScope.drawSparkle(at: Offset, r: Float, color: Color) {
-    if (r <= 0.5f || color.alpha <= 0.01f) return
-    val k = r * 0.28f
-    val path = Path().apply {
-        moveTo(at.x, at.y - r)
-        quadraticTo(at.x + k * 0.3f, at.y - k * 0.3f, at.x + r, at.y)
-        quadraticTo(at.x + k * 0.3f, at.y + k * 0.3f, at.x, at.y + r)
-        quadraticTo(at.x - k * 0.3f, at.y + k * 0.3f, at.x - r, at.y)
-        quadraticTo(at.x - k * 0.3f, at.y - k * 0.3f, at.x, at.y - r)
-        close()
-    }
-    drawPath(path, color)
+    // Pontinho de chegada, discreto. Nada de estrela de quatro pontas, que virou a marca de "feito por IA".
+    drawCircle(color, r * 0.35f, at)
 }
 
 private fun easeInCubic(t: Float) = t * t * (0.35f + 0.65f * t)

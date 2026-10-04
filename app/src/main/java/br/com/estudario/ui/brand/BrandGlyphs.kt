@@ -36,7 +36,7 @@ import kotlin.math.sin
  * quando a luz do quarto apaga. Sem cor (desligado, bloqueado, aba fora de foco) ele fica em cinza.
  */
 enum class Glyph {
-    House, Books, OpenBook, Calendar, Timer, Clipboard, Notebook, Bookmark, Cap, Spark, Check, Flag,
+    House, Books, OpenBook, Calendar, Timer, Clipboard, Notebook, Bookmark, Cap, Check, Flag,
     Lock, Star, Trophy, Medal, Bulb, Warning, Fire, Bolt, Heart, Bell, Chart, Cycle, Target, Folder,
     Gear, Help, Person, Shield, Cards, Dice, Play, Cloud, Doc, Pencil, Sun, Moon, Phone, Gem, Brain, Trap,
 }
@@ -195,11 +195,6 @@ private class GlyphPainter(val d: DrawScope, val muted: Boolean) {
             clay(poly(50f, 16f, 92f, 36f, 50f, 54f, 8f, 36f), B.Indigo, depth = 5f, round = 6f)
             line(B.Amber, 4f, Offset(50f, 35f), Offset(80f, 44f), Offset(80f, 62f))
             dot(B.Amber, 80f, 65f, 5f)
-        }
-        Glyph.Spark -> {
-            clay(star4(46f, 52f, 36f, 11f), B.Violet, depth = 5f, round = 4f)
-            clay(star4(78f, 20f, 13f, 4f), B.Amber, depth = 3f, round = 2f)
-            clay(star4(20f, 20f, 8f, 3f), B.Sky, depth = 2f, round = 2f, gloss = false)
         }
         Glyph.Check -> {
             clay(circle(50f, 50f, 38f), B.Green)
@@ -458,14 +453,6 @@ private class GlyphPainter(val d: DrawScope, val muted: Boolean) {
         close()
     }
 
-    private fun star4(cx: Float, cy: Float, r: Float, w: Float) = Path().apply {
-        moveTo(cx, cy - r)
-        quadraticTo(cx + w * 0.4f, cy - w * 0.4f, cx + r, cy)
-        quadraticTo(cx + w * 0.4f, cy + w * 0.4f, cx, cy + r)
-        quadraticTo(cx - w * 0.4f, cy + w * 0.4f, cx - r, cy)
-        quadraticTo(cx - w * 0.4f, cy - w * 0.4f, cx, cy - r)
-        close()
-    }
 
     private fun flame(cx: Float, top: Float, halfW: Float, h: Float) = Path().apply {
         val bottom = top + h

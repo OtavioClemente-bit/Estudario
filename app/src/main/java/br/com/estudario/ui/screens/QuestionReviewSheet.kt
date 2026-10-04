@@ -147,7 +147,7 @@ fun QuestionReviewSheet(
 
             if (trechos.isEmpty()) {
                 Text(
-                    "Este tópico ainda não tem resumo nem teoria importados. Gere o conteúdo pelo botão ✨ do tópico e ele aparece aqui na próxima vez que você errar.",
+                    "Este tópico ainda não tem resumo nem teoria importados. Gere o conteúdo pelo botão Gerar do tópico e ele aparece aqui na próxima vez que você errar.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

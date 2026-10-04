@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material3.FilterChip
+import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.Surface
@@ -208,7 +208,7 @@ internal fun WizardProcessing(
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.primary,
         )
-        androidx.compose.material3.LinearProgressIndicator(
+        br.com.estudario.ui.brand.LinearProgressIndicator(
             progress = { visibleDone / stages.size.coerceAtLeast(1).toFloat() },
             modifier = Modifier.fillMaxWidth(0.7f).padding(vertical = 4.dp),
         )

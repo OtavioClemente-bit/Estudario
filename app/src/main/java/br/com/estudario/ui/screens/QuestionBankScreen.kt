@@ -16,6 +16,7 @@ import br.com.estudario.ui.components.SwipeToHide
 import br.com.estudario.ui.components.offerUndo
 import kotlinx.coroutines.launch
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.Button
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.runtime.*

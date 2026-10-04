@@ -46,6 +46,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -119,7 +120,7 @@ private fun Conteudo(badge: Badge, total: Int, index: Int) {
     val angulo by giro.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(26_000, easing = LinearEasing), RepeatMode.Restart),
+        animationSpec = infiniteRepeatable(tween(12_000, easing = LinearEasing), RepeatMode.Restart),
         label = "angulo",
     )
 
@@ -153,26 +154,24 @@ private fun Conteudo(badge: Badge, total: Int, index: Int) {
             Canvas(
                 Modifier
                     .size(if (estudarioLayout().isShortHeight) 220.dp else 300.dp)
-                    .graphicsLayer { rotationZ = angulo; alpha = opacidade * 0.5f },
+                    .graphicsLayer { alpha = opacidade },
             ) {
-                val centro = Offset(size.width / 2f, size.height / 2f)
-                val raio = size.minDimension / 2f
-                repeat(16) { i ->
-                    val passo = Math.toRadians(22.5 * i)
-                    val largura = Math.toRadians(5.0)
-                    val path = Path().apply {
-                        moveTo(centro.x, centro.y)
-                        lineTo(
-                            centro.x + raio * cos(passo - largura).toFloat(),
-                            centro.y + raio * sin(passo - largura).toFloat(),
+                // Confete de papel caindo: retangulinhos coloridos girando, como numa festa de verdade.
+                val cores = listOf(Color(0xFFFFB421), Color(0xFF1FB574), Color(0xFFFF5C4D), Color(0xFF2EA8F5), Color(0xFFF0559A), palette.glow)
+                val t = angulo / 360f
+                repeat(28) { i ->
+                    val semente = (i * 7919) % 1000 / 1000f
+                    val x = size.width * ((i * 0.137f + semente * 0.3f) % 1f)
+                    val queda = ((t * (1.4f + semente) * 6f + semente) % 1f)
+                    val y = size.height * (queda * 1.2f - 0.1f)
+                    val giroPapel = (t * 360f * (3f + semente * 4f) + i * 40f)
+                    rotate(giroPapel, Offset(x, y)) {
+                        drawRect(
+                            cores[i % cores.size].copy(alpha = 0.9f),
+                            topLeft = Offset(x - 4.dp.toPx(), y - 2.5.dp.toPx()),
+                            size = androidx.compose.ui.geometry.Size(8.dp.toPx(), 5.dp.toPx() * (0.4f + 0.6f * kotlin.math.abs(kotlin.math.cos(giroPapel / 57f)))),
                         )
-                        lineTo(
-                            centro.x + raio * cos(passo + largura).toFloat(),
-                            centro.y + raio * sin(passo + largura).toFloat(),
-                        )
-                        close()
                     }
-                    drawPath(path, palette.glow.copy(alpha = if (i % 2 == 0) 0.3f else 0.14f))
                 }
             }
             BadgeArt(

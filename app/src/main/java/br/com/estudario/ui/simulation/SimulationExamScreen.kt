@@ -33,7 +33,7 @@ import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
+import br.com.estudario.ui.brand.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import br.com.estudario.ui.brand.OutlinedButton

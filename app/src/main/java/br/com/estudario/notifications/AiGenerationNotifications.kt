@@ -83,7 +83,7 @@ object AiGenerationNotifications {
         val body = "\"$title\" está pronto. Toque para revisar e salvar no seu edital."
         val notification = NotificationCompat.Builder(context, CHANNEL_DONE)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("$kind pronto ✨")
+            .setContentTitle("$kind pronto")
             .setLargeIcon(runCatching { br.com.estudario.ui.assistant.folhaBitmap(256, br.com.estudario.ui.assistant.FolhaMood.HAPPY) }.getOrNull())
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))

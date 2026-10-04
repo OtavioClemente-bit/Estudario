@@ -22,7 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.LinearProgressIndicator
+import br.com.estudario.ui.brand.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.Text

@@ -43,7 +43,7 @@ import androidx.compose.material3.AlertDialog
 import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.CardDefaults
 import br.com.estudario.ui.brand.ElevatedCard
-import androidx.compose.material3.FilterChip
+import br.com.estudario.ui.brand.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.IconButton

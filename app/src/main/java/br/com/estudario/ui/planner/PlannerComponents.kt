@@ -10,6 +10,7 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.LinearProgressIndicator
 import br.com.estudario.ui.brand.ElevatedCard
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.runtime.Composable

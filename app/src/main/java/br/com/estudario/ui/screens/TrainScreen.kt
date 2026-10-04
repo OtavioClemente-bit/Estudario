@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.TrendingDown
 import androidx.compose.material.icons.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.Surface
 import br.com.estudario.ui.brand.Button
 import br.com.estudario.ui.brand.Icon

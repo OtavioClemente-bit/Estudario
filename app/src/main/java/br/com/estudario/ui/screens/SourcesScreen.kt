@@ -12,6 +12,7 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.ElevatedCard
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.runtime.*
@@ -114,7 +115,7 @@ fun SourcesScreen(
                 item {
                     EmptyState(
                         "Nenhuma fonte registrada ainda",
-                        "Conteúdo gerado a partir de agora traz as fontes junto. O material importado antes disso não tem esse registro, gere de novo pelo botão ✨ se quiser a rastreabilidade.",
+                        "Conteúdo gerado a partir de agora traz as fontes junto. O material importado antes disso não tem esse registro, gere de novo pelo botão Gerar se quiser a rastreabilidade.",
                     )
                 }
             } else if (visiveis.isEmpty()) {

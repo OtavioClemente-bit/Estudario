@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.Flow
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material3.LinearProgressIndicator
+import br.com.estudario.ui.brand.LinearProgressIndicator
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.AlertDialog
 import br.com.estudario.ui.theme.estudarioColors
@@ -58,7 +58,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import br.com.estudario.ui.brand.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
+import br.com.estudario.ui.brand.FilterChip
 import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.OutlinedTextField

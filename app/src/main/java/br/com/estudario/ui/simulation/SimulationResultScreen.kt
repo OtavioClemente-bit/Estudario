@@ -17,10 +17,10 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.RemoveCircleOutline
 import br.com.estudario.ui.brand.Button
 import br.com.estudario.ui.brand.ElevatedCard
-import androidx.compose.material3.FilterChip
+import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
+import br.com.estudario.ui.brand.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.OutlinedButton
 import br.com.estudario.ui.brand.Surface

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,7 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
-import androidx.compose.material3.FilterChip
+import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -226,18 +227,19 @@ fun DifficultySelector(selected: QuestionDifficulty, onSelect: (QuestionDifficul
                 row.forEach { level ->
                     val isSelected = level == selected
                     val tone = accent(level)
-                    Surface(
-                        onClick = { onSelect(level) },
-                        modifier = Modifier.weight(1f),
-                        shape = EstudarioShapes.row,
-                        color = if (isSelected) tone.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) tone else MaterialTheme.colorScheme.outlineVariant),
-                    ) {
-                        Column(Modifier.padding(12.dp)) {
+                    br.com.estudario.ui.brand.BrandChoice(isSelected, { onSelect(level) }, Modifier.weight(1f), accent = tone) {
+                        Column(Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(10.dp).clip(CircleShape).background(tone))
+                                // Nível em barrinhas, como sinal de celular: uma, duas, três; mista alterna.
+                                val bars = when (level) { QuestionDifficulty.EASY -> 1; QuestionDifficulty.MEDIUM -> 2; QuestionDifficulty.HARD -> 3; QuestionDifficulty.MIXED -> 0 }
+                                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    for (i in 1..3) Box(
+                                        Modifier.width(5.dp).height((6 + i * 4).dp).clip(RoundedCornerShape(2.dp))
+                                            .background(if (bars == 0 && i % 2 == 1 || i <= bars) tone else tone.copy(alpha = 0.25f)),
+                                    )
+                                }
                                 Spacer(Modifier.width(8.dp))
-                                Text(level.label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                Text(level.label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                             }
                             Text(hint(level), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }

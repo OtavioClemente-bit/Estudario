@@ -26,6 +26,7 @@ import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.LinearProgressIndicator
 import br.com.estudario.ui.brand.Surface
 import br.com.estudario.ui.brand.Button
 import br.com.estudario.ui.brand.Icon

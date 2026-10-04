@@ -25,7 +25,7 @@ import androidx.compose.material.icons.outlined.Sync
 import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
+import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.OutlinedButton

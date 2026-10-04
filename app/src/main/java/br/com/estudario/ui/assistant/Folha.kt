@@ -197,7 +197,6 @@ private fun DrawScope.drawFolha(t: Float, mood: FolhaMood, blink: Float, look: O
                 radius = 26f, center = Offset(50f, 95f),
             )
         }
-        if (mood == FolhaMood.THINKING) drawSparkles(t, behind = true)
 
         translate(0f, hop) {
             scale(squashX, squashY, pivot = Offset(50f, 88f)) {
@@ -211,7 +210,6 @@ private fun DrawScope.drawFolha(t: Float, mood: FolhaMood, blink: Float, look: O
                 }
             }
         }
-        if (mood == FolhaMood.THINKING) drawSparkles(t, behind = false)
         if (mood == FolhaMood.HAPPY) drawCelebration(t)
     }
 }
@@ -596,15 +594,8 @@ private fun DrawScope.drawCelebration(t: Float) {
 }
 
 private fun DrawScope.star(c: Offset, r: Float, color: Color) {
-    val s = Path().apply {
-        moveTo(c.x, c.y - r * 2f)
-        quadraticTo(c.x, c.y, c.x + r * 2f, c.y)
-        quadraticTo(c.x, c.y, c.x, c.y + r * 2f)
-        quadraticTo(c.x, c.y, c.x - r * 2f, c.y)
-        quadraticTo(c.x, c.y, c.x, c.y - r * 2f)
-        close()
-    }
-    drawPath(s, color)
+    // Confete redondo: comemoração de gente, não brilho de IA.
+    drawCircle(color, r * 0.9f, c)
 }
 
 /**

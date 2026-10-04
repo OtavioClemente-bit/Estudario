@@ -118,15 +118,15 @@ fun tourSteps(id: TourId): List<TourStep> = when (id) {
         TourStep("home", TourKey.NAV_MENU, "Acesse todas as ferramentas", "Toque no nome do app para abrir o menu. Ali você encontra revisões, fila de estudos, desempenho, backup e os guias de orientação."),
         TourStep("home", TourKey.NAV_EDITAL, "1. Comece pelo edital", "Aqui ficam as matérias e os tópicos do seu concurso. O plano, as revisões e as questões são organizados a partir desse conteúdo."),
         TourStep("syllabus", TourKey.EDITAL_CREATE, "Crie seu edital manualmente", "Toque no botão + para criar o concurso e adicionar as matérias e os tópicos manualmente."),
-        TourStep("syllabus", TourKey.EDITAL_AI, "Monte pelo edital", "No botão ✨, anexe o PDF do edital e o Estudário organiza as matérias e os tópicos para você revisar.", TutorialVideo.EDITAL),
+        TourStep("syllabus", TourKey.EDITAL_AI, "Monte pelo edital", "No botão de gerar, anexe o PDF do edital e o Estudário organiza as matérias e os tópicos para você revisar.", TutorialVideo.EDITAL),
         TourStep("syllabus", TourKey.EDITAL_IMPORT, "Já tem um arquivo .estudo?", "Se alguém te mandou um edital pronto do Estudário, abra o arquivo por aqui. Antes de salvar, você confere tudo."),
         TourStep("syllabus", null, "Suas matérias viram plano", "O Estudário prepara teoria e questões e monta o plano de estudos automaticamente, com tudo salvo no aparelho. Assim que o edital estiver pronto, você poderá gerar o conteúdo do primeiro tópico."),
     )
     TourId.CONTENT -> listOf(
         TourStep("syllabus", null, "Edital importado", "Gere teoria, resumos e questões para um tópico por vez. Essa abordagem preserva o detalhamento e reduz o risco de informações imprecisas. Revise o material antes de estudar."),
-        TourStep("syllabus", TourKey.SUBJECT_AI, "Gere o tópico atual", "Toque em ✨ na matéria, escolha o tópico e selecione o conteúdo desejado, como teoria, resumo ou questões. Depois, toque em Gerar com o Estudário.", TutorialVideo.CONTENT),
+        TourStep("syllabus", TourKey.SUBJECT_AI, "Gere o tópico atual", "Toque em gerar na matéria, escolha o tópico e selecione o conteúdo desejado, como teoria, resumo ou questões. Depois, toque em Gerar com o Estudário.", TutorialVideo.CONTENT),
         TourStep("syllabus", TourKey.EDITAL_IMPORT, "Importe o conteúdo", "Recebeu um arquivo .estudo? Abra por aqui. Cada teoria e questão vai para o tópico certo, sem repetir."),
-        TourStep("syllabus", null, "Acesso rápido no tópico", "Dentro do tópico, o botão ✨ abre o gerador com o assunto já selecionado. Repita o processo para cada novo tópico."),
+        TourStep("syllabus", null, "Acesso rápido no tópico", "Dentro do tópico, o botão de gerar abre o gerador com o assunto já selecionado. Repita o processo para cada novo tópico."),
         TourStep("syllabus", null, "Revisões espaçadas", "Ao marcar um tópico como estudado, o app agenda revisões em D+1, D+7 e D+30, ou segue o ciclo intensivo. Os intervalos aumentam com a consolidação e diminuem quando há dificuldade. As revisões aparecem no Início e em Mais, na seção Revisões espaçadas."),
         TourStep("syllabus", null, "Fila de estudos", "No menu ⋮ de cada tópico, selecione “Adicionar à fila”. O próximo item ficará em destaque no Início até a conclusão do bloco."),
     )

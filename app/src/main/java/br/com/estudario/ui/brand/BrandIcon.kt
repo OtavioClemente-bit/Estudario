@@ -80,7 +80,7 @@ internal fun glyphFor(vectorName: String): Glyph? = when (vectorName.substringAf
     "Bookmarks" -> Glyph.Notebook
     "Bookmark", "BookmarkBorder" -> Glyph.Bookmark
     "School" -> Glyph.Cap
-    "AutoAwesome" -> Glyph.Spark
+    "AutoAwesome" -> Glyph.Pencil
     "Psychology" -> Glyph.Brain
     "CheckCircle", "TaskAlt" -> Glyph.Check
     "Flag", "OutlinedFlag" -> Glyph.Flag
@@ -92,10 +92,11 @@ internal fun glyphFor(vectorName: String): Glyph? = when (vectorName.substringAf
     "WarningAmber", "Warning", "ErrorOutline", "ReportProblem" -> Glyph.Warning
     "LocalFireDepartment" -> Glyph.Fire
     "Bolt", "OfflineBolt", "Speed" -> Glyph.Bolt
+    "DirectionsRun" -> Glyph.Flag
     "Favorite", "FavoriteBorder" -> Glyph.Heart
     "Notifications", "NotificationsActive" -> Glyph.Bell
     "QueryStats", "Insights", "PieChart", "Timeline", "TrendingUp", "TrendingDown" -> Glyph.Chart
-    "Autorenew", "Replay", "History", "Restore", "EventRepeatOutlined" -> Glyph.Cycle
+    "Autorenew", "Replay", "History", "Restore", "SettingsBackupRestore", "Sync", "Refresh" -> Glyph.Cycle
     "GpsFixed", "CenterFocusStrong", "Explore" -> Glyph.Target
     "FolderOpen", "Inbox", "Archive", "Unarchive" -> Glyph.Folder
     "Settings", "Tune" -> Glyph.Gear

@@ -30,7 +30,7 @@ import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material.icons.outlined.TouchApp
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
+import br.com.estudario.ui.brand.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.OutlinedButton
 import br.com.estudario.ui.brand.Surface

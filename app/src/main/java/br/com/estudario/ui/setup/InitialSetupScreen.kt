@@ -64,10 +64,10 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import br.com.estudario.ui.brand.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
+import br.com.estudario.ui.brand.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import br.com.estudario.ui.brand.Icon
-import androidx.compose.material3.LinearProgressIndicator
+import br.com.estudario.ui.brand.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -1117,7 +1117,7 @@ internal fun SetupPage(
 }
 
 /**
- * Cabeçalho de cada passo como fala do assistente: o ✨ do Estudário, o tema da etapa num selo e a
+ * Cabeçalho de cada passo como fala do assistente: o Folha, o tema da etapa num selo e a
  * pergunta num balão, com a explicação logo abaixo. É o mesmo em [SetupPage] e no assistente do
  * plano, e o mesmo balão dos geradores de IA, para o app inteiro conversar do mesmo jeito.
  */
