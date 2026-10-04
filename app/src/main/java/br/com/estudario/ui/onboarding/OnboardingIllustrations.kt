@@ -136,11 +136,11 @@ private fun OnboardingPlaceholderArt(palette: EstudarioArtPalette, progress: Flo
                 cornerRadius = CornerRadius(size.height * 0.14f, size.height * 0.14f),
             )
         }
-        EstudarioGlyph(
-            size = 40.dp,
-            modifier = Modifier
-                .alpha(progress)
-                .scale(0.85f + 0.15f * progress),
+        // O Folha ocupa o espaço, acenando: lugar vazio no app é sempre com ele.
+        br.com.estudario.ui.assistant.Folha(
+            150.dp,
+            Modifier.alpha(progress).scale(0.85f + 0.15f * progress),
+            mood = br.com.estudario.ui.assistant.FolhaMood.WAVE,
         )
     }
 }

@@ -94,25 +94,36 @@ private fun Eyebrow(text: String) {
 private fun ReadyBody(state: CurrentStudyUiState.Ready, onStart: () -> Unit, onGenerate: (() -> Unit)?, generateModifier: Modifier) {
     val task = state.task
     Column(verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.medium)) {
-        // O Folha em cima do estudo de agora, chamando para começar; tocar nele já começa.
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Eyebrow(if (state.progressFraction != null) "Continuando" else "Agora")
-                Text(
-                    when {
-                        onGenerate != null -> "Vamos preparar o material deste tópico?"
-                        state.progressFraction != null -> "Bora terminar o que começamos?"
-                        else -> "Bora? Seu próximo estudo está aqui."
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp, bottomStart = 14.dp, bottomEnd = 4.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer)
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                )
+        // O Folha conversa com a pessoa: ele à esquerda, o balão saindo dele. Tocar nele já começa.
+        val fala = when {
+            onGenerate != null -> "Vamos preparar o material deste tópico?"
+            state.progressFraction != null -> "Bora terminar o que começamos?"
+            else -> "Bora? Seu próximo estudo está aqui."
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            br.com.estudario.ui.assistant.FolhaTalking(88.dp, fala, onClick = onGenerate ?: onStart)
+            Spacer(Modifier.width(4.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Eyebrow((if (state.progressFraction != null) "Continuando" else "Agora").uppercase())
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // A pontinha do balão, virada para o Folha.
+                    val bubble = MaterialTheme.colorScheme.primaryContainer
+                    androidx.compose.foundation.Canvas(Modifier.size(width = 10.dp, height = 16.dp)) {
+                        drawPath(androidx.compose.ui.graphics.Path().apply { moveTo(size.width, 0f); lineTo(0f, size.height / 2); lineTo(size.width, size.height); close() }, bubble)
+                    }
+                    Text(
+                        fala,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(bubble)
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                    )
+                }
             }
-            br.com.estudario.ui.assistant.FolhaTalking(72.dp, "Bora? Seu próximo estudo está aqui.", onClick = onGenerate ?: onStart)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
             SubjectBar(task.subjectName, height = 48.dp)
