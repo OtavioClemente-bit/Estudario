@@ -17,14 +17,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material3.Icon
+import br.com.estudario.ui.brand.Icon
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
+import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -157,7 +157,7 @@ private fun ReadyBody(state: CurrentStudyUiState.Ready, onStart: () -> Unit, onG
         if (onGenerate != null) {
             // Tópico ainda sem teoria nem questões: o primeiro passo é gerar o material dele.
             Text(
-                "Este tópico ainda não tem material. O Assistente escreve a teoria, os flashcards e as questões.",
+                "Este tópico ainda não tem material. Gere a teoria, os flashcards e as questões em um toque.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

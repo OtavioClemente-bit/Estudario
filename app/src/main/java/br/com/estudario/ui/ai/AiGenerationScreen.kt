@@ -23,10 +23,10 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.HourglassTop
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material3.Icon
+import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -106,7 +106,7 @@ fun AiGenerationScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center,
                                 )
-                                androidx.compose.material3.OutlinedButton(onClick = onClose, modifier = Modifier.padding(top = 8.dp)) { Text("Continuar em segundo plano") }
+                                br.com.estudario.ui.brand.OutlinedButton(onClick = onClose, modifier = Modifier.padding(top = 8.dp)) { Text("Continuar em segundo plano") }
                             },
                         )
                         else -> {
@@ -175,7 +175,6 @@ private fun StatusCard(
                 }
                 AiTextJobState.Generating, is AiTextJobState.Done -> Unit
             }
-            TextButton(onClick = onFallback, modifier = Modifier.fillMaxWidth()) { Text(copy.fallbackLabel) }
         }
     }
     Spacer(Modifier.height(4.dp))

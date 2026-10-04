@@ -30,13 +30,13 @@ import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material.icons.outlined.Summarize
 import androidx.compose.material.icons.outlined.WarningAmber
-import androidx.compose.material3.Button
+import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
+import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable

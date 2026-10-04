@@ -19,7 +19,7 @@ import br.com.estudario.data.local.SubjectEntity
 import br.com.estudario.data.local.TopicEntity
 
 private val ContentCopy = AiGenerationCopy(
-    screenTitle = "Assistente Estudário",
+    screenTitle = "Estudário",
     heroTitle = "Material completo deste tópico",
     heroText = "O Estudário pesquisa em fontes oficiais, confere a versão vigente das leis e prepara teoria, resumo e questões comentadas só do que este item do edital pede.",
     benefits = listOf(
@@ -41,7 +41,7 @@ private val ContentCopy = AiGenerationCopy(
     ),
     stageMillis = 22_000L,
     durationHint = "Cada fonte é conferida, por isso leva de 2 a 4 minutos.",
-    fallbackLabel = "Prefiro enviar para minha IA favorita (ChatGPT, Gemini…)",
+    fallbackLabel = "",
 )
 
 /**

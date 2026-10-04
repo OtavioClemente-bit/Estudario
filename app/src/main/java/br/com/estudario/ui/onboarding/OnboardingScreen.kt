@@ -48,9 +48,9 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Style
-import androidx.compose.material3.Button
+import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
+import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text

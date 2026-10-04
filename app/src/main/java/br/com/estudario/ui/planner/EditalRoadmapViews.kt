@@ -25,11 +25,11 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.WarningAmber
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
+import br.com.estudario.ui.brand.FilledTonalButton
+import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable

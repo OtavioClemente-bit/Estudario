@@ -7,7 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Button
+import br.com.estudario.ui.brand.Button
 import androidx.compose.material.icons.outlined.Login
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.foundation.layout.Arrangement
@@ -26,7 +26,7 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.OfflineBolt
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
+import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text

@@ -45,12 +45,12 @@ import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.SubdirectoryArrowRight
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.WarningAmber
-import androidx.compose.material3.Button
+import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
+import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -130,7 +130,7 @@ fun AiReviewScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Assistente Estudário", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        Text("Estudário", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                         BetaPill()
                     }
                 },
@@ -354,7 +354,7 @@ private fun AiSourceConfirmation(
                     when (kind) {
                         SyllabusPreflightKind.CANNOT_VALIDATE -> "Continuar mesmo assim"
                         SyllabusPreflightKind.VALID_WITH_WARNING -> "Continuar com este edital"
-                        else -> "Gerar com o Assistente Estudário"
+                        else -> "Gerar com o Estudário"
                     },
                 )
             }

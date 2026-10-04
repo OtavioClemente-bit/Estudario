@@ -28,11 +28,11 @@ import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material.icons.outlined.TouchApp
-import androidx.compose.material3.Icon
+import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -252,7 +252,7 @@ fun FlashcardDeckDialog(
                     // Virar também por botão: nem todo mundo percebe que o cartão inteiro é tocável.
                     val current = pager.currentPage
                     if (cards.getOrNull(current)?.back?.isNotBlank() == true) {
-                        androidx.compose.material3.Button(onClick = { flipped[current] = !(flipped[current] ?: false) }, modifier = Modifier.weight(2f)) {
+                        br.com.estudario.ui.brand.Button(onClick = { flipped[current] = !(flipped[current] ?: false) }, modifier = Modifier.weight(2f)) {
                             Icon(Icons.Outlined.TouchApp, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
                             Text(if (flipped[current] == true) "Pergunta" else "Resposta")
                         }

@@ -30,9 +30,9 @@ import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
+import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -151,7 +151,7 @@ fun MoreScreen(
                 HorizontalDivider()
                 LinkRow(Icons.Outlined.CalendarMonth, "Agenda do celular", "Salvar o plano no calendário", onAgenda)
                 HorizontalDivider()
-                LinkRow(Icons.Outlined.AutoAwesome, "Assistente de configuração", "Revisar concurso, edital, rotina e plano", onOpenSetup)
+                LinkRow(Icons.Outlined.AutoAwesome, "Configurar meus estudos", "Revisar concurso, edital, rotina e plano", onOpenSetup)
             }
         }
 

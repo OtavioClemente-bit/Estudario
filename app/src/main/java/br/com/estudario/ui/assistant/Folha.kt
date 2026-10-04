@@ -149,7 +149,7 @@ fun Folha(
     Canvas(
         modifier
             .size(size)
-            .semantics { contentDescription = "Folha, o Assistente Estudário" }
+            .semantics { contentDescription = "Folha, do Estudário" }
             .then(clickable),
     ) {
         drawFolha(

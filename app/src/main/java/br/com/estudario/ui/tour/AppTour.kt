@@ -26,12 +26,12 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.PlayCircleOutline
-import androidx.compose.material3.Button
+import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
+import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -103,14 +103,14 @@ fun tourSteps(id: TourId): List<TourStep> = when (id) {
         TourStep("home", TourKey.NAV_MENU, "Menu", "Revisões, desempenho, caderno de erros, backup e ajuda ficam aqui."),
         TourStep("home", TourKey.HOME_MISSION, "Início", "Todo dia, aqui aparece o que estudar agora e a sua missão do dia."),
         TourStep("home", TourKey.NAV_PLAN, "Plano", "Seu cronograma até a prova. Ele se ajusta sozinho quando a rotina muda."),
-        TourStep("home", TourKey.HOME_GENERATE, "Gere seu primeiro material", "Na primeira missão do dia, toque em Gerar: o Assistente escreve a teoria, os flashcards e as questões do tópico."),
+        TourStep("home", TourKey.HOME_GENERATE, "Gere seu primeiro material", "Na primeira missão do dia, toque em Gerar e receba a teoria, os flashcards e as questões do tópico."),
     )
     // Quem pulou a configuração ainda não tem concurso: o giro termina em Concursos, onde ele nasce.
     TourId.WELCOME_START -> listOf(
         TourStep("home", null, "Bem-vindo ao Estudário", "Um giro rápido de 5 passos. Use as setas."),
         TourStep("home", TourKey.NAV_MENU, "Menu", "Revisões, desempenho, caderno de erros, backup e ajuda ficam aqui."),
         TourStep("home", TourKey.NAV_EDITAL, "Concursos", "Tudo começa aqui: o seu concurso, com as matérias e os tópicos do edital."),
-        TourStep("syllabus", TourKey.EDITAL_AI, "Monte pelo edital", "Toque em ✨ e anexe o PDF do edital: o Assistente organiza as matérias e os tópicos para você revisar."),
+        TourStep("syllabus", TourKey.EDITAL_AI, "Monte pelo edital", "Anexe o PDF do edital e o Estudário separa as matérias e os tópicos. Você confere antes de salvar."),
         TourStep("syllabus", TourKey.EDITAL_CREATE, "Ou crie do seu jeito", "No +, crie o concurso e adicione as matérias à mão. Depois, o plano e o material saem daqui."),
     )
     TourId.EDITAL -> listOf(
@@ -118,14 +118,14 @@ fun tourSteps(id: TourId): List<TourStep> = when (id) {
         TourStep("home", TourKey.NAV_MENU, "Acesse todas as ferramentas", "Toque no nome do app para abrir o menu. Ali você encontra revisões, fila de estudos, desempenho, backup e os guias de orientação."),
         TourStep("home", TourKey.NAV_EDITAL, "1. Comece pelo edital", "Aqui ficam as matérias e os tópicos do seu concurso. O plano, as revisões e as questões são organizados a partir desse conteúdo."),
         TourStep("syllabus", TourKey.EDITAL_CREATE, "Crie seu edital manualmente", "Toque no botão + para criar o concurso e adicionar as matérias e os tópicos manualmente."),
-        TourStep("syllabus", TourKey.EDITAL_AI, "Monte pelo edital", "No botão ✨, anexe o PDF do edital e o Estudário organiza as matérias e os tópicos para você revisar. Se preferir, envie o pedido pronto para a sua IA favorita.", TutorialVideo.EDITAL),
-        TourStep("syllabus", TourKey.EDITAL_IMPORT, "Importe a resposta", "Se usou a sua IA, quando ela gerar o arquivo .estudo, abra-o com o Estudário, compartilhe a resposta com o app ou selecione o arquivo por aqui. Você também pode copiar o texto e usar a opção “Colar resposta da IA”."),
+        TourStep("syllabus", TourKey.EDITAL_AI, "Monte pelo edital", "No botão ✨, anexe o PDF do edital e o Estudário organiza as matérias e os tópicos para você revisar.", TutorialVideo.EDITAL),
+        TourStep("syllabus", TourKey.EDITAL_IMPORT, "Já tem um arquivo .estudo?", "Se alguém te mandou um edital pronto do Estudário, abra o arquivo por aqui. Antes de salvar, você confere tudo."),
         TourStep("syllabus", null, "Suas matérias viram plano", "O Estudário prepara teoria e questões e monta o plano de estudos automaticamente, com tudo salvo no aparelho. Assim que o edital estiver pronto, você poderá gerar o conteúdo do primeiro tópico."),
     )
     TourId.CONTENT -> listOf(
         TourStep("syllabus", null, "Edital importado", "Gere teoria, resumos e questões para um tópico por vez. Essa abordagem preserva o detalhamento e reduz o risco de informações imprecisas. Revise o material antes de estudar."),
         TourStep("syllabus", TourKey.SUBJECT_AI, "Gere o tópico atual", "Toque em ✨ na matéria, escolha o tópico e selecione o conteúdo desejado, como teoria, resumo ou questões. Depois, toque em Gerar com o Estudário.", TutorialVideo.CONTENT),
-        TourStep("syllabus", TourKey.EDITAL_IMPORT, "Importe o conteúdo", "Se usou a sua IA, ela devolve um arquivo .estudo. Abra-o com o app, compartilhe o texto ou use este botão. Cada teoria e questão será associada ao tópico correto, sem duplicação."),
+        TourStep("syllabus", TourKey.EDITAL_IMPORT, "Importe o conteúdo", "Recebeu um arquivo .estudo? Abra por aqui. Cada teoria e questão vai para o tópico certo, sem repetir."),
         TourStep("syllabus", null, "Acesso rápido no tópico", "Dentro do tópico, o botão ✨ abre o gerador com o assunto já selecionado. Repita o processo para cada novo tópico."),
         TourStep("syllabus", null, "Revisões espaçadas", "Ao marcar um tópico como estudado, o app agenda revisões em D+1, D+7 e D+30, ou segue o ciclo intensivo. Os intervalos aumentam com a consolidação e diminuem quando há dificuldade. As revisões aparecem no Início e em Mais, na seção Revisões espaçadas."),
         TourStep("syllabus", null, "Fila de estudos", "No menu ⋮ de cada tópico, selecione “Adicionar à fila”. O próximo item ficará em destaque no Início até a conclusão do bloco."),

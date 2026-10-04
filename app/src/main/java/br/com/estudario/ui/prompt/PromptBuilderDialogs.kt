@@ -18,7 +18,7 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.Icon
+import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.AlertDialog
 import br.com.estudario.ui.theme.estudarioColors
 import br.com.estudario.ui.theme.EstudarioShapes
@@ -60,7 +60,7 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -186,12 +186,12 @@ fun EditalPromptBuilderDialog(viewModel: AppViewModel, selectedCompetitionId: Lo
             question = "Você tem o PDF oficial do edital?",
             answer = if (options.source == EditalSource.PASTE_TEXT) "Vou colar o texto" else attachment?.name ?: "Sem PDF por enquanto",
         ) {
-            ChoiceChips(EditalSource.entries, options.source, { it.label }) { options = options.copy(source = it) }
+            ChoiceChips(listOf(EditalSource.ATTACH_PDF), options.source, { it.label }) { options = options.copy(source = it) }
             if (options.source == EditalSource.ATTACH_PDF) {
                 AttachmentPicker(attachment, "Escolher PDF do edital", { attach.launch(attachmentTypes) }, { attachment = null })
                 if (attachment == null) Text("Sem o arquivo, as matérias podem não bater com o edital publicado.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
-                Text("O pedido termina com o espaço “TEXTO DO EDITAL”: cole o conteúdo programático logo depois, na sua IA.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Sem o PDF, o Estudário monta pelo nome do concurso e do cargo.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
     )
@@ -199,7 +199,7 @@ fun EditalPromptBuilderDialog(viewModel: AppViewModel, selectedCompetitionId: Lo
         WizardSummaryItem("Concurso", effective.competitionName.ifBlank { "Não informado" }, 0),
         WizardSummaryItem("Cargo", listOf(effective.role, effective.board, effective.year).filter(String::isNotBlank).joinToString(" · ").ifBlank { "Não informado" }, 0),
         WizardSummaryItem("Extração", "${options.scope.label} · ${options.detail.label}", 1),
-        WizardSummaryItem("Edital", if (options.source == EditalSource.PASTE_TEXT) "Texto colado na sua IA" else attachment?.name ?: "Sem PDF anexado", 2),
+        WizardSummaryItem("Edital", if (options.source == EditalSource.PASTE_TEXT) "Sem PDF" else attachment?.name ?: "Sem PDF anexado", 2),
     )
     val server = ServerGenerationOption(
         description = "Lê o PDF oficial, extrai matérias e tópicos e mostra tudo para você revisar antes de salvar. Usa 1 geração de edital do seu plano.",
@@ -354,13 +354,6 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
             if (ContentBlock.THEORY in options.blocks) OptionSection("Profundidade da teoria") {
                 ChoiceCards(TheoryDepth.entries, options.depth, { it.label }, { options = options.copy(depth = it) }, description = ::depthDescription)
             }
-            MaterialBaseSection(
-                useOwn = options.source == MaterialSource.ATTACHED,
-                attachment = attachment,
-                onUseOwnChange = { use -> options = options.copy(source = if (use) MaterialSource.ATTACHED else MaterialSource.AI_KNOWLEDGE) },
-                onPick = { attach.launch(attachmentTypes) },
-                onClear = { attachment = null },
-            )
         })
         if (ContentBlock.QUESTIONS in options.blocks) add(WizardStep(
             "Questões",
@@ -416,7 +409,6 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
             enabled = singleTopic != null && options.source != MaterialSource.ATTACHED,
             disabledReason = when {
                 singleTopic == null -> "O Estudário gera um tópico por vez. Escolha um tópico."
-                options.source == MaterialSource.ATTACHED -> "Para trabalhar em cima do seu material, envie para a sua IA favorita (o anexo vai junto)."
                 else -> null
             },
             onGenerate = { if (application.supabaseAuthRepository.accessToken() == null) loginFor = singleTopic else serverTarget = singleTopic },
@@ -524,7 +516,7 @@ private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, on
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 ContentCommitmentsCard()
                                 Text("Leva em média de 2 a 4 minutos, porque as fontes são consultadas e conferidas. Você pode continuar usando o app: avisaremos assim que o material estiver pronto para revisão.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                                androidx.compose.material3.OutlinedButton(onClick = onBackground) { Text("Continuar em segundo plano") }
+                                br.com.estudario.ui.brand.OutlinedButton(onClick = onBackground) { Text("Continuar em segundo plano") }
                                 TextButton(onClick = onClose) { Text("Cancelar geração", color = MaterialTheme.colorScheme.error) }
                             }
                         },
@@ -534,7 +526,7 @@ private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, on
                     br.com.estudario.ui.assistant.Folha(132.dp, mood = br.com.estudario.ui.assistant.FolhaMood.SAD)
                     Text("Não deu certo desta vez", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
                     Text(failed.message, textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    androidx.compose.material3.Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("Voltar") }
+                    br.com.estudario.ui.brand.Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("Voltar") }
                 }
             }
         }
@@ -906,7 +898,7 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
     )
 
     GenerationWizard(
-        title = "Plano de estudos com o assistente",
+        title = "Plano de estudos do Estudário",
         subtitle = competition?.name ?: "Crie um concurso na aba Concursos primeiro",
         steps = steps,
         summary = summary,

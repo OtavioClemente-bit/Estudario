@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.Icon
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -76,7 +77,6 @@ import br.com.estudario.ui.ai.AiReviewEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private data class Destination(val route: String, val label: String, val selected: androidx.compose.ui.graphics.vector.ImageVector, val unselected: androidx.compose.ui.graphics.vector.ImageVector)
 
 @Composable
 fun EstudarioApp(viewModel: AppViewModel) {
@@ -229,11 +229,11 @@ private fun MainNavigation(viewModel: AppViewModel) {
     // ferramentas, vive no menu lateral, que é onde dá para nomear as coisas sem inventar uma aba
     // chamada "Mais" para guardar o que não coube.
     val destinations = listOf(
-        Destination("home", "Início", Icons.Rounded.Home, Icons.Outlined.Home),
-        Destination("syllabus", "Concursos", Icons.Rounded.LibraryBooks, Icons.Outlined.LibraryBooks),
-        Destination("plan", "Plano", Icons.Rounded.CalendarMonth, Icons.Outlined.CalendarMonth),
-        Destination("train", "Treinar", Icons.Rounded.Quiz, Icons.Outlined.Quiz),
-        Destination("notebook", "Caderno", Icons.Rounded.Bookmarks, Icons.Outlined.Bookmarks),
+        br.com.estudario.ui.brand.BrandTab("home", "Início", br.com.estudario.ui.brand.Glyph.House),
+        br.com.estudario.ui.brand.BrandTab("syllabus", "Concursos", br.com.estudario.ui.brand.Glyph.Books),
+        br.com.estudario.ui.brand.BrandTab("plan", "Plano", br.com.estudario.ui.brand.Glyph.Calendar),
+        br.com.estudario.ui.brand.BrandTab("train", "Treinar", br.com.estudario.ui.brand.Glyph.Target),
+        br.com.estudario.ui.brand.BrandTab("notebook", "Caderno", br.com.estudario.ui.brand.Glyph.Notebook),
     )
     val showBottom = currentRoute in destinations.map { it.route }
     val drawerGestureDisabled = currentRoute in setOf(
@@ -384,19 +384,16 @@ private fun MainNavigation(viewModel: AppViewModel) {
                 br.com.estudario.ui.ai.BackgroundAiBanner(onOpen = { text, competitionId -> viewModel.openIncomingText(text, competitionId) })
             } },
             bottomBar = {
-                if (showBottom) NavigationBar(windowInsets = WindowInsets.navigationBars, modifier = Modifier.testTag("main-bottom-navigation")) {
-                    destinations.forEach { destination ->
-                        val selected = currentRoute == destination.route
+                if (showBottom) br.com.estudario.ui.brand.BrandBottomBar(
+                    tabs = destinations,
+                    currentRoute = currentRoute,
+                    onSelect = { navegarAba(it) },
+                    modifier = Modifier.testTag("main-bottom-navigation"),
+                    itemModifier = { destination ->
                         val tourKey = tourKeyForRoute(destination.route)
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = { navegarAba(destination.route) },
-                            icon = { Icon(if (selected) destination.selected else destination.unselected, null) },
-                            label = { Text(destination.label, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
-                            modifier = if (tourKey != null) Modifier.tourTarget(tourKey, tourStep?.key) { viewModel.reportTourTargetBounds(tourKey, it) } else Modifier,
-                        )
-                    }
-                }
+                        if (tourKey != null) Modifier.tourTarget(tourKey, tourStep?.key) { viewModel.reportTourTargetBounds(tourKey, it) } else Modifier
+                    },
+                )
             },
         ) { padding ->
             NavHost(

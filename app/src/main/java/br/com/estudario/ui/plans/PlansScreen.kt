@@ -35,13 +35,13 @@ import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.WorkspacePremium
-import androidx.compose.material3.Button
+import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
+import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -94,7 +94,7 @@ private fun planTagline(tier: String): String = when (tier) {
 }
 
 private fun featureLabel(feature: String): String = when (feature) {
-    "SYLLABUS_GENERATION" -> "Editais lidos pela IA"
+    "SYLLABUS_GENERATION" -> "Editais organizados"
     "PLAN_GENERATION" -> "Planos de estudo"
     "CONTENT_GENERATION" -> "Materiais completos"
     "QUESTION_BATCH" -> "Lotes de questões extras"
@@ -258,7 +258,7 @@ private fun Hero(currentTier: String?, renewsAt: String?, onDismiss: () -> Unit)
                     Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(16.dp), tint = Color.White)
                         Spacer(Modifier.width(6.dp))
-                        Text("Assistente Estudário", style = MaterialTheme.typography.labelLarge, color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Estudário", style = MaterialTheme.typography.labelLarge, color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
                 Spacer(Modifier.weight(1f))
@@ -266,7 +266,7 @@ private fun Hero(currentTier: String?, renewsAt: String?, onDismiss: () -> Unit)
             }
             Spacer(Modifier.height(20.dp))
             Text(
-                "Do edital à aprovação,\ncom a IA estudando junto",
+                "Do edital à aprovação,\num dia de cada vez",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Black,
                 color = Color.White,
@@ -398,7 +398,7 @@ private fun AdRewardCard(visible: Boolean, busy: Boolean, onClick: () -> Unit) {
 private fun PlanCatalog(plans: List<AiPlanCatalogEntry>, currentTier: String) {
     if (plans.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        SectionTitle("Escolha seu ritmo", "Todos os planos usam a mesma IA, com as mesmas fontes conferidas.")
+        SectionTitle("Escolha seu ritmo", "Todos os planos têm o mesmo conteúdo, com as mesmas fontes conferidas.")
         // O recomendado primeiro, depois o mais completo e por fim o grátis.
         plans.sortedBy { listOf("ESSENCIAL", "PRO", "FREE").indexOf(it.planTier).let { i -> if (i < 0) 9 else i } }.forEach { plan ->
             PlanCard(plan, isCurrent = plan.planTier == currentTier, featured = plan.planTier == "ESSENCIAL")
@@ -508,7 +508,7 @@ private fun EveryPlanHas() {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Perk(Icons.Outlined.EventRepeat, "Plano até a prova", "Cronograma, revisões espaçadas e missão do dia, sem gastar saldo.")
                 Perk(Icons.Outlined.Quiz, "Treino e caderno de erros", "Questões, simulados e o que você errou organizado por conceito.")
-                Perk(Icons.Outlined.Devices, "Seu estudo no aparelho", "Funciona sem internet. O saldo da IA vale em qualquer celular.")
+                Perk(Icons.Outlined.Devices, "Seu estudo no aparelho", "Funciona sem internet. Seu saldo vale em qualquer celular.")
             }
         }
     }
@@ -536,7 +536,6 @@ private fun HowQuotaWorks() {
             Triple(Icons.Outlined.MenuBook, "1 pedido concluído, 1 unidade", "Um edital, o material de um tópico, um lote de questões ou uma parte de simulado."),
             Triple(Icons.Outlined.Shield, "Falhou? Não desconta", "Se a geração falhar ou for cancelada antes do resultado, o saldo volta."),
             Triple(Icons.Outlined.Replay, "Sem cobrança em dobro", "Repetir o mesmo pedido depois de um erro técnico não cobra de novo."),
-            Triple(Icons.Outlined.AutoAwesome, "Sua IA favorita é livre", "Enviar o pedido para o ChatGPT, Gemini ou outra IA não consome saldo."),
         ).forEach { (icon, title, detail) -> Perk(icon, title, detail) }
         Text(
             "Os preços aparecem aqui quando as assinaturas abrirem.",

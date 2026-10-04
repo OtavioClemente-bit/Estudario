@@ -52,15 +52,15 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FileOpen
 import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material3.Button
+import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
+import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -324,7 +324,7 @@ private fun ReviewPage(
                     )
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("Assistente Estudário", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text("Estudário", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                         Text("Recomendado · gera aqui no app", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     }
                 }
@@ -339,49 +339,6 @@ private fun ReviewPage(
         }
     }
 
-    OutlinedCard(Modifier.fillMaxWidth(), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(if (server != null) "Ou envie para sua IA favorita" else "Enviar para sua IA favorita", fontWeight = FontWeight.Bold)
-            Text(
-                "Opcional: mande o pedido pronto para o ChatGPT, o Gemini ou outra IA que você use, e traga a resposta de volta ao Estudário.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (attachment != null) Text("O anexo “${attachment.name}” vai junto.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = if (estudarioLayout().prefersStacking) 1 else Int.MAX_VALUE, verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = { onExternal(ExternalAction.COPY) }, enabled = ready, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Outlined.ContentCopy, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Copiar pedido")
-                }
-                val share: @Composable () -> Unit = {
-                    Icon(Icons.Outlined.Share, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Enviar para minha IA")
-                }
-                if (server == null) Button(onClick = { onExternal(ExternalAction.SHARE) }, enabled = ready, modifier = Modifier.weight(1.4f)) { share() }
-                else OutlinedButton(onClick = { onExternal(ExternalAction.SHARE) }, enabled = ready, modifier = Modifier.weight(1.4f)) { share() }
-            }
-            TextButton(onClick = { showPreview = !showPreview }, enabled = prompt.isNotEmpty()) {
-                Icon(if (showPreview) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null)
-                Spacer(Modifier.width(6.dp))
-                Text(if (showPreview) "Esconder pedido" else "Ver pedido completo")
-            }
-            AnimatedVisibility(showPreview) {
-                Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small) {
-                    SelectionContainer {
-                        Text(prompt, Modifier.padding(12.dp).heightIn(max = 360.dp).verticalScroll(rememberScrollState()), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
-                    }
-                }
-            }
-            HorizontalDivider()
-            Text("Já tem a resposta?", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-            FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = if (estudarioLayout().prefersStacking) 1 else Int.MAX_VALUE, verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = {
-                    val text = readClipboardText(context)
-                    if (text.isNullOrBlank()) Toast.makeText(context, "A área de transferência está vazia. Copie a resposta inteira da sua IA.", Toast.LENGTH_LONG).show()
-                    else onImportText(text)
-                }, modifier = Modifier.widthIn(min = 120.dp)) { Icon(Icons.Outlined.ContentPaste, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Colar resposta") }
-                TextButton(onClick = onPickFile, modifier = Modifier.widthIn(min = 120.dp)) { Icon(Icons.Outlined.FileOpen, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(returnFileLabel) }
-            }
-        }
-    }
     }
 }
 

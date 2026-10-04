@@ -18,6 +18,7 @@ import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier

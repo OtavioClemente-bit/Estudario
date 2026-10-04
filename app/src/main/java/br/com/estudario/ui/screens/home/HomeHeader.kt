@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
+import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -86,7 +86,7 @@ fun HomeNoContestState(onAddContest: () -> Unit, modifier: Modifier = Modifier) 
         )
         Spacer(Modifier.height(EstudarioSpacing.small))
         Text(
-            "Adicionar seu edital é o primeiro passo para o Estudário montar sua jornada: as matérias viram tópicos, os tópicos viram plano, e o plano vira o que estudar hoje.",
+            "Comece pelo edital. A partir dele, o Estudário monta seu plano e mostra o que estudar hoje.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

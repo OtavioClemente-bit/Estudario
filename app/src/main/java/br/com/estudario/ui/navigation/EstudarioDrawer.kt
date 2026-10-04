@@ -38,11 +38,11 @@ import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.QueryStats
-import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.GpsFixed
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material3.Icon
+import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -172,8 +172,8 @@ private fun DrawerRow(entry: DrawerEntry, selected: Boolean) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small),
     ) {
-        Icon(entry.icon, contentDescription = null, tint = content, modifier = Modifier.size(22.dp))
-        Text(entry.label, style = MaterialTheme.typography.titleSmall, color = content)
+        Icon(entry.icon, contentDescription = null, tint = content, modifier = Modifier.size(30.dp))
+        Text(entry.label, style = MaterialTheme.typography.titleSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), color = content)
     }
 }
 
@@ -207,7 +207,7 @@ fun estudarioDrawerSections(
             DrawerEntry("Meus concursos", Icons.Outlined.FolderOpen, onMySyllabi, "my-syllabi"),
             DrawerEntry("Concursos", Icons.AutoMirrored.Outlined.LibraryBooks, onSyllabus, "syllabus"),
             DrawerEntry("Plano de estudos", Icons.Outlined.CalendarMonth, onPlan, "plan"),
-            DrawerEntry("Treinar questões", Icons.Outlined.School, onTrain, "train"),
+            DrawerEntry("Treinar questões", Icons.Outlined.GpsFixed, onTrain, "train"),
             DrawerEntry("Caderno de estudo", Icons.Outlined.Bookmarks, onNotebook, "notebook"),
             DrawerEntry("Revisões espaçadas", Icons.Outlined.Autorenew, onReviews, "reviews"),
             DrawerEntry("Caderno de erros", Icons.Outlined.ErrorOutline, onErrors, "errors"),

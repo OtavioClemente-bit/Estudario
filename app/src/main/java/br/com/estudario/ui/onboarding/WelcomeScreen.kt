@@ -34,8 +34,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
+import br.com.estudario.ui.brand.Icon
+import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text

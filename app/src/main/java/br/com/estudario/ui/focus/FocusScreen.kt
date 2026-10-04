@@ -28,13 +28,13 @@ import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.outlined.Timer
-import androidx.compose.material3.Button
+import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -187,7 +187,7 @@ fun FocusScreen(
                     // A dúvida de quem acabou de ligar o foco: "e agora, fico nesta tela?". Não precisa.
                     Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), shape = MaterialTheme.shapes.medium) {
                         Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            androidx.compose.material3.Icon(Icons.Outlined.Lightbulb, null, tint = MaterialTheme.colorScheme.primary)
+                            br.com.estudario.ui.brand.Icon(Icons.Outlined.Lightbulb, null, tint = MaterialTheme.colorScheme.primary)
                             Text(
                                 "Pode fechar esta janela e ir estudar. O cronômetro continua sozinho e o tempo é salvo quando você encerrar a sessão.",
                                 style = MaterialTheme.typography.bodySmall,
@@ -297,7 +297,7 @@ fun FocusScreen(
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                androidx.compose.material3.Icon(Icons.Outlined.History, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                br.com.estudario.ui.brand.Icon(Icons.Outlined.History, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Text("Histórico de foco", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             }
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
@@ -338,7 +338,7 @@ internal fun FocusHistoryRow(session: FocusSessionEntity, namesById: Map<Long, S
     Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
         Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(38.dp)) {
             Box(contentAlignment = Alignment.Center) {
-                androidx.compose.material3.Icon(Icons.Outlined.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                br.com.estudario.ui.brand.Icon(Icons.Outlined.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -353,7 +353,7 @@ internal fun FocusHistoryRow(session: FocusSessionEntity, namesById: Map<Long, S
 @Composable
 private fun Linha(icon: ImageVector, titulo: String, apoio: String) {
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        androidx.compose.material3.Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        br.com.estudario.ui.brand.Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         Column {
             Text(titulo, fontWeight = FontWeight.SemiBold)
             Text(apoio, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
