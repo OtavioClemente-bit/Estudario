@@ -12,7 +12,9 @@ for (const entry of [...Deno.readDirSync(dir)].sort((a, b) => a.name.localeCompa
   let data: Json;
   try { data = JSON.parse(Deno.readTextFileSync(`${dir}/${entry.name}`)); } catch { report.push(`✗ ${entry.name}: JSON inválido`); continue; }
   if (typeof data.topic === "string" && data.board) {
-    Deno.writeTextFileSync(`conteudo/recortes/idecan/${data.topic}.json`, JSON.stringify(data, null, 2) + "\n");
+    const boardDir = `conteudo/recortes/${String(data.board).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+    Deno.mkdirSync(boardDir, { recursive: true });
+    Deno.writeTextFileSync(`${boardDir}/${data.topic}.json`, JSON.stringify(data, null, 2) + "\n");
     continue;
   }
   if (typeof data.id !== "string" || !Array.isArray(data.questions)) continue;
