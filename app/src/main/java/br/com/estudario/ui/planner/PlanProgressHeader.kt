@@ -75,6 +75,7 @@ fun PlanProgressHeader(state: ActivePlanUiState, modifier: Modifier = Modifier) 
                         Text("Missão de hoje", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                         Text(
                             when {
+                                today.isEmpty() && state.nextStudyDay != null -> "Folga hoje. Próximo estudo: ${dayLabelPtBr(state.nextStudyDay!!, state.today)} · ${state.nextDayTasks.size} atividade(s) · ${minutesLabelPtBr(state.nextDayTasks.sumOf { it.entity.plannedMinutes })}"
                                 today.isEmpty() -> "Dia livre no plano."
                                 todayDone == today.size -> "Concluída. Amanhã o plano continua."
                                 else -> "$todayDone de ${today.size} atividades · ${minutesLabelPtBr(state.todayActualMinutes)} de ${minutesLabelPtBr(state.todayPlannedMinutes)}"
@@ -96,4 +97,11 @@ private fun Bar(fraction: Float, color: Color) {
     Box(Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))) {
         Box(Modifier.fillMaxWidth(fraction.coerceIn(0.015f, 1f)).fillMaxHeight().clip(CircleShape).background(color))
     }
+}
+
+/** "amanhã", "segunda, 5/10": como uma pessoa falaria a data. */
+internal fun dayLabelPtBr(date: java.time.LocalDate, today: java.time.LocalDate): String {
+    if (date == today.plusDays(1)) return "amanhã"
+    val dia = date.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale("pt", "BR")).substringBefore("-")
+    return "$dia, ${date.dayOfMonth}/${date.monthValue}"
 }

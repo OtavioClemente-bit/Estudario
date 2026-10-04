@@ -65,6 +65,14 @@ data class ActivePlanUiState(
     val message: String? = null,
 ) {
     val todayTasks get() = tasks.filter { it.entity.scheduledEpochDay == today.toEpochDay() }
+    private val pendingStatuses get() = listOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO)
+    /** O próximo dia com estudo depois de hoje: o que mostrar quando hoje é folga. */
+    val nextStudyDay: LocalDate? get() = tasks.asSequence()
+        .filter { it.entity.scheduledEpochDay > today.toEpochDay() && it.entity.status in pendingStatuses }
+        .minOfOrNull { it.entity.scheduledEpochDay }?.let(LocalDate::ofEpochDay)
+    val nextDayTasks get() = nextStudyDay?.let { day -> tasks.filter { it.entity.scheduledEpochDay == day.toEpochDay() } }.orEmpty()
+    /** Os próximos 7 dias a partir de amanhã, para a semana nunca aparecer vazia quando o plano continua. */
+    val upcomingWeekTasks get() = tasks.filter { it.entity.scheduledEpochDay in (today.toEpochDay() + 1)..(today.toEpochDay() + 7) }
     val overdueTasks get() = tasks.filter { it.entity.scheduledEpochDay < today.toEpochDay() && it.entity.status in listOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO) }
     val todayCompletionPercent: Int get() = todayTasks.plannedLoadCompletionPercent()
     val weekStart: LocalDate get() = today.minusDays((today.dayOfWeek.value - 1).toLong())

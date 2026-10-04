@@ -176,6 +176,11 @@ private fun DayPlanView(
                         body = "Não houve tarefas registradas para este dia.",
                         actionLabel = null,
                     )
+                } else if (selectedDate == state.today && state.nextStudyDay != null) {
+                    EmptyState(
+                        title = "Hoje é dia de descanso",
+                        body = "Descanso também é parte do plano. Seu próximo estudo é ${dayLabelPtBr(state.nextStudyDay!!, state.today)}. Se quiser adiantar, é só começar uma das atividades abaixo.",
+                    )
                 } else {
                     EmptyState(
                         title = "Dia livre",
@@ -183,6 +188,18 @@ private fun DayPlanView(
                         actionLabel = "Gerar planejamento",
                         onAction = onGenerate
                     )
+                }
+            }
+            if (selectedDate == state.today && !isDayLocked && state.nextStudyDay != null) {
+                item {
+                    Text(
+                        "Próximo estudo · ${dayLabelPtBr(state.nextStudyDay!!, state.today).replaceFirstChar { it.uppercase() }}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                items(state.nextDayTasks, key = { "next_${it.entity.id}" }) { taskUi ->
+                    MissionCard(taskUi = taskUi, onStart = { onFocus(taskUi) }, onReprogram = { onReprogram(taskUi) }, onSkip = { onSkip(taskUi) }, isOverdue = false)
                 }
             }
         } else {
@@ -235,7 +252,23 @@ private fun WeekPlanView(
             )
         }
         item { PlannerSummary(plannedMinutes = plannedMinutes, actualMinutes = actualMinutes, completionPercent = completionPercent, plannedLabel = "planejadas na semana", periodTitle = "Progresso da semana") }
-        if (weekTasks.isEmpty()) {
+        if (weekTasks.isEmpty() && state.upcomingWeekTasks.isNotEmpty()) {
+            // A semana do calendário acabou, mas o plano continua: mostra os próximos 7 dias.
+            item { Text("Esta semana já fechou. Veja o que vem nos próximos 7 dias:", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            state.upcomingWeekTasks.groupBy { it.entity.scheduledEpochDay }.toSortedMap().forEach { (day, tasks) ->
+                val date = LocalDate.ofEpochDay(day)
+                item(key = "up_head_$day") {
+                    Text(
+                        dayLabelPtBr(date, state.today).replaceFirstChar { it.uppercase() } + " · ${tasks.size} atividade(s) · " + br.com.estudario.ui.planner.minutesLabelPtBr(tasks.sumOf { it.entity.plannedMinutes }),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                items(tasks, key = { "up_${it.entity.id}" }) { taskUi ->
+                    MissionCard(taskUi = taskUi, onStart = { onFocus(taskUi) }, onReprogram = {}, onSkip = {}, isOverdue = false)
+                }
+            }
+        } else if (weekTasks.isEmpty()) {
             item { EmptyState("Semana livre", "Não há tarefas planejadas para esta semana.", "Gerar planejamento", onGenerate) }
         } else {
             (0..6).forEach { offset ->
@@ -332,6 +365,8 @@ private fun OverviewPlanView(state: ActivePlanUiState, header: LazyListScope.() 
     PlanList(header) {
         item { Text("Visão geral do plano", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
         // O caminho inteiro até a prova vem primeiro: é o que dá confiança no plano.
+        // Primeiro o plano do jeito que a pessoa vive (a semana), depois o caminho inteiro até a prova.
+        item(key = "week-shape") { PlanWeekShape(state) }
         state.roadmap?.let { roadmap -> editalRoadmap(roadmap, onEditAvailability, onShiftRoadmapEnd) }
         item { Text("Andamento", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp)) }
         item {
