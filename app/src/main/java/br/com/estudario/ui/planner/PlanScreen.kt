@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.Slider
 import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.LinearProgressIndicator
 import br.com.estudario.ui.brand.ElevatedCard

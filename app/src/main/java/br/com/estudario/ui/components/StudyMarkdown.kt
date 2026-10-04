@@ -80,6 +80,8 @@ private fun MarkdownTextView(markdown: String, modifier: Modifier, textSizeSp: F
                 movementMethod = LinkMovementMethod.getInstance()
                 setLineSpacing(0f, 1.3f)
                 includeFontPadding = false
+                // A mesma letra do resto do app; sem isso o Android usa a fonte do sistema aqui dentro.
+                androidx.core.content.res.ResourcesCompat.getFont(viewContext, br.com.estudario.R.font.nunito_family)?.let { typeface = it }
             }
         },
         update = { view ->
@@ -137,7 +139,7 @@ private fun studyMarkwon(context: Context, colors: ColorScheme, textSizeSp: Floa
                 builder
                     .headingBreakHeight(0)
                     .headingTextSizeMultipliers(floatArrayOf(1.45f, 1.28f, 1.14f, 1.05f, 1f, 1f))
-                    .headingTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD))
+                    .headingTypeface(androidx.core.content.res.ResourcesCompat.getFont(context, br.com.estudario.R.font.nunito_800) ?: Typeface.create(Typeface.DEFAULT, Typeface.BOLD))
                     .linkColor(colors.primary.toArgb())
                     .blockQuoteColor(colors.primary.toArgb())
                     .blockQuoteWidth(dp(4))

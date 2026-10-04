@@ -16,6 +16,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.material.icons.outlined.Undo
 import androidx.compose.material.icons.outlined.StrikethroughS
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
 import br.com.estudario.ui.components.offerUndo
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -286,50 +288,59 @@ fun QuizScreen(
                     else -> MaterialTheme.colorScheme.surface
                 }
                 SwipeToEliminate(crossed = crossed, enabled = !confirmed || simulation, onToggle = { toggleEliminated(option.key) }) {
-                    Surface(
+                    val tileState = when {
+                        reveal && option.isCorrect -> AnswerState.RIGHT
+                        reveal && option.key == selected -> AnswerState.WRONG
+                        option.key == selected -> AnswerState.CHOSEN
+                        else -> AnswerState.IDLE
+                    }
+                    AnswerTile(
+                        letter = option.key,
+                        state = tileState,
+                        crossed = crossed,
                         // Riscada: tocar desfaz o risco em vez de marcar, para não marcar sem querer.
-                        modifier = Modifier.fillMaxWidth().selectable(selected = option.key == selected, enabled = !confirmed || simulation) {
+                        modifier = Modifier.selectable(selected = option.key == selected, enabled = !confirmed || simulation) {
                             if (crossed) toggleEliminated(option.key) else selections[current.question.id] = option.key
                         },
-                        shape = RoundedCornerShape(12.dp),
-                        color = container,
-                        border = BorderStroke(1.dp, if (option.key == selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
                     ) {
-                        Row(Modifier.padding(14.dp).alpha(if (crossed) 0.4f else 1f), verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = option.key == selected, onClick = null, enabled = !crossed)
-                            Spacer(Modifier.width(8.dp))
-                            if (option.text.contains("\$\$")) {
+                            if (option.text.contains("$$")) {
                                 // Alternativa com fórmula: o leitor de Markdown desenha o LaTeX; tocar no texto marca a alternativa.
                                 br.com.estudario.ui.components.StudyInlineText(
-                                    "${option.key}) ${option.text}",
+                                    option.text,
                                     Modifier.weight(1f),
                                     onTap = { if (!confirmed || simulation) { if (crossed) toggleEliminated(option.key) else selections[current.question.id] = option.key } },
                                 )
                             } else Text(
-                                "${option.key}) ${option.text}",
+                                option.text,
                                 Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = if (tileState == AnswerState.IDLE) FontWeight.Medium else FontWeight.Bold,
                                 textDecoration = if (crossed) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
                             )
                             if (crossed) Icon(Icons.Outlined.Undo, "Desfazer risco", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
                     }
                 }
             }
         }
         if (!simulation && confirmed) {
             item {
-                ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = if (correct == true) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.errorContainer)) {
+                // Mesmo tom dos blocos de resposta: suave, sem o vermelho de alerta do sistema.
+                val darkUi = MaterialTheme.colorScheme.background.red < 0.5f
+                val tone = when {
+                    correct == true -> if (darkUi) Color(0xFF3DD68C) else Color(0xFF1FA65C)
+                    else -> if (darkUi) Color(0xFFFF6B5E) else Color(0xFFD93A2B)
+                }
+                ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = androidx.compose.ui.graphics.lerp(MaterialTheme.colorScheme.surface, tone, if (darkUi) 0.20f else 0.12f))) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         // O Folha reage: comemora o acerto e, no erro, fala para a pessoa seguir.
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             br.com.estudario.ui.assistant.Folha(
                                 64.dp,
-                                mood = if (correct == true) br.com.estudario.ui.assistant.FolhaMood.HAPPY else br.com.estudario.ui.assistant.FolhaMood.TALKING,
+                                mood = if (correct == true) br.com.estudario.ui.assistant.FolhaMood.HAPPY else br.com.estudario.ui.assistant.FolhaMood.SAD,
                             )
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(if (correct == true) Icons.Outlined.CheckCircle else Icons.Outlined.Cancel, null, Modifier.size(20.dp), tint = if (correct == true) Color(0xFF087F5B) else MaterialTheme.colorScheme.error)
-                                    Spacer(Modifier.width(6.dp)); Text(if (correct == true) "Correto" else "Incorreto", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    Text(if (correct == true) "Mandou bem!" else "Não foi dessa vez", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = tone)
                                 }
                                 Text(
                                     br.com.estudario.ui.assistant.FolhaLines.forAnswer(correct == true, current.question.id),
@@ -513,4 +524,64 @@ private fun SwipeToEliminate(crossed: Boolean, enabled: Boolean, onToggle: () ->
         },
         content = { content() },
     )
+}
+
+private enum class AnswerState { IDLE, CHOSEN, RIGHT, WRONG }
+
+/**
+ * Alternativa como bloco de resposta: letra num selo, borda grossa e espessura embaixo. Escolhida
+ * fica na cor da marca; corrigida, verde com o certo ou vermelha com o xis, relevo junto.
+ */
+@Composable
+private fun AnswerTile(
+    letter: String,
+    state: AnswerState,
+    crossed: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val dark = scheme.background.red < 0.5f
+    val green = if (dark) Color(0xFF3DD68C) else Color(0xFF1FA65C)
+    val red = if (dark) Color(0xFFFF6B5E) else Color(0xFFD93A2B)
+    val accent = when (state) {
+        AnswerState.RIGHT -> green
+        AnswerState.WRONG -> red
+        AnswerState.CHOSEN -> scheme.primary
+        AnswerState.IDLE -> scheme.outlineVariant
+    }
+    val face = when (state) {
+        AnswerState.IDLE -> scheme.surfaceContainerLowest
+        else -> androidx.compose.ui.graphics.lerp(scheme.surface, accent, if (dark) 0.22f else 0.13f)
+    }
+    val lip = if (state == AnswerState.IDLE) scheme.outlineVariant else androidx.compose.ui.graphics.lerp(accent, Color.Black, 0.25f)
+    val shape = RoundedCornerShape(16.dp)
+    Box(modifier.fillMaxWidth().clip(shape), propagateMinConstraints = true) {
+        Box(Modifier.matchParentSize().padding(top = 4.dp).background(lip, shape))
+        Row(
+            Modifier
+                .padding(bottom = 4.dp)
+                .background(face, shape)
+                .border(2.dp, accent, shape)
+                .padding(horizontal = 12.dp, vertical = 12.dp)
+                .alpha(if (crossed) 0.4f else 1f),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // O selo da letra; na correção vira o certo ou o xis.
+            Box(
+                Modifier.size(34.dp).clip(RoundedCornerShape(10.dp))
+                    .background(if (state == AnswerState.IDLE) scheme.surfaceVariant else accent),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    when (state) { AnswerState.RIGHT -> "✓"; AnswerState.WRONG -> "✕"; else -> letter.uppercase() },
+                    fontWeight = FontWeight.Black,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (state == AnswerState.IDLE) scheme.onSurfaceVariant else Color.White,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            content()
+        }
+    }
 }

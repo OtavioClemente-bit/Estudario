@@ -30,7 +30,7 @@ import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
+import br.com.estudario.ui.brand.Slider
 import androidx.compose.material3.SliderDefaults
 import br.com.estudario.ui.brand.Surface
 import androidx.compose.material3.Text
