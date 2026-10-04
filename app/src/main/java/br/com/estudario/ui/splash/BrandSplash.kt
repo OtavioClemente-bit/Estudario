@@ -73,7 +73,8 @@ private val Smooth = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 fun BrandSplash(ready: Boolean, onFinished: () -> Unit) {
     // Já começa meio aberto e com o brilho aceso: o primeiro quadro tem a marca, nunca um azul vazio.
     // 1 = escondido embaixo da tela, 0 = no lugar.
-    val rise = remember { Animatable(1f) }
+    // O Folha já começa no centro (a splash do sistema mostra ele ali); "rise" é só o pulinho: 0 = no chão, -1 = no alto.
+    val rise = remember { Animatable(0f) }
     val hello = remember { Animatable(0f) }
     val glow = remember { Animatable(0.7f) }
     val title = remember { Animatable(0f) }
@@ -99,18 +100,22 @@ fun BrandSplash(ready: Boolean, onFinished: () -> Unit) {
     }
 
     LaunchedEffect(Unit) {
-        // O Folha sobe de baixo da tela, quica e dá tchau. Tudo em menos de um segundo:
-        // abertura é cumprimento, não espera.
-        launch { glow.animateTo(1f, tween(400, easing = Smooth)) }
-        launch { rise.animateTo(0f, spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMediumLow)) }
-        launch { delay(260); hello.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium)) }
-        launch { delay(180); title.animateTo(1f, tween(420, easing = Smooth)) }
-        launch { delay(380); tagline.animateTo(1f, tween(380, easing = Smooth)) }
-        delay(820)
-        // Se o app ainda estiver carregando, a barra aparece; normalmente nem dá tempo.
-        if (!isReady) launch { loader.animateTo(1f, tween(250, easing = Smooth)) }
+        // Continua de onde a splash do sistema parou: o Folha já está no centro. Ele dá um pulinho,
+        // acena com o "Oi!", o nome e a frase entram e a barra corre. Fica no mínimo ~2,2 s, mesmo
+        // em celular rápido, para dar tempo de ver; em celular lento, o tempo que o app precisar.
+        launch { glow.animateTo(1f, tween(500, easing = Smooth)) }
+        launch {
+            delay(250)
+            rise.animateTo(-1f, tween(220, easing = Smooth))
+            rise.animateTo(0f, spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessMediumLow))
+        }
+        launch { delay(450); hello.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium)) }
+        launch { delay(600); title.animateTo(1f, tween(650, easing = Smooth)) }
+        launch { delay(1_000); tagline.animateTo(1f, tween(550, easing = Smooth)) }
+        launch { delay(1_300); loader.animateTo(1f, tween(400, easing = Smooth)) }
+        delay(2_200)
         while (!isReady) delay(30)
-        exit.animateTo(1f, tween(260, easing = Smooth))
+        exit.animateTo(1f, tween(350, easing = Smooth))
         finish()
     }
 
@@ -138,7 +143,6 @@ fun BrandSplash(ready: Boolean, onFinished: () -> Unit) {
             },
     ) {
         val folhaSize = (maxWidth * 0.48f).coerceAtMost(230.dp)
-        val travel = maxHeight
         Column(
             Modifier.fillMaxSize().padding(horizontal = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -148,7 +152,7 @@ fun BrandSplash(ready: Boolean, onFinished: () -> Unit) {
             Box(contentAlignment = Alignment.TopEnd) {
                 br.com.estudario.ui.assistant.Folha(
                     folhaSize,
-                    Modifier.graphicsLayer { translationY = rise.value * travel.toPx() },
+                    Modifier.graphicsLayer { translationY = rise.value * 34.dp.toPx() },
                     mood = br.com.estudario.ui.assistant.FolhaMood.WAVE,
                 )
                 Text(
