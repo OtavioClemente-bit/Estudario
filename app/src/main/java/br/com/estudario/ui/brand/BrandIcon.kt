@@ -40,7 +40,11 @@ fun Icon(
         androidx.compose.material3.Icon(imageVector, contentDescription, modifier, if (tint.isSpecified) tint else LocalContentColor.current)
         return
     }
-    val muted = tint.isSpecified && isGrey(tint)
+    val scheme = androidx.compose.material3.MaterialTheme.colorScheme
+    val muted = tint.isSpecified && (
+        tint.alpha < 0.6f ||
+            listOf(scheme.outline, scheme.outlineVariant).any { it.copy(alpha = 1f) == tint.copy(alpha = 1f) }
+        )
     val semantics = if (contentDescription != null) {
         Modifier.semantics { this.contentDescription = contentDescription; role = Role.Image }
     } else Modifier
