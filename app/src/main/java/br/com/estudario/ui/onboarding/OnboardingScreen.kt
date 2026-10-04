@@ -91,14 +91,12 @@ import kotlinx.coroutines.launch
  */
 private data class OnboardingPage(val eyebrow: String, val title: String, val body: String)
 
+// Quatro telas, não sete: quem chega quer estudar, não ler um manual. O resto se descobre usando.
 private val pages = listOf(
     OnboardingPage("Seu edital", "Seu edital vira\num plano de estudo", "Envie o PDF e o Estudário organiza as matérias e monta o caminho até a prova."),
-    OnboardingPage("Assistente", "Teoria, flashcards\ne questões para você", "Cada tópico vira material completo, com questões no estilo da banca e fonte conferida."),
+    OnboardingPage("Material", "Teoria, flashcards\ne questões para você", "Cada tópico vira material completo, com questões no estilo da banca e fonte conferida."),
     OnboardingPage("Plano de estudo", "Você abre o app e\njá sabe o que estudar", "O plano diz a matéria, a atividade e o tempo de cada dia, e se ajusta sozinho quando a rotina muda."),
-    OnboardingPage("Revisões", "Revise no momento\ncerto, antes de esquecer", "O conteúdo volta em 1, 7 e 30 dias, quando a memória começa a falhar. É assim que ele fica."),
-    OnboardingPage("Treino", "Questões, simulados e\num caderno de erros", "Simulado com tempo de prova, nota na hora, e cada erro volta para você até virar acerto."),
-    OnboardingPage("Modo foco", "Celular silencioso,\ncabeça no estudo", "Um toque e o app liga o Não Perturbe, mantém a tela acesa e conta o seu tempo real de estudo."),
-    OnboardingPage("Sua evolução", "Estude todo dia e\nveja a aprovação chegar", "Sequência de dias, emblemas e o seu domínio do edital crescendo a cada sessão."),
+    OnboardingPage("Treino", "Questões, revisões\ne simulados", "Cada erro volta até virar acerto, as revisões chegam antes de você esquecer e o simulado tem tempo de prova."),
 )
 
 private val Indigo = Color(0xFF4F46E5)
@@ -136,10 +134,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                                 0 -> EditalScene(active)
                                 1 -> MaterialScene(active)
                                 2 -> PlanScene(active)
-                                3 -> ReviewScene(active)
-                                4 -> TrainScene(active)
-                                5 -> FocusScene(active)
-                                else -> ProgressScene(active)
+                                else -> TrainScene(active)
                             }
                         }
                         Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp).padding(top = 28.dp)) {

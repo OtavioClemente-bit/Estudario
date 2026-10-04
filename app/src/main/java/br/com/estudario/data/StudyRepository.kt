@@ -541,6 +541,40 @@ Não confunda autenticação multifator com autorização. Usar senha e biometri
             topicId = topicIds[3], externalId = "demo-error-hash-v2", title = "Hash não é criptografia reversível",
             summary = "A função hash produz um resumo unidirecional. Para confidencialidade, use cifra; para autenticação com segredo compartilhado, use HMAC.",
         ))
+        // Explicação de verdade: por que a certa está certa e onde cada distrator engana.
+        val demoExplanations = listOf(
+            """**Confidencialidade** é garantir que só quem tem autorização acesse a informação.
+
+- **Disponibilidade**: a informação está acessível quando precisa, não trata de quem pode ver.
+- **Integridade**: a informação não foi alterada indevidamente.
+- **Não repúdio**: o autor não consegue negar que fez a ação.
+- **Auditabilidade**: dá para rastrear quem fez o quê, depois do fato.
+
+> Pegadinha clássica: a banca troca confidencialidade por integridade. Pergunte-se: o problema é *ver* ou é *alterar*?""",
+            """Uma boa função hash torna **computacionalmente inviável encontrar duas entradas com o mesmo resumo** (resistência a colisões).
+
+- **Ser reversível**: errado, hash é de mão única.
+- **Saída variável**: errado, o resumo tem tamanho fixo (ex.: SHA-256 sempre gera 256 bits).
+- **Usar chave pública**: isso é assinatura ou cifra assimétrica, não hash.
+- **Ocultar o algoritmo**: a segurança não depende de segredo do algoritmo (princípio de Kerckhoffs).""",
+            """Na criptografia **simétrica**, **a mesma chave** cifra e decifra. Por isso é rápida, mas exige um jeito seguro de combinar a chave.
+
+- **Uma pública e outra privada**: isso é a **assimétrica**.
+- **Nenhuma chave** ou **somente pública**: não existe cifra simétrica assim.
+- **Uma chave por bloco**: confunde com o modo de operação; a chave é a mesma.""",
+            """A assinatura digital garante **autenticidade** (quem assinou) e **integridade** (o documento não mudou depois).
+
+- **Confidencialidade**: assinatura não esconde o conteúdo; para isso é preciso cifrar.
+- **Disponibilidade**, **anonimato** e **compactação** não têm relação com assinatura.
+
+> Assinou e não cifrou: todo mundo lê, mas ninguém altera sem ser descoberto.""",
+            """No **RBAC** (controle baseado em papéis), as permissões ficam no papel (ex.: *analista*, *gestor*), e a pessoa recebe o papel da função que exerce.
+
+- **DAC**: o dono do recurso decide quem acessa.
+- **MAC**: regras obrigatórias por classificação (ex.: *secreto*), sem escolha do dono.
+- **ABAC**: decide por atributos e contexto (horário, local, departamento).
+- **ACL**: lista de quem acessa cada objeto; é um mecanismo, não um modelo por função.""",
+        )
         val samples = listOf(
             Triple(topicIds[0], "Qual princípio garante que a informação seja acessível apenas a pessoas autorizadas?", "Confidencialidade"),
             Triple(topicIds[3], "Qual propriedade é desejável em uma função hash criptográfica?", "Resistência a colisões"),
@@ -550,7 +584,7 @@ Não confunda autenticação multifator com autorização. Usar senha e biometri
         )
         samples.forEachIndexed { index, (topicId, statement, correctText) ->
             if (dao.questionByExternalId("demo-q-${index + 1}") != null) return@forEachIndexed
-            val qId = dao.insertQuestion(QuestionEntity(topicId = topicId, externalId = "demo-q-${index + 1}", board = "Fictícia", difficulty = Difficulty.MEDIA, statement = statement, explanation = "A resposta correta é **$correctText**. O conceito está diretamente relacionado ao tópico estudado."))
+            val qId = dao.insertQuestion(QuestionEntity(topicId = topicId, externalId = "demo-q-${index + 1}", board = "Cebraspe", difficulty = Difficulty.MEDIA, statement = statement, explanation = demoExplanations[index]))
             val distractors = when (index) {
                 0 -> listOf(correctText, "Disponibilidade", "Integridade", "Não repúdio", "Auditabilidade")
                 1 -> listOf("Ser reversível", correctText, "Produzir saída variável", "Usar chave pública", "Ocultar o algoritmo")

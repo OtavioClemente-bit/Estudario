@@ -231,7 +231,7 @@ fun QuizScreen(
                 br.com.estudario.ui.components.StudyMarkdown(current.question.statement, Modifier.fillMaxWidth(), textSizeSp = 19f)
                 Spacer(Modifier.height(8.dp))
                 QuestionProvenance(current.question)
-                if (!confirmed && current.options.size > 2) Text(
+                if (!confirmed && current.options.size > 2 && index == 0) Text(
                     "Em dúvida? Arraste para o lado as alternativas que você descarta, para riscá-las.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

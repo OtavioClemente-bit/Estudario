@@ -392,7 +392,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (novos.isEmpty()) return@collect
                 // Primeira leitura com histórico antigo: registra em silêncio em vez de despejar
                 // dezenas de comemorações de uma vez.
-                val backfill = (conhecidos.isEmpty() && novos.size > 3) || celebrationsMuted()
+                // Primeira leitura do progresso (instalação nova, restauração, dados de exemplo): registra em
+                // silêncio. Comemoração é só para o que a pessoa conquistar estudando, não ao abrir o app.
+                val backfill = conhecidos.isEmpty() || celebrationsMuted()
                 conhecidos = conhecidos + novos
                 app.preferences.markBadgesEarned(novos)
                 if (!backfill) _badgeUnlock.value = summary.earnedBadges.filter { it.badge.id in novos }.map { it.badge }
