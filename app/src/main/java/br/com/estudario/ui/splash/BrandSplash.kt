@@ -33,6 +33,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.findRootCoordinates
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
@@ -61,6 +66,9 @@ private val Violet = Color(0xFF8B5CF6)
 private val Mint = Color(0xFF7EE0B8)
 private val Ink = Color(0xFF3326CE)
 
+/** Tamanho equivalente do Folha na splash do sistema: o livro sai com ~113dp, e o livro ocupa 79% do Folha. */
+private val SystemSplashIcon = 143.dp
+
 private val Smooth = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
 /**
@@ -76,6 +84,9 @@ fun BrandSplash(ready: Boolean, onFinished: () -> Unit) {
     // O Folha já começa no centro (a splash do sistema mostra ele ali); "rise" é só o pulinho: 0 = no chão, -1 = no alto.
     val rise = remember { Animatable(0f) }
     val hello = remember { Animatable(0f) }
+    // 0 = onde a splash do sistema desenhou o Folha (menor, no centro da tela); 1 = no lugar dele aqui.
+    val settle = remember { Animatable(0f) }
+    var centerOffsetPx by remember { mutableFloatStateOf(0f) }
     val glow = remember { Animatable(0.7f) }
     val title = remember { Animatable(0f) }
     val tagline = remember { Animatable(0f) }
@@ -104,6 +115,7 @@ fun BrandSplash(ready: Boolean, onFinished: () -> Unit) {
         // acena com o "Oi!", o nome e a frase entram e a barra corre. Fica no mínimo ~2,2 s, mesmo
         // em celular rápido, para dar tempo de ver; em celular lento, o tempo que o app precisar.
         launch { glow.animateTo(1f, tween(500, easing = Smooth)) }
+        launch { settle.animateTo(1f, tween(520, easing = Smooth)) }
         launch {
             delay(250)
             rise.animateTo(-1f, tween(220, easing = Smooth))
@@ -152,7 +164,20 @@ fun BrandSplash(ready: Boolean, onFinished: () -> Unit) {
             Box(contentAlignment = Alignment.TopEnd) {
                 br.com.estudario.ui.assistant.Folha(
                     folhaSize,
-                    Modifier.graphicsLayer { translationY = rise.value * 34.dp.toPx() },
+                    Modifier
+                        .onGloballyPositioned { c ->
+                            // Distância entre o centro do Folha aqui e o centro da tela, onde a splash do sistema o mostrou.
+                            val root = c.findRootCoordinates().size.height / 2f
+                            val mine = c.positionInRoot().y + c.size.height / 2f
+                            if (centerOffsetPx == 0f) centerOffsetPx = root - mine
+                        }
+                        .graphicsLayer {
+                            val k = settle.value
+                            translationY = rise.value * 34.dp.toPx() + (1f - k) * centerOffsetPx
+                            val start = (SystemSplashIcon.toPx() / folhaSize.toPx()).coerceIn(0.3f, 1f)
+                            scaleX = start + (1f - start) * k
+                            scaleY = scaleX
+                        },
                     mood = br.com.estudario.ui.assistant.FolhaMood.WAVE,
                 )
                 Text(
