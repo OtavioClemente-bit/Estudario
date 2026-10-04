@@ -2,6 +2,9 @@ package br.com.estudario.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import br.com.estudario.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
@@ -15,7 +18,7 @@ import androidx.compose.ui.unit.sp
  * personalidade), e cada composable compensava isso escrevendo `fontWeight = FontWeight.Black`
  * manualmente. Formalizar o peso na escala elimina essa repetição e garante consistência.
  */
-val EstudarioTypography = Typography(
+private val BaseTypography = Typography(
     displayLarge = TextStyle(fontWeight = FontWeight.ExtraBold, fontSize = 40.sp, lineHeight = 44.sp, letterSpacing = (-0.5).sp),
     displayMedium = TextStyle(fontWeight = FontWeight.ExtraBold, fontSize = 32.sp, lineHeight = 38.sp, letterSpacing = (-0.3).sp),
     displaySmall = TextStyle(fontWeight = FontWeight.Bold, fontSize = 26.sp, lineHeight = 32.sp, letterSpacing = (-0.2).sp),
@@ -39,3 +42,31 @@ val EstudarioTypography = Typography(
     labelMedium = TextStyle(fontWeight = FontWeight.Bold, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 1.1.sp),
     labelSmall = TextStyle(fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 14.sp, letterSpacing = 0.9.sp),
 )
+
+/**
+ * Nunito, a letra do Estudário: arredondada, firme no peso alto e calma no corpo de texto. Vem
+ * embutida no app (um arquivo por peso, para o negrito ser negrito de verdade), então aparece igual em qualquer
+ * celular, inclusive nos que trocam a fonte do sistema e ignoram o negrito.
+ * Licença SIL OFL 1.1, cópia em docs/licencas/Nunito-OFL.txt.
+ */
+val Nunito = FontFamily(
+    Font(R.font.nunito_400, FontWeight.Light),
+    Font(R.font.nunito_400, FontWeight.Normal),
+    Font(R.font.nunito_500, FontWeight.Medium),
+    Font(R.font.nunito_600, FontWeight.SemiBold),
+    Font(R.font.nunito_700, FontWeight.Bold),
+    Font(R.font.nunito_800, FontWeight.ExtraBold),
+    Font(R.font.nunito_900, FontWeight.Black),
+)
+
+private fun TextStyle.nunito() = copy(fontFamily = Nunito)
+
+val EstudarioTypography = BaseTypography.run {
+    Typography(
+        displayLarge = displayLarge.nunito(), displayMedium = displayMedium.nunito(), displaySmall = displaySmall.nunito(),
+        headlineLarge = headlineLarge.nunito(), headlineMedium = headlineMedium.nunito(), headlineSmall = headlineSmall.nunito(),
+        titleLarge = titleLarge.nunito(), titleMedium = titleMedium.nunito(), titleSmall = titleSmall.nunito(),
+        bodyLarge = bodyLarge.nunito(), bodyMedium = bodyMedium.nunito(), bodySmall = bodySmall.nunito(),
+        labelLarge = labelLarge.nunito(), labelMedium = labelMedium.nunito(), labelSmall = labelSmall.nunito(),
+    )
+}

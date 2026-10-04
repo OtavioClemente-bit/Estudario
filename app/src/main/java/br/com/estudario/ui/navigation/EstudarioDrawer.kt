@@ -133,8 +133,8 @@ private fun DrawerHeader(profile: UserProfile, level: Int?, totalXp: Int?, onOpe
         verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.small),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
-            EstudarioGlyph(size = 18.dp)
-            Text("ESTUDÁRIO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            EstudarioGlyph(size = 34.dp)
+            Text("Estudário", style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
         }
         Spacer(Modifier.height(EstudarioSpacing.tight))
         ProfileAvatar(profile.photoPath, profile.initials, 56.dp)
@@ -279,8 +279,8 @@ fun EstudarioTopBar(
             horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight),
         ) {
             Icon(Icons.Outlined.Menu, contentDescription = null, modifier = Modifier.size(22.dp))
-            EstudarioGlyph(size = 20.dp)
-            if (!compactBrand) Text("ESTUDÁRIO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
+            EstudarioGlyph(size = 30.dp)
+            if (!compactBrand) Text("Estudário", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
         }
         if (title != null) {
             Text(

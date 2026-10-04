@@ -126,15 +126,15 @@ private fun WelcomeContent(
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            "Prepare seu espaço de estudo",
+                            "Vamos começar?",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
-                            "Uma conta só para tudo: entre com o Google para gerar material com o Estudário e guardar uma cópia do seu progresso no Drive.",
+                            "Entre com o Google para gerar seu material e guardar uma cópia do progresso no seu Drive.",
                             style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                     }
                     Surface(shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -164,8 +164,8 @@ private fun WelcomeContent(
                     }
                 }
                 GoogleSignInButton(loading = carregando, onClick = onGoogle)
-                TextButton(onClick = onContinue, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), enabled = !carregando) {
-                    Text("Continuar sem uma conta", style = MaterialTheme.typography.titleSmall)
+                br.com.estudario.ui.brand.OutlinedButton(onClick = onContinue, modifier = Modifier.fillMaxWidth(), enabled = !carregando) {
+                    Text("Continuar sem uma conta", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 }
                 Row(
                     Modifier.fillMaxWidth(),
@@ -175,7 +175,7 @@ private fun WelcomeContent(
                     Icon(Icons.Rounded.Lock, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
                         "Você pode vincular uma conta depois, no Perfil.",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -206,18 +206,19 @@ private fun WelcomeHero() {
             Box(contentAlignment = Alignment.Center) {
                 Box(Modifier.size(176.dp + 10.dp * pulse).clip(CircleShape).background(Color.White.copy(alpha = 0.05f + 0.03f * pulse)))
                 Box(Modifier.size(140.dp + 6.dp * pulse).clip(CircleShape).background(Color.White.copy(alpha = 0.10f)))
-                br.com.estudario.ui.splash.AnimatedBrandBook(size = 132.dp)
+                br.com.estudario.ui.assistant.Folha(150.dp, mood = br.com.estudario.ui.assistant.FolhaMood.WAVE)
             }
             Text(
-                "ESTUDÁRIO",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
+                "Estudário",
+                style = MaterialTheme.typography.displayMedium,
+                fontWeight = FontWeight.Black,
                 color = Color.White,
             )
             Text(
-                "Do edital à aprovação, com clareza.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.85f),
+                "Do edital à aprovação, um dia de cada vez.",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
             )
         }
     }
@@ -233,7 +234,7 @@ private fun BenefitRow(icon: ImageVector, title: String, caption: String) {
         Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(36.dp)) }
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-            Text(caption, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(caption, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -285,7 +286,7 @@ private fun GoogleSignInButton(loading: Boolean, onClick: () -> Unit) {
         Spacer(Modifier.width(12.dp))
         Text(
             if (loading) "Conectando…" else "Continuar com o Google",
-            style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.1.sp),
+            style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.1.sp),
         )
     }
 }

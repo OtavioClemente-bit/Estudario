@@ -73,35 +73,17 @@ fun ChoiceCard(
     accent: Color = MaterialTheme.colorScheme.primary,
     multi: Boolean = false,
 ) {
-    val border by animateColorAsState(if (selected) accent else MaterialTheme.colorScheme.outlineVariant, label = "choice-border")
-    val container by animateColorAsState(
-        if (selected) accent.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surface,
-        label = "choice-container",
-    )
-    Surface(
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
-        shape = EstudarioShapes.row,
-        color = container,
-        border = BorderStroke(if (selected) 2.dp else 1.dp, border),
-    ) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (icon != null) {
-                Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(32.dp), tint = accent) }
-                Spacer(Modifier.width(12.dp))
-            }
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                if (description != null) Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Spacer(Modifier.width(8.dp))
-            Icon(
-                if (selected) Icons.Outlined.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
-                if (selected) "Selecionado" else null,
-                tint = if (selected) accent else MaterialTheme.colorScheme.outline,
-                modifier = Modifier.size(if (multi) 22.dp else 20.dp),
-            )
+    br.com.estudario.ui.brand.BrandChoice(selected, onClick, modifier, accent) {
+        if (icon != null) {
+            Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(36.dp), tint = accent) }
+            Spacer(Modifier.width(12.dp))
         }
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            if (description != null) Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.width(8.dp))
+        br.com.estudario.ui.brand.BrandChoiceMark(selected, accent)
     }
 }
 

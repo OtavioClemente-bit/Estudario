@@ -396,7 +396,7 @@ private fun fold(value: String): String = Normalizer.normalize(value.lowercase()
 private val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
 
 /** Trecho de teoria sem a sintaxe do Markdown, para a prévia do caderno. */
-internal fun plainPreview(markdown: String): String = br.com.estudario.ui.components.plainFormulaText(markdown)
+internal fun plainPreview(markdown: String): String = br.com.estudario.ui.components.plainFormulaText(withoutCodeBlocks(markdown))
     .lines()
     .filterNot { it.trim().matches(Regex("""^\|?\s*:?-{3,}.*""")) }
     .joinToString(" ") { it.trim().removePrefix(">").trim() }
@@ -407,6 +407,24 @@ internal fun plainPreview(markdown: String): String = br.com.estudario.ui.compon
     .replace(Regex("""\s+"""), " ")
     .trim()
     .trim('·', ' ')
+
+/**
+ * Gráficos, figuras e tabelas de código chegam no material como um bloco de dados. Na prévia do
+ * Caderno ninguém quer ler JSON: o bloco vira só o nome dele ("Gráfico: Evolução da inflação").
+ */
+private val CodeBlock = Regex("""```([^\n]*)\n([\s\S]*?)(```|\z)""")
+private val ChartTitle = Regex(""""(?:titulo|title)"\s*:\s*"([^"]+)"""")
+
+private fun withoutCodeBlocks(markdown: String): String = CodeBlock.replace(markdown) { m ->
+    val kind = m.groupValues[1].trim().lowercase()
+    val name = when (kind) {
+        "geometria", "figura" -> "Figura"
+        "", "text", "txt" -> "Trecho"
+        else -> "Gráfico"
+    }
+    val title = ChartTitle.find(m.groupValues[2])?.groupValues?.get(1)
+    if (title != null) " $name: $title. " else " $name. "
+}
 
 @Composable
 private fun TopicHeader(title: String) {

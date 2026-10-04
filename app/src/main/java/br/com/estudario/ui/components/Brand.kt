@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -51,9 +52,26 @@ import kotlin.math.sin
  */
 @Composable
 fun EstudarioGlyph(size: Dp = 28.dp, modifier: Modifier = Modifier) {
-    val colors = bookColors()
-    Canvas(modifier.size(size)) {
-        drawEstudarioBook(colors, flip = null, fitTop = BookShape.TOP_OUT)
+    // O símbolo do app é o Folha de capelo, o mesmo do ícone na tela inicial do celular.
+    AppIconMark(size, modifier)
+}
+
+/** O ícone do app, igualzinho ao da tela inicial: fundo índigo e o Folha de capelo. */
+@Composable
+fun AppIconMark(size: Dp, modifier: Modifier = Modifier) {
+    androidx.compose.foundation.layout.Box(
+        modifier.size(size).clip(androidx.compose.foundation.shape.RoundedCornerShape(size * 0.28f)),
+        contentAlignment = androidx.compose.ui.Alignment.Center,
+    ) {
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(br.com.estudario.R.drawable.ic_launcher_folha_bg), null,
+            Modifier.matchParentSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+        )
+        // O desenho do ícone adaptável tem margem de segurança larga; ampliar faz o Folha preencher.
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(br.com.estudario.R.drawable.ic_launcher_folha_fg), null,
+            Modifier.size(size * 2.5f),
+        )
     }
 }
 

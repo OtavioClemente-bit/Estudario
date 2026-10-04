@@ -1237,31 +1237,26 @@ private fun ChoiceCard(
     badge: String? = null,
     onClick: () -> Unit,
 ) {
-    val border = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f) else MaterialTheme.colorScheme.surfaceContainerLow,
-        border = androidx.compose.foundation.BorderStroke(if (selected) 2.dp else 1.dp, border),
-    ) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (icon != null) Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(40.dp), tint = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer) }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    if (badge != null) Text(
-                        badge,
-                        Modifier.clip(RoundedCornerShape(50)).background(br.com.estudario.ui.theme.estudarioColors().completed).padding(horizontal = 8.dp, vertical = 2.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = br.com.estudario.ui.theme.estudarioColors().onCompleted,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            SelectionMark(selected)
+    br.com.estudario.ui.brand.BrandChoice(selected, onClick) {
+        if (icon != null) {
+            Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(40.dp)) }
+            Spacer(Modifier.width(14.dp))
         }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f, fill = false))
+                if (badge != null) Text(
+                    badge,
+                    Modifier.clip(RoundedCornerShape(50)).background(br.com.estudario.ui.theme.estudarioColors().completed).padding(horizontal = 8.dp, vertical = 2.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = br.com.estudario.ui.theme.estudarioColors().onCompleted,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.width(8.dp))
+        br.com.estudario.ui.brand.BrandChoiceMark(selected)
     }
 }
 

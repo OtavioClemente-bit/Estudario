@@ -40,19 +40,7 @@ val AppMarkBackground = Color(0xFF3326CE)
  * Aparece na comemoração da sequência e no perfil.
  */
 @Composable
-fun AppMark(size: Dp, modifier: Modifier = Modifier) {
-    Box(
-        modifier.size(size).clip(CircleShape).background(AppMarkBackground),
-        contentAlignment = Alignment.Center,
-    ) {
-        Image(
-            painter = painterResource(R.drawable.ic_launcher_foreground),
-            contentDescription = null,
-            // O desenho do ícone tem margem de segurança; ampliar um pouco faz o livro preencher o círculo.
-            modifier = Modifier.size(size * 1.3f),
-        )
-    }
-}
+fun AppMark(size: Dp, modifier: Modifier = Modifier) = AppIconMark(size, modifier)
 
 /**
  * Foto do perfil, com as iniciais como reserva. A imagem fica guardada dentro do app (o URI da

@@ -41,7 +41,9 @@ fun Icon(
         return
     }
     val scheme = androidx.compose.material3.MaterialTheme.colorScheme
-    val muted = tint.isSpecified && (
+    // Estrela, coração e marcador "vazios" são o estado desligado: cinza, para o toque ter resposta visível.
+    val empty = imageVector.name.endsWith("Border")
+    val muted = empty || tint.isSpecified && (
         tint.alpha < 0.6f ||
             listOf(scheme.outline, scheme.outlineVariant).any { it.copy(alpha = 1f) == tint.copy(alpha = 1f) }
         )

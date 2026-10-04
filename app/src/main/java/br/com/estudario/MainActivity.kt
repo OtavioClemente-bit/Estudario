@@ -68,7 +68,9 @@ class MainActivity : ComponentActivity() {
             }
             Box(Modifier.fillMaxSize()) {
                 if (mountApp) EstudarioApp(viewModel)
-                if (showSplash) BrandSplash(ready = onboarding != null && tours != null, onFinished = { showSplash = false })
+                if (showSplash) androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalTextStyle provides androidx.compose.ui.text.TextStyle(fontFamily = br.com.estudario.ui.theme.Nunito)) {
+                    BrandSplash(ready = onboarding != null && tours != null, onFinished = { showSplash = false })
+                }
             }
         }
         // Ao girar a tela a Activity é recriada com o mesmo intent: não importa o arquivo duas vezes.
