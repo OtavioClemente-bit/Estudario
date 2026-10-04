@@ -111,7 +111,7 @@ internal fun queueTopicUi(row: QueueWithTopic, subjectName: String): StudyTaskUi
     topicId = row.item.topicId,
     subjectName = subjectName,
     topicName = row.topic.title,
-    activityLabel = "Fila de estudos",
+    activityLabel = "Próximo da sua fila",
     durationLabel = "",
     ctaLabel = "Abrir tópico",
     scheduledForToday = false,

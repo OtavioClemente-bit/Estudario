@@ -1,5 +1,6 @@
 package br.com.estudario.ui.components
 
+import br.com.estudario.ui.planner.taskTitlePtBr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -102,7 +103,7 @@ fun MissionCard(
 
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = task.topicNameSnapshot ?: "Sessão de estudos",
+                    text = task.taskTitlePtBr(),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )

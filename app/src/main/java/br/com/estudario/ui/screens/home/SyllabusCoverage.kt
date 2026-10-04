@@ -56,35 +56,33 @@ fun SyllabusCoverage(
         verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.small),
     ) {
         Text(
-            "Cobertura do edital",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            "Seu edital",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
+            color = MaterialTheme.colorScheme.onSurface,
         )
-
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
-            Text(
-                "${coverage.percent}%",
-                style = MaterialTheme.typography.displayLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                "${coverage.studiedTopics} de ${coverage.totalTopics} tópicos",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 6.dp),
-            )
+        // Dois números, cada um com o que significa: ter passado pelo tópico não é saber o tópico.
+        Row(horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
+            CoverageStat("${coverage.percent}%", "estudado", "${coverage.studiedTopics} de ${coverage.totalTopics} tópicos vistos", Modifier.weight(1f))
+            coverage.masteryPercent?.let { CoverageStat("$it%", "dominado", "acerto nas questões do que já viu", Modifier.weight(1f)) }
         }
 
         SegmentedCoverageBar(coverage.subjects)
 
         if (coverage.subjects.isNotEmpty()) {
+            // Só o que pede ação agora: as matérias em andamento e as próximas a começar.
+            val shown = coverage.subjects
+                .sortedWith(compareBy<SubjectCoverageUi>({ it.fraction >= 1f }, { it.fraction <= 0f }, { -it.fraction }))
+                .take(4)
             Column(verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight)) {
-                coverage.subjects.forEach { subject -> SubjectCoverageRow(subject) }
+                shown.forEach { subject -> SubjectCoverageRow(subject) }
             }
-        }
-
-        if (coverage.masteryPercent != null) {
-            MasteryNote(coverage.percent, coverage.masteryPercent)
+            if (coverage.subjects.size > shown.size) Text(
+                "Ver as ${coverage.subjects.size} matérias",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }
@@ -215,5 +213,19 @@ private fun MasteryNote(coverage: Int, mastery: Int) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+@Composable
+private fun CoverageStat(value: String, label: String, hint: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerLow).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Black)
+            Text(" $label", style = MaterialTheme.typography.titleSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp))
+        }
+        Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

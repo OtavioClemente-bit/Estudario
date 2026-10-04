@@ -1,5 +1,6 @@
 package br.com.estudario.ui.components
 
+import br.com.estudario.ui.planner.taskTitlePtBr
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -73,7 +74,7 @@ fun StudyFocusCard(
             } else {
                 Text(task.entity.subjectNameSnapshot, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(
-                    task.entity.topicNameSnapshot ?: "Sessão de estudos",
+                    task.entity.taskTitlePtBr(),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Black,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,

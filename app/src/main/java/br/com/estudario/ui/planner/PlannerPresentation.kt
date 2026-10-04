@@ -20,6 +20,25 @@ fun PlanTaskType.displayNamePtBr(): String = when (this) {
     PlanTaskType.DISCURSIVE -> "Discursiva"
 }
 
+/**
+ * O nome da tarefa como uma ordem clara. Com tópico, é o tópico; sem tópico (rodízio da matéria),
+ * diz o que fazer em vez de "Sessão de estudos": "Questões de Português · 20 questões".
+ */
+fun br.com.estudario.data.local.planner.PlanTaskEntity.taskTitlePtBr(): String {
+    topicNameSnapshot?.takeIf { it.isNotBlank() }?.let { return it }
+    val subject = subjectNameSnapshot.ifBlank { "todas as matérias" }
+    val base = when (type) {
+        PlanTaskType.THEORY -> "Teoria de $subject"
+        PlanTaskType.QUESTIONS -> "Questões de $subject"
+        PlanTaskType.REVIEW -> "Revisão de $subject"
+        PlanTaskType.ACTIVE_RECALL -> "Recordação ativa de $subject"
+        PlanTaskType.FLASHCARDS -> "Flashcards de $subject"
+        PlanTaskType.SIMULATION -> "Simulado de $subject"
+        PlanTaskType.DISCURSIVE -> "Discursiva de $subject"
+    }
+    return if (plannedQuestions > 0 && type == PlanTaskType.QUESTIONS) "$base · $plannedQuestions questões" else base
+}
+
 fun PlanTaskStatus.displayNamePtBr(): String = when (this) {
     PlanTaskStatus.PLANEJADA -> "Planejada"
     PlanTaskStatus.EM_ANDAMENTO -> "Em andamento"

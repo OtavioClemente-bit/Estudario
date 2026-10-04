@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.planner.taskTitlePtBr
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -280,7 +281,7 @@ fun HomeScreen(
                         DailyMissionUi(
                             items = todayLoad.map {
                                 MissionItemUi(
-                                    title = it.entity.topicNameSnapshot ?: it.entity.subjectNameSnapshot ?: "Sessão de estudos",
+                                    title = it.entity.taskTitlePtBr(),
                                     subtitle = listOfNotNull(it.entity.type.displayNamePtBr(), minutesLabelPtBr(it.entity.plannedMinutes), it.entity.subjectNameSnapshot.takeIf { _ -> it.entity.topicNameSnapshot != null }).joinToString(" · "),
                                     done = it.entity.status == PlanTaskStatus.CONCLUIDA,
                                     current = it.entity.id == focusTask?.entity?.id && it.entity.status != PlanTaskStatus.CONCLUIDA,
@@ -447,7 +448,7 @@ private fun PlannerTaskUi.toStudyTaskUi(): StudyTaskUi = StudyTaskUi(
     id = entity.id,
     topicId = entity.topicId,
     subjectName = entity.subjectNameSnapshot,
-    topicName = entity.topicNameSnapshot ?: "Sessão de estudos",
+    topicName = entity.taskTitlePtBr(),
     activityLabel = entity.type.displayNamePtBr(),
     durationLabel = minutesLabelPtBr(entity.plannedMinutes),
     ctaLabel = completionActionPtBr(entity.status),

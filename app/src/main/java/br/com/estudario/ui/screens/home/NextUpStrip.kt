@@ -54,7 +54,7 @@ fun NextUpStrip(
                 SubjectDot(task.subjectName, size = 7.dp)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        task.subjectName,
+                        if (task.activityLabel.isNotBlank()) "${task.subjectName} · ${task.activityLabel}" else task.subjectName,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,

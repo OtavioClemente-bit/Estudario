@@ -388,7 +388,7 @@ private fun ProfileHeader(
             )
         }
         Text(
-            if (profile.signedIn) profile.email else "Seus dados estão somente neste dispositivo",
+            if (profile.signedIn) profile.email else "Sem conta, o progresso fica só neste celular. Entre para ter backup.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
