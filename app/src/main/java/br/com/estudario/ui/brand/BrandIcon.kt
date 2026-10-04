@@ -96,7 +96,8 @@ internal fun glyphFor(vectorName: String): Glyph? = when (vectorName.substringAf
     "Favorite", "FavoriteBorder" -> Glyph.Heart
     "Notifications", "NotificationsActive" -> Glyph.Bell
     "QueryStats", "Insights", "PieChart", "Timeline", "TrendingUp", "TrendingDown" -> Glyph.Chart
-    "Autorenew", "Replay", "History", "Restore", "SettingsBackupRestore", "Sync", "Refresh" -> Glyph.Cycle
+    "History" -> Glyph.Timer
+    "Autorenew", "Replay", "Restore", "SettingsBackupRestore", "Sync", "Refresh" -> Glyph.Cycle
     "GpsFixed", "CenterFocusStrong", "Explore" -> Glyph.Target
     "FolderOpen", "Inbox", "Archive", "Unarchive" -> Glyph.Folder
     "Settings", "Tune" -> Glyph.Gear
