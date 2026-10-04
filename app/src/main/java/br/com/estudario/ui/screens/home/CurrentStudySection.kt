@@ -95,11 +95,14 @@ private fun ReadyBody(state: CurrentStudyUiState.Ready, onStart: () -> Unit, onG
     val task = state.task
     Column(verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.medium)) {
         // O Folha conversa com a pessoa: ele à esquerda, o balão saindo dele. Tocar nele já começa.
-        val fala = when {
-            onGenerate != null -> "Vamos preparar o material deste tópico?"
-            state.progressFraction != null -> "Bora terminar o que começamos?"
-            else -> "Bora? Seu próximo estudo está aqui."
-        }
+        // Uma frase nova cada vez que o Início abre (a semente fica guardada enquanto a tela vive).
+        val seed = androidx.compose.runtime.remember { System.currentTimeMillis() / 1000 }
+        val fala = br.com.estudario.ui.assistant.FolhaLines.forHome(
+            continuing = state.progressFraction != null,
+            needsMaterial = onGenerate != null,
+            hour = java.time.LocalTime.now().hour,
+            seed = seed,
+        )
         Row(verticalAlignment = Alignment.CenterVertically) {
             br.com.estudario.ui.assistant.FolhaTalking(88.dp, fala, onClick = onGenerate ?: onStart)
             Spacer(Modifier.width(4.dp))

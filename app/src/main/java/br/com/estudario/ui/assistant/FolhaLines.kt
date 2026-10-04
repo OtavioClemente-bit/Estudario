@@ -66,4 +66,59 @@ object FolhaLines {
         "Emblema novo na coleção! Merecido demais.",
         "Mais uma conquista. Bora pela próxima?",
     ).pick(seed)
+
+    // ------------------------------------------------------------ Início, cartão "Agora"
+
+    private val homeStart = listOf(
+        "Bora? Seu próximo estudo está aqui.",
+        "Quem estuda hoje não corre atrás amanhã.",
+        "Um tópico de cada vez. É assim que o edital acaba.",
+        "A vaga não tem nome ainda. Vamos colocar o seu?",
+        "Constância vence talento que não aparece.",
+        "Hoje é um bom dia para ficar mais perto da posse.",
+        "Pouco todo dia rende mais que muito de vez em quando.",
+        "Abre o tópico comigo? Eu seguro a página.",
+        "O concorrente também está estudando. Bora na frente?",
+        "Cada tópico fechado é um ponto a mais na prova.",
+        "Disciplina é lembrar do que você quer, mesmo cansado.",
+        "Sua aprovação está sendo construída agora.",
+        "Edital grande se vence assim: começando.",
+        "Café, foco e eu. Partiu?",
+        "Dez minutos já contam. Começa e vê o tempo passar.",
+        "A prova não pergunta se você estava com vontade.",
+        "Seu eu do futuro vai agradecer por esse estudo.",
+        "Bora transformar esse tópico em acerto na prova?",
+    )
+
+    private val homeContinue = listOf(
+        "Bora terminar o que começamos?",
+        "Você parou no meio. Eu guardei a página.",
+        "Falta pouco para fechar esse tópico.",
+        "Começou, agora termina. É assim que se passa.",
+        "Voltou! Vamos de onde você parou.",
+        "Esse tópico está quase seu. Só mais um pouco.",
+    )
+
+    private val homeGenerate = listOf(
+        "Vamos preparar o material deste tópico?",
+        "Eu escrevo a teoria, você só estuda. Topa?",
+        "Esse tópico ainda está em branco. Bora preencher?",
+        "Um toque e eu monto teoria, flashcards e questões.",
+        "Deixa comigo: preparo tudo do jeito da sua banca.",
+    )
+
+    private val morning = listOf("Bom dia! Cabeça descansada aprende mais rápido.", "Começar cedo é sair na frente. Bora?")
+    private val night = listOf("Estudo da noite também conta. Bora fechar o dia bem?", "Um último tópico antes de dormir? A memória agradece.")
+
+    /**
+     * Frase do Folha no cartão "Agora". [seed] muda a cada vez que o Início abre, então ele fala
+     * coisas diferentes ao longo do dia. De manhã e à noite às vezes ele comenta o horário.
+     */
+    fun forHome(continuing: Boolean, needsMaterial: Boolean, hour: Int, seed: Long): String = when {
+        needsMaterial -> homeGenerate.pick(seed)
+        continuing -> homeContinue.pick(seed)
+        hour in 5..9 && seed % 4 == 0L -> morning.pick(seed / 4)
+        (hour >= 21 || hour < 2) && seed % 4 == 0L -> night.pick(seed / 4)
+        else -> homeStart.pick(seed)
+    }
 }
