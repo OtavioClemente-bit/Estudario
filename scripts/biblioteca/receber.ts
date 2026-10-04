@@ -45,6 +45,7 @@ for (const entry of [...Deno.readDirSync(dir)].sort((a, b) => a.name.localeCompa
       const key = right[0].key;
       if ((key === "C" && start.startsWith("errado")) || (key === "E" && start.startsWith("certo"))) flags.push(`#${i} explicação começa contrária ao gabarito`);
     }
+    if (/§[A-E]§/.test(exp)) flags.push(`#${i} explicação com marcador §X§ (gerada por script)`);
     for (const o of q.options ?? []) if (/\*\*|[^.]\.\s+[a-zà-ú]/.test(String(o.text))) flags.push(`#${i} alternativa com ** ou trecho colado`);
   });
   report.push(`${data.id}: ${qs.length} questões (${mc.length} A–E) | letras ${JSON.stringify(letters)} | ${JSON.stringify(levels)}${flags.length ? "\n    ⚠ " + flags.join("\n    ⚠ ") : ""}`);
