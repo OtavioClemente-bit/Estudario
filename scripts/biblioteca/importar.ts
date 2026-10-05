@@ -157,7 +157,8 @@ async function rest(path: string, method: string, body?: unknown, prefer = "retu
 }
 
 const META = new Set(["id", "subject", "title", "version", "status", "aliases"]);
-await rest("library_topics?on_conflict=id", "POST", [...materials.values()].map((m) => ({
+// Em lotes: com a biblioteca inteira num só envio, o banco cancela por tempo (statement timeout).
+const topicRows = [...materials.values()].map((m) => ({
   id: m.id,
   subject: m.subject,
   title: m.title,
@@ -166,7 +167,10 @@ await rest("library_topics?on_conflict=id", "POST", [...materials.values()].map(
   material: Object.fromEntries(Object.entries(m).filter(([field]) => !META.has(field))),
   question_count: (m.questions as unknown[]).length,
   updated_at: new Date().toISOString(),
-})), "resolution=merge-duplicates,return=minimal");
+}));
+for (let i = 0; i < topicRows.length; i += 20) {
+  await rest("library_topics?on_conflict=id", "POST", topicRows.slice(i, i + 20), "resolution=merge-duplicates,return=minimal");
+}
 
 // Apelidos e recortes espelham o repositório: o que saiu daqui sai do banco.
 await rest("library_topic_aliases?alias_norm=not.is.null", "DELETE");

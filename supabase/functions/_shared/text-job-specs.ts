@@ -103,8 +103,8 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
 
 /**
  * Material montado da biblioteca de matérias prontas (sem custo de IA). "Mais questões" também sai
- * daqui, sem repetir as que a pessoa já tem. Quem já recebeu o mesmo pedido e pede de novo quer
- * outro material: segue para a IA. Tópico que não está na biblioteca entra na fila do que gerar.
+ * daqui, sem repetir as que a pessoa já tem. Quem pede de novo recebe a mesma matéria com as
+ * questões em outra ordem (o embaralhamento usa o id do pedido), sem esperar a IA. Tópico que não está na biblioteca entra na fila do que gerar.
  */
 async function libraryContent(
   job: SyllabusWorkerJob,
@@ -152,7 +152,6 @@ async function libraryContent(
   }
   const fresh = input.avoidStatements.length === 0;
   const servedKey = `lib:${found.topicId}@${found.version}:${await contentCacheKey(input)}`;
-  if (fresh && await store.wasServed?.(servedKey, job.userId)) return null;
   const content = assembleFromLibrary(found.material, found.note, input, `${job.id}:${job.userId}`);
   if (!content) return null;
   if (fresh) await store.markServed?.(servedKey, job.userId).catch(() => undefined);

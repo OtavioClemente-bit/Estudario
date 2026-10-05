@@ -11,7 +11,7 @@ const problems: string[] = [];
 const warns: string[] = [];
 
 const charts = (md: string) => [...md.matchAll(/```grafico\n([\s\S]*?)\n```/g)].map((x) => x[1]);
-const singleDollar = (md: string) => md.replace(/R\$/g, "").replace(/\$\$[\s\S]*?\$\$/g, "").includes("$");
+const singleDollar = (md: string) => md.replace(/\$\$[\s\S]*?\$\$/g, "").replace(/R\$/g, "").includes("$");
 const numbers = (s: string) => new Set((s.replace(/\\[a-z]+/gi, " ").match(/\d+(?:[.,]\d+)?/g) ?? []).map((n) => n.replace(",", ".")));
 
 if (!Array.isArray(visual.chapters) || visual.chapters.length !== m.chapters.length) problems.push(`capítulos: ${visual.chapters?.length} (esperado ${m.chapters.length})`);
