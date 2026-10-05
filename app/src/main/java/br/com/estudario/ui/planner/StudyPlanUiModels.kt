@@ -64,20 +64,26 @@ data class ActivePlanUiState(
     val roadmap: br.com.estudario.domain.planner.EditalRoadmapResult? = null,
     val message: String? = null,
 ) {
-    val todayTasks get() = tasks.filter { it.entity.scheduledEpochDay == today.toEpochDay() }
+    /**
+     * Só as tarefas vigentes. Ao mudar horas ou prioridades o plano é refeito: as tarefas antigas
+     * ficam no histórico como reprogramadas e as novas entram no lugar. Antes as listas mostravam as
+     * duas, e um domingo que voltou para 1 hora continuava cheio na tela.
+     */
+    private val currentTasks get() = tasks.filter { it.entity.status.countsAsPlannedLoad() }
+    val todayTasks get() = currentTasks.filter { it.entity.scheduledEpochDay == today.toEpochDay() }
     private val pendingStatuses get() = listOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO)
     /** O próximo dia com estudo depois de hoje: o que mostrar quando hoje é folga. */
     val nextStudyDay: LocalDate? get() = tasks.asSequence()
         .filter { it.entity.scheduledEpochDay > today.toEpochDay() && it.entity.status in pendingStatuses }
         .minOfOrNull { it.entity.scheduledEpochDay }?.let(LocalDate::ofEpochDay)
-    val nextDayTasks get() = nextStudyDay?.let { day -> tasks.filter { it.entity.scheduledEpochDay == day.toEpochDay() } }.orEmpty()
+    val nextDayTasks get() = nextStudyDay?.let { day -> currentTasks.filter { it.entity.scheduledEpochDay == day.toEpochDay() } }.orEmpty()
     /** Os próximos 7 dias a partir de amanhã, para a semana nunca aparecer vazia quando o plano continua. */
-    val upcomingWeekTasks get() = tasks.filter { it.entity.scheduledEpochDay in (today.toEpochDay() + 1)..(today.toEpochDay() + 7) }
+    val upcomingWeekTasks get() = currentTasks.filter { it.entity.scheduledEpochDay in (today.toEpochDay() + 1)..(today.toEpochDay() + 7) }
     val overdueTasks get() = tasks.filter { it.entity.scheduledEpochDay < today.toEpochDay() && it.entity.status in listOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO) }
     val todayCompletionPercent: Int get() = todayTasks.plannedLoadCompletionPercent()
     val weekStart: LocalDate get() = today.minusDays((today.dayOfWeek.value - 1).toLong())
-    val weekTasks get() = tasks.filter { LocalDate.ofEpochDay(it.entity.scheduledEpochDay) in weekStart..weekStart.plusDays(6) }
-    val monthTasks get() = tasks.filter { LocalDate.ofEpochDay(it.entity.scheduledEpochDay).run { year == today.year && month == today.month } }
+    val weekTasks get() = currentTasks.filter { LocalDate.ofEpochDay(it.entity.scheduledEpochDay) in weekStart..weekStart.plusDays(6) }
+    val monthTasks get() = currentTasks.filter { LocalDate.ofEpochDay(it.entity.scheduledEpochDay).run { year == today.year && month == today.month } }
     val weekPlannedMinutes: Int get() = weekTasks.plannedLoadMinutes()
     val monthPlannedMinutes: Int get() = monthTasks.plannedLoadMinutes()
     val totalPlannedMinutes: Int get() = tasks.plannedLoadMinutes()

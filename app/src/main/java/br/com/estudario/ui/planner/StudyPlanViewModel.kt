@@ -175,7 +175,7 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
     fun activate(id: String) = launch("Trocando o plano ativo") { service.activate(id) }
     fun markMaster(id: String) = launch { service.markMaster(id) }
     fun archive(id: String) = launch { service.archive(id) }
-    fun delete(id: String) = launch("Excluindo o plano") { service.delete(id) }
+    fun delete(id: String) = launch("Excluindo o plano") { app.preferences.addRetiredPlanXp(service.delete(id)) }
     suspend fun executionCount(id: String): Int = repository.executionCountOnce(id)
     fun restore(id: String) = launch { service.restore(id) }
     fun duplicate(id: String, name: String) = launch("Duplicando o plano") { service.duplicate(id, name) }

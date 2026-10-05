@@ -54,9 +54,11 @@ object GoogleAccountSignIn {
     }
 
     /**
-     * Mantém a pessoa conectada. A sessão do servidor vale cerca de uma hora e o app não guarda
-     * token de renovação (decisão de segurança); então, quando ela está para vencer, o app pede ao
-     * Android um novo comprovante da conta Google já autorizada, sem mostrar tela, e renova.
+     * Mantém a pessoa conectada. A sessão do servidor vale cerca de uma hora; quando está para
+     * vencer, o app a renova em segundo plano com a chave de renovação guardada cifrada no aparelho,
+     * sem tela nenhuma. Só sem essa chave (primeiro uso depois da atualização, ou chave recusada) o
+     * app pede ao Google um novo comprovante da conta, o que pode abrir a janela do Google por cima
+     * do app; por isso isso acontece no máximo a cada 12 horas, contadas mesmo com o app fechado.
      * Quem saiu da conta de propósito (e-mail apagado) não é reconectado.
      */
     suspend fun renewIfNeeded(context: Context, marginSeconds: Long = 600) {
@@ -67,6 +69,10 @@ object GoogleAccountSignIn {
         val expiresAt = repo.sessionExpiresAt()
         val now = System.currentTimeMillis() / 1_000
         if (repo.accessToken() != null && expiresAt != null && expiresAt - now > marginSeconds) return
+        if (repo.refreshSession()) return
+        val prefs = app.getSharedPreferences(AUTH_PREFS, Context.MODE_PRIVATE)
+        if (now - prefs.getLong(LAST_SILENT_ATTEMPT, 0L) < SILENT_RETRY_SECONDS) return
+        prefs.edit().putLong(LAST_SILENT_ATTEMPT, now).apply()
         runCatching {
             val google = silentCredential(context)
             repo.signInWithGoogle(SupabaseGoogleCredential(google.idToken))
@@ -115,4 +121,7 @@ object GoogleAccountSignIn {
     }
 
     const val CANCELLED = "Login cancelado."
+    private const val SILENT_RETRY_SECONDS = 12 * 60 * 60L
+    private const val AUTH_PREFS = "estudario_auth"
+    private const val LAST_SILENT_ATTEMPT = "last_silent_google_attempt"
 }

@@ -291,7 +291,10 @@ class StudyRepository(private val db: AppDatabase) {
         dao.updateTopic(topic.copy(status = TopicStatus.ESTUDADO, firstStudiedAt = topic.firstStudiedAt ?: now, lastStudiedAt = now))
         val zone = ZoneId.systemDefault()
         val base = LocalDate.now(zone)
-        if (firstCompletion) {
+        // Desmarcar apaga as revisões pendentes; marcar de novo precisa reagendá-las, senão o tópico
+        // fica sem revisão para sempre. O XP do tópico continua valendo uma vez só (pela 1ª sessão).
+        val hasPendingReviews = dao.reviewsOnce().any { it.topicId == topicId && it.completedAt == null && it.ignoredAt == null }
+        if (!hasPendingReviews) {
             dao.insertReviews(ReviewIntervals.days.mapIndexed { index, days -> ReviewScheduleEntity(topicId = topicId, stage = index + 1, dueAt = base.plusDays(days).atStartOfDay(zone).toInstant().toEpochMilli()) })
         }
         dao.queueOnce().firstOrNull { it.topicId == topicId }?.let { item ->

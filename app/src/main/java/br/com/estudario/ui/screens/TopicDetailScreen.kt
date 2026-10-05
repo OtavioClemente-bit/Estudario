@@ -740,14 +740,18 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                 if (tipSnippets.isEmpty()) item(key = "tips-empty") {
                     EmptyState("Sem dicas ainda", "Dicas e pegadinhas de banca vêm junto com o material gerado para este tópico.", "Gerar com o Estudário") { showContentPrompt = true }
                 } else item(key = "tips-header") { SectionHeader("Dicas e pegadinhas", "O que costuma decidir a questão. ★ guarda no Caderno.") }
-                tipSnippets.sortedBy { it.kind }.forEach { snippet ->
-                    item(key = "tip-${snippet.id}") {
-                        br.com.estudario.ui.components.TipCard(
-                            text = snippet.text,
-                            trap = snippet.kind == SnippetKind.PEGADINHA,
-                            favorite = snippet.isFavorite,
-                            onToggleFavorite = { viewModel.saveSnippet(snippet.copy(isFavorite = !snippet.isFavorite)) },
-                        )
+                // Um grupo para dicas e outro para pegadinhas: o desenho vai só no cabeçalho de cada grupo.
+                tipSnippets.sortedBy { it.kind }.groupBy { it.kind == SnippetKind.PEGADINHA }.forEach { (trap, group) ->
+                    item(key = "tip-group-$trap") { br.com.estudario.ui.components.TipGroupHeader(trap, group.size, Modifier.padding(top = 6.dp)) }
+                    group.forEach { snippet ->
+                        item(key = "tip-${snippet.id}") {
+                            br.com.estudario.ui.components.TipRow(
+                                text = snippet.text,
+                                trap = trap,
+                                favorite = snippet.isFavorite,
+                                onToggleFavorite = { viewModel.saveSnippet(snippet.copy(isFavorite = !snippet.isFavorite)) },
+                            )
+                        }
                     }
                 }
             }

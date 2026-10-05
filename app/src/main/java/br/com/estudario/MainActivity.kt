@@ -77,6 +77,23 @@ class MainActivity : ComponentActivity() {
                 br.com.estudario.ui.assistant.FolhaShowcase()
                 return@setContent
             }
+            // Vitrines da tela de geração e das medalhas (só debug/preview): `--ez loaderShowcase true` / `--ez badgeShowcase true`.
+            if (BuildConfig.DEBUG && intent?.getBooleanExtra("loaderShowcase", false) == true) {
+                br.com.estudario.ui.components.LoaderShowcase()
+                return@setContent
+            }
+            if (BuildConfig.DEBUG && intent?.getBooleanExtra("focusDoneShowcase", false) == true) {
+                br.com.estudario.ui.components.FocusTimeUpShowcase()
+                return@setContent
+            }
+            if (BuildConfig.DEBUG && intent?.getBooleanExtra("levelUpShowcase", false) == true) {
+                br.com.estudario.ui.components.LevelUpShowcase()
+                return@setContent
+            }
+            if (BuildConfig.DEBUG && intent?.getBooleanExtra("badgeShowcase", false) == true) {
+                br.com.estudario.ui.components.BadgeShowcase()
+                return@setContent
+            }
             Box(Modifier.fillMaxSize()) {
                 if (mountApp) EstudarioApp(viewModel)
                 if (showSplash) androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalTextStyle provides androidx.compose.ui.text.TextStyle(fontFamily = br.com.estudario.ui.theme.Nunito)) {

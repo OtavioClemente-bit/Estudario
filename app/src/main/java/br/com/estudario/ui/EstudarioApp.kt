@@ -195,6 +195,21 @@ private fun MainNavigation(viewModel: AppViewModel) {
             delay(1_000)
         }
     }
+    // Aviso de tempo planejado: uma vez por sessão (guardado, para não repetir ao reabrir o app),
+    // quando o tempo estudado alcança o que o plano reservou. A sessão continua contando.
+    val focusPlanned by viewModel.focusPlannedMinutes.collectAsState()
+    val uiPrefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
+    var focusTimeUpSeen by remember(focusSession.sessionId) { mutableStateOf(uiPrefs.getString("focus_timeup_session", "") == focusSession.sessionId) }
+    val planned = focusPlanned
+    if (focusSession.active && !focusSession.paused && !focusTimeUpSeen && planned != null && focusSession.elapsedMinutes(focusClockNow) >= planned) {
+        fun markSeen() { focusTimeUpSeen = true; uiPrefs.edit().putString("focus_timeup_session", focusSession.sessionId).apply() }
+        br.com.estudario.ui.focus.FocusTimeUpDialog(
+            plannedMinutes = planned,
+            title = focusSession.title,
+            onContinue = { markSeen() },
+            onFinish = { markSeen(); focusSheetOpen = true },
+        )
+    }
     // Nenhum guia abre por cima de uma importação em andamento: a pessoa está no meio de um
     // diálogo, e o guia aparecendo ali é o que fazia a tela parecer travada depois de importar.
     val appTransfer by viewModel.transfer.collectAsState()
@@ -583,6 +598,11 @@ private fun MainNavigation(viewModel: AppViewModel) {
         // Emblema novo entra depois da comemoração do dia, para as duas não brigarem pela tela.
         val badgeUnlock by viewModel.badgeUnlock.collectAsState()
         if (celebration == null && tourStep == null) BadgeCelebrationScreen(badgeUnlock, viewModel::consumeBadgeUnlock)
+        // Subida de nível: depois da sequência e dos emblemas, uma tela de cada vez.
+        val levelUp by viewModel.levelUp.collectAsState()
+        levelUp?.let { event -> if (celebration == null && badgeUnlock.isEmpty() && tourStep == null) br.com.estudario.ui.profile.LevelUpScreen(event, viewModel::consumeLevelUp) }
+        val xpGain by viewModel.xpGain.collectAsState()
+        br.com.estudario.ui.profile.XpGainToast(xpGain)
         if (showTourPicker) TourPickerDialog(
             seen = seenTours.orEmpty(),
             onDismiss = { showTourPicker = false },
@@ -721,6 +741,8 @@ private fun TransferDialog(viewModel: AppViewModel) {
     when (val current = state) {
         TransferState.Idle -> Unit
         TransferState.Loading -> LoadingDialog("Processando o arquivo", "Arquivos grandes podem levar alguns segundos.")
+        is TransferState.Working -> br.com.estudario.ui.components.EstudarioProcessDialog(current.title, current.message)
+        is TransferState.Done -> br.com.estudario.ui.components.TransferDoneDialog(current.title, current.message, current.facts, current.cloud, viewModel::clearTransfer)
         is TransferState.Preview -> ImportReviewScreen(
             state = current,
             onConfirm = { mode, studied ->

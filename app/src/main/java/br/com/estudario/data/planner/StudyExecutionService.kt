@@ -110,6 +110,22 @@ class StudyExecutionService(
                 )
             }
         }
+        // Plano da IA não é redistribuído pelo motor (as tarefas dela são da pessoa): o automático
+        // leva a tarefa para o próximo dia de estudo da semana. Antes ele não fazia nada nesse caso.
+        if (task.origin == br.com.estudario.domain.planner.PlanOrigin.IMPORTED) {
+            return reprogram(taskId, nextStudyDay(task.planId))
+        }
         return planService.replan(task.planId, ReplanReason.TASK_PARTIAL)
+    }
+
+    /** Próximo dia a partir de amanhã com horas de estudo e que não esteja trancado como folga. */
+    suspend fun nextStudyDay(planId: String): LocalDate {
+        val availability = planner.availabilityFor(planId).associateBy { it.dayOfWeek }
+        val locked = planner.dayOverridesFor(planId).filter { it.locked || it.unavailable }.mapTo(hashSetOf()) { it.epochDay }
+        val tomorrow = LocalDate.now().plusDays(1)
+        return (0L until 14L).map { tomorrow.plusDays(it) }.firstOrNull { date ->
+            val day = availability[date.dayOfWeek.value]
+            day != null && !day.unavailable && day.availableMinutes > 0 && date.toEpochDay() !in locked
+        } ?: tomorrow
     }
 }

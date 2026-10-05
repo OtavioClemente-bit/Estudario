@@ -11,6 +11,7 @@ import br.com.estudario.data.local.FocusSessionOrigin
 import br.com.estudario.domain.setup.InitialSetupSnapshot
 import br.com.estudario.domain.setup.InitialSetupSnapshotCodec
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 
@@ -38,9 +39,12 @@ class AppPreferences(private val context: Context) {
     private val userEmailKey = stringPreferencesKey("user_email")
     private val userPhotoKey = stringPreferencesKey("user_photo_path")
     private val dailyGoalKey = intPreferencesKey("daily_goal_questions")
+    private val retiredPlanXpKey = intPreferencesKey("retired_plan_xp")
+    private val goalHistoryKey = stringPreferencesKey("daily_goal_history")
     private val lastCelebratedDayKey = longPreferencesKey("last_celebrated_day")
     private val driveBackupAtKey = longPreferencesKey("drive_last_backup_at")
     private val earnedBadgesKey = stringPreferencesKey("earned_badges")
+    private val seenLevelKey = intPreferencesKey("seen_level")
     // ---- Modo foco: uma sessão de estudo cronometrada, com o Não Perturbe do sistema ligado.
     private val focusStartedAtKey = longPreferencesKey("focus_started_at")
     private val focusTitleKey = stringPreferencesKey("focus_title")
@@ -85,6 +89,24 @@ class AppPreferences(private val context: Context) {
     val userEmail: Flow<String> = context.dataStore.data.map { it[userEmailKey].orEmpty() }
     val userPhotoPath: Flow<String?> = context.dataStore.data.map { it[userPhotoKey]?.takeIf(String::isNotBlank) }
     val dailyGoalQuestions: Flow<Int> = context.dataStore.data.map { it[dailyGoalKey] ?: 20 }
+    /** A meta com o histórico de mudanças, para cada dia ser avaliado pela meta que valia nele. */
+    val dailyGoal: Flow<br.com.estudario.domain.DailyGoal> = context.dataStore.data.map {
+        br.com.estudario.domain.DailyGoal(it[dailyGoalKey] ?: 20, parseGoalHistory(it[goalHistoryKey]))
+    }
+    /** XP de tarefas de planos que a pessoa apagou: guardado para o nível nunca cair ao excluir um plano. */
+    val retiredPlanXp: Flow<Int> = context.dataStore.data.map { it[retiredPlanXpKey] ?: 0 }
+    suspend fun addRetiredPlanXp(value: Int) { if (value > 0) context.dataStore.edit { it[retiredPlanXpKey] = (it[retiredPlanXpKey] ?: 0) + value } }
+    /** Ajustes que entram no backup: XP de planos apagados e o histórico da meta diária. */
+    suspend fun progressBackup(): Map<String, String> = context.dataStore.data.map { prefs ->
+        mapOf("retiredPlanXp" to (prefs[retiredPlanXpKey] ?: 0).toString(), "goalHistory" to prefs[goalHistoryKey].orEmpty(), "dailyGoal" to (prefs[dailyGoalKey] ?: 20).toString())
+    }.first()
+    suspend fun restoreProgressBackup(values: Map<String, String>) {
+        context.dataStore.edit { prefs ->
+            values["retiredPlanXp"]?.toIntOrNull()?.let { prefs[retiredPlanXpKey] = it }
+            values["goalHistory"]?.let { prefs[goalHistoryKey] = it }
+            values["dailyGoal"]?.toIntOrNull()?.let { prefs[dailyGoalKey] = it.coerceIn(5, 100) }
+        }
+    }
     /** Dia (epochDay) em que a tela de sequência já foi mostrada, evita comemorar duas vezes. */
     val lastCelebratedDay: Flow<Long> = context.dataStore.data.map { it[lastCelebratedDayKey] ?: 0L }
 
@@ -206,6 +228,9 @@ class AppPreferences(private val context: Context) {
     val earnedBadges: Flow<Set<String>> = context.dataStore.data.map { prefs ->
         prefs[earnedBadgesKey]?.split(",")?.filter { it.isNotBlank() }?.toSet().orEmpty()
     }
+    /** Último nível já comemorado (0 = nunca leu o progresso). */
+    val seenLevel: Flow<Int> = context.dataStore.data.map { it[seenLevelKey] ?: 0 }
+    suspend fun setSeenLevel(level: Int) { context.dataStore.edit { it[seenLevelKey] = level } }
     suspend fun markBadgesEarned(ids: Collection<String>) {
         if (ids.isEmpty()) return
         context.dataStore.edit { prefs ->
@@ -220,7 +245,20 @@ class AppPreferences(private val context: Context) {
     suspend fun setUserPhotoPath(value: String?) {
         context.dataStore.edit { prefs -> if (value.isNullOrBlank()) prefs.remove(userPhotoKey) else prefs[userPhotoKey] = value }
     }
-    suspend fun setDailyGoalQuestions(value: Int) { context.dataStore.edit { it[dailyGoalKey] = value.coerceIn(5, 100) } }
+    suspend fun setDailyGoalQuestions(value: Int) {
+        context.dataStore.edit { prefs ->
+            val next = value.coerceIn(5, 100)
+            val old = prefs[dailyGoalKey] ?: 20
+            // Guarda quando a meta mudou: os dias passados seguem avaliados pela meta da época.
+            val history = parseGoalHistory(prefs[goalHistoryKey]).toMutableList()
+            if (history.isEmpty()) history += 0L to old
+            val today = java.time.LocalDate.now().toEpochDay()
+            history.removeAll { it.first == today }
+            history += today to next
+            prefs[goalHistoryKey] = history.sortedBy { it.first }.joinToString(",") { "${it.first}:${it.second}" }
+            prefs[dailyGoalKey] = next
+        }
+    }
     suspend fun setLastCelebratedDay(epochDay: Long) { context.dataStore.edit { it[lastCelebratedDayKey] = epochDay } }
 
     suspend fun setDarkTheme(enabled: Boolean) { context.dataStore.edit { it[darkKey] = enabled } }
@@ -293,3 +331,12 @@ data class FocusSessionPrefs(
         )
     }
 }
+
+/** "epochDay:questões,..." → lista em ordem; texto inválido vira lista vazia. */
+private fun parseGoalHistory(raw: String?): List<Pair<Long, Int>> =
+    raw.orEmpty().split(',').mapNotNull { entry ->
+        val parts = entry.split(':')
+        val day = parts.getOrNull(0)?.toLongOrNull() ?: return@mapNotNull null
+        val value = parts.getOrNull(1)?.toIntOrNull() ?: return@mapNotNull null
+        day to value
+    }.sortedBy { it.first }

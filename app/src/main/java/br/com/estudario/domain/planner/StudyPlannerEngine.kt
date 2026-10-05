@@ -59,6 +59,9 @@ class StudyPlannerEngine(
         val remaining = eligible.associate { it.id to it.minutes }.toMutableMap()
         val remainingQuestions = eligible.associate { it.id to it.questions }.toMutableMap()
         val generated = mutableListOf<PlannerTask>()
+        // Blocos da mesma demanda no mesmo dia viram uma tarefa só ("Teoria · 50 min"), em vez de
+        // dois cartões iguais seguidos.
+        val generatedIndex = mutableMapOf<Pair<String, LocalDate>, Int>()
         val scheduledBySubject = mutableMapOf<Long, Int>()
         var sequence = 0
 
@@ -94,23 +97,35 @@ class StudyPlannerEngine(
                 val chunkQuestions = if (chunk == minuteLeftBefore) questionLeft
                 else if (minuteLeftBefore == 0) 0
                 else questionLeft * chunk / minuteLeftBefore
-                generated += PlannerTask(
-                    id = stableId(snapshot.planId, snapshot.revision.toString(), demand.id, date.toString(), sequence++.toString()),
-                    planId = snapshot.planId,
-                    subjectId = demand.subjectId,
-                    topicId = demand.topicId,
-                    date = date,
-                    type = demand.type,
-                    plannedMinutes = chunk,
-                    plannedQuestions = chunkQuestions,
-                    priority = demand.priority,
-                    status = PlanTaskStatus.PLANEJADA,
-                    locked = false,
-                    deadline = demand.deadline,
-                    subjectPosition = demand.subjectPosition,
-                    topicPosition = demand.topicPosition,
-                    replannedFromTaskId = demand.replannedFromTaskId,
-                )
+                val sameDay = generatedIndex[demand.id to date]
+                if (sameDay != null) {
+                    val previous = generated[sameDay]
+                    generated[sameDay] = previous.copy(
+                        plannedMinutes = previous.plannedMinutes + chunk,
+                        plannedQuestions = previous.plannedQuestions + chunkQuestions,
+                    )
+                } else {
+                    val position = sequence++
+                    generatedIndex[demand.id to date] = generated.size
+                    generated += PlannerTask(
+                        id = stableId(snapshot.planId, snapshot.revision.toString(), demand.id, date.toString(), position.toString()),
+                        planId = snapshot.planId,
+                        subjectId = demand.subjectId,
+                        topicId = demand.topicId,
+                        date = date,
+                        type = demand.type,
+                        plannedMinutes = chunk,
+                        plannedQuestions = chunkQuestions,
+                        priority = demand.priority,
+                        status = PlanTaskStatus.PLANEJADA,
+                        locked = false,
+                        deadline = demand.deadline,
+                        subjectPosition = demand.subjectPosition,
+                        topicPosition = demand.topicPosition,
+                        replannedFromTaskId = demand.replannedFromTaskId,
+                        sequence = position,
+                    )
+                }
                 freeByDate[date] = free - chunk
                 usedBySubjectPerDate[date to demand.subjectId] = usedBySubjectPerDate.getOrDefault(date to demand.subjectId, 0) + chunk
                 remaining[demand.id] = minuteLeftBefore - chunk
@@ -154,7 +169,10 @@ class StudyPlannerEngine(
                     } else demandRemaining
                     if (capLeft == 0) return@forEach
                     val before = scheduledBySubject.getOrDefault(demand.subjectId, 0)
-                    val amount = allocate(demand, minOf(demandRemaining, capLeft, snapshot.policy.preferredBlockMinutes), respectShare)
+                    // A demanda inteira de uma vez (em blocos, dentro do teto do dia): antes ia um
+                    // bloco por volta do rodízio, e as questões de um tópico entravam entre as duas
+                    // metades da teoria dele.
+                    val amount = allocate(demand, minOf(demandRemaining, capLeft), respectShare)
                     if (amount > 0) {
                         val after = scheduledBySubject.getOrDefault(demand.subjectId, 0)
                         val maintenance = maintenanceBySubject.getOrDefault(demand.subjectId, 0)

@@ -174,9 +174,17 @@ class StudyPlanApplicationService(
      * estão. O que vai junto é o cronograma e as execuções registradas nele, por isso a tela
      * confirma antes e oferece arquivar como caminho reversível.
      */
-    suspend fun delete(planId: String) = db.withTransaction {
+    suspend fun delete(planId: String): Int = db.withTransaction {
         val plan = planner.plan(planId) ?: error("Plano não encontrado.")
+        // O XP das tarefas feitas sai junto com as execuções; devolve quanto era, para quem chama
+        // guardar e o nível da pessoa não cair só porque ela apagou um cronograma.
+        val earned = planner.executionsForOnce(plan.id).filter { it.taskId != null }.groupBy { it.taskId!! }
+            .entries.sumOf { (taskId, runs) ->
+                val type = planner.task(taskId)?.type ?: return@sumOf 0
+                br.com.estudario.domain.ProgressEngine.earnedPlanTask(type, runs.sumOf { it.actualMinutes }, runs.sumOf { it.correctAnswers })
+            }
         planner.deletePlan(plan.id)
+        earned
     }
 
     suspend fun executionCount(planId: String): Int = planner.executionCountFor(planId)

@@ -1,5 +1,10 @@
 package br.com.estudario.ui.screens
 
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import br.com.estudario.ui.planner.taskTitlePtBr
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
@@ -176,24 +181,23 @@ fun HomeScreen(
         if (showSetupCta && !setupCtaDismissed) {
             item {
                 Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
-                    ElevatedCard {
-                        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            br.com.estudario.ui.assistant.Folha(36.dp)
-                            Column(Modifier.weight(1f)) {
-                                Text("Seu plano ainda pode ficar mais completo", style = MaterialTheme.typography.titleSmall)
-                                Text("Retome a configuração quando quiser e deixe a Home trabalhar a seu favor.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Button(onClick = onSetup) { Text("Continuar") }
-                            // Quem não quer retomar agora pode fechar; a configuração continua em Ajustes.
-                            IconButton(onClick = { setupCtaDismissed = true; homePrefs.edit().putBoolean("setup_cta_dismissed", true).apply() }, modifier = Modifier.size(32.dp)) {
-                                Icon(Icons.Outlined.Close, "Fechar aviso", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
+                    // Lembrete discreto, numa linha: o que importa na Home é o estudo, não a configuração.
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .clickable(onClick = onSetup).padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Termine de configurar seu plano", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                        Text("Retomar", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        // Quem não quer retomar agora pode fechar; a configuração continua em Ajustes.
+                        IconButton(onClick = { setupCtaDismissed = true; homePrefs.edit().putBoolean("setup_cta_dismissed", true).apply() }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Outlined.Close, "Fechar aviso", Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
             }
-            // Respiro entre o aviso e o cartão de saudação, para os dois não parecerem um bloco só.
-            item { Spacer(Modifier.height(EstudarioSpacing.medium)) }
+            item { Spacer(Modifier.height(EstudarioSpacing.small)) }
         }
         if (competition == null) {
             item {
@@ -376,6 +380,8 @@ fun HomeScreen(
                     onOpenReviews = onReviews,
                     onOpenErrors = onErrors,
                     onOpenWeakTopic = { atual?.weakTopicId?.let(onTopic) },
+                    overduePlanTasks = if (activePlan != null) planState.overdueTasks.size else 0,
+                    onOpenPlan = onPlan,
                 )
             }
         }
@@ -393,15 +399,25 @@ fun HomeScreen(
 // e ritmo vêm do domínio, cobertura vem de computeHomeMetrics, XP e sequência vêm do ProgressEngine
 // e do StreakEngine. Esta camada só escolhe o que a Home mostra.
 
-/** A tarefa de agora: a primeira já em andamento, senão a primeira planejada. */
-private fun pickFocusTask(planState: ActivePlanUiState): PlannerTaskUi? {
+/**
+ * A tarefa de agora, a mesma que a aba Plano mostra para hoje: a de hoje já em andamento, senão a
+ * primeira de hoje na ordem do plano. Antes valia a pendente mais antiga do plano inteiro, e uma
+ * tarefa de ontem esquecida tomava o lugar da de hoje: o Início mandava estudar uma matéria e o
+ * Plano mostrava outra. Atrasadas ficam no aviso "Pedindo atenção"; sem nada pendente hoje, vale a
+ * próxima da ordem.
+ */
+internal fun pickFocusTask(planState: ActivePlanUiState): PlannerTaskUi? {
     // Ordem do plano: data e, no mesmo dia, a posição em que a tarefa veio. Algo já começado vem
     // antes de abrir uma nova.
     val ordered = planState.tasks.withIndex()
         .filter { it.value.entity.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO) }
         .sortedWith(compareBy({ it.value.entity.scheduledEpochDay }, { it.index }))
         .map { it.value }
-    return ordered.firstOrNull { it.entity.status == PlanTaskStatus.EM_ANDAMENTO }
+    val today = planState.today.toEpochDay()
+    val ofToday = ordered.filter { it.entity.scheduledEpochDay == today }
+    return ofToday.firstOrNull { it.entity.status == PlanTaskStatus.EM_ANDAMENTO }
+        ?: ofToday.firstOrNull()
+        ?: ordered.firstOrNull { it.entity.status == PlanTaskStatus.EM_ANDAMENTO }
         ?: ordered.firstOrNull()
 }
 

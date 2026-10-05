@@ -83,21 +83,6 @@ object ProgressEngine {
         bonusLabel = "bônus de sequência",
     )
 
-    data class RewardRow(val label: String, val detail: String, val reward: XpReward)
-
-    /** O quadro de recompensas mostrado no perfil. */
-    fun rewardTable(currentStreak: Int): List<RewardRow> = listOf(
-        RewardRow("Simulado do plano", "Cerca de 2h30 de prova cronometrada", previewPlanTask(PlanTaskType.SIMULATION, 150, 75)),
-        RewardRow("Discursiva do plano", "Uma folha escrita à mão", previewPlanTask(PlanTaskType.DISCURSIVE, 90, 0)),
-        RewardRow("Meta do dia", "Fechar a meta mantém a sequência viva", previewDailyGoal(currentStreak)),
-        RewardRow("Tarefa de questões", "Bloco de 40 min com 20 questões", previewPlanTask(PlanTaskType.QUESTIONS, 40, 20)),
-        RewardRow("Tópico estudado", "Marcar um tópico como concluído", previewTopicStudied()),
-        RewardRow("Tarefa de revisão", "Bloco de revisão do plano", previewPlanTask(PlanTaskType.REVIEW, 25, 0)),
-        RewardRow("Tarefa de teoria", "Bloco de 50 min de teoria", previewPlanTask(PlanTaskType.THEORY, 50, 0)),
-        RewardRow("Revisão espaçada", "Fechar uma revisão fora do plano", previewReview()),
-        RewardRow("Questão avulsa", "Fora do plano, até $DAILY_QUESTION_CAP por dia", previewQuestions(1)),
-    )
-
     // ---------------------------------------------------------------- níveis
 
     /** XP acumulado para estar no nível [level]. Nível 1 começa em zero. */
@@ -111,14 +96,21 @@ object ProgressEngine {
 
     fun levelTitle(level: Int): String = when {
         level >= 50 -> "Lenda do edital"
+        level >= 45 -> "Quase servidor"
         level >= 40 -> "Aprovável"
+        level >= 35 -> "Especialista"
         level >= 30 -> "Veterano"
+        level >= 25 -> "Focado na vaga"
         level >= 20 -> "Estrategista"
         level >= 15 -> "Disciplinado"
         level >= 10 -> "Concurseiro"
         level >= 5 -> "Estudante"
         else -> "Iniciante"
     }
+
+    /** O próximo título que a pessoa vai ganhar e em que nível, ou nulo se já tem o último. */
+    fun nextTitle(level: Int): Pair<Int, String>? =
+        (5..50 step 5).toList().firstOrNull { it > level }?.let { it to levelTitle(it) }
 
     // ---------------------------------------------------------------- cálculo
 
@@ -141,6 +133,8 @@ object ProgressEngine {
         val reviewsCompleted: Int,
         val topicsStudied: Int,
         val topicsTotal: Int,
+        /** XP de tarefas de planos já apagados, guardado na hora da exclusão. */
+        val retiredPlanXp: Int = 0,
     )
 
     data class XpSource(val label: String, val xp: Int)
@@ -222,6 +216,7 @@ object ProgressEngine {
             if (!date.isBefore(weekStart) && !date.isAfter(input.today)) xpThisWeek += dayXp
         }
 
+        planXp += input.retiredPlanXp.coerceAtLeast(0)
         val totalXp = planXp + questionXp + reviewXp + topicXp + focusXp + goalXp
         val level = levelFor(totalXp)
         val floor = xpForLevel(level)

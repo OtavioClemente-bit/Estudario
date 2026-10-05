@@ -60,11 +60,13 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -104,8 +106,13 @@ fun EstudarioProcessScene(size: Dp, modifier: Modifier = Modifier, sheets: Int =
     val opening = remember { Animatable(if (reduced) 1f else 0f) }
     LaunchedEffect(Unit) { opening.animateTo(1f, tween(900, easing = FastOutSlowInEasing)) }
 
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val glyphStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black)
+    val glyphs = remember(measurer, glyphStyle) { GLYPHS.map { measurer.measure(it, glyphStyle) } }
+
     Box(modifier.size(size).semantics { contentDescription = "Processando" }, contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) { drawScene(time, palette, sheets, reduced) }
+        // Atrás do Folha: aurora, feixes de luz e a metade de trás das órbitas.
+        Canvas(Modifier.fillMaxSize()) { drawSceneBack(time, palette, sheets, reduced) }
         // O Folha no meio, lendo e escrevendo, enquanto as folhas chegam voando até ele.
         br.com.estudario.ui.assistant.Folha(
             size = size * 0.56f,
@@ -122,6 +129,8 @@ fun EstudarioProcessScene(size: Dp, modifier: Modifier = Modifier, sheets: Int =
                 scaleY = (0.82f + 0.18f * o) * breath
             },
         )
+        // Na frente: a metade da frente das órbitas, as letras sendo sugadas e o estouro de cada chegada.
+        if (!reduced) Canvas(Modifier.fillMaxSize()) { drawSceneFront(time, palette, sheets, glyphs) }
     }
 }
 
@@ -140,7 +149,7 @@ fun EstudarioProcessView(
     modifier: Modifier = Modifier,
     eyebrow: String? = null,
     stageMillis: Long = 5_500L,
-    sceneSize: Dp = 260.dp,
+    sceneSize: Dp = 320.dp,
     /**
      * Etapa real, quando quem chama sabe em que ponto está (ex.: leitura do PDF página a página).
      * Igual a [stages].size marca tudo como feito. Sem ela, as etapas andam pelo tempo.
@@ -181,7 +190,7 @@ fun EstudarioProcessView(
             )
             Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         }
-        EstudarioProcessScene(sceneSize.coerceAtMost(220.dp))
+        EstudarioProcessScene(sceneSize.coerceAtMost(320.dp))
         FolhaSpeech {
             if (stages.isNotEmpty()) AnimatedContent(
                 targetState = when {
@@ -298,7 +307,8 @@ private fun StageTrail(count: Int, current: Int, progress: Float, modifier: Modi
         drawLine(idle, Offset(x(0), y), Offset(x(count - 1), y), line, StrokeCap.Round)
         // A parte cheia vai até a etapa atual e avança um pouco dentro dela conforme o tempo passa.
         val within = ((progress * count) - current).coerceIn(0f, 0.85f)
-        val reach = if (current >= count) x(count - 1) else x(current) + step * within
+        // Na última etapa não há caminho depois da bolinha: a linha para nela.
+        val reach = if (current >= count - 1) x(count - 1) else x(current) + step * within
         drawLine(done, Offset(x(0), y), Offset(reach, y), line, StrokeCap.Round)
         for (i in 0 until count) {
             val c = Offset(x(i), y)
@@ -461,119 +471,228 @@ private fun sceneColors(): SceneColors {
 /** Tipos de material que chegam ao livro. A ordem é só visual. */
 private enum class Sheet { PDF, LIST, QUESTION, HIGHLIGHT, OUTLINE }
 
-private const val FLIGHT_SECONDS = 3.6f
+/** Uma volta de cada folha: orbita o Folha e, no fim, mergulha nele. */
+private const val FLIGHT_SECONDS = 4.8f
 
-private fun DrawScope.drawScene(time: Float, c: SceneColors, count: Int, reduced: Boolean) {
+/** Quanto do ciclo a folha passa orbitando antes de mergulhar. */
+private const val ORBIT_PART = 0.7f
+
+/** Cores neon da cena: violeta, ciano e magenta. Iguais nos dois temas, para brilhar no escuro. */
+private val NEON = listOf(Color(0xFF8B6CFF), Color(0xFF22E3C4), Color(0xFFFF4FD8))
+
+/** Pontos de luz da galáxia que gira atrás do Folha. */
+private const val GALAXY_STARS = 90
+
+/** Símbolos que são sugados em espiral para dentro do Folha. */
+private val GLYPHS = listOf("A", "§", "?", "✓", "%", "Σ", "B", "¶")
+
+/** Onde está uma folha num instante: posição na tela, profundidade (-1 atrás, 1 na frente) e tamanho. */
+private class Orbiter(val pos: Offset, val z: Float, val scale: Float, val alpha: Float, val tilt: Float, val dive: Float)
+
+/**
+ * Duas órbitas inclinadas, como um átomo visto de lado. A folha gira na elipse (passando por trás
+ * e pela frente do Folha), depois faz uma espiral para dentro, já vindo para a frente, e é engolida.
+ */
+private fun orbiter(i: Int, count: Int, t: Float, center: Offset, radius: Float): Orbiter {
+    val p = (t % FLIGHT_SECONDS) / FLIGHT_SECONDS
+    val ringAngle = if (i % 2 == 0) -0.5f else 0.42f
+    val flatten = 0.34f
+    val dive = ((p - ORBIT_PART) / (1f - ORBIT_PART)).coerceIn(0f, 1f)
+    val d = dive * dive * (3f - 2f * dive)
+    val theta = (i * 2f * PI.toFloat() / count) + p * 2f * PI.toFloat() * 1.35f
+    val r = radius * 0.86f * (1f - 0.97f * d)
+    val x0 = cos(theta) * r
+    val y0 = sin(theta) * r * (flatten + (1f - flatten) * d * 0.3f)
+    val x = x0 * cos(ringAngle) - y0 * sin(ringAngle)
+    val y = x0 * sin(ringAngle) + y0 * cos(ringAngle)
+    val z = sin(theta) * (1f - d) + d
+    val scale = (0.72f + 0.28f * (z + 1f) / 2f) * (1f - 0.8f * d.pow(1.4f))
+    val alpha = when {
+        p < 0.07f -> p / 0.07f
+        dive > 0.82f -> ((1f - dive) / 0.18f).coerceAtLeast(0f)
+        else -> 1f
+    } * (0.55f + 0.45f * (z + 1f) / 2f)
+    return Orbiter(center + Offset(x, y), z, scale, alpha, sin(theta) * 18f + d * 220f, dive)
+}
+
+/** Atrás: aurora em movimento, feixes de luz girando e o que está na metade de trás das órbitas. */
+private fun DrawScope.drawSceneBack(time: Float, c: SceneColors, count: Int, reduced: Boolean) {
     val center = Offset(size.width / 2, size.height / 2)
     val radius = min(size.width, size.height) / 2
 
-    // Halo que respira atrás de tudo.
-    val pulse = 0.85f + 0.15f * sin(time * 1.6f)
-    drawCircle(
-        Brush.radialGradient(
-            listOf(c.glow.copy(alpha = 0.26f * pulse), c.glow.copy(alpha = 0.08f), Color.Transparent),
-            center = center,
-            radius = radius * 0.98f,
-        ),
-        radius = radius,
-        center = center,
-    )
-
-    // Anéis: um tracejado girando e um contínuo bem suave, com pontos orbitando.
-    val ringR = radius * 0.78f
-    drawCircle(c.ringSoft, ringR * 1.12f, center, style = Stroke(1.2.dp.toPx()))
-    rotate(time * 22f, center) {
+    // Aurora neon: três manchas de cor passeando e trocando de tom devagar, misturando-se atrás de tudo.
+    NEON.forEachIndexed { k, base ->
+        val a = time * (0.35f + k * 0.08f) + k * 2.1f
+        val at = center + Offset(cos(a) * radius * 0.3f, sin(a * 1.3f) * radius * 0.24f)
+        val color = androidx.compose.ui.graphics.lerp(base, NEON[(k + 1) % NEON.size], (sin(time * 0.4f + k) + 1f) / 2f)
         drawCircle(
-            c.ring,
-            ringR,
-            center,
-            style = Stroke(
-                width = 1.6.dp.toPx(),
-                cap = StrokeCap.Round,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 9.dp.toPx())),
-            ),
-        )
-    }
-    // Arco de "varredura" dando a volta, como um radar lendo o material.
-    rotate(-time * 70f, center) {
-        drawArc(
-            Brush.sweepGradient(listOf(Color.Transparent, c.accent.copy(alpha = 0.55f)), center),
-            startAngle = 0f,
-            sweepAngle = 80f,
-            useCenter = false,
-            topLeft = Offset(center.x - ringR * 0.9f, center.y - ringR * 0.9f),
-            size = Size(ringR * 1.8f, ringR * 1.8f),
-            style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round),
-        )
-    }
-    repeat(3) { i ->
-        val speed = 0.55f + i * 0.23f
-        val a = time * speed + i * 2.1f
-        val r = ringR * (1.12f - i * 0.06f)
-        drawCircle(
-            if (i == 1) c.success else c.accent,
-            radius = (3.2f - i * 0.5f).dp.toPx(),
-            center = center + Offset(cos(a) * r, sin(a) * r),
+            Brush.radialGradient(listOf(color.copy(alpha = 0.38f), color.copy(alpha = 0.1f), Color.Transparent), at, radius * 0.8f),
+            radius * 0.8f,
+            at,
         )
     }
 
-    // Faíscas paradas no lugar, piscando em tempos diferentes.
-    repeat(9) { i ->
-        val a = i * 2.39996f + 0.4f
-        val r = ringR * (0.62f + (i % 4) * 0.14f)
-        val twinkle = ((sin(time * (1.3f + i * 0.21f) + i) + 1f) / 2f).pow(3f)
-        if (twinkle > 0.05f) drawSparkle(center + Offset(cos(a) * r, sin(a) * r), (3.5f + 3f * twinkle).dp.toPx(), c.spark.copy(alpha = twinkle * 0.9f))
+    // Galáxia: dois braços espirais de luz girando e escoando para dentro do Folha. A luz soma onde
+    // os pontos se juntam, e o miolo estoura de brilho.
+    if (!reduced) repeat(GALAXY_STARS) { k ->
+        val arm = k % 2
+        val life = 5.5f + (k % 7) * 0.4f
+        val q = ((time + k * 0.173f) % life) / life
+        val r = radius * (1.05f - 0.98f * q)
+        val a = arm * PI.toFloat() + 3.2f * (1f - q) - time * 0.9f + (k % 5) * 0.07f
+        val at = center + Offset(cos(a) * r, sin(a) * r * 0.8f)
+        val tw = 0.55f + 0.45f * sin(time * 6f + k)
+        val fade = (if (q < 0.1f) q / 0.1f else 1f) * (0.4f + 0.6f * q)
+        val color = NEON[k % NEON.size]
+        drawCircle(color.copy(alpha = 0.22f * fade * tw), (5.5f * (1f - q) + 2f).dp.toPx(), at, blendMode = androidx.compose.ui.graphics.BlendMode.Plus)
+        drawCircle(Color.White.copy(alpha = 0.75f * fade * tw), (1.5f * (1f - q) + 0.6f).dp.toPx(), at, blendMode = androidx.compose.ui.graphics.BlendMode.Plus)
+    }
+
+    // Feixes de luz saindo de trás do Folha, girando como um farol.
+    rotate(time * 9f, center) {
+        repeat(12) { k ->
+            val a = k * (2f * PI.toFloat() / 12)
+            val spread = 0.11f
+            val reach = radius * (0.9f + 0.1f * sin(time * 1.7f + k))
+            val beam = Path().apply {
+                moveTo(center.x, center.y)
+                lineTo(center.x + cos(a - spread) * reach, center.y + sin(a - spread) * reach)
+                lineTo(center.x + cos(a + spread) * reach, center.y + sin(a + spread) * reach)
+                close()
+            }
+            val strength = if (k % 2 == 0) 0.13f else 0.07f
+            drawPath(beam, Brush.radialGradient(listOf(c.glow.copy(alpha = strength), Color.Transparent), center, reach))
+        }
     }
 
     if (reduced) {
-        // Parado: algumas folhas em volta do livro, sem movimento.
         listOf(Sheet.PDF to -2.3f, Sheet.QUESTION to -0.5f, Sheet.LIST to 2.4f).forEach { (kind, a) ->
-            val p = center + Offset(cos(a) * ringR * 0.95f, sin(a) * ringR * 0.95f)
+            val p = center + Offset(cos(a) * radius * 0.74f, sin(a) * radius * 0.74f)
             drawSheet(kind, p, radius * 0.25f, a * 8f, 1f, c)
         }
         return
     }
+    drawOrbitLayer(time, c, count, front = false)
+}
 
-    // O material voando para dentro do livro.
+/** Na frente: metade da frente das órbitas, letras sendo sugadas e o estouro de cada chegada. */
+private fun DrawScope.drawSceneFront(time: Float, c: SceneColors, count: Int, glyphs: List<androidx.compose.ui.text.TextLayoutResult>) {
+    val center = Offset(size.width / 2, size.height / 2)
+    val radius = min(size.width, size.height) / 2
+
+    // Letras e símbolos entrando em espiral, cada um no seu ritmo.
+    repeat(14) { k ->
+        val period = 2.2f + (k % 5) * 0.37f
+        val q = ((time + k * 0.61f) % period) / period
+        val e = q * q
+        val a = k * 2.39996f + e * 4.2f
+        val r = radius * (1.02f - 0.92f * e)
+        val at = center + Offset(cos(a) * r, sin(a) * r * 0.86f)
+        val fade = (if (q < 0.15f) q / 0.15f else 1f) * (1f - e).coerceAtLeast(0f)
+        val glyph = glyphs[k % glyphs.size]
+        val s = 0.55f + 0.5f * (1f - e)
+        val color = when (k % 3) { 0 -> c.accent; 1 -> c.success; else -> c.attention }
+        // Rastro de três pontos atrás de cada símbolo.
+        repeat(3) { j ->
+            val eb = ((q - 0.03f * (j + 1)).coerceAtLeast(0f)).let { it * it }
+            val ab = k * 2.39996f + eb * 4.2f
+            val rb = radius * (1.02f - 0.92f * eb)
+            drawCircle(color.copy(alpha = fade * (0.4f - j * 0.12f)), (2.2f - j * 0.5f).dp.toPx(), center + Offset(cos(ab) * rb, sin(ab) * rb * 0.86f))
+        }
+        translate(at.x, at.y) {
+            scale(s, s, Offset.Zero) {
+                drawText(
+                    glyph,
+                    color = color,
+                    topLeft = Offset(-glyph.size.width / 2f, -glyph.size.height / 2f),
+                    alpha = fade * 0.9f,
+                )
+            }
+        }
+    }
+
+    drawOrbitLayer(time, c, count, front = true)
+
+    // Raios: de tempos em tempos, uma folha que passa na frente solta um relâmpago até o Folha.
     for (i in 0 until count) {
-        val offset = i * FLIGHT_SECONDS / count
-        val phaseTime = time + offset
-        val cycle = (phaseTime / FLIGHT_SECONDS).toInt()
-        val p = (phaseTime % FLIGHT_SECONDS) / FLIGHT_SECONDS
-        val seed = hash(cycle * 31 + i * 7)
-        val kind = Sheet.entries[(seed % Sheet.entries.size + Sheet.entries.size) % Sheet.entries.size]
-        val startAngle = (i * (2 * PI / count) + (seed % 100) / 100f * 0.9f).toFloat()
-        val curl = if (seed % 2 == 0) 1.1f else -1.1f
-        val eased = easeInCubic(p)
-        val r = radius * (0.9f - 0.88f * eased)
-        val a = startAngle + curl * eased
-        val pos = center + Offset(cos(a) * r, sin(a) * r)
-        val alpha = when {
-            p < 0.12f -> p / 0.12f
-            p > 0.82f -> ((1f - p) / 0.18f).coerceAtLeast(0f)
-            else -> 1f
+        val t = time + i * FLIGHT_SECONDS / count
+        val o = orbiter(i, count, t, center, radius)
+        val window = (t * 1.3f + i * 0.37f) % 2.2f
+        if (o.z < 0.15f || o.dive > 0.1f || window > 0.16f) continue
+        val strike = window / 0.16f
+        val seed = hash((t * 1.3f / 2.2f).toInt() * 13 + i)
+        val bolt = Path().apply {
+            moveTo(o.pos.x, o.pos.y)
+            val segments = 7
+            for (s in 1 until segments) {
+                val f = s.toFloat() / segments
+                val base = o.pos + (center - o.pos) * f
+                val n = ((hash(seed + s * 97) % 200) / 100f - 1f) * radius * 0.09f * (1f - f * 0.5f)
+                val dx = center.y - o.pos.y; val dy = o.pos.x - center.x
+                val len = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtLeast(1f)
+                lineTo(base.x + dx / len * n, base.y + dy / len * n)
+            }
+            lineTo(center.x, center.y)
         }
-        val scale = 1f - 0.72f * p.pow(1.6f)
-        val tilt = sin(time * 2f + i) * 14f + (1f - p) * curl * 18f
-        // Um rastro curto de pontinhos mostra a trajetória.
-        if (p in 0.18f..0.85f) repeat(3) { k ->
-            val back = (eased - 0.05f * (k + 1)).coerceAtLeast(0f)
-            val rb = radius * (0.9f - 0.88f * back)
-            val ab = startAngle + curl * back
-            drawCircle(c.accent.copy(alpha = alpha * (0.35f - k * 0.1f)), (2.4f - k * 0.5f).dp.toPx(), center + Offset(cos(ab) * rb, sin(ab) * rb))
-        }
-        drawSheet(kind, pos, radius * 0.27f * scale, tilt, alpha, c)
-        // Chegada: um anel que abre e some a partir do livro.
-        if (p > 0.84f) {
-            val b = (p - 0.84f) / 0.16f
-            drawCircle(
-                c.success.copy(alpha = (1f - b) * 0.55f),
-                radius = radius * (0.2f + 0.3f * b),
-                center = center,
-                style = Stroke((3f * (1f - b) + 0.5f).dp.toPx()),
+        val fade = 1f - strike
+        val boltColor = NEON[(i + 1) % NEON.size]
+        drawPath(bolt, boltColor.copy(alpha = 0.35f * fade), style = Stroke(7.dp.toPx(), cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round), blendMode = androidx.compose.ui.graphics.BlendMode.Plus)
+        drawPath(bolt, Color.White.copy(alpha = 0.95f * fade), style = Stroke(1.6.dp.toPx(), cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        drawCircle(boltColor.copy(alpha = 0.5f * fade), radius * 0.12f * (1f + strike), center, blendMode = androidx.compose.ui.graphics.BlendMode.Plus)
+    }
+
+    // Estouro de cada chegada: raios curtos saindo do Folha e faíscas espirrando.
+    for (i in 0 until count) {
+        val since = (time + i * FLIGHT_SECONDS / count) % FLIGHT_SECONDS
+        if (since > 0.5f) continue
+        val b = since / 0.5f
+        val fade = (1f - b).pow(1.5f)
+        repeat(10) { k ->
+            val a = k * (2f * PI.toFloat() / 10) + i * 0.7f
+            val r0 = radius * (0.2f + 0.35f * b)
+            val r1 = r0 + radius * 0.16f * (1f - b)
+            drawLine(
+                (if (k % 2 == 0) c.attention else c.success).copy(alpha = fade),
+                center + Offset(cos(a) * r0, sin(a) * r0),
+                center + Offset(cos(a) * r1, sin(a) * r1),
+                (3f * (1f - b) + 1f).dp.toPx(),
+                StrokeCap.Round,
             )
-            drawSparkle(center + Offset(cos(a) * radius * 0.26f, sin(a) * radius * 0.26f), (7f * (1f - b)).dp.toPx(), c.spark.copy(alpha = 1f - b))
         }
+        repeat(8) { k ->
+            val a = k * 0.785f + i * 1.3f + 0.39f
+            val r = radius * (0.22f + 0.62f * b)
+            drawCircle(c.spark.copy(alpha = fade), (2.6f * (1f - b) + 0.8f).dp.toPx(), center + Offset(cos(a) * r, sin(a) * r - radius * 0.2f * b * b))
+        }
+    }
+}
+
+/** As folhas de uma metade das órbitas (atrás ou na frente), cada uma com rastro de cometa. */
+private fun DrawScope.drawOrbitLayer(time: Float, c: SceneColors, count: Int, front: Boolean) {
+    val center = Offset(size.width / 2, size.height / 2)
+    val radius = min(size.width, size.height) / 2
+    val items = (0 until count).map { i ->
+        val t = time + i * FLIGHT_SECONDS / count
+        val cycle = (t / FLIGHT_SECONDS).toInt()
+        Triple(i, cycle, orbiter(i, count, t, center, radius))
+    }.filter { (_, _, o) -> (o.z >= 0f) == front }.sortedBy { it.third.z }
+
+    for ((i, cycle, o) in items) {
+        val t = time + i * FLIGHT_SECONDS / count
+        // Rastro de cometa: posições recentes da mesma folha, cada vez mais apagadas.
+        repeat(10) { k ->
+            val past = orbiter(i, count, t - 0.035f * (k + 1), center, radius)
+            if ((past.z >= 0f) != front || past.alpha <= 0.02f) return@repeat
+            val f = 1f - k / 10f
+            drawCircle(
+                (if (i % 2 == 0) c.accent else c.success).copy(alpha = past.alpha * 0.32f * f),
+                (4.2f * past.scale * f + 0.6f).dp.toPx(),
+                past.pos,
+            )
+        }
+        val seed = hash(cycle * 31 + i * 7)
+        val kind = Sheet.entries[seed % Sheet.entries.size]
+        drawSheet(kind, o.pos, radius * 0.3f * o.scale, o.tilt, o.alpha, c)
     }
 }
 

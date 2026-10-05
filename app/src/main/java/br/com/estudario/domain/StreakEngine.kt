@@ -23,7 +23,18 @@ data class DailyActivity(
  * pelo menos uma tarefa do plano OU fecha pelo menos uma revisão. Assim um dia de teoria pelo plano
  * vale tanto quanto um dia de questões.
  */
-data class DailyGoal(val questions: Int = 20) {
+data class DailyGoal(
+    val questions: Int = 20,
+    /** Mudanças da meta (epochDay em que passou a valer, questões), em ordem. Vazio = sempre [questions]. */
+    val history: List<Pair<Long, Int>> = emptyList(),
+) {
+    /** A meta que valia em [date]: mudar a meta hoje não reescreve os dias que já passaram. */
+    fun questionsOn(date: LocalDate): Int {
+        if (history.isEmpty()) return questions
+        val day = date.toEpochDay()
+        return history.lastOrNull { it.first <= day }?.second ?: history.first().second
+    }
+
     companion object {
         const val MIN = 5
         const val MAX = 100
@@ -59,7 +70,7 @@ data class StreakSummary(
 object StreakEngine {
     /** O dia conta para a sequência? */
     fun isDone(day: DailyActivity, goal: DailyGoal): Boolean =
-        day.questions >= goal.questions || day.planTasks > 0 || day.reviews > 0
+        day.questions >= goal.questionsOn(day.date) || day.planTasks > 0 || day.reviews > 0
 
     /** 0 = nada, 1..4 = intensidade crescente, para o mapa de frequência. */
     fun level(day: DailyActivity?, goal: DailyGoal): Int {

@@ -9,6 +9,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.sync.withLock
 
 @JvmInline
 value class SupabaseGoogleCredential(val idToken: String) {
@@ -102,8 +103,21 @@ object SupabaseClientConfigValidator {
             ?.lowercase()
 }
 
+/** Sessão nova mais a chave de renovação, que não faz parte da sessão pública. */
+class SupabaseTokens(val session: SupabaseSession, val refreshToken: String?) {
+    override fun toString(): String = "SupabaseTokens(session=<redacted>, refreshToken=<redacted>)"
+}
+
 interface SupabaseAuthClient {
     suspend fun signInWithGoogle(credential: SupabaseGoogleCredential): SupabaseSession
+
+    /** O mesmo login, devolvendo também a chave de renovação quando o servidor manda. */
+    suspend fun signInWithGoogleTokens(credential: SupabaseGoogleCredential): SupabaseTokens =
+        SupabaseTokens(signInWithGoogle(credential), null)
+
+    /** Troca a chave de renovação por uma sessão nova (e uma chave nova, que substitui a anterior). */
+    suspend fun refreshSession(refreshToken: String): SupabaseTokens =
+        throw UnsupportedOperationException("Renovação não disponível neste cliente.")
 
     suspend fun sendEmailOtp(email: String)
 
@@ -131,17 +145,58 @@ interface SupabaseAuthRepository {
 
     /** When the stored session expires (epoch seconds), or null with no session. Used to renew early. */
     fun sessionExpiresAt(): Long? = null
+
+    /**
+     * Renova a sessão em segundo plano com a chave de renovação guardada, sem abrir nenhuma tela.
+     * Devolve false quando não há chave ou o servidor recusou (aí é preciso entrar de novo).
+     */
+    suspend fun refreshSession(): Boolean = false
 }
 
 class DefaultSupabaseAuthRepository(
     private val client: SupabaseAuthClient,
     private val sessionStore: SupabaseSessionStore,
     private val clockSeconds: () -> Long = { System.currentTimeMillis() / 1_000 },
+    private val refreshStore: SupabaseRefreshTokenStore? = null,
 ) : SupabaseAuthRepository {
+    // O servidor troca a chave a cada renovação; duas renovações ao mesmo tempo usariam a mesma
+    // chave e a segunda seria recusada.
+    private val refreshLock = kotlinx.coroutines.sync.Mutex()
+
     override suspend fun signInWithGoogle(credential: SupabaseGoogleCredential): SupabaseSession {
-        val session = client.signInWithGoogle(credential)
-        sessionStore.save(session)
-        return session
+        val tokens = client.signInWithGoogleTokens(credential)
+        sessionStore.save(tokens.session)
+        rememberRefreshToken(tokens.refreshToken)
+        return tokens.session
+    }
+
+    override suspend fun refreshSession(): Boolean {
+        val store = refreshStore ?: return false
+        return refreshLock.withLock {
+            val token = runCatching { store.read() }.getOrNull() ?: return@withLock false
+            try {
+                val tokens = client.refreshSession(token)
+                sessionStore.save(tokens.session)
+                rememberRefreshToken(tokens.refreshToken)
+                true
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: SupabaseAuthException) {
+                // Chave recusada (vencida ou revogada): apaga para não insistir. Falha de rede
+                // mantém a chave para a próxima tentativa.
+                if (error.code == SupabaseAuthException.Code.REQUEST_FAILED && (error.status ?: 0) in 400..499) {
+                    runCatching { store.clear() }
+                }
+                false
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
+
+    private suspend fun rememberRefreshToken(refreshToken: String?) {
+        val store = refreshStore ?: return
+        runCatching { if (refreshToken.isNullOrBlank()) store.clear() else store.save(refreshToken) }
     }
 
     override suspend fun sendEmailOtp(email: String) {
@@ -165,6 +220,7 @@ class DefaultSupabaseAuthRepository(
             failure = error
         } finally {
             sessionStore.clear()
+            refreshStore?.let { runCatching { it.clear() } }
         }
         failure?.let { throw it }
     }

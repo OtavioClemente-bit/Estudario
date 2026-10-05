@@ -59,6 +59,10 @@ sealed interface TransferState {
     data class Preview(val value: EstudoPreview, val raw: String, val targetCompetitionId: Long? = null) : TransferState
     data class Success(val message: String) : TransferState
     data class Error(val message: String) : TransferState
+    /** Trabalhando numa ação com nome (salvar, restaurar): a espera mostra o que está acontecendo. */
+    data class Working(val title: String, val message: String) : TransferState
+    /** Concluído com resumo: título, frase e fatos (quando, quanto), sem nome de arquivo. */
+    data class Done(val title: String, val message: String, val facts: List<Pair<String, String>> = emptyList(), val cloud: Boolean = false) : TransferState
 }
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -277,8 +281,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     private val activity: StateFlow<ActivityBundle?> = combine(
-        combine(attempts, reviewHistory, studySessions, planExecutions, app.preferences.dailyGoalQuestions) { answers, history, sessions, executions, goal ->
-            ActivitySources(answers, history, sessions, executions, DailyGoal(goal))
+        combine(attempts, reviewHistory, studySessions, planExecutions, app.preferences.dailyGoal) { answers, history, sessions, executions, goal ->
+            ActivitySources(answers, history, sessions, executions, goal)
         },
         focusSessions,
     ) { sources, focus ->
@@ -310,7 +314,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** XP, nível e emblemas. Tudo recalculado do histórico, nada guardado, backup devolve o nível. */
     val progress: StateFlow<ProgressEngine.ProgressSummary?> =
-        combine(activity, streak, planTaskTypes, syllabus) { bundle, streakSummary, types, counts ->
+        combine(activity, streak, planTaskTypes, syllabus, app.preferences.retiredPlanXp) { bundle, streakSummary, types, counts, retiredXp ->
             if (bundle == null || streakSummary == null) return@combine null
             val typeById = types.associate { it.id to it.type }
             val zone = ZoneId.systemDefault()
@@ -340,6 +344,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     reviewsCompleted = bundle.reviewsCompleted,
                     topicsStudied = counts.second,
                     topicsTotal = counts.first,
+                    retiredPlanXp = retiredXp,
                 ),
             )
         }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -360,6 +365,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         celebrationsMutedUntil = Long.MAX_VALUE
         try {
             withContext(Dispatchers.Default) { backupService.restore(content) }
+            // Ajustes de progresso que viajam no backup (backups antigos não têm: ficam os atuais).
+            runCatching {
+                val prefs = org.json.JSONObject(content).optJSONObject("progressPreferences")
+                if (prefs != null) app.preferences.restoreProgressBackup(prefs.keys().asSequence().associateWith { prefs.optString(it) })
+            }
         } finally {
             celebrationsMutedUntil = System.currentTimeMillis() + RESTORE_QUIET_MILLIS
         }
@@ -402,6 +412,51 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Subida de nível esperando a tela de comemoração. */
+    data class LevelUp(val level: Int, val title: String, val newTitle: Boolean, val totalXp: Int)
+
+    private val _levelUp = MutableStateFlow<LevelUp?>(null)
+    val levelUp: StateFlow<LevelUp?> = _levelUp.asStateFlow()
+    fun consumeLevelUp() { _levelUp.value = null }
+
+    /** XP que acabou de cair, para o "+N XP" subir na tela. [id] muda a cada ganho. */
+    data class XpGain(val amount: Int, val id: Long)
+
+    private val _xpGain = MutableStateFlow<XpGain?>(null)
+    val xpGain: StateFlow<XpGain?> = _xpGain.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            var seen = app.preferences.seenLevel.first()
+            var lastXp: Int? = null
+            var firstAt = 0L
+            progress.filterNotNull().collect { summary ->
+                val previousXp = lastXp
+                lastXp = summary.totalXp
+                val now = System.currentTimeMillis()
+                if (previousXp == null) firstAt = now
+                // Ao abrir o app o progresso chega em partes (respostas, revisões, plano carregando), e o
+                // nível "sobe" de 1 para o real. Nos primeiros segundos tudo é só leitura do histórico.
+                val quiet = previousXp == null || now - firstAt < STARTUP_QUIET_MILLIS || celebrationsMuted()
+                if (!quiet && previousXp != null && summary.totalXp > previousXp) {
+                    _xpGain.value = XpGain(summary.totalXp - previousXp, System.nanoTime())
+                }
+                if (summary.level == seen) return@collect
+                val before = seen
+                seen = summary.level
+                app.preferences.setSeenLevel(summary.level)
+                // Nível que cai (raro) ou primeira leitura: só registra.
+                if (before == 0 || summary.level < before || quiet) return@collect
+                _levelUp.value = LevelUp(
+                    level = summary.level,
+                    title = summary.levelTitle,
+                    newTitle = ProgressEngine.levelTitle(before) != summary.levelTitle,
+                    totalXp = summary.totalXp,
+                )
+            }
+        }
+    }
+
     private fun celebrationReason(summary: StreakSummary) = when {
         summary.todayPlanTasks > 0 -> "Tarefa do plano concluída"
         summary.todayReviews > 0 -> "Revisão em dia"
@@ -415,25 +470,45 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * pasta privada do app no Drive, então a ação pedida acontece na sequência do login.
      */
     fun handleGoogleToken(action: GoogleAction, token: String) = viewModelScope.launch {
-        _transfer.value = TransferState.Loading
+        _transfer.value = when (action) {
+            GoogleAction.SIGN_IN -> TransferState.Working("Conectando sua conta", "Falando com o Google…")
+            GoogleAction.BACKUP -> TransferState.Working("Salvando seu backup", "Guardando seu estudo na pasta privada do Estudário no seu Google Drive.")
+            GoogleAction.RESTORE -> TransferState.Working("Restaurando seu estudo", "Baixando o backup mais recente do seu Google Drive.")
+        }
         _transfer.value = try {
             val user = drive.userInfo(token)
             app.preferences.setUserEmail(user.email)
             if (app.preferences.userName.first().isBlank() && user.name.isNotBlank()) app.preferences.setUserName(user.name)
             if (app.preferences.userPhotoPath.first() == null) user.pictureUrl?.let { saveGooglePhoto(it) }
             when (action) {
-                GoogleAction.SIGN_IN -> TransferState.Success("Conectado como ${user.email}. Os backups ficam numa pasta privada do app no seu Drive, ela não aparece no Meu Drive e só este app enxerga.")
+                GoogleAction.SIGN_IN -> TransferState.Done(
+                    "Conta conectada",
+                    "Seus backups ficam numa pasta privada do Estudário no seu Google Drive. Ela não aparece no Meu Drive e só o app tem acesso.",
+                    listOf("Conta" to user.email),
+                    cloud = true,
+                )
                 GoogleAction.BACKUP -> {
-                    val content = withContext(Dispatchers.Default) { backupService.export() }
+                    val content = createBackup()
                     val file = drive.upload(token, "estudario-${LocalDate.now()}.json", content)
                     app.preferences.setDriveLastBackupAt(file.modifiedAt)
-                    TransferState.Success("Backup enviado para o Google Drive: ${file.name}.")
+                    val summary = br.com.estudario.data.transfer.summarizeBackup(content)
+                    TransferState.Done(
+                        "Backup salvo",
+                        "Seu estudo está guardado com segurança no seu Google Drive. Para trazer de volta, use Restaurar do Google Drive.",
+                        backupFacts(summary, file.modifiedAt, "Salvo em"),
+                        cloud = true,
+                    )
                 }
                 GoogleAction.RESTORE -> {
-                    val latest = drive.listBackups(token).firstOrNull() ?: error("Nenhum backup encontrado na sua conta do Google.")
+                    val latest = drive.listBackups(token).firstOrNull() ?: error("Não encontramos nenhum backup do Estudário na sua conta do Google.")
                     val content = drive.download(token, latest.id)
                     restoreQuietly(content)
-                    TransferState.Success("Backup ${latest.name} restaurado.")
+                    TransferState.Done(
+                        "Tudo de volta",
+                        "Seu estudo foi restaurado neste celular: matérias, questões, revisões, planos e progresso.",
+                        backupFacts(br.com.estudario.data.transfer.summarizeBackup(content), latest.modifiedAt, "Backup de"),
+                        cloud = true,
+                    )
                 }
             }
         } catch (e: Exception) { TransferState.Error(e.message ?: "Não foi possível falar com o Google.") }
@@ -640,6 +715,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val lastFocusMinutes = app.preferences.lastFocusMinutes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
     val lastFocusTaskId = app.preferences.lastFocusTaskId.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
 
+    /**
+     * Quanto tempo o plano reservou para o que está sendo estudado no foco: a tarefa do plano da
+     * sessão ou, entrando direto num conteúdo, o planejado para aquele tópico hoje. Foco livre não
+     * tem meta (nulo), e aí não há aviso de tempo.
+     */
+    val focusPlannedMinutes: StateFlow<Int?> = combine(focusSession, allPlanTasks) { session, tasks ->
+        if (!session.active) return@combine null
+        val pending = setOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO)
+        session.taskId?.let { id -> tasks.firstOrNull { it.id == id }?.plannedMinutes }
+            ?: session.topicId?.let { topic ->
+                val today = LocalDate.now().toEpochDay()
+                tasks.filter { it.topicId == topic && it.scheduledEpochDay == today && it.status in pending }.sumOf { it.plannedMinutes }
+            }?.takeIf { it > 0 }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     fun startFocus(
         title: String,
         topicId: Long? = null,
@@ -790,10 +880,49 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) { TransferState.Error(e.message ?: "Falha ao importar.") }
     }
 
-    suspend fun createBackup(): String = withContext(Dispatchers.Default) { backupService.export() }
+    /** O backup completo, com os ajustes de progresso (meta diária e XP de planos apagados) junto. */
+    suspend fun createBackup(): String {
+        val progressPrefs = app.preferences.progressBackup()
+        return withContext(Dispatchers.Default) {
+            val root = org.json.JSONObject(backupService.export())
+            root.put("progressPreferences", org.json.JSONObject(progressPrefs))
+            root.toString()
+        }
+    }
+
+    /** Resumo para a pessoa conferir o backup antes de restaurar. */
+    fun backupSummary(text: String) = br.com.estudario.data.transfer.summarizeBackup(text)
+
+    /** O arquivo foi gravado onde a pessoa escolheu. */
+    fun reportLocalBackupSaved(text: String) {
+        _transfer.value = TransferState.Done(
+            "Backup salvo",
+            "Guarde esse arquivo num lugar seguro, como o Drive ou o computador. Ele traz todo o seu estudo de volta em qualquer celular.",
+            backupFacts(br.com.estudario.data.transfer.summarizeBackup(text), System.currentTimeMillis(), "Salvo em"),
+        )
+    }
+
+    private fun backupFacts(summary: br.com.estudario.data.transfer.BackupSummary?, at: Long?, whenLabel: String): List<Pair<String, String>> = buildList {
+        val moment = (summary?.exportedAt ?: at)?.takeIf { it > 0 }
+        if (moment != null) add(whenLabel to java.time.format.DateTimeFormatter.ofPattern("d 'de' MMMM 'às' HH:mm", java.util.Locale("pt", "BR"))
+            .format(java.time.Instant.ofEpochMilli(moment).atZone(java.time.ZoneId.systemDefault())))
+        if (summary != null) {
+            add("Tópicos" to "%,d".format(summary.topics).replace(',', '.'))
+            add("Questões" to "%,d".format(summary.questions).replace(',', '.'))
+            add("Respostas registradas" to "%,d".format(summary.answers).replace(',', '.'))
+        }
+    }
+
     fun restoreBackup(text: String) = viewModelScope.launch {
-        _transfer.value = TransferState.Loading
-        _transfer.value = try { restoreQuietly(text); TransferState.Success("Backup restaurado com sucesso.") } catch (e: Exception) { TransferState.Error(e.message ?: "Falha ao restaurar backup.") }
+        _transfer.value = TransferState.Working("Restaurando seu estudo", "Colocando tudo de volta no lugar. Não feche o app.")
+        _transfer.value = try {
+            restoreQuietly(text)
+            TransferState.Done(
+                "Tudo de volta",
+                "Seu estudo foi restaurado neste celular: matérias, questões, revisões, planos e progresso.",
+                backupFacts(br.com.estudario.data.transfer.summarizeBackup(text), null, "Backup de"),
+            )
+        } catch (e: Exception) { TransferState.Error(e.message ?: "Não foi possível restaurar esse backup.") }
     }
     fun clearTransfer() {
         val finishedImport = _transfer.value is TransferState.Success
@@ -810,5 +939,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private companion object {
         /** Tempo para o progresso recalcular depois da restauração antes de voltar a comemorar. */
         const val RESTORE_QUIET_MILLIS = 15_000L
+        const val STARTUP_QUIET_MILLIS = 6_000L
     }
 }

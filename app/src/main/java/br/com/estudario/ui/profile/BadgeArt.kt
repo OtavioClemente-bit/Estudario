@@ -24,8 +24,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import br.com.estudario.domain.Badge
+import br.com.estudario.domain.BadgeCategory
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.translate
+import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -66,119 +69,236 @@ private fun lockedPalette(): BadgePalette {
     )
 }
 
-/** Hexágono de topo plano: sobra largura em cima e embaixo para o aro e as pedras. */
-private fun hexagon(center: Offset, radius: Float): Path {
-    val path = Path()
-    repeat(6) { index ->
-        val angle = Math.toRadians(60.0 * index)
-        val x = center.x + radius * cos(angle).toFloat()
-        val y = center.y + radius * sin(angle).toFloat()
-        if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
-    }
-    path.close()
-    return path
+/** Silhueta de cada categoria: dá para reconhecer o emblema só pelo contorno. */
+private enum class BadgeShape { SHIELD, BURST, PENTAGON, HEXAGON, CIRCLE, OCTAGON, DIAMOND, SCALLOP, SQUARE, TAG, HEX_FLAT }
+
+private fun shapeOf(category: BadgeCategory): BadgeShape = when (category) {
+    BadgeCategory.PLANO -> BadgeShape.SHIELD
+    BadgeCategory.SEQUENCIA -> BadgeShape.BURST
+    BadgeCategory.METAS -> BadgeShape.PENTAGON
+    BadgeCategory.QUESTOES -> BadgeShape.HEXAGON
+    BadgeCategory.PRECISAO -> BadgeShape.CIRCLE
+    BadgeCategory.TOPICOS -> BadgeShape.OCTAGON
+    BadgeCategory.EDITAL -> BadgeShape.DIAMOND
+    BadgeCategory.REVISOES -> BadgeShape.SCALLOP
+    BadgeCategory.SIMULADOS -> BadgeShape.SQUARE
+    BadgeCategory.DISCURSIVAS -> BadgeShape.TAG
+    BadgeCategory.MARATONA -> BadgeShape.HEX_FLAT
 }
 
-private fun DrawScope.rays(center: Offset, radius: Float, color: Color) {
-    repeat(12) { index ->
-        rotate(degrees = index * 30f, pivot = center) {
-            val path = Path().apply {
-                moveTo(center.x - radius * 0.055f, center.y - radius * 0.86f)
-                lineTo(center.x + radius * 0.055f, center.y - radius * 0.86f)
-                lineTo(center.x, center.y - radius * 1.02f)
-                close()
-            }
-            drawPath(path, color)
-        }
+/** Esmalte de cada categoria (claro, escuro): a cor que a pessoa associa àquele tipo de conquista. */
+private fun enamelOf(category: BadgeCategory): Pair<Color, Color> = when (category) {
+    BadgeCategory.PLANO -> Color(0xFF8C86FF) to Color(0xFF3B33C9)
+    BadgeCategory.SEQUENCIA -> Color(0xFFFFB067) to Color(0xFFD9480F)
+    BadgeCategory.METAS -> Color(0xFF6EE7A0) to Color(0xFF15803D)
+    BadgeCategory.QUESTOES -> Color(0xFF7FB2FF) to Color(0xFF1D4ED8)
+    BadgeCategory.PRECISAO -> Color(0xFFFF8A8A) to Color(0xFFB91C1C)
+    BadgeCategory.TOPICOS -> Color(0xFF5EEAD4) to Color(0xFF0F766E)
+    BadgeCategory.EDITAL -> Color(0xFFFFD27A) to Color(0xFFB45309)
+    BadgeCategory.REVISOES -> Color(0xFFFF9CCB) to Color(0xFFBE185D)
+    BadgeCategory.SIMULADOS -> Color(0xFF9FB0C8) to Color(0xFF334155)
+    BadgeCategory.DISCURSIVAS -> Color(0xFFC4A6FF) to Color(0xFF6D28D9)
+    BadgeCategory.MARATONA -> Color(0xFF67E8F9) to Color(0xFF0E7490)
+}
+
+private fun polygon(c: Offset, r: Float, sides: Int, rotationDeg: Float): Path = Path().apply {
+    repeat(sides) { i ->
+        val a = Math.toRadians((rotationDeg + i * 360.0 / sides)).toFloat()
+        val p = Offset(c.x + r * cos(a), c.y + r * sin(a))
+        if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y)
+    }
+    close()
+}
+
+private fun waved(c: Offset, r: Float, bumps: Int, depth: Float): Path = Path().apply {
+    val steps = bumps * 12
+    for (i in 0..steps) {
+        val a = (i.toFloat() / steps) * 2f * PI.toFloat() - PI.toFloat() / 2
+        val rr = r * (1f - depth + depth * cos(a * bumps).let { (it + 1f) / 2f })
+        val p = Offset(c.x + rr * cos(a), c.y + rr * sin(a))
+        if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y)
+    }
+    close()
+}
+
+private fun shapePath(shape: BadgeShape, c: Offset, r: Float): Path = when (shape) {
+    BadgeShape.CIRCLE -> Path().apply { addOval(androidx.compose.ui.geometry.Rect(c, r)) }
+    BadgeShape.HEXAGON -> polygon(c, r * 1.04f, 6, -90f)
+    BadgeShape.HEX_FLAT -> polygon(c, r * 1.04f, 6, 0f)
+    BadgeShape.OCTAGON -> polygon(c, r * 1.02f, 8, 22.5f)
+    BadgeShape.PENTAGON -> polygon(c, r * 1.08f, 5, -90f)
+    BadgeShape.DIAMOND -> polygon(c, r * 1.2f, 4, -90f)
+    BadgeShape.BURST -> waved(c, r * 1.06f, 12, 0.16f)
+    BadgeShape.SCALLOP -> waved(c, r * 1.04f, 8, 0.1f)
+    BadgeShape.SQUARE -> Path().apply {
+        addRoundRect(androidx.compose.ui.geometry.RoundRect(androidx.compose.ui.geometry.Rect(c, r * 0.9f), androidx.compose.ui.geometry.CornerRadius(r * 0.32f)))
+    }
+    BadgeShape.SHIELD -> Path().apply {
+        val top = c.y - r * 0.95f
+        moveTo(c.x - r * 0.9f, top + r * 0.12f)
+        quadraticTo(c.x, top - r * 0.12f, c.x + r * 0.9f, top + r * 0.12f)
+        lineTo(c.x + r * 0.9f, c.y + r * 0.05f)
+        quadraticTo(c.x + r * 0.85f, c.y + r * 0.7f, c.x, c.y + r * 1.08f)
+        quadraticTo(c.x - r * 0.85f, c.y + r * 0.7f, c.x - r * 0.9f, c.y + r * 0.05f)
+        close()
+    }
+    BadgeShape.TAG -> Path().apply {
+        moveTo(c.x - r * 0.85f, c.y - r * 0.9f)
+        lineTo(c.x + r * 0.85f, c.y - r * 0.9f)
+        lineTo(c.x + r * 0.85f, c.y + r * 0.35f)
+        lineTo(c.x, c.y + r * 1.1f)
+        lineTo(c.x - r * 0.85f, c.y + r * 0.35f)
+        close()
     }
 }
 
+/** Estrela de cinco pontas, usada para marcar o nível embaixo do emblema. */
+private fun star(c: Offset, r: Float): Path = Path().apply {
+    repeat(10) { i ->
+        val a = (-90f + i * 36f) * PI.toFloat() / 180f
+        val rr = if (i % 2 == 0) r else r * 0.45f
+        val p = Offset(c.x + rr * cos(a), c.y + rr * sin(a))
+        if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y)
+    }
+    close()
+}
+
+/**
+ * O emblema: a forma e o esmalte dizem a categoria; o metal da moldura e as estrelas dizem o nível.
+ * Do ouro para cima ele ganha fitas e louros; a ametista ganha asas; a esmeralda, coroa e raios.
+ * Bloqueado, fica em cinza com o cadeado, sem enfeites, para a pessoa ver o que vem.
+ */
 @Composable
 fun BadgeArt(badge: Badge, earned: Boolean, size: Dp, modifier: Modifier = Modifier) {
-    val palette = if (earned) tierPalette(badge.tier) else lockedPalette()
     val tier = badge.tier.coerceIn(1, 5)
-    // A fita com o nível só cabe no tamanho grande (comemoração); nas listas ela vira um risco.
-    val big = size >= 96.dp
+    val metal = if (earned) tierPalette(tier) else lockedPalette()
+    val (enamelLight, enamelDark) = if (earned) enamelOf(badge.category) else MaterialTheme.colorScheme.let { it.surfaceVariant to it.outlineVariant }
+    val shape = shapeOf(badge.category)
+    val coin = if (earned) Color(0xFFFFFBF2) else MaterialTheme.colorScheme.surfaceContainerHighest
     Box(modifier.size(size), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
-            val w = this.size.width
-            val h = this.size.height
-            // A placa: um broche de metal com espessura, como os de lapela. Nada de raio de luz.
-            val plaqueW = w * 0.80f
-            val plaqueH = h * 0.80f
-            val left = (w - plaqueW) / 2f
-            val top = h * 0.04f
-            val corner = androidx.compose.ui.geometry.CornerRadius(plaqueW * 0.30f)
-            val lip = h * 0.06f
-            drawOval(Color.Black.copy(alpha = 0.12f), Offset(left + plaqueW * 0.1f, top + plaqueH + lip * 0.6f), Size(plaqueW * 0.8f, h * 0.06f))
-            drawRoundRect(palette.rim, Offset(left, top + lip), Size(plaqueW, plaqueH), corner)
-            drawRoundRect(
-                Brush.verticalGradient(listOf(palette.light, palette.dark), top, top + plaqueH),
-                Offset(left, top), Size(plaqueW, plaqueH), corner,
-            )
-            // Esmalte interno, um tom mais claro, com o filete de metal em volta.
-            val inset = plaqueW * 0.09f
-            drawRoundRect(
-                palette.disc.copy(alpha = if (earned) 0.55f else 0.4f),
-                Offset(left + inset, top + inset), Size(plaqueW - inset * 2, plaqueH - inset * 2),
-                androidx.compose.ui.geometry.CornerRadius(plaqueW * 0.22f),
-            )
-            drawRoundRect(
-                palette.inner.copy(alpha = 0.8f),
-                Offset(left + inset, top + inset), Size(plaqueW - inset * 2, plaqueH - inset * 2),
-                androidx.compose.ui.geometry.CornerRadius(plaqueW * 0.22f),
-                style = Stroke(width = plaqueW * 0.025f),
-            )
-            if (earned) {
-                // Brilho de metal polido no alto, curto e discreto.
-                drawRoundRect(
-                    Color.White.copy(alpha = 0.28f),
-                    Offset(left + plaqueW * 0.16f, top + plaqueH * 0.05f), Size(plaqueW * 0.42f, plaqueH * 0.06f),
-                    androidx.compose.ui.geometry.CornerRadius(plaqueH * 0.03f),
-                )
+            val s = this.size.minDimension
+            val c = Offset(this.size.width / 2, s * 0.47f)
+            val r = s * 0.31f
+
+            if (earned && tier >= 5) {
+                // Esmeralda: raios de luz atrás de tudo.
+                repeat(16) { i ->
+                    rotate(i * 22.5f, c) {
+                        drawPath(
+                            Path().apply { moveTo(c.x - r * 0.07f, c.y - r * 1.15f); lineTo(c.x + r * 0.07f, c.y - r * 1.15f); lineTo(c.x, c.y - r * 1.55f); close() },
+                            metal.glow.copy(alpha = if (i % 2 == 0) 0.85f else 0.45f),
+                        )
+                    }
+                }
             }
-            if (earned && big) {
-                // A fita do nível atravessando a base, com as pontas recortadas.
-                val bandY = top + plaqueH * 0.74f
-                val bandH = plaqueH * 0.22f
-                val bandL = w * 0.04f
-                val bandR = w * 0.96f
-                val notch = bandH * 0.45f
-                fun band(dy: Float, color: Color) = drawPath(
-                    Path().apply {
-                        moveTo(bandL, bandY + dy); lineTo(bandR, bandY + dy)
-                        lineTo(bandR - notch, bandY + bandH / 2 + dy); lineTo(bandR, bandY + bandH + dy)
-                        lineTo(bandL, bandY + bandH + dy); lineTo(bandL + notch, bandY + bandH / 2 + dy); close()
-                    },
-                    color,
-                )
-                band(lip * 0.6f, palette.rim)
-                band(0f, palette.dark)
+            if (earned && tier >= 3) {
+                // Fitas penduradas atrás, na cor da categoria.
+                listOf(-1f, 1f).forEach { side ->
+                    val x0 = c.x + side * r * 0.32f
+                    drawPath(
+                        Path().apply {
+                            moveTo(x0 - r * 0.2f, c.y + r * 0.4f); lineTo(x0 + r * 0.2f, c.y + r * 0.4f)
+                            lineTo(x0 + side * r * 0.12f + r * 0.2f, c.y + r * 1.42f)
+                            lineTo(x0 + side * r * 0.12f, c.y + r * 1.25f)
+                            lineTo(x0 + side * r * 0.12f - r * 0.2f, c.y + r * 1.42f); close()
+                        },
+                        Brush.verticalGradient(listOf(enamelDark, enamelLight), c.y + r * 0.4f, c.y + r * 1.42f),
+                    )
+                }
+            }
+            if (earned && tier >= 4) {
+                // Ametista e esmeralda: asas de metal dos dois lados.
+                listOf(-1f, 1f).forEach { side ->
+                    repeat(4) { k ->
+                        val len = r * (0.95f - k * 0.17f)
+                        val y = c.y - r * 0.35f + k * r * 0.2f
+                        val x = c.x + side * r * 0.75f
+                        drawPath(
+                            Path().apply {
+                                moveTo(x, y)
+                                quadraticTo(x + side * len * 0.6f, y - r * 0.22f, x + side * len, y - r * 0.05f)
+                                quadraticTo(x + side * len * 0.55f, y + r * 0.1f, x, y + r * 0.16f)
+                                close()
+                            },
+                            Brush.horizontalGradient(if (side < 0) listOf(metal.light, metal.dark) else listOf(metal.dark, metal.light), x - len, x + len),
+                        )
+                    }
+                }
+            }
+            if (earned && tier >= 3) {
+                // Louros subindo pelos lados da moldura.
+                listOf(-1f, 1f).forEach { side ->
+                    repeat(5) { k ->
+                        val a = (100f + k * 22f) * PI.toFloat() / 180f
+                        val at = Offset(c.x + side * cos(a - PI.toFloat()) * r * -1.18f, c.y + sin(a) * r * 1.0f - r * 0.05f)
+                        rotate(side * (k * 22f - 30f), at) {
+                            drawOval(metal.dark, Offset(at.x - r * 0.08f, at.y - r * 0.17f), Size(r * 0.16f, r * 0.34f))
+                            drawOval(metal.light, Offset(at.x - r * 0.05f, at.y - r * 0.14f), Size(r * 0.08f, r * 0.26f))
+                        }
+                    }
+                }
+            }
+
+            val outer = shapePath(shape, c, r)
+            // Sombra, espessura (o "lado" do metal) e a moldura com brilho que gira em volta.
+            translate(0f, s * 0.035f) { drawPath(outer, Color.Black.copy(alpha = 0.22f)) }
+            translate(0f, s * 0.02f) { drawPath(outer, metal.rim) }
+            drawPath(outer, Brush.sweepGradient(listOf(metal.light, metal.dark, metal.light, metal.dark, metal.light), c))
+            drawPath(outer, metal.inner.copy(alpha = 0.6f), style = Stroke(s * 0.012f))
+
+            // Esmalte da categoria, com o filete de metal e um reflexo no alto.
+            val innerR = r * 0.8f
+            val inner = shapePath(shape, c, innerR)
+            drawPath(inner, Brush.radialGradient(listOf(enamelLight, enamelDark), c - Offset(0f, innerR * 0.35f), innerR * 1.5f))
+            drawPath(inner, metal.dark.copy(alpha = 0.7f), style = Stroke(s * 0.016f))
+            if (earned) clipPath(inner) {
+                drawOval(Color.White.copy(alpha = 0.22f), Offset(c.x - innerR * 1.1f, c.y - innerR * 1.5f), Size(innerR * 2.2f, innerR * 1.3f))
+            }
+
+            // Moeda clara no centro, onde fica o desenho da conquista.
+            drawCircle(Color.Black.copy(alpha = 0.18f), innerR * 0.6f, c + Offset(0f, s * 0.012f))
+            drawCircle(coin, innerR * 0.6f, c)
+            drawCircle(metal.dark.copy(alpha = 0.5f), innerR * 0.6f, c, style = Stroke(s * 0.01f))
+
+            if (earned && tier >= 5) {
+                // Coroa no topo.
+                val cy = c.y - r * 1.12f
+                val crown = Path().apply {
+                    moveTo(c.x - r * 0.42f, cy + r * 0.18f)
+                    lineTo(c.x - r * 0.46f, cy - r * 0.2f); lineTo(c.x - r * 0.2f, cy)
+                    lineTo(c.x, cy - r * 0.3f); lineTo(c.x + r * 0.2f, cy)
+                    lineTo(c.x + r * 0.46f, cy - r * 0.2f); lineTo(c.x + r * 0.42f, cy + r * 0.18f); close()
+                }
+                drawPath(crown, Brush.verticalGradient(listOf(Color(0xFFFFF1A8), Color(0xFFE0A100)), cy - r * 0.3f, cy + r * 0.18f))
+                drawCircle(Color(0xFFFF4F8B), r * 0.06f, Offset(c.x, cy - r * 0.02f))
+            }
+
+            if (earned) {
+                // Estrelas do nível numa faixa embaixo.
+                val starR = s * 0.045f
+                val gap = starR * 2.25f
+                val y = c.y + r * 1.22f
+                val x0 = c.x - gap * (tier - 1) / 2f
+                repeat(tier) { i ->
+                    val p = Offset(x0 + gap * i, y)
+                    drawPath(star(p + Offset(0f, s * 0.008f), starR), Color.Black.copy(alpha = 0.25f))
+                    drawPath(star(p, starR), Brush.verticalGradient(listOf(metal.light, metal.dark), p.y - starR, p.y + starR))
+                }
             }
         }
-        // Bloqueado mostra o mesmo desenho, em cinza: a pessoa vê o que vai ganhar.
         Icon(
             imageVector = categoryIcon(badge.category),
             contentDescription = null,
-            modifier = Modifier.size(size * if (big) 0.40f else 0.48f).offset(y = -size * if (earned && big) 0.07f else 0.02f),
+            modifier = Modifier.size(size * 0.27f).offset(y = -size * 0.03f),
             tint = if (earned) Color.Unspecified else MaterialTheme.colorScheme.outline,
         )
         if (!earned) Box(
-            Modifier.align(Alignment.BottomEnd).size(size * 0.36f)
+            Modifier.align(Alignment.BottomEnd).size(size * 0.34f)
                 .clip(androidx.compose.foundation.shape.CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceContainerHighest),
             contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Outlined.Lock, "Bloqueado", Modifier.size(size * 0.24f), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
-        if (earned && big) {
-            androidx.compose.material3.Text(
-                listOf("I", "II", "III", "IV", "V")[tier - 1],
-                modifier = Modifier.offset(y = size * 0.31f),
-                color = Color.White,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
-                fontSize = (size.value * 0.13f).sp,
-                maxLines = 1,
-            )
-        }
+        ) { Icon(Icons.Outlined.Lock, "Bloqueado", Modifier.size(size * 0.22f), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 

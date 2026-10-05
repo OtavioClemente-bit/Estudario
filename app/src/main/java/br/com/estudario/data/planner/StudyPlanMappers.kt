@@ -23,6 +23,7 @@ internal fun PlanTaskEntity.toDomain() = PlannerTask(
     locked = locked,
     origin = origin,
     replannedFromTaskId = replannedFromTaskId,
+    sequence = sequence,
 )
 
 internal fun StudyTaskExecutionEntity.toDomain(zoneId: ZoneId = ZoneId.systemDefault()) = TaskExecution(
@@ -65,6 +66,7 @@ internal fun PlannerTask.toEntity(
     createdRevision = previous?.createdRevision ?: revision,
     updatedRevision = revision,
     createdAt = previous?.createdAt ?: System.currentTimeMillis(),
+    sequence = sequence,
 )
 
 internal fun PlanTaskEntity.withStatus(status: PlanTaskStatus, revision: Long) = copy(

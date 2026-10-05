@@ -1,5 +1,9 @@
 package br.com.estudario.ui.profile
 
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.layout.fillMaxHeight
 import br.com.estudario.ui.theme.estudarioLayout
 import br.com.estudario.BuildConfig
 import android.content.Context
@@ -146,26 +150,35 @@ fun ProfileScreen(
     )
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         val data = pendingBackup
-        if (uri != null && data != null) scope.launch(Dispatchers.IO) { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(data) } }
+        if (uri != null && data != null) scope.launch {
+            val saved = withContext(Dispatchers.IO) { runCatching { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(data) } != null }.getOrDefault(false) }
+            if (saved) viewModel.reportLocalBackupSaved(data) else viewModel.reportIncomingFileError("Não foi possível salvar o backup nesse local. Escolha outra pasta.")
+        }
     }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { scope.launch { busy = "Lendo o backup"; restoreRaw = readBackupText(context, it); busy = null } }
     }
 
-    busy?.let { LoadingDialog(it, "Não feche o app até terminar.") }
+    busy?.let { br.com.estudario.ui.components.EstudarioProcessDialog(it, "Não feche o app até terminar.") }
     if (editName) TextInputDialog("Seu nome", profile.name, "Como quer ser chamado", onDismiss = { editName = false }) { viewModel.setUserName(it) }
-    if (restoreRaw != null) ConfirmDialog(
-        "Restaurar backup?",
-        "Os dados locais atuais serão substituídos pelo conteúdo deste backup. Essa ação não pode ser desfeita.",
-        "Restaurar",
-        onDismiss = { restoreRaw = null },
-    ) { viewModel.restoreBackup(restoreRaw!!); restoreRaw = null }
-    if (confirmDriveRestore) ConfirmDialog(
-        "Restaurar do Google Drive?",
-        "O app vai baixar o backup mais recente da sua conta e substituir os dados deste aparelho. Essa ação não pode ser desfeita.",
-        "Restaurar",
+    restoreRaw?.let { raw ->
+        val summary = remember(raw) { viewModel.backupSummary(raw) }
+        if (summary == null) {
+            restoreRaw = null
+            viewModel.reportIncomingFileError("Esse arquivo não é um backup do Estudário. Escolha o arquivo que você salvou pelo app.")
+        } else br.com.estudario.ui.components.RestoreConfirmDialog(
+            summary = summary,
+            fromCloud = false,
+            onConfirm = { viewModel.restoreBackup(raw); restoreRaw = null },
+            onDismiss = { restoreRaw = null },
+        )
+    }
+    if (confirmDriveRestore) br.com.estudario.ui.components.RestoreConfirmDialog(
+        summary = null,
+        fromCloud = true,
+        onConfirm = { confirmDriveRestore = false; runGoogle(GoogleAction.RESTORE) },
         onDismiss = { confirmDriveRestore = false },
-    ) { confirmDriveRestore = false; runGoogle(GoogleAction.RESTORE) }
+    )
 
     if (estudarioLogin) br.com.estudario.ui.ai.AccountLoginDialog(
         onDismiss = { estudarioLogin = false; reopenPlansAfterLogin = false },
@@ -288,12 +301,6 @@ private fun ProfileContent(
             }
             item { Divider() }
 
-            item {
-                val current = streak
-                if (current != null) RewardTableBand(current.current)
-            }
-            item { Divider() }
-
             item { DailyGoalBand(profile.dailyGoal.questions, onDailyGoalChange) }
             item { Divider() }
 
@@ -380,13 +387,6 @@ private fun ProfileHeader(
             Text(profile.displayName, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
             IconButton(onClick = onEditName, modifier = Modifier.size(28.dp)) { Icon(Icons.Outlined.Edit, "Editar nome", Modifier.size(17.dp)) }
         }
-        if (level != null && levelTitle != null) {
-            Text(
-                "Nível $level · $levelTitle",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
         Text(
             if (profile.signedIn) profile.email else "Sem conta, o progresso fica só neste celular. Entre para ter backup.",
             style = MaterialTheme.typography.bodySmall,
@@ -399,61 +399,119 @@ private fun ProfileHeader(
 
 // ---------------------------------------------------------------- nível
 
+/** Cores das fontes de XP na barra empilhada, na mesma ordem em que aparecem. */
+private val SourceColors = listOf(Color(0xFF7C5CFF), Color(0xFF22C59A), Color(0xFF3B82F6), Color(0xFFF59E0B), Color(0xFFEC4899), Color(0xFF06B6D4))
+
 @Composable
 private fun LevelBand(summary: ProgressEngine.ProgressSummary) {
     val fraction by animateFloatAsState(summary.levelProgress, EstudarioMotion.progress(), label = "profile-level")
     val colors = estudarioColors()
+    val primary = MaterialTheme.colorScheme.primary
+    val shimmer by androidx.compose.animation.core.rememberInfiniteTransition(label = "level-shine").animateFloat(
+        -0.3f, 1.3f,
+        androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(2_200, easing = androidx.compose.animation.core.LinearEasing)),
+        label = "level-shine-x",
+    )
+    val faltam = (summary.xpForNextLevel - summary.xpIntoLevel).coerceAtLeast(0)
+    val proximo = ProgressEngine.nextTitle(summary.level)
     Band {
-        Text("NÍVEL", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(EstudarioSpacing.tight))
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text("${summary.level}", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.onSurface)
-            Spacer(Modifier.width(EstudarioSpacing.small))
-            Column(Modifier.padding(bottom = 2.dp)) {
-                Text(summary.levelTitle, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-                Text("${summary.totalXp} XP no total", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Spacer(Modifier.weight(1f))
-            if (summary.xpToday > 0) {
-                Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(bottom = 2.dp)) {
-                    Text("+${summary.xpToday}", style = MaterialTheme.typography.titleMedium, color = colors.completed)
-                    Text("hoje", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // O selo do nível: hexágono com o número, no gradiente da marca.
+            Box(Modifier.size(76.dp), contentAlignment = Alignment.Center) {
+                androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                    val r = size.minDimension / 2
+                    val c = center
+                    fun hex(radius: Float) = androidx.compose.ui.graphics.Path().apply {
+                        repeat(6) { i ->
+                            val a = Math.toRadians(-90.0 + i * 60.0)
+                            val x = c.x + radius * kotlin.math.cos(a).toFloat()
+                            val y = c.y + radius * kotlin.math.sin(a).toFloat()
+                            if (i == 0) moveTo(x, y) else lineTo(x, y)
+                        }
+                        close()
+                    }
+                    drawPath(hex(r), androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color(0xFF8B6CFF).copy(alpha = 0.55f), Color.Transparent), c, r))
+                    drawPath(hex(r * 0.86f), androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF5B3FD6), Color(0xFF0E9F7A)), Offset(0f, 0f), Offset(size.width, size.height)))
+                    drawPath(hex(r * 0.86f), Color(0xFFE6DCFF).copy(alpha = 0.7f), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("NÍVEL", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.85f))
+                    Text("${summary.level}", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.Black)
                 }
             }
+            Spacer(Modifier.width(EstudarioSpacing.medium))
+            Column(Modifier.weight(1f)) {
+                Text(summary.levelTitle, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                Text("${"%,d".format(summary.totalXp).replace(',', '.')} XP no total", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (proximo != null) Text(
+                    "Próximo título: ${proximo.second}, no nível ${proximo.first}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = primary,
+                )
+            }
         }
-        Spacer(Modifier.height(EstudarioSpacing.small))
+        Spacer(Modifier.height(EstudarioSpacing.medium))
+        // Barra grossa com brilho correndo: o quanto falta para o próximo nível.
         Box(
-            Modifier
-                .fillMaxWidth()
-                .height(6.dp)
-                .clip(RoundedCornerShape(50))
-                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+            Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceContainerHighest),
         ) {
             Box(
-                Modifier
-                    .fillMaxWidth(fraction)
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(MaterialTheme.colorScheme.primary),
+                Modifier.fillMaxWidth(fraction.coerceAtLeast(0.02f)).height(14.dp).clip(RoundedCornerShape(50))
+                    .background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(primary, colors.completed)))
+                    .drawWithContent {
+                        drawContent()
+                        val x = size.width * shimmer
+                        drawRect(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.45f), Color.Transparent), x - 60f, x + 60f))
+                    },
             )
         }
         Spacer(Modifier.height(EstudarioSpacing.tight))
-        Text(
-            "${summary.xpIntoLevel} / ${summary.xpForNextLevel} XP para o nível ${summary.level + 1} · ${summary.xpThisWeek} XP esta semana",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(Modifier.fillMaxWidth()) {
+            Text("${summary.xpIntoLevel} de ${summary.xpForNextLevel} XP neste nível", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.weight(1f))
+            Text("faltam $faltam XP", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.height(EstudarioSpacing.small))
+        Row(horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight)) {
+            XpChip("+${summary.xpToday}", "hoje", if (summary.xpToday > 0) colors.completed else MaterialTheme.colorScheme.onSurfaceVariant)
+            XpChip("+${summary.xpThisWeek}", "esta semana", primary)
+        }
         if (summary.sources.isNotEmpty()) {
+            Spacer(Modifier.height(EstudarioSpacing.medium))
+            Text("DE ONDE VEIO SEU XP", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(EstudarioSpacing.tight))
+            val total = summary.sources.sumOf { it.xp }.coerceAtLeast(1)
+            val percents = wholePercents(summary.sources.map { it.xp })
+            Row(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50))) {
+                summary.sources.forEachIndexed { i, source ->
+                    Box(Modifier.weight(source.xp.toFloat() / total).fillMaxHeight().background(SourceColors[i % SourceColors.size]))
+                }
+            }
             Spacer(Modifier.height(EstudarioSpacing.small))
             Column(verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.hairline)) {
-                summary.sources.forEach { source ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(source.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f).padding(end = 8.dp))
+                summary.sources.forEachIndexed { i, source ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(SourceColors[i % SourceColors.size]))
+                        Spacer(Modifier.width(8.dp))
+                        Text(source.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                        Text("${percents[i]}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 10.dp))
                         Text("${source.xp} XP", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun XpChip(value: String, label: String, color: Color) {
+    Row(
+        Modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.12f)).padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(value, style = MaterialTheme.typography.labelLarge, color = color, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+        Spacer(Modifier.width(4.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -475,7 +533,7 @@ private fun StreakBand(summary: StreakSummary) {
                 )
             }
             Spacer(Modifier.weight(1f))
-            Column(horizontalAlignment = Alignment.End) {
+            if (summary.best > 0) Column(horizontalAlignment = Alignment.End) {
                 Text("Melhor", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("${summary.best}", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
             }
@@ -493,7 +551,7 @@ private fun StreakBand(summary: StreakSummary) {
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight)) {
                 Text(
-                    "Faltam ${(summary.goal.questions - summary.todayQuestions).coerceAtLeast(0)} questões hoje, ou 1 tarefa do plano.",
+                    "Hoje: ${summary.todayQuestions.coerceAtMost(summary.goal.questions)} de ${summary.goal.questions} questões. Uma tarefa do plano ou uma revisão também fecham o dia.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -510,19 +568,28 @@ private fun WeekDot(day: StreakDay, completedColor: Color) {
     val index = day.date.dayOfWeek.value - 1
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.hairline)) {
         Text(DIAS.getOrElse(index) { "" }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // Feito: cheio com o certo. Estudou mas não fechou a meta: anel verde com um ponto no meio,
+        // bem diferente de "não fez nada" (cinza) e de dia que ainda não chegou (só o contorno).
+        val idle = MaterialTheme.colorScheme.surfaceContainerHighest
         Box(
             Modifier
                 .size(28.dp)
                 .clip(CircleShape)
-                .background(
+                .background(if (day.done) completedColor else if (day.future) Color.Transparent else idle)
+                .then(
                     when {
-                        day.done -> completedColor
-                        day.partial -> completedColor.copy(alpha = 0.25f)
-                        else -> MaterialTheme.colorScheme.surfaceContainerHighest
+                        day.partial -> Modifier.border(2.5.dp, completedColor, CircleShape)
+                        day.future -> Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                        else -> Modifier
                     },
                 ),
             contentAlignment = Alignment.Center,
-        ) { if (day.done) Icon(Icons.Rounded.Check, null, Modifier.size(16.dp), tint = Color.White) }
+        ) {
+            when {
+                day.done -> Icon(Icons.Rounded.Check, null, Modifier.size(16.dp), tint = Color.White)
+                day.partial -> Box(Modifier.size(8.dp).clip(CircleShape).background(completedColor))
+            }
+        }
     }
 }
 
@@ -585,49 +652,6 @@ private fun ProximoEmblema(row: BadgeProgress) {
     }
 }
 
-// ---------------------------------------------------------------- quadro de recompensas
-
-@Composable
-private fun RewardTableBand(sequencia: Int) {
-    var aberto by remember { mutableStateOf(false) }
-    val linhas = remember(sequencia) { ProgressEngine.rewardTable(sequencia) }
-    Band {
-        Row(
-            Modifier.fillMaxWidth().clickable { aberto = !aberto },
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("QUANTO VALE CADA COISA", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    "Tarefa do plano rende mais que questão avulsa, de propósito.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Icon(if (aberto) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, if (aberto) "Recolher" else "Ver tabela")
-        }
-        if (aberto) {
-            Spacer(Modifier.height(EstudarioSpacing.small))
-            Column(verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
-                linhas.forEach { linha ->
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
-                        Column(Modifier.weight(1f)) {
-                            Text(linha.label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-                            Text(linha.detail, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        XpTag(linha.reward)
-                    }
-                }
-            }
-            Spacer(Modifier.height(EstudarioSpacing.small))
-            Text(
-                "Questão fora do plano tem teto de 120 por dia, e o bônus de sequência para de crescer em 10 dias, assim o nível acompanha estudo, não repetição.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
 
 // ---------------------------------------------------------------- meta do dia
 
@@ -873,4 +897,15 @@ private fun AvatarPickerSheet(current: String?, onPick: (br.com.estudario.ui.com
             if (current != null) TextButton(onClick = onRemove, modifier = Modifier.fillMaxWidth()) { Text("Remover imagem") }
         }
     }
+}
+
+/** Porcentagens inteiras que sempre fecham 100 (maior resto): nada de 84% + 15% = 99%. */
+private fun wholePercents(values: List<Int>): List<Int> {
+    val total = values.sum()
+    if (total <= 0) return values.map { 0 }
+    val exact = values.map { it * 100.0 / total }
+    val floors = exact.map { it.toInt() }.toMutableList()
+    var left = 100 - floors.sum()
+    exact.indices.sortedByDescending { exact[it] - floors[it] }.forEach { if (left > 0) { floors[it]++; left-- } }
+    return floors
 }

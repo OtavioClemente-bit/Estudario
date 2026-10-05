@@ -453,6 +453,8 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
  * servidor: busca na web com prioridade para fontes oficiais, conferência da redação vigente das
  * normas e nada afirmado sem fonte (ver prompts/text-jobs-v1.ts).
  */
+private const val CONTENT_STAGE_MILLIS = 14_000L
+
 private val ContentGenerationStages = listOf(
     "Lendo o que o edital pede neste tópico",
     "Pesquisando em fontes oficiais",
@@ -479,8 +481,18 @@ private val ContentCommitments = listOf(
 private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, onDone: (String) -> Unit, onBackground: () -> Unit, onClose: () -> Unit) {
     val tasks by br.com.estudario.ui.ai.BackgroundAiTasks.tasks.collectAsState()
     val status = tasks.firstOrNull { it.id == taskId }?.status
+    // Material pronto rápido (vindo da biblioteca) não pula direto para o resultado: a tela termina
+    // as etapas que faltam, uma a uma, e mostra "Material pronto". Assim a pessoa vê o trabalho feito.
+    val startedAt = remember { System.currentTimeMillis() }
+    var finishingStage by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(status) {
-        (status as? br.com.estudario.ui.ai.BackgroundAiTasks.Status.Ready)?.let { onDone(it.result) }
+        val ready = status as? br.com.estudario.ui.ai.BackgroundAiTasks.Status.Ready ?: return@LaunchedEffect
+        val reached = ((System.currentTimeMillis() - startedAt) / CONTENT_STAGE_MILLIS).toInt().coerceIn(0, ContentGenerationStages.lastIndex)
+        for (stage in reached..ContentGenerationStages.size) {
+            finishingStage = stage
+            kotlinx.coroutines.delay(if (stage == ContentGenerationStages.size) 900 else 650)
+        }
+        onDone(ready.result)
     }
     val failed = status as? br.com.estudario.ui.ai.BackgroundAiTasks.Status.Failed
     // Primeira geração: pede (uma vez) para avisar quando ficar pronto. É o momento em que o pedido
@@ -511,7 +523,10 @@ private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, on
                         title = "Preparando seu material",
                         eyebrow = topicTitle,
                         stages = ContentGenerationStages,
-                        stageMillis = 14_000L,
+                        stageMillis = CONTENT_STAGE_MILLIS,
+                        stageIndex = finishingStage,
+                        progressValue = finishingStage?.let { (it + 1f) / (ContentGenerationStages.size + 1) },
+                        doneLabel = "Material pronto",
                         footer = {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 ContentCommitmentsCard()
@@ -1050,7 +1065,7 @@ private fun PrioritySelector(selected: PlanPriority, onSelect: (PlanPriority) ->
  * confiar no que vai estudar.
  */
 @Composable
-private fun ContentCommitmentsCard() {
+internal fun ContentCommitmentsCard() {
     br.com.estudario.ui.brand.Surface(
         shape = br.com.estudario.ui.theme.EstudarioShapes.panel,
         color = MaterialTheme.colorScheme.surfaceContainerLow,

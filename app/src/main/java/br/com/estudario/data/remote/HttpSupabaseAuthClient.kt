@@ -75,10 +75,25 @@ class HttpSupabaseAuthClient(
         }))
 
     override suspend fun signInWithGoogle(credential: SupabaseGoogleCredential): SupabaseSession =
-        session(execute("/auth/v1/token?grant_type=id_token", buildJsonObject {
+        signInWithGoogleTokens(credential).session
+
+    override suspend fun signInWithGoogleTokens(credential: SupabaseGoogleCredential): SupabaseTokens =
+        tokens(execute("/auth/v1/token?grant_type=id_token", buildJsonObject {
             put("provider", "google")
             put("id_token", credential.idToken)
         }))
+
+    override suspend fun refreshSession(refreshToken: String): SupabaseTokens {
+        require(refreshToken.isNotBlank()) { "Refresh token must not be blank." }
+        return tokens(execute("/auth/v1/token?grant_type=refresh_token", buildJsonObject {
+            put("refresh_token", refreshToken)
+        }))
+    }
+
+    private fun tokens(response: AuthHttpResponse): SupabaseTokens {
+        val refresh = runCatching { (json.parseToJsonElement(response.body) as? JsonObject)?.string("refresh_token") }.getOrNull()
+        return SupabaseTokens(session(response), refresh)
+    }
 
     override suspend fun signOut(accessToken: String) {
         execute("/auth/v1/logout?scope=local", buildJsonObject { }, accessToken)

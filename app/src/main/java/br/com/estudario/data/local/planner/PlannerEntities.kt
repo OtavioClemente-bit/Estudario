@@ -241,6 +241,11 @@ data class PlanTaskEntity(
     val updatedRevision: Long,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
+    /**
+     * Ordem dentro do dia definida pelo motor. Antes a ordem saía de createdAt, que empata num lote e
+     * fica velho ao replanejar: as questões de um tópico passavam na frente da teoria dele.
+     */
+    @androidx.room.ColumnInfo(defaultValue = "0") val sequence: Int = 0,
 )
 
 @Entity(

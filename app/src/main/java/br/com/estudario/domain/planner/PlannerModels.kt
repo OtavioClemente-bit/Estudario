@@ -62,6 +62,8 @@ data class PlannerTask(
     val subjectPosition: Int = Int.MAX_VALUE,
     val topicPosition: Int = Int.MAX_VALUE,
     val replannedFromTaskId: String? = null,
+    /** Posição no dia decidida pelo motor (teoria antes das questões do mesmo tópico). */
+    val sequence: Int = 0,
 ) {
     init {
         require(plannedMinutes >= 0) { "Planned minutes cannot be negative." }

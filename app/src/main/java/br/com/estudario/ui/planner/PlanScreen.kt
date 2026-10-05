@@ -112,11 +112,11 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
         )
     }
     if (wizard) PlanWizardScreen(competitions, subjects, topics, { wizard = false }) { viewModel.createPlan(it) }
-    if (editAvailability) AvailabilityDialog(state.availability, { editAvailability = false }) { viewModel.updateAvailability(it) }
+    if (editAvailability) AvailabilityEditorDialog(state.availability, { editAvailability = false }) { viewModel.updateAvailability(it) }
     completion?.let { row ->
         TaskExecutionDialog(row, null, { completion = null }) { viewModel.complete(row.entity.id, it) }
     }
-    reprogram?.let { row -> DateOrAutomaticDialog({ reprogram = null }) { viewModel.reprogram(row.entity.id, it) } }
+    reprogram?.let { row -> ReprogramDialog(row.entity.taskTitlePtBr(), { reprogram = null }) { viewModel.reprogram(row.entity.id, it) } }
     skip?.let { row -> ReasonDialog({ skip = null }) { viewModel.skip(row.entity.id, it) } }
     TransferPlanDialog(transfer, viewModel)
     busy?.let { current -> LoadingDialog(current.title, current.message) }
@@ -305,13 +305,6 @@ private fun CaminhoCard(titulo: String, selo: String?, corpo: String, rodape: St
     is PlanTransferUiState.Preview -> AlertDialog(onDismissRequest = viewModel::clearTransfer, title = { Text(state.value.planName) }, text = { Column { Text("${state.value.importedTaskCount} tarefa(s) • ${state.value.protectedLocalTaskCount} registro(s) protegido(s)"); if (state.value.unresolvedReferences.isNotEmpty()) Text("Não resolvido: ${state.value.unresolvedReferences.joinToString()}", color = MaterialTheme.colorScheme.error); Text("Ativo/Mestre só serão alterados com confirmação explícita.") } }, confirmButton = { Row { if (state.value.existingPlan) { TextButton(enabled = state.value.unresolvedReferences.isEmpty(), onClick = { viewModel.importPlan(state.raw, PlanImportMode.MERGE, false, false) }) { Text("Mesclar") }; TextButton(enabled = state.value.unresolvedReferences.isEmpty(), onClick = { viewModel.importPlan(state.raw, PlanImportMode.REPLACE_FUTURE, false, false) }) { Text("Substituir futuro") } } else TextButton(enabled = state.value.unresolvedReferences.isEmpty(), onClick = { viewModel.importPlan(state.raw, PlanImportMode.CREATE, state.value.requestsActive, state.value.requestsMaster) }) { Text("Criar") } } }, dismissButton = { TextButton(onClick = viewModel::clearTransfer) { Text("Cancelar") } })
 } }
 
-@Composable private fun DateOrAutomaticDialog(onDismiss: () -> Unit, onConfirm: (LocalDate?) -> Unit) { AlertDialog(onDismissRequest = onDismiss, title = { Text("Reprogramar") }, text = { Text("Escolha redistribuição automática ou amanhã. O histórico realizado não será alterado.") }, confirmButton = { Row { TextButton(onClick = { onConfirm(null); onDismiss() }) { Text("Automática") }; TextButton(onClick = { onConfirm(LocalDate.now().plusDays(1)); onDismiss() }) { Text("Amanhã") } } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }) }
 @Composable private fun ReasonDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) { var reason by remember { mutableStateOf("") }; AlertDialog(onDismissRequest = onDismiss, title = { Text("Pular atividade") }, text = { OutlinedTextField(reason, { reason = it }, label = { Text("Motivo obrigatório") }) }, confirmButton = { TextButton(enabled = reason.isNotBlank(), onClick = { onConfirm(reason); onDismiss() }) { Text("Pular") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }) }
 private suspend fun readPlanText(context: Context, uri: Uri): String? = withContext(Dispatchers.IO) { runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } }.getOrNull() }
 
-@Composable private fun AvailabilityDialog(current: List<StudyAvailabilityEntity>, onDismiss: () -> Unit, onConfirm: (List<StudyAvailabilityEntity>) -> Unit) {
-    val initial = (1..7).map { day -> current.firstOrNull { it.dayOfWeek == day }?.availableMinutes ?: 0 }
-    val minutes = remember(current) { mutableStateListOf(*initial.toTypedArray()) }
-    val names = listOf("Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom")
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Disponibilidade líquida") }, text = { Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) { names.forEachIndexed { index, name -> Row(verticalAlignment = Alignment.CenterVertically) { Text("$name: ${minutes[index]} min", Modifier.widthIn(min = 88.dp), style = MaterialTheme.typography.bodyMedium); Slider(minutes[index].toFloat(), { minutes[index] = it.toInt() }, Modifier.weight(1f), valueRange = 0f..360f, steps = 11) } }; Text("Total: ${minutesLabel(minutes.sum())} por semana") } }, confirmButton = { TextButton(enabled = minutes.any { it > 0 }, onClick = { onConfirm(minutes.mapIndexed { index, value -> StudyAvailabilityEntity("pending", index + 1, value, value == 0) }); onDismiss() }) { Text("Salvar e recalcular") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } })
-}

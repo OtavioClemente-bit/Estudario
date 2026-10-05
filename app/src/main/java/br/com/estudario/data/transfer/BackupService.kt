@@ -157,3 +157,27 @@ private fun JSONObject.assessedPriorityEvidenceJson(): String = optString("asses
 private fun JSONObject.userPriorityOverride(): PriorityLevel? = PriorityLevel.entries.firstOrNull { it.name == optNullableString("userPriorityOverride")?.uppercase() }
 private fun JSONObject.optLongOrNull(key: String): Long? = if (!has(key) || isNull(key)) null else getLong(key)
 private fun JSONObject.array(key: String): JSONArray = optJSONArray(key) ?: JSONArray()
+
+/** O que um arquivo de backup contém, para a pessoa conferir antes de restaurar (sem nome de arquivo). */
+data class BackupSummary(
+    val exportedAt: Long?,
+    val competitions: Int,
+    val topics: Int,
+    val questions: Int,
+    val answers: Int,
+    val reviews: Int,
+)
+
+/** Lê só os totais do backup; texto que não é backup do Estudário devolve nulo. */
+fun summarizeBackup(text: String): BackupSummary? = runCatching {
+    val root = JSONObject(text)
+    if (!root.has("competitions") || !root.has("topics")) return null
+    BackupSummary(
+        exportedAt = root.optLong("exportedAt").takeIf { it > 0 },
+        competitions = root.optJSONArray("competitions")?.length() ?: 0,
+        topics = root.optJSONArray("topics")?.length() ?: 0,
+        questions = root.optJSONArray("questions")?.length() ?: 0,
+        answers = root.optJSONArray("attempts")?.length() ?: 0,
+        reviews = root.optJSONArray("reviewHistory")?.length() ?: 0,
+    )
+}.getOrNull()

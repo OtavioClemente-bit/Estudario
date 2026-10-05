@@ -38,7 +38,12 @@ class EstudarioWidget : GlanceAppWidget() {
             val todayEpoch = LocalDate.now().toEpochDay()
             val tasks = app.planRepository.tasksOnce(plan.id)
             val pending = tasks.filter { it.scheduledEpochDay <= todayEpoch && (it.status == PlanTaskStatus.PLANEJADA || it.status == PlanTaskStatus.EM_ANDAMENTO) }
-            val nextTask = pending.firstOrNull()
+            // Igual ao "Agora" do Início: a de hoje primeiro (já começada antes); atrasada só se hoje
+            // não tiver nada pendente.
+            val ofToday = pending.filter { it.scheduledEpochDay == todayEpoch }
+            val nextTask = ofToday.firstOrNull { it.status == PlanTaskStatus.EM_ANDAMENTO }
+                ?: ofToday.firstOrNull()
+                ?: pending.firstOrNull()
             
             if (nextTask != null) {
                 nextSubject = nextTask.subjectNameSnapshot

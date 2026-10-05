@@ -60,6 +60,7 @@ class EstudarioApplication : Application() {
         DefaultSupabaseAuthRepository(
             client = HttpSupabaseAuthClient(supabaseClientConfig),
             sessionStore = DataStoreSupabaseSessionStore(this, applicationScope),
+            refreshStore = br.com.estudario.data.remote.DataStoreSupabaseRefreshTokenStore(this),
         )
     }
     val aiSyllabusRepository: DefaultAiSyllabusRepository by lazy {

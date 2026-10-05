@@ -51,8 +51,8 @@ fun CalendarScreen(
             onGenerate = onGenerate,
             header = header,
         )
-        PlanSection.WEEK -> WeekPlanView(state = state, onFocus = onFocus, onGenerate = onGenerate, header = header)
-        PlanSection.MONTH -> MonthPlanView(state = state, onFocus = onFocus, onGenerate = onGenerate, header = header)
+        PlanSection.WEEK -> WeekPlanView(state = state, onFocus = onFocus, onReprogram = onReprogram, onSkip = onSkip, onGenerate = onGenerate, header = header)
+        PlanSection.MONTH -> MonthPlanView(state = state, onFocus = onFocus, onReprogram = onReprogram, onSkip = onSkip, onGenerate = onGenerate, header = header)
         PlanSection.YEAR -> OverviewPlanView(state = state, header = header, onEditAvailability = onEditAvailability, onShiftRoadmapEnd = onShiftRoadmapEnd)
     }
 }
@@ -70,14 +70,17 @@ private fun DayPlanView(
     var selectedDate by remember { mutableStateOf(state.today) }
     var showOverdue by remember { mutableStateOf(false) }
     
-    val tasksForSelectedDate = state.tasks.filter { it.entity.scheduledEpochDay == selectedDate.toEpochDay() }
+    // Só as tarefas vigentes do dia. Ao refazer o plano, as antigas ficam no histórico como
+    // reprogramadas; listá-las junto dobrava o dia (3h viravam 6h), repetia a teoria e punha
+    // questões antigas na frente da teoria nova.
+    val tasksForSelectedDate = state.tasks.plannedLoadTasks().filter { it.entity.scheduledEpochDay == selectedDate.toEpochDay() }
     val plannedMinutes = tasksForSelectedDate.plannedLoadMinutes()
     val actualMinutes = tasksForSelectedDate.sumOf { it.actualMinutes }
     
     val capacity = state.availability.firstOrNull { it.dayOfWeek == selectedDate.dayOfWeek.value }?.let { if (it.unavailable) 0 else it.availableMinutes } ?: 0
     val isDayLocked = state.dayOverrides.firstOrNull { it.epochDay == selectedDate.toEpochDay() }?.locked == true
 
-    val taskDates = state.tasks.map { LocalDate.ofEpochDay(it.entity.scheduledEpochDay) }.toSet()
+    val taskDates = state.tasks.plannedLoadTasks().map { LocalDate.ofEpochDay(it.entity.scheduledEpochDay) }.toSet()
 
     PlanList(header) {
         // Calendário Interativo
@@ -231,6 +234,8 @@ private fun DayPlanView(
 private fun WeekPlanView(
     state: ActivePlanUiState,
     onFocus: (PlannerTaskUi) -> Unit,
+    onReprogram: (PlannerTaskUi) -> Unit,
+    onSkip: (PlannerTaskUi) -> Unit,
     onGenerate: () -> Unit,
     header: LazyListScope.() -> Unit,
 ) {
@@ -265,7 +270,7 @@ private fun WeekPlanView(
                     )
                 }
                 items(tasks, key = { "up_${it.entity.id}" }) { taskUi ->
-                    MissionCard(taskUi = taskUi, onStart = { onFocus(taskUi) }, onReprogram = {}, onSkip = {}, isOverdue = false)
+                    MissionCard(taskUi = taskUi, onStart = { onFocus(taskUi) }, onReprogram = { onReprogram(taskUi) }, onSkip = { onSkip(taskUi) })
                 }
             }
         } else if (weekTasks.isEmpty()) {
@@ -285,7 +290,7 @@ private fun WeekPlanView(
                         )
                     }
                     items(tasks, key = { "week_${it.entity.id}" }) { taskUi ->
-                        MissionCard(taskUi = taskUi, onStart = { onFocus(taskUi) })
+                        MissionCard(taskUi = taskUi, onStart = { onFocus(taskUi) }, onReprogram = { onReprogram(taskUi) }, onSkip = { onSkip(taskUi) })
                     }
                 }
             }
@@ -299,6 +304,8 @@ private fun WeekPlanView(
 private fun MonthPlanView(
     state: ActivePlanUiState,
     onFocus: (PlannerTaskUi) -> Unit,
+    onReprogram: (PlannerTaskUi) -> Unit,
+    onSkip: (PlannerTaskUi) -> Unit,
     onGenerate: () -> Unit,
     header: LazyListScope.() -> Unit,
 ) {
@@ -345,7 +352,7 @@ private fun MonthPlanView(
         } else {
             item { Text("Próximas missões do mês", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
             items(upcoming, key = { "month_${it.entity.id}" }) { taskUi ->
-                MissionCard(taskUi = taskUi, onStart = { onFocus(taskUi) })
+                MissionCard(taskUi = taskUi, onStart = { onFocus(taskUi) }, onReprogram = { onReprogram(taskUi) }, onSkip = { onSkip(taskUi) })
             }
         }
     }

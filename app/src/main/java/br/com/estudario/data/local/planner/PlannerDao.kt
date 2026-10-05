@@ -57,13 +57,13 @@ interface PlannerDao {
     @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertTasks(values: List<PlanTaskEntity>)
     @Update suspend fun updateTask(value: PlanTaskEntity)
     @Query("SELECT * FROM plan_tasks WHERE id = :id") suspend fun task(id: String): PlanTaskEntity?
-    @Query("SELECT * FROM plan_tasks WHERE planId = :planId ORDER BY scheduledEpochDay, createdAt") fun tasksFor(planId: String): Flow<List<PlanTaskEntity>>
-    @Query("SELECT * FROM plan_tasks ORDER BY planId, scheduledEpochDay, createdAt") fun tasks(): Flow<List<PlanTaskEntity>>
-    @Query("SELECT * FROM plan_tasks WHERE planId = :planId ORDER BY scheduledEpochDay, createdAt") suspend fun tasksForOnce(planId: String): List<PlanTaskEntity>
-    @Query("SELECT * FROM plan_tasks ORDER BY planId, scheduledEpochDay, createdAt") suspend fun tasksOnce(): List<PlanTaskEntity>
+    @Query("SELECT * FROM plan_tasks WHERE planId = :planId ORDER BY scheduledEpochDay, sequence, createdAt") fun tasksFor(planId: String): Flow<List<PlanTaskEntity>>
+    @Query("SELECT * FROM plan_tasks ORDER BY planId, scheduledEpochDay, sequence, createdAt") fun tasks(): Flow<List<PlanTaskEntity>>
+    @Query("SELECT * FROM plan_tasks WHERE planId = :planId ORDER BY scheduledEpochDay, sequence, createdAt") suspend fun tasksForOnce(planId: String): List<PlanTaskEntity>
+    @Query("SELECT * FROM plan_tasks ORDER BY planId, scheduledEpochDay, sequence, createdAt") suspend fun tasksOnce(): List<PlanTaskEntity>
     /** Todas as tarefas, de todos os planos: o XP precisa saber o tipo de cada execução. */
     @Query("SELECT id, type FROM plan_tasks") fun taskTypes(): Flow<List<PlanTaskTypeRow>>
-    @Query("SELECT * FROM plan_tasks WHERE planId = :planId AND scheduledEpochDay BETWEEN :start AND :end ORDER BY scheduledEpochDay, createdAt") suspend fun tasksInRange(planId: String, start: Long, end: Long): List<PlanTaskEntity>
+    @Query("SELECT * FROM plan_tasks WHERE planId = :planId AND scheduledEpochDay BETWEEN :start AND :end ORDER BY scheduledEpochDay, sequence, createdAt") suspend fun tasksInRange(planId: String, start: Long, end: Long): List<PlanTaskEntity>
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertDependencies(values: List<PlanTaskDependencyEntity>)
     @Query("SELECT * FROM plan_task_dependencies WHERE taskId IN (SELECT id FROM plan_tasks WHERE planId = :planId)") suspend fun dependenciesFor(planId: String): List<PlanTaskDependencyEntity>
     @Query("SELECT * FROM plan_task_dependencies ORDER BY taskId, dependsOnTaskId") suspend fun dependenciesOnce(): List<PlanTaskDependencyEntity>

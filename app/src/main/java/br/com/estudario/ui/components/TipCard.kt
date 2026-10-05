@@ -1,5 +1,10 @@
 package br.com.estudario.ui.components
 
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,35 +30,59 @@ import br.com.estudario.ui.brand.Card
 import br.com.estudario.ui.brand.Glyph
 import br.com.estudario.ui.brand.Icon
 
+/** Cores fixas de dica (âmbar) e pegadinha (vermelho), em claro e escuro: fundo, tinta e faixa. */
+@Composable
+private fun tipColors(trap: Boolean): Triple<Color, Color, Color> {
+    val dark = MaterialTheme.colorScheme.background.red < 0.5f
+    return when {
+        trap && dark -> Triple(Color(0xFF3A1F1D), Color(0xFFFFB4A8), Color(0xFFE5484D))
+        trap -> Triple(Color(0xFFFFF1EE), Color(0xFFB3261E), Color(0xFFE5484D))
+        dark -> Triple(Color(0xFF3A2E12), Color(0xFFFFCF6B), Color(0xFFF2B33D))
+        else -> Triple(Color(0xFFFFF8E6), Color(0xFF8A5300), Color(0xFFF2B33D))
+    }
+}
+
 /**
- * Dica ou pegadinha de banca. A dica acende a lâmpada; a pegadinha é a ratoeira com o queijo de
- * isca, porque é exatamente isso que ela é. As duas têm cor própria, fixa, para serem reconhecidas
- * de relance em qualquer tela.
+ * Cabeçalho de um grupo de dicas ou de pegadinhas: o desenho aparece uma vez só, aqui, e os itens
+ * vêm embaixo sem repetir a ilustração (com ela em cada um, a aba ficava poluída).
  */
 @Composable
-fun TipCard(text: String, trap: Boolean, favorite: Boolean, onToggleFavorite: () -> Unit, modifier: Modifier = Modifier) {
-    val dark = MaterialTheme.colorScheme.background.red < 0.5f
-    val (face, ink, label) = when {
-        trap && dark -> Triple(Color(0xFF3A1F1D), Color(0xFFFFB4A8), "PEGADINHA DA BANCA")
-        trap -> Triple(Color(0xFFFFE9E5), Color(0xFFB3261E), "PEGADINHA DA BANCA")
-        dark -> Triple(Color(0xFF3A2E12), Color(0xFFFFCF6B), "DICA QUE DECIDE QUESTÃO")
-        else -> Triple(Color(0xFFFFF4D6), Color(0xFF8A5300), "DICA QUE DECIDE QUESTÃO")
-    }
+fun TipGroupHeader(trap: Boolean, count: Int, modifier: Modifier = Modifier) {
+    val (face, ink, _) = tipColors(trap)
     Card(modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = face)) {
-        Row(Modifier.padding(start = 12.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.Top) {
-            BrandIcon(if (trap) Glyph.Trap else Glyph.Bulb, size = 48.dp)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = ink)
-                StudyInlineText(text, style = MaterialTheme.typography.bodyMedium)
-            }
-            IconButton(onClick = onToggleFavorite) {
-                Icon(
-                    if (favorite) Icons.Outlined.Star else Icons.Outlined.StarBorder,
-                    if (favorite) "Tirar do Caderno" else "Guardar no Caderno",
-                    tint = if (favorite) Color.Unspecified else MaterialTheme.colorScheme.outline,
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            BrandIcon(if (trap) Glyph.Trap else Glyph.Bulb, size = 52.dp)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(if (trap) "PEGADINHAS DA BANCA" else "DICAS QUE DECIDEM QUESTÃO", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = ink)
+                Text(
+                    if (trap) "$count ${if (count == 1) "armadilha" else "armadilhas"} que a banca costuma armar" else "$count ${if (count == 1) "dica" else "dicas"} para acertar mais rápido",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+    }
+}
+
+/** Um item do grupo: só o texto, com a faixa colorida na lateral e a estrela para o Caderno. */
+@Composable
+fun TipRow(text: String, trap: Boolean, favorite: Boolean, onToggleFavorite: () -> Unit, modifier: Modifier = Modifier) {
+    val (face, _, accent) = tipColors(trap)
+    Row(
+        modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp)).background(face.copy(alpha = 0.55f)).height(androidx.compose.foundation.layout.IntrinsicSize.Min),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(Modifier.width(4.dp).fillMaxHeight().background(accent))
+        Box(Modifier.weight(1f).padding(start = 14.dp, top = 12.dp, bottom = 12.dp)) {
+            StudyInlineText(text, style = MaterialTheme.typography.bodyMedium)
+        }
+        IconButton(onClick = onToggleFavorite) {
+            Icon(
+                if (favorite) Icons.Outlined.Star else Icons.Outlined.StarBorder,
+                if (favorite) "Tirar do Caderno" else "Guardar no Caderno",
+                tint = if (favorite) Color.Unspecified else MaterialTheme.colorScheme.outline,
+            )
         }
     }
 }

@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.TrendingDown
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.MaterialTheme
@@ -47,13 +48,24 @@ fun HomeAttention(
     onOpenErrors: () -> Unit,
     onOpenWeakTopic: () -> Unit,
     modifier: Modifier = Modifier,
+    overduePlanTasks: Int = 0,
+    onOpenPlan: () -> Unit = {},
 ) {
-    val temAlgo = pendingReviews > 0 || pendingErrors > 0 || weakTopicName != null
+    val temAlgo = overduePlanTasks > 0 || pendingReviews > 0 || pendingErrors > 0 || weakTopicName != null
     if (!temAlgo) return
     val colors = estudarioColors()
 
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
         Text("Pedindo atenção", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        // O "Agora" segue o dia de hoje, como a aba Plano; o que ficou de dias anteriores aparece aqui.
+        if (overduePlanTasks > 0) AttentionCard(
+            icon = Icons.Outlined.Schedule,
+            accent = colors.attention,
+            count = overduePlanTasks,
+            title = if (overduePlanTasks == 1) "Atividade atrasada no plano" else "Atividades atrasadas no plano",
+            subtitle = "Ficaram de dias anteriores · veja no plano",
+            onClick = onOpenPlan,
+        )
         if (pendingErrors > 0) AttentionCard(
             icon = Icons.Outlined.ErrorOutline,
             accent = MaterialTheme.colorScheme.error,

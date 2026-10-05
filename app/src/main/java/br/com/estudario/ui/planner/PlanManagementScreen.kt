@@ -46,8 +46,8 @@ private fun ExcluirPlanoDialog(
                 Text("Some para sempre: o cronograma, as tarefas e as fases deste plano.")
                 if (execucoes != null && execucoes > 0) {
                     Text(
-                        "Também some o registro de $execucoes atividade(s) que você concluiu por ele, e o XP dessas atividades sai da sua conta.",
-                        color = MaterialTheme.colorScheme.error,
+                        "Também some o registro de $execucoes atividade(s) que você concluiu por ele. O XP que você ganhou com elas continua na sua conta.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 Text("Continua intacto: seu edital, tópicos estudados, questões respondidas, revisões e caderno de erros.")
@@ -130,13 +130,11 @@ fun PlanManagementScreen(
     }
     subjectPriority?.let { id ->
         val subject = state.planSubjects.firstOrNull { it.subjectId == id }
-        if (subject != null) ActionSheet(
-            title = subject.subjectNameSnapshot,
-            subtitle = "Prioridade no plano: ${priorityLabel(subject.priority)}",
-            actions = PlanPriority.entries.map { level ->
-                SheetAction(Icons.Outlined.Flag, priorityLabel(level), if (level == subject.priority) "Atual" else null) { onUpdateSubject(subject.subjectId, level, subject.paused) }
-            },
+        if (subject != null) PriorityPickerDialog(
+            subjectName = subject.subjectNameSnapshot,
+            current = subject.priority,
             onDismiss = { subjectPriority = null },
+            onPick = { level -> if (level != subject.priority) onUpdateSubject(subject.subjectId, level, subject.paused) },
         )
     }
 
@@ -174,9 +172,9 @@ fun PlanManagementScreen(
                                 Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Column(Modifier.weight(1f)) {
                                         Text(subject.subjectNameSnapshot, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = if (subject.paused) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
-                                        Text(if (subject.paused) "Pausada" else "Prioridade ${priorityLabel(subject.priority).lowercase()}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(if (subject.paused) "Pausada, fora do cronograma" else "No cronograma", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
-                                    AssistChip(onClick = { subjectPriority = subject.subjectId }, label = { Text(priorityLabel(subject.priority)) }, leadingIcon = { Icon(Icons.Outlined.Flag, null, Modifier.size(16.dp)) }, enabled = !subject.paused)
+                                    PriorityPill(subject.priority, enabled = !subject.paused) { subjectPriority = subject.subjectId }
                                     Spacer(Modifier.width(8.dp))
                                     Switch(!subject.paused, { onUpdateSubject(subject.subjectId, subject.priority, !it) })
                                 }

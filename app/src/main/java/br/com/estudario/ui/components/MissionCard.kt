@@ -38,6 +38,11 @@ fun MissionCard(
     isOverdue: Boolean = false
 ) {
     val task = taskUi.entity
+    // Atrasada é a tarefa de um dia que já passou e ainda não foi feita, em qualquer tela (Hoje,
+    // Semana, Mês, um dia antigo aberto no calendário), não só na lista de atrasadas. Antes, fora
+    // dessa lista, o cartão mostrava "Começar" e reprogramar não era possível.
+    val pending = task.status == PlanTaskStatus.PLANEJADA || task.status == PlanTaskStatus.EM_ANDAMENTO
+    val isOverdue = pending && (isOverdue || task.scheduledEpochDay < java.time.LocalDate.now().toEpochDay())
     val statusColor = when (task.status) {
         PlanTaskStatus.CONCLUIDA -> Color(0xFF087F5B)
         PlanTaskStatus.EM_ANDAMENTO -> MaterialTheme.colorScheme.primary
@@ -156,17 +161,21 @@ fun MissionCard(
                             Spacer(Modifier.width(8.dp))
                             Text("Concluída")
                         }
-                    } else if (isOverdue && task.status == PlanTaskStatus.PLANEJADA) {
+                    } else if (isOverdue && onReprogram != null) {
                         Button(
-                            onClick = { onReprogram?.invoke() },
+                            onClick = onReprogram,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.error
                             )
                         ) {
                             Text("Reprogramar")
                         }
+                        // Quem quer fazer mesmo atrasado ainda pode: abre a matéria como antes.
+                        OutlinedButton(onClick = onStart) {
+                            Text(if (task.status == PlanTaskStatus.EM_ANDAMENTO) "Continuar" else "Fazer agora")
+                        }
                         if (onSkip != null) {
-                            OutlinedButton(onClick = { onSkip.invoke() }) {
+                            TextButton(onClick = { onSkip.invoke() }) {
                                 Text("Pular")
                             }
                         }
