@@ -65,7 +65,7 @@ fun LoginScreen() {
         Div({ classes("auth-panel") }) {
             Div({ classes("auth-box") }) {
                 H2 { Text("Entrar") }
-                P({ classes("muted") }) { Text("Use a mesma conta do app para ver seus estudos.") }
+                P({ classes("muted") }) { Text("Entre com sua conta Google. Se você já usa o app no celular, use a mesma conta para ver tudo sincronizado.") }
                 if (GoogleSignIn.available) {
                     Div({ id("google-button"); attr("style", "min-height:44px;display:flex;justify-content:center") })
                     LaunchedEffect(Unit) {
@@ -73,47 +73,6 @@ fun LoginScreen() {
                             run { Auth.signInWithGoogle(token); Store.onSignedIn() }
                         })
                     }
-                    Div({ classes("divider") }) { Text("ou receba um código por e-mail") }
-                }
-                Form(attrs = {
-                    classes("stack")
-                    addEventListener("submit") { event ->
-                        event.preventDefault()
-                        if (busy) return@addEventListener
-                        if (!codeSent) run { Auth.sendEmailCode(email); codeSent = true }
-                        else run { Auth.verifyEmailCode(email, code); Store.onSignedIn() }
-                    }
-                }) {
-                    Div({ classes("field") }) {
-                        Label(forId = "email") { Text("E-mail") }
-                        Input(InputType.Email) {
-                            id("email")
-                            classes("input")
-                            value(email)
-                            placeholder("voce@exemplo.com")
-                            autoComplete(AutoComplete.email)
-                            if (codeSent) attr("readonly", "")
-                            onInput { email = it.value }
-                        }
-                    }
-                    if (codeSent) {
-                        Div({ classes("field") }) {
-                            Label(forId = "code") { Text("Código que chegou no e-mail") }
-                            Input(InputType.Text) {
-                                id("code")
-                                classes("input")
-                                value(code)
-                                attr("inputmode", "numeric")
-                                autoComplete(AutoComplete.oneTimeCode)
-                                onInput { code = it.value.filter(Char::isLetterOrDigit).take(10) }
-                            }
-                        }
-                    }
-                    org.jetbrains.compose.web.dom.Button({
-                        classes("btn", "primary", "block")
-                        if (busy || email.isBlank() || (codeSent && code.length < 6)) attr("disabled", "")
-                    }) { Text(if (busy) "Aguarde…" else if (codeSent) "Entrar" else "Enviar código") }
-                    if (codeSent) Btn("Usar outro e-mail", { codeSent = false; code = "" }, style = "ghost", block = true)
                 }
                 error?.let { Div({ classes("banner", "error") }) { Text(it) } }
                 Btn("Ver uma demonstração", { Store.startDemo() }, style = "outline", block = true, icon = "play_circle")

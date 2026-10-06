@@ -415,3 +415,64 @@ Deno.test("an oversized or malformed edital text is refused before reserving quo
   assertEquals([big.status, broken.status], [400, 400]);
   assertEquals(reserved, false);
 });
+
+function webRequest(extra: Record<string, string> = {}): Request {
+  return new Request("https://x/functions/v1/ai-syllabus-jobs", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer t", "idempotency-key": "k-w", "content-type": "application/json",
+      "x-estudario-client": "web", "cf-connecting-ip": "203.0.113.7", ...extra,
+    },
+    body: JSON.stringify({ feature: "SYLLABUS_GENERATION", source: {} }),
+  });
+}
+
+function webHandler(options: { human: boolean; networkFull?: boolean; reserved?: string[]; integrityCalled?: { value: boolean }; networks?: string[] }) {
+  return createAiSyllabusJobsHandler({
+    authenticate: () => Promise.resolve({ userId: "user-w", accessToken: "t" }),
+    storage: {} as never,
+    jobs: {
+      createOrGet: () => { options.reserved?.push("job-w"); return Promise.resolve({ jobId: "job-w", reused: false }); },
+      getJob: () => Promise.resolve(null),
+      releaseReservation: () => Promise.resolve(),
+    } as never,
+    limits: { maxBytes: 1, maxPages: 1, maxFiles: 1 },
+    schedule: () => Promise.resolve(),
+    integrity: { verify: () => { if (options.integrityCalled) options.integrityCalled.value = true; return Promise.reject(new Error("web must not use Play Integrity")); } },
+    webGuard: { verify: (token) => Promise.resolve(options.human && token === "ok") },
+    deviceQuota: { exhausted: () => Promise.resolve(false), record: () => Promise.resolve() },
+    networkQuota: {
+      exhausted: (_user, network, _feature, multiplier) => { options.networks?.push(`${network.length}|${multiplier}`); return Promise.resolve(options.networkFull === true); },
+      record: () => Promise.resolve(),
+    },
+  });
+}
+
+Deno.test("web request without human verification is refused before reserving quota", async () => {
+  const reserved: string[] = [];
+  const response = await webHandler({ human: false, reserved })(webRequest({ "x-estudario-device": DEVICE, "x-turnstile-token": "bad" }));
+  assertEquals(response.status, 403);
+  assertEquals((await response.json()).error.code, "TURNSTILE_FAILED");
+  assertEquals(reserved, []);
+});
+
+Deno.test("web request must identify the browser", async () => {
+  const response = await webHandler({ human: true })(webRequest({ "x-turnstile-token": "ok" }));
+  assertEquals(response.status, 400);
+  assertEquals((await response.json()).error.code, "DEVICE_REQUIRED");
+});
+
+Deno.test("verified web request skips Play Integrity and is counted by network with a shared-network ceiling", async () => {
+  const integrityCalled = { value: false };
+  const networks: string[] = [];
+  const response = await webHandler({ human: true, integrityCalled, networks })(webRequest({ "x-estudario-device": DEVICE, "x-turnstile-token": "ok" }));
+  assertNotEquals(response.status, 403);
+  assertEquals(integrityCalled.value, false);
+  assertEquals(networks, ["64|3"]);
+});
+
+Deno.test("web network that used up the free allowance is refused", async () => {
+  const response = await webHandler({ human: true, networkFull: true })(webRequest({ "x-estudario-device": DEVICE, "x-turnstile-token": "ok" }));
+  assertEquals(response.status, 429);
+  assertEquals((await response.json()).error.code, "DEVICE_QUOTA_EXHAUSTED");
+});

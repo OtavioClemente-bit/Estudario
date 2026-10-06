@@ -54,6 +54,59 @@ export interface AiSyllabusJobsDependencies {
   questionLimit?: (userId: string) => Promise<number>;
   /** Saldo grátis somado por aparelho (todas as contas do celular). Ausente = não confere (testes). */
   deviceQuota?: DeviceQuota;
+  /** Saldo grátis somado por rede (hash do IP): app web e pedidos sem aparelho. Ausente = não confere. */
+  networkQuota?: NetworkQuota;
+  /** Verificação anti-robô (Cloudflare Turnstile) dos pedidos do app web. Ausente = não verifica (testes). */
+  webGuard?: WebGuard;
+}
+
+export interface NetworkQuota {
+  exhausted: (userId: string, networkHash: string, feature: AiFeature, multiplier: number) => Promise<boolean>;
+  record: (userId: string, networkHash: string, feature: AiFeature, jobId: string) => Promise<void>;
+}
+
+export interface WebGuard {
+  verify: (token: string | null, ip: string | null) => Promise<boolean>;
+}
+
+/** Quem pediu: o app web se identifica; o resto é tratado como o app Android. */
+interface ClientContext {
+  web: boolean;
+  device: string | null;
+  ip: string | null;
+  network: string | null;
+}
+
+/** Uma rede compartilhada (casa, escola) pode ter várias pessoas: o teto por rede é maior. */
+const WEB_NETWORK_MULTIPLIER = 3;
+
+async function clientContext(request: Request): Promise<ClientContext> {
+  const ip = request.headers.get("cf-connecting-ip")?.trim() ||
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+  let network: string | null = null;
+  if (ip) {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`estudario-network:${ip}`));
+    network = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+  return {
+    web: request.headers.get("x-estudario-client")?.trim().toLowerCase() === "web",
+    device: deviceHash(request),
+    ip,
+    network,
+  };
+}
+
+/** Pedido do app web: exige a verificação anti-robô no lugar do Play Integrity. */
+async function verifyWebClient(dependencies: AiSyllabusJobsDependencies, request: Request, client: ClientContext): Promise<Response | null> {
+  if (!client.web || !dependencies.webGuard) return null;
+  if (client.device === null) return safeError("DEVICE_REQUIRED", 400);
+  let ok = false;
+  try {
+    ok = await dependencies.webGuard.verify(request.headers.get("x-turnstile-token"), client.ip);
+  } catch {
+    return safeError("TURNSTILE_UNAVAILABLE", 503);
+  }
+  return ok ? null : safeError("TURNSTILE_FAILED", 403);
 }
 
 export interface DeviceQuota {
@@ -76,11 +129,32 @@ function deviceHash(request: Request): string | null {
 async function claimDeviceAllowance(
   dependencies: AiSyllabusJobsDependencies,
   userId: string,
-  device: string | null,
+  client: ClientContext,
   feature: AiFeature,
   created: { jobId: string; reused: boolean },
 ): Promise<Response | null> {
-  if (!dependencies.deviceQuota || device === null || created.reused) return null;
+  if (created.reused) return null;
+  // Rede: vale para o app web (teto maior, rede compartilhada) e para quem não manda aparelho.
+  const networkMultiplier = client.web ? WEB_NETWORK_MULTIPLIER : client.device === null ? 1 : 0;
+  if (dependencies.networkQuota && client.network !== null && networkMultiplier > 0) {
+    let networkExhausted = false;
+    try {
+      networkExhausted = await dependencies.networkQuota.exhausted(userId, client.network, feature, networkMultiplier);
+    } catch {
+      networkExhausted = false;
+    }
+    if (networkExhausted) {
+      await releaseQuietly(dependencies, userId, created.jobId);
+      return safeError("DEVICE_QUOTA_EXHAUSTED", 429);
+    }
+    try {
+      await dependencies.networkQuota.record(userId, client.network, feature, created.jobId);
+    } catch {
+      // Só alimenta o limite por rede; falhar aqui não derruba a geração.
+    }
+  }
+  const device = client.device;
+  if (!dependencies.deviceQuota || device === null) return null;
   let exhausted = false;
   try {
     exhausted = await dependencies.deviceQuota.exhausted(userId, device, feature);
@@ -125,6 +199,9 @@ function safeError(code: string, status: number, retryAfterSeconds?: number): Re
     INTEGRITY_UNAVAILABLE: "Integrity check is temporarily unavailable",
     QUESTION_LIMIT_EXCEEDED: "Question count is above the plan limit",
     DEVICE_QUOTA_EXHAUSTED: "The free allowance of this device has been used",
+    DEVICE_REQUIRED: "Device identification is required",
+    TURNSTILE_FAILED: "Human verification failed; reload the page",
+    TURNSTILE_UNAVAILABLE: "Human verification is temporarily unavailable",
   };
   if (code === "AI_RATE_LIMIT_EXCEEDED") {
     const retry = Number.isSafeInteger(retryAfterSeconds) && retryAfterSeconds! >= 0 ? retryAfterSeconds! : 0;
@@ -271,8 +348,12 @@ async function createJob(
 ): Promise<Response> {
   const key = idempotencyKey(request);
   const body = await requestBody(request);
+  const client = await clientContext(request);
   if (typeof body.feature === "string" && TEXT_FEATURES.has(body.feature)) {
-    return createTextJob(dependencies, user, key, body.feature as AiFeature, body.input, deviceHash(request));
+    const textClient = await clientContext(request);
+    const blocked = await verifyWebClient(dependencies, request, textClient);
+    if (blocked) return blocked;
+    return createTextJob(dependencies, user, key, body.feature as AiFeature, body.input, textClient);
   }
   if (body.feature !== undefined && body.feature !== SYLLABUS_FEATURE) return safeError("INVALID_FEATURE", 400);
   const source = sourceInput(body);
@@ -282,7 +363,9 @@ async function createJob(
   const sourceBytes = clientSourceBytes(source);
   const options = generationOptions(body);
   const sourceText = sourceTextInput(body);
-  if (dependencies.integrity) {
+  const blockedWeb = await verifyWebClient(dependencies, request, client);
+  if (blockedWeb) return blockedWeb;
+  if (dependencies.integrity && !client.web) {
     const expected = await integrityRequestHash(SYLLABUS_FEATURE, key, sourceHash);
     try {
       await dependencies.integrity.verify(request.headers.get("x-play-integrity-token"), expected);
@@ -293,7 +376,6 @@ async function createJob(
       throw error;
     }
   }
-  const device = deviceHash(request);
   const payload = {
     feature: SYLLABUS_FEATURE,
     sourcePath: path,
@@ -320,7 +402,7 @@ async function createJob(
     return safeError("AI_JOB_DATA_UNAVAILABLE", 503);
   }
 
-  const blockedSyllabus = await claimDeviceAllowance(dependencies, user.userId, device, SYLLABUS_FEATURE, created);
+  const blockedSyllabus = await claimDeviceAllowance(dependencies, user.userId, client, SYLLABUS_FEATURE, created);
   if (blockedSyllabus) return blockedSyllabus;
   let job = await dependencies.jobs.getJob(user.userId, created.jobId);
   if (!job) return safeError("AI_JOB_NOT_FOUND", 503);
@@ -382,7 +464,7 @@ async function createTextJob(
   key: string,
   feature: AiFeature,
   rawInput: unknown,
-  device: string | null = null,
+  client: ClientContext = { web: false, device: null, ip: null, network: null },
 ): Promise<Response> {
   let input: unknown;
   try {
@@ -421,7 +503,7 @@ async function createTextJob(
     if (error instanceof JobStoreError) return safeError(error.code, error.status, error.retryAfterSeconds);
     return safeError("AI_JOB_DATA_UNAVAILABLE", 503);
   }
-  const blockedText = await claimDeviceAllowance(dependencies, user.userId, device, feature, created);
+  const blockedText = await claimDeviceAllowance(dependencies, user.userId, client, feature, created);
   if (blockedText) return blockedText;
   let job = await dependencies.jobs.getJob(user.userId, created.jobId);
   if (!job) return safeError("AI_JOB_NOT_FOUND", 503);
@@ -600,6 +682,8 @@ function runtimeDependencies(request: Request): AiSyllabusJobsDependencies {
       return row?.maxPerRequest ?? 10;
     },
     deviceQuota: serviceDeviceQuota(supabaseUrl, serviceRoleKey),
+    networkQuota: serviceNetworkQuota(supabaseUrl, serviceRoleKey),
+    webGuard: turnstileGuard(Deno.env.get("TURNSTILE_SECRET_KEY")?.trim()),
     schedule: async () => {
       // The persisted PROCESSING lease is the durable queue consumed by the worker/Cron in Task 7.
     },
@@ -641,3 +725,42 @@ async function handleAiSyllabusJobs(request: Request): Promise<Response> {
 }
 
 if (import.meta.main) Deno.serve(handleAiSyllabusJobs);
+
+/** Limite por rede pelas RPCs da migration ai_network_quota, só com a service role. */
+function serviceNetworkQuota(supabaseUrl: string, serviceRoleKey: string): NetworkQuota {
+  const rpc = async (name: string, body: Record<string, unknown>): Promise<unknown> => {
+    const response = await fetch(`${supabaseUrl}/rest/v1/rpc/${name}`, {
+      method: "POST",
+      headers: { apikey: serviceRoleKey, authorization: `Bearer ${serviceRoleKey}`, "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw new Error(`${name} failed with ${response.status}`);
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
+  };
+  return {
+    exhausted: async (userId, network, feature, multiplier) =>
+      (await rpc("ai_network_quota_exhausted", { p_network_hash: network, p_feature: feature, p_user_id: userId, p_multiplier: multiplier })) === true,
+    record: async (userId, network, feature, jobId) => {
+      await rpc("ai_record_network_job", { p_network_hash: network, p_user_id: userId, p_feature: feature, p_job_id: jobId });
+    },
+  };
+}
+
+/** Cloudflare Turnstile. Sem segredo configurado, recusa (o app web não gera sem verificação). */
+function turnstileGuard(secret: string | undefined): WebGuard {
+  return {
+    verify: async (token, ip) => {
+      if (!secret || !token) return false;
+      const form = new FormData();
+      form.append("secret", secret);
+      form.append("response", token);
+      if (ip) form.append("remoteip", ip);
+      const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body: form });
+      if (!response.ok) throw new Error(`turnstile ${response.status}`);
+      const result = await response.json() as { success?: boolean; hostname?: string };
+      const allowed = ["app.estudario.com.br", "estudario-app.pages.dev", "localhost"];
+      return result.success === true && (result.hostname === undefined || allowed.some((host) => result.hostname === host || result.hostname!.endsWith(`.${host}`)));
+    },
+  };
+}
