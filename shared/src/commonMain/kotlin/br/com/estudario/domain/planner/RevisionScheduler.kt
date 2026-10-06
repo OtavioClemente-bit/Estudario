@@ -1,5 +1,6 @@
 package br.com.estudario.domain.planner
 
+import br.com.estudario.math.javaRound
 import kotlinx.datetime.LocalDate
 import br.com.estudario.time.*
 
@@ -72,7 +73,7 @@ object RevisionScheduler {
         val effectiveStage = if (overdue) (stage - 1).coerceAtLeast(0) else stage.coerceAtLeast(0)
         val base = BASE_INTERVAL_DAYS.getOrElse(effectiveStage) { BASE_INTERVAL_DAYS.last() }
         val easeFactor = ease(need)
-        var interval = Math.round(base * easeFactor).coerceIn(1L, MAX_INTERVAL_DAYS)
+        var interval = javaRound(base * easeFactor).coerceIn(1L, MAX_INTERVAL_DAYS)
 
         val reasons = mutableListOf<PlannerReason>()
         if (easeFactor < 0.9) {
@@ -118,6 +119,6 @@ object RevisionScheduler {
     fun minutesFor(need: StudyNeed, blockMinutes: Int): Int {
         val half = (blockMinutes / 2).coerceAtLeast(10)
         val factor = 1.0 + (need.score - 0.5).coerceIn(-0.5, 0.5) * 0.6
-        return Math.round(half * factor).toInt().coerceIn(10, blockMinutes)
+        return javaRound(half * factor).toInt().coerceIn(10, blockMinutes)
     }
 }

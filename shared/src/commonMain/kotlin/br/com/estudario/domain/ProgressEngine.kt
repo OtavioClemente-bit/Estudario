@@ -158,7 +158,7 @@ object ProgressEngine {
 
     fun evaluate(input: ProgressInput): ProgressSummary {
         val byDate = input.days.associateBy { it.date }
-        val goalDays = input.days.filter { StreakEngine.isDone(it, input.goal) }.map { it.date }.toSortedSet()
+        val goalDays = input.days.filter { StreakEngine.isDone(it, input.goal) }.map { it.date }.sorted().toSet()
         val planByDate = input.planWork.groupBy { it.date }
 
         var planXp = 0
@@ -171,7 +171,7 @@ object ProgressEngine {
         var xpThisWeek = 0
         val weekStart = input.today.minusDays((input.today.isoDayOfWeek - 1).toLong())
 
-        val dates = (byDate.keys + planByDate.keys).toSortedSet()
+        val dates = (byDate.keys + planByDate.keys).sorted().toSet()
         dates.forEach { date ->
             val activity = byDate[date]
             var dayXp = 0

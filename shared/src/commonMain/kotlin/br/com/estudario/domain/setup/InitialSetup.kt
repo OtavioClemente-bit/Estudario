@@ -5,9 +5,8 @@ import br.com.estudario.domain.planner.InitialKnowledge
 import br.com.estudario.domain.planner.PersonalDifficulty
 import br.com.estudario.domain.planner.StudyDimensions
 import br.com.estudario.domain.planner.StudyProfile
-import java.net.URLDecoder
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
+import br.com.estudario.text.formUrlDecode
+import br.com.estudario.text.formUrlEncode
 
 /** Estado persistente do assistente de primeira configuração. Os nomes são dados de formato: não renomear sem migração. */
 enum class InitialSetupStatus { NOT_STARTED, IN_PROGRESS, DEFERRED, COMPLETED }
@@ -267,8 +266,8 @@ object InitialSetupSnapshotCodec {
             }
         }.toMap()
 
-    private fun encodeText(value: String) = URLEncoder.encode(value, StandardCharsets.UTF_8.name())
-    private fun decodeText(value: String) = URLDecoder.decode(value, StandardCharsets.UTF_8.name())
+    private fun encodeText(value: String) = formUrlEncode(value)
+    private fun decodeText(value: String) = formUrlDecode(value)
 
     private inline fun <reified T : Enum<T>> enumOrDefault(value: String, fallback: T): T =
         runCatching { enumValueOf<T>(value) }.getOrDefault(fallback)

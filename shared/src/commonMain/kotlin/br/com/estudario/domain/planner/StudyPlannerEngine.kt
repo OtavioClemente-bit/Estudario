@@ -1,6 +1,7 @@
 package br.com.estudario.domain.planner
 
-import java.security.MessageDigest
+import br.com.estudario.text.Sha256
+import br.com.estudario.text.toHex
 import kotlinx.datetime.LocalDate
 import br.com.estudario.time.*
 
@@ -22,7 +23,7 @@ class StudyPlannerEngine(
             .mapValues { (_, tasks) -> tasks.sumOf { it.plannedMinutes } }
         val allocatableByDate = rawCapacity.mapValues { (date, minutes) ->
             if (snapshot.dayOverrides[date]?.locked == true) 0
-            else (minutes - lockedUsage.getOrDefault(date, 0)).coerceAtLeast(0)
+            else (minutes - lockedUsage.getOrElse(date) { 0 }).coerceAtLeast(0)
         }
         val freeByDate = allocatableByDate.toMutableMap()
         val executionsByTask = snapshot.executions.filter { it.taskId != null }.groupBy { it.taskId }
@@ -78,7 +79,7 @@ class StudyPlannerEngine(
                 if (!respectShare || dailyShare >= 100) return@firstOrNull true
                 val capacity = rawCapacity.getValue(date)
                 val cap = (capacity * dailyShare / 100).coerceAtLeast(snapshot.policy.preferredBlockMinutes)
-                usedBySubjectPerDate.getOrDefault(date to demand.subjectId, 0) < cap
+                usedBySubjectPerDate.getOrElse(date to demand.subjectId) { 0 } < cap
             }
         }
 
@@ -128,12 +129,12 @@ class StudyPlannerEngine(
                     )
                 }
                 freeByDate[date] = free - chunk
-                usedBySubjectPerDate[date to demand.subjectId] = usedBySubjectPerDate.getOrDefault(date to demand.subjectId, 0) + chunk
+                usedBySubjectPerDate[date to demand.subjectId] = usedBySubjectPerDate.getOrElse(date to demand.subjectId) { 0 } + chunk
                 remaining[demand.id] = minuteLeftBefore - chunk
                 remainingQuestions[demand.id] = questionLeft - chunkQuestions
                 left -= chunk
                 allocated += chunk
-                scheduledBySubject[demand.subjectId] = scheduledBySubject.getOrDefault(demand.subjectId, 0) + chunk
+                scheduledBySubject[demand.subjectId] = scheduledBySubject.getOrElse(demand.subjectId) { 0 } + chunk
             }
             return allocated
         }
@@ -166,17 +167,17 @@ class StudyPlannerEngine(
                     val demandRemaining = remaining.getValue(demand.id)
                     if (demandRemaining == 0) return@forEach
                     val capLeft = if (capEnabled) {
-                        (flexibleCap - flexibleBySubject.getOrDefault(demand.subjectId, 0)).coerceAtLeast(0)
+                        (flexibleCap - flexibleBySubject.getOrElse(demand.subjectId) { 0 }).coerceAtLeast(0)
                     } else demandRemaining
                     if (capLeft == 0) return@forEach
-                    val before = scheduledBySubject.getOrDefault(demand.subjectId, 0)
+                    val before = scheduledBySubject.getOrElse(demand.subjectId) { 0 }
                     // A demanda inteira de uma vez (em blocos, dentro do teto do dia): antes ia um
                     // bloco por volta do rodízio, e as questões de um tópico entravam entre as duas
                     // metades da teoria dele.
                     val amount = allocate(demand, minOf(demandRemaining, capLeft), respectShare)
                     if (amount > 0) {
-                        val after = scheduledBySubject.getOrDefault(demand.subjectId, 0)
-                        val maintenance = maintenanceBySubject.getOrDefault(demand.subjectId, 0)
+                        val after = scheduledBySubject.getOrElse(demand.subjectId) { 0 }
+                        val maintenance = maintenanceBySubject.getOrElse(demand.subjectId) { 0 }
                         flexibleBySubject[demand.subjectId] = (after - maintenance).coerceAtLeast(0)
                         madeProgress = madeProgress || after > before
                     }
@@ -267,8 +268,8 @@ class StudyPlannerEngine(
     }
 
     private fun stableId(vararg values: String): String {
-        val bytes = MessageDigest.getInstance("SHA-256").digest(values.joinToString("|").toByteArray())
-        return bytes.take(16).joinToString("") { "%02x".format(it) }
+        val bytes = Sha256.digest(values.joinToString("|").encodeToByteArray())
+        return bytes.copyOf(16).toHex()
     }
 
     private companion object {

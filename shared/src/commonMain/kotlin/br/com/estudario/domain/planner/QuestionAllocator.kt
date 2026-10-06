@@ -1,5 +1,7 @@
 package br.com.estudario.domain.planner
 
+import br.com.estudario.math.javaRound
+
 /**
  * Maturidade do conteúdo. É o que decide o *tipo* de bateria de questões, antes do tamanho.
  *
@@ -112,7 +114,7 @@ object QuestionAllocator {
         val maturityFactor = VOLUME_BY_MATURITY.getValue(maturity)
         val needFactor = 1.0 + (need.score - 0.5).coerceIn(-0.5, 0.5) * 2.0 * NEED_MODULATION
         val raw = baseQuestions * maturityFactor * needFactor
-        val questions = Math.round(raw).toInt().coerceIn(
+        val questions = javaRound(raw).toInt().coerceIn(
             MIN_QUESTIONS.coerceAtMost(baseQuestions),
             MAX_QUESTIONS.coerceAtLeast(baseQuestions),
         )

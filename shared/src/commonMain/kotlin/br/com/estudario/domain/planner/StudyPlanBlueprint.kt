@@ -1,5 +1,6 @@
 package br.com.estudario.domain.planner
 
+import br.com.estudario.math.javaRound
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import br.com.estudario.time.*
@@ -124,7 +125,7 @@ object StudyPlanBlueprint {
         fun effectiveWeight(subject: BlueprintSubject): Int {
             val need = subject.need ?: return subject.weight.coerceAtLeast(1)
             val factor = NEED_WEIGHT_FLOOR + (1.0 - NEED_WEIGHT_FLOOR) * 2.0 * need.score
-            return Math.round(subject.weight * factor).toInt().coerceIn(1, MAX_ROTATION_WEIGHT)
+            return javaRound(subject.weight * factor).toInt().coerceIn(1, MAX_ROTATION_WEIGHT)
         }
 
         notes += "Fase atual: ${phase.kind.label}, ${mix.describe()}."

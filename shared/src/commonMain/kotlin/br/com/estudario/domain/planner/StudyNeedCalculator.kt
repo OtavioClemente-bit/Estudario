@@ -1,5 +1,6 @@
 package br.com.estudario.domain.planner
 
+import br.com.estudario.math.javaRound
 import kotlin.math.abs
 import kotlin.math.sqrt
 
@@ -218,7 +219,7 @@ object StudyNeedCalculator {
             .thenBy { it.subjectId }
             .thenBy { it.topicId ?: Long.MIN_VALUE }
 
-    private fun round(value: Double): Double = Math.round(value * 10_000.0) / 10_000.0
+    private fun round(value: Double): Double = javaRound(value * 10_000.0) / 10_000.0
 
     private fun blend(declared: Double, measured: Double, confidence: Double): Double =
         (declared * (1.0 - confidence) + measured * confidence).coerceIn(0.0, 1.0)

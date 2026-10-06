@@ -1,5 +1,7 @@
 package br.com.estudario.domain.planner
 
+import br.com.estudario.math.javaRound
+
 /**
  * Quanto trabalho ainda existe pela frente, em minutos.
  *
@@ -73,7 +75,7 @@ object WorkloadEstimator {
         val items = pendingTopics.map { topic ->
             val need = needs[topic.topicId]
             val evidence = evidenceByTopic[topic.topicId] ?: StudyEvidence.EMPTY
-            val theory = Math.round(config.blockMinutes * factor).toInt().coerceAtLeast(1)
+            val theory = javaRound(config.blockMinutes * factor).toInt().coerceAtLeast(1)
             val questions = if (need == null) {
                 config.questionsPerTopic * config.minutesPerQuestion
             } else {
@@ -86,8 +88,8 @@ object WorkloadEstimator {
                 subjectId = topic.subjectId,
                 topicId = topic.topicId,
                 theoryMinutes = theory,
-                questionMinutes = Math.round(questions * factor).toInt(),
-                revisionMinutes = Math.round(revisions * factor).toInt(),
+                questionMinutes = javaRound(questions * factor).toInt(),
+                revisionMinutes = javaRound(revisions * factor).toInt(),
             )
         }
         return WorkloadEstimate(

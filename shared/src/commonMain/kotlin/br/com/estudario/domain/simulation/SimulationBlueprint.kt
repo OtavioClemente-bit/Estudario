@@ -1,6 +1,6 @@
 package br.com.estudario.domain.simulation
 
-import java.text.Normalizer
+import br.com.estudario.text.stripAccents
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -152,7 +152,7 @@ object SimulationBlueprint {
 
 /** Formato das questões pela banca: Cebraspe e Quadrix são Certo/Errado; as demais, A a E. */
 object BoardStyle {
-    private fun key(value: String) = Normalizer.normalize(value.lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
+    private fun key(value: String) = stripAccents(value.lowercase())
 
     fun styleFor(board: String?): String {
         val name = board?.let(::key) ?: return "FIVE_OPTIONS"

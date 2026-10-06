@@ -1,6 +1,6 @@
 package br.com.estudario.domain.ai
 
-import java.text.Normalizer
+import br.com.estudario.text.normalizeNfd
 
 /**
  * Arruma a divisão de itens do edital feita pela IA. O tópico-pai só agrupa; quem gera material
@@ -37,7 +37,7 @@ object EditalSplitTidy {
     // Filho contido no pai não conta: "JSON Web Tokens (JWT)" sai de dentro do item e é divisão legítima.
     private fun isEcho(parentKey: String, childKey: String) = childKey.isEmpty() || childKey == parentKey || (parentKey.length >= 12 && childKey.contains(parentKey) && childKey.length - parentKey.length <= 12)
 
-    internal fun canonical(value: String): String = Normalizer.normalize(value.trim().lowercase(), Normalizer.Form.NFD)
+    internal fun canonical(value: String): String = normalizeNfd(value.trim().lowercase())
         .replace(Regex("\\p{M}+"), "")
         .replace(Regex("[^a-z0-9]+"), " ")
         .trim()
