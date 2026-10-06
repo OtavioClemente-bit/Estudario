@@ -19,6 +19,7 @@ kotlin {
 
     compilerOptions {
         optIn.add("kotlin.time.ExperimentalTime")
+        optIn.add("org.jetbrains.compose.web.ExperimentalComposeWebSvgApi")
     }
 
     sourceSets {
@@ -29,6 +30,7 @@ kotlin {
             implementation(project(":shared"))
             implementation(compose.runtime)
             implementation(compose.html.core)
+            implementation(compose.html.svg)
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
         }

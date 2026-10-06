@@ -1,6 +1,10 @@
 package br.com.estudario.web.ui
 
+import org.jetbrains.compose.web.svg.Svg
+import org.jetbrains.compose.web.svg.Circle
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import org.jetbrains.compose.web.attributes.ButtonType
 import org.jetbrains.compose.web.attributes.disabled
 import org.jetbrains.compose.web.attributes.type
@@ -32,6 +36,7 @@ fun Btn(
     icon: String? = null,
     small: Boolean = false,
     block: Boolean = false,
+    size: String? = null,
     enabled: Boolean = true,
 ) {
     // O mesmo elemento pode ser reaproveitado com outra ação (ex.: Continuar de um passo para o outro).
@@ -39,7 +44,7 @@ fun Btn(
     val latestEnabled = androidx.compose.runtime.rememberUpdatedState(enabled)
     Button({
         type(ButtonType.Button)
-        classes(*listOfNotNull("btn", style, if (small) "small" else null, if (block) "block" else null).toTypedArray())
+        classes(*listOfNotNull("btn", style, if (small) "small" else null, size, if (block) "block" else null).toTypedArray())
         if (!enabled) disabled()
         onClick { if (latestEnabled.value) latestClick.value() }
     }) {
@@ -134,3 +139,102 @@ fun Modal(onDismiss: () -> Unit, content: @Composable () -> Unit) {
 }
 
 fun percent(part: Int, total: Int): Int = if (total <= 0) 0 else (part * 100 / total)
+
+/** Contador com menos e mais, como os seletores do app (horas por dia, quantidade de questões...). */
+@Composable
+fun Stepper(value: Int, onChange: (Int) -> Unit, step: Int = 1, min: Int = 0, max: Int = Int.MAX_VALUE, format: (Int) -> String = { it.toString() }, label: String = "") {
+    val latest = androidx.compose.runtime.rememberUpdatedState(onChange)
+    val current = androidx.compose.runtime.rememberUpdatedState(value)
+    Div({ classes("stepper"); attr("role", "group"); if (label.isNotBlank()) attr("aria-label", label) }) {
+        Button({
+            type(ButtonType.Button)
+            attr("aria-label", "Diminuir")
+            if (value <= min) disabled()
+            onClick { latest.value((current.value - step).coerceAtLeast(min)) }
+        }) { Icon("remove") }
+        Span({ classes("value"); attr("aria-live", "polite") }) { Text(format(value)) }
+        Button({
+            type(ButtonType.Button)
+            attr("aria-label", "Aumentar")
+            if (value >= max) disabled()
+            onClick { latest.value((current.value + step).coerceAtMost(max)) }
+        }) { Icon("add") }
+    }
+}
+
+/** Anel de progresso (Missão de hoje). [fraction] de 0 a 1. */
+@Composable
+fun Ring(fraction: Double, content: @Composable () -> Unit) {
+    val radius = 52.0
+    val circumference = 2 * kotlin.math.PI * radius
+    Div({ classes("ring") }) {
+        Svg(viewBox = "0 0 120 120") {
+            Circle(60, 60, radius, { classes("track"); attr("fill", "none"); attr("stroke-width", "11") })
+            Circle(60, 60, radius, {
+                classes("value"); attr("fill", "none"); attr("stroke-width", "11"); attr("stroke-linecap", "round")
+                attr("stroke-dasharray", "$circumference"); attr("stroke-dashoffset", "${circumference * (1 - fraction.coerceIn(0.0, 1.0))}")
+            })
+        }
+        Div({ classes("center") }) { content() }
+    }
+}
+
+@Composable
+fun Xp(amount: Int, green: Boolean = false) {
+    Span({ classes(*listOfNotNull("xp", if (green) "green" else null).toTypedArray()) }) {
+        Icon("bolt")
+        Text("${if (amount > 0) "+" else ""}$amount XP")
+    }
+}
+
+@Composable
+fun Switch(checked: Boolean, label: String, onChange: (Boolean) -> Unit) {
+    val latest = androidx.compose.runtime.rememberUpdatedState(onChange)
+    val current = androidx.compose.runtime.rememberUpdatedState(checked)
+    Button({
+        type(ButtonType.Button)
+        classes(*listOfNotNull("switch", if (checked) "on" else null).toTypedArray())
+        attr("role", "switch"); attr("aria-checked", checked.toString()); attr("aria-label", label)
+        onClick { latest.value(!current.value) }
+    }) {}
+}
+
+/** Chips de filtro (como os do Treinar no app). */
+@Composable
+fun <T> FilterChips(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
+    val latest = androidx.compose.runtime.rememberUpdatedState(onSelect)
+    Div({ classes("filter-chips") }) {
+        options.forEach { (key, label) ->
+            androidx.compose.runtime.key(key) {
+                Button({
+                    type(ButtonType.Button)
+                    classes(*listOfNotNull("fchip", if (key == selected) "on" else null).toTypedArray())
+                    attr("aria-pressed", (key == selected).toString())
+                    onClick { latest.value(key) }
+                }) {
+                    if (key == selected) Icon("check")
+                    Text(label)
+                }
+            }
+        }
+    }
+}
+
+object Toast {
+    var message by androidx.compose.runtime.mutableStateOf<String?>(null)
+        private set
+    private var serial = 0
+
+    fun show(text: String) {
+        message = text
+        val mine = ++serial
+        kotlinx.browser.window.setTimeout({ if (serial == mine) message = null }, 3200)
+    }
+}
+
+@Composable
+fun ToastHost() {
+    Toast.message?.let { text ->
+        Div({ classes("toast"); attr("role", "status") }) { Icon("check_circle", filled = true); Text(text) }
+    }
+}

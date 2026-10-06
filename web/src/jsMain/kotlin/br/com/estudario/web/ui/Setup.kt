@@ -111,22 +111,8 @@ fun SetupScreen() {
         }
         2 -> Card {
             H2 { Text("Quanto tempo por dia?") }
-            P({ classes("muted"); attr("style", "margin:6px 0 14px") }) { Text("Deixe 0 nos dias de folga. Dá para mudar quando quiser.") }
-            Div({ classes("grid", "cols-4") }) {
-                Queries.weekdayLong.forEachIndexed { index, day ->
-                    Div({ classes("field") }) {
-                        Label { Text(day.replaceFirstChar(Char::uppercase)) }
-                        Input(InputType.Number) {
-                            classes("input")
-                            value(minutes[index].toString())
-                            attr("min", "0"); attr("max", "720"); attr("step", "10")
-                            onInput { event -> minutes = minutes.toMutableList().also { it[index] = (event.value?.toInt() ?: 0).coerceIn(0, 720) } }
-                        }
-                        Span({ classes("small", "muted") }) { Text(Queries.minutesLabel(minutes[index])) }
-                    }
-                }
-            }
-            P({ classes("strong"); attr("style", "margin-top:12px") }) { Text("Total: ${Queries.minutesLabel(minutes.sum())} por semana") }
+            P({ classes("muted"); attr("style", "margin:6px 0 14px") }) { Text("Use o menos e o mais em cada dia. Dia sem tempo vira folga. Dá para mudar quando quiser.") }
+            WeeklyHoursEditor(minutes) { minutes = it }
             Nav(onBack = { step = 1 }, onNext = { step = 3 }, enabled = minutes.any { it > 0 })
         }
         else -> Card {
@@ -134,7 +120,7 @@ fun SetupScreen() {
             Div({ classes("stack"); attr("style", "margin-top:14px") }) {
                 StudyProfile.entries.forEach { option ->
                     Button({
-                        classes("option", *(if (profile == option) arrayOf("right") else emptyArray()))
+                        classes(*listOfNotNull("option", if (profile == option) "chosen" else null).toTypedArray())
                         onClick { profile = option }
                     }) {
                         Span({ classes("key") }) { Icon(if (profile == option) "check" else "radio_button_unchecked") }

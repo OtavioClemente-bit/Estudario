@@ -9,22 +9,29 @@ import kotlinx.browser.window
 sealed class Route(val path: String) {
     data object Home : Route("inicio")
     data object Plan : Route("plano")
+    data object PlanSettings : Route("plano/ajustar")
     data object Edital : Route("edital")
     data class Topic(val id: Long) : Route("edital/$id")
-    data object Questions : Route("questoes")
-    data class Quiz(val scope: String) : Route("questoes/treino/$scope")
-    data object Reviews : Route("revisoes")
-    data object Errors : Route("erros")
-    data object Simulations : Route("simulados")
-    data object Stats : Route("desempenho")
-    data object Profile : Route("perfil")
+    data object Train : Route("treinar")
+    data class Quiz(val scope: String) : Route("treinar/questoes/$scope")
+    data class Flashcards(val topicId: Long?) : Route(if (topicId == null) "treinar/flashcards" else "treinar/flashcards/$topicId")
+    data object Reviews : Route("treinar/revisoes")
+    data object Errors : Route("treinar/erros")
+    data object Simulations : Route("treinar/simulados")
+    data object More : Route("mais")
+    data object Stats : Route("mais/desempenho")
+    data object Achievements : Route("mais/conquistas")
+    data object Settings : Route("mais/ajustes")
+    data object Focus : Route("foco")
     data object Setup : Route("configurar")
 
     /** Item do menu ao qual esta rota pertence. */
     val section: Route
         get() = when (this) {
             is Topic -> Edital
-            is Quiz -> Questions
+            PlanSettings -> Plan
+            is Quiz, is Flashcards, Reviews, Errors, Simulations -> Train
+            Stats, Achievements, Settings, Setup -> More
             else -> this
         }
 
@@ -32,15 +39,28 @@ sealed class Route(val path: String) {
         fun parse(hash: String): Route {
             val parts = hash.removePrefix("#").removePrefix("/").split('/').filter { it.isNotEmpty() }
             return when (parts.firstOrNull()) {
-                null, "inicio" -> Home
-                "plano" -> Plan
+                null, "inicio", "demo" -> Home
+                "plano" -> if (parts.getOrNull(1) == "ajustar") PlanSettings else Plan
                 "edital" -> parts.getOrNull(1)?.toLongOrNull()?.let(::Topic) ?: Edital
-                "questoes" -> if (parts.getOrNull(1) == "treino") Quiz(parts.getOrNull(2) ?: "todas") else Questions
+                "treinar", "questoes" -> when (parts.getOrNull(1)) {
+                    "questoes", "treino" -> Quiz(parts.getOrNull(2) ?: "rapido-10")
+                    "flashcards" -> Flashcards(parts.getOrNull(2)?.toLongOrNull())
+                    "revisoes" -> Reviews
+                    "erros" -> Errors
+                    "simulados" -> Simulations
+                    else -> Train
+                }
                 "revisoes" -> Reviews
                 "erros" -> Errors
                 "simulados" -> Simulations
+                "mais", "perfil" -> when (parts.getOrNull(1)) {
+                    "desempenho" -> Stats
+                    "conquistas" -> Achievements
+                    "ajustes" -> Settings
+                    else -> More
+                }
                 "desempenho" -> Stats
-                "perfil" -> Profile
+                "foco" -> Focus
                 "configurar" -> Setup
                 else -> Home
             }

@@ -1,17 +1,22 @@
 package br.com.estudario.web.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import br.com.estudario.domain.ProgressEngine
 import br.com.estudario.web.Route
 import br.com.estudario.web.Router
 import br.com.estudario.web.data.Actions
+import br.com.estudario.web.data.Prefs
 import br.com.estudario.web.data.Question
 import br.com.estudario.web.data.Queries
 import br.com.estudario.web.data.Snapshot
 import br.com.estudario.web.data.Store
+import kotlinx.browser.window
+import org.jetbrains.compose.web.dom.B
 import org.jetbrains.compose.web.dom.Button
 import org.jetbrains.compose.web.dom.Div
 import org.jetbrains.compose.web.dom.H2
@@ -19,94 +24,160 @@ import org.jetbrains.compose.web.dom.H3
 import org.jetbrains.compose.web.dom.P
 import org.jetbrains.compose.web.dom.Span
 import org.jetbrains.compose.web.dom.Text
+import org.w3c.dom.events.KeyboardEvent
 import kotlin.js.Date
 import kotlin.random.Random
 
+/** Os modos do Treinar no app. */
+private val modes = listOf(
+    "smart" to "Treino inteligente",
+    "random" to "Aleatórias",
+    "new" to "Novas",
+    "wrong" to "Apenas erradas",
+    "mostwrong" to "Mais erradas",
+    "neverright" to "Nunca acertadas",
+    "favorites" to "Favoritas",
+)
+
+private val difficulties = listOf("all" to "Todas", "FACIL" to "Fácil", "MEDIA" to "Média", "DIFICIL" to "Difícil")
+
 @Composable
-fun QuestionsScreen() {
+fun TrainScreen() {
     val data = Store.data
     val competition = Queries.primaryCompetition(data)
     val subjects = Queries.subjectsOf(data, competition?.id)
-    val topicsById = data.topics.associateBy { it.id }
     val questions = Queries.visibleQuestions(data)
-    val bySubject = questions.groupBy { topicsById[it.topicId]?.subjectId }
-    val answered = questions.count { it.answerCount > 0 }
-    val correct = questions.sumOf { it.correctCount }
-    val total = questions.sumOf { it.answerCount }
+    val topicsById = data.topics.associateBy { it.id }
+    var mode by remember { mutableStateOf("smart") }
+    var subject by remember { mutableStateOf(-1L) }
+    var board by remember { mutableStateOf("all") }
+    var difficulty by remember { mutableStateOf("all") }
     var count by remember { mutableStateOf(10) }
+    val boards = questions.mapNotNull { it.board?.trim()?.takeIf(String::isNotBlank) }.distinct().sorted()
+    val due = Queries.dueReviews(data)
+    val errors = Queries.pendingErrors(data)
+    val scope = "m-$mode~s-$subject~b-${js("encodeURIComponent")(board)}~d-$difficulty~n-$count"
+    val available = pickQuestions(data, scope, preview = true).size
 
-    PageHead("Questões", "${questions.size} questões no seu banco") {
-        Btn("Treino rápido", { Router.go(Route.Quiz("rapido-$count")) }, icon = "bolt", enabled = questions.isNotEmpty())
+    PageHead("Treinar", "Escolha o foco e transforme cada sessão em progresso")
+
+    Div({ classes("grid", "cols-4") }) {
+        TrainTile("replay", "Revisões", if (due.isEmpty()) "Em dia" else "${due.size} para hoje", due.isNotEmpty()) { Router.go(Route.Reviews) }
+        TrainTile("style", "Flashcards", "Revisão rápida", false) { Router.go(Route.Flashcards(null)) }
+        TrainTile("error_med", "Caderno de erros", if (errors.isEmpty()) "Tudo certo" else "${errors.size} para rever", errors.isNotEmpty()) { Router.go(Route.Errors) }
+        TrainTile("timer", "Simulados", "Provas completas", false) { Router.go(Route.Simulations) }
     }
 
-    Div({ classes("grid", "cols-3") }) {
-        Card(extra = "flat") { Stat("$answered", "questões já respondidas") }
-        Card(extra = "flat") { Stat(if (total == 0) "–" else "${percent(correct, total)}%", "de acerto no geral") }
-        Card(extra = "flat") { Stat("${Queries.pendingErrors(data).size}", "no caderno de erros") }
-    }
-
-    Card {
-        CardHead("Tamanho do treino") {
-            Div({ classes("segmented") }) {
-                listOf(5, 10, 20, 30).forEach { n -> Button({ classes(*listOfNotNull(if (count == n) "on" else null).toTypedArray()); onClick { count = n } }) { Text("$n") } }
-            }
+    Card(extra = "pad-lg") {
+        if (questions.isEmpty()) {
+            Empty("quiz", "Seu banco de questões está vazio", "Abra um tópico no Edital e gere o material com IA: as questões aparecem aqui para treinar.", action = {
+                Btn("Ir para o Edital", { Router.go(Route.Edital) }, icon = "checklist")
+            })
+            return@Card
         }
-        P({ classes("muted", "small") }) { Text("O treino rápido mistura questões que você ainda não fez com as que errou. Também dá para treinar por matéria abaixo ou por tópico no Edital.") }
+        Div({ classes("stack", "loose") }) {
+            FilterBlock("Modo") { FilterChips(modes, mode) { mode = it } }
+            FilterBlock("Matéria") {
+                FilterChips(listOf(-1L to "Todas") + subjects.filter { s -> questions.any { topicsById[it.topicId]?.subjectId == s.id } }.map { it.id to it.name }, subject) { subject = it }
+            }
+            if (boards.isNotEmpty()) FilterBlock("Banca") { FilterChips(listOf("all" to "Todas") + boards.map { it to it }, board) { board = it } }
+            FilterBlock("Dificuldade") { FilterChips(difficulties, difficulty) { difficulty = it } }
+            Div({ classes("row", "between", "wrap") }) {
+                Div {
+                    H3 { Text("Quantidade") }
+                    P({ classes("small", "muted") }) { Text(if (available == 0) "Nenhuma questão com esses filtros" else "$available disponíve${if (available == 1) "l" else "is"} com esses filtros") }
+                }
+                Stepper(count, { count = it }, step = 5, min = 5, max = 60, label = "Quantidade de questões")
+            }
+            Btn(modes.first { it.first == mode }.second.let { "Iniciar ${it.lowercase()}" }, { Router.go(Route.Quiz(scope)) }, block = true, style = "primary", icon = "play_arrow", enabled = available > 0)
+        }
     }
 
-    if (questions.isEmpty()) {
-        Card { Empty("quiz", "Banco vazio", "Gere ou importe questões no app: elas aparecem aqui para resolver no computador.") }
-        return
-    }
-
+    // Visão por matéria: quanto já foi feito e o acerto.
+    val bySubject = questions.groupBy { topicsById[it.topicId]?.subjectId }
     Card {
-        CardHead("Por matéria")
+        CardHead("Seu banco por matéria")
         Div({ classes("stack") }) {
-            subjects.forEach { subject ->
-                val list = bySubject[subject.id].orEmpty()
+            subjects.forEach { s ->
+                val list = bySubject[s.id].orEmpty()
                 if (list.isEmpty()) return@forEach
-                val subjectTotal = list.sumOf { it.answerCount }
-                val subjectCorrect = list.sumOf { it.correctCount }
-                Div({ classes("task") }) {
-                    Div({ classes("task-body") }) {
-                        Div({ classes("task-title") }) { Text(subject.name) }
-                        Div({ classes("task-meta") }) {
-                            Text("${list.size} questões · ${list.count { it.answerCount == 0 }} inéditas")
-                            if (subjectTotal > 0) Text(" · ${percent(subjectCorrect, subjectTotal)}% de acerto")
+                val total = list.sumOf { it.answerCount }
+                val right = list.sumOf { it.correctCount }
+                androidx.compose.runtime.key(s.id) {
+                    Div({ classes("stack", "tight") }) {
+                        Div({ classes("row", "between") }) {
+                            B({ classes("clamp-2") }) { Text(s.name) }
+                            Span({ classes("small", "muted", "nowrap") }) { Text("${list.size} questões${if (total > 0) " · ${percent(right, total)}%" else ""}") }
                         }
+                        ProgressBar(if (total == 0) 0.0 else right.toDouble() / total, if (total > 0 && right * 100 / total >= 70) "green" else null)
                     }
-                    Btn("Treinar", { Router.go(Route.Quiz("materia-${subject.id}-$count")) }, style = "tonal", small = true)
                 }
             }
         }
     }
 }
 
-/** Escolhe as questões do treino conforme o endereço (#/questoes/treino/...). */
-private fun pickQuestions(data: Snapshot, scope: String): List<Question> {
+@Composable
+private fun FilterBlock(title: String, content: @Composable () -> Unit) {
+    Div({ classes("stack", "tight") }) {
+        H3 { Text(title) }
+        content()
+    }
+}
+
+@Composable
+private fun TrainTile(icon: String, title: String, subtitle: String, highlight: Boolean, onClick: () -> Unit) {
+    val latest = androidx.compose.runtime.rememberUpdatedState(onClick)
+    Button({ classes("card", "clickable"); attr("style", "text-align:left;font:inherit;color:inherit"); onClick { latest.value() } }) {
+        Div({ classes("stack", "tight") }) {
+            Span({ classes("task-mark"); attr("style", if (highlight) "background:var(--amber-soft);color:var(--on-amber-soft)" else "background:var(--primary-soft);color:var(--on-primary-soft)") }) { Icon(icon) }
+            B { Text(title) }
+            Span({ classes("small", "muted") }) { Text(subtitle) }
+        }
+    }
+}
+
+/** Escolhe as questões conforme o endereço (#/treinar/questoes/...). */
+fun pickQuestions(data: Snapshot, scope: String, preview: Boolean = false): List<Question> {
     val pool = Queries.visibleQuestions(data)
     val topicsById = data.topics.associateBy { it.id }
-    val parts = scope.split('-')
-    val seed = Date.now().toLong()
-    val random = Random(seed)
+    val errorIds = data.errors.filter { it.status != "CORRIGIDO" }.mapTo(hashSetOf()) { it.questionId }
+    val random = Random(if (preview) 1 else Date.now().toLong())
     fun smart(list: List<Question>, n: Int): List<Question> {
-        // Inéditas e erradas primeiro, depois as demais; dentro de cada grupo, ordem aleatória.
-        val errorIds = data.errors.filter { it.status != "CORRIGIDO" }.mapTo(hashSetOf()) { it.questionId }
+        // Inéditas e erradas primeiro; dentro de cada grupo, ordem aleatória (como o treino inteligente do app).
         val (priority, rest) = list.partition { it.answerCount == 0 || it.id in errorIds }
         return (priority.shuffled(random) + rest.shuffled(random)).take(n)
     }
-    return when (parts.firstOrNull()) {
-        "topico" -> pool.filter { it.topicId == parts.getOrNull(1)?.toLongOrNull() }.let { smart(it, it.size) }
-        "materia" -> {
-            val subjectId = parts.getOrNull(1)?.toLongOrNull()
-            smart(pool.filter { topicsById[it.topicId]?.subjectId == subjectId }, parts.getOrNull(2)?.toIntOrNull() ?: 10)
-        }
-        "erros" -> {
-            val ids = data.errors.filter { it.status != "CORRIGIDO" }.sortedBy { it.nextRetryAt ?: 0 }.map { it.questionId }
-            ids.mapNotNull { id -> pool.firstOrNull { it.id == id } }.take(parts.getOrNull(1)?.toIntOrNull() ?: 20)
-        }
-        else -> smart(pool, parts.getOrNull(1)?.toIntOrNull() ?: 10)
+    // Endereços antigos: topico-ID, materia-ID-N, erros-N, rapido-N.
+    val legacy = scope.split('-')
+    when (legacy.firstOrNull()) {
+        "topico" -> return pool.filter { it.topicId == legacy.getOrNull(1)?.toLongOrNull() }.let { smart(it, it.size) }
+        "materia" -> return smart(pool.filter { topicsById[it.topicId]?.subjectId == legacy.getOrNull(1)?.toLongOrNull() }, legacy.getOrNull(2)?.toIntOrNull() ?: 10)
+        "erros" -> return data.errors.filter { it.status != "CORRIGIDO" }.sortedBy { it.nextRetryAt ?: 0 }.mapNotNull { e -> pool.firstOrNull { it.id == e.questionId } }.take(legacy.getOrNull(1)?.toIntOrNull() ?: 20)
+        "rapido" -> return smart(pool, legacy.getOrNull(1)?.toIntOrNull() ?: 10)
     }
+    val params = scope.split('~').associate { part -> part.substringBefore('-') to part.substringAfter('-', "") }
+    val mode = params["m"] ?: "smart"
+    val subject = params["s"]?.toLongOrNull() ?: -1L
+    val board = params["b"]?.let { js("decodeURIComponent")(it) as String } ?: "all"
+    val difficulty = params["d"] ?: "all"
+    val count = params["n"]?.toIntOrNull()?.coerceIn(1, 100) ?: 10
+    val errorCounts = data.errors.associate { it.questionId to it.errorCount }
+    val filtered = pool.filter { q ->
+        (subject < 0 || topicsById[q.topicId]?.subjectId == subject) &&
+            (board == "all" || q.board?.trim() == board) &&
+            (difficulty == "all" || q.difficulty == difficulty)
+    }
+    val chosen = when (mode) {
+        "random" -> filtered.shuffled(random)
+        "new" -> filtered.filter { it.answerCount == 0 }.shuffled(random)
+        "wrong" -> filtered.filter { it.id in errorIds }.shuffled(random)
+        "mostwrong" -> filtered.filter { it.errorCount > 0 }.sortedByDescending { errorCounts[it.id] ?: it.errorCount }
+        "neverright" -> filtered.filter { it.answerCount > 0 && it.correctCount == 0 }.shuffled(random)
+        "favorites" -> filtered.filter { it.favorite }.shuffled(random)
+        else -> return smart(filtered, count)
+    }
+    return chosen.take(count)
 }
 
 @Composable
@@ -116,11 +187,13 @@ fun QuizScreen(scope: String) {
     val startedAt = remember(scope) { Date.now().toLong() }
     var index by remember(scope) { mutableStateOf(0) }
     var selected by remember(scope) { mutableStateOf<String?>(null) }
+    var revealed by remember(scope) { mutableStateOf(false) }
     var results by remember(scope) { mutableStateOf(listOf<Boolean>()) }
     var saved by remember(scope) { mutableStateOf(false) }
+    val explainNow = remember { Prefs.explanationRightAway }
 
     if (initial.isEmpty()) {
-        Card { Empty("quiz", "Nada para treinar aqui", "Não há questões neste recorte.", action = { Btn("Voltar", { Router.go(Route.Questions) }) }) }
+        Card { Empty("quiz", "Nada para treinar aqui", "Não há questões neste recorte. Tente outros filtros.", action = { Btn("Voltar ao Treinar", { Router.go(Route.Train) }) }) }
         return
     }
 
@@ -130,17 +203,22 @@ fun QuizScreen(scope: String) {
             saved = true
             val topicIds = initial.mapTo(hashSetOf()) { it.topicId }
             val subjectIds = Store.data.topics.filter { it.id in topicIds }.mapTo(hashSetOf()) { it.subjectId }
-            val type = when { scope.startsWith("topico") -> "TOPIC"; scope.startsWith("materia") -> "SUBJECT"; scope.startsWith("erros") -> "ERROR_REVIEW"; else -> "QUICK" }
+            val type = when { scope.startsWith("topico") -> "TOPIC"; scope.contains("s-") && !scope.contains("s--1") -> "SUBJECT"; scope.startsWith("erros") || scope.contains("m-wrong") -> "ERROR_REVIEW"; scope.contains("m-smart") -> "SMART"; else -> "QUICK" }
             Store.update { Actions.saveQuestionSession(it, type, startedAt, results.size, right, subjectIds, topicIds, sessionId) }
         }
-        Card {
-            Div({ classes("stack"); attr("style", "align-items:center;text-align:center;padding:24px 0") }) {
-                Icon(if (right * 2 >= results.size) "celebration" else "fitness_center", extraClass = "big")
-                H2 { Text("$right de ${results.size} certas (${percent(right, results.size)}%)") }
-                P({ classes("muted") }) { Text(if (results.size - right > 0) "As que você errou foram para o caderno de erros e voltam em 3 dias." else "Gabaritou! Nenhuma foi para o caderno de erros.") }
-                Div({ classes("row") }) {
-                    Btn("Treinar de novo", { Router.go(Route.Questions) }, style = "outline")
-                    Btn("Voltar ao início", { Router.go(Route.Home) })
+        val xp = ProgressEngine.previewQuestions(results.size).base + right
+        Card(extra = "pad-lg") {
+            Div({ classes("stack"); attr("style", "align-items:center;text-align:center;padding:12px 0") }) {
+                Ring(if (results.isEmpty()) 0.0 else right.toDouble() / results.size) {
+                    B { Text("${percent(right, results.size)}%") }
+                    Span { Text("de acerto") }
+                }
+                H2 { Text(if (right * 10 >= results.size * 7) "Mandou bem!" else if (right * 2 >= results.size) "Bom treino!" else "Cada erro é um degrau") }
+                P({ classes("muted") }) { Text("$right de ${results.size} certas. ${if (results.size - right > 0) "As erradas foram para o caderno de erros e voltam em 3 dias." else "Nenhuma foi para o caderno de erros."}") }
+                Xp(xp)
+                Div({ classes("row", "wrap"); attr("style", "justify-content:center;margin-top:8px") }) {
+                    Btn("Treinar de novo", { Router.go(Route.Train) }, style = "outline", icon = "refresh")
+                    Btn("Voltar ao início", { Router.go(Route.Home) }, icon = "home")
                 }
             }
         }
@@ -150,61 +228,99 @@ fun QuizScreen(scope: String) {
     val question = Store.data.questions.firstOrNull { it.id == initial[index].id } ?: initial[index]
     val topic = Store.data.topics.firstOrNull { it.id == question.topicId }
     val answered = selected != null
+    val showResult = answered && (explainNow || revealed)
     val correctKey = question.options.firstOrNull { it.correct }?.key
+    val options = question.options.sortedBy { it.position }
 
-    Div({ classes("row", "between", "wrap") }) {
-        Btn("Sair", { Router.go(Route.Questions) }, style = "ghost", small = true, icon = "close")
-        Span({ classes("strong", "muted") }) { Text("Questão ${index + 1} de ${initial.size}") }
-        Span({ classes("small", "muted") }) { Text("${results.count { it }} certas") }
+    fun choose(key: String) {
+        if (selected != null) return
+        selected = key
+        var ok = false
+        Store.update { snapshot -> Actions.answer(snapshot, question.id, key, sessionId).also { ok = it.second }.first }
+        results = results + ok
+    }
+    fun next() { selected = null; revealed = false; index++ }
+
+    // Teclado: A–E escolhem, Enter avança.
+    val latestChoose = androidx.compose.runtime.rememberUpdatedState(::choose)
+    val latestNext = androidx.compose.runtime.rememberUpdatedState(::next)
+    val latestState = androidx.compose.runtime.rememberUpdatedState(Triple(answered, options.map { it.key }, showResult))
+    DisposableEffect(scope) {
+        val listener: (org.w3c.dom.events.Event) -> Unit = { event ->
+            val key = (event as KeyboardEvent).key.uppercase()
+            val (isAnswered, keys, shown) = latestState.value
+            when {
+                !isAnswered && key in keys -> latestChoose.value(key)
+                isAnswered && (key == "ENTER" || key == "ARROWRIGHT") && shown -> latestNext.value()
+            }
+        }
+        window.addEventListener("keydown", listener)
+        onDispose { window.removeEventListener("keydown", listener) }
+    }
+
+    Div({ classes("row", "between") }) {
+        Btn("Sair", { Router.go(Route.Train) }, style = "ghost", small = true, icon = "close")
+        Span({ classes("strong", "muted") }) { Text("${index + 1} de ${initial.size}") }
+        Div({ classes("row") }) {
+            Span({ classes("chip", "green") }) { Icon("check"); Text("${results.count { it }}") }
+            Span({ classes("chip", "red") }) { Icon("close"); Text("${results.count { !it }}") }
+        }
     }
     ProgressBar(index.toDouble() / initial.size)
-    Div({ classes("grid", "main-side") }) {
-        Card {
-            Div({ classes("stack") }) {
+    Card(extra = "pad-lg") {
+        Div({ classes("stack") }) {
+            Div({ classes("row", "between") }) {
                 Div({ classes("row", "wrap") }) {
-                    topic?.let { Chip(it.title) }
+                    topic?.let { Chip(it.title, "primary") }
                     listOfNotNull(question.board, question.agency, question.year?.toString()).takeIf { it.isNotEmpty() }?.let { Chip(it.joinToString(" · ")) }
                 }
-                P({ classes("statement") }) { Text(question.statement) }
-                Div({ classes("stack") }) {
-                    question.options.sortedBy { it.position }.forEach { option -> androidx.compose.runtime.key(question.id, option.key) {
+                IconButton(if (question.favorite) "star" else "star_outline", if (question.favorite) "Tirar dos favoritos" else "Favoritar") {
+                    Store.update { Actions.toggleFavorite(it, question.id) }
+                }
+            }
+            P({ classes("statement") }) { Text(question.statement) }
+            Div({ classes("stack", "tight") }) {
+                options.forEach { option ->
+                    androidx.compose.runtime.key(question.id, option.key) {
                         val state = when {
                             !answered -> null
-                            option.key == correctKey -> "right"
-                            option.key == selected -> "wrong"
+                            showResult && option.key == correctKey -> "right"
+                            showResult && option.key == selected -> "wrong"
+                            option.key == selected -> "chosen"
                             else -> null
                         }
                         Button({
                             classes(*listOfNotNull("option", state).toTypedArray())
                             if (answered) attr("disabled", "")
-                            onClick {
-                                if (selected == null) {
-                                    selected = option.key
-                                    var ok = false
-                                    Store.update { snapshot -> Actions.answer(snapshot, question.id, option.key, sessionId).also { ok = it.second }.first }
-                                    results = results + ok
-                                }
-                            }
+                            onClick { choose(option.key) }
                         }) {
                             Span({ classes("key") }) { Text(option.key) }
                             Span { Inline(option.text) }
                         }
-                    } }
+                    }
                 }
             }
         }
-        Div({ classes("stack") }) {
-            if (answered) {
-                val right = selected == correctKey
-                Div({ classes("banner", if (right) "info" else "error") }) {
-                    Icon(if (right) "check_circle" else "cancel", filled = true)
-                    Text(if (right) "Resposta certa!" else "Resposta certa: $correctKey")
-                }
-                if (question.explanation.isNotBlank()) Card { H3 { Text("Explicação") }; Div({ attr("style", "margin-top:8px") }) { Markdown(question.explanation) } }
-                Btn(if (index + 1 < initial.size) "Próxima questão" else "Ver resultado", { selected = null; index++ }, block = true, icon = "arrow_forward")
-            } else {
-                Card(extra = "soft") { P({ classes("muted", "small") }) { Text("Escolha uma alternativa. A correção e a explicação aparecem logo em seguida.") } }
+    }
+    if (answered) {
+        if (showResult) {
+            val right = selected == correctKey
+            Div({ classes("banner", if (right) "ok" else "error") }) {
+                Icon(if (right) "check_circle" else "cancel", filled = true)
+                Text(if (right) "Resposta certa!" else "Resposta certa: $correctKey. A questão foi para o caderno de erros.")
+            }
+            if (question.explanation.isNotBlank()) Card {
+                CardHead("Explicação")
+                Markdown(question.explanation)
+            }
+            Btn(if (index + 1 < initial.size) "Próxima questão" else "Ver resultado", { next() }, block = true, icon = "arrow_forward")
+        } else {
+            Div({ classes("row", "wrap") }) {
+                Btn("Ver correção", { revealed = true }, style = "tonal", icon = "visibility")
+                Btn(if (index + 1 < initial.size) "Próxima" else "Ver resultado", { next() }, icon = "arrow_forward")
             }
         }
+    } else {
+        P({ classes("small", "faint"); attr("style", "text-align:center") }) { Text("Dica: use as teclas A, B, C, D, E para responder e Enter para avançar.") }
     }
 }

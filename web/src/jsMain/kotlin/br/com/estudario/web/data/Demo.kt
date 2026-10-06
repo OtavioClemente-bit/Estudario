@@ -124,6 +124,22 @@ object Demo {
         val reviews = topics.filter { it.status == "ESTUDADO" }.take(5).mapIndexed { index, topic ->
             jsonOf("id" to reviewId++, "topicId" to topic.id, "stage" to 1 + index % 2, "dueAt" to at(todayEpoch - (index % 3), 0), "completedAt" to null, "ignoredAt" to null, "perceivedDifficulty" to null, "questionCorrect" to 0, "questionTotal" to 0)
         }
-        return data.appendAll(mapOf(Keys.REVIEWS to reviews))
+        // Um baralho de flashcards no formato da revisão rápida do app (### frente, verso no corpo).
+        val deck = listOf(
+            "O que é efeito avalanche?" to "Mudar um único bit da entrada muda boa parte do resumo (hash) gerado.",
+            "Hash garante confidencialidade?" to "Não. Hash garante **integridade**; quem esconde o conteúdo é a cifra.",
+            "O que é resistência à colisão?" to "É ser inviável encontrar duas entradas diferentes com o mesmo hash.",
+            "Por que usar salt ao guardar senhas?" to "Para que senhas iguais gerem hashes diferentes e ataques com tabelas prontas não funcionem.",
+            "Dá para \"descriptografar\" um hash?" to "Não existe operação inversa: a banca costuma trocar hash por cifra para pegar o candidato.",
+        ).joinToString("\n\n") { (front, back) -> "### $front\n\n$back" }
+        val hashTopic = topics.firstOrNull { it.title == "Hash" }?.id ?: topics.first().id
+        return data.appendAll(
+            mapOf(
+                Keys.REVIEWS to reviews,
+                Keys.SUMMARIES to listOf(
+                    jsonOf("id" to data.nextId(Keys.SUMMARIES), "topicId" to hashTopic, "title" to "Revisão rápida", "markdown" to deck, "favorite" to false, "ownNotes" to "", "externalId" to "demo-flash-hash", "createdAt" to now, "updatedAt" to now, "kind" to "RAPIDO"),
+                ),
+            ),
+        )
     }
 }

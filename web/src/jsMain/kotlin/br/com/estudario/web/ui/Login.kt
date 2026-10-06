@@ -49,15 +49,15 @@ fun LoginScreen() {
         Div({ classes("auth-art") }) {
             Div({ classes("row") }) {
                 Img(src = "icon.png", alt = "", attrs = { attr("width", "40"); attr("height", "40"); attr("style", "border-radius:10px") })
-                Span({ classes("strong"); attr("style", "font-size:22px") }) { Text("Estudário") }
+                Span({ classes("strong"); attr("style", "font-size:22px") }) { Text("estudário") }
             }
             Div {
-                H1 { Text("Seu plano de estudos, agora também no computador.") }
+                H1 { Text("Seu estudo, no rumo certo. Agora também no computador.") }
                 Ul {
-                    Li { Text("O plano do dia e da semana, com tela grande") }
-                    Li { Text("Edital, teoria e resumos para ler com calma") }
-                    Li { Text("Questões, revisões e caderno de erros") }
-                    Li { Text("Tudo sincronizado com o app do celular") }
+                    Li { Icon("calendar_month"); Text("Um plano que cabe na sua vida, do dia ao ano") }
+                    Li { Icon("checklist"); Text("Seu edital organizado, com material pronto") }
+                    Li { Icon("school"); Text("Questões, flashcards, revisões e caderno de erros") }
+                    Li { Icon("devices"); Text("No computador e no celular, sempre sincronizado") }
                 }
             }
             P({ classes("small"); attr("style", "opacity:.8") }) { Text("estudario.com.br") }

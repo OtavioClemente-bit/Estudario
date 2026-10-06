@@ -145,10 +145,11 @@ fun TopicScreen(topicId: Long) {
     Div({ classes("row") }) { Btn("Edital", { Router.go(Route.Edital) }, style = "ghost", small = true, icon = "arrow_back") }
     PageHead(topic.title, subject?.name) {
         Chip(Queries.topicStatusLabel(topic.status), when (topic.status) { "DOMINADO" -> "green"; "EM_ESTUDO" -> "amber"; "NAO_ESTUDADO" -> null; else -> "primary" })
-        if (questions.isNotEmpty()) Btn("Resolver ${questions.size} questões", { Router.go(Route.Quiz("topico-$topicId")) }, style = "tonal", icon = "quiz")
-        if (!Store.demo && tabs.isNotEmpty()) Btn("Gerar de novo", { generating = true }, style = "outline", icon = "auto_awesome")
-        if (!studied) Btn("Marcar como estudado", { Store.update { Actions.completeStudy(it, topicId) } }, icon = "check")
-        else Btn("Desmarcar estudado", { Store.update { Actions.unmarkStudied(it, topicId) } }, style = "outline")
+        if (questions.isNotEmpty()) Btn("Resolver ${questions.size} questões", { Router.go(Route.Quiz("topico-$topicId")) }, style = "tonal", icon = "quiz", small = true)
+        if (flashcardsOf(data, topicId).isNotEmpty()) Btn("Flashcards", { Router.go(Route.Flashcards(topicId)) }, style = "tonal", icon = "style", small = true)
+        if (!Store.demo && tabs.isNotEmpty()) Btn("Gerar de novo", { generating = true }, style = "outline", icon = "auto_awesome", small = true)
+        if (!studied) Btn("Marcar como estudado", { Store.update { Actions.completeStudy(it, topicId) }; Toast.show("Tópico estudado! Revisões agendadas para D+1, D+7 e D+30.") }, icon = "check", small = true)
+        else Btn("Desmarcar estudado", { Store.update { Actions.unmarkStudied(it, topicId) } }, style = "outline", small = true)
     }
     if (topic.description.isNotBlank()) P({ classes("muted") }) { Text(topic.description) }
     if (generating) GenerateDialog(topicId) { generating = false }

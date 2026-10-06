@@ -196,6 +196,47 @@ object Planning {
             )
     }
 
+    /** Uma linha de revisão e o plano na revisão seguinte (o claimRevision do app). */
+    private fun bumpRevision(data: Snapshot, planId: String, reason: String, summary: String): Snapshot {
+        val plan = data.plans.firstOrNull { it.id == planId } ?: return data
+        val at = now()
+        return data
+            .edit(Keys.PLANS) { if (it.str("id") == planId) it.with("revision" to JsonPrimitive(plan.revision + 1), "updatedAt" to JsonPrimitive(at)) else it }
+            .append(Keys.PLAN_REVISIONS, jsonOf("planId" to planId, "revision" to plan.revision + 1, "base" to plan.revision, "reason" to reason, "proposalId" to null, "summary" to summary, "createdAt" to at))
+    }
+
+    /** StudyPlanApplicationService.updateAvailability: horas por dia (segunda = índice 0) e replanejamento. */
+    fun updateAvailability(data: Snapshot, planId: String, weeklyMinutes: List<Int>): Snapshot {
+        require(weeklyMinutes.any { it > 0 }) { "Mantenha pelo menos um dia disponível." }
+        val rows = weeklyMinutes.mapIndexed { index, minutes -> jsonOf("planId" to planId, "day" to index + 1, "minutes" to minutes.coerceAtLeast(0), "unavailable" to (minutes <= 0), "mode" to "FIXED") }
+        val without = data.edit(Keys.AVAILABILITY) { if (it.str("planId") == planId) null else it }.appendAll(mapOf(Keys.AVAILABILITY to rows))
+        return replan(bumpRevision(without, planId, "AVAILABILITY_CHANGED", "Disponibilidade semanal atualizada."), planId, ReplanReason.AVAILABILITY_CHANGED)
+    }
+
+    /** StudyPlanApplicationService.updateSubject: prioridade na prova e pausa, e replanejamento. */
+    fun updateSubject(data: Snapshot, planId: String, subjectId: Long, priority: PlanPriority, paused: Boolean): Snapshot {
+        var name = ""
+        val changed = data.edit(Keys.PLAN_SUBJECTS) {
+            if (it.str("planId") == planId && it.long("subjectId") == subjectId) { name = it.str("name").orEmpty(); it.with("priority" to JsonPrimitive(priority.name), "paused" to JsonPrimitive(paused)) } else it
+        }
+        return replan(bumpRevision(changed, planId, "SUBJECT_CHANGED", name), planId, ReplanReason.SUBJECT_CHANGED)
+    }
+
+    /** Data da prova e momento do estudo (o assistente do app regrava o método e replaneja). */
+    fun updateMethod(data: Snapshot, planId: String, examDate: LocalDate?, profile: StudyProfile): Snapshot {
+        val base = StudyMethodConfig.forProfile(profile)
+        val changed = data.edit(Keys.PLANS) {
+            if (it.str("id") != planId) it
+            else it.with(
+                "exam" to (examDate?.toEpochDay()?.let { day -> JsonPrimitive(day) } ?: kotlinx.serialization.json.JsonNull),
+                "profile" to JsonPrimitive(profile.name),
+                "weeklyQuestions" to JsonPrimitive(base.weeklyQuestionsTarget),
+                "simulations" to JsonPrimitive(base.simulationsPerMonth),
+            )
+        }
+        return replan(bumpRevision(changed, planId, "SUBJECT_CHANGED", "Método do plano atualizado."), planId, ReplanReason.SUBJECT_CHANGED)
+    }
+
     private fun JsonObject.long(key: String): Long? = (this[key] as? JsonPrimitive)?.longOrNull
     private fun JsonObject.int(key: String): Int? = (this[key] as? JsonPrimitive)?.intOrNull
     private fun JsonObject.bool(key: String): Boolean? = (this[key] as? JsonPrimitive)?.booleanOrNull

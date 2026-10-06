@@ -110,10 +110,10 @@ private fun RenderBlock(block: Block) {
         is Block.Paragraph -> P { Inline(block.text) }
         is Block.Quote -> Blockquote { Inline(block.text) }
         is Block.ListBlock -> if (block.ordered) Ol { block.items.forEach { Li { Inline(it) } } } else Ul { block.items.forEach { Li { Inline(it) } } }
-        is Block.TableBlock -> Table {
+        is Block.TableBlock -> Div({ classes("table-wrap") }) { Table {
             Thead { Tr { block.header.forEach { Th { Inline(it) } } } }
             Tbody { block.rows.forEach { row -> Tr { row.forEach { Td { Inline(it) } } } } }
-        }
+        } }
         Block.Rule -> Hr()
     }
 }
