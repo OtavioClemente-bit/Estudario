@@ -1,5 +1,3 @@
-import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
-
 plugins {
     id("org.jetbrains.kotlin.multiplatform")
 }
@@ -8,8 +6,8 @@ kotlin {
     jvmToolchain(17)
     jvm()
 
-    @OptIn(ExperimentalWasmDsl::class)
-    wasmJs {
+    // O app web (app.estudario.com.br) usa estas mesmas regras compiladas para JavaScript.
+    js {
         browser()
     }
 

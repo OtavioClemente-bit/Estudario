@@ -1,0 +1,47 @@
+name: App web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - 'shared/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - '.github/workflows/web.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: web-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    env:
+      # Chaves públicas (as mesmas do APK), guardadas como variáveis do repositório.
+      ESTUDARIO_SUPABASE_URL: ${{ vars.ESTUDARIO_SUPABASE_URL }}
+      ESTUDARIO_SUPABASE_PUBLISHABLE_KEY: ${{ vars.ESTUDARIO_SUPABASE_PUBLISHABLE_KEY }}
+      ESTUDARIO_GOOGLE_WEB_CLIENT_ID: ${{ vars.ESTUDARIO_GOOGLE_WEB_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - name: Testar regras comuns e compilar o app web
+        run: bash gradlew :shared:jvmTest :web:jsBrowserDistribution --no-daemon
+      - name: Separar os arquivos publicados
+        run: |
+          mkdir -p web/build/deploy
+          while read f; do cp "web/build/dist/js/productionExecutable/$f" web/build/deploy/; done < web/deploy-files.txt
+      - name: Publicar no Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy web/build/deploy --project-name estudario-app --branch main
