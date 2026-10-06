@@ -37,6 +37,7 @@ fun PlanScreen() {
     var view by remember { mutableStateOf(PlanView.TODAY) }
     var dayOffset by remember { mutableStateOf(0) }
     var weekOffset by remember { mutableStateOf(0) }
+    var selectedDay by remember { mutableStateOf(Queries.todayEpoch()) }
     var monthOffset by remember { mutableStateOf(0) }
     var completing by remember { mutableStateOf<PlanTask?>(null) }
     var whyOpen by remember { mutableStateOf(false) }
@@ -125,49 +126,51 @@ fun PlanScreen() {
             val weekTasks = tasksByDay.values.flatten()
             val doneMinutes = weekTasks.filter { it.status == "CONCLUIDA" }.sumOf { it.minutes }
             val totalMinutes = weekTasks.sumOf { it.minutes }
+            val selected = if (selectedDay in weekStart..(weekStart + 6)) selectedDay else if (weekOffset == 0) todayEpoch else weekStart
             Div({ classes("row", "between", "wrap") }) {
                 Div({ classes("row") }) {
                     IconButton("chevron_left", "Semana anterior") { weekOffset-- }
                     B { Text("${Queries.shortDate(LocalDate.fromEpochDays(weekStart))} – ${Queries.shortDate(LocalDate.fromEpochDays(weekStart + 6))}") }
                     IconButton("chevron_right", "Próxima semana") { weekOffset++ }
-                    if (weekOffset != 0) Btn("Esta semana", { weekOffset = 0 }, style = "ghost", small = true)
+                    if (weekOffset != 0) Btn("Esta semana", { weekOffset = 0; selectedDay = todayEpoch }, style = "ghost", small = true)
                 }
                 Div({ classes("row"); attr("style", "min-width:220px;flex:1;max-width:380px") }) {
                     Div({ classes("grow") }) { ProgressBar(if (totalMinutes == 0) 0.0 else doneMinutes.toDouble() / totalMinutes, "green") }
                     Span({ classes("small", "muted", "strong", "nowrap") }) { Text("${Queries.minutesLabel(doneMinutes)} de ${Queries.minutesLabel(totalMinutes)}") }
                 }
             }
-            Div({ classes("week") }) {
+            // Calendário da semana, como no app: um dia por coluna; tocar mostra o que estudar.
+            Div({ classes("week-strip"); attr("role", "tablist") }) {
                 days.forEachIndexed { index, epoch ->
                     androidx.compose.runtime.key(epoch) {
-                        val date = LocalDate.fromEpochDays(epoch)
-                        val dayTasks = tasksByDay[epoch].orEmpty().sortedBy { it.status == "CONCLUIDA" }
+                        val list = tasksByDay[epoch].orEmpty()
+                        val done = list.count { it.status == "CONCLUIDA" }
                         val slot = availability[index + 1]
-                        val off = slot?.unavailable == true || slot?.minutes == 0
-                        Div({ classes(*listOfNotNull("day", if (epoch == todayEpoch) "today" else null, if (off && dayTasks.isEmpty()) "off" else null).toTypedArray()) }) {
-                            Div({ classes("day-head") }) {
-                                Span({ classes("day-name") }) { Text(Queries.weekdayShort[index]) }
-                                Span({ classes("day-num") }) { Text("${date.day}") }
+                        val off = list.isEmpty() && (slot?.unavailable == true || slot?.minutes == 0)
+                        Button({
+                            classes(*listOfNotNull("wday", if (epoch == selected) "on" else null, if (epoch == todayEpoch) "today" else null, if (off) "off" else null, if (list.isNotEmpty() && done == list.size) "done" else null).toTypedArray())
+                            attr("role", "tab"); attr("aria-selected", (epoch == selected).toString())
+                            onClick { selectedDay = epoch }
+                        }) {
+                            Span({ classes("wd") }) { Text(Queries.weekdayShort[index]) }
+                            Span({ classes("dn") }) { Text("${LocalDate.fromEpochDays(epoch).day}") }
+                            Span({ classes("dots") }) {
+                                if (list.isEmpty()) Span({ classes("xs") }) { Text(if (off) "folga" else "livre") }
+                                else list.take(4).forEach { t -> androidx.compose.runtime.key(t.id) { org.jetbrains.compose.web.dom.I({ attr("style", "background:${taskColors(t.type).second}"); if (t.status == "CONCLUIDA") classes("ok") }) } }
                             }
-                            if (dayTasks.isEmpty()) P({ classes("small", "muted") }) { Text(if (off) "Folga" else "Livre") }
-                            dayTasks.forEach { task ->
-                                androidx.compose.runtime.key(task.id) {
-                                    Div({
-                                        classes(*listOfNotNull("mini-task", if (task.status == "CONCLUIDA") "done" else null).toTypedArray())
-                                        attr("style", "border-left-color:${taskColors(task.type).second}")
-                                        attr("role", "button"); attr("tabindex", "0")
-                                        attr("title", "${Queries.taskTypeLabel(task.type)} · ${Queries.taskStatusLabel(task.status)}")
-                                        onClick { if (task.status != "CONCLUIDA" && task.status != "NAO_REALIZADA") completing = task }
-                                    }) {
-                                        B { Text("${Queries.taskTypeLabel(task.type)} · ${Queries.minutesLabel(task.minutes)}") }
-                                        Span { Text(task.topicName ?: task.subjectName) }
-                                    }
-                                }
-                            }
-                            if (dayTasks.isNotEmpty()) P({ classes("xs", "muted", "strong"); attr("style", "margin-top:auto") }) { Text(Queries.minutesLabel(dayTasks.sumOf { it.minutes })) }
+                            if (list.isNotEmpty()) Span({ classes("xs", "wmin") }) { Text(Queries.minutesLabel(list.sumOf { it.minutes })) }
                         }
                     }
                 }
+            }
+            val dayTasks = Queries.tasksOn(data, plan.id, selected)
+            Div({ classes("row", "between", "wrap"); attr("style", "margin-top:4px") }) {
+                org.jetbrains.compose.web.dom.H3 { Text(dayTitle(selected, todayEpoch)) }
+                if (dayTasks.isNotEmpty()) Chip("${dayTasks.count { it.status == "CONCLUIDA" }} de ${dayTasks.size} · ${Queries.minutesLabel(dayTasks.sumOf { it.minutes })}", "outline")
+            }
+            if (dayTasks.isEmpty()) Card { Empty("weekend", "Nada planejado neste dia", "Use o tempo livre para revisar, treinar questões ou adiantar o edital.") }
+            else Div({ classes("stack") }) {
+                dayTasks.forEach { task -> androidx.compose.runtime.key(task.id) { TaskRow(task) { completing = task } } }
             }
         }
         PlanView.MONTH -> {

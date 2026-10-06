@@ -166,77 +166,34 @@ fun TopicScreen(topicId: Long) {
         when {
             tab == "dicas" -> Div({ classes("stack") }) {
                 snippets.forEach { snippet ->
-                    Div({ classes("card", "soft") }) {
-                        Chip(when (snippet.kind) { "BIZU" -> "Bizu"; "PEGADINHA" -> "Pegadinha"; else -> "Recuperação" }, if (snippet.kind == "PEGADINHA") "red" else "primary")
+                    androidx.compose.runtime.key(snippet.id) { Div({ classes("card", "soft") }) {
+                        Div({ classes("row", "between") }) {
+                            Chip(when (snippet.kind) { "BIZU" -> "Bizu"; "PEGADINHA" -> "Pegadinha"; else -> "Recuperação" }, if (snippet.kind == "PEGADINHA") "red" else "primary")
+                            FavStar(snippet.favorite) { Store.update { Actions.toggleSnippetFavorite(it, snippet.id) } }
+                        }
                         P({ attr("style", "margin-top:8px") }) { Inline(snippet.text) }
                         snippet.answer?.let { P({ classes("muted", "small"); attr("style", "margin-top:6px") }) { Inline(it) } }
-                    }
+                    } }
                 }
             }
             tab?.startsWith("t") == true -> theories.firstOrNull { "t${it.id}" == tab }?.let { Markdown(it.markdown) }
-            tab?.startsWith("s") == true -> summaries.firstOrNull { "s${it.id}" == tab }?.let { Markdown(it.markdown) }
+            tab?.startsWith("s") == true -> summaries.firstOrNull { "s${it.id}" == tab }?.let { summary ->
+                Div({ classes("row"); attr("style", "justify-content:flex-end") }) {
+                    FavStar(summary.favorite, if (summary.favorite) "Salvo no Caderno" else "Salvar no Caderno") { Store.update { Actions.toggleSummaryFavorite(it, summary.id) } }
+                }
+                Markdown(summary.markdown)
+            }
         }
     }
 }
 
 
+
 @Composable
-private fun GenerateDialog(topicId: Long, onClose: () -> Unit) {
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var depth by remember { mutableStateOf("BOOK") }
-    var count by remember { mutableStateOf(10) }
-    var progress by remember { mutableStateOf<br.com.estudario.web.data.AiContent.Progress?>(null) }
-    val running = progress != null && progress !is br.com.estudario.web.data.AiContent.Progress.Failed && progress !is br.com.estudario.web.data.AiContent.Progress.Done
-    Modal(onDismiss = { if (!running) onClose() }) {
-        org.jetbrains.compose.web.dom.H2 { Text("Gerar material com IA") }
-        when (val current = progress) {
-            null, is br.com.estudario.web.data.AiContent.Progress.Failed -> {
-                P({ classes("muted") }) { Text("Teoria, resumo, flashcards, dicas, perguntas de memorização e questões, no estilo do seu concurso. Leva alguns minutos.") }
-                Div({ classes("field") }) {
-                    org.jetbrains.compose.web.dom.Label { Text("Profundidade da teoria") }
-                    Div({ classes("segmented") }) {
-                        listOf("ESSENTIAL" to "Essencial", "DEEP" to "Aprofundada", "BOOK" to "Livro completo").forEach { (key, label) ->
-                            Button({ classes(*listOfNotNull(if (depth == key) "on" else null).toTypedArray()); onClick { depth = key } }) { Text(label) }
-                        }
-                    }
-                }
-                Div({ classes("field") }) {
-                    org.jetbrains.compose.web.dom.Label { Text("Questões") }
-                    Div({ classes("segmented") }) {
-                        listOf(5, 10, 15, 20).forEach { n -> Button({ classes(*listOfNotNull(if (count == n) "on" else null).toTypedArray()); onClick { count = n } }) { Text("$n") } }
-                    }
-                }
-                if (current is br.com.estudario.web.data.AiContent.Progress.Failed) Div({ classes("banner", "error") }) { Text(current.message) }
-                Div({ classes("row"); attr("style", "justify-content:flex-end") }) {
-                    Btn("Cancelar", onClose, style = "ghost")
-                    Btn("Gerar", {
-                        progress = br.com.estudario.web.data.AiContent.Progress.Checking
-                        scope.launch {
-                            val result = br.com.estudario.web.data.AiContent.generate(Store.data, topicId, br.com.estudario.web.data.AiContent.Options(depth = depth, questionCount = count)) { progress = it }
-                            if (result is br.com.estudario.web.data.AiContent.Progress.Done) {
-                                Store.update { br.com.estudario.web.data.AiContent.apply(it, topicId, result.proposal) }
-                            }
-                            progress = result
-                        }
-                    }, icon = "auto_awesome")
-                }
-            }
-            is br.com.estudario.web.data.AiContent.Progress.Done -> {
-                Div({ classes("banner", "info") }) { Icon("check_circle", filled = true); Text("Material pronto e salvo neste tópico.") }
-                Div({ classes("row"); attr("style", "justify-content:flex-end") }) { Btn("Ver material", onClose) }
-            }
-            else -> Div({ classes("stack"); attr("style", "align-items:center;padding:16px 0") }) {
-                Spinner()
-                P({ classes("muted") }) {
-                    Text(
-                        when (current) {
-                            br.com.estudario.web.data.AiContent.Progress.Checking -> "Verificando a segurança…"
-                            br.com.estudario.web.data.AiContent.Progress.Sending -> "Enviando o pedido…"
-                            else -> "A IA está escrevendo o material. Pode levar alguns minutos; deixe esta página aberta."
-                        },
-                    )
-                }
-            }
-        }
+private fun FavStar(on: Boolean, label: String? = null, onToggle: () -> Unit) {
+    val latest = androidx.compose.runtime.rememberUpdatedState(onToggle)
+    Button({ classes("fav-star", *listOfNotNull(if (on) "on" else null).toTypedArray()); attr("aria-pressed", "$on"); attr("title", if (on) "Tirar do Caderno" else "Guardar no Caderno"); onClick { latest.value() } }) {
+        Icon("star", filled = on)
+        label?.let { org.jetbrains.compose.web.dom.Span { Text(it) } }
     }
 }
