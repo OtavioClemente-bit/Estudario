@@ -19,3 +19,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Estudario"
 include(":app")
+include(":shared")

@@ -1,6 +1,7 @@
 package br.com.estudario.domain.setup
 
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
 
 data class PlanCoverageTopic(val id: String, val name: String)
 
@@ -58,7 +59,7 @@ object PlanCoverageValidator {
         val overCapacityDates = importedTasks
             .groupBy { it.date }
             .filter { (date, tasks) ->
-                val availableMinutes = dayMinutes.getOrElse(date.dayOfWeek.value - 1) { 0 }.coerceAtLeast(0)
+                val availableMinutes = dayMinutes.getOrElse(date.isoDayOfWeek - 1) { 0 }.coerceAtLeast(0)
                 tasks.sumOf { it.minutes.coerceAtLeast(0) } > availableMinutes
             }
             .keys

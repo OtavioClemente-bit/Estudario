@@ -1050,7 +1050,7 @@ private fun PlanReviewStep(snapshot: InitialSetupSnapshot, uiState: InitialSetup
                 br.com.estudario.domain.setup.PlanCoverageTask(
                     subjectId = task.subjectId?.toString(),
                     topicId = task.topicId?.toString(),
-                    date = java.time.LocalDate.ofEpochDay(task.scheduledEpochDay),
+                    date = kotlinx.datetime.LocalDate.fromEpochDays(task.scheduledEpochDay),
                     minutes = task.plannedMinutes,
                 )
             },

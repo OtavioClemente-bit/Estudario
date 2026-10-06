@@ -136,10 +136,12 @@ extensions.configure<ApplicationExtension> {
 tasks.withType<KotlinCompile>().configureEach {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
+        optIn.add("kotlin.time.ExperimentalTime")
     }
 }
 
 dependencies {
+    implementation(project(":shared"))
     implementation(platform("androidx.compose:compose-bom:2025.08.01"))
     androidTestImplementation(platform("androidx.compose:compose-bom:2025.08.01"))
 

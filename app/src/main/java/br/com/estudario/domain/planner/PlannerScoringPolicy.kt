@@ -1,7 +1,7 @@
 package br.com.estudario.domain.planner
 
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
 
 data class PlannerScoringPolicy(
     val criticalWeight: Int = 400,
@@ -25,7 +25,7 @@ data class PlannerScoringPolicy(
             PlanPriority.LOW -> lowWeight
         }
         val deadlineBonus = demand.deadline?.let { deadline ->
-            val days = ChronoUnit.DAYS.between(today, deadline).coerceAtLeast(0)
+            val days = daysBetween(today, deadline).coerceAtLeast(0)
             (90 - days).coerceAtLeast(0).toInt()
         } ?: 0
         val weakBonus = performance?.takeIf {
@@ -33,7 +33,7 @@ data class PlannerScoringPolicy(
                 it.correct * 100 / it.answered.coerceAtLeast(1) < policy.weaknessThresholdPercent
         }?.let { weakTopicWeight } ?: 0
         val inactivityBonus = performance?.lastStudiedDate?.let {
-            ChronoUnit.DAYS.between(it, today).coerceAtLeast(0).toInt() * inactivityDayWeight
+            daysBetween(it, today).coerceAtLeast(0).toInt() * inactivityDayWeight
         } ?: 0
         return strategic + deadlineBonus + weakBonus + inactivityBonus
     }

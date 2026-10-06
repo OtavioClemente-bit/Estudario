@@ -1,5 +1,7 @@
 package br.com.estudario.ui.setup
 
+import br.com.estudario.time.monthValue
+import kotlinx.datetime.toKotlinLocalDate
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -277,8 +279,8 @@ internal fun PlanSummaryStep(
                     PlanningExplanationBuilder.profileSummary(
                         weeklyMinutes = preview.weeklyMinutes,
                         sessionMinutes = preview.sessionMinutes,
-                        examDate = preview.examDate,
-                        today = today,
+                        examDate = preview.examDate?.toKotlinLocalDate(),
+                        today = today.toKotlinLocalDate(),
                         topPrioritySubject = preview.topPriority?.name,
                         hardestSubject = preview.hardest?.name,
                     ).forEach { (label, value) -> SummaryRow(label, value) }

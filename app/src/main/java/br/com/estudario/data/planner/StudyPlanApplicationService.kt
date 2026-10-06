@@ -25,6 +25,8 @@ import br.com.estudario.domain.planner.StudyMethod
 import br.com.estudario.domain.planner.StudyMethodConfig
 import java.time.LocalDate
 import java.util.UUID
+import br.com.estudario.time.toEpochDay
+import kotlinx.datetime.toKotlinLocalDate
 import java.time.temporal.TemporalAdjusters
 import java.time.DayOfWeek
 import java.time.YearMonth
@@ -113,7 +115,7 @@ class StudyPlanApplicationService(
         val weeklyMinutes = input.availability.sumOf { if (it.unavailable) 0 else it.availableMinutes }
         // As fases vêm do método: com data de prova viram Base › Aprofundamento › Reta final, cada
         // uma com sua divisão de teoria/questões/revisão. Sem data de prova é uma fase só.
-        val phases = StudyMethod.phases(input.startDate, input.examDate, input.method.profile)
+        val phases = StudyMethod.phases(input.startDate.toKotlinLocalDate(), input.examDate?.toKotlinLocalDate(), input.method.profile)
         planner.insertAnnualPhases(
             phases.mapIndexed { index, phase ->
                 AnnualPhaseEntity(
@@ -322,7 +324,7 @@ class StudyPlanApplicationService(
      * de navegação) enquanto o plano é montado.
      */
     suspend fun replan(planId: String, reason: ReplanReason, today: LocalDate = LocalDate.now()): PlanningProposal {
-        val computed = withContext(Dispatchers.Default) { engine.plan(snapshotFactory.create(planId, today), reason) }
+        val computed = withContext(Dispatchers.Default) { engine.plan(snapshotFactory.create(planId, today.toKotlinLocalDate()), reason) }
         // Plano trazido da IA é da pessoa: o motor automático não acrescenta tarefas próprias nem
         // reprograma as importadas. Sem isso, cada conclusão "completava" o plano da IA com a
         // agenda do motor, e tarefas que a pessoa não pediu apareciam no começo.

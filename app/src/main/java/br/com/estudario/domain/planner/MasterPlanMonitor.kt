@@ -1,7 +1,7 @@
 package br.com.estudario.domain.planner
 
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
 
 object MasterPlanMonitor {
     fun evaluate(
@@ -15,7 +15,7 @@ object MasterPlanMonitor {
             .filter { it.priority == PlanPriority.CRITICAL || it.priority == PlanPriority.HIGH }
             .mapNotNull { subject ->
                 val lastExecution = lastExecutionBySubject[subject.id]
-                val inactiveDays = lastExecution?.let { ChronoUnit.DAYS.between(it, today).coerceAtLeast(0) }
+                val inactiveDays = lastExecution?.let { daysBetween(it, today).coerceAtLeast(0) }
                     ?: inactivityThresholdDays.toLong()
                 inactiveDays.takeIf { it >= inactivityThresholdDays }?.let {
                     MasterPlanAlert(

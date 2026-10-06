@@ -1,7 +1,8 @@
 package br.com.estudario.domain
 
 import br.com.estudario.domain.planner.PlanTaskType
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
 
 enum class BadgeCategory(val label: String) {
     PLANO("Plano de estudos"),

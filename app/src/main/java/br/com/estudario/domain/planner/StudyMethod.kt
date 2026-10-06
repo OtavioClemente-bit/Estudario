@@ -1,7 +1,7 @@
 package br.com.estudario.domain.planner
 
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
 
 /**
  * O método do plano sem IA.
@@ -54,7 +54,7 @@ data class StudyPhase(
     val objective: String,
     val criteria: String,
 ) {
-    val days: Int get() = (ChronoUnit.DAYS.between(start, end).toInt() + 1).coerceAtLeast(1)
+    val days: Int get() = (daysBetween(start, end).toInt() + 1).coerceAtLeast(1)
     fun contains(date: LocalDate) = !date.isBefore(start) && !date.isAfter(end)
 }
 
@@ -140,7 +140,7 @@ object StudyMethod {
                 ),
             )
         }
-        val total = ChronoUnit.DAYS.between(start, exam).toInt()
+        val total = daysBetween(start, exam).toInt()
         // Preparação muito curta vira reta final direto: não adianta programar base de teoria.
         if (total <= MIN_FINAL_DAYS + 7) {
             return listOf(

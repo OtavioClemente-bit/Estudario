@@ -1,5 +1,8 @@
 package br.com.estudario.ui.planner
 
+import kotlinx.datetime.toJavaMonth
+import kotlinx.datetime.toJavaLocalDate
+import br.com.estudario.time.daysBetween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -103,9 +106,9 @@ private fun VerdictCard(roadmap: EditalRoadmapResult, onEditAvailability: () -> 
     }
     val body = when (roadmap.verdict) {
         RoadmapVerdict.COMFORTABLE ->
-            "Você vê o último tópico em ${roadmap.coverageDate!!.label()} e ainda sobram ${roadmap.slackDays} dias antes da reta final."
+            "Você vê o último tópico em ${roadmap.coverageDate!!.toJavaLocalDate().label()} e ainda sobram ${roadmap.slackDays} dias antes da reta final."
         RoadmapVerdict.TIGHT ->
-            "O último tópico entra em ${roadmap.coverageDate!!.label()}, colado na reta final. Qualquer atraso aperta a revisão."
+            "O último tópico entra em ${roadmap.coverageDate!!.toJavaLocalDate().label()}, colado na reta final. Qualquer atraso aperta a revisão."
         RoadmapVerdict.DOES_NOT_FIT -> buildString {
             append("Ficam ${roadmap.topicsLeftOut} ${if (roadmap.topicsLeftOut == 1) "tópico" else "tópicos"} de fora")
             if (roadmap.atRiskSubjects.isNotEmpty()) append(", principalmente de ${roadmap.atRiskSubjects.take(2).joinToString(" e ")}")
@@ -124,13 +127,13 @@ private fun VerdictCard(roadmap: EditalRoadmapResult, onEditAvailability: () -> 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Stat("${roadmap.studiedTopics}/${roadmap.totalTopics}", "tópicos vistos", Modifier.weight(1f))
                 Stat("${roadmap.weeklyCapacityMinutes / 7} min", "por dia", Modifier.weight(1f))
-                Stat("${ChronoUnit.DAYS.between(roadmap.start, roadmap.end)}", if (roadmap.hasExamDate) "dias até a prova" else "dias de plano", Modifier.weight(1f))
+                Stat("${daysBetween(roadmap.start, roadmap.end)}", if (roadmap.hasExamDate) "dias até a prova" else "dias de plano", Modifier.weight(1f))
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Outlined.Event, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
-                    if (roadmap.hasExamDate) "Prova em ${roadmap.end.label()}. O fim do plano é a prova."
-                    else "Prazo do plano: ${roadmap.end.label()}. Sem data de prova, você escolhe até quando.",
+                    if (roadmap.hasExamDate) "Prova em ${roadmap.end.toJavaLocalDate().label()}. O fim do plano é a prova."
+                    else "Prazo do plano: ${roadmap.end.toJavaLocalDate().label()}. Sem data de prova, você escolhe até quando.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
@@ -177,7 +180,7 @@ private fun PhaseStrip(roadmap: EditalRoadmapResult) {
                     Box(Modifier.padding(top = 5.dp).size(10.dp).clip(CircleShape).background(phase.kind.tone()))
                     Column(Modifier.weight(1f)) {
                         Text(
-                            "${phase.kind.label} · ${phase.start.label()} a ${phase.end.label()}",
+                            "${phase.kind.label} · ${phase.start.toJavaLocalDate().label()} a ${phase.end.toJavaLocalDate().label()}",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.SemiBold,
                         )
@@ -208,7 +211,7 @@ private fun MonthRow(month: RoadmapMonth, isFirst: Boolean, isLast: Boolean) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        month.month.month.getDisplayName(TextStyle.FULL, ptBr).replaceFirstChar(Char::uppercase) +
+                        month.month.month.toJavaMonth().getDisplayName(TextStyle.FULL, ptBr).replaceFirstChar(Char::uppercase) +
                             if (month.month.year != LocalDate.now().year) " ${month.month.year}" else "",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,

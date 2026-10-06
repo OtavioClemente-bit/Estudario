@@ -1,5 +1,7 @@
 package br.com.estudario.ui
 
+import kotlinx.datetime.toKotlinLocalDate
+import kotlinx.datetime.toKotlinTimeZone
 import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -238,7 +240,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val zone = ZoneId.systemDefault()
         StudyPerformanceUiState(
             selectedPeriod = period,
-            result = StudyPerformanceEvaluator.evaluate(input, period, LocalDate.now(zone), zone),
+            result = StudyPerformanceEvaluator.evaluate(input, period, LocalDate.now(zone).toKotlinLocalDate(), zone.toKotlinTimeZone()),
         )
     }.flowOn(Dispatchers.Default)
         .stateIn(
@@ -246,7 +248,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             SharingStarted.WhileSubscribed(5_000),
             StudyPerformanceUiState(
                 selectedPeriod = StudyPerformancePeriod.DAYS_30,
-                result = StudyPerformanceEvaluator.evaluate(StudyPerformanceInput(), StudyPerformancePeriod.DAYS_30, LocalDate.now(), ZoneId.systemDefault()),
+                result = StudyPerformanceEvaluator.evaluate(StudyPerformanceInput(), StudyPerformancePeriod.DAYS_30, br.com.estudario.time.today(), kotlinx.datetime.TimeZone.currentSystemDefault()),
             ),
         )
 
@@ -324,7 +326,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val planWork = bundle.executions.filter { it.taskId != null }.groupBy { it.taskId!! }.mapNotNull { (taskId, runs) ->
                 val type = typeById[taskId] ?: return@mapNotNull null
                 ProgressEngine.PlanWork(
-                    date = Instant.ofEpochMilli(runs.maxOf { it.completedAt }).atZone(zone).toLocalDate(),
+                    date = br.com.estudario.time.epochMillisToDate(runs.maxOf { it.completedAt }, zone.toKotlinTimeZone()),
                     type = type,
                     minutes = runs.sumOf { it.actualMinutes },
                     correct = runs.sumOf { it.correctAnswers },
@@ -333,7 +335,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
             ProgressEngine.evaluate(
                 ProgressEngine.ProgressInput(
-                    today = LocalDate.now(),
+                    today = br.com.estudario.time.today(),
                     days = bundle.days,
                     goal = bundle.goal,
                     planWork = planWork,
@@ -573,7 +575,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         fun day(epochMillis: Long): LocalDate = Instant.ofEpochMilli(epochMillis).atZone(zone).toLocalDate()
         val rows = HashMap<LocalDate, DailyActivity>()
         fun merge(date: LocalDate, block: (DailyActivity) -> DailyActivity) {
-            rows[date] = block(rows[date] ?: DailyActivity(date))
+            rows[date] = block(rows[date] ?: DailyActivity(date.toKotlinLocalDate()))
         }
         answers.forEach { attempt -> merge(day(attempt.answeredAt)) { it.copy(questions = it.questions + 1, correct = it.correct + if (attempt.correct) 1 else 0) } }
         history.forEach { review -> merge(day(review.reviewedAt)) { it.copy(reviews = it.reviews + 1) } }

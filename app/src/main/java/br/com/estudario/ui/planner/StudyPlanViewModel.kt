@@ -16,6 +16,9 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import kotlinx.datetime.LocalDate as KDate
+import kotlinx.datetime.toJavaLocalDate
+import br.com.estudario.time.*
 import java.time.Instant
 import java.time.ZoneId
 
@@ -86,12 +89,12 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         val methodNotes = repository.latestRevisionOnce(planId)?.summary.orEmpty().lines().filter { it.isNotBlank() }
         val weeklyCapacity = availability.sumOf { if (it.unavailable) 0 else it.availableMinutes }
         val remaining = mapped.tasks.filter { it.entity.status in setOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO) }.sumOf { (it.entity.plannedMinutes - it.actualMinutes).coerceAtLeast(0) }
-        val forecast = br.com.estudario.domain.planner.StudyPlanForecastCalculator.forecast(LocalDate.now(), remaining, weeklyCapacity, 0)
+        val forecast = br.com.estudario.domain.planner.StudyPlanForecastCalculator.forecast(today(), remaining, weeklyCapacity, 0)
         val master = plans.firstOrNull { it.competitionId == plan.competitionId && it.masterPlan && !it.archived }
         val alerts = if (master == null) emptyList() else {
             val masterSubjects = repository.subjectsOnce(master.id).filter { it.priority == PlanPriority.CRITICAL }.map { br.com.estudario.domain.planner.MasterSubject(it.subjectId, it.subjectNameSnapshot, it.priority) }
-            val last = repository.allExecutionsOnce().filter { it.competitionId == plan.competitionId && it.subjectId != null }.groupBy { it.subjectId!! }.mapValues { (_, values) -> values.maxOf { Instant.ofEpochMilli(it.completedAt).atZone(ZoneId.systemDefault()).toLocalDate() } }
-            br.com.estudario.domain.planner.MasterPlanMonitor.evaluate(LocalDate.now(), 7, masterSubjects, last)
+            val last = repository.allExecutionsOnce().filter { it.competitionId == plan.competitionId && it.subjectId != null }.groupBy { it.subjectId!! }.mapValues { (_, values) -> values.maxOf { epochMillisToDate(it.completedAt) } }
+            br.com.estudario.domain.planner.MasterPlanMonitor.evaluate(today(), 7, masterSubjects, last)
         }
         val planSubjectIds = mapped.planSubjects.mapTo(hashSetOf()) { it.subjectId }
         val topics = app.database.dao().topicsOnce().filter { it.subjectId in planSubjectIds }.associateBy { it.id }
@@ -102,7 +105,7 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
             if (attempts.size >= 10 && accuracy < 65) ContextWeakTopic(topics[topicId]?.title ?: return@mapNotNull null, accuracy, attempts.size) else null
         }.sortedBy { it.accuracyPercent }
         val roadmap = runCatching { roadmapFor(plan, weeklyCapacity, mapped.planSubjects) }.getOrNull()
-        return mapped.copy(forecastDate = forecast.estimatedDate, masterAlerts = alerts, weakTopics = weakTopics, methodNotes = methodNotes, roadmap = roadmap)
+        return mapped.copy(forecastDate = forecast.estimatedDate?.toJavaLocalDate(), masterAlerts = alerts, weakTopics = weakTopics, methodNotes = methodNotes, roadmap = roadmap)
     }
 
     private val roadmapPrefs = app.getSharedPreferences("plan_roadmap", android.content.Context.MODE_PRIVATE)
@@ -116,7 +119,7 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         weeklyCapacity: Int,
         planSubjects: List<br.com.estudario.data.local.planner.PlanSubjectEntity>,
     ): br.com.estudario.domain.planner.EditalRoadmapResult = withContext(Dispatchers.Default) {
-        val today = LocalDate.now()
+        val today = br.com.estudario.time.today()
         val profile = runCatching { br.com.estudario.domain.planner.StudyProfile.valueOf(plan.profile) }.getOrDefault(br.com.estudario.domain.planner.StudyProfile.DO_ZERO)
         val active = planSubjects.filter { !it.paused }
         val subjects = active.map {
@@ -137,15 +140,15 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         val topics = leaves.map {
             br.com.estudario.domain.planner.RoadmapTopic(it.id, it.subjectId, it.position, it.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO, estimate[it.id] ?: plan.blockMinutes)
         }
-        fun build(end: LocalDate, hasExam: Boolean) = br.com.estudario.domain.planner.EditalRoadmap.build(today, end, hasExam, profile, weeklyCapacity, subjects, topics)
-        val exam = plan.examEpochDay?.let(LocalDate::ofEpochDay)?.takeIf { it.isAfter(today) }
+        fun build(end: KDate, hasExam: Boolean) = br.com.estudario.domain.planner.EditalRoadmap.build(today, end, hasExam, profile, weeklyCapacity, subjects, topics)
+        val exam = plan.examEpochDay?.let { KDate.fromEpochDays(it) }?.takeIf { it.isAfter(today) }
         if (exam != null) return@withContext build(exam, hasExam = true)
-        val saved = roadmapPrefs.getLong("end_${plan.id}", Long.MIN_VALUE).takeIf { it != Long.MIN_VALUE }?.let(LocalDate::ofEpochDay)?.takeIf { it.isAfter(today.plusDays(29)) }
+        val saved = roadmapPrefs.getLong("end_${plan.id}", Long.MIN_VALUE).takeIf { it != Long.MIN_VALUE }?.let { KDate.fromEpochDays(it) }?.takeIf { it.isAfter(today.plusDays(29)) }
         val end = saved ?: run {
             // Sem prova: prazo inicial = quando o edital termina no ritmo atual, mais a reta final.
             val probe = build(today.plusYears(3), hasExam = false)
             val finish = probe.coverageDate ?: today.plusMonths(6)
-            maxOf(today.plusDays(60), finish.plusDays(java.time.temporal.ChronoUnit.DAYS.between(today, finish) / 4 + 21))
+            maxOf(today.plusDays(60), finish.plusDays(daysBetween(today, finish) / 4 + 21))
         }
         build(end, hasExam = false)
     }
@@ -156,7 +159,7 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         val plan = current.activePlan ?: return
         val roadmap = current.roadmap ?: return
         if (roadmap.hasExamDate) return
-        val end = roadmap.end.plusDays(days).coerceAtLeast(LocalDate.now().plusDays(30))
+        val end = roadmap.end.plusDays(days).coerceAtLeast(today().plusDays(30))
         roadmapPrefs.edit().putLong("end_${plan.id}", end.toEpochDay()).apply()
         viewModelScope.launch {
             val weekly = current.availability.sumOf { if (it.unavailable) 0 else it.availableMinutes }

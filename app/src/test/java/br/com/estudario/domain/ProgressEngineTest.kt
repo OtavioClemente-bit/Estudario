@@ -4,10 +4,13 @@ import br.com.estudario.domain.planner.PlanTaskType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.atTime
+import kotlinx.datetime.toInstant
+import br.com.estudario.time.*
 
 class ProgressEngineTest {
-    private val hoje = LocalDate.of(2026, 9, 18)
+    private val hoje = LocalDate(2026, 9, 18)
 
     private fun input(
         days: List<DailyActivity> = emptyList(),

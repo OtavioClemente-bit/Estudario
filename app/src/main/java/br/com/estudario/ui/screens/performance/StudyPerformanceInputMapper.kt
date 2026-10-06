@@ -17,8 +17,8 @@ import br.com.estudario.domain.performance.PerformancePlannedTask
 import br.com.estudario.domain.performance.PerformanceReview
 import br.com.estudario.domain.performance.PerformanceSession
 import br.com.estudario.domain.performance.StudyPerformanceInput
-import java.time.Instant
-import java.time.LocalDate
+import kotlin.time.Instant
+import kotlinx.datetime.LocalDate
 
 object StudyPerformanceInputMapper {
     fun map(
@@ -40,7 +40,7 @@ object StudyPerformanceInputMapper {
         val attemptsByQuestion = attempts.map { attempt ->
             val topic = questionById[attempt.questionId]?.question?.topicId?.let(topicById::get)
             PerformanceAttempt(
-                answeredAt = Instant.ofEpochMilli(attempt.answeredAt),
+                answeredAt = Instant.fromEpochMilliseconds(attempt.answeredAt),
                 correct = attempt.correct,
                 subjectId = topic?.subjectId,
                 subjectName = topic?.subjectId?.let(subjectById::get)?.name,
@@ -51,21 +51,21 @@ object StudyPerformanceInputMapper {
         val activePlanIds = plans.asSequence().filter { it.active && !it.archived }.mapTo(linkedSetOf()) { it.id }
         return StudyPerformanceInput(
             attempts = attemptsByQuestion,
-            reviews = reviewHistory.map { PerformanceReview(Instant.ofEpochMilli(it.reviewedAt)) },
-            studySessions = studySessions.map { PerformanceSession(Instant.ofEpochMilli(it.completedAt), it.durationSeconds) } +
-                focusSessions.map { PerformanceSession(Instant.ofEpochMilli(it.completedAt), it.durationSeconds) },
-            questionSessions = questionSessions.map { PerformanceSession(Instant.ofEpochMilli(it.completedAt), it.durationSeconds) },
+            reviews = reviewHistory.map { PerformanceReview(Instant.fromEpochMilliseconds(it.reviewedAt)) },
+            studySessions = studySessions.map { PerformanceSession(Instant.fromEpochMilliseconds(it.completedAt), it.durationSeconds) } +
+                focusSessions.map { PerformanceSession(Instant.fromEpochMilliseconds(it.completedAt), it.durationSeconds) },
+            questionSessions = questionSessions.map { PerformanceSession(Instant.fromEpochMilliseconds(it.completedAt), it.durationSeconds) },
             activePlanIds = activePlanIds,
             tasks = tasks.map {
                 PerformancePlannedTask(
                     planId = it.planId,
-                    scheduledDate = LocalDate.ofEpochDay(it.scheduledEpochDay),
+                    scheduledDate = LocalDate.fromEpochDays(it.scheduledEpochDay),
                     plannedMinutes = it.plannedMinutes,
                     status = it.status,
                 )
             },
             executions = executions.map {
-                PerformanceExecution(it.planId, Instant.ofEpochMilli(it.completedAt), it.actualMinutes)
+                PerformanceExecution(it.planId, Instant.fromEpochMilliseconds(it.completedAt), it.actualMinutes)
             },
         )
     }

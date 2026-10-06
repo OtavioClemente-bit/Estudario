@@ -4,10 +4,10 @@ import androidx.room.withTransaction
 import br.com.estudario.data.local.AppDatabase
 import br.com.estudario.data.local.TopicStatus
 import br.com.estudario.domain.planner.*
-import java.time.DayOfWeek
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
+import kotlinx.datetime.TimeZone
 
 /**
  * Lê o estado do app e entrega ao motor o retrato do plano. As tarefas em si são desenhadas pelo
@@ -15,7 +15,7 @@ import java.time.ZoneId
  * ter cara de cronograma pensado e não de lista de tópicos.
  */
 class StudyPlanSnapshotFactory(private val db: AppDatabase) {
-    suspend fun create(planId: String, today: LocalDate = LocalDate.now()): StudyPlannerSnapshot = db.withTransaction {
+    suspend fun create(planId: String, today: LocalDate = today()): StudyPlannerSnapshot = db.withTransaction {
         val planner = db.plannerDao()
         val plan = planner.plan(planId) ?: error("Plano não encontrado.")
         val config = plan.methodConfig()
@@ -28,7 +28,7 @@ class StudyPlanSnapshotFactory(private val db: AppDatabase) {
         val attempts = db.dao().attemptsOnce().groupBy { it.questionId }
         val reviews = db.dao().reviewsOnce().filter { it.completedAt == null && it.ignoredAt == null }
         val availabilityRows = planner.availabilityFor(planId)
-        val zone = ZoneId.systemDefault()
+        val zone = TimeZone.currentSystemDefault()
 
         val occupied = tasks
             .filter { it.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO, PlanTaskStatus.CONCLUIDA, PlanTaskStatus.PAUSADA) }
@@ -42,7 +42,7 @@ class StudyPlanSnapshotFactory(private val db: AppDatabase) {
                 topicId = topic.id,
                 answered = topicAttempts.size,
                 correct = topicAttempts.count { it.correct },
-                lastStudiedDate = topic.lastStudiedAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() },
+                lastStudiedDate = topic.lastStudiedAt?.let { epochMillisToDate(it, zone) },
             )
         }
         val performanceById = performance.associateBy { it.topicId }
@@ -50,10 +50,10 @@ class StudyPlanSnapshotFactory(private val db: AppDatabase) {
         // --- Camada de necessidade -------------------------------------------------------------
         // Os três eixos e a evidência de cada matéria/tópico entram aqui; daqui sai o NeedScore que
         // decide frequência, volume de questões e ordem do reforço. Tudo determinístico.
-        val planStart = LocalDate.ofEpochDay(plan.startEpochDay)
-        val examDate = plan.examEpochDay?.let(LocalDate::ofEpochDay)
+        val planStart = LocalDate.fromEpochDays(plan.startEpochDay)
+        val examDate = plan.examEpochDay?.let { LocalDate.fromEpochDays(it) }
         val daysUntilExam = examDate
-            ?.let { java.time.temporal.ChronoUnit.DAYS.between(today, it).toInt() }
+            ?.let { daysBetween(today, it).toInt() }
             ?.takeIf { it >= 0 }
         val currentPhase = StudyMethod.phaseAt(
             StudyMethod.phases(planStart, examDate, config.profile),
@@ -76,7 +76,7 @@ class StudyPlanSnapshotFactory(private val db: AppDatabase) {
                 coveredTopics = if (covered) 1 else 0,
                 totalTopics = 1,
                 daysSinceContact = row?.lastStudiedDate
-                    ?.let { java.time.temporal.ChronoUnit.DAYS.between(it, today).toInt().coerceAtLeast(0) },
+                    ?.let { daysBetween(it, today).toInt().coerceAtLeast(0) },
             )
         }
 
@@ -154,7 +154,7 @@ class StudyPlanSnapshotFactory(private val db: AppDatabase) {
                 id = review.id.toString(),
                 subjectId = topic.subjectId,
                 topicId = topic.id,
-                dueDate = Instant.ofEpochMilli(review.dueAt).atZone(zone).toLocalDate(),
+                dueDate = epochMillisToDate(review.dueAt, zone),
                 minutes = 30,
                 plannedQuestions = review.questionTotal.coerceAtLeast(0),
             )
@@ -164,7 +164,7 @@ class StudyPlanSnapshotFactory(private val db: AppDatabase) {
         val heaviestDay = availabilityRows
             .filterNot { it.unavailable }
             .maxByOrNull { it.availableMinutes }
-            ?.let { DayOfWeek.of(it.dayOfWeek) }
+            ?.let { DayOfWeek(it.dayOfWeek) }
             ?: DayOfWeek.SATURDAY
         val activeSubjectCount = blueprintSubjects.count { !it.paused }
         val policy = PlannerPolicy(
@@ -199,11 +199,11 @@ class StudyPlanSnapshotFactory(private val db: AppDatabase) {
             revision = plan.revision,
             today = today,
             availability = availabilityRows.associate { row ->
-                val day = DayOfWeek.of(row.dayOfWeek)
+                val day = DayOfWeek(row.dayOfWeek)
                 day to DailyCapacity(day, row.availableMinutes, row.unavailable)
             },
             dayOverrides = planner.dayOverridesFor(planId).associate { row ->
-                val date = LocalDate.ofEpochDay(row.epochDay)
+                val date = LocalDate.fromEpochDays(row.epochDay)
                 date to DayCapacityOverride(date, row.availableMinutes, row.unavailable, row.locked)
             },
             subjects = planSubjects.map { SubjectDemand(it.subjectId, it.subjectNameSnapshot, it.priority, it.minimumMaintenanceMinutes, it.position, it.paused) },
@@ -229,12 +229,12 @@ class StudyPlanSnapshotFactory(private val db: AppDatabase) {
         reviews: List<br.com.estudario.data.local.ReviewScheduleEntity>,
         topics: List<br.com.estudario.data.local.TopicEntity>,
         today: LocalDate,
-        zone: ZoneId,
+        zone: TimeZone,
     ): Map<Long, Int> {
         val subjectByTopic = topics.associate { it.id to it.subjectId }
         return reviews
             .filter { review ->
-                val due = Instant.ofEpochMilli(review.dueAt).atZone(zone).toLocalDate()
+                val due = epochMillisToDate(review.dueAt, zone)
                 !due.isAfter(today)
             }
             .mapNotNull { subjectByTopic[it.topicId] }

@@ -1,5 +1,6 @@
 package br.com.estudario.ui.setup
 
+import kotlinx.datetime.toKotlinLocalDate
 import br.com.estudario.data.local.SubjectEntity
 import br.com.estudario.data.local.TopicEntity
 import br.com.estudario.data.local.TopicStatus
@@ -122,8 +123,8 @@ object SetupPlannerPreviewFactory {
             dailySubjectSharePercent = snapshot.variety.dailySubjectSharePercent,
         )
         val phase = StudyMethod.phaseAt(
-            StudyMethod.phases(today, examDate, snapshot.studyProfile),
-            today,
+            StudyMethod.phases(today.toKotlinLocalDate(), examDate?.toKotlinLocalDate(), snapshot.studyProfile),
+            today.toKotlinLocalDate(),
         )
         val weights = PlannerWeights.forPhase(phase.kind)
         onStage(1) // disponibilidade e fase lidas
@@ -178,9 +179,9 @@ object SetupPlannerPreviewFactory {
         onStage(3) // carga restante estimada
 
         val report = PlanFeasibilityAnalyzer.analyze(
-            today = today,
-            examDate = examDate,
-            planStart = today,
+            today = today.toKotlinLocalDate(),
+            examDate = examDate?.toKotlinLocalDate(),
+            planStart = today.toKotlinLocalDate(),
             weeklyCapacityMinutes = snapshot.weeklyMinutes,
             workload = workload,
             topicCount = topics.size,

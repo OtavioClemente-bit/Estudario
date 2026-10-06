@@ -21,7 +21,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.Instant
+import kotlin.time.Instant
 import java.time.LocalDate
 
 class StudyPerformanceInputMapperTest {
@@ -55,7 +55,7 @@ class StudyPerformanceInputMapperTest {
         assertEquals("Atos administrativos", input.attempts.single().topicName)
         assertEquals(setOf("active"), input.activePlanIds)
         assertTrue(input.tasks.any { it.planId == "archived" }) // evaluator applies activePlanIds consistently
-        assertEquals(Instant.ofEpochMilli(now), input.reviews.single().reviewedAt)
+        assertEquals(Instant.fromEpochMilliseconds(now), input.reviews.single().reviewedAt)
         assertEquals(setOf(60L, 120L), input.studySessions.map { it.durationSeconds }.toSet())
     }
 

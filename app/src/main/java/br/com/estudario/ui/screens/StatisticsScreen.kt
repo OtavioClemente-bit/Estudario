@@ -1,5 +1,7 @@
 package br.com.estudario.ui.screens
 
+import kotlinx.datetime.toJavaDayOfWeek
+import br.com.estudario.time.monthValue
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -316,7 +318,7 @@ private fun RhythmCard(points: List<DailyActivityPoint>, label: String) {
         if (days.size <= 14) Row(Modifier.fillMaxWidth()) {
             days.forEach { day ->
                 Text(
-                    day.date.dayOfWeek.getDisplayName(TextStyle.NARROW, Locale("pt", "BR")).uppercase(),
+                    day.date.dayOfWeek.toJavaDayOfWeek().getDisplayName(TextStyle.NARROW, Locale("pt", "BR")).uppercase(),
                     Modifier.weight(1f),
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.labelSmall,

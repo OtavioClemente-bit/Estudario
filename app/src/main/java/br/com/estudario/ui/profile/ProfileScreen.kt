@@ -1,5 +1,7 @@
 package br.com.estudario.ui.profile
 
+import br.com.estudario.time.isoDayOfWeek
+import kotlinx.datetime.toKotlinLocalDate
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
@@ -565,7 +567,7 @@ private val DIAS = listOf("S", "T", "Q", "Q", "S", "S", "D")
 
 @Composable
 private fun WeekDot(day: StreakDay, completedColor: Color) {
-    val index = day.date.dayOfWeek.value - 1
+    val index = day.date.isoDayOfWeek - 1
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.hairline)) {
         Text(DIAS.getOrElse(index) { "" }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         // Feito: cheio com o certo. Estudou mas não fechou a meta: anel verde com um ponto no meio,
@@ -788,7 +790,7 @@ private val previewStreak = StreakSummary(
     goal = br.com.estudario.domain.DailyGoal(20),
     week = (0..6).map { offset ->
         val date = LocalDate.now().minusDays((LocalDate.now().dayOfWeek.value - 1 - offset).toLong())
-        StreakDay(date, done = offset < 4, partial = offset == 4, future = offset > 4)
+        StreakDay(date.toKotlinLocalDate(), done = offset < 4, partial = offset == 4, future = offset > 4)
     },
     activeDays = 58,
     totalQuestions = 1240,

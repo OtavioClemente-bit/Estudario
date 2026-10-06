@@ -3,8 +3,11 @@ package br.com.estudario.domain.planner
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import java.time.DayOfWeek
-import java.time.LocalDate
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.atTime
+import kotlinx.datetime.toInstant
+import br.com.estudario.time.*
 
 class PlannerCalculatorsTest {
     @Test
@@ -40,13 +43,13 @@ class PlannerCalculatorsTest {
     @Test
     fun `forecast uses usable capacity after recurring reservations`() {
         val result = StudyPlanForecastCalculator.forecast(
-            start = LocalDate.of(2026, 9, 15),
+            start = LocalDate(2026, 9, 15),
             remainingMinutes = 1_920,
             weeklyCapacityMinutes = 1_200,
             recurringReservedMinutes = 240,
         )
 
-        assertEquals(LocalDate.of(2026, 9, 29), result.estimatedDate)
+        assertEquals(LocalDate(2026, 9, 29), result.estimatedDate)
         assertEquals(960, result.usableWeeklyMinutes)
         assertNull(result.unavailableReason)
     }
@@ -54,7 +57,7 @@ class PlannerCalculatorsTest {
     @Test
     fun `forecast is unavailable when usable capacity is zero`() {
         val result = StudyPlanForecastCalculator.forecast(
-            start = LocalDate.of(2026, 9, 15),
+            start = LocalDate(2026, 9, 15),
             remainingMinutes = 600,
             weeklyCapacityMinutes = 300,
             recurringReservedMinutes = 300,

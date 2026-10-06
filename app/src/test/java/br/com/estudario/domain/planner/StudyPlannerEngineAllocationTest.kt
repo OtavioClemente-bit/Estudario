@@ -3,12 +3,15 @@ package br.com.estudario.domain.planner
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.DayOfWeek
-import java.time.LocalDate
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.atTime
+import kotlinx.datetime.toInstant
+import br.com.estudario.time.*
 
 class StudyPlannerEngineAllocationTest {
     private val engine = StudyPlannerEngine()
-    private val monday = LocalDate.of(2026, 9, 14)
+    private val monday = LocalDate(2026, 9, 14)
 
     @Test
     fun `same snapshot always creates identical proposal`() {

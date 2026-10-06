@@ -1,6 +1,7 @@
 package br.com.estudario.domain
 
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
 
 /** Tudo o que a pessoa fez em um dia, somando questões, revisões, tarefas do plano e sessões. */
 data class DailyActivity(
@@ -92,7 +93,7 @@ object StreakEngine {
     fun summarize(
         days: Collection<DailyActivity>,
         goal: DailyGoal,
-        today: LocalDate = LocalDate.now(),
+        today: LocalDate = today(),
         calendarWeeks: Int = 26,
     ): StreakSummary {
         val byDate = days.associateBy { it.date }
@@ -111,7 +112,7 @@ object StreakEngine {
             best = maxOf(best, run)
         }
 
-        val weekStart = today.minusDays((today.dayOfWeek.value - 1).toLong())
+        val weekStart = today.minusDays((today.isoDayOfWeek - 1).toLong())
         val week = (0..6).map { offset ->
             val date = weekStart.plusDays(offset.toLong())
             val activity = byDate[date]
@@ -123,7 +124,7 @@ object StreakEngine {
             )
         }
 
-        val calendarStart = today.minusDays((today.dayOfWeek.value - 1).toLong()).minusWeeks((calendarWeeks - 1).toLong())
+        val calendarStart = today.minusDays((today.isoDayOfWeek - 1).toLong()).minusWeeks((calendarWeeks - 1).toLong())
         val calendar = generateSequence(calendarStart) { it.plusDays(1) }
             .takeWhile { !it.isAfter(today) }
             .map { byDate[it] ?: DailyActivity(it) }

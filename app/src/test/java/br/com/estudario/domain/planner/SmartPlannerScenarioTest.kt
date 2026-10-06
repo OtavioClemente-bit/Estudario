@@ -6,7 +6,10 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.atTime
+import kotlinx.datetime.toInstant
+import br.com.estudario.time.*
 
 /**
  * Cenários de ponta a ponta do Smart Planner: revisão adaptativa, volume de questões, estimativa
@@ -15,7 +18,7 @@ import java.time.LocalDate
  */
 class SmartPlannerScenarioTest {
 
-    private val hoje: LocalDate = LocalDate.of(2026, 3, 2)
+    private val hoje: LocalDate = LocalDate(2026, 3, 2)
 
     private fun need(
         priority: ExamPriority = ExamPriority.MEDIUM,

@@ -84,6 +84,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import kotlinx.datetime.toJavaLocalDate
+import kotlinx.datetime.toKotlinLocalDate
 
 /**
  * O painel de evolução do concurso, não o planejamento, e não a agenda.
@@ -510,16 +512,16 @@ private fun paceUi(planState: ActivePlanUiState): PaceUi {
     val plan = planState.activePlan ?: return PaceUi.Unknown
     val pendente = planState.tasks.any { it.entity.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO) }
     val pace = StudyPaceEvaluator.evaluate(
-        today = planState.today,
-        forecast = planState.forecastDate,
-        examDate = plan.examEpochDay?.let(LocalDate::ofEpochDay),
+        today = planState.today.toKotlinLocalDate(),
+        forecast = planState.forecastDate?.toKotlinLocalDate(),
+        examDate = plan.examEpochDay?.let { kotlinx.datetime.LocalDate.fromEpochDays(it) },
         hasRemainingWork = pendente,
     )
     return when (pace) {
-        is StudyPaceEvaluator.Pace.Comfortable -> PaceUi.Comfortable(pace.forecast, pace.daysBeforeExam)
-        is StudyPaceEvaluator.Pace.Tight -> PaceUi.Tight(pace.forecast, pace.daysBeforeExam)
-        is StudyPaceEvaluator.Pace.Behind -> PaceUi.Behind(pace.forecast, pace.daysAfterExam)
-        is StudyPaceEvaluator.Pace.NoExamDate -> PaceUi.NoExamDate(pace.forecast)
+        is StudyPaceEvaluator.Pace.Comfortable -> PaceUi.Comfortable(pace.forecast.toJavaLocalDate(), pace.daysBeforeExam)
+        is StudyPaceEvaluator.Pace.Tight -> PaceUi.Tight(pace.forecast.toJavaLocalDate(), pace.daysBeforeExam)
+        is StudyPaceEvaluator.Pace.Behind -> PaceUi.Behind(pace.forecast.toJavaLocalDate(), pace.daysAfterExam)
+        is StudyPaceEvaluator.Pace.NoExamDate -> PaceUi.NoExamDate(pace.forecast.toJavaLocalDate())
         StudyPaceEvaluator.Pace.Complete -> PaceUi.Complete
         StudyPaceEvaluator.Pace.Unknown -> PaceUi.Unknown
     }

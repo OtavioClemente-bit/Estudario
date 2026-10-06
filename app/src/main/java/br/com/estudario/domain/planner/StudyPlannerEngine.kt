@@ -1,7 +1,8 @@
 package br.com.estudario.domain.planner
 
 import java.security.MessageDigest
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
 
 class StudyPlannerEngine(
     private val scoring: PlannerScoringPolicy = PlannerScoringPolicy(),
@@ -259,7 +260,7 @@ class StudyPlannerEngine(
         // o rodízio das matérias e a sequência teoria → questões, e não quer que ela seja refeita.
         return compareBy<TaskDemand> { it.order }.thenByDescending {
             scoring.score(it, snapshot.today, it.topicId?.let(performance::get), snapshot.policy)
-        }.thenBy { it.deadline ?: LocalDate.MAX }
+        }.thenBy { it.deadline ?: MAX_DATE }
             .thenBy { it.subjectPosition }
             .thenBy { it.topicPosition }
             .thenBy { it.id }

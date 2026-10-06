@@ -1,8 +1,8 @@
 package br.com.estudario.domain.planner
 
-import java.time.LocalDate
-import java.time.YearMonth
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
+import kotlinx.datetime.YearMonth
 import kotlin.math.ceil
 
 /**
@@ -61,7 +61,7 @@ data class EditalRoadmapResult(
     val extraMinutesPerDayToFit: Int,
     val weeklyCapacityMinutes: Int,
 ) {
-    val slackDays: Long get() = coverageDate?.let { ChronoUnit.DAYS.between(it, contentDeadline) } ?: 0
+    val slackDays: Long get() = coverageDate?.let { daysBetween(it, contentDeadline) } ?: 0
 }
 
 object EditalRoadmap {
@@ -127,13 +127,13 @@ object EditalRoadmap {
 
         val studiedCount = known.count { it.studied }
         var seen = studiedCount
-        val months = generateSequence(YearMonth.from(today)) { it.plusMonths(1) }
-            .takeWhile { !it.isAfter(YearMonth.from(safeEnd)) }
+        val months = generateSequence(today.toYearMonth()) { it.plusMonths(1) }
+            .takeWhile { it <= safeEnd.toYearMonth() }
             .map { month ->
-                val inMonth = pending.filter { assignedOn[it.id]?.let(YearMonth::from) == month }
+                val inMonth = pending.filter { assignedOn[it.id]?.toYearMonth() == month }
                 seen += inMonth.size
-                val monthStart = maxOf(month.atDay(1), today)
-                val monthEnd = minOf(month.atEndOfMonth(), safeEnd)
+                val monthStart = maxOf(month.firstDay, today)
+                val monthEnd = minOf(month.lastDay, safeEnd)
                 RoadmapMonth(
                     month = month,
                     phases = phases.filter { !it.end.isBefore(monthStart) && !it.start.isAfter(monthEnd) }.map { it.kind }.distinct(),
@@ -150,7 +150,7 @@ object EditalRoadmap {
         else ceil(((pendingMinutes - dailyCapacity * contentCapacityDays) / contentCapacityDays).coerceAtLeast(0.0)).toInt()
         val verdict = when {
             leftOut.isNotEmpty() -> RoadmapVerdict.DOES_NOT_FIT
-            coverageDate != null && ChronoUnit.DAYS.between(coverageDate, contentDeadline) >= COMFORTABLE_SLACK_DAYS -> RoadmapVerdict.COMFORTABLE
+            coverageDate != null && daysBetween(coverageDate, contentDeadline) >= COMFORTABLE_SLACK_DAYS -> RoadmapVerdict.COMFORTABLE
             else -> RoadmapVerdict.TIGHT
         }
         return EditalRoadmapResult(

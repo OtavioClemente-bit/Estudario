@@ -1,7 +1,8 @@
 package br.com.estudario.domain
 
 import br.com.estudario.domain.planner.PlanTaskType
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
 
 /**
  * XP e emblemas.
@@ -168,7 +169,7 @@ object ProgressEngine {
         var goalXp = 0
         var xpToday = 0
         var xpThisWeek = 0
-        val weekStart = input.today.minusDays((input.today.dayOfWeek.value - 1).toLong())
+        val weekStart = input.today.minusDays((input.today.isoDayOfWeek - 1).toLong())
 
         val dates = (byDate.keys + planByDate.keys).toSortedSet()
         dates.forEach { date ->

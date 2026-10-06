@@ -1,7 +1,7 @@
 package br.com.estudario.domain.planner
 
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
 
 /**
  * Revisão espaçada adaptada a concurso.
@@ -87,7 +87,7 @@ object RevisionScheduler {
 
         // Perto da prova as revisões se apertam: não adianta agendar para depois do dia D.
         if (examDate != null) {
-            val daysLeft = ChronoUnit.DAYS.between(today, examDate)
+            val daysLeft = daysBetween(today, examDate)
             if (daysLeft > 0 && daysLeft <= EXAM_TAIL_DAYS) {
                 val squeezed = (daysLeft / 3).coerceAtLeast(1L)
                 if (squeezed < interval) {

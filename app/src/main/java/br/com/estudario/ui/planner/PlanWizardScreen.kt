@@ -1,5 +1,8 @@
 package br.com.estudario.ui.planner
 
+import kotlinx.datetime.toKotlinDayOfWeek
+import kotlinx.datetime.toKotlinLocalDate
+import br.com.estudario.time.monthValue
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -320,14 +323,14 @@ private fun buildPreview(
     }
     val result = StudyPlanBlueprint.build(
         BlueprintInput(
-            today = today,
-            planStart = today,
-            examDate = examDate,
+            today = today.toKotlinLocalDate(),
+            planStart = today.toKotlinLocalDate(),
+            examDate = examDate?.toKotlinLocalDate(),
             config = config,
             subjects = blueprintSubjects,
             topics = blueprintTopics,
             weeklyCapacityMinutes = weeklyCapacity,
-            heaviestDay = heaviest,
+            heaviestDay = heaviest.toKotlinDayOfWeek(),
         ),
     )
     val remaining = blueprintTopics.count { !it.studied }

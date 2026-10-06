@@ -1,24 +1,29 @@
 package br.com.estudario.domain.performance
 
+import kotlin.time.Duration.Companion.nanoseconds
+import kotlin.time.Duration.Companion.seconds
 import org.junit.Assert.*
 import org.junit.Test
 import br.com.estudario.domain.planner.PlanTaskStatus
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
+import kotlin.time.Instant
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.atTime
+import kotlinx.datetime.toInstant
+import br.com.estudario.time.*
+import kotlinx.datetime.TimeZone
 
 class StudyPerformanceEvaluatorTest {
-    private val zone = ZoneId.of("America/Sao_Paulo")
-    private val today = LocalDate.of(2026, 9, 22)
+    private val zone = TimeZone.of("America/Sao_Paulo")
+    private val today = LocalDate(2026, 9, 22)
 
     @Test fun `finite window uses local calendar boundaries and previous window`() {
-        val start = today.minusDays(6).atStartOfDay(zone).toInstant()
-        val end = today.plusDays(1).atStartOfDay(zone).toInstant()
+        val start = today.minusDays(6).startOfDay(zone)
+        val end = today.plusDays(1).startOfDay(zone)
         val input = StudyPerformanceInput(
             attempts = listOf(
-                attempt(start.minusNanos(1)),
+                attempt(start.minus(1.nanoseconds)),
                 attempt(start),
-                attempt(end.minusNanos(1)),
+                attempt(end.minus(1.nanoseconds)),
                 attempt(end),
             ),
             activePlanIds = emptySet(),
@@ -29,14 +34,14 @@ class StudyPerformanceEvaluatorTest {
         assertEquals(2, result.current.attempts)
         assertEquals(start, result.startInclusive)
         assertEquals(end, result.endExclusive)
-        assertEquals(start.minusSeconds(7 * 24 * 60 * 60L), result.previousStartInclusive)
+        assertEquals(start.minus((7 * 24 * 60 * 60L).seconds), result.previousStartInclusive)
         assertEquals(start, result.previousEndExclusive)
     }
 
     @Test fun `all period has no previous comparison and does not include tomorrow`() {
-        val end = today.plusDays(1).atStartOfDay(zone).toInstant()
+        val end = today.plusDays(1).startOfDay(zone)
         val result = StudyPerformanceEvaluator.evaluate(
-            StudyPerformanceInput(attempts = listOf(attempt(end), attempt(end.minusNanos(1))), activePlanIds = emptySet()),
+            StudyPerformanceInput(attempts = listOf(attempt(end), attempt(end.minus(1.nanoseconds))), activePlanIds = emptySet()),
             StudyPerformancePeriod.ALL,
             today,
             zone,
@@ -48,8 +53,8 @@ class StudyPerformanceEvaluatorTest {
     }
 
     @Test fun `finite windows preserve local day boundaries across daylight saving`() {
-        val zoneWithDst = ZoneId.of("America/New_York")
-        val dstToday = LocalDate.of(2024, 3, 10)
+        val zoneWithDst = TimeZone.of("America/New_York")
+        val dstToday = LocalDate(2024, 3, 10)
         val result = StudyPerformanceEvaluator.evaluate(
             StudyPerformanceInput(activePlanIds = emptySet()),
             StudyPerformancePeriod.DAYS_7,
@@ -57,13 +62,13 @@ class StudyPerformanceEvaluatorTest {
             zoneWithDst,
         )
 
-        assertEquals(dstToday.minusDays(6).atStartOfDay(zoneWithDst).toInstant(), result.startInclusive)
-        assertEquals(dstToday.plusDays(1).atStartOfDay(zoneWithDst).toInstant(), result.endExclusive)
-        assertEquals(167 * 60 * 60L, java.time.Duration.between(result.startInclusive, result.endExclusive).seconds)
+        assertEquals(dstToday.minusDays(6).startOfDay(zoneWithDst), result.startInclusive)
+        assertEquals(dstToday.plusDays(1).startOfDay(zoneWithDst), result.endExclusive)
+        assertEquals(167 * 60 * 60L, (result.endExclusive - result.startInclusive!!).inWholeSeconds)
     }
 
     @Test fun `sample thresholds and percentages are explicit`() {
-        val start = today.minusDays(29).atStartOfDay(zone).toInstant()
+        val start = today.minusDays(29).startOfDay(zone)
         val subjectEvents = (1..10).map { index ->
             PerformanceAttempt(start.plusSeconds(index.toLong()), correct = index >= 8, subjectId = 10, subjectName = "Matemática", topicId = 20, topicName = "Álgebra")
         } + (1..9).map { index ->
@@ -85,7 +90,7 @@ class StudyPerformanceEvaluatorTest {
     }
 
     @Test fun `recommendations require evidence and include its counts`() {
-        val start = today.minusDays(6).atStartOfDay(zone).toInstant()
+        val start = today.minusDays(6).startOfDay(zone)
         val attempts = (1..10).map { index ->
             PerformanceAttempt(start.plusSeconds(index.toLong()), correct = index == 1, subjectId = 10, subjectName = "Matemática", topicId = 20, topicName = "Álgebra")
         }
@@ -129,7 +134,7 @@ class StudyPerformanceEvaluatorTest {
     }
 
     @Test fun `time stays in independent source subtotals and negative values are ignored`() {
-        val now = today.atTime(12, 0).atZone(zone).toInstant()
+        val now = today.atTime(12, 0).toInstant(zone)
         val result = StudyPerformanceEvaluator.evaluate(
             StudyPerformanceInput(
                 studySessions = listOf(PerformanceSession(now, 3_660), PerformanceSession(now, -60)),
@@ -148,8 +153,8 @@ class StudyPerformanceEvaluatorTest {
     }
 
     @Test fun `streak is through today and is independent from selected window`() {
-        val older = today.minusDays(15).atTime(9, 0).atZone(zone).toInstant()
-        val todayEvent = today.atTime(9, 0).atZone(zone).toInstant()
+        val older = today.minusDays(15).atTime(9, 0).toInstant(zone)
+        val todayEvent = today.atTime(9, 0).toInstant(zone)
         val result = StudyPerformanceEvaluator.evaluate(
             StudyPerformanceInput(attempts = listOf(attempt(older), attempt(todayEvent)), activePlanIds = emptySet()),
             StudyPerformancePeriod.DAYS_7,
@@ -162,7 +167,7 @@ class StudyPerformanceEvaluatorTest {
     }
 
     @Test fun `archiving a plan excludes future load but preserves its completed activity`() {
-        val completedAt = today.atTime(10, 0).atZone(zone).toInstant()
+        val completedAt = today.atTime(10, 0).toInstant(zone)
         val result = StudyPerformanceEvaluator.evaluate(
             StudyPerformanceInput(
                 activePlanIds = emptySet(),

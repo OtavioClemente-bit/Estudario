@@ -5,16 +5,16 @@ import br.com.estudario.data.local.planner.StudyTaskExecutionEntity
 import br.com.estudario.domain.planner.PlanTaskStatus
 import br.com.estudario.domain.planner.PlannerTask
 import br.com.estudario.domain.planner.TaskExecution
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
+import kotlinx.datetime.TimeZone
 
 internal fun PlanTaskEntity.toDomain() = PlannerTask(
     id = id,
     planId = planId,
     subjectId = subjectId,
     topicId = topicId,
-    date = LocalDate.ofEpochDay(scheduledEpochDay),
+    date = LocalDate.fromEpochDays(scheduledEpochDay),
     type = type,
     plannedMinutes = plannedMinutes,
     plannedQuestions = plannedQuestions,
@@ -26,12 +26,12 @@ internal fun PlanTaskEntity.toDomain() = PlannerTask(
     sequence = sequence,
 )
 
-internal fun StudyTaskExecutionEntity.toDomain(zoneId: ZoneId = ZoneId.systemDefault()) = TaskExecution(
+internal fun StudyTaskExecutionEntity.toDomain(zoneId: TimeZone = TimeZone.currentSystemDefault()) = TaskExecution(
     id = id,
     taskId = taskId,
     subjectId = subjectId,
     topicId = topicId,
-    date = Instant.ofEpochMilli(completedAt).atZone(zoneId).toLocalDate(),
+    date = epochMillisToDate(completedAt, zoneId),
     minutes = actualMinutes,
     questions = questionsDone,
     correct = correctAnswers,

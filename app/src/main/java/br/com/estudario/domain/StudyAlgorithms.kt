@@ -1,9 +1,9 @@
 package br.com.estudario.domain
 
 import br.com.estudario.data.local.*
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
+import kotlinx.datetime.TimeZone
 import kotlin.random.Random
 
 enum class ComputedReviewStatus { FUTURA, DISPONIVEL, ATRASADA, CONCLUIDA, IGNORADA }
@@ -72,7 +72,7 @@ object ProgressCalculator {
 data class Streak(val current: Int, val best: Int)
 
 object StreakCalculator {
-    fun calculate(activityDays: Set<LocalDate>, today: LocalDate = LocalDate.now()): Streak {
+    fun calculate(activityDays: Set<LocalDate>, today: LocalDate = today()): Streak {
         if (activityDays.isEmpty()) return Streak(0, 0)
         val sorted = activityDays.sorted()
         var best = 1
@@ -87,7 +87,7 @@ object StreakCalculator {
         return Streak(current, best)
     }
 
-    fun day(epochMillis: Long, zone: ZoneId = ZoneId.systemDefault()): LocalDate = Instant.ofEpochMilli(epochMillis).atZone(zone).toLocalDate()
+    fun day(epochMillis: Long, zone: TimeZone = TimeZone.currentSystemDefault()): LocalDate = epochMillisToDate(epochMillis, zone)
 }
 
 object SessionTypeMapper {

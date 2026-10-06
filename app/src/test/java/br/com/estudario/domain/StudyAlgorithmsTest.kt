@@ -4,7 +4,10 @@ import br.com.estudario.data.local.ReviewScheduleEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.atTime
+import kotlinx.datetime.toInstant
+import br.com.estudario.time.*
 
 class StudyAlgorithmsTest {
     @Test fun smartScorePrioritizesRecurringErrorsAndOverdueReviews() {
@@ -20,7 +23,7 @@ class StudyAlgorithmsTest {
     }
 
     @Test fun streakAllowsTodayOrYesterdayAsCurrentRun() {
-        val today = LocalDate.of(2026, 9, 11)
+        val today = LocalDate(2026, 9, 11)
         val result = StreakCalculator.calculate(setOf(today.minusDays(1), today.minusDays(2), today.minusDays(4)), today)
         assertEquals(2, result.current)
         assertEquals(2, result.best)

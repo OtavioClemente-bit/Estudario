@@ -1,5 +1,6 @@
 package br.com.estudario.ui.setup
 
+import kotlinx.datetime.toKotlinLocalDate
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -601,7 +602,7 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
                 PlanCoverageValidator.validate(
                     sourceSubjects = sourceSubjects,
                     importedTasks = file.tasks.map { task ->
-                        PlanCoverageTask(task.subjectExternalId, task.topicExternalId, task.date, task.minutes)
+                        PlanCoverageTask(task.subjectExternalId, task.topicExternalId, task.date.toKotlinLocalDate(), task.minutes)
                     },
                     dayMinutes = current.availabilityMinutes,
                     importedDayMinutes = importedDayMinutes,

@@ -1,6 +1,7 @@
 package br.com.estudario.domain.planner
 
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
 
 object StudyPlanForecastCalculator {
     fun forecast(

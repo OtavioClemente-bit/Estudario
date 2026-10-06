@@ -1,5 +1,6 @@
 package br.com.estudario.ui.profile
 
+import br.com.estudario.time.isoDayOfWeek
 import androidx.compose.foundation.layout.PaddingValues
 import br.com.estudario.ui.components.FitOrScrollColumn
 import br.com.estudario.ui.theme.estudarioLayout
@@ -207,7 +208,7 @@ private val DIAS = listOf("S", "T", "Q", "Q", "S", "S", "D")
 
 @Composable
 private fun WeekDot(day: StreakDay) {
-    val index = day.date.dayOfWeek.value - 1
+    val index = day.date.isoDayOfWeek - 1
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(DIAS.getOrElse(index) { "" }, color = Color.White.copy(alpha = 0.6f), fontSize = 11.sp)
         Box(

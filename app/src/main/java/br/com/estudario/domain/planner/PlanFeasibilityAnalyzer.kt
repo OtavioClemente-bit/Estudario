@@ -1,7 +1,7 @@
 package br.com.estudario.domain.planner
 
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
 import kotlin.math.ceil
 
 /**
@@ -121,12 +121,12 @@ object PlanFeasibilityAnalyzer {
             )
         }
 
-        val totalPreparationDays = ChronoUnit.DAYS.between(planStart, examDate).coerceAtLeast(1)
+        val totalPreparationDays = daysBetween(planStart, examDate).coerceAtLeast(1)
         val consolidation = consolidationDays(totalPreparationDays, topicCount)
         val target = examDate.minusDays(consolidation.toLong()).let { if (it.isBefore(today)) today else it }
 
-        val daysToTarget = ChronoUnit.DAYS.between(today, target).coerceAtLeast(0)
-        val daysToExam = ChronoUnit.DAYS.between(today, examDate).coerceAtLeast(0)
+        val daysToTarget = daysBetween(today, target).coerceAtLeast(0)
+        val daysToExam = daysBetween(today, examDate).coerceAtLeast(0)
         val capacityToTarget = (dailyCapacity * daysToTarget).toInt()
         val capacityToExam = (dailyCapacity * daysToExam).toInt()
         val deficit = (remaining - capacityToTarget).coerceAtLeast(0)
@@ -155,7 +155,7 @@ object PlanFeasibilityAnalyzer {
                 if (extra > 0) {
                     val newDaily = requiredWeekly / 7.0
                     val newProjection = today.plusDays(ceil(remaining / newDaily).toLong())
-                    val saved = projected?.let { ChronoUnit.DAYS.between(newProjection, it) } ?: 0
+                    val saved = projected?.let { daysBetween(newProjection, it) } ?: 0
                     add(
                         FeasibilityOption.IncreaseWeeklyLoad(
                             extraWeeklyMinutes = roundToQuarterHour(extra),

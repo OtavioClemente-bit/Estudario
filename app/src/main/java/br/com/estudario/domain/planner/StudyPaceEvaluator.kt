@@ -1,7 +1,7 @@
 package br.com.estudario.domain.planner
 
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
 
 /**
  * A leitura do ritmo: a previsão de cobertura do edital comparada com a data da prova.
@@ -56,7 +56,7 @@ object StudyPaceEvaluator {
         val effectiveForecast = if (forecast.isBefore(today)) today else forecast
         if (examDate == null) return Pace.NoExamDate(effectiveForecast)
 
-        val days = ChronoUnit.DAYS.between(effectiveForecast, examDate)
+        val days = daysBetween(effectiveForecast, examDate)
         return when {
             days < 0 -> Pace.Behind(effectiveForecast, -days)
             days >= COMFORTABLE_MARGIN_DAYS -> Pace.Comfortable(effectiveForecast, days)

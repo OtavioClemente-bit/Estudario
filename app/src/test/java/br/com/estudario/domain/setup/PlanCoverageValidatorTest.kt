@@ -4,10 +4,13 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.atTime
+import kotlinx.datetime.toInstant
+import br.com.estudario.time.*
 
 class PlanCoverageValidatorTest {
-    private val monday = LocalDate.of(2026, 9, 21)
+    private val monday = LocalDate(2026, 9, 21)
     private val subjects = listOf(
         PlanCoverageSubject("materia-1", "Direito Constitucional", listOf(
             PlanCoverageTopic("topico-1", "Direitos fundamentais"),

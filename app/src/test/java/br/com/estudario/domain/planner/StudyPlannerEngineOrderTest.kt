@@ -3,8 +3,11 @@ package br.com.estudario.domain.planner
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.DayOfWeek
-import java.time.LocalDate
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.atTime
+import kotlinx.datetime.toInstant
+import br.com.estudario.time.*
 
 /**
  * A ordem do dia: a teoria inteira de um tópico vem antes das questões dele, e blocos da mesma
@@ -13,7 +16,7 @@ import java.time.LocalDate
  */
 class StudyPlannerEngineOrderTest {
     private val engine = StudyPlannerEngine()
-    private val monday = LocalDate.of(2026, 9, 14)
+    private val monday = LocalDate(2026, 9, 14)
 
     @Test
     fun `theory of a topic is fully scheduled before its questions`() {

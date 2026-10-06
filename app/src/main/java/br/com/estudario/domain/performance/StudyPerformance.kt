@@ -1,9 +1,10 @@
 package br.com.estudario.domain.performance
 
 import br.com.estudario.domain.planner.PlanTaskStatus
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
+import kotlin.time.Instant
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
+import kotlinx.datetime.TimeZone
 
 enum class StudyPerformancePeriod(val days: Int?, val label: String) {
     DAYS_7(7, "7 dias"),
@@ -110,22 +111,22 @@ data class StudyPerformanceResult(
 object StudyPerformanceEvaluator {
     private data class Window(val start: Instant?, val end: Instant, val startDate: LocalDate?) {
         fun includes(at: Instant): Boolean = (start == null || at >= start) && at < end
-        fun includes(date: LocalDate, zone: ZoneId): Boolean =
-            (startDate == null || date >= startDate) && date < end.atZone(zone).toLocalDate()
+        fun includes(date: LocalDate, zone: TimeZone): Boolean =
+            (startDate == null || date >= startDate) && date < end.toLocalDate(zone)
     }
 
     fun evaluate(
         input: StudyPerformanceInput,
         period: StudyPerformancePeriod,
         today: LocalDate,
-        zone: ZoneId,
+        zone: TimeZone,
     ): StudyPerformanceResult {
-        val end = today.plusDays(1).atStartOfDay(zone).toInstant()
+        val end = today.plusDays(1).startOfDay(zone)
         val startDate = period.days?.let { today.minusDays(it - 1L) }
-        val currentWindow = Window(startDate?.atStartOfDay(zone)?.toInstant(), end, startDate)
+        val currentWindow = Window(startDate?.startOfDay(zone), end, startDate)
         val previousStartDate = startDate?.minusDays(period.days!!.toLong())
         val previousWindow = if (startDate != null) {
-            Window(previousStartDate!!.atStartOfDay(zone).toInstant(), startDate.atStartOfDay(zone).toInstant(), previousStartDate)
+            Window(previousStartDate!!.startOfDay(zone), startDate.startOfDay(zone), previousStartDate)
         } else null
 
         val current = measure(input, currentWindow, zone)
@@ -155,7 +156,7 @@ object StudyPerformanceEvaluator {
         val eventCounts = linkedMapOf<LocalDate, Int>()
         fun record(at: Instant) {
             if (currentWindow.includes(at)) {
-                val date = at.atZone(zone).toLocalDate()
+                val date = at.toLocalDate(zone)
                 if (!date.isBefore(activityStart) && !date.isAfter(activityEndDate)) {
                     eventCounts[date] = (eventCounts[date] ?: 0) + 1
                 }
@@ -166,7 +167,7 @@ object StudyPerformanceEvaluator {
         val dayAttempts = mutableMapOf<LocalDate, Int>()
         val dayCorrect = mutableMapOf<LocalDate, Int>()
         val dayMinutes = mutableMapOf<LocalDate, Long>()
-        fun dayOf(at: Instant): LocalDate? = at.takeIf { currentWindow.includes(it) }?.atZone(zone)?.toLocalDate()
+        fun dayOf(at: Instant): LocalDate? = at.takeIf { currentWindow.includes(it) }?.toLocalDate(zone)
             ?.takeIf { !it.isBefore(activityStart) && !it.isAfter(activityEndDate) }
         input.attempts.forEach { attempt ->
             val day = dayOf(attempt.answeredAt) ?: return@forEach
@@ -205,7 +206,7 @@ object StudyPerformanceEvaluator {
         )
     }
 
-    private fun measure(input: StudyPerformanceInput, window: Window, zone: ZoneId): WindowMetrics {
+    private fun measure(input: StudyPerformanceInput, window: Window, zone: TimeZone): WindowMetrics {
         val attempts = input.attempts.filter { window.includes(it.answeredAt) }
         val tasks = input.tasks.filter {
             it.planId in input.activePlanIds && window.includes(it.scheduledDate, zone) &&
@@ -217,11 +218,11 @@ object StudyPerformanceEvaluator {
         val questionSessions = input.questionSessions.filter { window.includes(it.completedAt) }
         val reviews = input.reviews.count { window.includes(it.reviewedAt) }
         val activityDates = buildSet {
-            attempts.forEach { add(it.answeredAt.atZone(zone).toLocalDate()) }
-            input.reviews.filter { window.includes(it.reviewedAt) }.forEach { add(it.reviewedAt.atZone(zone).toLocalDate()) }
-            studySessions.forEach { add(it.completedAt.atZone(zone).toLocalDate()) }
-            questionSessions.forEach { add(it.completedAt.atZone(zone).toLocalDate()) }
-            executions.forEach { add(it.completedAt.atZone(zone).toLocalDate()) }
+            attempts.forEach { add(it.answeredAt.toLocalDate(zone)) }
+            input.reviews.filter { window.includes(it.reviewedAt) }.forEach { add(it.reviewedAt.toLocalDate(zone)) }
+            studySessions.forEach { add(it.completedAt.toLocalDate(zone)) }
+            questionSessions.forEach { add(it.completedAt.toLocalDate(zone)) }
+            executions.forEach { add(it.completedAt.toLocalDate(zone)) }
         }
         val correct = attempts.count { it.correct }
         val completed = tasks.count { it.status == PlanTaskStatus.CONCLUIDA }
@@ -280,13 +281,13 @@ object StudyPerformanceEvaluator {
         }
         .sortedWith(compareBy<SubjectPerformance> { it.accuracyPercent }.thenBy { it.name })
 
-    private fun streak(input: StudyPerformanceInput, today: LocalDate, zone: ZoneId): Int {
+    private fun streak(input: StudyPerformanceInput, today: LocalDate, zone: TimeZone): Int {
         val dates = buildSet {
-            input.attempts.forEach { add(it.answeredAt.atZone(zone).toLocalDate()) }
-            input.reviews.forEach { add(it.reviewedAt.atZone(zone).toLocalDate()) }
-            input.studySessions.forEach { add(it.completedAt.atZone(zone).toLocalDate()) }
-            input.questionSessions.forEach { add(it.completedAt.atZone(zone).toLocalDate()) }
-            input.executions.forEach { add(it.completedAt.atZone(zone).toLocalDate()) }
+            input.attempts.forEach { add(it.answeredAt.toLocalDate(zone)) }
+            input.reviews.forEach { add(it.reviewedAt.toLocalDate(zone)) }
+            input.studySessions.forEach { add(it.completedAt.toLocalDate(zone)) }
+            input.questionSessions.forEach { add(it.completedAt.toLocalDate(zone)) }
+            input.executions.forEach { add(it.completedAt.toLocalDate(zone)) }
         }.filter { it <= today }.toSet()
         var cursor = when {
             today in dates -> today

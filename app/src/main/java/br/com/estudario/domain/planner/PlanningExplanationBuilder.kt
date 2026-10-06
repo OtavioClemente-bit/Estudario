@@ -1,7 +1,7 @@
 package br.com.estudario.domain.planner
 
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
 import kotlin.math.roundToInt
 
 /**
@@ -16,7 +16,6 @@ import kotlin.math.roundToInt
  */
 object PlanningExplanationBuilder {
 
-    private val DATE = DateTimeFormatter.ofPattern("dd/MM")
 
     /**
      * Por que esta matéria aparece com esta frequência. Uma frase, com os motivos que realmente
@@ -98,15 +97,15 @@ object PlanningExplanationBuilder {
     fun feasibility(report: FeasibilityReport): String = when (report.verdict) {
         FeasibilityVerdict.NO_EXAM_DATE ->
             "Sem data de prova definida, o plano segue por cobertura do edital. " +
-                (report.projectedCoverageDate?.let { "No ritmo atual, o conteúdo fecha em ${it.format(DATE)}." } ?: "")
+                (report.projectedCoverageDate?.let { "No ritmo atual, o conteúdo fecha em ${it.formatDayMonth()}." } ?: "")
         FeasibilityVerdict.COMFORTABLE ->
             "Seu tempo está confortável. Com ${hours(report.weeklyCapacityMinutes)} por semana há espaço para " +
-                "terminar o conteúdo até ${report.targetCoverageDate?.format(DATE)} e ainda reservar " +
+                "terminar o conteúdo até ${report.targetCoverageDate?.formatDayMonth()} e ainda reservar " +
                 "${report.consolidationDays} dias de consolidação antes da prova."
         FeasibilityVerdict.TIGHT ->
             "Sua agenda está apertada para este edital. Com ${hours(report.weeklyCapacityMinutes)} por semana o " +
-                "conteúdo fecha em ${report.projectedCoverageDate?.format(DATE)}, depois da meta de " +
-                "${report.targetCoverageDate?.format(DATE)}, sobra menos tempo de revisão final."
+                "conteúdo fecha em ${report.projectedCoverageDate?.formatDayMonth()}, depois da meta de " +
+                "${report.targetCoverageDate?.formatDayMonth()}, sobra menos tempo de revisão final."
         FeasibilityVerdict.INFEASIBLE ->
             "Com ${hours(report.weeklyCapacityMinutes)} por semana, a projeção ultrapassa a data da prova. " +
                 "Dá para priorizar o que mais vale ou aumentar a carga semanal."
@@ -116,14 +115,14 @@ object PlanningExplanationBuilder {
     fun describeOption(option: FeasibilityOption): String = when (option) {
         is FeasibilityOption.IncreaseWeeklyLoad ->
             "Mais ${hours(option.extraWeeklyMinutes)} por semana: conclusão em " +
-                "${option.projectedCoverageDate.format(DATE)}" +
+                "${option.projectedCoverageDate.formatDayMonth()}" +
                 if (option.daysSaved > 0) ", ${option.daysSaved} dias antes." else "."
         is FeasibilityOption.PrioritizeByWeight ->
             "Manter a carga atual e priorizar o conteúdo de maior peso: cabe cerca de " +
                 "${(option.coveredShare * 100).roundToInt()}% do edital, e o restante fica marcado como descoberto."
         is FeasibilityOption.ShortenConsolidation ->
             "Reduzir a consolidação para ${option.newConsolidationDays} dias, movendo a meta de conteúdo para " +
-                "${option.newTargetCoverageDate.format(DATE)}."
+                "${option.newTargetCoverageDate.formatDayMonth()}."
     }
 
     /** Linha de resumo do perfil, para a tela anterior à geração. */
@@ -138,7 +137,7 @@ object PlanningExplanationBuilder {
         add("Disponibilidade" to "${hours(weeklyMinutes)} / semana")
         add("Sessões" to "$sessionMinutes min")
         if (examDate != null) {
-            val weeks = java.time.temporal.ChronoUnit.WEEKS.between(today, examDate).coerceAtLeast(0)
+            val weeks = weeksBetween(today, examDate).coerceAtLeast(0)
             add("Prova" to "$weeks semanas")
         } else {
             add("Prova" to "sem data definida")

@@ -1,7 +1,8 @@
 package br.com.estudario.domain.planner
 
-import java.time.DayOfWeek
-import java.time.LocalDate
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
+import br.com.estudario.time.*
 
 enum class PlanPriority { CRITICAL, HIGH, MEDIUM, LOW }
 enum class PlanTaskType { THEORY, QUESTIONS, REVIEW, ACTIVE_RECALL, FLASHCARDS, SIMULATION, DISCURSIVE }
