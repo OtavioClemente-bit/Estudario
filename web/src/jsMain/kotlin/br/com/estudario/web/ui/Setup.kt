@@ -17,6 +17,7 @@ import br.com.estudario.web.data.CatalogSubject
 import br.com.estudario.web.data.Planning
 import br.com.estudario.web.data.Queries
 import br.com.estudario.web.data.Store
+import br.com.estudario.web.data.str
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import org.jetbrains.compose.web.attributes.InputType
@@ -44,6 +45,9 @@ fun SetupScreen() {
     var query by remember { mutableStateOf("") }
     var chosen by remember { mutableStateOf<CatalogEntry?>(null) }
     var subjects by remember { mutableStateOf<List<CatalogSubject>>(emptyList()) }
+    // Edital montado pela IA a partir do PDF (nome do concurso, cargo, matérias).
+    var aiEdital by remember { mutableStateOf<Triple<String, String, List<br.com.estudario.web.data.EditalAi.SubjectNode>>?>(null) }
+    var pdfOpen by remember { mutableStateOf(false) }
     var examDate by remember { mutableStateOf("") }
     var minutes by remember { mutableStateOf(listOf(120, 120, 120, 120, 120, 180, 0)) }
     var profile by remember { mutableStateOf(StudyProfile.DO_ZERO) }
@@ -79,7 +83,7 @@ fun SetupScreen() {
                 list != null -> {
                     val results = if (query.isBlank()) list.take(12) else Catalog.search(list, query)
                     Div({ classes("stack"); attr("style", "margin-top:14px") }) {
-                        if (results.isEmpty()) P({ classes("muted") }) { Text("Nenhum edital encontrado. Por enquanto o site monta edital só a partir do catálogo; no app dá para enviar o PDF do seu edital.") }
+                        if (results.isEmpty()) P({ classes("muted") }) { Text("Nenhum edital pronto com esse nome. Você pode enviar o PDF do seu edital logo abaixo.") }
                         results.forEach { entry -> androidx.compose.runtime.key(entry.id) {
                             Div({ classes("task") }) {
                                 Div({ classes("task-body") }) {
@@ -97,6 +101,16 @@ fun SetupScreen() {
                     }
                 }
             }
+            Div({ classes("card", "soft"); attr("style", "margin-top:16px") }) {
+                Div({ classes("row", "wrap", "between") }) {
+                    Div({ classes("grow"); attr("style", "min-width:220px") }) {
+                        H3 { Text("Não achou o seu concurso?") }
+                        P({ classes("small", "muted") }) { Text("Envie o PDF do edital: a IA do Estudário monta as matérias e os tópicos para você.") }
+                    }
+                    Btn("Enviar PDF do edital", { pdfOpen = true }, style = "tonal", icon = "upload_file", enabled = !Store.demo)
+                }
+            }
+            if (pdfOpen) PdfEditalDialog(onClose = { pdfOpen = false }) { name, role, nodes -> aiEdital = Triple(name, role, nodes); chosen = null; pdfOpen = false; step = 1 }
         }
         1 -> Card {
             H2 { Text("Quando é a prova?") }
@@ -132,20 +146,22 @@ fun SetupScreen() {
                 }
             }
             Nav(onBack = { step = 2 }, onNext = {
-                val entry = chosen ?: return@Nav
+                val entry = chosen
+                val ai = aiEdital
+                if (entry == null && ai == null) return@Nav
                 busy = true
                 error = null
                 try {
                     Store.update { data ->
-                        val (withEdital, competitionId) = Catalog.apply(data, entry, subjects)
+                        val (withEdital, competitionId) = if (entry != null) Catalog.apply(data, entry, subjects) else br.com.estudario.web.data.EditalAi.apply(data, ai!!.first, ai.third)
                         val subjectChoices = withEdital.subjects.filter { it.competitionId == competitionId }.sortedBy { it.position }
                             .map { Planning.SubjectChoice(it.id, it.name) }
                         Planning.create(
                             withEdital,
                             Planning.NewPlan(
                                 competitionId = competitionId,
-                                name = "Plano ${entry.shortName}",
-                                objective = entry.role,
+                                name = "Plano ${entry?.shortName ?: ai!!.first}",
+                                objective = entry?.role ?: ai!!.second.ifBlank { ai.first },
                                 startDate = Queries.todayDate(),
                                 examDate = examDate.takeIf { it.isNotBlank() }?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
                                 weeklyMinutes = minutes,
@@ -170,5 +186,87 @@ private fun Nav(onBack: () -> Unit, onNext: () -> Unit, nextLabel: String = "Con
     Div({ classes("row", "between"); attr("style", "margin-top:20px") }) {
         Btn("Voltar", onBack, style = "ghost", icon = "arrow_back")
         Btn(nextLabel, onNext, icon = "arrow_forward", enabled = enabled)
+    }
+}
+
+/** Enviar o PDF do edital: a IA monta matérias e tópicos (como "Montar edital com IA" no app). */
+@Composable
+private fun PdfEditalDialog(onClose: () -> Unit, onDone: (String, String, List<br.com.estudario.web.data.EditalAi.SubjectNode>) -> Unit) {
+    val scope = rememberCoroutineScope()
+    var file by remember { mutableStateOf<org.w3c.files.File?>(null) }
+    var name by remember { mutableStateOf("") }
+    var role by remember { mutableStateOf("") }
+    var board by remember { mutableStateOf("") }
+    var year by remember { mutableStateOf("") }
+    var step by remember { mutableStateOf<br.com.estudario.web.data.EditalAi.Step?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var preview by remember { mutableStateOf<List<br.com.estudario.web.data.EditalAi.SubjectNode>?>(null) }
+    val running = step != null && preview == null && error == null
+    Modal(onDismiss = { if (!running) onClose() }) {
+        H2 { Text("Montar edital com IA") }
+        val result = preview
+        when {
+            result != null -> {
+                P({ classes("muted") }) { Text("A IA encontrou ${result.size} matérias e ${result.sumOf { s -> s.topics.size }} tópicos. Confira e continue.") }
+                Div({ attr("style", "max-height:40vh;overflow:auto;border:1px solid var(--line);border-radius:14px;padding:8px 14px") }) {
+                    result.forEach { s ->
+                        Div({ attr("style", "padding:8px 0;border-bottom:1px solid var(--line)") }) {
+                            org.jetbrains.compose.web.dom.B { Text(s.name) }
+                            P({ classes("small", "muted") }) { Text(s.topics.joinToString(" · ") { it.name }.take(400)) }
+                        }
+                    }
+                }
+                Div({ classes("row", "end") }) {
+                    Btn("Cancelar", onClose, style = "ghost")
+                    Btn("Usar este edital", { onDone(name.ifBlank { file?.name?.substringBeforeLast('.') ?: "Meu concurso" }, role, result) }, icon = "check")
+                }
+            }
+            running -> Div({ classes("stack"); attr("style", "align-items:center;text-align:center;padding:16px 0") }) {
+                Spinner()
+                P({ classes("muted") }) {
+                    Text(
+                        when (step) {
+                            br.com.estudario.web.data.EditalAi.Step.Reading -> "Lendo o PDF no seu navegador…"
+                            br.com.estudario.web.data.EditalAi.Step.Uploading -> "Enviando para a IA do Estudário…"
+                            else -> "A IA está organizando o conteúdo programático. Pode levar alguns minutos; deixe esta aba aberta."
+                        },
+                    )
+                }
+            }
+            else -> {
+                P({ classes("muted", "small") }) { Text("Escolha o PDF oficial do edital. O Estudário lê o conteúdo programático e cria as matérias e os tópicos na ordem do edital.") }
+                Div({ classes("field") }) {
+                    org.jetbrains.compose.web.dom.Label { Text("PDF do edital") }
+                    Input(InputType.File) {
+                        classes("input"); attr("accept", "application/pdf"); attr("style", "padding-top:10px")
+                        onChange { event -> file = (event.target.asDynamic().files?.item(0)) as? org.w3c.files.File }
+                    }
+                }
+                Div({ classes("field") }) { org.jetbrains.compose.web.dom.Label { Text("Nome do concurso") }; Input(InputType.Text) { classes("input"); value(name); placeholder("Ex.: TJSP Escrevente 2026"); onInput { name = it.value } } }
+                Div({ classes("grid", "cols-2") }) {
+                    Div({ classes("field") }) { org.jetbrains.compose.web.dom.Label { Text("Cargo (opcional)") }; Input(InputType.Text) { classes("input"); value(role); onInput { role = it.value } } }
+                    Div({ classes("field") }) { org.jetbrains.compose.web.dom.Label { Text("Banca (opcional)") }; Input(InputType.Text) { classes("input"); value(board); onInput { board = it.value } } }
+                }
+                error?.let { Div({ classes("banner", "error") }) { Text(it) } }
+                Div({ classes("row", "end") }) {
+                    Btn("Cancelar", onClose, style = "ghost")
+                    Btn("Montar edital", {
+                        val chosenFile = file ?: run { error = "Escolha o PDF do edital."; return@Btn }
+                        error = null
+                        step = br.com.estudario.web.data.EditalAi.Step.Reading
+                        scope.launch {
+                            try {
+                                val proposal = br.com.estudario.web.data.EditalAi.generate(chosenFile, br.com.estudario.web.data.EditalAi.Options(name, role, board, year)) { step = it }
+                                val nodes = br.com.estudario.web.data.EditalAi.parse(proposal)
+                                if (nodes.isEmpty()) error = "A IA não encontrou matérias neste PDF. Confira se é o edital com o conteúdo programático."
+                                else { if (name.isBlank()) name = proposal.str("documentTitle")?.take(120) ?: ""; preview = nodes }
+                            } catch (e: Throwable) {
+                                error = e.message ?: "Não deu para montar o edital."
+                            } finally { if (preview == null) step = null }
+                        }
+                    }, icon = "auto_awesome", enabled = file != null)
+                }
+            }
+        }
     }
 }
