@@ -8,11 +8,11 @@ Mesmo formato e regras do PEDIDO-BASE-CODEX.md (neutra, sem banca/órgão, 40–
 certa NÃO pode ser a mais longa em mais de 40%, gabarito espalhado A–E, uma só correta).
 
 ## PMMG (faltam 5)
-- [ ] literatura.vidas-secas — já gerada, reprovada (certa longa); consertar
-- [ ] direito-constitucional.militares-estados-art-42 — já gerada, reprovada; consertar
-- [ ] direito-constitucional.tribunais-juizes-militares-estados — já gerada, reprovada; consertar
+- [x] literatura.vidas-secas — já gerada, reprovada (certa longa); consertar
+- [x] direito-constitucional.militares-estados-art-42 — já gerada, reprovada; consertar
+- [x] direito-constitucional.tribunais-juizes-militares-estados — já gerada, reprovada; consertar
 - [ ] direito-constitucional.tribunais-juizes-estados — Tribunais de Justiça, quinto constitucional, competência, Justiça Militar estadual (art. 125)
-- [ ] matematica.geometria-espacial-volumes — já gerada, explicações curtas; consertar (serve PRF e EsPCEx também)
+- [x] matematica.geometria-espacial-volumes — já gerada, explicações curtas; consertar (serve PRF e EsPCEx também)
 
 ## PRF — Bloco A (Física, serve EsPCEx)
 - [ ] fisica.cinematica — MU, MUV, queda livre, lançamentos, vetores, movimento circular
