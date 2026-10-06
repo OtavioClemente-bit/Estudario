@@ -24,3 +24,11 @@ Ordem combinada:
 3. `deno run --allow-read --allow-env --allow-net scripts/biblioteca/importar.ts` até não ter nenhum ✗ (apelido repetido: tirar da matéria ANTIGA e subir a versão dela; depois reapontar os editais).
 4. Conferir que todas estão "PUBLISHED" (o servidor não entrega "REVIEWED").
 5. `bash scripts/biblioteca/publicar.sh` e commit + push.
+
+## Arquivos de EDITAL (catálogo de concursos)
+
+Regras e formato em `PEDIDO-EDITAIS.md`; a lista de concursos fica em `editais-lista.md`. O agente
+grava `conteudo/entrada/edital-<nome>.json` com todo tópico em `"topico": null` e confere com
+`deno run --allow-read conteudo/fila/conferir-edital.ts <arquivo>`. O Claude confere com o edital
+oficial, separa assuntos que ficaram juntos, liga cada tópico à matéria (ou deixa null para gerar),
+move para `conteudo/editais/` sem o prefixo `edital-` e publica.
