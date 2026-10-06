@@ -105,3 +105,31 @@ certa NÃO pode ser a mais longa em mais de 40%, gabarito espalhado A–E, uma s
 - [ ] historia.segunda-guerra-era-vargas
 - [ ] historia.guerra-fria-brasil-1945-1991
 - [ ] historia.mundo-contemporaneo-brasil-1985
+
+# PF Agente 2025 (edital salvo: conteudo/editais/pf-agente-2025.json) — além do que já está acima
+Já cobertos pelos blocos acima: ordem social, fé pública, prova, tortura, ECA, crimes ambientais.
+
+## PF — Bloco K (Direitos humanos e legislação)
+- [ ] direito.convencoes-onu-direitos-humanos — genocídio, refugiados, discriminação racial e contra a mulher, tortura, desaparecimento forçado
+- [ ] direito.regras-minimas-tratamento-presos — Regras Mínimas da ONU (Regras de Mandela)
+- [ ] legislacao.lei-migracao — Lei 13.445/2017
+- [ ] legislacao.seguranca-privada — Estatuto da Segurança Privada (2024)
+- [ ] legislacao.produtos-quimicos-repercussao-interestadual — Lei 10.357/2001 e Lei 10.446/2002
+- [ ] legislacao.identificacao-civil — Identificação Civil Nacional, CPF como número único, carteira de identidade
+- [ ] legislacao.crime-cibernetico-convencao — Convenção de Budapeste
+
+## PF — Bloco L (Estatística)
+- [ ] estatistica.variaveis-aleatorias-distribuicoes — binomial, normal, esperança, variância
+- [ ] estatistica.amostragem-correlacao-tcl — amostragem, Pearson, teorema central do limite
+- [ ] estatistica.inferencia-testes-hipoteses — estimação, intervalos de confiança, testes t e qui-quadrado
+- [ ] estatistica.regressao-linear
+
+## PF — Bloco M (Informática e Contabilidade)
+- [ ] informatica.redes-computadores — LAN/MAN/WAN, OSI, TCP/IP, protocolos, IPv4/IPv6, Wi-Fi
+- [ ] informatica.banco-dados-sql — modelagem, relacional, SQL, DW/data lake
+- [ ] informatica.analise-dados-ia — mineração, BI, big data, machine learning, IA (pode juntar com transformação digital)
+- [ ] informatica.sistemas-informacao — teoria geral de sistemas, sistemas de informação, teoria da informação
+- [ ] informatica.python-r-api — noções de Python e R, API, ETL
+- [ ] contabilidade.conceitos-patrimonio-contas
+- [ ] contabilidade.escrituracao-operacoes
+- [ ] contabilidade.balanco-dre
