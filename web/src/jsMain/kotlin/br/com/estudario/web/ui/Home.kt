@@ -67,9 +67,9 @@ fun HomeScreen() {
         Card {
             CardHead("Plano de hoje") { Btn("Ver semana", { Router.go(Route.Plan) }, style = "ghost", small = true, icon = "calendar_month") }
             if (tasks.isEmpty()) {
-                Empty("event_available", if (plan == null) "Sem plano ativo" else "Dia livre", if (plan == null) "Monte seu plano no app do Estudário: ele aparece aqui sincronizado." else "Nada agendado para hoje.")
+                Empty("event_available", if (plan == null) "Sem plano ativo" else "Dia livre", if (plan == null) "Monte seu plano em poucos passos: edital, data da prova e rotina." else "Nada agendado para hoje.", action = if (plan == null) ({ Btn("Configurar meus estudos", { Router.go(Route.Setup) }, icon = "auto_awesome") }) else null)
             } else {
-                Div({ classes("stack") }) { tasks.forEach { task -> TaskRow(task, onComplete = { completing = task }) } }
+                Div({ classes("stack") }) { tasks.forEach { task -> androidx.compose.runtime.key(task.id) { TaskRow(task, onComplete = { completing = task }) } } }
             }
         }
         Div({ classes("stack") }) {
@@ -206,7 +206,11 @@ fun CompleteTaskDialog(task: PlanTask, onClose: () -> Unit) {
             Btn("Cancelar", onClose, style = "ghost")
             Btn("Concluir", {
                 val q = questions.toIntOrNull() ?: 0
-                Store.update { br.com.estudario.web.data.Actions.completeTask(it, task.id, m, q, (correct.toIntOrNull() ?: 0).coerceIn(0, q)) }
+                Store.update { data ->
+                    val done = br.com.estudario.web.data.Actions.completeTask(data, task.id, m, q, (correct.toIntOrNull() ?: 0).coerceIn(0, q))
+                    // Como no app: concluir reorganiza o plano.
+                    runCatching { br.com.estudario.web.data.Planning.replan(done, task.planId, br.com.estudario.domain.planner.ReplanReason.TASK_COMPLETED) }.getOrDefault(done)
+                }
                 onClose()
             }, icon = "check")
         }

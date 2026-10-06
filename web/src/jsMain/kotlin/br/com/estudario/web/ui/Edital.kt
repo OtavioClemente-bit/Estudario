@@ -65,7 +65,7 @@ fun EditalScreen() {
 
     val query = filter.trim().lowercase()
     Div({ classes("stack") }) {
-        subjects.forEach { subject ->
+        subjects.forEach { subject -> androidx.compose.runtime.key(subject.id) {
             val topics = data.topics.filter { it.subjectId == subject.id }.sortedBy { it.position }
             val leaves = Queries.leafTopics(data, setOf(subject.id))
             val studied = leaves.count(Queries::isStudied)
@@ -90,14 +90,14 @@ fun EditalScreen() {
                 if (expanded) {
                     Div({ classes("subject-body") }) {
                         val roots = matching.filter { it.parentTopicId == null || query.isNotEmpty() }
-                        roots.forEach { topic ->
+                        roots.forEach { topic -> androidx.compose.runtime.key(topic.id) {
                             TopicRow(topic, child = false)
-                            if (query.isEmpty()) topics.filter { it.parentTopicId == topic.id }.forEach { TopicRow(it, child = true) }
-                        }
+                            if (query.isEmpty()) topics.filter { it.parentTopicId == topic.id }.forEach { androidx.compose.runtime.key(it.id) { TopicRow(it, child = true) } }
+                        } }
                     }
                 }
             }
-        }
+        } }
     }
 }
 

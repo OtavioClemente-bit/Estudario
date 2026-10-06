@@ -18,6 +18,7 @@ sealed class Route(val path: String) {
     data object Simulations : Route("simulados")
     data object Stats : Route("desempenho")
     data object Profile : Route("perfil")
+    data object Setup : Route("configurar")
 
     /** Item do menu ao qual esta rota pertence. */
     val section: Route
@@ -40,6 +41,7 @@ sealed class Route(val path: String) {
                 "simulados" -> Simulations
                 "desempenho" -> Stats
                 "perfil" -> Profile
+                "configurar" -> Setup
                 else -> Home
             }
         }

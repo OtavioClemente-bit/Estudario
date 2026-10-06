@@ -61,6 +61,7 @@ private fun Screen(route: Route) {
         Route.Simulations -> SimulationsScreen()
         Route.Stats -> StatsScreen()
         Route.Profile -> ProfileScreen()
+        Route.Setup -> SetupScreen()
     }
 }
 
@@ -168,7 +169,7 @@ private fun NoDataScreen() {
             }
             Div({ classes("row", "wrap") }) {
                 Btn("Já liguei, atualizar", { Store.start() }, icon = "refresh")
-                Btn("Começar do zero aqui", { Store.startEmpty() }, style = "outline")
+                Btn("Começar do zero aqui", { Store.startEmpty(); Router.go(Route.Setup) }, style = "outline")
             }
         }
     }

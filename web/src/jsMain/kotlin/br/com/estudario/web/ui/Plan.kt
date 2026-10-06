@@ -28,7 +28,7 @@ fun PlanScreen() {
 
     if (plan == null) {
         PageHead("Plano")
-        Card { Empty("calendar_month", "Nenhum plano ativo", "Crie ou ative um plano no app do Estudário. Ele aparece aqui sincronizado.") }
+        Card { Empty("calendar_month", "Nenhum plano ativo", "Monte seu plano aqui mesmo: escolha o edital, a data da prova e as horas de cada dia.", action = { Btn("Configurar meus estudos", { br.com.estudario.web.Router.go(br.com.estudario.web.Route.Setup) }, icon = "auto_awesome") }) }
         return
     }
 
@@ -82,7 +82,7 @@ fun PlanScreen() {
                         Span({ classes("day-num") }) { Text("${date.day}") }
                     }
                     if (dayTasks.isEmpty()) P({ classes("small", "muted") }) { Text(if (off) "Folga" else "Livre") }
-                    dayTasks.forEach { task ->
+                    dayTasks.forEach { task -> androidx.compose.runtime.key(task.id) {
                         Div({
                             classes(*listOfNotNull("mini-task", if (task.status == "CONCLUIDA") "done" else null).toTypedArray())
                             attr("style", "border-left-color:${taskColors(task.type).second}")
@@ -94,7 +94,7 @@ fun PlanScreen() {
                             B { Text("${Queries.taskTypeLabel(task.type)} · ${Queries.minutesLabel(task.minutes)}") }
                             Text(task.topicName ?: task.subjectName)
                         }
-                    }
+                    } }
                     if (dayTasks.isNotEmpty()) P({ classes("small", "muted"); attr("style", "margin-top:auto") }) { Text(Queries.minutesLabel(dayTasks.sumOf { it.minutes })) }
                 }
             }
@@ -109,7 +109,7 @@ fun PlanScreen() {
                     CardHead("${Queries.weekdayLong[index].replaceFirstChar(Char::uppercase)}, ${Queries.dayLabel(date)}") {
                         Chip(Queries.minutesLabel(dayTasks.sumOf { it.minutes }))
                     }
-                    Div({ classes("stack") }) { dayTasks.forEach { task -> TaskRow(task) { completing = task } } }
+                    Div({ classes("stack") }) { dayTasks.forEach { task -> androidx.compose.runtime.key(task.id) { TaskRow(task) { completing = task } } } }
                 }
             }
             if (weekTasks.isEmpty()) Card { Empty("event_available", "Semana sem tarefas", "Não há nada planejado nestes dias.") }

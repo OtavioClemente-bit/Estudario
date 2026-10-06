@@ -10,7 +10,10 @@ kotlin {
         outputModuleName.set("estudario")
         browser {
             commonWebpackConfig { outputFileName = "estudario.js" }
+            // Testes da lógica de dados rodam no Node (sem navegador).
+            testTask { enabled = false }
         }
+        nodejs()
         binaries.executable()
     }
 
@@ -19,6 +22,9 @@ kotlin {
     }
 
     sourceSets {
+        jsTest.dependencies {
+            implementation(kotlin("test"))
+        }
         jsMain.dependencies {
             implementation(project(":shared"))
             implementation(compose.runtime)

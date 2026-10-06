@@ -167,7 +167,7 @@ fun QuizScreen(scope: String) {
                 }
                 P({ classes("statement") }) { Text(question.statement) }
                 Div({ classes("stack") }) {
-                    question.options.sortedBy { it.position }.forEach { option ->
+                    question.options.sortedBy { it.position }.forEach { option -> androidx.compose.runtime.key(question.id, option.key) {
                         val state = when {
                             !answered -> null
                             option.key == correctKey -> "right"
@@ -189,7 +189,7 @@ fun QuizScreen(scope: String) {
                             Span({ classes("key") }) { Text(option.key) }
                             Span { Inline(option.text) }
                         }
-                    }
+                    } }
                 }
             }
         }

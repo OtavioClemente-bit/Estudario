@@ -34,11 +34,14 @@ fun Btn(
     block: Boolean = false,
     enabled: Boolean = true,
 ) {
+    // O mesmo elemento pode ser reaproveitado com outra ação (ex.: Continuar de um passo para o outro).
+    val latestClick = androidx.compose.runtime.rememberUpdatedState(onClick)
+    val latestEnabled = androidx.compose.runtime.rememberUpdatedState(enabled)
     Button({
         type(ButtonType.Button)
         classes(*listOfNotNull("btn", style, if (small) "small" else null, if (block) "block" else null).toTypedArray())
         if (!enabled) disabled()
-        onClick { if (enabled) onClick() }
+        onClick { if (latestEnabled.value) latestClick.value() }
     }) {
         if (icon != null) Icon(icon)
         Text(label)
@@ -47,12 +50,13 @@ fun Btn(
 
 @Composable
 fun IconButton(icon: String, label: String, onClick: () -> Unit) {
+    val latestClick = androidx.compose.runtime.rememberUpdatedState(onClick)
     Button({
         type(ButtonType.Button)
         classes("icon-btn")
         attr("aria-label", label)
         attr("title", label)
-        onClick { onClick() }
+        onClick { latestClick.value() }
     }) { Icon(icon) }
 }
 

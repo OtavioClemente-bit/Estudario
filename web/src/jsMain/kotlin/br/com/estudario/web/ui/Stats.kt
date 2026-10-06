@@ -151,6 +151,7 @@ fun ProfileScreen() {
                 }
             }
             Div({ classes("row", "wrap"); attr("style", "margin-top:16px") }) {
+                Btn("Configurar estudos", { br.com.estudario.web.Router.go(br.com.estudario.web.Route.Setup) }, style = "tonal", icon = "auto_awesome")
                 Btn("Sair", { Store.signOut() }, style = "outline", icon = "logout")
             }
         }

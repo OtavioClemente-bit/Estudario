@@ -37,7 +37,7 @@ fun ReviewsScreen() {
             Empty("task_alt", "Revisões em dia", "Quando um tópico estudado chegar no dia de revisar, ele aparece aqui.")
         } else {
             Div({ classes("stack") }) {
-                due.forEach { review ->
+                due.forEach { review -> androidx.compose.runtime.key(review.id) {
                     val topic = topics[review.topicId]
                     val late = ((Date.now().toLong() - review.dueAt) / 86_400_000L).toInt()
                     Div({ classes("task") }) {
@@ -52,7 +52,7 @@ fun ReviewsScreen() {
                         Btn("Ignorar", { Store.update { Actions.ignoreReview(it, review.id) } }, style = "ghost", small = true)
                         Btn("Revisar", { reviewing = review }, style = "tonal", small = true)
                     }
-                }
+                } }
             }
         }
     }
