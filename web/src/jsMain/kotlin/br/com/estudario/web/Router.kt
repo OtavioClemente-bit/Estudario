@@ -18,6 +18,7 @@ sealed class Route(val path: String) {
     data object Reviews : Route("treinar/revisoes")
     data object Errors : Route("treinar/erros")
     data object Simulations : Route("treinar/simulados")
+    data class Simulation(val id: Long) : Route("treinar/simulados/$id")
     data object More : Route("mais")
     data object Stats : Route("mais/desempenho")
     data object Achievements : Route("mais/conquistas")
@@ -30,7 +31,7 @@ sealed class Route(val path: String) {
         get() = when (this) {
             is Topic -> Edital
             PlanSettings -> Plan
-            is Quiz, is Flashcards, Reviews, Errors, Simulations -> Train
+            is Quiz, is Flashcards, Reviews, Errors, Simulations, is Simulation -> Train
             Stats, Achievements, Settings, Setup -> More
             else -> this
         }
@@ -47,7 +48,7 @@ sealed class Route(val path: String) {
                     "flashcards" -> Flashcards(parts.getOrNull(2)?.toLongOrNull())
                     "revisoes" -> Reviews
                     "erros" -> Errors
-                    "simulados" -> Simulations
+                    "simulados" -> parts.getOrNull(2)?.toLongOrNull()?.let(::Simulation) ?: Simulations
                     else -> Train
                 }
                 "revisoes" -> Reviews

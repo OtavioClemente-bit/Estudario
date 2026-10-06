@@ -49,7 +49,11 @@ object Queries {
 
     fun pendingErrors(data: Snapshot): List<ErrorEntry> = data.errors.filter { it.status != "CORRIGIDO" }
 
-    fun visibleQuestions(data: Snapshot): List<Question> = data.questions.filter { !it.hidden && it.simulationId == null }
+    /** Banco de questões: sem as ocultas e sem as de simulado ainda não entregue (como no app). */
+    fun visibleQuestions(data: Snapshot): List<Question> {
+        val open = data.simulations.filter { it.status != "FINISHED" }.mapTo(hashSetOf()) { it.id }
+        return data.questions.filter { !it.hidden && (it.simulationId == null || it.simulationId !in open) }
+    }
 
     /** Mesmo cálculo de AppViewModel.dailyActivity no Android. */
     fun dailyActivity(data: Snapshot): List<DailyActivity> {

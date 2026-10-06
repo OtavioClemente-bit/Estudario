@@ -51,6 +51,7 @@ private fun titleOf(route: Route): String = when (route) {
     Route.Reviews -> "Revisões"
     Route.Errors -> "Caderno de erros"
     Route.Simulations -> "Simulados"
+    is Route.Simulation -> "Simulado"
     Route.More -> "Mais"
     Route.Stats -> "Desempenho"
     Route.Achievements -> "Conquistas"
@@ -90,6 +91,7 @@ private fun Screen(route: Route) {
         Route.Reviews -> ReviewsScreen()
         Route.Errors -> ErrorsScreen()
         Route.Simulations -> SimulationsScreen()
+        is Route.Simulation -> SimulationScreen(route.id)
         Route.More -> MoreScreen()
         Route.Stats -> StatsScreen()
         Route.Achievements -> AchievementsScreen()
