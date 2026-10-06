@@ -48,7 +48,7 @@ enum class InitialSetupStep {
     READY,
 }
 
-enum class SyllabusMethod { DIRECT_AI, IMPORT_ESTUDO, MANUAL, CHATGPT }
+enum class SyllabusMethod { DIRECT_AI, IMPORT_ESTUDO, MANUAL, CHATGPT, CATALOG }
 
 enum class PlanCreationMethod { AUTOMATIC, EXTERNAL_AI }
 
@@ -109,6 +109,8 @@ data class InitialSetupSnapshot(
      */
     val subjectPriorities: Map<String, ExamPriority> = emptyMap(),
     val variety: SubjectVariety = SubjectVariety.BALANCED,
+    /** Edital escolhido no catálogo (id de `exam_catalog`); null quando o edital veio de outro caminho. */
+    val catalogExamId: String? = null,
 ) {
     fun normalized(): InitialSetupSnapshot = copy(
         competitionName = competitionName.trim(),
@@ -199,6 +201,8 @@ object InitialSetupSnapshotCodec {
             encodeMap(snapshot.subjectKnowledge) { it.name },
             encodeMap(snapshot.subjectPriorities) { it.name },
             snapshot.variety.name,
+            // --- campos acrescentados no fim, lidos como vazios em snapshots antigos ------------
+            encodeText(snapshot.catalogExamId.orEmpty()),
         ).joinToString(FIELD_SEPARATOR)
     }
 
@@ -231,6 +235,7 @@ object InitialSetupSnapshotCodec {
                 subjectKnowledge = decodeMap(field(17)) { enumOrDefault(it, InitialKnowledge.NONE) },
                 subjectPriorities = decodeMap(field(18)) { enumOrDefault(it, ExamPriority.MEDIUM) },
                 variety = enumOrDefault(field(19), SubjectVariety.BALANCED),
+                catalogExamId = decodeText(field(20)).takeIf(String::isNotBlank),
             ).normalized()
         }.getOrDefault(InitialSetupSnapshot())
     }

@@ -123,7 +123,51 @@ for (const { path, value } of await jsonFiles("editais")) {
   }
 }
 
-console.log(`Matérias: ${materials.size} · Recortes: ${notes.length} · Apelidos: ${aliasOwner.size}`);
+// Catálogo de editais que o app mostra na busca ("PMMG", "polícia federal"). Cada arquivo de
+// conteudo/editais vira uma linha; "catalogo": false deixa um edital só como fonte de apelidos.
+const catalogRows: Json[] = [];
+for (const { path, value } of await jsonFiles("editais")) {
+  if (value.catalogo === false) continue;
+  const id = path.split("/").pop()!.replace(/\.json$/, "");
+  const text = (field: string) => typeof value[field] === "string" && (value[field] as string).trim() ? (value[field] as string).trim() : null;
+  const shortName = text("concurso");
+  const role = text("cargoExibicao") ?? text("cargo");
+  if (!shortName || !role) {
+    problems.push(`${path}: catálogo precisa de "concurso" e "cargo"`);
+    continue;
+  }
+  const subjects = ((value.disciplinas ?? []) as Json[]).map((subject) => ({
+    name: String(subject.nome ?? "").trim(),
+    topics: ((subject.topicos ?? []) as Json[]).map((topic) => String(topic.texto ?? "").trim()).filter(Boolean),
+  })).filter((subject) => subject.name && subject.topics.length > 0);
+  const topics = ((value.disciplinas ?? []) as Json[]).flatMap((subject) => (subject.topicos ?? []) as Json[]);
+  const synonyms = Array.isArray(value.sinonimos) ? (value.sinonimos as unknown[]).map(String) : [];
+  const year = typeof value.ano === "number" ? value.ano : null;
+  const searchTerms = [shortName, text("orgao"), text("cargo"), role, text("banca"), year?.toString(), ...synonyms];
+  const searchNorm = [...new Set(searchTerms.filter((term): term is string => !!term).map(normalizeAlias).filter(Boolean))].join(" | ");
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*(--[a-z0-9]+(-[a-z0-9]+)*)?$/.test(id)) problems.push(`${path}: nome de arquivo inválido para o catálogo`);
+  if (subjects.length === 0) problems.push(`${path}: catálogo sem matérias`);
+  catalogRows.push({
+    id,
+    short_name: shortName,
+    agency: text("orgao") ?? shortName,
+    role,
+    board: text("banca"),
+    year,
+    edital_ref: text("referencia"),
+    source_url: text("url")?.startsWith("http") ? text("url") : null,
+    notice: text("observacao"),
+    search_norm: searchNorm.slice(0, 2000),
+    subjects,
+    subject_count: subjects.length,
+    topic_count: subjects.reduce((sum, subject) => sum + subject.topics.length, 0),
+    ready_topic_count: topics.filter((topic) => topic.topico !== null && topic.topico !== undefined).length,
+    status: "PUBLISHED",
+    updated_at: new Date().toISOString(),
+  });
+}
+
+console.log(`Matérias: ${materials.size} · Recortes: ${notes.length} · Apelidos: ${aliasOwner.size} · Editais no catálogo: ${catalogRows.length}`);
 if (missing.length > 0) {
   console.log(`\nTópicos de edital ainda sem matéria (${missing.length}):`);
   missing.forEach((line) => console.log(`  - ${line}`));
@@ -190,4 +234,10 @@ if (notes.length > 0) {
     origin: "MANUAL",
   })), "resolution=merge-duplicates,return=minimal");
 }
-console.log(`Publicado: ${materials.size} matéria(s), ${aliasOwner.size} apelido(s), ${notes.length} recorte(s).`);
+// O catálogo também espelha o repositório: edital que saiu de conteudo/editais sai do app.
+for (let i = 0; i < catalogRows.length; i += 20) {
+  await rest("exam_catalog?on_conflict=id", "POST", catalogRows.slice(i, i + 20), "resolution=merge-duplicates,return=minimal");
+}
+const keepIds = catalogRows.map((row) => `"${row.id}"`).join(",");
+await rest(keepIds ? `exam_catalog?id=not.in.(${encodeURIComponent(keepIds)})` : "exam_catalog?id=not.is.null", "DELETE");
+console.log(`Publicado: ${materials.size} matéria(s), ${aliasOwner.size} apelido(s), ${notes.length} recorte(s), ${catalogRows.length} edital(is) no catálogo.`);

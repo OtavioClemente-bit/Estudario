@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import br.com.estudario.EstudarioApplication
 import br.com.estudario.data.local.CompetitionEntity
 import br.com.estudario.data.local.TopicEntity
+import androidx.room.withTransaction
 import br.com.estudario.data.local.SubjectEntity
 import br.com.estudario.data.local.planner.AvailabilityMode
 import br.com.estudario.data.local.planner.StudyAvailabilityEntity
@@ -127,7 +128,145 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
      */
     private val _editalAttachment = MutableStateFlow<br.com.estudario.ui.prompt.PromptAttachment?>(null)
     val editalAttachment: StateFlow<br.com.estudario.ui.prompt.PromptAttachment?> = _editalAttachment.asStateFlow()
-    fun setEditalAttachment(value: br.com.estudario.ui.prompt.PromptAttachment?) { _editalAttachment.value = value }
+    fun setEditalAttachment(value: br.com.estudario.ui.prompt.PromptAttachment?) {
+        _editalAttachment.value = value
+        checkEditalAttachment(value)
+    }
+
+    // --- Conferência do PDF anexado ---------------------------------------------------------------
+
+    private val _attachmentCheck = MutableStateFlow<EditalAttachmentCheck>(EditalAttachmentCheck.None)
+    /** Resultado da leitura do PDF no próprio aparelho: avisa logo se não parece o edital certo. */
+    val attachmentCheck: StateFlow<EditalAttachmentCheck> = _attachmentCheck.asStateFlow()
+    private var attachmentCheckJob: kotlinx.coroutines.Job? = null
+    /** Texto das páginas do último PDF lido: mudar nome ou cargo refaz só a conferência, sem reler o arquivo. */
+    private var attachmentPages: Pair<android.net.Uri, List<String>>? = null
+    private var draftName: String = ""
+    private var draftRole: String = ""
+
+    private fun checkEditalAttachment(value: br.com.estudario.ui.prompt.PromptAttachment?) {
+        attachmentCheckJob?.cancel()
+        if (value == null) {
+            attachmentPages = null
+            _attachmentCheck.value = EditalAttachmentCheck.None
+            return
+        }
+        if (attachmentPages?.first != value.uri) _attachmentCheck.value = EditalAttachmentCheck.Checking
+        attachmentCheckJob = viewModelScope.launch {
+            val snapshot = app.preferences.initialSetup.first()
+            _attachmentCheck.value = try {
+                val pages = attachmentPages?.takeIf { it.first == value.uri }?.second ?: withContext(Dispatchers.IO) {
+                    br.com.estudario.data.ai.EditalPdfText.init(app)
+                    val bytes = app.contentResolver.openInputStream(value.uri)?.use { it.readBytes() }
+                        ?: error("Não consegui abrir o PDF.")
+                    br.com.estudario.data.ai.EditalPdfText.pages(bytes)
+                }.also { attachmentPages = value.uri to it }
+                val result = withContext(Dispatchers.Default) {
+                    br.com.estudario.data.ai.SyllabusPreflight.inspect(
+                        pages,
+                        br.com.estudario.data.ai.AiSyllabusPreferences(
+                            competitionName = draftName.ifBlank { snapshot.competitionName },
+                            role = draftRole.ifBlank { snapshot.role },
+                        ),
+                    )
+                }
+                EditalAttachmentCheck.Done(result)
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                EditalAttachmentCheck.Unreadable
+            }
+        }
+    }
+
+    /** O nome e o cargo que a pessoa está digitando: o aviso de "outro concurso" depende deles. */
+    fun updateDraftIdentity(name: String, role: String) {
+        if (name.trim() == draftName && role.trim() == draftRole) return
+        draftName = name.trim()
+        draftRole = role.trim()
+        if (_attachmentCheck.value is EditalAttachmentCheck.Done) checkEditalAttachment(_editalAttachment.value)
+    }
+
+    // --- Catálogo de editais --------------------------------------------------------------------
+
+    private val catalog = br.com.estudario.data.catalog.ExamCatalogProvider.get(application)
+    private val _catalogState = MutableStateFlow(ExamCatalogUiState())
+    val catalogState: StateFlow<ExamCatalogUiState> = _catalogState.asStateFlow()
+
+    /** Mostra na hora a última lista guardada e atualiza pela rede em seguida. */
+    fun loadCatalog(force: Boolean = false) = viewModelScope.launch {
+        if (!catalog.isConfigured) return@launch
+        if (_catalogState.value.entries.isEmpty()) {
+            catalog.cached()?.let { cached -> _catalogState.value = _catalogState.value.copy(entries = cached) }
+        }
+        _catalogState.value = _catalogState.value.copy(loading = true, error = null)
+        _catalogState.value = try {
+            _catalogState.value.copy(entries = catalog.entries(force = force || _catalogState.value.entries.isNotEmpty()), loading = false)
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            _catalogState.value.copy(loading = false, error = error.message)
+        }
+    }
+
+    /**
+     * Monta o edital escolhido no catálogo: cria (ou reaproveita) o concurso com o nome e o cargo do
+     * edital e grava matérias e tópicos na ordem oficial, sem IA. Itens que já existem não repetem.
+     */
+    fun chooseCatalogExam(entry: br.com.estudario.data.catalog.ExamCatalogEntry) = viewModelScope.launch {
+        _operation.value = SetupOperation.Loading
+        try {
+            val subjects = catalog.subjects(entry.id)
+            val current = app.preferences.initialSetup.first()
+            val competitions = dao.competitionsOnce()
+            val draft = current.competitionId?.let { id -> competitions.firstOrNull { it.id == id } }
+            // Concurso com o mesmo nome e matérias de outra origem não é misturado com o edital do
+            // catálogo: o novo ganha o cargo no nome. Escolher de novo o mesmo edital só completa.
+            val sameExamAgain = current.catalogExamId == entry.id && draft != null
+            val byName = competitions.firstOrNull { it.name.equals(entry.shortName, ignoreCase = true) }
+            val fullName = "${entry.shortName} · ${entry.role}".take(120)
+            val competitionId = when {
+                sameExamAgain -> draft!!.id
+                draft != null && dao.subjectsFor(draft.id).isEmpty() ->
+                    draft.id.also { dao.updateCompetition(draft.copy(name = byName?.let { fullName } ?: entry.shortName)) }
+                byName != null && dao.subjectsFor(byName.id).isEmpty() -> byName.id
+                byName != null -> competitions.firstOrNull { it.name.equals(fullName, ignoreCase = true) }?.id
+                    ?: repository.addCompetition(fullName)
+                else -> repository.addCompetition(entry.shortName)
+            }
+            val competitionName = dao.competitionsOnce().first { it.id == competitionId }.name
+            app.database.withTransaction {
+                val existingSubjects = dao.subjectsFor(competitionId).associateBy { it.name.lowercase() }.toMutableMap()
+                subjects.forEach { subject ->
+                    val subjectId = existingSubjects[subject.name.lowercase()]?.id
+                        ?: repository.addSubject(competitionId, subject.name).also { id ->
+                            existingSubjects[subject.name.lowercase()] = SubjectEntity(id = id, competitionId = competitionId, name = subject.name)
+                        }
+                    val existingTopics = dao.topicsFor(subjectId).mapTo(hashSetOf()) { it.title.lowercase() }
+                    subject.topics.forEach { title -> if (existingTopics.add(title.lowercase())) repository.addTopic(subjectId, title) }
+                }
+            }
+            repository.setPrimary(competitionId)
+            _editalAttachment.value = null
+            _attachmentCheck.value = EditalAttachmentCheck.None
+            app.preferences.updateInitialSetup {
+                it.copy(
+                    status = InitialSetupStatus.IN_PROGRESS,
+                    step = InitialSetupStep.EXAM_DATE,
+                    competitionId = competitionId,
+                    competitionName = competitionName,
+                    role = entry.role,
+                    syllabusMethod = SyllabusMethod.CATALOG,
+                    catalogExamId = entry.id,
+                )
+            }
+            _operation.value = SetupOperation.Success("Edital carregado: ${subjects.size} matérias e ${subjects.sumOf { it.topics.size }} tópicos.")
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            _operation.value = SetupOperation.Error(error.message ?: "Não foi possível carregar este edital.")
+        }
+    }
 
     fun selectedAiTarget(): AiReviewTarget? = state.value.competition?.let { competition ->
         val snapshot = state.value.snapshot
@@ -185,6 +324,9 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
                 competitionId = id,
                 competitionName = cleanName,
                 role = role.trim(),
+                // Digitado à mão: o edital passa a vir do PDF, de arquivo ou da montagem manual.
+                catalogExamId = null,
+                syllabusMethod = current.syllabusMethod.takeUnless { it == SyllabusMethod.CATALOG },
             ),
         )
     }
@@ -198,6 +340,7 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
                 competitionId = competition.id,
                 competitionName = competition.name,
                 role = it.role.takeIf { _ -> it.competitionId == competition.id }.orEmpty(),
+                catalogExamId = it.catalogExamId.takeIf { _ -> it.competitionId == competition.id },
             )
         }
         repository.setPrimary(competition.id)
@@ -210,7 +353,13 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
             _operation.value = SetupOperation.Error("A data da prova precisa ser hoje ou uma data futura.")
             return@launch
         }
-        app.preferences.updateInitialSetup { it.copy(examDate = clean, step = InitialSetupStep.SYLLABUS_METHOD) }
+        // Edital do catálogo já está gravado: vai direto para a conferência das matérias.
+        val competitionId = state.value.snapshot.competitionId
+        val catalogReady = state.value.snapshot.syllabusMethod == SyllabusMethod.CATALOG &&
+            competitionId != null && dao.subjectsFor(competitionId).isNotEmpty()
+        app.preferences.updateInitialSetup {
+            it.copy(examDate = clean, step = if (catalogReady) InitialSetupStep.SYLLABUS_REVIEW else InitialSetupStep.SYLLABUS_METHOD)
+        }
     }
     fun chooseSyllabusMethod(value: SyllabusMethod) = update { it.copy(syllabusMethod = value) }
     fun saveManualSubjects(value: List<String>) = update { it.copy(manualSubjects = value) }
@@ -379,7 +528,12 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun goBack() = viewModelScope.launch {
-        val previous = InitialSetupTransitions.previous(state.value.snapshot.step) ?: return@launch
+        val snapshot = state.value.snapshot
+        val previous = if (snapshot.step == InitialSetupStep.SYLLABUS_REVIEW && snapshot.syllabusMethod == SyllabusMethod.CATALOG) {
+            InitialSetupStep.EXAM_DATE
+        } else {
+            InitialSetupTransitions.previous(snapshot.step) ?: return@launch
+        }
         app.preferences.updateInitialSetup { it.copy(step = previous) }
     }
 
@@ -648,3 +802,19 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
 const val PLAN_MODE_PREFS = "estudario_ui"
 const val PLAN_MODE_PREVIOUS_STATUS = "plan_mode_previous_status"
 const val PLAN_MODE_PREVIOUS_STEP = "plan_mode_previous_step"
+
+/** Lista do catálogo de editais na tela do concurso. */
+data class ExamCatalogUiState(
+    val entries: List<br.com.estudario.data.catalog.ExamCatalogEntry> = emptyList(),
+    val loading: Boolean = false,
+    val error: String? = null,
+)
+
+/** Conferência local do PDF anexado, feita assim que a pessoa escolhe o arquivo. */
+sealed interface EditalAttachmentCheck {
+    data object None : EditalAttachmentCheck
+    data object Checking : EditalAttachmentCheck
+    /** PDF protegido ou só de imagem: não dá para conferir no aparelho, mas pode seguir. */
+    data object Unreadable : EditalAttachmentCheck
+    data class Done(val result: br.com.estudario.data.ai.SyllabusPreflightResult) : EditalAttachmentCheck
+}

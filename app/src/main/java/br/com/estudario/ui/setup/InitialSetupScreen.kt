@@ -228,6 +228,8 @@ fun InitialSetupFlow(
     // IAs gratuitas só respondem direito com o PDF em mãos; sem ele, dependem de pesquisar na
     // internet, o que nem sempre funciona nos planos grátis.
     val editalAttachment by viewModel.editalAttachment.collectAsState()
+    val attachmentCheck by viewModel.attachmentCheck.collectAsState()
+    val catalogState by viewModel.catalogState.collectAsState()
     val aiPdfPermission = remember(context) { ContentResolverAiPdfUriPermission(context.contentResolver) }
     val editalAttach = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let {
@@ -308,6 +310,8 @@ fun InitialSetupFlow(
                     InitialSetupStep.INTRO -> IntroStep(onContinue = { viewModel.advance(step, InitialSetupStep.COMPETITION) })
                     InitialSetupStep.COMPETITION -> CompetitionStep(
                         snapshot, uiState.competition, uiState.competitions, viewModel,
+                        catalog = catalogState,
+                        attachmentCheck = attachmentCheck,
                         editalAttachment = editalAttachment,
                         onPickEditalAttachment = { editalAttach.launch(InitialSetupAiPdfSource.PICKER_MIME_TYPES) },
                         onClearEditalAttachment = { viewModel.setEditalAttachment(null) },
@@ -493,21 +497,43 @@ private fun CompetitionStep(
     selected: CompetitionEntity?,
     competitions: List<CompetitionEntity>,
     viewModel: InitialSetupViewModel,
+    catalog: ExamCatalogUiState,
+    attachmentCheck: EditalAttachmentCheck,
     editalAttachment: PromptAttachment?,
     onPickEditalAttachment: () -> Unit,
     onClearEditalAttachment: () -> Unit,
 ) {
+    LaunchedEffect(Unit) { viewModel.loadCatalog() }
     var name by rememberSaveable(snapshot.competitionId) { mutableStateOf(snapshot.competitionName) }
     var role by rememberSaveable(snapshot.competitionId) { mutableStateOf(snapshot.role) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var selectedExamId by rememberSaveable(snapshot.competitionId) { mutableStateOf(snapshot.catalogExamId) }
+    // Quem já digitou um concurso fora do catálogo volta direto para o formulário.
+    var manual by rememberSaveable { mutableStateOf(snapshot.catalogExamId == null && snapshot.competitionName.isNotBlank()) }
+    val results = remember(query, catalog.entries) { br.com.estudario.data.catalog.ExamCatalogSearch.search(catalog.entries, query) }
+    val selectedEntry = catalog.entries.firstOrNull { it.id == selectedExamId }
+    LaunchedEffect(name, role) {
+        kotlinx.coroutines.delay(500)
+        viewModel.updateDraftIdentity(name, role)
+    }
     // O cargo decide quais matérias valem no edital: sem ele a leitura do PDF pode pegar as de outro cargo.
-    val canContinue = name.trim().length >= 2 && role.trim().length >= 2
+    val canContinueManual = name.trim().length >= 2 && role.trim().length >= 2
     SetupPage(
         eyebrow = "Seu objetivo",
         title = "Qual concurso você vai prestar?",
-        description = "Começo pelo essencial. Escolha um concurso já salvo ou me diga o nome e o cargo.",
+        description = if (manual) "Me diga o concurso e o cargo. Com o PDF do edital, as matérias saem iguais às publicadas."
+        else "Busque pelo concurso ou pelo órgão. Com um edital do catálogo, as matérias já vêm prontas, sem anexar nada.",
         icon = Icons.Outlined.School,
         bottom = {
-            SetupPrimaryButton("Continuar", { viewModel.saveCompetition(name, role) }, enabled = canContinue)
+            if (manual) {
+                SetupPrimaryButton("Continuar", { viewModel.saveCompetition(name, role) }, enabled = canContinueManual)
+            } else {
+                SetupPrimaryButton(
+                    if (selectedEntry != null) "Usar este edital" else "Escolha um edital",
+                    { selectedEntry?.let(viewModel::chooseCatalogExam) },
+                    enabled = selectedEntry != null,
+                )
+            }
         },
     ) {
         if (competitions.isNotEmpty()) {
@@ -517,27 +543,62 @@ private fun CompetitionStep(
                     FilterChip(selected = selected?.id == competition.id, onClick = { viewModel.selectCompetition(competition) }, label = { Text(competition.name) })
                 }
             }
+            Spacer(Modifier.height(8.dp))
         }
-        OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nome do concurso") }, placeholder = { Text("Ex.: Polícia Federal") }, singleLine = true)
-        Spacer(Modifier.height(10.dp))
-        OutlinedTextField(role, { role = it }, Modifier.fillMaxWidth(), label = { Text("Cargo ou área") }, placeholder = { Text("Ex.: Agente de Polícia") }, supportingText = { Text("Muitos editais têm vários cargos: é por ele que achamos as suas matérias.") }, singleLine = true)
-        if (selected != null && selected.name.equals(name.trim(), true)) {
-            Spacer(Modifier.height(12.dp))
-            AssistChip(onClick = { }, label = { Text("Concurso já salvo neste aparelho") }, leadingIcon = { Icon(Icons.Outlined.CheckCircle, null) })
-        }
+        if (!manual) {
+            CatalogSearchField(query) { query = it }
+            if (query.isBlank()) CatalogShortcuts(catalog.entries) { query = it }
+            results.forEach { entry ->
+                ExamResultCard(entry, entry.id == selectedExamId) {
+                    selectedExamId = if (selectedExamId == entry.id) null else entry.id
+                }
+            }
+            if (results.isEmpty()) {
+                CatalogEmptyState(
+                    query = query,
+                    loading = catalog.loading && catalog.entries.isEmpty(),
+                    error = catalog.error.takeIf { catalog.entries.isEmpty() },
+                    onRetry = { viewModel.loadCatalog(force = true) },
+                )
+            }
+            selectedEntry?.let { SelectedExamSummary(it) }
+            Spacer(Modifier.height(8.dp))
+            SetupCard {
+                NotFoundIntro()
+                OutlinedButton(onClick = {
+                    manual = true
+                    selectedExamId = null
+                    if (name.isBlank() && query.isNotBlank()) name = query.trim()
+                }) { Text("Informar concurso e anexar edital") }
+            }
+        } else {
+            if (catalog.entries.isNotEmpty()) {
+                TextButton(onClick = { manual = false }) { Text("Voltar para os editais prontos") }
+            }
+            OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nome do concurso") }, placeholder = { Text("Ex.: Polícia Federal") }, singleLine = true)
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(role, { role = it }, Modifier.fillMaxWidth(), label = { Text("Cargo ou área") }, placeholder = { Text("Ex.: Agente de Polícia") }, supportingText = { Text("Muitos editais têm vários cargos: é por ele que achamos as suas matérias.") }, singleLine = true)
+            if (selected != null && selected.name.equals(name.trim(), true)) {
+                Spacer(Modifier.height(12.dp))
+                AssistChip(onClick = { }, label = { Text("Concurso já salvo neste aparelho") }, leadingIcon = { Icon(Icons.Outlined.CheckCircle, null) })
+            }
 
-        Spacer(Modifier.height(16.dp))
-        SetupCard {
-            Text("Já aproveite e anexe o edital", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Text(
-                "Com o PDF, as matérias saem iguais às do edital publicado. Se puder, escolha a versão com o conteúdo programático (as matérias) já incluído. É opcional, e dá pra anexar depois, no passo do edital.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            AttachmentPicker(editalAttachment, "Anexar edital (PDF)", onPickEditalAttachment, onClearEditalAttachment)
+            Spacer(Modifier.height(16.dp))
+            SetupCard {
+                Text("Anexe o edital", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Com o PDF, as matérias saem iguais às do edital publicado. É opcional, e dá pra anexar depois, no passo do edital.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                AttachmentPicker(editalAttachment, "Anexar edital (PDF)", onPickEditalAttachment, onClearEditalAttachment)
+                EditalCheckCard(attachmentCheck)
+                SeparateAnnexHint()
+            }
         }
     }
 }
+
 
 private val examDateDisplayFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", Locale("pt", "BR"))
@@ -666,12 +727,17 @@ internal fun SyllabusMethodStep(
         bottom = {
             if (method == SyllabusMethod.MANUAL) {
                 SetupPrimaryButton("Revisar matérias", viewModel::confirmManualSyllabus, enabled = snapshot.manualSubjects.isNotEmpty())
+            } else if (method == SyllabusMethod.CATALOG) {
+                SetupPrimaryButton("Revisar matérias", { viewModel.jumpTo(InitialSetupStep.SYLLABUS_REVIEW) })
             } else {
                 Text("Depois de importar um .estudo válido, você verá um resumo antes de confirmar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
     ) {
-        ChoiceCard("Gerar com o Estudário", "O Estudário lê o edital e organiza matérias e tópicos para você revisar.", method == SyllabusMethod.DIRECT_AI, icon = Icons.Outlined.AutoAwesome, badge = "Recomendado") { viewModel.chooseSyllabusMethod(SyllabusMethod.DIRECT_AI) }
+        if (snapshot.catalogExamId != null) {
+            ChoiceCard("Edital oficial do catálogo", "As matérias do edital escolhido já estão carregadas, na ordem oficial.", method == SyllabusMethod.CATALOG, icon = Icons.Outlined.CheckCircle, badge = "Pronto") { viewModel.chooseSyllabusMethod(SyllabusMethod.CATALOG) }
+        }
+        ChoiceCard("Gerar com o Estudário", "O Estudário lê o edital e organiza matérias e tópicos para você revisar.", method == SyllabusMethod.DIRECT_AI, icon = Icons.Outlined.AutoAwesome, badge = if (snapshot.catalogExamId != null) null else "Recomendado") { viewModel.chooseSyllabusMethod(SyllabusMethod.DIRECT_AI) }
         ChoiceCard("Importar arquivo .estudo", "Use um edital que você já tenha gerado ou recebido.", method == SyllabusMethod.IMPORT_ESTUDO, icon = Icons.Outlined.UploadFile) { viewModel.chooseSyllabusMethod(SyllabusMethod.IMPORT_ESTUDO) }
         ChoiceCard("Montar manualmente", "Crie matérias e tópicos agora e edite tudo antes de continuar.", method == SyllabusMethod.MANUAL, icon = Icons.Outlined.School) { viewModel.chooseSyllabusMethod(SyllabusMethod.MANUAL) }
 
@@ -691,6 +757,11 @@ internal fun SyllabusMethodStep(
             }
             SyllabusMethod.MANUAL -> ManualSyllabusEditor(snapshot, viewModel)
             SyllabusMethod.CHATGPT -> Unit
+            SyllabusMethod.CATALOG -> Text(
+                "Para trocar de edital, volte ao primeiro passo e escolha outro no catálogo.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             null -> Text("Escolha um caminho para continuar.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (operation is SetupOperation.Success) Text((operation as SetupOperation.Success).message, color = MaterialTheme.colorScheme.primary)
