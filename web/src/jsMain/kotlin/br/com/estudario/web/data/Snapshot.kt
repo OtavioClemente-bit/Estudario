@@ -48,6 +48,10 @@ class Snapshot private constructor(val root: JsonObject) {
     val simulations get() = list(Keys.SIMULATIONS, Simulation.serializer())
     val errorConcepts get() = list(Keys.ERROR_CONCEPTS, ErrorConcept.serializer())
     val errorConceptEntries get() = list(Keys.ERROR_CONCEPT_ENTRIES, ErrorConceptEntry.serializer())
+    val notes get() = list("notes", UserNote.serializer())
+    val theoryMarks get() = list("theoryMarks", TheoryMark.serializer())
+    val contentSources get() = list("contentSources", ContentSource.serializer())
+    val importPackages get() = list("importPackages", ImportPackage.serializer())
 
     val isEmpty: Boolean get() = competitions.isEmpty() && plans.isEmpty()
 

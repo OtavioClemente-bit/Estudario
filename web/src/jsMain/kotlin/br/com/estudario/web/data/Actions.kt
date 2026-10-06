@@ -286,5 +286,22 @@ object Actions {
     fun toggleFavorite(data: Snapshot, questionId: Long): Snapshot =
         data.edit(Keys.QUESTIONS) { if (it.idIs(questionId)) it.with("favorite" to JsonPrimitive(!(it.bool("favorite") ?: false))) else it }
 
+    // ------------------------------------------------------------------ caderno de estudo
+
+    /** StudyRepository.saveNote: nova anotação (id 0) ou edição. */
+    fun saveNote(data: Snapshot, id: Long, topicId: Long?, text: String): Snapshot =
+        if (id == 0L) data.append("notes", jsonOf("id" to data.nextId("notes"), "topicId" to topicId, "questionId" to null, "text" to text.trim(), "createdAt" to now()))
+        else data.edit("notes") { if (it.idIs(id)) it.with("topicId" to topicId.toJsonElement(), "text" to JsonPrimitive(text.trim())) else it }
+
+    fun deleteNote(data: Snapshot, id: Long): Snapshot = data.edit("notes") { if (it.idIs(id)) null else it }
+
+    fun toggleSnippetFavorite(data: Snapshot, id: Long): Snapshot =
+        data.edit(Keys.SNIPPETS) { if (it.idIs(id)) it.with("favorite" to JsonPrimitive(!(it.bool("favorite") ?: false)), "updatedAt" to JsonPrimitive(now())) else it }
+
+    fun toggleSummaryFavorite(data: Snapshot, id: Long): Snapshot =
+        data.edit(Keys.SUMMARIES) { if (it.idIs(id)) it.with("favorite" to JsonPrimitive(!(it.bool("favorite") ?: false)), "updatedAt" to JsonPrimitive(now())) else it }
+
+    fun deleteTheoryMark(data: Snapshot, id: Long): Snapshot = data.edit("theoryMarks") { if (it.idIs(id)) null else it }
+
     fun newSessionId(): String = uuid()
 }

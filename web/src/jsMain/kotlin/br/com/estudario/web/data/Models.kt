@@ -36,7 +36,7 @@ data class Summary(val id: Long, val topicId: Long, val title: String, val markd
 data class Theory(val id: Long, val topicId: Long, val title: String, val markdown: String, val lastReadBlock: Int = 0, val updatedAt: Long = 0)
 
 @Serializable
-data class Snippet(val id: Long, val topicId: Long, val kind: String, val text: String, val answer: String? = null, val position: Int = 0)
+data class Snippet(val id: Long, val topicId: Long, val kind: String, val text: String, val answer: String? = null, val position: Int = 0, val favorite: Boolean = false, val externalId: String? = null)
 
 @Serializable
 data class QuestionOption(val id: Long, val key: String, val text: String, val correct: Boolean, val position: Int = 0)
@@ -261,3 +261,26 @@ data class ErrorConcept(
 
 @Serializable
 data class ErrorConceptEntry(val conceptId: Long, val errorEntryId: Long)
+
+@Serializable
+data class UserNote(val id: Long, val topicId: Long? = null, val questionId: Long? = null, val text: String, val createdAt: Long = 0)
+
+@Serializable
+data class TheoryMark(val id: Long, val theoryId: Long, val blockIndex: Int = 0, val quote: String = "", val note: String = "", val color: Int = 0, val createdAt: Long = 0)
+
+@Serializable
+data class ContentSource(
+    val id: Long,
+    val topicId: Long? = null,
+    val packageId: String = "",
+    val kind: String = "COMPLEMENTAR",
+    val title: String,
+    val publisher: String = "",
+    val reference: String = "",
+    val url: String? = null,
+    val accessedAt: String = "",
+    val createdAt: Long = 0,
+)
+
+@Serializable
+data class ImportPackage(val id: Long, val packageId: String, val importedAt: Long = 0, val fileName: String = "", val createdCount: Int = 0)

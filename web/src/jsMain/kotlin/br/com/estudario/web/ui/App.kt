@@ -1,14 +1,19 @@
 package br.com.estudario.web.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import br.com.estudario.web.Route
 import br.com.estudario.web.Router
-import br.com.estudario.web.data.Auth
 import br.com.estudario.web.data.LoadState
+import br.com.estudario.web.data.Progress
 import br.com.estudario.web.data.SaveState
 import br.com.estudario.web.data.Store
 import org.jetbrains.compose.web.dom.A
 import org.jetbrains.compose.web.dom.Aside
+import org.jetbrains.compose.web.dom.B
+import org.jetbrains.compose.web.dom.Button
 import org.jetbrains.compose.web.dom.Div
 import org.jetbrains.compose.web.dom.H1
 import org.jetbrains.compose.web.dom.H2
@@ -19,54 +24,84 @@ import org.jetbrains.compose.web.dom.P
 import org.jetbrains.compose.web.dom.Span
 import org.jetbrains.compose.web.dom.Text
 
-
 private data class NavEntry(val route: Route, val label: String, val icon: String)
+private data class NavSection(val title: String, val entries: List<NavEntry>)
 
-/** As cinco abas do app, na mesma ordem. */
-private val navEntries = listOf(
+/** O menu lateral do app (EstudarioDrawer): Estudos, Acompanhamento e Aplicativo. */
+private val menu = listOf(
+    NavSection(
+        "Estudos",
+        listOf(
+            NavEntry(Route.Home, "Início", "home"),
+            NavEntry(Route.Edital, "Meus concursos", "folder_open"),
+            NavEntry(Route.Plan, "Plano de estudos", "calendar_month"),
+            NavEntry(Route.Train, "Treinar questões", "gps_fixed"),
+            NavEntry(Route.Notebook, "Caderno de estudo", "bookmarks"),
+            NavEntry(Route.Reviews, "Revisões espaçadas", "autorenew"),
+            NavEntry(Route.Errors, "Caderno de erros", "error"),
+            NavEntry(Route.Focus, "Modo foco", "timer"),
+        ),
+    ),
+    NavSection(
+        "Acompanhamento",
+        listOf(
+            NavEntry(Route.Stats, "Desempenho", "query_stats"),
+            NavEntry(Route.Achievements, "Conquistas", "emoji_events"),
+            NavEntry(Route.Sources, "Histórico e fontes", "fact_check"),
+            NavEntry(Route.FocusHistory, "Histórico do foco", "history"),
+        ),
+    ),
+    NavSection(
+        "Aplicativo",
+        listOf(
+            NavEntry(Route.Settings, "Ajustes", "tune"),
+            NavEntry(Route.Notifications, "Notificações", "notifications_active"),
+            NavEntry(Route.PlanLimits, "Planos e uso", "workspace_premium"),
+        ),
+    ),
+)
+
+/** As quatro abas de baixo do app, mais o menu. */
+private val tabs = listOf(
     NavEntry(Route.Home, "Início", "home"),
     NavEntry(Route.Edital, "Edital", "checklist"),
     NavEntry(Route.Plan, "Plano", "calendar_month"),
     NavEntry(Route.Train, "Treinar", "school"),
-    NavEntry(Route.More, "Mais", "more_horiz"),
-)
-
-/** Atalhos que no app ficam dentro de Treinar e Mais; no computador cabem no menu lateral. */
-private val shortcutEntries = listOf(
-    NavEntry(Route.Reviews, "Revisões", "replay"),
-    NavEntry(Route.Errors, "Caderno de erros", "error_med"),
-    NavEntry(Route.Flashcards(null), "Flashcards", "style"),
-    NavEntry(Route.Simulations, "Simulados", "timer"),
-    NavEntry(Route.Stats, "Desempenho", "monitoring"),
 )
 
 private fun titleOf(route: Route): String = when (route) {
     Route.Home -> "Início"
-    Route.Plan -> "Plano"
+    Route.Plan -> "Plano de estudos"
     Route.PlanSettings -> "Ajustar plano"
-    Route.Edital, is Route.Topic -> "Edital"
-    Route.Train -> "Treinar"
+    Route.Edital, is Route.Topic -> "Meus concursos"
+    Route.Train -> "Treinar questões"
     is Route.Quiz -> "Questões"
+    Route.Simulations, is Route.Simulation -> "Simulados"
+    Route.Notebook -> "Caderno de estudo"
     is Route.Flashcards -> "Flashcards"
-    Route.Reviews -> "Revisões"
+    Route.Reviews -> "Revisões espaçadas"
     Route.Errors -> "Caderno de erros"
-    Route.Simulations -> "Simulados"
-    is Route.Simulation -> "Simulado"
-    Route.More -> "Mais"
+    Route.Focus -> "Modo foco"
+    Route.FocusHistory -> "Histórico do foco"
+    Route.Profile -> "Perfil"
     Route.Stats -> "Desempenho"
     Route.Achievements -> "Conquistas"
+    Route.Sources -> "Histórico e fontes"
+    Route.Notifications -> "Notificações"
+    Route.PlanLimits -> "Planos e uso"
     Route.Settings -> "Ajustes"
-    Route.Focus -> "Modo foco"
     Route.Setup -> "Configurar estudos"
 }
+
+private var drawerOpen by mutableStateOf(false)
 
 @Composable
 fun App() {
     when (val load = Store.load) {
-        LoadState.Loading -> CenterMessage { Spinner(); Text("Carregando seus estudos…") }
+        LoadState.Loading -> CenterMessage { Folha(mood = "thinking", size = 110); Text("Carregando seus estudos…") }
         LoadState.SignedOut -> LoginScreen()
         is LoadState.Failed -> CenterMessage {
-            Icon("cloud_off", extraClass = "big")
+            Folha(mood = "thinking", size = 110)
             Text(load.message)
             Btn("Tentar de novo", { Store.start() })
         }
@@ -87,16 +122,21 @@ private fun Screen(route: Route) {
         is Route.Topic -> TopicScreen(route.id)
         Route.Train -> TrainScreen()
         is Route.Quiz -> QuizScreen(route.scope)
+        Route.Simulations -> SimulationsScreen()
+        is Route.Simulation -> SimulationScreen(route.id)
+        Route.Notebook -> NotebookScreen()
         is Route.Flashcards -> FlashcardsScreen(route.topicId)
         Route.Reviews -> ReviewsScreen()
         Route.Errors -> ErrorsScreen()
-        Route.Simulations -> SimulationsScreen()
-        is Route.Simulation -> SimulationScreen(route.id)
-        Route.More -> MoreScreen()
+        Route.Focus -> FocusScreen()
+        Route.FocusHistory -> FocusHistoryScreen()
+        Route.Profile -> ProfileScreen()
         Route.Stats -> StatsScreen()
         Route.Achievements -> AchievementsScreen()
+        Route.Sources -> SourcesScreen()
+        Route.Notifications -> NotificationsScreen()
+        Route.PlanLimits -> PlanLimitsScreen()
         Route.Settings -> SettingsScreen()
-        Route.Focus -> FocusScreen()
         Route.Setup -> SetupScreen()
     }
 }
@@ -112,38 +152,22 @@ private fun Shell(content: @Composable () -> Unit) {
     val section = route.section
     A(href = "#conteudo", { classes("skip") }) { Text("Pular para o conteúdo") }
     Div({ classes("shell") }) {
-        Aside({ classes("sidebar") }) {
-            A(href = "#/inicio", { classes("brand") }) {
-                Img(src = "icon.png", alt = "")
-                Text("estudário")
-            }
-            Nav({ attr("aria-label", "Seções") }) {
-                navEntries.forEach { entry -> NavLink(entry, entry.route == section) }
-                Div({ classes("nav-label") }) { Text("Atalhos") }
-                shortcutEntries.forEach { entry -> NavLink(entry, entry.route == route || (entry.route is Route.Flashcards && route is Route.Flashcards)) }
-            }
-            Div({ classes("sidebar-foot") }) {
-                A(href = "#/foco", { classes("focus-cta") }) {
-                    Icon("center_focus_strong", filled = true)
-                    Div {
-                        Text("Modo foco")
-                        org.jetbrains.compose.web.dom.Small { Text("Cronômetro para estudar sem distração") }
-                    }
-                }
-            }
-        }
+        Aside({ classes(*listOfNotNull("sidebar", if (drawerOpen) "open" else null).toTypedArray()) }) { SidebarContent(section) }
+        if (drawerOpen) Div({ classes("drawer-scrim"); onClick { drawerOpen = false } })
         Div({ classes("main") }) {
             Div({ classes("topbar") }) {
+                Button({ classes("icon-btn", "menu-btn"); attr("aria-label", "Abrir menu"); onClick { drawerOpen = true } }) { Icon("menu") }
                 Span({ classes("title") }) { Text(titleOf(route)) }
                 Div({ classes("spacer") })
                 SaveIndicator()
-                A(href = "#/mais", { classes("avatar"); attr("aria-label", "Perfil") }) {
+                A(href = "#/perfil", { classes("avatar"); attr("aria-label", "Perfil") }) {
                     val session = Store.session
                     val photo = session?.avatarUrl
                     if (photo != null) Img(src = photo, alt = "") else Text(initials(session?.name ?: session?.email))
                 }
             }
-            Main({ classes(*listOfNotNull("content", if (route is Route.Topic || route is Route.Quiz || route is Route.Flashcards || route == Route.Focus || route == Route.Setup) "narrow" else null).toTypedArray()); id("conteudo") }) {
+            val narrow = route is Route.Topic || route is Route.Quiz || route is Route.Flashcards || route == Route.Focus || route == Route.Setup
+            Main({ classes(*listOfNotNull("content", if (narrow) "narrow" else null).toTypedArray()); id("conteudo") }) {
                 if (Store.demo) Div({ classes("banner", "info") }) {
                     Icon("visibility")
                     Span({ attr("style", "flex:1;min-width:200px") }) { Text("Você está vendo uma demonstração com dados de exemplo. Nada é salvo.") }
@@ -153,7 +177,38 @@ private fun Shell(content: @Composable () -> Unit) {
             }
         }
         Nav({ classes("bottomnav"); attr("aria-label", "Seções") }) {
-            navEntries.forEach { entry -> NavLink(entry, entry.route == section) }
+            tabs.forEach { entry -> NavLink(entry, entry.route == section) }
+            Button({ classes("nav-item"); onClick { drawerOpen = true } }) { Icon("menu"); Span { Text("Menu") } }
+        }
+    }
+}
+
+@Composable
+private fun SidebarContent(section: Route) {
+    val session = Store.session
+    val progress = Progress.of(Store.data).progress
+    // Cabeçalho do menu: o perfil, com nível e XP (como no app).
+    A(href = "#/perfil", { classes("drawer-profile"); onClick { drawerOpen = false } }) {
+        Span({ classes("avatar"); attr("style", "width:44px;height:44px;font-size:16px") }) {
+            val photo = session?.avatarUrl
+            if (photo != null) Img(src = photo, alt = "") else Text(initials(session?.name ?: session?.email))
+        }
+        Div({ attr("style", "min-width:0;flex:1") }) {
+            B({ classes("clamp-2") }) { Text(session?.name ?: if (Store.demo) "Demonstração" else "Estudante") }
+            Div({ classes("xs", "muted") }) { Text("Nível ${progress.level} · ${progress.totalXp} XP") }
+        }
+        Icon("chevron_right", extraClass = "faint")
+    }
+    Nav({ attr("aria-label", "Menu") }) {
+        menu.forEach { group ->
+            Div({ classes("nav-label") }) { Text(group.title) }
+            group.entries.forEach { entry -> NavLink(entry, entry.route == section) }
+        }
+    }
+    Div({ classes("sidebar-foot") }) {
+        A(href = "#/inicio", { classes("brand"); attr("style", "padding:8px 12px 0;font-size:15px") }) {
+            Img(src = "icon.png", alt = "", attrs = { attr("style", "width:24px;height:24px;border-radius:7px") })
+            Text("estudário")
         }
     }
 }
@@ -172,6 +227,7 @@ private fun NavLink(entry: NavEntry, active: Boolean) {
     A(href = "#/${entry.route.path}", {
         classes(*listOfNotNull("nav-item", if (active) "active" else null).toTypedArray())
         if (active) attr("aria-current", "page")
+        onClick { drawerOpen = false }
     }) {
         Icon(entry.icon)
         Span { Text(entry.label) }

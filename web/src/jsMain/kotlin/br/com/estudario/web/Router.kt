@@ -14,54 +14,69 @@ sealed class Route(val path: String) {
     data class Topic(val id: Long) : Route("edital/$id")
     data object Train : Route("treinar")
     data class Quiz(val scope: String) : Route("treinar/questoes/$scope")
-    data class Flashcards(val topicId: Long?) : Route(if (topicId == null) "treinar/flashcards" else "treinar/flashcards/$topicId")
-    data object Reviews : Route("treinar/revisoes")
-    data object Errors : Route("treinar/erros")
     data object Simulations : Route("treinar/simulados")
     data class Simulation(val id: Long) : Route("treinar/simulados/$id")
-    data object More : Route("mais")
-    data object Stats : Route("mais/desempenho")
-    data object Achievements : Route("mais/conquistas")
-    data object Settings : Route("mais/ajustes")
+    data object Notebook : Route("caderno")
+    data class Flashcards(val topicId: Long?) : Route(if (topicId == null) "caderno/flashcards" else "caderno/flashcards/$topicId")
+    data object Reviews : Route("caderno/revisoes")
+    data object Errors : Route("caderno/erros")
     data object Focus : Route("foco")
+    data object FocusHistory : Route("foco/historico")
+    data object Profile : Route("perfil")
+    data object Stats : Route("perfil/desempenho")
+    data object Achievements : Route("perfil/conquistas")
+    data object Sources : Route("perfil/fontes")
+    data object Notifications : Route("perfil/notificacoes")
+    data object PlanLimits : Route("perfil/plano")
+    data object Settings : Route("perfil/ajustes")
     data object Setup : Route("configurar")
 
     /** Item do menu ao qual esta rota pertence. */
     val section: Route
         get() = when (this) {
-            is Topic -> Edital
+            is Topic, Setup -> Edital
             PlanSettings -> Plan
-            is Quiz, is Flashcards, Reviews, Errors, Simulations, is Simulation -> Train
-            Stats, Achievements, Settings, Setup -> More
+            is Quiz, Simulations, is Simulation -> Train
+            is Flashcards -> Notebook
             else -> this
         }
 
     companion object {
         fun parse(hash: String): Route {
             val parts = hash.removePrefix("#").removePrefix("/").split('/').filter { it.isNotEmpty() }
+            val second = parts.getOrNull(1)
             return when (parts.firstOrNull()) {
                 null, "inicio", "demo" -> Home
-                "plano" -> if (parts.getOrNull(1) == "ajustar") PlanSettings else Plan
-                "edital" -> parts.getOrNull(1)?.toLongOrNull()?.let(::Topic) ?: Edital
-                "treinar", "questoes" -> when (parts.getOrNull(1)) {
+                "plano" -> if (second == "ajustar") PlanSettings else Plan
+                "edital" -> second?.toLongOrNull()?.let(::Topic) ?: Edital
+                "treinar", "questoes" -> when (second) {
                     "questoes", "treino" -> Quiz(parts.getOrNull(2) ?: "rapido-10")
+                    "simulados" -> parts.getOrNull(2)?.toLongOrNull()?.let(::Simulation) ?: Simulations
                     "flashcards" -> Flashcards(parts.getOrNull(2)?.toLongOrNull())
                     "revisoes" -> Reviews
                     "erros" -> Errors
-                    "simulados" -> parts.getOrNull(2)?.toLongOrNull()?.let(::Simulation) ?: Simulations
                     else -> Train
+                }
+                "caderno" -> when (second) {
+                    "flashcards" -> Flashcards(parts.getOrNull(2)?.toLongOrNull())
+                    "revisoes" -> Reviews
+                    "erros" -> Errors
+                    else -> Notebook
                 }
                 "revisoes" -> Reviews
                 "erros" -> Errors
                 "simulados" -> Simulations
-                "mais", "perfil" -> when (parts.getOrNull(1)) {
+                "foco" -> if (second == "historico") FocusHistory else Focus
+                "perfil", "mais" -> when (second) {
                     "desempenho" -> Stats
                     "conquistas" -> Achievements
+                    "fontes" -> Sources
+                    "notificacoes" -> Notifications
+                    "plano" -> PlanLimits
                     "ajustes" -> Settings
-                    else -> More
+                    else -> Profile
                 }
                 "desempenho" -> Stats
-                "foco" -> Focus
                 "configurar" -> Setup
                 else -> Home
             }

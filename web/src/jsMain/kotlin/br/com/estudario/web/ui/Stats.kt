@@ -25,81 +25,12 @@ import org.jetbrains.compose.web.dom.P
 import org.jetbrains.compose.web.dom.Span
 import org.jetbrains.compose.web.dom.Text
 
-// ------------------------------------------------------------------ Mais (perfil)
-
-@Composable
-fun MoreScreen() {
-    val session = Store.session
-    val view = Progress.of(Store.data)
-    val progress = view.progress
-    Div({ classes("grid", "main-side") }) {
-        Div({ classes("stack", "loose") }) {
-            Card(extra = "pad-lg") {
-                Div({ classes("row") }) {
-                    Span({ classes("hero-avatar"); attr("style", "background:var(--primary-soft);color:var(--on-primary-soft);width:64px;height:64px;font-size:22px") }) {
-                        val photo = session?.avatarUrl
-                        if (photo != null) Img(src = photo, alt = "") else Text(initials(session?.name ?: session?.email))
-                    }
-                    Div({ classes("grow") }) {
-                        H2 { Text(session?.name ?: if (Store.demo) "Demonstração" else "Concurseiro") }
-                        P({ classes("small", "muted", "clamp-2") }) { Text(session?.email?.let { "$it · dados sincronizados com a conta" } ?: "Dados de exemplo") }
-                    }
-                }
-            }
-            Card(extra = "pad-lg") {
-                Div({ classes("row") }) {
-                    Div({ classes("hero-avatar"); attr("style", "background:var(--primary-soft);color:var(--on-primary-soft);flex-direction:column;width:64px;height:64px") }) {
-                        B({ attr("style", "font-size:24px;line-height:1") }) { Text("${progress.level}") }
-                        Span({ classes("xs") }) { Text("nível") }
-                    }
-                    Div({ classes("grow") }) {
-                        H2 { Text(progress.levelTitle) }
-                        P({ classes("small", "muted") }) { Text("${progress.totalXp} XP no total") }
-                    }
-                    Div({ attr("style", "text-align:right") }) {
-                        B({ attr("style", "color:var(--green-strong);font-size:20px") }) { Text("+${progress.xpToday}") }
-                        Div({ classes("xs", "muted") }) { Text("hoje") }
-                    }
-                }
-                Div({ attr("style", "margin-top:16px") }) { ProgressBar(progress.levelProgress.toDouble()) }
-                P({ classes("small", "muted"); attr("style", "margin-top:8px") }) { Text("${progress.xpIntoLevel} / ${progress.xpForNextLevel} XP para o nível ${progress.level + 1} · ${progress.xpThisWeek} XP esta semana") }
-                Div({ classes("stack", "tight"); attr("style", "margin-top:14px;border-top:1px solid var(--line);padding-top:12px") }) {
-                    progress.sources.filter { it.xp > 0 }.forEach { source ->
-                        Div({ classes("row", "between") }) { Span({ classes("small") }) { Text(source.label) }; B({ classes("small") }) { Text("${source.xp} XP") } }
-                    }
-                }
-            }
-        }
-        Div({ classes("stack", "loose") }) {
-            Card {
-                MoreLink("monitoring", "Desempenho", "Acerto, minutos e constância") { Router.go(Route.Stats) }
-                MoreLink("military_tech", "Conquistas", "${progress.earnedBadges.size} emblemas conquistados") { Router.go(Route.Achievements) }
-                MoreLink("center_focus_strong", "Modo foco", "Cronômetro de estudo") { Router.go(Route.Focus) }
-                MoreLink("tune", "Ajustar plano", "Horas, matérias e data da prova") { Router.go(Route.PlanSettings) }
-                MoreLink("auto_awesome", "Configurar estudos", "Novo concurso ou edital") { Router.go(Route.Setup) }
-                MoreLink("settings", "Ajustes", "Aparência, meta diária e questões") { Router.go(Route.Settings) }
-            }
-            Btn(if (Store.demo) "Sair da demonstração" else "Sair da conta", { Store.signOut() }, style = "outline", icon = "logout", block = true)
-        }
-    }
-}
-
-@Composable
-private fun MoreLink(icon: String, title: String, subtitle: String, onClick: () -> Unit) {
-    val latest = androidx.compose.runtime.rememberUpdatedState(onClick)
-    Button({ classes("setting"); attr("style", "width:100%;background:transparent;border-left:0;border-right:0;border-top:0;cursor:pointer;text-align:left;font:inherit;color:inherit"); onClick { latest.value() } }) {
-        Icon(icon)
-        Div({ classes("grow") }) { B { Text(title) }; Div({ classes("small", "muted") }) { Text(subtitle) } }
-        Icon("chevron_right", extraClass = "faint")
-    }
-}
-
 // ------------------------------------------------------------------ conquistas
 
 @Composable
 fun AchievementsScreen() {
     val progress = Progress.of(Store.data).progress
-    Div({ classes("row") }) { Btn("Mais", { Router.go(Route.More) }, style = "ghost", small = true, icon = "arrow_back") }
+    BackToProfile()
     PageHead("Conquistas", "${progress.earnedBadges.size} de ${progress.badges.size} emblemas. Tudo vem do seu histórico real.")
     Div({ classes("badges") }) {
         (progress.earnedBadges + progress.nextBadges).forEach { item ->
@@ -209,7 +140,7 @@ fun StatsScreen() {
 fun SettingsScreen() {
     var goal by remember { mutableStateOf(Prefs.dailyGoal) }
     var explain by remember { mutableStateOf(Prefs.explanationRightAway) }
-    Div({ classes("row") }) { Btn("Mais", { Router.go(Route.More) }, style = "ghost", small = true, icon = "arrow_back") }
+    BackToProfile()
     PageHead("Ajustes", "Deixe o Estudário do seu jeito")
     Div({ classes("grid", "cols-2") }) {
         Card {
