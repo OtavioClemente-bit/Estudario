@@ -1,3 +1,4 @@
+import { withCors } from "../_shared/cors.ts";
 import {
   integrityRequestHash,
   IntegrityError,
@@ -724,33 +725,7 @@ async function handleAiSyllabusJobs(request: Request): Promise<Response> {
   }
 }
 
-/** Origens do app web que podem chamar esta função pelo navegador. */
-const WEB_ORIGINS = new Set(["https://app.estudario.com.br", "https://estudario-app.pages.dev", "http://localhost:8788"]);
-
-function corsHeaders(request: Request): Record<string, string> {
-  const origin = request.headers.get("origin") ?? "";
-  const allowed = WEB_ORIGINS.has(origin) || /^https:\/\/[a-z0-9-]+\.estudario-app\.pages\.dev$/.test(origin);
-  if (!allowed) return {};
-  return {
-    "access-control-allow-origin": origin,
-    "access-control-allow-methods": "GET, POST, OPTIONS",
-    "access-control-allow-headers": "authorization, apikey, content-type, idempotency-key, x-estudario-client, x-estudario-device, x-turnstile-token, x-play-integrity-token",
-    "access-control-max-age": "600",
-    vary: "Origin",
-  };
-}
-
-async function handleWithCors(request: Request): Promise<Response> {
-  const cors = corsHeaders(request);
-  if (request.method === "OPTIONS") return new Response(null, { status: Object.keys(cors).length ? 204 : 403, headers: cors });
-  const response = await handleAiSyllabusJobs(request);
-  if (!Object.keys(cors).length) return response;
-  const headers = new Headers(response.headers);
-  for (const [key, value] of Object.entries(cors)) headers.set(key, value);
-  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
-}
-
-if (import.meta.main) Deno.serve(handleWithCors);
+if (import.meta.main) Deno.serve(withCors(handleAiSyllabusJobs));
 
 /** Limite por rede pelas RPCs da migration ai_network_quota, só com a service role. */
 function serviceNetworkQuota(supabaseUrl: string, serviceRoleKey: string): NetworkQuota {

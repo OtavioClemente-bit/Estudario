@@ -1,3 +1,4 @@
+import { withCors } from "../_shared/cors.ts";
 import {
   ClosedBetaAiPolicy,
   SupabaseAccessDataSource,
@@ -119,5 +120,5 @@ async function handleAiPlan(request: Request): Promise<Response> {
 }
 
 if (import.meta.main) {
-  Deno.serve(handleAiPlan);
+  Deno.serve(withCors(handleAiPlan));
 }
