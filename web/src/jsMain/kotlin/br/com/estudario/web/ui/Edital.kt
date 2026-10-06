@@ -11,6 +11,7 @@ import br.com.estudario.web.data.Actions
 import br.com.estudario.web.data.Queries
 import br.com.estudario.web.data.Store
 import br.com.estudario.web.data.Topic
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.web.attributes.InputType
 import org.jetbrains.compose.web.attributes.placeholder
 import org.jetbrains.compose.web.dom.Button
@@ -137,6 +138,7 @@ fun TopicScreen(topicId: Long) {
         summaries.forEach { add("s${it.id}" to it.title.ifBlank { "Resumo" }) }
         if (snippets.isNotEmpty()) add("dicas" to "Dicas e pegadinhas")
     }
+    var generating by remember(topicId) { mutableStateOf(false) }
     var tab by remember(topicId) { mutableStateOf(tabs.firstOrNull()?.first) }
     val studied = Queries.isStudied(topic)
 
@@ -144,13 +146,14 @@ fun TopicScreen(topicId: Long) {
     PageHead(topic.title, subject?.name) {
         Chip(Queries.topicStatusLabel(topic.status), when (topic.status) { "DOMINADO" -> "green"; "EM_ESTUDO" -> "amber"; "NAO_ESTUDADO" -> null; else -> "primary" })
         if (questions.isNotEmpty()) Btn("Resolver ${questions.size} questões", { Router.go(Route.Quiz("topico-$topicId")) }, style = "tonal", icon = "quiz")
+        if (!Store.demo && tabs.isNotEmpty()) Btn("Gerar de novo", { generating = true }, style = "outline", icon = "auto_awesome")
         if (!studied) Btn("Marcar como estudado", { Store.update { Actions.completeStudy(it, topicId) } }, icon = "check")
         else Btn("Desmarcar estudado", { Store.update { Actions.unmarkStudied(it, topicId) } }, style = "outline")
     }
     if (topic.description.isNotBlank()) P({ classes("muted") }) { Text(topic.description) }
-
+    if (generating) GenerateDialog(topicId) { generating = false }
     if (tabs.isEmpty()) {
-        Card { Empty("article", "Sem material ainda", "Gere ou importe a teoria deste tópico no app: ela aparece aqui para ler na tela grande.") }
+        Card { Empty("article", "Sem material ainda", "Gere teoria, resumo, flashcards e questões deste tópico com a IA do Estudário.", action = { if (!Store.demo) Btn("Gerar material com IA", { generating = true }, icon = "auto_awesome") }) }
         return
     }
     if (tabs.size > 1) {
@@ -175,3 +178,64 @@ fun TopicScreen(topicId: Long) {
     }
 }
 
+
+@Composable
+private fun GenerateDialog(topicId: Long, onClose: () -> Unit) {
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var depth by remember { mutableStateOf("BOOK") }
+    var count by remember { mutableStateOf(10) }
+    var progress by remember { mutableStateOf<br.com.estudario.web.data.AiContent.Progress?>(null) }
+    val running = progress != null && progress !is br.com.estudario.web.data.AiContent.Progress.Failed && progress !is br.com.estudario.web.data.AiContent.Progress.Done
+    Modal(onDismiss = { if (!running) onClose() }) {
+        org.jetbrains.compose.web.dom.H2 { Text("Gerar material com IA") }
+        when (val current = progress) {
+            null, is br.com.estudario.web.data.AiContent.Progress.Failed -> {
+                P({ classes("muted") }) { Text("Teoria, resumo, flashcards, dicas, perguntas de memorização e questões, no estilo do seu concurso. Leva alguns minutos.") }
+                Div({ classes("field") }) {
+                    org.jetbrains.compose.web.dom.Label { Text("Profundidade da teoria") }
+                    Div({ classes("segmented") }) {
+                        listOf("ESSENTIAL" to "Essencial", "DEEP" to "Aprofundada", "BOOK" to "Livro completo").forEach { (key, label) ->
+                            Button({ classes(*listOfNotNull(if (depth == key) "on" else null).toTypedArray()); onClick { depth = key } }) { Text(label) }
+                        }
+                    }
+                }
+                Div({ classes("field") }) {
+                    org.jetbrains.compose.web.dom.Label { Text("Questões") }
+                    Div({ classes("segmented") }) {
+                        listOf(5, 10, 15, 20).forEach { n -> Button({ classes(*listOfNotNull(if (count == n) "on" else null).toTypedArray()); onClick { count = n } }) { Text("$n") } }
+                    }
+                }
+                if (current is br.com.estudario.web.data.AiContent.Progress.Failed) Div({ classes("banner", "error") }) { Text(current.message) }
+                Div({ classes("row"); attr("style", "justify-content:flex-end") }) {
+                    Btn("Cancelar", onClose, style = "ghost")
+                    Btn("Gerar", {
+                        progress = br.com.estudario.web.data.AiContent.Progress.Checking
+                        scope.launch {
+                            val result = br.com.estudario.web.data.AiContent.generate(Store.data, topicId, br.com.estudario.web.data.AiContent.Options(depth = depth, questionCount = count)) { progress = it }
+                            if (result is br.com.estudario.web.data.AiContent.Progress.Done) {
+                                Store.update { br.com.estudario.web.data.AiContent.apply(it, topicId, result.proposal) }
+                            }
+                            progress = result
+                        }
+                    }, icon = "auto_awesome")
+                }
+            }
+            is br.com.estudario.web.data.AiContent.Progress.Done -> {
+                Div({ classes("banner", "info") }) { Icon("check_circle", filled = true); Text("Material pronto e salvo neste tópico.") }
+                Div({ classes("row"); attr("style", "justify-content:flex-end") }) { Btn("Ver material", onClose) }
+            }
+            else -> Div({ classes("stack"); attr("style", "align-items:center;padding:16px 0") }) {
+                Spinner()
+                P({ classes("muted") }) {
+                    Text(
+                        when (current) {
+                            br.com.estudario.web.data.AiContent.Progress.Checking -> "Verificando a segurança…"
+                            br.com.estudario.web.data.AiContent.Progress.Sending -> "Enviando o pedido…"
+                            else -> "A IA está escrevendo o material. Pode levar alguns minutos; deixe esta página aberta."
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
