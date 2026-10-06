@@ -103,10 +103,10 @@ fun HomeScreen() {
             Card {
                 CardHead("Para fazer")
                 Div({ classes("stack", "tight") }) {
-                    ShortcutRow("replay", "Revisões", if (due.isEmpty()) "Nenhuma pendente" else "${due.size} para hoje", due.isNotEmpty()) { Router.go(Route.Reviews) }
+                    ShortcutRow("autorenew", "Revisões espaçadas", if (due.isEmpty()) "Nenhuma pendente" else "${due.size} para hoje", due.isNotEmpty()) { Router.go(Route.Reviews) }
                     ShortcutRow("error_med", "Caderno de erros", if (errors.isEmpty()) "Tudo em dia" else "${errors.size} para rever", errors.isNotEmpty()) { Router.go(Route.Errors) }
-                    ShortcutRow("style", "Flashcards", "Revisão rápida dos tópicos", false) { Router.go(Route.Flashcards(null)) }
-                    ShortcutRow("center_focus_strong", "Modo foco", "Cronômetro para estudar sem distração", false) { Router.go(Route.Focus) }
+                    ShortcutRow("bookmarks", "Caderno de estudo", "Grifos, salvos, flashcards e anotações", false) { Router.go(Route.Notebook) }
+                    ShortcutRow("gps_fixed", "Treinar questões", "Questões do seu edital", false) { Router.go(Route.Train) }
                 }
             }
             Card(extra = "clickable", attrs = { onClick { Router.go(Route.Edital) } }) {
@@ -226,10 +226,12 @@ fun TaskRow(task: PlanTask, onComplete: () -> Unit) {
         Div({ classes("task-mark"); attr("style", "background:$bg;color:$fg") }) { Icon(taskIcon(task.type)) }
         Div({
             classes("task-body")
-            if (task.topicId != null) { attr("style", "cursor:pointer"); onClick { Router.go(Route.Topic(task.topicId)) } }
+            attr("style", "cursor:pointer"); attr("role", "button")
+            // Como no app: com tópico abre o tópico; simulado abre os simulados; sem tópico, o modo foco.
+            onClick { openTask(task) }
         }) {
             Div({ classes("task-kicker") }) { Text(task.subjectName) }
-            Div({ classes("task-title") }) { Text(task.topicName ?: Queries.taskTypeLabel(task.type)) }
+            Div({ classes("task-title") }) { Text(taskTitle(task)) }
             Div({ classes("task-meta") }) {
                 Text("${Queries.minutesLabel(task.minutes)} · ${Queries.taskTypeLabel(task.type)}")
                 if (task.questions > 0) Text(" · ${task.questions} questões")
@@ -313,3 +315,31 @@ fun CompleteTaskDialog(task: PlanTask, onClose: () -> Unit) {
     }
 }
 
+
+fun openTask(task: PlanTask) {
+    when {
+        task.topicId != null -> Router.go(Route.Topic(task.topicId))
+        task.type == "SIMULATION" -> Router.go(Route.Simulations)
+        task.type == "QUESTIONS" && task.subjectId != null -> Router.go(Route.Quiz("materia-${task.subjectId}-${task.questions.coerceAtLeast(10)}"))
+        task.type == "REVIEW" -> Router.go(Route.Reviews)
+        task.type == "FLASHCARDS" || task.type == "ACTIVE_RECALL" -> Router.go(Route.Flashcards(null))
+        else -> Router.go(Route.Focus)
+    }
+}
+
+/** taskTitlePtBr do app: o tópico, ou uma ordem clara quando a tarefa é da matéria toda. */
+fun taskTitle(task: PlanTask): String {
+    task.topicName?.takeIf { it.isNotBlank() }?.let { return it }
+    val subject = task.subjectName.ifBlank { "todas as matérias" }
+    val base = when (task.type) {
+        "THEORY" -> "Teoria de $subject"
+        "QUESTIONS" -> "Questões de $subject"
+        "REVIEW" -> "Revisão de $subject"
+        "ACTIVE_RECALL" -> "Recordação ativa de $subject"
+        "FLASHCARDS" -> "Flashcards de $subject"
+        "SIMULATION" -> "Simulado de $subject"
+        "DISCURSIVE" -> "Discursiva de $subject"
+        else -> subject
+    }
+    return if (task.questions > 0 && task.type == "QUESTIONS") "$base · ${task.questions} questões" else base
+}

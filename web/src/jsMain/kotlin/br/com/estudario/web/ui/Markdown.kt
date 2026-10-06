@@ -118,15 +118,33 @@ private fun RenderBlock(block: Block) {
     }
 }
 
-/** **negrito**, *itálico* / _itálico_ e `código`. */
+/**
+ * **negrito**, *itálico* / _itálico_, `código` e links. O link vira um texto curto clicável: o
+ * endereço inteiro nunca aparece no meio do estudo (com a URL crua o texto ficava ilegível).
+ */
 @Composable
 fun Inline(text: String) {
-    val pattern = Regex("(\\*\\*[^*]+\\*\\*|__[^_]+__|`[^`]+`|\\*[^*\\s][^*]*\\*|_[^_\\s][^_]*_)")
+    val pattern = Regex("(!?\\[[^\\]]*\\]\\([^)\\s]+\\)|<?https?://[^\\s<>)]+>?|\\*\\*[^*]+\\*\\*|__[^_]+__|`[^`]+`|\\*[^*\\s][^*]*\\*|(?<![\\w/])_[^_\\s][^_]*_(?!\\w))")
     var last = 0
     pattern.findAll(text).forEach { match ->
         if (match.range.first > last) Text(text.substring(last, match.range.first))
         val token = match.value
         when {
+            token.startsWith("![") -> {
+                val url = token.substringAfter("](").dropLast(1)
+                if (url.startsWith("https://")) org.jetbrains.compose.web.dom.Img(src = url, alt = token.substring(2).substringBefore("]"), attrs = { classes("md-img") })
+            }
+            token.startsWith("[") -> {
+                val label = token.substring(1).substringBefore("](")
+                val url = token.substringAfter("](").dropLast(1)
+                LinkOut(url, label.ifBlank { hostOf(url) })
+            }
+            token.startsWith("http") || token.startsWith("<http") -> {
+                val raw = token.trim('<', '>')
+                val url = raw.trimEnd('.', ',', ';', ':')
+                LinkOut(url, hostOf(url))
+                if (raw.length > url.length) Text(raw.substring(url.length))
+            }
             token.startsWith("**") || token.startsWith("__") -> B { Text(token.substring(2, token.length - 2)) }
             token.startsWith("`") -> Code { Text(token.substring(1, token.length - 1)) }
             else -> Em { Text(token.substring(1, token.length - 1)) }
@@ -134,4 +152,12 @@ fun Inline(text: String) {
         last = match.range.last + 1
     }
     if (last < text.length) Text(text.substring(last))
+}
+
+private fun hostOf(url: String): String = url.substringAfter("://").substringBefore('/').removePrefix("www.").ifBlank { "fonte" }
+
+@Composable
+private fun LinkOut(url: String, label: String) {
+    if (!url.startsWith("http://") && !url.startsWith("https://")) { Text(label); return }
+    org.jetbrains.compose.web.dom.A(href = url, { classes("md-link"); attr("target", "_blank"); attr("rel", "noopener noreferrer"); attr("title", url) }) { Text(label) }
 }

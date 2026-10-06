@@ -29,6 +29,8 @@ fun EditalScreen() {
     var competitionId by remember { mutableStateOf(Queries.primaryCompetition(data)?.id) }
     var filter by remember { mutableStateOf("") }
     var open by remember { mutableStateOf(setOf<Long>()) }
+    var generatingFor by remember { mutableStateOf<Long?>(null) }
+    generatingFor?.let { id -> GenerateDialog(id) { generatingFor = null } }
     val subjects = Queries.subjectsOf(data, competitionId)
     val allLeaves = Queries.leafTopics(data, subjects.mapTo(hashSetOf()) { it.id })
     val studiedAll = allLeaves.count(Queries::isStudied)
@@ -81,9 +83,11 @@ fun EditalScreen() {
                 }) {
                     Div({ attr("style", "flex:1;min-width:0") }) {
                         H3 { Text(subject.name) }
+                        val withContent = topics.count { t -> data.theories.any { it.topicId == t.id } || data.summaries.any { it.topicId == t.id } }
+                        Div({ classes("small", "muted"); attr("style", "margin-top:4px") }) { Text("$withContent/${topics.size} com material · ${topics.count(Queries::isStudied)} estudados") }
                         Div({ classes("row"); attr("style", "margin-top:8px") }) {
-                            Div({ attr("style", "flex:1;max-width:280px") }) { ProgressBar(if (leaves.isEmpty()) 0.0 else studied.toDouble() / leaves.size) }
-                            Span({ classes("small", "muted", "strong") }) { Text("$studied/${leaves.size}") }
+                            Div({ attr("style", "flex:1;max-width:280px") }) { ProgressBar(if (topics.isEmpty()) 0.0 else withContent.toDouble() / topics.size) }
+                            Span({ classes("small", "muted", "strong") }) { Text("$studied/${leaves.size} estudados") }
                         }
                     }
                     Icon(if (expanded) "expand_less" else "expand_more")
@@ -92,8 +96,7 @@ fun EditalScreen() {
                     Div({ classes("subject-body") }) {
                         val roots = matching.filter { it.parentTopicId == null || query.isNotEmpty() }
                         roots.forEach { topic -> androidx.compose.runtime.key(topic.id) {
-                            TopicRow(topic, child = false)
-                            if (query.isEmpty()) topics.filter { it.parentTopicId == topic.id }.forEach { androidx.compose.runtime.key(it.id) { TopicRow(it, child = true) } }
+                            if (query.isEmpty()) TopicTree(topic, topics, 0) { generatingFor = it } else TopicRow(topic, 0, 0) { generatingFor = it }
                         } }
                     }
                 }
@@ -103,97 +106,32 @@ fun EditalScreen() {
 }
 
 @Composable
-private fun TopicRow(topic: Topic, child: Boolean) {
+private fun TopicTree(topic: Topic, all: List<Topic>, depth: Int, onGenerate: (Long) -> Unit) {
+    val children = all.filter { it.parentTopicId == topic.id }.sortedBy { it.position }
+    TopicRow(topic, depth, children.size, onGenerate)
+    children.forEach { child -> androidx.compose.runtime.key(child.id) { TopicTree(child, all, depth + 1, onGenerate) } }
+}
+
+/** Linha do edital como no app: tópico principal e, recuados, os subtópicos gerados. */
+@Composable
+private fun TopicRow(topic: Topic, depth: Int, childCount: Int, onGenerate: (Long) -> Unit) {
     val data = Store.data
     val hasMaterial = data.theories.any { it.topicId == topic.id } || data.summaries.any { it.topicId == topic.id }
-    val questions = data.questions.count { it.topicId == topic.id && !it.hidden && it.simulationId == null }
+    val studied = Queries.isStudied(topic)
     Div({
-        classes(*listOfNotNull("topic-row", if (child) "child" else null).toTypedArray())
-        attr("role", "link")
-        attr("tabindex", "0")
+        classes(*listOfNotNull("topic-row", if (depth > 0) "child" else null, if (childCount > 0) "parent" else null).toTypedArray())
+        attr("style", "padding-left:${14 + depth * 22}px")
+        attr("role", "link"); attr("tabindex", "0")
         onClick { Router.go(Route.Topic(topic.id)) }
     }) {
-        Span({ classes("dot", topic.status) ; attr("title", Queries.topicStatusLabel(topic.status)) })
-        Span({ attr("style", "flex:1;min-width:0") }) { Text(topic.title) }
-        if (hasMaterial) Icon("article", extraClass = "muted")
-        if (questions > 0) Chip("$questions questões")
-    }
-}
-
-@Composable
-fun TopicScreen(topicId: Long) {
-    val data = Store.data
-    val topic = data.topics.firstOrNull { it.id == topicId }
-    if (topic == null) {
-        Card { Empty("search_off", "Tópico não encontrado", "Ele pode ter sido apagado no app.", action = { Btn("Voltar ao edital", { Router.go(Route.Edital) }) }) }
-        return
-    }
-    val subject = data.subjects.firstOrNull { it.id == topic.subjectId }
-    val theories = data.theories.filter { it.topicId == topicId }
-    val summaries = data.summaries.filter { it.topicId == topicId }
-    val snippets = data.snippets.filter { it.topicId == topicId }.sortedBy { it.position }
-    val questions = data.questions.filter { it.topicId == topicId && !it.hidden && it.simulationId == null }
-    val tabs = buildList {
-        theories.forEach { add("t${it.id}" to it.title.ifBlank { "Teoria" }) }
-        summaries.forEach { add("s${it.id}" to it.title.ifBlank { "Resumo" }) }
-        if (snippets.isNotEmpty()) add("dicas" to "Dicas e pegadinhas")
-    }
-    var generating by remember(topicId) { mutableStateOf(false) }
-    var tab by remember(topicId) { mutableStateOf(tabs.firstOrNull()?.first) }
-    val studied = Queries.isStudied(topic)
-
-    Div({ classes("row") }) { Btn("Edital", { Router.go(Route.Edital) }, style = "ghost", small = true, icon = "arrow_back") }
-    PageHead(topic.title, subject?.name) {
-        Chip(Queries.topicStatusLabel(topic.status), when (topic.status) { "DOMINADO" -> "green"; "EM_ESTUDO" -> "amber"; "NAO_ESTUDADO" -> null; else -> "primary" })
-        if (questions.isNotEmpty()) Btn("Resolver ${questions.size} questões", { Router.go(Route.Quiz("topico-$topicId")) }, style = "tonal", icon = "quiz", small = true)
-        if (flashcardsOf(data, topicId).isNotEmpty()) Btn("Flashcards", { Router.go(Route.Flashcards(topicId)) }, style = "tonal", icon = "style", small = true)
-        if (!Store.demo && tabs.isNotEmpty()) Btn("Gerar de novo", { generating = true }, style = "outline", icon = "auto_awesome", small = true)
-        if (!studied) Btn("Marcar como estudado", { Store.update { Actions.completeStudy(it, topicId) }; Toast.show("Tópico estudado! Revisões agendadas para D+1, D+7 e D+30.") }, icon = "check", small = true)
-        else Btn("Desmarcar estudado", { Store.update { Actions.unmarkStudied(it, topicId) } }, style = "outline", small = true)
-    }
-    if (topic.description.isNotBlank()) P({ classes("muted") }) { Text(topic.description) }
-    if (generating) GenerateDialog(topicId) { generating = false }
-    if (tabs.isEmpty()) {
-        Card { Empty("article", "Sem material ainda", "Gere teoria, resumo, flashcards e questões deste tópico com a IA do Estudário.", action = { if (!Store.demo) Btn("Gerar material com IA", { generating = true }, icon = "auto_awesome") }) }
-        return
-    }
-    if (tabs.size > 1) {
-        Div({ classes("segmented"); attr("style", "flex-wrap:wrap;align-self:flex-start") }) {
-            tabs.forEach { (key, label) -> Button({ classes(*listOfNotNull(if (tab == key) "on" else null).toTypedArray()); onClick { tab = key } }) { Text(label) } }
-        }
-    }
-    Card {
-        when {
-            tab == "dicas" -> Div({ classes("stack") }) {
-                snippets.forEach { snippet ->
-                    androidx.compose.runtime.key(snippet.id) { Div({ classes("card", "soft") }) {
-                        Div({ classes("row", "between") }) {
-                            Chip(when (snippet.kind) { "BIZU" -> "Bizu"; "PEGADINHA" -> "Pegadinha"; else -> "Recuperação" }, if (snippet.kind == "PEGADINHA") "red" else "primary")
-                            FavStar(snippet.favorite) { Store.update { Actions.toggleSnippetFavorite(it, snippet.id) } }
-                        }
-                        P({ attr("style", "margin-top:8px") }) { Inline(snippet.text) }
-                        snippet.answer?.let { P({ classes("muted", "small"); attr("style", "margin-top:6px") }) { Inline(it) } }
-                    } }
-                }
-            }
-            tab?.startsWith("t") == true -> theories.firstOrNull { "t${it.id}" == tab }?.let { Markdown(it.markdown) }
-            tab?.startsWith("s") == true -> summaries.firstOrNull { "s${it.id}" == tab }?.let { summary ->
-                Div({ classes("row"); attr("style", "justify-content:flex-end") }) {
-                    FavStar(summary.favorite, if (summary.favorite) "Salvo no Caderno" else "Salvar no Caderno") { Store.update { Actions.toggleSummaryFavorite(it, summary.id) } }
-                }
-                Markdown(summary.markdown)
+        Icon(if (studied) "check_circle" else if (depth > 0) "subdirectory_arrow_right" else "radio_button_unchecked", extraClass = if (studied) "ok-ink" else "faint")
+        Div({ attr("style", "flex:1;min-width:0") }) {
+            Div({ classes("topic-row-title") }) { Text(topic.title) }
+            Div({ classes("xs", if (hasMaterial) "primary-ink" else "muted") }) {
+                Text(if (childCount > 0) "Dividido em $childCount subtópicos · gere o material em cada um" else if (hasMaterial) "${Queries.topicStatusLabel(topic.status)} · material pronto" else Queries.topicStatusLabel(topic.status))
             }
         }
-    }
-}
-
-
-
-@Composable
-private fun FavStar(on: Boolean, label: String? = null, onToggle: () -> Unit) {
-    val latest = androidx.compose.runtime.rememberUpdatedState(onToggle)
-    Button({ classes("fav-star", *listOfNotNull(if (on) "on" else null).toTypedArray()); attr("aria-pressed", "$on"); attr("title", if (on) "Tirar do Caderno" else "Guardar no Caderno"); onClick { latest.value() } }) {
-        Icon("star", filled = on)
-        label?.let { org.jetbrains.compose.web.dom.Span { Text(it) } }
+        if (!hasMaterial && childCount == 0 && !Store.demo) Button({ classes("gen-btn"); onClick { e -> e.stopPropagation(); onGenerate(topic.id) } }) { Folha("happy", 22); Text("Gerar") }
+        Icon("chevron_right", extraClass = "faint")
     }
 }

@@ -85,7 +85,7 @@ fun NotebookScreen() {
                             Chip(topicName(q.topicId))
                             IconButton("star", "Tirar dos salvos") { Store.update { Actions.toggleFavorite(it, q.id) } }
                         }
-                        P({ classes("clamp-3"); attr("style", "margin-top:8px") }) { Text(q.statement) }
+                        P({ classes("clamp-3"); attr("style", "margin-top:8px") }) { Inline(q.statement) }
                     }
                 }
             }
@@ -153,7 +153,7 @@ private fun NotesTab(notes: List<Triple<Long, Long?, String>>, topics: List<Pair
         })
         Div({ classes("row"); attr("style", "margin-top:8px") }) {
             Btn("Salvar", {
-                val id = editing ?: Store.data.nextId("notes")
+                val id = editing ?: 0L
                 val value = text.trim()
                 Store.update { Actions.saveNote(it, id, topicId, value) }
                 editing = null; text = ""; topicId = null

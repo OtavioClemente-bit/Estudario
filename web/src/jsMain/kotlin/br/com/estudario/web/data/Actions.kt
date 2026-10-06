@@ -303,5 +303,28 @@ object Actions {
 
     fun deleteTheoryMark(data: Snapshot, id: Long): Snapshot = data.edit("theoryMarks") { if (it.idIs(id)) null else it }
 
+    /** Até onde a teoria foi lida (lastReadBlock do app): só avança, e vai junto para o celular. */
+    fun setLastReadBlock(data: Snapshot, theoryId: Long, block: Int): Snapshot =
+        data.edit(Keys.THEORIES) {
+            if (it.idIs(theoryId) && block > (it.int("lastReadBlock") ?: -1)) it.with("lastReadBlock" to JsonPrimitive(block), "updatedAt" to JsonPrimitive(now())) else it
+        }
+
+    /** SavedFlashcards do app: um cartão do baralho guardado no Caderno (ou tirado de lá). */
+    fun toggleSavedFlashcard(data: Snapshot, summaryId: Long, topicId: Long, front: String, back: String): Snapshot {
+        val externalId = savedCardId(summaryId, front, back)
+        val existing = data.snippets.firstOrNull { it.externalId == externalId }
+        if (existing != null) return data.edit(Keys.SNIPPETS) { if (it.idIs(existing.id)) null else it }
+        return data.append(
+            Keys.SNIPPETS,
+            jsonOf(
+                "id" to data.nextId(Keys.SNIPPETS), "topicId" to topicId, "kind" to "RECUPERACAO", "text" to front, "answer" to back.ifBlank { null },
+                "position" to 0, "favorite" to true, "externalId" to externalId, "createdAt" to now(), "updatedAt" to now(),
+            ),
+        )
+    }
+
+    fun savedCardId(summaryId: Long, front: String, back: String): String =
+        "flashcard:$summaryId:" + br.com.estudario.text.Sha256.digest("$front\u0000$back".encodeToByteArray()).let { bytes -> bytes.joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') } }.take(24)
+
     fun newSessionId(): String = uuid()
 }

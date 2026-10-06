@@ -301,7 +301,7 @@ private fun ExamView(simulation: Simulation) {
                     flagged = if (question.id in flagged) flagged - question.id else flagged + question.id
                 }
             }
-            P({ classes("statement") }) { Text(question.statement) }
+            Div({ classes("statement") }) { Markdown(question.statement) }
             Div({ classes("stack", "tight") }) {
                 question.options.sortedBy { it.position }.forEach { option ->
                     androidx.compose.runtime.key(question.id, option.key) {
@@ -402,7 +402,7 @@ private fun ResultView(simulation: Simulation) {
                 androidx.compose.runtime.key(q.id) {
                     Div({ classes("stack", "tight"); attr("style", "border-top:1px solid var(--line);padding-top:14px") }) {
                         B { Text("Questão ${i + 1}") }
-                        P({ classes("statement") }) { Text(q.statement) }
+                        Div({ classes("statement") }) { Markdown(q.statement) }
                         q.options.sortedBy { it.position }.forEach { o ->
                             Div({ classes(*listOfNotNull("option", if (o.key == correctKey) "right" else if (o.key == chosen) "wrong" else null).toTypedArray()) }) {
                                 Span({ classes("key") }) { Text(o.key) }

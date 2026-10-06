@@ -62,8 +62,8 @@ fun TrainScreen() {
     PageHead("Treinar", "Escolha o foco e transforme cada sessão em progresso")
 
     Div({ classes("grid", "cols-4") }) {
-        TrainTile("replay", "Revisões", if (due.isEmpty()) "Em dia" else "${due.size} para hoje", due.isNotEmpty()) { Router.go(Route.Reviews) }
-        TrainTile("style", "Flashcards", "Revisão rápida", false) { Router.go(Route.Flashcards(null)) }
+        TrainTile("autorenew", "Revisões espaçadas", if (due.isEmpty()) "Em dia" else "${due.size} para hoje", due.isNotEmpty()) { Router.go(Route.Reviews) }
+        TrainTile("bookmarks", "Caderno de estudo", "Salvos e anotações", false) { Router.go(Route.Notebook) }
         TrainTile("error_med", "Caderno de erros", if (errors.isEmpty()) "Tudo certo" else "${errors.size} para rever", errors.isNotEmpty()) { Router.go(Route.Errors) }
         TrainTile("timer", "Simulados", "Provas completas", false) { Router.go(Route.Simulations) }
     }
@@ -272,13 +272,13 @@ fun QuizScreen(scope: String) {
             Div({ classes("row", "between") }) {
                 Div({ classes("row", "wrap") }) {
                     topic?.let { Chip(it.title, "primary") }
-                    listOfNotNull(question.board, question.agency, question.year?.toString()).takeIf { it.isNotEmpty() }?.let { Chip(it.joinToString(" · ")) }
+                    listOfNotNull(question.board, question.agency, question.year?.toString()).filter { !it.contains("http") && it.length <= 60 }.takeIf { it.isNotEmpty() }?.let { Chip(it.joinToString(" · ")) }
                 }
                 IconButton(if (question.favorite) "star" else "star_outline", if (question.favorite) "Tirar dos favoritos" else "Favoritar") {
                     Store.update { Actions.toggleFavorite(it, question.id) }
                 }
             }
-            P({ classes("statement") }) { Text(question.statement) }
+            Div({ classes("statement") }) { Markdown(question.statement) }
             Div({ classes("stack", "tight") }) {
                 options.forEach { option ->
                     androidx.compose.runtime.key(question.id, option.key) {

@@ -123,7 +123,7 @@ fun ErrorsScreen() {
                                 if (entry.status == "RECORRENTE") "red" else "amber",
                             )
                         }
-                        P({ attr("style", "margin:10px 0 6px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden") }) { Text(question.statement) }
+                        P({ attr("style", "margin:10px 0 6px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden") }) { Inline(question.statement) }
                         P({ classes("small", "muted") }) {
                             Text("Você marcou ${entry.selectedAnswer ?: "?"} · certa: ${entry.correctAnswer ?: "?"} · errou ${entry.errorCount}×")
                             entry.nextRetryAt?.let { Text(" · volta em ${Queries.shortDate(Queries.dateOf(it))}") }
