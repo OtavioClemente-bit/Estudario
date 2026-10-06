@@ -33,9 +33,9 @@ kotlin {
 // de variáveis de ambiente. Nada secreto entra aqui.
 val webConfigDir = layout.buildDirectory.dir("generated/webConfig")
 val generateWebConfig by tasks.registering {
-    val url = providers.gradleProperty("estudario.supabase.url").orElse(providers.environmentVariable("ESTUDARIO_SUPABASE_URL")).orElse("")
-    val key = providers.gradleProperty("estudario.supabase.publishableKey").orElse(providers.environmentVariable("ESTUDARIO_SUPABASE_PUBLISHABLE_KEY")).orElse("")
-    val google = providers.gradleProperty("estudario.google.webClientId").orElse(providers.environmentVariable("ESTUDARIO_GOOGLE_WEB_CLIENT_ID")).orElse("")
+    val url = providers.gradleProperty("estudario.supabase.url").filter { it.isNotBlank() }.orElse(providers.environmentVariable("ESTUDARIO_SUPABASE_URL")).orElse("")
+    val key = providers.gradleProperty("estudario.supabase.publishableKey").filter { it.isNotBlank() }.orElse(providers.environmentVariable("ESTUDARIO_SUPABASE_PUBLISHABLE_KEY")).orElse("")
+    val google = providers.gradleProperty("estudario.google.webClientId").filter { it.isNotBlank() }.orElse(providers.environmentVariable("ESTUDARIO_GOOGLE_WEB_CLIENT_ID")).orElse("")
     inputs.property("url", url)
     inputs.property("key", key)
     inputs.property("google", google)
