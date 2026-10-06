@@ -128,6 +128,10 @@ class EstudarioApplication : Application() {
             ),
         )
     }
+    /** Sincronização com a conta (celular ⇄ app web). */
+    val cloudSync: br.com.estudario.data.sync.CloudSyncService by lazy {
+        br.com.estudario.data.sync.CloudSyncService(this, database, supabaseClientConfig, supabaseAuthRepository)
+    }
     lateinit var planTransferService: StudyPlanTransferService
         private set
     val incomingFiles = IncomingFileCoordinator()
@@ -149,6 +153,8 @@ class EstudarioApplication : Application() {
         aiSyllabusRepository
         AiJobRecoveryWorker.enqueue(this)
         RemoteSyllabusSyncWorker.enqueue(this)
+        br.com.estudario.data.sync.CloudSyncWorker.schedulePeriodic(this)
+        br.com.estudario.data.sync.CloudSyncWorker.syncSoon(this)
         // Simulado que estava sendo gerado quando o app fechou continua de onde parou.
         simulationService.resumeAll()
         StudyNotificationCoordinator.createChannels(this)

@@ -208,7 +208,7 @@ class StudyPlanApplicationServiceTest {
                 planId = planId,
                 subjectId = subjectId,
                 topicId = topicId,
-                date = LocalDate.of(2026, 9, 15),
+                date = kotlinx.datetime.LocalDate(2026, 9, 15),
                 type = PlanTaskType.THEORY,
                 plannedMinutes = 60,
                 plannedQuestions = 0,

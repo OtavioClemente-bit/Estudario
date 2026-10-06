@@ -116,6 +116,10 @@ fun MoreScreen(
         }
 
         item {
+            Group("Conta e app web") { br.com.estudario.ui.sync.CloudSyncCard() }
+        }
+
+        item {
             Group("Questões") {
                 ToggleRow(Icons.Outlined.Timer, "Cronômetro nas questões", "Mostra e registra o tempo de cada sessão.", timer, viewModel::setQuestionTimer)
                 HorizontalDivider()

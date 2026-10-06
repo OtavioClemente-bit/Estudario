@@ -113,6 +113,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Ao sair do app, o que foi estudado sobe para a conta e aparece no app web. */
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) br.com.estudario.data.sync.CloudSyncWorker.syncSoon(this)
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)

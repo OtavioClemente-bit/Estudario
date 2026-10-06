@@ -37,7 +37,7 @@ class BackupV3InstrumentedTest {
 
         val service = BackupService(database)
         val backup = service.export()
-        assertEquals(7, JSONObject(backup).getInt("version"))
+        assertEquals(8, JSONObject(backup).getInt("version"))
         service.restore(backup)
 
         assertEquals("Pergunta?", dao.snippetsOnce().single().text)
@@ -74,7 +74,7 @@ class BackupV3InstrumentedTest {
         val service = BackupService(database)
 
         val backup = service.export()
-        assertEquals(7, JSONObject(backup).getInt("version"))
+        assertEquals(8, JSONObject(backup).getInt("version"))
         service.restore(backup)
 
         val restored = dao.focusSessionsOnce().associateBy { it.id }

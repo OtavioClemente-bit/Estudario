@@ -21,6 +21,7 @@ interface SimulationDao {
     @Query("DELETE FROM simulations WHERE id = :id") suspend fun deleteSimulation(id: Long)
 
     @Query("SELECT * FROM exam_profiles") fun examProfiles(): Flow<List<ExamProfileEntity>>
+    @Query("SELECT * FROM exam_profiles") suspend fun examProfilesOnce(): List<ExamProfileEntity>
     @Query("SELECT * FROM exam_profiles WHERE competitionId = :competitionId") suspend fun examProfile(competitionId: Long): ExamProfileEntity?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun saveExamProfile(value: ExamProfileEntity)
 
