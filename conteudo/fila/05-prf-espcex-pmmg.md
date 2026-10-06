@@ -37,13 +37,13 @@ certa NÃO pode ser a mais longa em mais de 40%, gabarito espalhado A–E, uma s
 - [ ] geografia.biomas-gestao-ambiental-brasil — biomas, domínios morfoclimáticos, gestão ambiental
 
 ## PRF — Bloco D (Direito)
-- [ ] direito-constitucional.poder-constituinte — originário, derivado, reforma, revisão, limites às emendas
-- [ ] direito-constitucional.ordem-social — seguridade, meio ambiente, família, criança, idoso, indígenas
-- [ ] direito-penal.crimes-incolumidade-fe-publica — incêndio, explosão, perigo comum; moeda falsa, falsidade documental
-- [ ] processo-penal.prova — provas: ônus, ilícitas, local de crime, perícia, interrogatório, testemunhas, reconhecimento
-- [ ] legislacao-penal-especial.crimes-ambientais — Lei 9.605/1998: sanções penais e crimes contra o meio ambiente
-- [ ] legislacao.retencao-documentos-identificacao-criminal — Lei 5.553/1968 e Lei 12.037/2009
-- [ ] informatica.transformacao-digital — IoT, big data, inteligência artificial
+- [x] direito-constitucional.poder-constituinte — originário, derivado, reforma, revisão, limites às emendas
+- [x] direito-constitucional.ordem-social — seguridade, meio ambiente, família, criança, idoso, indígenas
+- [x] direito-penal.crimes-incolumidade-fe-publica — incêndio, explosão, perigo comum; moeda falsa, falsidade documental
+- [x] processo-penal.prova — provas: ônus, ilícitas, local de crime, perícia, interrogatório, testemunhas, reconhecimento
+- [x] legislacao-penal-especial.crimes-ambientais — Lei 9.605/1998: sanções penais e crimes contra o meio ambiente
+- [x] legislacao.retencao-documentos-identificacao-criminal — Lei 5.553/1968 e Lei 12.037/2009
+- [x] informatica.transformacao-digital — IoT, big data, inteligência artificial
 - [ ] (PM, já pedidas) dignidade-sexual, juizados, ECA, hediondos-tortura, organizacoes-criminosas
 - [ ] (opcional) legislacao.carreira-prf — carreira de PRF (específica do órgão; deixar por último)
 
@@ -110,13 +110,13 @@ certa NÃO pode ser a mais longa em mais de 40%, gabarito espalhado A–E, uma s
 Já cobertos pelos blocos acima: ordem social, fé pública, prova, tortura, ECA, crimes ambientais.
 
 ## PF — Bloco K (Direitos humanos e legislação)
-- [ ] direito.convencoes-onu-direitos-humanos — genocídio, refugiados, discriminação racial e contra a mulher, tortura, desaparecimento forçado
-- [ ] direito.regras-minimas-tratamento-presos — Regras Mínimas da ONU (Regras de Mandela)
-- [ ] legislacao.lei-migracao — Lei 13.445/2017
-- [ ] legislacao.seguranca-privada — Estatuto da Segurança Privada (2024)
-- [ ] legislacao.produtos-quimicos-repercussao-interestadual — Lei 10.357/2001 e Lei 10.446/2002
-- [ ] legislacao.identificacao-civil — Identificação Civil Nacional, CPF como número único, carteira de identidade
-- [ ] legislacao.crime-cibernetico-convencao — Convenção de Budapeste
+- [x] direito.convencoes-onu-direitos-humanos — genocídio, refugiados, discriminação racial e contra a mulher, tortura, desaparecimento forçado
+- [x] direito.regras-minimas-tratamento-presos — Regras Mínimas da ONU (Regras de Mandela)
+- [x] legislacao.lei-migracao — Lei 13.445/2017
+- [x] legislacao.seguranca-privada — Estatuto da Segurança Privada (2024)
+- [x] legislacao.produtos-quimicos-repercussao-interestadual — Lei 10.357/2001 e Lei 10.446/2002
+- [x] legislacao.identificacao-civil — Identificação Civil Nacional, CPF como número único, carteira de identidade
+- [x] legislacao.crime-cibernetico-convencao — Convenção de Budapeste
 
 ## PF — Bloco L (Estatística)
 - [ ] estatistica.variaveis-aleatorias-distribuicoes — binomial, normal, esperança, variância
