@@ -743,25 +743,28 @@ class EstudoPackageService(private val db: AppDatabase) {
                         },
                     )
                 }
+                // Material da IA/biblioteca preso a outra cópia do tópico (edital remontado): move para este
+                // tópico em vez de pular, senão a teoria nova some (o id externo é único no aparelho).
+                val aiPackage = plan.packageId.startsWith(AI_PACKAGE_PREFIX)
                 p.theories.forEach { item ->
                     val externalId = if (mode == ImportMode.COPY) "$prefix:${item.id}" else item.id
                     val old = dao.theoryByExternalId(externalId) ?: dao.theoryByExternalId("${plan.packageId}:${item.id}")
                     if (old == null) { dao.insertTheory(TheoryDocumentEntity(topicId = topicId, title = item.title, markdown = item.markdown, externalId = externalId)); theories++ }
-                    else if (mode == ImportMode.UPDATE) { dao.updateTheory(old.copy(topicId = topicId, title = item.title, markdown = item.markdown, updatedAt = System.currentTimeMillis())); updated++ }
+                    else if (mode == ImportMode.UPDATE || (aiPackage && old.topicId != topicId)) { dao.updateTheory(old.copy(topicId = topicId, title = item.title, markdown = item.markdown, updatedAt = System.currentTimeMillis())); updated++ }
                     else skipped++
                 }
                 p.summaries.forEach { item ->
                     val externalId = if (mode == ImportMode.COPY) "$prefix:${item.id}" else item.id
                     val old = dao.summaryByExternalId(externalId) ?: dao.summaryByExternalId("${plan.packageId}:${item.id}")
                     if (old == null) { dao.insertSummary(SummaryEntity(topicId = topicId, title = item.title, markdown = item.markdown, externalId = externalId, kind = item.kind)); summaries++ }
-                    else if (mode == ImportMode.UPDATE) { dao.updateSummary(old.copy(topicId = topicId, title = item.title, markdown = item.markdown, kind = item.kind, updatedAt = System.currentTimeMillis())); updated++ }
+                    else if (mode == ImportMode.UPDATE || (aiPackage && old.topicId != topicId)) { dao.updateSummary(old.copy(topicId = topicId, title = item.title, markdown = item.markdown, kind = item.kind, updatedAt = System.currentTimeMillis())); updated++ }
                     else skipped++
                 }
                 p.snippets.forEachIndexed { index, item ->
                     val externalId = if (mode == ImportMode.COPY) "$prefix:${item.id}" else item.id
                     val old = dao.snippetByExternalId(externalId) ?: dao.snippetByExternalId("${plan.packageId}:${item.id}")
                     if (old == null) { dao.insertSnippet(TopicSnippetEntity(topicId = topicId, kind = item.kind, text = item.text, externalId = externalId, position = index, answer = item.answer)); snippets++ }
-                    else if (mode == ImportMode.UPDATE) { dao.updateSnippet(old.copy(topicId = topicId, kind = item.kind, text = item.text, position = index, answer = item.answer ?: old.answer, updatedAt = System.currentTimeMillis())); updated++ }
+                    else if (mode == ImportMode.UPDATE || (aiPackage && old.topicId != topicId)) { dao.updateSnippet(old.copy(topicId = topicId, kind = item.kind, text = item.text, position = index, answer = item.answer ?: old.answer, updatedAt = System.currentTimeMillis())); updated++ }
                     else skipped++
                 }
                 p.questions.forEach { item ->
