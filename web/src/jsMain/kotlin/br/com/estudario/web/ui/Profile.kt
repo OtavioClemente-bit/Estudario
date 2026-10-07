@@ -123,7 +123,10 @@ fun ProfileScreen() {
                 Span({ classes("hero-pill") }) { Icon("local_fire_department", filled = true); Text("${streak.current} dias seguidos") }
             }
         }
-        Folha("happy", 96, "margin:-8px -4px -14px 0")
+    }
+    val seed = rememberSeed()
+    Div({ classes("profile-talk") }) {
+        FolhaTalking(FolhaLines.forProfile(progress.level, streak.current, progress.xpToday, seed), 96, onFolhaClick = {})
     }
 
     Div({ classes("grid", "main-side") }) {
@@ -204,7 +207,7 @@ fun ProfileScreen() {
                 ProfileLink("query_stats", "Desempenho", "Acerto, minutos e constância", Route.Stats)
                 ProfileLink("fact_check", "Histórico e fontes", "De onde veio o seu material", Route.Sources)
                 ProfileLink("history", "Histórico do foco", "Tempo por matéria e sessões", Route.FocusHistory)
-                ProfileLink("notifications_active", "Notificações", "Lembrete diário e pendências", Route.Notifications)
+                ProfileLink("notifications_active", "Notificações", "Aviso quando o material ficar pronto", Route.Notifications)
                 ProfileLink("workspace_premium", "Planos e uso", "Limites de IA do seu plano", Route.PlanLimits)
                 ProfileLink("tune", "Ajustes", "Aparência, meta diária e questões", Route.Settings)
             }
@@ -348,57 +351,53 @@ fun FocusHistoryScreen() {
 
 // ------------------------------------------------------------------ Notificações
 
-private object NotifyPrefs {
-    private fun read(key: String) = runCatching { localStorage.getItem(key) }.getOrNull()
-    private fun write(key: String, value: String) { runCatching { localStorage.setItem(key, value) } }
-    var daily: Boolean
-        get() = read("estudario.notify.daily") == "1"
-        set(v) = write("estudario.notify.daily", if (v) "1" else "0")
-    var minutes: Int
-        get() = read("estudario.notify.time")?.toIntOrNull() ?: (19 * 60)
-        set(v) = write("estudario.notify.time", v.toString())
-    var pending: Boolean
-        get() = read("estudario.notify.pending") != "0"
-        set(v) = write("estudario.notify.pending", if (v) "1" else "0")
-}
-
-private fun permission(): String = runCatching { js("typeof Notification === 'undefined' ? 'unsupported' : Notification.permission") as String }.getOrDefault("unsupported")
-
+/**
+ * Notificações do computador: só o aviso que vale a pena. Ninguém deixa o site aberto esperando o
+ * lembrete de estudar (esse fica com o app do celular); o que importa aqui é saber, de outra aba,
+ * que o material que você pediu ficou pronto.
+ */
 @Composable
 fun NotificationsScreen() {
-    var daily by remember { mutableStateOf(NotifyPrefs.daily) }
-    var minutes by remember { mutableStateOf(NotifyPrefs.minutes) }
-    var pending by remember { mutableStateOf(NotifyPrefs.pending) }
-    var perm by remember { mutableStateOf(permission()) }
+    var on by remember { mutableStateOf(Notify.materialReadyOn) }
+    var perm by remember { mutableStateOf(Notify.permission()) }
     BackToProfile()
-    PageHead("Notificações", "O Folha te lembra de estudar")
-    FolhaSays("point") {
-        B { Text("Quer que eu te chame na hora de estudar?") }
-        P({ classes("small", "muted") }) { Text("No navegador, eu só consigo avisar com o Estudário aberto em alguma aba. Os lembretes no celular continuam pelo app.") }
-    }
-    if (perm == "default") Btn("Permitir notificações", {
-        js("Notification.requestPermission()").then { result: dynamic -> perm = result as String; null }
-    }, style = "primary", icon = "notifications")
-    if (perm == "denied") Div({ classes("banner") }) { Icon("block"); Text("As notificações estão bloqueadas neste navegador. Libere nas configurações do site.") }
-    Div({ classes("grid", "cols-2") }) {
-        Card {
-            CardHead("Lembrete diário")
-            Div({ classes("setting") }) {
-                Icon("alarm")
-                Div({ classes("grow") }) { B { Text("Lembrar de estudar") }; Div({ classes("small", "muted") }) { Text("Um aviso por dia, no horário escolhido") } }
-                Switch(daily, "Lembrete diário") { daily = it; NotifyPrefs.daily = it }
+    PageHead("Notificações", "Um aviso só, e só quando importa")
+    FolhaTalking(
+        when {
+            perm == "granted" && on -> "Combinado! Quando o seu material ficar pronto, eu te chamo, mesmo se você estiver em outra aba."
+            perm == "denied" -> "O navegador bloqueou meus avisos. Se quiser, libere nas configurações do site e eu volto a te chamar."
+            else -> "Pede o material e vai fazer outra coisa: quando ele ficar pronto, eu te aviso aqui no computador."
+        },
+        88,
+    )
+    Card(extra = "pad-lg") {
+        Div({ classes("setting") }) {
+            Icon("auto_awesome")
+            Div({ classes("grow") }) {
+                B { Text("Material pronto") }
+                Div({ classes("small", "muted") }) { Text("Quando a teoria, os flashcards e as questões de um tópico ficarem prontos, mesmo com o Estudário em outra aba.") }
             }
-            Div({ classes("day-row") }) {
-                Div({ classes("grow") }) { Div({ classes("name") }) { Text("Horário") } }
-                Stepper(minutes, { minutes = it; NotifyPrefs.minutes = it }, step = 15, min = 5 * 60, max = 23 * 60 + 45, format = { "%02d:%02d".let { _ -> "${(it / 60).toString().padStart(2, '0')}:${(it % 60).toString().padStart(2, '0')}" } }, label = "Horário do lembrete")
+            Switch(on, "Avisar quando o material ficar pronto") { value ->
+                on = value; Notify.materialReadyOn = value
+                if (value && perm == "default") Notify.request { perm = it }
             }
         }
-        Card {
-            CardHead("Pendências e revisões")
-            Div({ classes("setting") }) {
-                Icon("autorenew")
-                Div({ classes("grow") }) { B { Text("Avisar revisões e tarefas atrasadas") }; Div({ classes("small", "muted") }) { Text("Quando houver revisões vencidas ou tarefas do plano para hoje") } }
-                Switch(pending, "Pendências e revisões") { pending = it; NotifyPrefs.pending = it }
+        when (perm) {
+            "default" -> Div({ classes("row", "wrap"); attr("style", "margin-top:14px") }) {
+                Btn("Permitir avisos neste navegador", { Notify.request { perm = it } }, style = "primary", icon = "notifications")
+                Span({ classes("xs", "muted") }) { Text("O navegador pergunta uma vez.") }
+            }
+            "denied" -> Div({ classes("banner"); attr("style", "margin-top:14px") }) { Icon("block", plain = true); Text("Os avisos estão bloqueados neste navegador. Libere nas configurações do site (cadeado ao lado do endereço).") }
+            "granted" -> Div({ classes("banner", "ok"); attr("style", "margin-top:14px") }) { Icon("check_circle"); Text("Avisos liberados neste navegador.") }
+            else -> Div({ classes("banner"); attr("style", "margin-top:14px") }) { Icon("info"); Text("Este navegador não mostra avisos; o aviso aparece aqui na tela, e o título da aba pisca.") }
+        }
+    }
+    Card(extra = "soft") {
+        Div({ classes("row") }) {
+            Icon("phone_android")
+            Div({ classes("grow") }) {
+                B { Text("Lembrete de estudar e revisões") }
+                P({ classes("small", "muted") }) { Text("Ficam no app do celular, que te acompanha o dia todo. No app: Mais › Notificações.") }
             }
         }
     }

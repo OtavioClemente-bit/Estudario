@@ -331,10 +331,12 @@ private fun EditalSubjectRow(number: Int, name: String, topics: List<String>) {
 private fun PlanPreview(result: Pair<Snapshot, String>?, onBack: () -> Unit, onOpen: () -> Unit) {
     if (result == null) {
         Div({ classes("center-page", "building") }) {
-            Folha("thinking", 150, "animation:bob 1.6s ease-in-out infinite")
-            H2 { Text("Montando o seu plano…") }
-            P({ classes("muted") }) { Text("Distribuindo as matérias pelos seus dias, encaixando revisões e questões.") }
-            Div({ attr("style", "width:min(320px,80vw)") }) { Div({ classes("bar", "indeterminate") }) { Span() } }
+            ProcessView(
+                title = "Montando o seu plano",
+                eyebrow = "Quase lá",
+                stages = listOf("Lendo o seu edital", "Distribuindo as matérias pelos seus dias", "Encaixando revisões e questões", "Conferindo a primeira semana"),
+                stageMillis = 1_400,
+            )
         }
         return
     }

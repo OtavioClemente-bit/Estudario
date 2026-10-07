@@ -19,14 +19,30 @@ import org.jetbrains.compose.web.dom.Span
 import org.jetbrains.compose.web.dom.Text
 import org.w3c.dom.HTMLDivElement
 
-/** Ícone do Material Symbols (a mesma família de ícones do app). */
+/**
+ * Ícone. Os de significado (casa, calendário, troféu, chama...) são os desenhos do Estudário
+ * (glyphs.js, os mesmos de BrandGlyphs.kt no app); os de controle (setas, fechar, mais) continuam
+ * o traço do Material Symbols. "faint" deixa o desenho em cinza, como o tint apagado do app.
+ */
 @Composable
-fun Icon(name: String, filled: Boolean = false, extraClass: String? = null) {
+fun Icon(name: String, filled: Boolean = false, extraClass: String? = null, plain: Boolean = false) {
+    val muted = extraClass == "faint"
+    val uri = if (plain) null else androidx.compose.runtime.remember(name, muted) { glyphUri(name, muted) }
+    if (uri != null) {
+        Span({
+            classes(*listOfNotNull("ms", "gl", extraClass).toTypedArray())
+            attr("aria-hidden", "true")
+        }) { org.jetbrains.compose.web.dom.Img(src = uri, alt = "") }
+        return
+    }
     Span({
         classes(*listOfNotNull("ms", if (filled) "fill" else null, extraClass).toTypedArray())
         attr("aria-hidden", "true")
     }) { Text(name) }
 }
+
+fun glyphUri(name: String, muted: Boolean = false): String? =
+    runCatching { kotlinx.browser.window.asDynamic().estudarioGlyphUri(name, muted) as? String }.getOrNull()
 
 @Composable
 fun Btn(
@@ -68,7 +84,7 @@ fun IconButton(icon: String, label: String, onClick: () -> Unit) {
 @Composable
 fun Card(extra: String? = null, attrs: AttrBuilderContext<HTMLDivElement>? = null, content: @Composable () -> Unit) {
     Div({
-        classes(*listOfNotNull("card", extra).toTypedArray())
+        classes(*(listOf("card") + extra.orEmpty().split(' ').filter { it.isNotBlank() }).toTypedArray())
         attrs?.invoke(this)
     }) { content() }
 }
@@ -129,12 +145,12 @@ fun Empty(icon: String, title: String, text: String, action: (@Composable () -> 
 fun Spinner() { Div({ classes("spinner") }) }
 
 @Composable
-fun Modal(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+fun Modal(onDismiss: () -> Unit, wide: Boolean = false, content: @Composable () -> Unit) {
     Div({
         classes("modal-back")
         onClick { event -> if (event.target == event.currentTarget) onDismiss() }
     }) {
-        Div({ classes("modal"); attr("role", "dialog"); attr("aria-modal", "true") }) { content() }
+        Div({ classes(*listOfNotNull("modal", if (wide) "wide" else null).toTypedArray()); attr("role", "dialog"); attr("aria-modal", "true") }) { content() }
     }
 }
 

@@ -22,13 +22,15 @@ import org.jetbrains.compose.web.dom.B
 import org.jetbrains.compose.web.dom.Button
 import org.jetbrains.compose.web.dom.Div
 import org.jetbrains.compose.web.dom.H2
+import org.jetbrains.compose.web.dom.H3
+import androidx.compose.runtime.key
 import org.jetbrains.compose.web.dom.Li
 import org.jetbrains.compose.web.dom.P
 import org.jetbrains.compose.web.dom.Span
 import org.jetbrains.compose.web.dom.Text
 import org.jetbrains.compose.web.dom.Ul
 
-private enum class PlanView(val label: String) { TODAY("Hoje"), WEEK("Semana"), MONTH("Mês") }
+private enum class PlanView(val label: String, val icon: String) { TODAY("Hoje", "today"), WEEK("Semana", "date_range"), MONTH("Mês", "calendar_month"), OVERVIEW("Visão geral", "insights") }
 
 @Composable
 fun PlanScreen() {
@@ -56,17 +58,18 @@ fun PlanScreen() {
     val todayEpoch = today.toEpochDay()
     val planTasks = data.tasks.filter { it.planId == plan.id }
 
-    PageHead(plan.name, plan.exam?.let { "Prova em ${Queries.dayLabel(LocalDate.fromEpochDays(it))} · faltam ${(it - todayEpoch).coerceAtLeast(0)} dias" } ?: "Meu plano de estudos") {
+    PageHead("Plano", "O que estudar, quando e por quê") {
         Btn("Ajustar plano", { Router.go(Route.PlanSettings) }, style = "outline", icon = "tune", small = true)
     }
+    PlanProgressHeader(plan, planTasks, todayEpoch)
 
-    Div({ classes("tabs"); attr("role", "tablist") }) {
+    Div({ classes("plan-tabs"); attr("role", "tablist") }) {
         PlanView.entries.forEach { option ->
             Button({
-                classes(*listOfNotNull(if (view == option) "on" else null).toTypedArray())
+                classes(*listOfNotNull("fchip", if (view == option) "on" else null).toTypedArray())
                 attr("role", "tab"); attr("aria-selected", (view == option).toString())
                 onClick { view = option }
-            }) { Text(option.label) }
+            }) { Icon(option.icon); Text(option.label) }
         }
     }
 
@@ -91,7 +94,7 @@ fun PlanScreen() {
             val done = dayTasks.count { it.status == "CONCLUIDA" }
             val earned = dayTasks.filter { it.status == "CONCLUIDA" }.sumOf { Progress.taskXp(it) }
             val possible = dayTasks.sumOf { Progress.taskXp(it) }
-            if (dayTasks.isNotEmpty()) Card {
+            if (dayTasks.isNotEmpty() && dayOffset != 0) Card {
                 Div({ classes("row", "between") }) {
                     Div({ classes("row") }) {
                         Span({ classes("task-mark"); attr("style", "background:var(--amber-soft);color:var(--amber-strong)") }) { Icon("bolt", filled = true) }
@@ -173,6 +176,7 @@ fun PlanScreen() {
                 dayTasks.forEach { task -> androidx.compose.runtime.key(task.id) { TaskRow(task) { completing = task } } }
             }
         }
+        PlanView.OVERVIEW -> Unit
         PlanView.MONTH -> {
             val anchor = LocalDate(today.year, today.month, 1)
             val monthIndex = anchor.year * 12 + anchor.month.ordinal + monthOffset
@@ -213,7 +217,148 @@ fun PlanScreen() {
         }
     }
 
+    if (view == PlanView.OVERVIEW) PlanOverview(plan.id, planTasks, todayEpoch, plan.exam)
+
     completing?.let { task -> CompleteTaskDialog(task) { completing = null } }
+}
+
+private fun List<PlanTask>.load() = filter { it.status != "REPROGRAMADA" && it.status != "CANCELADA" }
+
+/**
+ * O plano em uma olhada (PlanProgressHeader do app): para onde ele vai, quanto já foi e a missão de
+ * hoje. É a primeira coisa da aba; dá para entender o plano sem abrir nada.
+ */
+@Composable
+private fun PlanProgressHeader(plan: br.com.estudario.web.data.StudyPlan, tasks: List<PlanTask>, todayEpoch: Long) {
+    val load = tasks.load()
+    val total = load.size
+    val done = load.count { it.status == "CONCLUIDA" }
+    val pct = percent(done, total)
+    val today = load.filter { it.day == todayEpoch }
+    val todayDone = today.count { it.status == "CONCLUIDA" }
+    val overdue = load.count { it.day < todayEpoch && (it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO") }
+    val daysToExam = plan.exam?.let { it - todayEpoch }?.takeIf { it >= 0 }
+    val forecast = load.filter { it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO" }.let { p -> p.filter { it.type == "THEORY" }.maxOfOrNull { it.day } ?: p.maxOfOrNull { it.day } }
+    val next = load.filter { it.day > todayEpoch && it.status == "PLANEJADA" }.minOfOrNull { it.day }
+    Div({ classes("home-hero", "plan-hero", "rise") }) {
+        Div({ classes("hh-top") }) {
+            Div({ classes("grow") }) {
+                Span({ classes("eyebrow") }) { Text("SEU PLANO") }
+                H2({ classes("hh-title", "clamp-2") }) { Text(plan.objective.takeIf { it.isNotBlank() } ?: plan.name) }
+            }
+            if (daysToExam != null) Div({ classes("hh-count") }) {
+                B { Text("$daysToExam") }
+                Span { Text(if (daysToExam == 1L) "dia para a prova" else "dias para a prova") }
+            }
+        }
+        Div({ classes("hh-cover") }) {
+            Div({ classes("row", "between") }) { Span { Text("$pct% do plano cumprido") }; B { Text("$done/$total") } }
+            Div({ classes("hh-bar") }) { Span({ attr("style", "width:${pct.coerceAtLeast(2)}%") }) }
+            P({ classes("small") }) { Text(forecast?.let { "No ritmo atual você fecha o edital em ${Queries.dayLabel(LocalDate.fromEpochDays(it))}." } ?: "Todo o conteúdo previsto já foi coberto. Agora é revisão e questões.") }
+        }
+        Div({ classes("hh-mission") }) {
+            Div({ classes("grow") }) {
+                B { Text("Missão de hoje") }
+                P({ classes("small") }) {
+                    Text(
+                        when {
+                            today.isEmpty() && next != null -> "Folga hoje. Próximo estudo: ${dayTitle(next, todayEpoch).lowercase()} · ${load.count { it.day == next }} atividade(s)"
+                            today.isEmpty() -> "Dia livre no plano."
+                            todayDone == today.size -> "Concluída. Amanhã o plano continua."
+                            else -> "$todayDone de ${today.size} atividades · ${Queries.minutesLabel(today.filter { it.status == "CONCLUIDA" }.sumOf { it.minutes })} de ${Queries.minutesLabel(today.sumOf { it.minutes })}"
+                        },
+                    )
+                }
+            }
+            if (overdue > 0) Span({ classes("late-pill") }) { Text("$overdue atrasada(s)") }
+            else if (today.isNotEmpty() && todayDone == today.size) Icon("check_circle")
+        }
+    }
+}
+
+/** Visão geral: como fica sua semana (barras por dia), para onde vai o tempo e o andamento. */
+@Composable
+private fun PlanOverview(planId: String, tasks: List<PlanTask>, todayEpoch: Long, exam: Long?) {
+    val load = tasks.load()
+    val window = load.filter { it.day in todayEpoch..(todayEpoch + 13) }
+    if (window.isNotEmpty()) Card(extra = "pad-lg") {
+        val perWeekday = IntArray(7)
+        window.forEach { perWeekday[LocalDate.fromEpochDays(it.day).isoDayOfWeek - 1] += it.minutes }
+        val avg = perWeekday.map { it / 2 }
+        val max = (avg.maxOrNull() ?: 0).coerceAtLeast(1)
+        H3 { Text("Como fica sua semana") }
+        P({ classes("muted", "small") }) { Text("Cerca de ${Queries.minutesLabel(avg.sum())} por semana, divididos assim:") }
+        Div({ classes("week-shape") }) {
+            avg.forEachIndexed { i, minutes ->
+                Div({ classes("ws-day") }) {
+                    Span({ classes("xs", if (minutes == 0) "muted" else "strong") }) { Text(if (minutes == 0) "folga" else Queries.minutesLabel(minutes)) }
+                    Div({ classes("ws-col") }) { if (minutes > 0) Span({ attr("style", "height:${(minutes * 100 / max).coerceAtLeast(8)}%") }) }
+                    B({ classes("small") }) { Text(listOf("S", "T", "Q", "Q", "S", "S", "D")[i]) }
+                }
+            }
+        }
+        val bySubject = window.groupBy { it.subjectName.ifBlank { "Geral" } }.mapValues { (_, l) -> l.sumOf { it.minutes } }.entries.sortedByDescending { it.value }
+        val top = bySubject.take(6)
+        val rest = bySubject.drop(6).sumOf { it.value }
+        val total = bySubject.sumOf { it.value }.coerceAtLeast(1)
+        H3({ attr("style", "margin-top:18px") }) { Text("Para onde vai o seu tempo") }
+        Div({ classes("split-bar") }) {
+            top.forEachIndexed { i, (name, minutes) -> key(name) { Span({ attr("style", "width:${minutes * 100.0 / total}%;background:var(--subject-$i)"); attr("title", "$name · ${minutes * 100 / total}%") }) } }
+            if (rest > 0) Span({ attr("style", "width:${rest * 100.0 / total}%;background:var(--soft-2)") })
+        }
+        Div({ classes("stack", "tight"); attr("style", "margin-top:10px") }) {
+            top.forEachIndexed { i, (name, minutes) ->
+                key(name) {
+                    Div({ classes("row") }) {
+                        Span({ classes("adot", "lg"); attr("style", "background:var(--subject-$i)") })
+                        Span({ classes("grow", "small", "clamp-2") }) { Text(name) }
+                        B({ classes("small") }) { Text("${minutes * 100 / total}%") }
+                    }
+                }
+            }
+            if (rest > 0) P({ classes("xs", "muted") }) { Text("Outras matérias: ${rest * 100 / total}%") }
+        }
+    }
+    val done = load.count { it.status == "CONCLUIDA" }
+    val planned = load.sumOf { it.minutes }
+    val actual = Store.data.executions.filter { it.planId == planId }.sumOf { it.minutes }
+    Div({ classes("grid", "cols-3") }) {
+        Card(extra = "flat") { Stat("$done de ${load.size}", "missões concluídas") }
+        Card(extra = "flat") { Stat(Queries.minutesLabel(actual), "estudadas no plano") }
+        Card(extra = "flat") { Stat(Queries.minutesLabel(planned), "planejadas no total") }
+    }
+    val bySubjectAll = load.groupBy { it.subjectName.ifBlank { "Geral" } }
+    Card {
+        CardHead("Andamento por matéria")
+        Div({ classes("stack") }) {
+            bySubjectAll.entries.sortedByDescending { it.value.size }.forEach { (name, list) ->
+                key(name) {
+                    val d = list.count { it.status == "CONCLUIDA" }
+                    Div({ classes("stack", "tight") }) {
+                        Div({ classes("row", "between") }) {
+                            Div({ classes("row"); attr("style", "gap:8px;min-width:0") }) { Span({ classes("adot", "lg"); attr("style", "background:${subjectColor(name)}") }); B({ classes("small", "clamp-2") }) { Text(name) } }
+                            Span({ classes("small", "muted", "nowrap") }) { Text("$d/${list.size}") }
+                        }
+                        Div({ classes("bar") }) { Span({ attr("style", "width:${percent(d, list.size)}%;background:${subjectColor(name)}") }) }
+                    }
+                }
+            }
+        }
+    }
+    if (exam != null) {
+        val last = load.maxOfOrNull { it.day }
+        Card(extra = "soft") {
+            Div({ classes("row") }) {
+                Icon("event_available")
+                Div({ classes("grow") }) {
+                    B { Text("Previsão de conclusão") }
+                    P({ classes("small", "muted") }) {
+                        Text(last?.let { "O plano vai até ${Queries.dayLabel(LocalDate.fromEpochDays(it))}; a prova é em ${Queries.dayLabel(LocalDate.fromEpochDays(exam))}." } ?: "Sem tarefas no plano.")
+                    }
+                }
+            }
+        }
+    }
 }
 
 private fun dayTitle(day: Long, today: Long): String {

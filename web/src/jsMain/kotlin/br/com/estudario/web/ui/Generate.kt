@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import br.com.estudario.web.Route
+import br.com.estudario.web.Router
 import br.com.estudario.web.data.AiContent
 import br.com.estudario.web.data.Store
 import kotlinx.coroutines.launch
@@ -71,7 +73,7 @@ private fun ChoiceCards(items: List<Choice>, isOn: (String) -> Boolean, cols: In
 /** Gerar material com o Estudário, em passos com o Folha perguntando, como no app. */
 @Composable
 fun GenerateDialog(topicId: Long, onClose: () -> Unit) {
-    val scope = rememberCoroutineScope()
+
     var step by remember { mutableStateOf(0) }
     var blocks by remember { mutableStateOf(blockChoices.map { it.key }.toSet()) }
     var depth by remember { mutableStateOf("DEEP") }
@@ -79,24 +81,19 @@ fun GenerateDialog(topicId: Long, onClose: () -> Unit) {
     var style by remember { mutableStateOf("MIXED") }
     var difficulty by remember { mutableStateOf("MEDIUM") }
     var board by remember { mutableStateOf("") }
-    var progress by remember { mutableStateOf<AiContent.Progress?>(null) }
-    val running = progress != null && progress !is AiContent.Progress.Failed && progress !is AiContent.Progress.Done
+    // A geração mora em Generation: fechar a janela não interrompe nada.
+    val progress = Generation.state[topicId]
     val topic = Store.data.topics.firstOrNull { it.id == topicId }
     val hasQuestions = "QUESTIONS" in blocks
     val steps = listOfNotNull("blocks", if ("THEORY" in blocks || "SUMMARY" in blocks) "depth" else null, if (hasQuestions) "questions" else null, if (hasQuestions) "level" else null)
     val current = steps[step.coerceIn(0, steps.lastIndex)]
 
     fun start() {
-        progress = AiContent.Progress.Checking
-        scope.launch {
-            val options = AiContent.Options(blocks = blocks, depth = depth, questionCount = count, style = style, difficulty = difficulty, board = board)
-            val result = AiContent.generate(Store.data, topicId, options) { progress = it }
-            if (result is AiContent.Progress.Done) Store.update { AiContent.apply(it, topicId, result.proposal) }
-            progress = result
-        }
+        Generation.start(topicId, AiContent.Options(blocks = blocks, depth = depth, questionCount = count, style = style, difficulty = difficulty, board = board))
     }
+    val close = { if (progress is AiContent.Progress.Done || progress is AiContent.Progress.Failed) Generation.clear(topicId); onClose() }
 
-    Modal(onDismiss = { if (!running) onClose() }) {
+    Modal(onDismiss = close, wide = progress != null && progress !is AiContent.Progress.Failed) {
         when (val p = progress) {
             null, is AiContent.Progress.Failed -> {
                 Div({ classes("row", "between") }) {
@@ -147,24 +144,32 @@ fun GenerateDialog(topicId: Long, onClose: () -> Unit) {
                     else Btn("Gerar material", { start() }, style = "primary", icon = "auto_awesome", enabled = blocks.isNotEmpty())
                 }
             }
-            is AiContent.Progress.Done -> Div({ classes("stack"); attr("style", "align-items:center;text-align:center;padding:8px 0") }) {
-                Folha("happy", 110)
-                B { Text("Prontinho! Seu material está salvo neste tópico.") }
-                Btn("Ver material", onClose, style = "primary")
+            is AiContent.Progress.Done -> Div({ classes("stack", "pop-in"); attr("style", "align-items:center;text-align:center;padding:8px 0") }) {
+                Div({ classes("celebrate") }) { Folha("happy", 140) }
+                org.jetbrains.compose.web.dom.H2 { Text("Prontinho!") }
+                P({ classes("muted") }) { Text("Seu material está salvo em “${topic?.title ?: "neste tópico"}”: teoria, flashcards e questões esperando por você.") }
+                Btn("Ver material", { Generation.clear(topicId); onClose(); Router.go(Route.Topic(topicId)) }, style = "primary", size = "lg", icon = "menu_book")
             }
-            else -> Div({ classes("stack"); attr("style", "align-items:center;text-align:center;padding:8px 0") }) {
-                Folha("thinking", 110, "animation:bob 1.6s ease-in-out infinite")
-                B {
-                    Text(
-                        when (p) {
-                            AiContent.Progress.Checking -> "Verificando a segurança…"
-                            AiContent.Progress.Sending -> "Enviando o pedido…"
-                            else -> "Estou escrevendo o seu material…"
-                        },
-                    )
-                }
-                P({ classes("small", "muted") }) { Text("Pode levar alguns minutos. Deixe esta página aberta.") }
-                Spinner()
+            else -> {
+                ProcessView(
+                    title = "Preparando o seu material",
+                    eyebrow = topic?.title?.take(60),
+                    stages = listOf("Conferindo a segurança", "Enviando o pedido", "Lendo o tópico e a banca", "Escrevendo a teoria", "Montando flashcards e questões", "Revisando tudo"),
+                    stageIndex = when (p) {
+                        AiContent.Progress.Checking -> 0
+                        AiContent.Progress.Sending -> 1
+                        else -> null
+                    },
+                    stageMillis = 9_000,
+                    stageOffset = 2,
+                    sceneSize = 280,
+                    footer = {
+                        P({ classes("small", "muted"); attr("style", "text-align:center") }) {
+                            Text("Pode fechar esta janela e continuar estudando. Eu continuo aqui e te aviso quando ficar pronto.")
+                        }
+                        Div({ classes("row", "end"); attr("style", "width:100%") }) { Btn("Continuar navegando", onClose, style = "outline", icon = "arrow_forward") }
+                    },
+                )
             }
         }
     }

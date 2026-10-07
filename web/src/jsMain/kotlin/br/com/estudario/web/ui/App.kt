@@ -98,7 +98,7 @@ private var drawerOpen by mutableStateOf(false)
 @Composable
 fun App() {
     when (val load = Store.load) {
-        LoadState.Loading -> CenterMessage { Folha(mood = "thinking", size = 110); Text("Carregando seus estudos…") }
+        LoadState.Loading -> CenterMessage { ProcessScene(220); B({ classes("loading-title") }) { Text("Abrindo seus estudos…") } }
         LoadState.SignedOut -> LoginScreen()
         is LoadState.Failed -> CenterMessage {
             Folha(mood = "thinking", size = 110)
@@ -109,6 +109,7 @@ fun App() {
         LoadState.Ready -> Shell { Screen(Router.current) }
     }
     Store.conflict?.let { head -> ConflictDialog(head.deviceLabel) }
+    if (Store.load == LoadState.Ready) GenerationBanner()
     ToastHost()
 }
 

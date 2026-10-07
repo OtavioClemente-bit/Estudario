@@ -64,18 +64,20 @@ internal fun PdfEditalDialog(onClose: () -> Unit, onDone: (String, String, List<
                     Btn("Usar este edital", { onDone(name.ifBlank { file?.name?.substringBeforeLast('.') ?: "Meu concurso" }, role, result) }, icon = "check")
                 }
             }
-            running -> Div({ classes("stack"); attr("style", "align-items:center;text-align:center;padding:16px 0") }) {
-                Spinner()
-                P({ classes("muted") }) {
-                    Text(
-                        when (step) {
-                            br.com.estudario.web.data.EditalAi.Step.Reading -> "Lendo o PDF no seu navegador…"
-                            br.com.estudario.web.data.EditalAi.Step.Uploading -> "Enviando para a IA do Estudário…"
-                            else -> "A IA está organizando o conteúdo programático. Pode levar alguns minutos; deixe esta aba aberta."
-                        },
-                    )
-                }
-            }
+            running -> ProcessView(
+                title = "Lendo o seu edital",
+                eyebrow = file?.name?.take(50),
+                stages = listOf("Lendo o PDF no seu navegador", "Enviando para o Estudário", "Encontrando o conteúdo programático", "Separando matérias e tópicos", "Conferindo a ordem do edital"),
+                stageIndex = when (step) {
+                    br.com.estudario.web.data.EditalAi.Step.Reading -> 0
+                    br.com.estudario.web.data.EditalAi.Step.Uploading -> 1
+                    else -> null
+                },
+                stageOffset = 2,
+                stageMillis = 12_000,
+                sceneSize = 260,
+                footer = { P({ classes("small", "muted"); attr("style", "text-align:center") }) { Text("Pode levar alguns minutos. Deixe esta aba aberta.") } },
+            )
             else -> {
                 P({ classes("muted", "small") }) { Text("Escolha o PDF oficial do edital. O Estudário lê o conteúdo programático e cria as matérias e os tópicos na ordem do edital.") }
                 Div({ classes("field") }) {

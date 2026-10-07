@@ -7,10 +7,26 @@ import kotlinx.serialization.Serializable
 // continuam no JSON original e voltam intactos quando a foto é enviada de novo.
 
 @Serializable
-data class Competition(val id: Long, val name: String, val primary: Boolean = false, val createdAt: Long = 0)
+data class Competition(
+    val id: Long,
+    val name: String,
+    val primary: Boolean = false,
+    val createdAt: Long = 0,
+    val assessedPriorityScore: Int = 50,
+    val hasAssessedPriority: Boolean = false,
+    val userPriorityOverride: String? = null,
+)
 
 @Serializable
-data class Subject(val id: Long, val competitionId: Long, val name: String, val position: Int = 0)
+data class Subject(
+    val id: Long,
+    val competitionId: Long,
+    val name: String,
+    val position: Int = 0,
+    val assessedPriorityScore: Int = 50,
+    val hasAssessedPriority: Boolean = false,
+    val userPriorityOverride: String? = null,
+)
 
 @Serializable
 data class Topic(
@@ -27,6 +43,9 @@ data class Topic(
     val lastReviewedAt: Long? = null,
     val notes: String = "",
     val contentOriginType: String = "EDITAL",
+    val assessedPriorityScore: Int = 50,
+    val hasAssessedPriority: Boolean = false,
+    val userPriorityOverride: String? = null,
 )
 
 @Serializable
@@ -167,6 +186,7 @@ data class PlanSubject(
     val priority: String = "MEDIUM",
     val paused: Boolean = false,
     val position: Int = 0,
+    val personalDifficulty: String = "NORMAL",
 )
 
 @Serializable
