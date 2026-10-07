@@ -8,37 +8,37 @@ extraído e cortado no conteúdo programático em `conteudo/colheita/editais-200
 
     Leia o AGENTS.md e C:\Users\otavi\Documents\Codex\2026-09-15\vc-x20\conteudo\fila\PEDIDO-EDITAIS.md (regras e formato). Depois abra C:\Users\otavi\Documents\Codex\2026-09-15\vc-x20\conteudo\fila\07-editais-200.md e faça SÓ o BLOCO X. Para cada concurso do bloco, leia o arquivo de texto indicado em "texto" (é o conteúdo programático já extraído do PDF oficial; se faltar algo, use o arquivo inteiro na pasta txt com o mesmo nome) e grave conteudo/entrada/edital-<nome>.json, um arquivo por cargo com conteúdo programático diferente. Se o edital tiver mais de 6 cargos diferentes, faça os 6 de maior procura (cargos gerais de nível superior e médio primeiro) e liste os outros no relatório. Use o link oficial da lista em "url". Um assunto por tópico, sem numeração, todo tópico com "topico": null. UTF-8 sem BOM, um arquivo por vez com a ferramenta de editar arquivos. Depois de cada arquivo rode: deno run --allow-read conteudo/fila/conferir-edital.ts <arquivo> e corrija o que ele apontar. Não pare no meio, não peça confirmação. No fim, liste os arquivos gravados (disciplinas e tópicos de cada) e os pendentes com o motivo.
 
-## Bloco 1
+## Bloco 1 (feito e publicado em 06/10: 24 cargos)
 
-- [ ] **001** · Banco do Brasil — Seleção Externa 2022/001 (2022) · Bancos e fiscal
+- [x] **001** · Banco do Brasil — Seleção Externa 2022/001 (2022) · Bancos e fiscal
   - texto: `conteudo/colheita/editais-200/programatico/1-001_Banco_do_Brasil_Sele_o_Externa_2022_001.txt`
   - edital: Edital nº 01 – 2022/001 BB, de 23 de dezembro de 2022 — Seleção Externa para Escriturário (Agente Comercial e Agente de Tecnologia)
   - link oficial: https://www.bb.com.br/docs/portal/dipes/Edital-de-Abertura-de-Selecao-Externa-2022-01.pdf
-- [ ] **002** · CAGE Rio Grande do Sul — Auditor do Estado (2024) · Bancos e fiscal
+- [x] **002** · CAGE Rio Grande do Sul — Auditor do Estado (2024) · Bancos e fiscal
   - texto: `conteudo/colheita/editais-200/programatico/1-002_CAGE_Rio_Grande_do_Sul_Auditor_do_Estado.txt`
   - edital: Edital nº 1 – SEFAZ/RS, de 07 de outubro de 2024 — Concurso para Auditor do Estado
   - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital-cage-rs-final.03.10.2024_publicacao_07.10.pdf
-- [ ] **003** · Banco Central do Brasil — Analista (2024) · Bancos e fiscal
+- [x] **003** · Banco Central do Brasil — Analista (2024) · Bancos e fiscal
   - texto: `conteudo/colheita/editais-200/programatico/1-003_Banco_Central_do_Brasil_Analista.txt`
   - edital: Edital nº 1 – BCB, de 15 de janeiro de 2024 — Concurso para provimento de vagas e cadastro de reserva no cargo de Analista
   - link oficial: https://bcb.gov.br/content/acessoinformacao/analista_2024/Edital-n-1-de-Abertura-do-concurso.pdf
-- [ ] **004** · Comissão de Valores Mobiliários — Concurso CVM (2024) · Bancos e fiscal
+- [x] **004** · Comissão de Valores Mobiliários — Concurso CVM (2024) · Bancos e fiscal
   - texto: `conteudo/colheita/editais-200/programatico/1-004_Comiss_o_de_Valores_Mobili_rios_Concurso_CVM.txt`
   - edital: Edital nº 1/2024 CVM, de 11 de janeiro de 2024 — Inspetor e Analista
   - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital-1-2024-abertura-concurso-cvm.pdf
-- [ ] **005** · Receita Federal do Brasil — Concurso Público (2022) · Bancos e fiscal
+- [x] **005** · Receita Federal do Brasil — Concurso Público (2022) · Bancos e fiscal
   - texto: `conteudo/colheita/editais-200/programatico/1-005_Receita_Federal_do_Brasil_Concurso_P_blico.txt`
   - edital: Edital nº 1 – RFB, de 2 de dezembro de 2022 — Auditor-Fiscal e Analista-Tributário
   - link oficial: https://www.gov.br/receitafederal/pt-br/assuntos/noticias/2022/dezembro/arquivos-e-imagens/edital-1-2022-concurso-receita-federal.pdf
-- [ ] **006** · Controladoria-Geral da União — CGU (2021) · Bancos e fiscal
+- [x] **006** · Controladoria-Geral da União — CGU (2021) · Bancos e fiscal
   - texto: `conteudo/colheita/editais-200/programatico/1-006_Controladoria_Geral_da_Uni_o_CGU.txt`
   - edital: Edital nº 1, de 22 de dezembro de 2021 — Auditor Federal de Finanças e Controle e Técnico Federal de Finanças e Controle
   - link oficial: https://basedeconhecimento.cgu.gov.br/bitstream/1/17183/1/Edital_1_2021.pdf
-- [ ] **007** · Tesouro Nacional — AFFC (2024) · Bancos e fiscal
+- [x] **007** · Tesouro Nacional — AFFC (2024) · Bancos e fiscal
   - texto: `conteudo/colheita/editais-200/programatico/1-007_Tesouro_Nacional_AFFC.txt`
   - edital: Edital STN nº 01/2024 — abertura — Auditor Federal de Finanças e Controle
   - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital-stn-16.01.pdf
-- [ ] **008** · Tribunal de Contas da União — Auditor Federal de Controle Externo (2021) · Bancos e fiscal
+- [x] **008** · Tribunal de Contas da União — Auditor Federal de Controle Externo (2021) · Bancos e fiscal
   - texto: `conteudo/colheita/editais-200/programatico/1-008_Tribunal_de_Contas_da_Uni_o_Auditor_Federal_de_Controle_Externo.txt`
   - edital: Edital nº 1 TCU-2021, de 28 de outubro de 2021 — Auditor Federal de Controle Externo, Área Controle Externo
   - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/28.10.2021-edital-001-2021-abertura-concurso-tcu-.pdf
