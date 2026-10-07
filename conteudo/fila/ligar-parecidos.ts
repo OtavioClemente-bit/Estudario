@@ -19,7 +19,7 @@ for (const f of only) {
     const s = tok(t.texto); if (s.size < 2) continue;
     let best = 0, id = "";
     for (const m of mats) for (const a of m.sets) { const j = jac(s, a); if (j > best) { best = j; id = m.id; } }
-    if (best >= 0.6) { console.log(`${best.toFixed(2)}  ${t.texto}  →  ${id}`); if (write) { t.topico = id; k++; } }
+    if (best >= Number(Deno.env.get("MIN") ?? "0.6")) { console.log(`${best.toFixed(2)}  ${t.texto}  →  ${id}`); if (write) { t.topico = id; k++; } }
   }
   if (write && k) Deno.writeTextFileSync(p, JSON.stringify(ed, null, 2) + "\n");
   n += k;

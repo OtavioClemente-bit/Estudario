@@ -1,4 +1,4 @@
-# Refazer editais resumidos (94 arquivos de 35 concursos)
+# Refazer editais resumidos (94 arquivos de 40 concursos)
 
 Na primeira versão o Codex resumiu o conteúdo programático (poucos tópicos, vários itens juntos) e em alguns
 inventou assuntos que não estão no edital. Os arquivos recusados estão em `conteudo/rejeitados/editais-resumidos/`
@@ -51,47 +51,15 @@ inventou assuntos que não estão no edital. Os arquivos recusados estão em `co
   - arquivo: `edital-sefaz-am-2022--auditor-fiscal-tributos.json`
   - arquivo: `edital-sefaz-am-2022--tecnico-arrecadacao-tributos.json`
   - arquivo: `edital-sefaz-am-2022--tecnico-fazenda.json`
-- [ ] **017** · SEFAZ Mato Grosso — Fiscal de Tributos Estaduais (2023) · Bancos e fiscal
-  - texto: `conteudo/colheita/editais-200/txt/1-017_SEFAZ_Mato_Grosso_Fiscal_de_Tributos_Estaduais.txt`
-  - arquivo: `edital-sefaz-mt-2023--fiscal-tributos.json`
-- [ ] **018** · SEEC Distrito Federal — Auditor Fiscal da Receita (2019) · Bancos e fiscal
-  - texto: `conteudo/colheita/editais-200/txt/1-018_SEEC_Distrito_Federal_Auditor_Fiscal_da_Receita.txt`
-  - arquivo: `edital-seec-df-2019--auditor-fiscal-receita.json`
-
-## Bloco 3
-
-- [ ] **019** · SEAP/SEFAZ Paraná — Auditor Fiscal da Receita Estadual (2025) · Bancos e fiscal
-  - texto: `conteudo/colheita/editais-200/txt/1-019_SEAP_SEFAZ_Paran_Auditor_Fiscal_da_Receita_Estadual.txt`
-  - arquivo: `edital-seap-sefaz-pr-2025--auditor-fiscal.json`
 - [ ] **026** · Concurso Público da Agência Nacional de Vigilância Sanitária (Anvisa) (2024) · Federais e administração
   - texto: `conteudo/colheita/editais-200/txt/1-026_Concurso_P_blico_da_Ag_ncia_Nacional_de_Vigil_ncia_Sanit_ria_Anvisa.txt`
-  - arquivo: `edital-anvisa-2024--especialista-area-1-produtos-ambiente.json`
-  - arquivo: `edital-anvisa-2024--especialista-area-2-farmacos.json`
   - arquivo: `edital-anvisa-2024--especialista-area-3-controle-qualidade.json`
 - [ ] **032** · Concurso Público da Agência Nacional de Mineração (ANM 2024) (2024) · Federais e administração
   - texto: `conteudo/colheita/editais-200/txt/1-032_Concurso_P_blico_da_Ag_ncia_Nacional_de_Minera_o_ANM_2024.txt`
   - arquivo: `edital-anm-2024--especialista-ti-governanca-inovacao.json`
-- [ ] **037** · Concurso Público da Agência Nacional de Aviação Civil (ANAC 2023) (2023) · Federais e administração
-  - texto: `conteudo/colheita/editais-200/txt/1-037_Concurso_P_blico_da_Ag_ncia_Nacional_de_Avia_o_Civil_ANAC_2023.txt`
-  - arquivo: `edital-anac-2023--especialista-area-1-piloto.json`
-  - arquivo: `edital-anac-2023--especialista-area-2-engenharia.json`
-- [ ] **038** · Concurso Público do Instituto Brasileiro do Meio Ambiente e dos Recursos Naturais Renováveis (Ibama 2025) (2025) · Federais e administração
-  - texto: `conteudo/colheita/editais-200/txt/1-038_Concurso_P_blico_do_Instituto_Brasileiro_do_Meio_Ambiente_e_dos_Recursos_Naturais_Renov_veis_Ibama_2025.txt`
-  - arquivo: `edital-ibama-2025--analista-ambiental-tema-1.json`
-  - arquivo: `edital-ibama-2025--analista-ambiental-tema-2.json`
 
-## Bloco 4
+## Bloco 3
 
-- [ ] **039** · Concurso Público do Instituto Chico Mendes de Conservação da Biodiversidade (ICMBio 2024) (2024) · Federais e administração
-  - texto: `conteudo/colheita/editais-200/txt/1-039_Concurso_P_blico_do_Instituto_Chico_Mendes_de_Conserva_o_da_Biodiversidade_ICMBio_2024.txt`
-  - arquivo: `edital-icmbio-2024--analista-ambiental.json`
-- [ ] **040** · Concurso Público da NAV Brasil Serviços de Navegação Aérea S.A. (2026) (2026) · Federais e administração
-  - texto: `conteudo/colheita/editais-200/txt/1-040_Concurso_P_blico_da_NAV_Brasil_Servi_os_de_Navega_o_A_rea_S_A_2026.txt`
-  - arquivo: `edital-nav-brasil-2026--advogado.json`
-  - arquivo: `edital-nav-brasil-2026--analista-gestao.json`
-  - arquivo: `edital-nav-brasil-2026--analista-tecnologia.json`
-  - arquivo: `edital-nav-brasil-2026--contador.json`
-  - arquivo: `edital-nav-brasil-2026--meteorologista.json`
 - [ ] **041** · Tribunal de Justiça de Santa Catarina (TJSC) – servidores (2024) · Justiça e jurídico
   - texto: `conteudo/colheita/editais-200/txt/1-041_Tribunal_de_Justi_a_de_Santa_Catarina_TJSC_servidores.txt`
   - arquivo: `edital-tjsc-2024--assistente-social.json`
@@ -101,62 +69,12 @@ inventou assuntos que não estão no edital. Os arquivos recusados estão em `co
 - [ ] **042** · Tribunal Regional do Trabalho da 24ª Região (TRT-24) – servidores (2024) · Justiça e jurídico
   - texto: `conteudo/colheita/editais-200/txt/1-042_Tribunal_Regional_do_Trabalho_da_24_Regi_o_TRT_24_servidores.txt`
   - arquivo: `edital-trt-24-2024--analista-judiciario-area-administrativa.json`
-  - arquivo: `edital-trt-24-2024--analista-judiciario-area-judiciaria.json`
-  - arquivo: `edital-trt-24-2024--analista-judiciario-ti.json`
-  - arquivo: `edital-trt-24-2024--analista-oficial-justica.json`
-  - arquivo: `edital-trt-24-2024--tecnico-judiciario-area-administrativa.json`
   - arquivo: `edital-trt-24-2024--tecnico-judiciario-ti.json`
-- [ ] **043** · Tribunal Regional Federal da 1ª Região (TRF1) – servidores (2024) · Justiça e jurídico
-  - texto: `conteudo/colheita/editais-200/txt/1-043_Tribunal_Regional_Federal_da_1_Regi_o_TRF1_servidores.txt`
-  - arquivo: `edital-trf1-2024--analista-administrativo.json`
-  - arquivo: `edital-trf1-2024--analista-analise-dados.json`
-  - arquivo: `edital-trf1-2024--analista-inspetor-policia-judicial.json`
-  - arquivo: `edital-trf1-2024--analista-judiciario-area-judiciaria.json`
-  - arquivo: `edital-trf1-2024--analista-sistemas-informacao.json`
-  - arquivo: `edital-trf1-2024--tecnico-administrativo.json`
-
-## Bloco 5
-
-- [ ] **045** · Tribunal de Justiça do Estado de Goiás (TJGO) — servidores (2024) · Justiça e jurídico
-  - texto: `conteudo/colheita/editais-200/txt/1-045_Tribunal_de_Justi_a_do_Estado_de_Goi_s_TJGO_servidores.txt`
-  - arquivo: `edital-tjgo-2024--analista-sistemas.json`
-  - arquivo: `edital-tjgo-2024--contador.json`
-  - arquivo: `edital-tjgo-2024--oficial-justica.json`
-- [ ] **046** · Tribunal de Justiça de Pernambuco (TJPE) – Juiz Substituto (2024) · Justiça e jurídico
-  - texto: `conteudo/colheita/editais-200/txt/1-046_Tribunal_de_Justi_a_de_Pernambuco_TJPE_Juiz_Substituto.txt`
-  - arquivo: `edital-tjpe-2024--juiz-substituto.json`
-- [ ] **047** · Tribunal de Justiça de Santa Catarina (TJSC) – Juiz Substituto (2024) · Justiça e jurídico
-  - texto: `conteudo/colheita/editais-200/txt/1-047_Tribunal_de_Justi_a_de_Santa_Catarina_TJSC_Juiz_Substituto.txt`
-  - arquivo: `edital-tjsc-2024--juiz-substituto.json`
-- [ ] **048** · Concurso Público Nacional Unificado da Justiça Eleitoral (CPNUJE) – TSE e TREs (2024) · Justiça e jurídico
-  - texto: `conteudo/colheita/editais-200/txt/1-048_Concurso_P_blico_Nacional_Unificado_da_Justi_a_Eleitoral_CPNUJE_TSE_e_TREs.txt`
-  - arquivo: `edital-cpnuje-2024--agente-policia-judicial.json`
-  - arquivo: `edital-cpnuje-2024--analista-administrativo.json`
-  - arquivo: `edital-cpnuje-2024--analista-contabilidade.json`
-  - arquivo: `edital-cpnuje-2024--analista-tecnologia-informacao.json`
-  - arquivo: `edital-cpnuje-2024--tecnico-administrativo.json`
-- [ ] **049** · Tribunal Superior do Trabalho (TST) – servidores (2023) · Justiça e jurídico
-  - texto: `conteudo/colheita/editais-200/txt/1-049_Tribunal_Superior_do_Trabalho_TST_servidores.txt`
-  - arquivo: `edital-tst-2023--analista-engenharia-mecanica.json`
-  - arquivo: `edital-tst-2023--analista-medicina-clinica.json`
-  - arquivo: `edital-tst-2023--tecnico-programacao.json`
-
-## Bloco 6
-
 - [ ] **050** · Tribunal Regional do Trabalho da 10ª Região (TRT-10) – servidores (2024) · Justiça e jurídico
   - texto: `conteudo/colheita/editais-200/txt/1-050_Tribunal_Regional_do_Trabalho_da_10_Regi_o_TRT_10_servidores.txt`
-  - arquivo: `edital-trt-10-2024--agente-policia-judicial.json`
-  - arquivo: `edital-trt-10-2024--analista-contabilidade.json`
   - arquivo: `edital-trt-10-2024--analista-judiciario-judiciaria.json`
-  - arquivo: `edital-trt-10-2024--analista-tecnologia-informacao.json`
-  - arquivo: `edital-trt-10-2024--oficial-justica.json`
-  - arquivo: `edital-trt-10-2024--tecnico-administrativo.json`
-- [ ] **051** · Tribunal de Contas da União (TCU) — Técnico Federal de Controle Externo (2025) · Justiça e jurídico
-  - texto: `conteudo/colheita/editais-200/txt/1-051_Tribunal_de_Contas_da_Uni_o_TCU_T_cnico_Federal_de_Controle_Externo.txt`
-  - arquivo: `edital-tcu-2025--tecnico-federal-controle-externo.json`
 - [ ] **052** · Tribunal de Contas do Estado do Paraná (TCE-PR) – Auditor de Controle Externo (2024) · Justiça e jurídico
   - texto: `conteudo/colheita/editais-200/txt/1-052_Tribunal_de_Contas_do_Estado_do_Paran_TCE_PR_Auditor_de_Controle_Externo.txt`
-  - arquivo: `edital-tce-pr-2024--auditor-administrativa.json`
   - arquivo: `edital-tce-pr-2024--auditor-contabil.json`
   - arquivo: `edital-tce-pr-2024--auditor-economica.json`
   - arquivo: `edital-tce-pr-2024--auditor-engenharia.json`
@@ -165,11 +83,8 @@ inventou assuntos que não estão no edital. Os arquivos recusados estão em `co
 - [ ] **053** · Defensoria Pública do Estado do Rio de Janeiro (DPE-RJ) – Defensor Público (2023) · Justiça e jurídico
   - texto: `conteudo/colheita/editais-200/txt/1-053_Defensoria_P_blica_do_Estado_do_Rio_de_Janeiro_DPE_RJ_Defensor_P_blico.txt`
   - arquivo: `edital-dperj-2023--defensor-publico.json`
-- [ ] **054** · Defensoria Pública do Estado de Pernambuco (DPE-PE) – Defensor Público (2025) · Justiça e jurídico
-  - texto: `conteudo/colheita/editais-200/txt/1-054_Defensoria_P_blica_do_Estado_de_Pernambuco_DPE_PE_Defensor_P_blico.txt`
-  - arquivo: `edital-dpe-pe-2025--defensor-publico.json`
 
-## Bloco 7
+## Bloco 4
 
 - [ ] **057** · Advocacia-Geral do Estado de Minas Gerais (AGE-MG) – Procurador do Estado (2022) · Justiça e jurídico
   - texto: `conteudo/colheita/editais-200/txt/1-057_Advocacia_Geral_do_Estado_de_Minas_Gerais_AGE_MG_Procurador_do_Estado.txt`
@@ -177,9 +92,6 @@ inventou assuntos que não estão no edital. Os arquivos recusados estão em `co
 - [ ] **058** · Ministério Público do Estado do Rio de Janeiro (MPRJ) – Promotor de Justiça Substituto (2025) · Justiça e jurídico
   - texto: `conteudo/colheita/editais-200/txt/1-058_Minist_rio_P_blico_do_Estado_do_Rio_de_Janeiro_MPRJ_Promotor_de_Justi_a_Substituto.txt`
   - arquivo: `edital-mprj-promotor-substituto-2025.json`
-- [ ] **059** · Tribunal Regional Federal da 1ª Região (TRF1) – Juiz Federal Substituto (2023) · Justiça e jurídico
-  - texto: `conteudo/colheita/editais-200/txt/1-059_Tribunal_Regional_Federal_da_1_Regi_o_TRF1_Juiz_Federal_Substituto.txt`
-  - arquivo: `edital-trf1-juiz-federal-substituto-2023.json`
 - [ ] **060** · Ministério Público do Estado de São Paulo (MPSP) – Analista de Promotoria I (2022) · Justiça e jurídico
   - texto: `conteudo/colheita/editais-200/txt/1-060_Minist_rio_P_blico_do_Estado_de_S_o_Paulo_MPSP_Analista_de_Promotoria_I.txt`
   - arquivo: `edital-mpsp-2022--analista-medico-clinico.json`
@@ -188,8 +100,109 @@ inventou assuntos que não estão no edital. Os arquivos recusados estão em `co
   - arquivo: `edital-mpsp-2022--analista-psicologo.json`
 - [ ] **061** · Concurso público para provimento de vagas nos cargos de Delegado, Perito, Escrivão, Agente e Papiloscopista da Polícia Federal (2025) · Polícia e militar
   - texto: `conteudo/colheita/editais-200/txt/1-061_Concurso_p_blico_para_provimento_de_vagas_nos_cargos_de_Delegado_Perito_Escriv_o_Agente_e_Papiloscopista_da_Pol_cia_Federal.txt`
+  - arquivo: `edital-pf-2025--agente.json`
   - arquivo: `edital-pf-2025--delegado.json`
   - arquivo: `edital-pf-2025--escrivao.json`
+  - arquivo: `edital-pf-2025--papiloscopista.json`
   - arquivo: `edital-pf-2025--perito-contabil-financeira.json`
   - arquivo: `edital-pf-2025--perito-informatica-forense.json`
+- [ ] **062** · Concurso público para admissão aos cursos de Formação de Oficiais e de Formação de Praças da PMAL (2026) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/1-062_Concurso_p_blico_para_admiss_o_aos_cursos_de_Forma_o_de_Oficiais_e_de_Forma_o_de_Pra_as_da_PMAL.txt`
+  - arquivo: `edital-pmal-2026--oficial-estado-maior.json`
+  - arquivo: `edital-pmal-2026--soldado-praca.json`
+
+## Bloco 5
+
+- [ ] **063** · Concurso público para admissão aos cursos de Formação de Oficiais e de Formação de Praças do CBMAL (2026) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/1-063_Concurso_p_blico_para_admiss_o_aos_cursos_de_Forma_o_de_Oficiais_e_de_Forma_o_de_Pra_as_do_CBMAL.txt`
+  - arquivo: `edital-cbmal-2026--oficial-estado-maior.json`
+  - arquivo: `edital-cbmal-2026--praca-combatente.json`
+  - arquivo: `edital-cbmal-2026--praca-condutor.json`
+- [ ] **065** · Concurso público para provimento de vagas no cargo de Oficial Investigador de Polícia da PCES (2025) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/1-065_Concurso_p_blico_para_provimento_de_vagas_no_cargo_de_Oficial_Investigador_de_Pol_cia_da_PCES.txt`
+  - arquivo: `edital-pces-oficial-investigador-2025.json`
+- [ ] **066** · Concurso público para Delegado de Polícia Civil do Estado do Ceará (2025) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/1-066_Concurso_p_blico_para_Delegado_de_Pol_cia_Civil_do_Estado_do_Cear.txt`
+  - arquivo: `edital-pc-ce-delegado-2025.json`
+- [ ] **067** · Concurso público para provimento de vagas e formação de cadastro de reserva para Oficial Investigador de Polícia da PC-CE (2025) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/1-067_Concurso_p_blico_para_provimento_de_vagas_e_forma_o_de_cadastro_de_reserva_para_Oficial_Investigador_de_Pol_cia_da_PC_CE.txt`
+  - arquivo: `edital-pc-ce-oficial-investigador-2025.json`
+- [ ] **068** · Concurso público para Técnico-Assistente da Polícia Civil e de Atividades Governamentais, área Auxiliar de Perícia (2025) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/1-068_Concurso_p_blico_para_T_cnico_Assistente_da_Pol_cia_Civil_e_de_Atividades_Governamentais_rea_Auxiliar_de_Per_cia.txt`
+  - arquivo: `edital-pcmg-auxiliar-necropsia-2025.json`
+
+## Bloco 6
+
+- [ ] **069** · Concurso público para provimento de 1.600 vagas no cargo de Policial Penal da Diretoria-Geral de Polícia Penal (2024) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/1-069_Concurso_p_blico_para_provimento_de_1_600_vagas_no_cargo_de_Policial_Penal_da_Diretoria_Geral_de_Pol_cia_Penal.txt`
+  - arquivo: `edital-go-policial-penal-2024.json`
+- [ ] **071** · Concurso público para provimento de vagas no Curso de Formação de Soldados do Quadro Policial Militar da PMERJ (2023) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/1-071_Concurso_p_blico_para_provimento_de_vagas_no_Curso_de_Forma_o_de_Soldados_do_Quadro_Policial_Militar_da_PMERJ.txt`
+  - arquivo: `edital-pmerj-soldado-2023.json`
+- [ ] **072** · Concurso público da PCDF para a carreira de Gestão de Apoio às Atividades Policiais Civis (2024) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/1-072_Concurso_p_blico_da_PCDF_para_a_carreira_de_Gest_o_de_Apoio_s_Atividades_Policiais_Civis.txt`
+  - arquivo: `edital-pcdf-2024--analista-agente-administrativo.json`
+  - arquivo: `edital-pcdf-2024--gestor-assistente-social.json`
+  - arquivo: `edital-pcdf-2024--gestor-contador.json`
+  - arquivo: `edital-pcdf-2024--gestor-informatica-banco-de-dados.json`
+  - arquivo: `edital-pcdf-2024--gestor-informatica-desenvolvimento.json`
+  - arquivo: `edital-pcdf-2024--gestor-informatica-rede.json`
+- [ ] **073** · Concurso público para provimento de vagas nos cargos de Agente, Escrivão e Delegado da Polícia Civil de Pernambuco (2023) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/1-073_Concurso_p_blico_para_provimento_de_vagas_nos_cargos_de_Agente_Escriv_o_e_Delegado_da_Pol_cia_Civil_de_Pernambuco.txt`
+  - arquivo: `edital-pcpe-2023--agente.json`
+  - arquivo: `edital-pcpe-2023--delegado.json`
+  - arquivo: `edital-pcpe-2023--escrivao.json`
+- [ ] **074** · Concurso público para ingresso no Curso de Formação de Praças da Polícia Militar de Santa Catarina (2023) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/1-074_Concurso_p_blico_para_ingresso_no_Curso_de_Forma_o_de_Pra_as_da_Pol_cia_Militar_de_Santa_Catarina.txt`
+  - arquivo: `edital-pmsc-soldado-2023.json`
+
+## Bloco 7
+
+- [ ] **075** · Concurso público para o Curso de Formação de Praças da Polícia Militar do Rio Grande do Norte (2023) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/1-075_Concurso_p_blico_para_o_Curso_de_Forma_o_de_Pra_as_da_Pol_cia_Militar_do_Rio_Grande_do_Norte.txt`
+  - arquivo: `edital-pmrn-soldado-2023.json`
+- [ ] **076** · Concurso público para admissão ao Curso de Formação de Praças Bombeiros Militares do CBMPA (2023) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/1-076_Concurso_p_blico_para_admiss_o_ao_Curso_de_Forma_o_de_Pra_as_Bombeiros_Militares_do_CBMPA.txt`
+  - arquivo: `edital-cbmpa-praca-2023.json`
+- [ ] **077** · Concurso público para provimento de vagas de Delegado, Escrivão e Investigador da Polícia Civil da Bahia (2022) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/1-077_Concurso_p_blico_para_provimento_de_vagas_de_Delegado_Escriv_o_e_Investigador_da_Pol_cia_Civil_da_Bahia.txt`
+  - arquivo: `edital-pcba-2022--delegado.json`
+  - arquivo: `edital-pcba-2022--escrivao.json`
+  - arquivo: `edital-pcba-2022--investigador.json`
+- [ ] **078** · Concurso público para provimento de vagas no cargo de Delegado de Polícia Civil do Espírito Santo (2022) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/1-078_Concurso_p_blico_para_provimento_de_vagas_no_cargo_de_Delegado_de_Pol_cia_Civil_do_Esp_rito_Santo.txt`
+  - arquivo: `edital-pces-delegado-2022.json`
+- [ ] **079** · Concurso público para provimento de vagas no cargo de Policial Rodoviário Federal (2021) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/1-079_Concurso_p_blico_para_provimento_de_vagas_no_cargo_de_Policial_Rodovi_rio_Federal.txt`
+  - arquivo: `edital-prf-2021.json`
+
+## Bloco 8
+
+- [ ] **080** · Concurso público para provimento de vagas no cargo de Oficial Combatente da Polícia Militar de Rondônia (2022) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/1-080_Concurso_p_blico_para_provimento_de_vagas_no_cargo_de_Oficial_Combatente_da_Pol_cia_Militar_de_Rond_nia.txt`
+  - arquivo: `edital-pmro-oficial-2022.json`
+- [ ] **081** · ALECE – Concurso para Analista Legislativo e Técnico Legislativo (2026) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/txt/1-081_ALECE_Concurso_para_Analista_Legislativo_e_T_cnico_Legislativo.txt`
+  - arquivo: `edital-alece-2026--analista-analise-dados.json`
+  - arquivo: `edital-alece-2026--analista-controle-interno.json`
+  - arquivo: `edital-alece-2026--analista-direito.json`
+  - arquivo: `edital-alece-2026--analista-gestao-governanca.json`
+  - arquivo: `edital-alece-2026--analista-servico-social.json`
+  - arquivo: `edital-alece-2026--tecnico-legislativo.json`
+- [ ] **082** · ALESC – Concurso Público para Analista Legislativo III (2024) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/txt/1-082_ALESC_Concurso_P_blico_para_Analista_Legislativo_III.txt`
+  - arquivo: `edital-alesc-2024--administrador.json`
+  - arquivo: `edital-alesc-2024--analista-sistemas.json`
+  - arquivo: `edital-alesc-2024--contador.json`
+  - arquivo: `edital-alesc-2024--direito.json`
+  - arquivo: `edital-alesc-2024--economista.json`
+  - arquivo: `edital-alesc-2024--qualquer-area.json`
+- [ ] **083** · SEE-AC – Concurso para cargos da Secretaria de Estado de Educação e Cultura (2024) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/txt/1-083_SEE_AC_Concurso_para_cargos_da_Secretaria_de_Estado_de_Educa_o_e_Cultura.txt`
+  - arquivo: `edital-see-ac-2024--apoio-administrativo-educacional.json`
+  - arquivo: `edital-see-ac-2024--professor-p2-biologia.json`
+  - arquivo: `edital-see-ac-2024--professor-p2-matematica.json`
+- [ ] **088** · UFMG – Técnico-Administrativos em Educação (2025) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/txt/1-088_UFMG_T_cnico_Administrativos_em_Educa_o.txt`
+  - arquivo: `edital-ufmg-tae-2025--bibliotecario-documentalista.json`
 
