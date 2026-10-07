@@ -40,42 +40,42 @@ O que cada problema pede:
 - [x] `estatistica.probabilidade-avancada.json` · validador(36): questions[12]: questão AUTHORIAL deixa sourceUrl, board, agency e year como null
 - [x] `estatistica.series-temporais-numeros-indices.json` · validador(45): questions[1]: questão AUTHORIAL deixa sourceUrl, board, agency e year como null
 
-## Bloco 4
+## Bloco 4 (feito e publicado em 07/10)
 
-- [ ] `execucao.json` · status REVIEWED · apelido já usado: Execução no processo do trabalho→processo-trabalho.sentenca-coisa-julgada
-- [ ] `greve.json` · JSON: Expected ',' or ']' after array element in JSON at position 70944 (line 105 colu
-- [ ] `inquerito-policial-militar.json` · validador(1): questions: a alternativa certa é a mais longa em 24 de 25 (máximo 40%); equilibre o tamanh · certa mais longa 24/25
-- [ ] `juizados-especiais-criminais.json` · validador(1): questions: a alternativa certa é a mais longa em 20 de 28 (máximo 40%); equilibre o tamanh · certa mais longa 20/28
-- [ ] `legislacao-penal-especial.crimes-hediondos-tortura.json` · validador(2): questions: gabarito concentrado demais numa letra · certa mais longa 21/21 · gabarito concentrado {"A":15,"B":6}
+- [x] `execucao.json` · status REVIEWED · apelido já usado: Execução no processo do trabalho→processo-trabalho.sentenca-coisa-julgada
+- [x] `greve.json` · JSON: Expected ',' or ']' after array element in JSON at position 70944 (line 105 colu
+- [x] `inquerito-policial-militar.json` · validador(1): questions: a alternativa certa é a mais longa em 24 de 25 (máximo 40%); equilibre o tamanh · certa mais longa 24/25
+- [x] `juizados-especiais-criminais.json` · validador(1): questions: a alternativa certa é a mais longa em 20 de 28 (máximo 40%); equilibre o tamanh · certa mais longa 20/28
+- [x] `legislacao-penal-especial.crimes-hediondos-tortura.json` · validador(2): questions: gabarito concentrado demais numa letra · certa mais longa 21/21 · gabarito concentrado {"A":15,"B":6}
 
-## Bloco 5
+## Bloco 5 (feito e publicado em 07/10)
 
-- [ ] `legislacao-penal-especial.maria-da-penha.json` · validador(2): questions: gabarito concentrado demais numa letra · certa mais longa 19/23 · gabarito concentrado {"A":15,"B":8}
-- [ ] `legislacao.lei-6858-1980.json` · validador(1): questions: a alternativa certa é a mais longa em 16 de 30 (máximo 40%); equilibre o tamanh
-- [ ] `matematica.exponencial-logaritmos.json` · apelido já usado: Funções exponenciais→matematica.funcao-exponencial-logaritmica
-- [ ] `negocio-juridico.json` · validador(4): questions: precisa ter de 40 a 300 itens (tem 39) · certa mais longa 10/14 · gabarito concentrado {"A":6,"C":3,"B":4,"D":1} · apelido já usado: Fatos e atos jurídicos: forma e prova dos atos jurídicos; defeitos dos negócios jurídicos; nulidade e anulabilidade dos atos jurídicos; atos jurídicos ilícitos; abuso de direito; prescrição e decadência.→direito-civil.bens
-- [ ] `obrigacoes.json` · validador(5): questions: a alternativa certa é a mais longa em 15 de 16 (máximo 40%); equilibre o tamanh · certa mais longa 15/16 · apelido já usado: Direito das obrigações: constituição, extinção, espécies e cumprimento.→direito-civil.bens
+- [x] `legislacao-penal-especial.maria-da-penha.json` · validador(2): questions: gabarito concentrado demais numa letra · certa mais longa 19/23 · gabarito concentrado {"A":15,"B":8}
+- [x] `legislacao.lei-6858-1980.json` · validador(1): questions: a alternativa certa é a mais longa em 16 de 30 (máximo 40%); equilibre o tamanh
+- [x] `matematica.exponencial-logaritmos.json` · apelido já usado: Funções exponenciais→matematica.funcao-exponencial-logaritmica
+- [x] `negocio-juridico.json` · validador(4): questions: precisa ter de 40 a 300 itens (tem 39) · certa mais longa 10/14 · gabarito concentrado {"A":6,"C":3,"B":4,"D":1} · apelido já usado: Fatos e atos jurídicos: forma e prova dos atos jurídicos; defeitos dos negócios jurídicos; nulidade e anulabilidade dos atos jurídicos; atos jurídicos ilícitos; abuso de direito; prescrição e decadência.→direito-civil.bens
+- [x] `obrigacoes.json` · validador(5): questions: a alternativa certa é a mais longa em 15 de 16 (máximo 40%); equilibre o tamanh · certa mais longa 15/16 · apelido já usado: Direito das obrigações: constituição, extinção, espécies e cumprimento.→direito-civil.bens
 
-## Bloco 6
+## Bloco 6 (feito e publicado em 07/10)
 
-- [ ] `organizacoes-criminosas.json` · validador(1): questions: a alternativa certa é a mais longa em 23 de 25 (máximo 40%); equilibre o tamanh · certa mais longa 23/25
-- [ ] `pessoas-juridicas.json` · validador(1): questions: a alternativa certa é a mais longa em 13 de 15 (máximo 40%); equilibre o tamanh · certa mais longa 13/15
-- [ ] `prescricao-decadencia.json` · validador(9): chapters: teoria curta demais (5951 de 6000 caracteres) · certa mais longa 9/13
-- [ ] `principios-processo.json` · JSON: Expected ',' or ']' after array element in JSON at position 72224 (line 153 colu
+- [x] `organizacoes-criminosas.json` · validador(1): questions: a alternativa certa é a mais longa em 23 de 25 (máximo 40%); equilibre o tamanh · certa mais longa 23/25
+- [x] `pessoas-juridicas.json` · validador(1): questions: a alternativa certa é a mais longa em 13 de 15 (máximo 40%); equilibre o tamanh · certa mais longa 13/15
+- [x] `prescricao-decadencia.json` · validador(9): chapters: teoria curta demais (5951 de 6000 caracteres) · certa mais longa 9/13
+- [x] `principios-processo.json` · JSON: Expected ',' or ']' after array element in JSON at position 72224 (line 153 colu
 
-## Bloco 7
+## Bloco 7 (feito e publicado em 07/10)
 
-- [ ] `processo-civil.tutela-provisoria.json` · apelido já usado: Tutelas antecipatórias.→processo-civil.procedimento-comum
-- [ ] `processo-penal-militar.json` · validador(1): questions: a alternativa certa é a mais longa em 16 de 24 (máximo 40%); equilibre o tamanh · certa mais longa 16/24
-- [ ] `processo-trabalho.citacao-garantia-penhora.json` · validador(2): questions: gabarito concentrado demais numa letra · certa mais longa 37/43 · gabarito concentrado {"A":7,"B":24,"C":9,"D":3}
-- [ ] `processo-trabalho.dissidio-coletivo.json` · validador(2): questions: gabarito concentrado demais numa letra · certa mais longa 21/31 · gabarito concentrado {"C":4,"A":7,"B":17,"D":2,"E":1} · apelido já usado: Dissídios coletivos e sentença normativa→processo-trabalho.sentenca-coisa-julgada
-- [ ] `processo-trabalho.embargos-execucao.json` · validador(2): questions: gabarito concentrado demais numa letra · certa mais longa 32/37 · gabarito concentrado {"A":20,"B":13,"C":2,"D":2}
+- [x] `processo-civil.tutela-provisoria.json` · apelido já usado: Tutelas antecipatórias.→processo-civil.procedimento-comum
+- [x] `processo-penal-militar.json` · validador(1): questions: a alternativa certa é a mais longa em 16 de 24 (máximo 40%); equilibre o tamanh · certa mais longa 16/24
+- [x] `processo-trabalho.citacao-garantia-penhora.json` · validador(2): questions: gabarito concentrado demais numa letra · certa mais longa 37/43 · gabarito concentrado {"A":7,"B":24,"C":9,"D":3}
+- [x] `processo-trabalho.dissidio-coletivo.json` · validador(2): questions: gabarito concentrado demais numa letra · certa mais longa 21/31 · gabarito concentrado {"C":4,"A":7,"B":17,"D":2,"E":1} · apelido já usado: Dissídios coletivos e sentença normativa→processo-trabalho.sentenca-coisa-julgada
+- [x] `processo-trabalho.embargos-execucao.json` · validador(2): questions: gabarito concentrado demais numa letra · certa mais longa 32/37 · gabarito concentrado {"A":20,"B":13,"C":2,"D":2}
 
-## Bloco 8
+## Bloco 8 (feito e publicado em 07/10)
 
-- [ ] `processo-trabalho.praca-leilao-arrematacao.json` · validador(2): questions: gabarito concentrado demais numa letra · certa mais longa 22/28 · gabarito concentrado {"A":26,"B":2}
-- [ ] `processo-trabalho.processo-judicial-eletronico.json` · validador(1): questions: a alternativa certa é a mais longa em 20 de 30 (máximo 40%); equilibre o tamanh · certa mais longa 20/30
-- [ ] `processo-trabalho.recursos.json` · validador(2): questions: gabarito concentrado demais numa letra · certa mais longa 20/27 · gabarito concentrado {"A":27}
-- [ ] `servicos-auxiliares-peritos.json` · JSON: Expected double-quoted property name in JSON at position 68038 (line 587 column 
-- [ ] `tutela-provisoria.json` · apelido já usado: Tutelas antecipatórias.→processo-civil.procedimento-comum
+- [x] `processo-trabalho.praca-leilao-arrematacao.json` · validador(2): questions: gabarito concentrado demais numa letra · certa mais longa 22/28 · gabarito concentrado {"A":26,"B":2}
+- [x] `processo-trabalho.processo-judicial-eletronico.json` · validador(1): questions: a alternativa certa é a mais longa em 20 de 30 (máximo 40%); equilibre o tamanh · certa mais longa 20/30
+- [x] `processo-trabalho.recursos.json` · validador(2): questions: gabarito concentrado demais numa letra · certa mais longa 20/27 · gabarito concentrado {"A":27}
+- [x] `servicos-auxiliares-peritos.json` · JSON: Expected double-quoted property name in JSON at position 68038 (line 587 column 
+- [x] `tutela-provisoria.json` · apelido já usado: Tutelas antecipatórias.→processo-civil.procedimento-comum
 

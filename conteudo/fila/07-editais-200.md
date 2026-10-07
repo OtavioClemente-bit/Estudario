@@ -113,7 +113,7 @@ extraído e cortado no conteúdo programático em `conteudo/colheita/editais-200
   - edital: Edital nº 1 - PF - Administrativo, de 25 de abril de 2025
   - link oficial: https://www.gov.br/pf/pt-br/acesso-a-informacao/servidores/concursos/edital/plano-especial-de-cargos-2025/editais/edital-no-1_2025-dgp-pf.pdf/@@download/file
 
-## Bloco 4
+## Bloco 4 (07/10: publicado só o que veio completo; os resumidos estão em conteudo/rejeitados/editais-resumidos e precisam ser refeitos)
 
 - [ ] **025** · Concurso Público da Agência Nacional de Transportes Terrestres (ANTT) (2023) · Federais e administração
   - texto: `conteudo/colheita/editais-200/programatico/1-025_Concurso_P_blico_da_Ag_ncia_Nacional_de_Transportes_Terrestres_ANTT.txt`
@@ -148,7 +148,7 @@ extraído e cortado no conteúdo programático em `conteudo/colheita/editais-200
   - edital: Edital nº 1 – ANM, de 21 de novembro de 2024
   - link oficial: https://cdn.cebraspe.org.br/concursos/anm_24/arquivos/ED_1_ANM_24_CONCURSO_ABERTURA.PDF
 
-## Bloco 5
+## Bloco 5 (07/10: publicado só o que veio completo; os resumidos estão em conteudo/rejeitados/editais-resumidos e precisam ser refeitos)
 
 - [ ] **033** · Concurso Público da Advocacia-Geral da União (AGU) (2022) · Federais e administração
   - texto: `conteudo/colheita/editais-200/programatico/1-033_Concurso_P_blico_da_Advocacia_Geral_da_Uni_o_AGU.txt`
@@ -183,7 +183,7 @@ extraído e cortado no conteúdo programático em `conteudo/colheita/editais-200
   - edital: Edital nº 01/2026 — Abertura do Concurso Público destinado ao provimento de cargos efetivos da NAV Brasil Serviços de Navegação Aérea S.A.
   - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital-01-2026-nav-brasil_0.pdf
 
-## Bloco 6
+## Bloco 6 (07/10: publicado só o que veio completo; os resumidos estão em conteudo/rejeitados/editais-resumidos e precisam ser refeitos)
 
 - [ ] **041** · Tribunal de Justiça de Santa Catarina (TJSC) – servidores (2024) · Justiça e jurídico
   - texto: `conteudo/colheita/editais-200/programatico/1-041_Tribunal_de_Justi_a_de_Santa_Catarina_TJSC_servidores.txt`
@@ -218,7 +218,7 @@ extraído e cortado no conteúdo programático em `conteudo/colheita/editais-200
   - edital: Edital nº 1 — CPNUJE, de 27 de maio de 2024 — abertura do Concurso Público Nacional Unificado da Justiça Eleitoral
   - link oficial: https://cdn.cebraspe.org.br/concursos/cpnuje_24/arquivos/EDITAL_1_2024_CPNUJE_ABERTURA.PDF
 
-## Bloco 7
+## Bloco 7 (07/10: publicado só o que veio completo; os resumidos estão em conteudo/rejeitados/editais-resumidos e precisam ser refeitos)
 
 - [ ] **049** · Tribunal Superior do Trabalho (TST) – servidores (2023) · Justiça e jurídico
   - texto: `conteudo/colheita/editais-200/programatico/1-049_Tribunal_Superior_do_Trabalho_TST_servidores.txt`
@@ -253,7 +253,7 @@ extraído e cortado no conteúdo programático em `conteudo/colheita/editais-200
   - edital: Edital nº 01/2024 — abertura do Concurso Público para Procurador, Classe 3
   - link oficial: https://transparencia.assembleia.pr.leg.br/storage/concursos_publicos/2024/Concurso%20P%C3%BAblico%20-%20Edital.pdf
 
-## Bloco 8
+## Bloco 8 (07/10: publicado só o que veio completo; os resumidos estão em conteudo/rejeitados/editais-resumidos e precisam ser refeitos)
 
 - [ ] **057** · Advocacia-Geral do Estado de Minas Gerais (AGE-MG) – Procurador do Estado (2022) · Justiça e jurídico
   - texto: `conteudo/colheita/editais-200/programatico/1-057_Advocacia_Geral_do_Estado_de_Minas_Gerais_AGE_MG_Procurador_do_Estado.txt`
