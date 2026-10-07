@@ -42,9 +42,13 @@ export function normalizeBoard(value: string | null | undefined): string {
 }
 
 /** Textos do pedido que podem bater num apelido, do mais específico ao mais geral. */
-export function lookupAliases(input: Pick<ContentJobInput, "topicPath">): string[] {
+export function lookupAliases(input: Pick<ContentJobInput, "topicPath"> & { subjectName?: string | null }): string[] {
   const path = input.topicPath.map(normalizeAlias).filter((part) => part.length > 0);
-  const candidates = [path.join(" "), path.at(-1) ?? ""].filter((alias) => alias.length >= 2);
+  // Tópico de nome curto ("Java") dentro de uma matéria ("Linguagens de Programação"): tenta também
+  // "matéria + tópico", que é específico o bastante para ter apelido na biblioteca.
+  const subject = normalizeAlias(input.subjectName);
+  const withSubject = subject && path.length > 0 ? `${subject} ${path.at(-1)}` : "";
+  const candidates = [path.join(" "), path.at(-1) ?? "", withSubject].filter((alias) => alias.length >= 2);
   return [...new Set(candidates)];
 }
 
