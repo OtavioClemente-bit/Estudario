@@ -25,12 +25,12 @@ O que cada problema pede:
 - [x] `contabilidade.dfc-dva-analise.json` · validador(34): questions[12]: questão AUTHORIAL deixa sourceUrl, board, agency e year como null
 - [x] `contabilidade.estoques-ativo-imobilizado.json` · validador(27): questions[19]: questão AUTHORIAL deixa sourceUrl, board, agency e year como null
 
-## Bloco 2
+## Bloco 2 (feito e publicado em 06/10)
 
-- [ ] `contabilidade.passivo-patrimonio-liquido.json` · validador(34): questions[11]: questão AUTHORIAL deixa sourceUrl, board, agency e year como null
-- [ ] `contratos.json` · validador(1): questions: a alternativa certa é a mais longa em 11 de 15 (máximo 40%); equilibre o tamanh · certa mais longa 11/15 · apelido já usado: Dos contratos em geral.→direito-civil.bens
-- [ ] `crimes-dignidade-sexual.json` · validador(1): questions: a alternativa certa é a mais longa em 16 de 24 (máximo 40%); equilibre o tamanh · certa mais longa 16/24
-- [ ] `crimes-militares-especie.json` · validador(2): questions: gabarito concentrado demais numa letra · certa mais longa 21/24 · gabarito concentrado {"A":24}
+- [x] `contabilidade.passivo-patrimonio-liquido.json` · validador(34): questions[11]: questão AUTHORIAL deixa sourceUrl, board, agency e year como null
+- [x] `contratos.json` · validador(1): questions: a alternativa certa é a mais longa em 11 de 15 (máximo 40%); equilibre o tamanh · certa mais longa 11/15 · apelido já usado: Dos contratos em geral.→direito-civil.bens
+- [x] `crimes-dignidade-sexual.json` · validador(1): questions: a alternativa certa é a mais longa em 16 de 24 (máximo 40%); equilibre o tamanh · certa mais longa 16/24
+- [x] `crimes-militares-especie.json` · validador(2): questions: gabarito concentrado demais numa letra · certa mais longa 21/24 · gabarito concentrado {"A":24}
 
 ## Bloco 3
 
