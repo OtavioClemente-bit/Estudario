@@ -1,4 +1,4 @@
-# Refazer editais resumidos (94 arquivos de 40 concursos)
+# Refazer editais resumidos (168 arquivos de 63 concursos)
 
 Na primeira versão o Codex resumiu o conteúdo programático (poucos tópicos, vários itens juntos) e em alguns
 inventou assuntos que não estão no edital. Os arquivos recusados estão em `conteudo/rejeitados/editais-resumidos/`
@@ -205,4 +205,139 @@ inventou assuntos que não estão no edital. Os arquivos recusados estão em `co
 - [ ] **088** · UFMG – Técnico-Administrativos em Educação (2025) · Educação e saúde
   - texto: `conteudo/colheita/editais-200/txt/1-088_UFMG_T_cnico_Administrativos_em_Educa_o.txt`
   - arquivo: `edital-ufmg-tae-2025--bibliotecario-documentalista.json`
+
+## Bloco 9
+
+- [ ] **106** · ABIN 2017 (2017) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/2-006_abin_2017.txt`
+  - arquivo: `edital-abin-2017--oficial-inteligencia-area-1.json`
+  - arquivo: `edital-abin-2017--oficial-inteligencia-area-2.json`
+  - arquivo: `edital-abin-2017--oficial-inteligencia-area-3.json`
+  - arquivo: `edital-abin-2017--oficial-tecnico-inteligencia-area-1.json`
+- [ ] **112** · STM_17_ANALISTA_TECNICO (2017) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/txt/2-012_stm_17_analista_tecnico.txt`
+  - arquivo: `edital-stm-2017--analista-judiciaria.json`
+  - arquivo: `edital-stm-2017--tecnico-programacao-sistemas.json`
+- [ ] **114** · TCE_PE_17 (2017) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/txt/2-014_tce_pe_17.txt`
+  - arquivo: `edital-tce-pe-2017--analista-controle-externo-contas-publicas.json`
+- [ ] **115** · TRE_BA_17 (2017) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/txt/2-015_tre_ba_17.txt`
+  - arquivo: `edital-tre-ba-2017--analista-contabilidade.json`
+  - arquivo: `edital-tre-ba-2017--tecnico-administrativa.json`
+- [ ] **122** · TRE/PE 2016 (2016) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/txt/2-022_tre_pe_2016.txt`
+  - arquivo: `edital-tre-pe-2016--analista-judiciaria.json`
+  - arquivo: `edital-tre-pe-2016--analista-sistemas.json`
+  - arquivo: `edital-tre-pe-2016--tecnico-administrativa.json`
+
+## Bloco 10
+
+- [ ] **123** · TRT162005 (2016) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/txt/2-023_trt162005.txt`
+  - arquivo: `edital-trt16-2005--analista-contabilidade.json`
+  - arquivo: `edital-trt16-2005--analista-sistemas.json`
+  - arquivo: `edital-trt16-2005--tecnico-administrativa.json`
+  - arquivo: `edital-trt16-2005--tecnico-seguranca-transporte.json`
+- [ ] **124** · DEPEN 2015 (2015) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/2-024_depen_2015.txt`
+  - arquivo: `edital-depen-2015--agente-area-1.json`
+  - arquivo: `edital-depen-2015--agente-area-2.json`
+  - arquivo: `edital-depen-2015--agente-area-3.json`
+  - arquivo: `edital-depen-2015--agente-area-4.json`
+  - arquivo: `edital-depen-2015--agente-area-5.json`
+  - arquivo: `edital-depen-2015--tecnico-enfermagem.json`
+- [ ] **127** · CÂMARA DOS DEPUTADOS 2014 Analista e Técnico Legislativo (2014) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/txt/2-027_camara_dos_deputados_2014_analista_e_tecnico_legislativo.txt`
+  - arquivo: `edital-camara-dos-deputados-2014--consultor-legislativo-area-iii.json`
+  - arquivo: `edital-camara-dos-deputados-2014--consultor-legislativo-area-iv.json`
+- [ ] **134** · MPU 2013/2 (2013) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/txt/2-034_mpu_2013_2.txt`
+  - arquivo: `edital-mpu-2013-2--analista-desenvolvimento-sistemas.json`
+  - arquivo: `edital-mpu-2013-2--tecnico-tic.json`
+- [ ] **135** · PC/DF AGENTE 2013 (2013) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/2-035_pc_df_agente_2013.txt`
+  - arquivo: `edital-pcdf-agente-2013.json`
+
+## Bloco 11
+
+- [ ] **136** · TCE/ES 2013 ANALISTA (2013) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/txt/2-036_tce_es_2013_analista.txt`
+  - arquivo: `edital-tce-es-analista-2013--arquitetura.json`
+  - arquivo: `edital-tce-es-analista-2013--arquivologia.json`
+  - arquivo: `edital-tce-es-analista-2013--ciencias-contabeis.json`
+  - arquivo: `edital-tce-es-analista-2013--direito.json`
+  - arquivo: `edital-tce-es-analista-2013--informatica.json`
+- [ ] **138** · TCE/RO 2013 (2013) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/txt/2-038_tce_ro_2013.txt`
+  - arquivo: `edital-tce-ro-2013--analista-informatica.json`
+  - arquivo: `edital-tce-ro-2013--auditor-ciencias-computacao.json`
+  - arquivo: `edital-tce-ro-2013--auditor-ciencias-contabeis.json`
+  - arquivo: `edital-tce-ro-2013--auditor-direito.json`
+  - arquivo: `edital-tce-ro-2013--auditor-economia.json`
+  - arquivo: `edital-tce-ro-2013--contador.json`
+- [ ] **139** · TCE/RS OFICIAL 2013 (2013) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/txt/2-039_tce_rs_oficial_2013.txt`
+  - arquivo: `edital-tce-rs-oficial-2013.json`
+- [ ] **140** · TJDFT 13 JUIZ (2013) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/txt/2-040_tjdft_13_juiz.txt`
+  - arquivo: `edital-tjdft-juiz-2013.json`
+- [ ] **141** · TJDFT 2013 (2013) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/txt/2-041_tjdft_2013.txt`
+  - arquivo: `edital-tjdft-2013--analista-judiciaria.json`
+  - arquivo: `edital-tjdft-2013--analista-medicina-psiquiatria.json`
+  - arquivo: `edital-tjdft-2013--oficial-justica.json`
+  - arquivo: `edital-tjdft-2013--tecnico-administrativo.json`
+
+## Bloco 12
+
+- [ ] **142** · TJDFT NOTÁRIOS 2013 (2013) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/txt/2-042_tjdft_notarios_2013.txt`
+  - arquivo: `edital-tjdft-notarios-2013.json`
+- [ ] **143** · TRF 1ª Região 2013 (2013) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/txt/2-043_trf_1a_regiao_2013.txt`
+  - arquivo: `edital-trf-1-regiao-juiz-2013.json`
+- [ ] **144** · TRT 17 2013 (2013) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/txt/2-044_trt_17_2013.txt`
+  - arquivo: `edital-trt-17-2013--analista-administrativa.json`
+  - arquivo: `edital-trt-17-2013--analista-contabilidade.json`
+  - arquivo: `edital-trt-17-2013--analista-judiciaria.json`
+  - arquivo: `edital-trt-17-2013--analista-ti.json`
+  - arquivo: `edital-trt-17-2013--oficial-justica.json`
+  - arquivo: `edital-trt-17-2013--tecnico-administrativo.json`
+- [ ] **145** · TRT8 2013 (2013) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/txt/2-045_trt8_2013.txt`
+  - arquivo: `edital-trt8-2013--analista-administrativa.json`
+  - arquivo: `edital-trt8-2013--analista-arquitetura.json`
+  - arquivo: `edital-trt8-2013--analista-judiciaria.json`
+  - arquivo: `edital-trt8-2013--analista-ti.json`
+  - arquivo: `edital-trt8-2013--oficial-justica.json`
+  - arquivo: `edital-trt8-2013--tecnico-administrativo.json`
+- [ ] **146** · BANCO DA AMAZÔNIA 2012 (2012) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/txt/2-046_banco_da_amazonia_2012.txt`
+  - arquivo: `edital-banco-amazonia-2012--tecnico-bancario.json`
+  - arquivo: `edital-banco-amazonia-2012--tecnico-cientifico-administracao.json`
+  - arquivo: `edital-banco-amazonia-2012--tecnico-cientifico-contabilidade.json`
+  - arquivo: `edital-banco-amazonia-2012--tecnico-cientifico-direito.json`
+  - arquivo: `edital-banco-amazonia-2012--tecnico-cientifico-economia.json`
+  - arquivo: `edital-banco-amazonia-2012--ti-analise-sistemas.json`
+
+## Bloco 13
+
+- [ ] **147** · CÂMARA DOS DEPUTADOS 2012 (2012) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/txt/2-047_camara_dos_deputados_2012.txt`
+  - arquivo: `edital-camara-deputados-2012--analista-arquiteto.json`
+  - arquivo: `edital-camara-deputados-2012--engenheiro-civil.json`
+  - arquivo: `edital-camara-deputados-2012--engenheiro-eletrico.json`
+  - arquivo: `edital-camara-deputados-2012--engenheiro-eletronica-telecomunicacoes.json`
+  - arquivo: `edital-camara-deputados-2012--engenheiro-seguranca-trabalho.json`
+  - arquivo: `edital-camara-deputados-2012--tecnico-material-patrimonio.json`
+- [ ] **148** · DPF AGENTE 2012 (2012) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/2-048_dpf_agente_2012.txt`
+  - arquivo: `edital-dpf-agente-2012.json`
+- [ ] **149** · DPRF 2012 ADMINISTRATIVO (2012) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/txt/2-049_dprf_2012_administrativo.txt`
+  - arquivo: `edital-dprf-administrativo-2012--agente-administrativo.json`
+  - arquivo: `edital-dprf-administrativo-2012--tecnico-assuntos-educacionais.json`
+  - arquivo: `edital-dprf-administrativo-2012--tecnico-nivel-superior.json`
 
