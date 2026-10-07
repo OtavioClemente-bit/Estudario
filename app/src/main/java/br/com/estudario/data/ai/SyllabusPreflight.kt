@@ -61,6 +61,10 @@ object SyllabusPreflight {
         val hasContent = (programEvidence && (disciplines >= 2 || numberedItems >= 3)) ||
             (officialEvidence >= 1 && disciplines >= 3 && numberedItems >= 3)
         if (!hasContent) {
+            // Texto de sobra e nada de edital (boletim, aditamento, apostila): barra antes de gastar cota.
+            if (officialEvidence == 0 && !programEvidence && text.count(Char::isLetter) >= 1500 &&
+                !br.com.estudario.domain.ai.EditalGuard.check(pages.joinToString(" ")).ok
+            ) return result(SyllabusPreflightKind.NOT_AN_EDITAL)
             if (incomplete) return result(SyllabusPreflightKind.CANNOT_VALIDATE)
             if (unrelated.containsMatchIn(text) && officialEvidence == 0 && !programEvidence) return result(SyllabusPreflightKind.NOT_AN_EDITAL)
             if (!incomplete && officialEvidence >= 1 && !programEvidence && disciplines == 0 && administrative.containsMatchIn(text)) return result(SyllabusPreflightKind.CONTENT_NOT_FOUND)

@@ -1,4 +1,5 @@
 import type { AiFeature } from "../_shared/contracts.ts";
+import { isRefusalProposal } from "../_shared/edital-guard.ts";
 import type { JsonSchema } from "../_shared/schema.ts";
 import type { ExpectedVersions } from "../_shared/text-job-validators.ts";
 import {
@@ -642,6 +643,12 @@ async function processResponse(
       false,
       response.usage,
     );
+    return;
+  }
+  // A IA recusou por não haver conteúdo programático (boletim, documento qualquer): vira falha,
+  // e a reserva de cota volta para a pessoa.
+  if ((job.feature ?? "SYLLABUS_GENERATION") === "SYLLABUS_GENERATION" && isRefusalProposal(proposal)) {
+    await finalizeFailure(dependencies, job, lease, "NOT_AN_EDITAL", "FAILED", false, response.usage);
     return;
   }
   await dependencies.jobs.captureUsage(job.id, lease, response.usage);

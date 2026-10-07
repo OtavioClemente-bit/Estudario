@@ -113,6 +113,8 @@ object EditalAi {
         val buffer = (file.asDynamic().arrayBuffer() as Promise<ArrayBuffer>).await()
         val hash = sha256(buffer)
         val text = runCatching { readText(buffer) }.getOrNull()
+        // Barreira sem IA: PDF sem cara de edital (boletim, apostila) não chega a gastar cota.
+        if (text != null && !br.com.estudario.domain.ai.EditalGuard.check(text.text).ok) throw AiJobException("NOT_AN_EDITAL", br.com.estudario.domain.ai.EditalGuard.MESSAGE)
         val key = "web-edital-" + Random.nextBytes(12).joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
         val source = buildJsonObject {
             put("fileName", file.name.take(200)); put("mimeType", "application/pdf"); put("sourceHash", hash); put("sourceBytes", buffer.byteLength)
@@ -159,7 +161,7 @@ object EditalAi {
             val status = AiJobs.status(jobId) ?: continue
             when (status.status) {
                 "SUCCEEDED" -> return status.proposal ?: throw AiJobException("EMPTY", "O edital ficou pronto, mas não chegou aqui. Tente de novo.")
-                "FAILED", "EXPIRED", "CANCELLED" -> throw AiJobException(status.errorCode ?: "FAILED", "Não consegui montar um edital confiável a partir deste PDF. Sua cota não foi usada.")
+                "FAILED", "EXPIRED", "CANCELLED" -> throw AiJobException(status.errorCode ?: "FAILED", if (status.errorCode == "NOT_AN_EDITAL") "O Estudário leu o PDF e não achou conteúdo programático de concurso. Sua cota foi devolvida." else "Não consegui montar um edital confiável a partir deste PDF. Sua cota não foi usada.")
             }
         }
         throw AiJobException("TIMEOUT", "Está demorando mais que o normal. A montagem continua no servidor; tente de novo em alguns minutos.")

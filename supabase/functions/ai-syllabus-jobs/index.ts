@@ -1,4 +1,5 @@
 import { withCors } from "../_shared/cors.ts";
+import { checkEditalText } from "../_shared/edital-guard.ts";
 import {
   integrityRequestHash,
   IntegrityError,
@@ -192,6 +193,7 @@ function safeError(code: string, status: number, retryAfterSeconds?: number): Re
     AI_ACCESS_DENIED: "AI access is not available",
     INVALID_REQUEST: "Invalid request",
     INVALID_FEATURE: "Unsupported AI feature",
+    NOT_AN_EDITAL: "Esse PDF não parece um edital de concurso. Nada foi gasto da sua cota.",
     SOURCE_NOT_BOUND: "Source must be uploaded and validated before processing",
     IDEMPOTENCY_KEY_CONFLICT: "Idempotency key conflicts with the source fingerprint",
     AI_RATE_LIMIT_EXCEEDED: "Too many syllabus attempts; retry later",
@@ -364,6 +366,8 @@ async function createJob(
   const sourceBytes = clientSourceBytes(source);
   const options = generationOptions(body);
   const sourceText = sourceTextInput(body);
+  // Barreira sem IA: PDF que não tem cara de edital (boletim, livro, foto) é recusado antes de reservar cota.
+  if (sourceText !== null && !checkEditalText(sourceText.text as string).ok) return safeError("NOT_AN_EDITAL", 422);
   const blockedWeb = await verifyWebClient(dependencies, request, client);
   if (blockedWeb) return blockedWeb;
   if (dependencies.integrity && !client.web) {

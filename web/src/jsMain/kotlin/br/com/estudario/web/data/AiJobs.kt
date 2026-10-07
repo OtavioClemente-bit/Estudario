@@ -63,6 +63,7 @@ object AiJobs {
     }
 
     fun message(code: String): String = when (code) {
+        "NOT_AN_EDITAL" -> br.com.estudario.domain.ai.EditalGuard.MESSAGE
         "QUOTA_EXHAUSTED", "AI_QUOTA_EXHAUSTED" -> "Você usou todas as gerações deste recurso no seu plano neste mês."
         "QUOTA_RESERVED" -> "Já tem uma geração em andamento. Espere ela terminar."
         "QUESTION_LIMIT_EXCEEDED" -> "Essa quantidade de questões passa do limite do seu plano."

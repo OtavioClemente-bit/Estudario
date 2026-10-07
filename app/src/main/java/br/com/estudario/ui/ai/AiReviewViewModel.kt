@@ -869,6 +869,10 @@ class AiReviewViewModel(
             job.status == AiJobStatus.SUCCEEDED && job.proposal != null -> AiReviewContent.Review(
                 persistedDraftJson?.let { AiReviewDraftCodec.decode(it) } ?: AiSyllabusDraft.fromProposal(targetId, targetTitle, job.proposal),
             )
+            job.status == AiJobStatus.FAILED && job.errorCode == "NOT_AN_EDITAL" -> AiReviewContent.Failure(
+                "O Estudário leu o PDF e não achou conteúdo programático de concurso nele. A sua cota foi devolvida. Envie o edital de abertura ou o anexo com as disciplinas.",
+                terminalStatus = job.status,
+            )
             job.status == AiJobStatus.FAILED -> AiReviewContent.Failure(
                 "A geração não foi concluída. Você pode tentar novamente.",
                 terminalStatus = job.status,
@@ -1057,6 +1061,8 @@ class AiReviewViewModel(
     private fun safeMessage(error: Throwable): String = when (error) {
         is AiApiException -> if (error.code == "DEVICE_QUOTA_EXHAUSTED") {
             DEVICE_QUOTA_MESSAGE
+        } else if (error.code == "NOT_AN_EDITAL") {
+            br.com.estudario.domain.ai.EditalGuard.MESSAGE
         } else if (error.code == "QUOTA_EXHAUSTED") {
             "A cota de geração desta conta foi atingida. Confira seu plano e uso no Perfil."
         } else if (error.code == "INTEGRITY_REQUIRED" || error.code == "INTEGRITY_FAILED") {
