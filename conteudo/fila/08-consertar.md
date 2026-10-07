@@ -17,13 +17,13 @@ O que cada problema pede:
 
     Leia o AGENTS.md e C:\Users\otavi\Documents\Codex\2026-09-15\vc-x20\conteudo\fila\08-consertar.md. Faça SÓ o BLOCO X: para cada arquivo, abra conteudo/entrada/<arquivo>, conserte exatamente o problema anotado, salve em UTF-8 sem BOM com a ferramenta de editar arquivos e confira com: deno run --allow-read conteudo/fila/conferir.ts conteudo/entrada/<arquivo>. Repita até o conferidor não apontar erro. Não descarte questões, não use script para gerar ou embaralhar, não peça confirmação. No fim, diga quais consertou.
 
-## Bloco 1
+## Bloco 1 (feito e publicado em 06/10)
 
-- [ ] `afo.orcamento-publico-principios.json` · apelido já usado: Princípios orçamentários→orcamento-publico.conceitos
-- [ ] `ciencias.quimica-organica-isomeria-reacoes.json` · validador(2): questions: precisa ter de 40 a 300 itens (tem 29) · só 29 questões
-- [ ] `contabilidade.custos.json` · JSON: Unexpected token ']', ..."eço."},
-- [ ] `contabilidade.dfc-dva-analise.json` · validador(34): questions[12]: questão AUTHORIAL deixa sourceUrl, board, agency e year como null
-- [ ] `contabilidade.estoques-ativo-imobilizado.json` · validador(27): questions[19]: questão AUTHORIAL deixa sourceUrl, board, agency e year como null
+- [x] `afo.orcamento-publico-principios.json` · apelido já usado: Princípios orçamentários→orcamento-publico.conceitos
+- [x] `ciencias.quimica-organica-isomeria-reacoes.json` · validador(2): questions: precisa ter de 40 a 300 itens (tem 29) · só 29 questões
+- [x] `contabilidade.custos.json` · JSON: Unexpected token ']', ..."eço."},
+- [x] `contabilidade.dfc-dva-analise.json` · validador(34): questions[12]: questão AUTHORIAL deixa sourceUrl, board, agency e year como null
+- [x] `contabilidade.estoques-ativo-imobilizado.json` · validador(27): questions[19]: questão AUTHORIAL deixa sourceUrl, board, agency e year como null
 
 ## Bloco 2
 
