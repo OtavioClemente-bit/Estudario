@@ -43,7 +43,7 @@ extraído e cortado no conteúdo programático em `conteudo/colheita/editais-200
   - edital: Edital nº 1 TCU-2021, de 28 de outubro de 2021 — Auditor Federal de Controle Externo, Área Controle Externo
   - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/28.10.2021-edital-001-2021-abertura-concurso-tcu-.pdf
 
-## Bloco 2
+## Bloco 2 (REFAZER: o Codex resumiu demais e inventou tópico; os arquivos estão em conteudo/rejeitados/editais-resumidos)
 
 - [ ] **009** · SEFAZ São Paulo — Auditor Fiscal da Receita Estadual (2025) · Bancos e fiscal
   - texto: `conteudo/colheita/editais-200/programatico/1-009_SEFAZ_S_o_Paulo_Auditor_Fiscal_da_Receita_Estadual.txt`
@@ -78,7 +78,7 @@ extraído e cortado no conteúdo programático em `conteudo/colheita/editais-200
   - edital: Edital nº 01, de 07 de fevereiro de 2022 — cargos de provimento efetivo de níveis médio e superior
   - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital_de_abertura_sefaz-am-0702.pdf
 
-## Bloco 3
+## Bloco 3 (publicado em 07/10, exceto SEAP/SEFAZ-PR, SEEC-DF e SEFAZ-MT, que foram resumidos: refazer só esses)
 
 - [ ] **017** · SEFAZ Mato Grosso — Fiscal de Tributos Estaduais (2023) · Bancos e fiscal
   - texto: `conteudo/colheita/editais-200/programatico/1-017_SEFAZ_Mato_Grosso_Fiscal_de_Tributos_Estaduais.txt`
