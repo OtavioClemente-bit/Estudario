@@ -231,6 +231,7 @@ fun SourcesScreen() {
         val names = data.importPackages.associate { it.packageId to (it.fileName.ifBlank { "Importação" } + " · ${it.createdCount} itens") }
         all.groupBy { names[it.packageId] ?: if (it.packageId.isBlank()) "Gerado no app" else "Pacote ${it.packageId.take(8)}" }
     } else all.groupBy { it.topicId?.let { id -> topics[id]?.title } ?: "Geral" }
+    if (!byImport) { ByTopic(all.groupBy { it.topicId }) { src -> SourceItem(src) }; return }
     Div({ classes("stack") }) {
         groups.forEach { (title, list) ->
             key(title) {
@@ -497,4 +498,15 @@ fun PlanLimitsScreen() {
         }
     }
     P({ classes("xs", "faint"); attr("style", "text-align:center") }) { Text("Assinaturas abrem depois do teste fechado. O plano de estudo é montado sem IA e não tem limite.") }
+}
+
+@Composable
+private fun SourceItem(src: br.com.estudario.web.data.ContentSource) {
+    Div({ classes("source-row", "saved-item"); attr("style", "flex-direction:column;align-items:flex-start") }) {
+        Chip(if (src.kind == "OFICIAL") "FONTE OFICIAL" else "FONTE COMPLEMENTAR", tone = if (src.kind == "OFICIAL") "green" else null)
+        B({ classes("small") }) { Text(src.title) }
+        val meta = listOf(src.publisher, src.reference, src.accessedAt.takeIf { it.isNotBlank() }?.let { "acesso em $it" }).filter { !it.isNullOrBlank() }.joinToString(" · ")
+        if (meta.isNotBlank()) Div({ classes("xs", "muted") }) { Text(meta) }
+        src.url?.let { url -> A(href = url, { attr("target", "_blank"); attr("rel", "noopener"); classes("md-link", "xs") }) { Text(url.substringAfter("://").substringBefore('/')) } }
+    }
 }

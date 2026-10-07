@@ -47,80 +47,58 @@ fun NotebookScreen() {
     val counts = mapOf("grifos" to marks.size, "questoes" to favQuestions.size, "flashcards" to recallCards.size + favDecks.size, "dicas" to tips.size, "notas" to notes.size)
 
     PageHead("Caderno de estudo", "Tudo o que você grifou, salvou e favoritou enquanto estudava")
-    Div({ classes("grid", "cols-4") }) {
-        Btn("Flashcards", { Router.go(Route.Flashcards(null)) }, style = "tonal", icon = "style", block = true)
-        Btn("Revisões espaçadas", { Router.go(Route.Reviews) }, style = "tonal", icon = "autorenew", block = true)
-        Btn("Caderno de erros", { Router.go(Route.Errors) }, style = "tonal", icon = "error", block = true)
-        Btn("Treinar salvas", { Router.go(Route.Quiz("m-favorites~n-200")) }, style = "tonal", icon = "bookmark", block = true, enabled = favQuestions.isNotEmpty())
-    }
-    Div({ classes("segmented", "scroll-x") }) {
+    val tabIcons = mapOf("grifos" to "format_ink_highlighter", "questoes" to "quiz", "flashcards" to "style", "dicas" to "lightbulb", "notas" to "edit_note")
+    Div({ classes("topic-tabs", "nb-tabs"); attr("role", "tablist") }) {
         notebookTabs.forEach { (id, label) ->
-            Button({ classes(*listOfNotNull(if (tab == id) "on" else null).toTypedArray()); onClick { tab = id } }) { Text("$label · ${counts[id] ?: 0}") }
+            Button({ classes(*listOfNotNull("ttab", if (tab == id) "on" else null).toTypedArray()); attr("role", "tab"); onClick { tab = id } }) {
+                Icon(tabIcons[id] ?: "circle")
+                Text(label)
+                Span({ classes("count") }) { Text("${counts[id] ?: 0}") }
+            }
         }
     }
     fun topicName(id: Long?) = id?.let { topics[it]?.title } ?: "Geral"
     when (tab) {
-        "grifos" -> if (marks.isEmpty()) Empty("format_ink_highlighter", "Nenhum grifo ainda", "Na teoria de um tópico, selecione um trecho e grife para guardar aqui.") else Div({ classes("stack") }) {
-            marks.forEach { mark ->
-                key(mark.id) {
-                    val theory = theories[mark.theoryId]
-                    Card {
-                        Div({ classes("row", "between") }) {
-                            Chip(topicName(theory?.topicId), icon = "menu_book")
-                            IconButton("delete", "Apagar grifo") { Store.update { Actions.deleteTheoryMark(it, mark.id) } }
-                        }
-                        P({ attr("style", "border-left:4px solid var(--amber);padding-left:12px;margin-top:8px") }) { Text(mark.quote) }
-                        if (mark.note.isNotBlank()) P({ classes("small", "muted") }) { Text(mark.note) }
-                        if (theory != null) Btn("Abrir teoria", { Router.go(Route.Topic(theory.topicId)) }, style = "ghost", small = true, icon = "arrow_forward")
-                    }
-                }
+        "grifos" -> if (marks.isEmpty()) Empty("format_ink_highlighter", "Nenhum grifo ainda", "Na teoria de um tópico, selecione um trecho e grife para guardar aqui.")
+        else ByTopic(marks.groupBy { theories[it.theoryId]?.topicId }) { mark ->
+            Div({ classes("saved-item") }) {
+                P({ attr("style", "border-left:4px solid #f2b33d;padding-left:12px") }) { Text(mark.quote) }
+                if (mark.note.isNotBlank()) P({ classes("small", "muted") }) { Text(mark.note) }
+                IconButton("delete", "Apagar grifo") { Store.update { Actions.deleteTheoryMark(it, mark.id) } }
             }
         }
-        "questoes" -> if (favQuestions.isEmpty()) Empty("bookmark", "Nenhuma questão salva", "Toque na estrela de uma questão para guardá-la e treinar depois.") else Div({ classes("stack") }) {
+        "questoes" -> if (favQuestions.isEmpty()) Empty("bookmark", "Nenhuma questão salva", "Toque na estrela de uma questão para guardá-la e treinar depois.") else {
             Btn("Treinar as ${favQuestions.size} questões salvas", { Router.go(Route.Quiz("m-favorites~n-200")) }, style = "primary", icon = "play_arrow")
-            favQuestions.forEach { q ->
-                key(q.id) {
-                    Card {
-                        Div({ classes("row", "between") }) {
-                            Chip(topicName(q.topicId))
-                            IconButton("star", "Tirar dos salvos") { Store.update { Actions.toggleFavorite(it, q.id) } }
-                        }
-                        P({ classes("clamp-3"); attr("style", "margin-top:8px") }) { Inline(q.statement) }
-                    }
+            ByTopic(favQuestions.groupBy { it.topicId }) { q ->
+                Div({ classes("saved-item") }) {
+                    P({ classes("clamp-3") }) { Text(splitStatement(q.statement).let { it.command ?: it.base }.take(300)) }
+                    IconButton("star", "Tirar dos salvos") { Store.update { Actions.toggleFavorite(it, q.id) } }
                 }
             }
         }
-        "flashcards" -> if (recallCards.isEmpty() && favDecks.isEmpty()) Empty("style", "Nenhum flashcard salvo", "Favorite um baralho ou uma pergunta de memorização no tópico para revisar aqui.") else Div({ classes("stack") }) {
-            favDecks.forEach { deck ->
-                key("d${deck.id}") {
-                    Card {
-                        Div({ classes("row", "between") }) {
-                            Div { B { Text(deck.title.ifBlank { "Baralho" }) }; Div({ classes("small", "muted") }) { Text(topicName(deck.topicId)) } }
-                            Div({ classes("row") }) {
-                                Btn("Revisar", { Router.go(Route.Flashcards(deck.topicId)) }, style = "tonal", small = true, icon = "style")
-                                IconButton("star", "Tirar dos salvos") { Store.update { Actions.toggleSummaryFavorite(it, deck.id) } }
-                            }
-                        }
-                    }
+        "flashcards" -> if (recallCards.isEmpty() && favDecks.isEmpty()) Empty("style", "Nenhum flashcard salvo", "Salve um baralho ou cartões no tópico para revisar aqui.")
+        else ByTopic((favDecks.map { it.topicId to it as Any } + recallCards.map { it.topicId to it as Any }).groupBy({ it.first }, { it.second })) { item ->
+            when (item) {
+                is br.com.estudario.web.data.Summary -> Div({ classes("saved-item") }) {
+                    Div({ classes("grow") }) { B { Text("Baralho · ${item.title.ifBlank { "Flashcards" }}") }; Div({ classes("small", "muted") }) { Text("${deckCards(item.markdown).size} cartões") } }
+                    Btn("Revisar", { Router.go(Route.Flashcards(item.topicId)) }, style = "tonal", small = true, icon = "style")
+                    IconButton("bookmark", "Tirar do Caderno") { Store.update { Actions.toggleSummaryFavorite(it, item.id) } }
                 }
-            }
-            recallCards.forEach { card ->
-                key("r${card.id}") { SavedCard(card.id, topicName(card.topicId), card.text, card.answer) }
+                is br.com.estudario.web.data.Snippet -> SavedCard(item.id, null, item.text, item.answer)
             }
         }
-        "dicas" -> if (tips.isEmpty()) Empty("lightbulb", "Nenhuma dica salva", "Favorite dicas e pegadinhas no tópico para juntar tudo aqui.") else Div({ classes("grid", "cols-2") }) {
-            tips.forEach { tip -> key(tip.id) { SavedCard(tip.id, topicName(tip.topicId), tip.text, tip.answer) } }
-        }
+        "dicas" -> if (tips.isEmpty()) Empty("lightbulb", "Nenhuma dica salva", "Favorite dicas e pegadinhas no tópico para juntar tudo aqui.")
+        else ByTopic(tips.groupBy { it.topicId }) { tip -> SavedCard(tip.id, null, tip.text, tip.answer) }
         else -> NotesTab(notes.map { Triple(it.id, it.topicId, it.text) }, topics.values.filter { t -> data.topics.none { it.parentTopicId == t.id } }.map { it.id to it.title })
     }
 }
 
 @Composable
-private fun SavedCard(id: Long, topic: String, text: String, answer: String?) {
+private fun SavedCard(id: Long, topic: String?, text: String, answer: String?) {
     var open by remember { mutableStateOf(false) }
     Card {
         Div({ classes("row", "between") }) {
-            Chip(topic, icon = "lightbulb")
+            if (topic != null) Chip(topic, icon = "lightbulb") else Span {}
             IconButton("star", "Tirar dos salvos") { Store.update { Actions.toggleSnippetFavorite(it, id) } }
         }
         P({ attr("style", "margin-top:8px") }) { Text(text) }
@@ -174,6 +152,32 @@ private fun NotesTab(notes: List<Triple<Long, Long?, String>>, topics: List<Pair
                     }
                 }
                 P({ attr("style", "white-space:pre-wrap;margin-top:8px") }) { Text(body) }
+            }
+        }
+    }
+}
+
+/** Agrupa por tópico, com o nome da matéria, para o Caderno não virar uma lista solta. */
+@Composable
+fun <T> ByTopic(groups: Map<*, List<T>>, item: @Composable (T) -> Unit) {
+    val data = Store.data
+    val topics = data.topics.associateBy { it.id }
+    val subjects = data.subjects.associateBy { it.id }
+    Div({ classes("stack") }) {
+        groups.entries.map { (it.key as Long?) to it.value }.sortedBy { e -> e.first?.let { topics[it]?.title } ?: "~" }.forEach { (topicId, list) ->
+            key(topicId ?: -1L) {
+                val topic = topicId?.let { topics[it] }
+                Div({ classes("topic-group") }) {
+                    Div({ classes("topic-group-head") }) {
+                        Div({ classes("grow"); attr("style", "min-width:0") }) {
+                            Div({ classes("crumb") }) { Text(topic?.let { subjects[it.subjectId]?.name }?.uppercase() ?: "GERAL") }
+                            B { Text(topic?.title ?: "Sem tópico") }
+                        }
+                        Span({ classes("count-pill") }) { Text("${list.size}") }
+                        if (topic != null) IconButton("arrow_forward", "Abrir tópico") { Router.go(Route.Topic(topic.id)) }
+                    }
+                    Div({ classes("topic-group-body") }) { list.forEach { item(it) } }
+                }
             }
         }
     }

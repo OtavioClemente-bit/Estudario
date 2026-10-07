@@ -61,12 +61,6 @@ fun TrainScreen() {
 
     PageHead("Treinar", "Escolha o foco e transforme cada sessão em progresso")
 
-    Div({ classes("grid", "cols-4") }) {
-        TrainTile("autorenew", "Revisões espaçadas", if (due.isEmpty()) "Em dia" else "${due.size} para hoje", due.isNotEmpty()) { Router.go(Route.Reviews) }
-        TrainTile("bookmarks", "Caderno de estudo", "Salvos e anotações", false) { Router.go(Route.Notebook) }
-        TrainTile("error_med", "Caderno de erros", if (errors.isEmpty()) "Tudo certo" else "${errors.size} para rever", errors.isNotEmpty()) { Router.go(Route.Errors) }
-        TrainTile("timer", "Simulados", "Provas completas", false) { Router.go(Route.Simulations) }
-    }
 
     Card(extra = "pad-lg") {
         if (questions.isEmpty()) {
@@ -278,7 +272,7 @@ fun QuizScreen(scope: String) {
                     Store.update { Actions.toggleFavorite(it, question.id) }
                 }
             }
-            Div({ classes("statement") }) { Markdown(question.statement) }
+            QuestionStatement(question.statement)
             Div({ classes("stack", "tight") }) {
                 options.forEach { option ->
                     androidx.compose.runtime.key(question.id, option.key) {
@@ -313,6 +307,7 @@ fun QuizScreen(scope: String) {
                 CardHead("Explicação")
                 Markdown(question.explanation)
             }
+            StatementSource(question.statement)
             Btn(if (index + 1 < initial.size) "Próxima questão" else "Ver resultado", { next() }, block = true, icon = "arrow_forward")
         } else {
             Div({ classes("row", "wrap") }) {

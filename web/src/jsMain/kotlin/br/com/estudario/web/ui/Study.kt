@@ -108,39 +108,27 @@ fun ErrorsScreen() {
     PageHead("Caderno de erros", "As questões que você errou voltam em 3, 10 e 30 dias até você dominar") {
         Btn("Refazer erradas", { Router.go(Route.Quiz("erros-20")) }, icon = "replay", enabled = pending.isNotEmpty())
     }
-    Div({ classes("grid", "main-side") }) {
-        Card {
-            CardHead("Questões (${pending.size})")
-            if (pending.isEmpty()) Empty("task_alt", "Caderno limpo", "Nenhuma questão errada esperando revisão.")
-            Div({ classes("stack") }) {
-                pending.take(60).forEach { entry ->
-                    val question = questions[entry.questionId] ?: return@forEach
-                    Div({ classes("card", "flat") }) {
-                        Div({ classes("row", "between", "wrap") }) {
-                            Chip(topics[question.topicId]?.title ?: "Questão")
-                            Chip(
-                                when (entry.status) { "RECORRENTE" -> "Recorrente"; "REVISANDO" -> "Revisando"; else -> "Nova" },
-                                if (entry.status == "RECORRENTE") "red" else "amber",
-                            )
-                        }
-                        P({ attr("style", "margin:10px 0 6px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden") }) { Inline(question.statement) }
-                        P({ classes("small", "muted") }) {
-                            Text("Você marcou ${entry.selectedAnswer ?: "?"} · certa: ${entry.correctAnswer ?: "?"} · errou ${entry.errorCount}×")
-                            entry.nextRetryAt?.let { Text(" · volta em ${Queries.shortDate(Queries.dateOf(it))}") }
-                        }
-                    }
+    if (pending.isEmpty()) Card { Empty("task_alt", "Caderno limpo", "Nenhuma questão errada esperando revisão.") }
+    else ByTopic(pending.take(120).filter { questions[it.questionId] != null }.groupBy { questions[it.questionId]!!.topicId }) { entry ->
+        val question = questions[entry.questionId]!!
+        Div({ classes("saved-item") }) {
+            Div({ classes("grow"); attr("style", "min-width:0") }) {
+                P({ classes("clamp-3") }) { Text(splitStatement(question.statement).let { it.command ?: it.base }.take(300)) }
+                P({ classes("small", "muted"); attr("style", "margin-top:4px") }) {
+                    Text("Você marcou ${entry.selectedAnswer ?: "?"} · certa: ${entry.correctAnswer ?: "?"} · errou ${entry.errorCount}×")
+                    entry.nextRetryAt?.let { Text(" · volta em ${Queries.shortDate(Queries.dateOf(it))}") }
                 }
             }
+            Chip(when (entry.status) { "RECORRENTE" -> "Recorrente"; "REVISANDO" -> "Revisando"; else -> "Nova" }, if (entry.status == "RECORRENTE") "red" else "amber")
         }
-        Card {
-            CardHead("Conceitos que mais travam")
-            if (concepts.isEmpty()) P({ classes("muted") }) { Text("Quando você errar questões, os conceitos aparecem aqui.") }
-            Div({ classes("stack", "tight") }) {
-                concepts.forEach { concept ->
-                    Div({ classes("row", "between") }) {
-                        Span { Text(concept.title) }
-                        Chip("${concept.errorCount} erros", if (concept.errorCount >= 3) "red" else "amber")
-                    }
+    }
+    if (concepts.isNotEmpty()) Card {
+        CardHead("Conceitos que mais travam")
+        Div({ classes("stack", "tight") }) {
+            concepts.forEach { concept ->
+                Div({ classes("row", "between") }) {
+                    Span { Text(concept.title) }
+                    Chip("${concept.errorCount} erros", if (concept.errorCount >= 3) "red" else "amber")
                 }
             }
         }
