@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material3.*
 import br.com.estudario.ui.brand.Slider
 import br.com.estudario.ui.brand.FilterChip
@@ -218,14 +220,10 @@ fun PlanWizardScreen(
                                 FilterChip(advanced, { advanced = true }, { Text("Dia a dia") })
                             }
                             if (!advanced) {
-                                Text("${dailyMinutes.toInt()} minutos por dia, de segunda a sábado", fontWeight = FontWeight.Bold)
-                                Slider(dailyMinutes, { dailyMinutes = it }, valueRange = 30f..360f, steps = 10)
+                                MinutosStepper("Por dia, de segunda a sábado", dailyMinutes.toInt(), 30..360) { dailyMinutes = it.toFloat() }
                             } else {
                                 DIAS.forEachIndexed { index, label ->
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("$label: ${advancedMinutes[index]} min", Modifier.widthIn(min = 96.dp), style = MaterialTheme.typography.bodySmall)
-                                        Slider(advancedMinutes[index].toFloat(), { advancedMinutes[index] = it.toInt() }, Modifier.weight(1f), valueRange = 0f..480f, steps = 15)
-                                    }
+                                    MinutosStepper(label, advancedMinutes[index], 0..480) { advancedMinutes[index] = it }
                                 }
                             }
                             Text("Capacidade semanal: ${minutesLabel(weeklyCapacity)}", fontWeight = FontWeight.SemiBold)
@@ -267,9 +265,8 @@ fun PlanWizardScreen(
                             SecaoTitulo("Metas")
                             NumeroSlider("Questões por semana", weeklyQuestions, 0..500, 25) { weeklyQuestions = it }
                             NumeroSlider("Questões depois de cada tópico", questionsPerTopic, 0..40, 5) { questionsPerTopic = it }
-                            NumeroSlider("Simulados por mês", simulations, 0..8, 1) { simulations = it }
                             NumeroSlider("Discursivas por mês", discursives, 0..12, 1) { discursives = it }
-                            Explicacao("A meta de questões é fechada por baterias semanais quando as questões dos tópicos não dão conta sozinhas. Simulado e discursiva caem no seu dia mais livre.")
+                            Explicacao("A meta de questões é fechada por baterias semanais quando as questões dos tópicos não dão conta sozinhas. A discursiva cai no seu dia mais livre.")
                         }
                         else -> PreviaDoPlano(preview, name, selectedSubjects, weeklyCapacity)
                     }
@@ -478,6 +475,29 @@ private fun pesoLabel(weight: Int) = when (weight) {
                 Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+    }
+}
+
+/** Tempo do dia em passos de 15 min, com − e +: mais preciso e mais sóbrio que arrastar uma barra. */
+@Composable private fun MinutosStepper(label: String, minutes: Int, range: IntRange, onChange: (Int) -> Unit) {
+    val passo = 15
+    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        androidx.compose.material3.FilledTonalIconButton(
+            onClick = { onChange((minutes - passo).coerceIn(range)) },
+            enabled = minutes > range.first,
+        ) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.Remove, "Menos $passo minutos em $label") }
+        Text(
+            if (minutes == 0) "Folga" else minutesLabel(minutes),
+            Modifier.widthIn(min = 76.dp),
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+        androidx.compose.material3.FilledTonalIconButton(
+            onClick = { onChange((minutes + passo).coerceIn(range)) },
+            enabled = minutes < range.last,
+        ) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.Add, "Mais $passo minutos em $label") }
     }
 }
 

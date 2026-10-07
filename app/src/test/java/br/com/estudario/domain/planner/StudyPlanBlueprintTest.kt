@@ -51,11 +51,35 @@ class StudyPlanBlueprintTest {
     @Test
     fun `revisao atrasada entra antes de qualquer conteudo novo`() {
         val atrasada = ReviewDemand("9", 1L, 1_000L, today.minusDays(3), 30)
-        val result = StudyPlanBlueprint.build(input(reviews = listOf(atrasada)))
+        val estudado = topics(1L, 1, studied = true) + topics(1L, 30).drop(1)
+        val result = StudyPlanBlueprint.build(input(topics = estudado, reviews = listOf(atrasada)))
 
         val primeira = result.demands.minByOrNull { it.order }
         assertEquals(PlanTaskType.REVIEW, primeira?.type)
         assertEquals(today.minusDays(3), primeira?.deadline)
+    }
+
+    @Test
+    fun `revisoes do mesmo topico viram uma so e topico nao estudado nao revisa`() {
+        val estudado = topics(1L, 1, studied = true) + topics(1L, 30).drop(1)
+        val reviews = listOf(
+            ReviewDemand("1", 1L, 1_000L, today.minusDays(2), 30),
+            ReviewDemand("2", 1L, 1_000L, today.minusDays(1), 30),
+            ReviewDemand("3", 1L, 1_000L, today, 30),
+            // Tópico 1001 não foi estudado (plano começando do zero): não entra.
+            ReviewDemand("4", 1L, 1_001L, today, 30),
+        )
+        val result = StudyPlanBlueprint.build(input(topics = estudado, reviews = reviews))
+
+        val revisoes = result.demands.filter { it.type == PlanTaskType.REVIEW }
+        assertEquals(1, revisoes.size)
+        assertEquals(1_000L, revisoes.single().topicId)
+    }
+
+    @Test
+    fun `simulado fica fora do plano por enquanto`() {
+        val result = StudyPlanBlueprint.build(input(config = StudyMethodConfig(simulationsPerMonth = 4)))
+        assertTrue(result.demands.none { it.type == PlanTaskType.SIMULATION })
     }
 
     @Test

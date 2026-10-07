@@ -101,7 +101,33 @@ object Cloud {
         if (commit.body.contains("sync_conflict")) throw CloudConflictException(head())
         if (commit.status == 401) throw SignedOutException()
         if (!commit.ok) throw HttpException(commit.status, commit.body)
-        return (snapshotJson.parseToJsonElement(commit.body).jsonObject["revision"] as JsonPrimitive).longOrNull ?: (expectedRevision + 1)
+        val revision = (snapshotJson.parseToJsonElement(commit.body).jsonObject["revision"] as JsonPrimitive).longOrNull ?: (expectedRevision + 1)
+        runCatching { prune(path) }
+        return revision
+    }
+
+    /**
+     * Apaga as fotos antigas da conta, deixando a atual e as [keep] mais recentes antes dela. Cada
+     * envio cria um arquivo novo; sem isso a pasta da conta só cresce. Melhor esforço: falhar aqui
+     * não falha a sincronização.
+     */
+    suspend fun prune(currentPath: String, keep: Int = 4) {
+        val userId = Auth.session?.userId ?: return
+        val listBody = buildJsonObject {
+            put("prefix", userId)
+            put("limit", 200)
+            put("sortBy", buildJsonObject { put("column", "name"); put("order", "desc") })
+        }.toString()
+        val listed = httpRequest("POST", "${WebConfig.SUPABASE_URL}/storage/v1/object/list/$BUCKET", headers(mapOf("Content-Type" to "application/json")), listBody)
+        if (!listed.ok) return
+        val names = (runCatching { snapshotJson.parseToJsonElement(listed.body) as? JsonArray }.getOrNull() ?: return)
+            .mapNotNull { (it as? JsonObject)?.str("name") }
+            .map { "$userId/$it" }
+            .filter { it != currentPath }
+            .sortedDescending() // o nome começa pelo horário do envio
+        names.drop(keep).forEach { path ->
+            httpRequest("DELETE", "${WebConfig.SUPABASE_URL}/storage/v1/object/$BUCKET/$path", headers())
+        }
     }
 
     fun sha256(text: String): String = Sha256.digest(text.encodeToByteArray()).toHex()

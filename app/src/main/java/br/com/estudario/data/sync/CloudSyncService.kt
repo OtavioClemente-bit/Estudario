@@ -154,6 +154,27 @@ class CloudSyncService(
         if (commit.status !in 200..299) error("A nuvem não aceitou a versão (${commit.status}).")
         val revision = JSONObject(commit.body).getLong("revision")
         remember(revision, sha)
+        runCatching { prune(userId, path) }
+    }
+
+    /**
+     * Apaga as fotos antigas da conta, deixando a atual e as 4 mais recentes antes dela. Cada envio
+     * cria um arquivo novo; sem isso a pasta da conta só cresce. Melhor esforço.
+     */
+    private suspend fun prune(userId: String, currentPath: String, keep: Int = 4) {
+        val listBody = JSONObject()
+            .put("prefix", userId)
+            .put("limit", 200)
+            .put("sortBy", JSONObject().put("column", "name").put("order", "desc"))
+        val listed = request("POST", "/storage/v1/object/list/$BUCKET", listBody.toString().encodeToByteArray(), "application/json")
+        if (listed.status !in 200..299) return
+        val rows = JSONArray(listed.body)
+        val names = (0 until rows.length())
+            .mapNotNull { rows.optJSONObject(it)?.optString("name")?.takeIf { name -> name.isNotBlank() } }
+            .map { "$userId/$it" }
+            .filter { it != currentPath }
+            .sortedDescending() // o nome começa pelo horário do envio
+        names.drop(keep).forEach { old -> request("DELETE", "/storage/v1/object/$BUCKET/$old", null, null) }
     }
 
     private suspend fun download(head: RemoteHead) {

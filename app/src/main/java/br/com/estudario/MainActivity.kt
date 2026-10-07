@@ -48,10 +48,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         // Mantém o login do Google vivo: ao abrir o app e a cada 10 minutos com ele na tela, a
         // sessão é renovada em silêncio antes de vencer (sem isso a pessoa "caía" depois de 1 hora).
+        // No mesmo ritmo, sincroniza com a conta: ao voltar para o app, o que foi feito no app web
+        // entra aqui; com o app aberto por muito tempo, o que foi estudado sobe sem esperar sair.
         lifecycleScope.launch {
             repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
                 while (true) {
                     br.com.estudario.ui.ai.GoogleAccountSignIn.renewIfNeeded(this@MainActivity)
+                    br.com.estudario.data.sync.CloudSyncWorker.syncSoon(this@MainActivity)
                     kotlinx.coroutines.delay(10 * 60 * 1_000L)
                 }
             }

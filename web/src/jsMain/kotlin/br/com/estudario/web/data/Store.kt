@@ -55,6 +55,46 @@ object Store {
             }
         })
         window.addEventListener("online", { if (save == SaveState.Offline) scheduleSave(0) })
+        // O que foi feito no celular aparece aqui sem recarregar: ao voltar para a aba e a cada
+        // meio minuto com ela visível, confere se a conta tem revisão nova e troca a foto.
+        window.addEventListener("focus", { scope.launch { refreshIfRemoteChanged() } })
+        kotlinx.browser.document.addEventListener("visibilitychange", {
+            if (kotlinx.browser.document.asDynamic().visibilityState == "visible") scope.launch { refreshIfRemoteChanged() }
+        })
+        scope.launch {
+            while (true) {
+                delay(REFRESH_EVERY_MS)
+                if (kotlinx.browser.document.asDynamic().visibilityState == "visible") refreshIfRemoteChanged()
+            }
+        }
+    }
+
+    private const val REFRESH_EVERY_MS = 30_000L
+    private var refreshing = false
+
+    /**
+     * Troca a foto pela da conta quando outro aparelho publicou depois da nossa base. Só quando não
+     * há nada pendente aqui: edição em andamento tem prioridade e o conflito, se houver, aparece
+     * no envio, como antes.
+     */
+    suspend fun refreshIfRemoteChanged() {
+        if (demo || refreshing || load != LoadState.Ready || save != SaveState.Saved || conflict != null) return
+        refreshing = true
+        try {
+            val head = Cloud.head()
+            if (head.revision == baseRevision || head.objectPath == null) return
+            if (save != SaveState.Saved) return // alguém editou enquanto a cabeça era lida
+            val fresh = Snapshot.parse(Cloud.download(head))
+            if (save != SaveState.Saved) return
+            data = fresh
+            baseRevision = head.revision
+        } catch (_: SignedOutException) {
+            load = LoadState.SignedOut
+        } catch (_: Throwable) {
+            // Sem rede ou erro passageiro: a próxima rodada tenta de novo.
+        } finally {
+            refreshing = false
+        }
     }
 
     fun start() {

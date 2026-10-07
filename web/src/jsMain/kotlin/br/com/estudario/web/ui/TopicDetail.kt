@@ -49,7 +49,8 @@ fun studyBlocks(markdown: String): List<String> {
         if (block.isNotBlank()) blocks += block
         current.clear()
     }
-    markdown.replace("\r\n", "\n").lines().forEach { line ->
+    // As fontes ficam só na aba Fontes, não no meio da teoria (como no app).
+    br.com.estudario.text.SourcesSection.strip(markdown).lines().forEach { line ->
         val trimmed = line.trim()
         if (trimmed.startsWith("```")) inFence = !inFence
         else if (!inFence && trimmed == "$$") inMath = !inMath
@@ -240,7 +241,22 @@ fun TopicScreen(topicId: Long) {
             TopicFocus.start(topicId, topic.title)
             Toast.show("Foco ligado. O tempo conta enquanto você estuda aqui.")
         }, style = "tonal", icon = "timer", block = true)
-        if (studied) Btn("Concluído", {}, style = "outline", icon = "check", block = true, enabled = false)
+        // Tópico já estudado com tarefa pendente hoje é revisão: dá para concluir, como no app.
+        val reviewTask = if (!studied || plan == null) null else Queries.tasksOn(data, plan.id, Queries.todayEpoch())
+            .firstOrNull { it.topicId == topicId && it.status in setOf("PLANEJADA", "EM_ANDAMENTO") }
+        if (reviewTask != null) Btn("Concluir revisão", {
+            if (focusHere) TopicFocus.stop()
+            Store.update { snapshot ->
+                val withTask = Actions.completeTask(snapshot, reviewTask.id, reviewTask.minutes)
+                withTask.reviews
+                    .filter { it.topicId == topicId && it.completedAt == null && it.ignoredAt == null }
+                    .minByOrNull { it.dueAt }
+                    ?.let { Actions.completeReview(withTask, it.id, br.com.estudario.data.local.ReviewDifficulty.NORMAL) }
+                    ?: withTask
+            }
+            Toast.show("Revisão concluída.")
+        }, style = "outline", icon = "check", block = true)
+        else if (studied) Btn("Concluído", {}, style = "outline", icon = "check", block = true, enabled = false)
         else Btn("Concluir estudo", { finishAsk = true }, style = "outline", icon = "check", block = true)
     }
     if (finishAsk) Modal(onDismiss = { finishAsk = false }) {

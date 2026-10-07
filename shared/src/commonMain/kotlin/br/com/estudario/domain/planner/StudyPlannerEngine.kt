@@ -17,16 +17,24 @@ class StudyPlannerEngine(
                 snapshot.dayOverrides[task.date]?.locked == true ||
                 task.subjectId == null
         }
+        // Tarefa concluída continua ocupando o tempo do dia dela. Sem isso, cada conclusão "liberava"
+        // o dia de novo e o replanejamento puxava as matérias de amanhã: o dia nunca terminava.
         val lockedUsage = fixedTasks
-            .filter { it.date in rawCapacity.keys && it.status !in terminalInactiveStatuses }
+            .filter { it.date in rawCapacity.keys && (it.status == PlanTaskStatus.CONCLUIDA || it.status !in terminalInactiveStatuses) }
             .groupBy { it.date }
             .mapValues { (_, tasks) -> tasks.sumOf { it.plannedMinutes } }
+        val executionsByTask = snapshot.executions.filter { it.taskId != null }.groupBy { it.taskId }
+        // O que já foi estudado numa tarefa em andamento também gastou o dia dela; só o que falta
+        // volta para o replanejamento.
+        val partialUsage = if (reason == ReplanReason.INITIAL) emptyMap() else snapshot.tasks
+            .filter { it !in fixedTasks && it.status == PlanTaskStatus.EM_ANDAMENTO && it.date in rawCapacity.keys }
+            .groupBy { it.date }
+            .mapValues { (_, tasks) -> tasks.sumOf { task -> minOf(task.plannedMinutes, executionsByTask[task.id].orEmpty().sumOf { it.minutes }) } }
         val allocatableByDate = rawCapacity.mapValues { (date, minutes) ->
             if (snapshot.dayOverrides[date]?.locked == true) 0
-            else (minutes - lockedUsage.getOrElse(date) { 0 }).coerceAtLeast(0)
+            else (minutes - lockedUsage.getOrElse(date) { 0 } - partialUsage.getOrElse(date) { 0 }).coerceAtLeast(0)
         }
         val freeByDate = allocatableByDate.toMutableMap()
-        val executionsByTask = snapshot.executions.filter { it.taskId != null }.groupBy { it.taskId }
         val replanCandidates = if (reason == ReplanReason.INITIAL) emptyList() else snapshot.tasks.filter { task ->
             task !in fixedTasks && task.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO)
         }
@@ -63,7 +71,10 @@ class StudyPlannerEngine(
         val generated = mutableListOf<PlannerTask>()
         // Blocos da mesma demanda no mesmo dia viram uma tarefa só ("Teoria · 50 min"), em vez de
         // dois cartões iguais seguidos.
+        // A chave é tópico + tipo (quando há tópico): duas demandas do mesmo assunto no mesmo dia,
+        // como a sobra remarcada e a nova, também viram um cartão só.
         val generatedIndex = mutableMapOf<Pair<String, LocalDate>, Int>()
+        fun mergeKey(demand: TaskDemand) = demand.topicId?.let { "topic:$it:${demand.type}" } ?: demand.id
         val scheduledBySubject = mutableMapOf<Long, Int>()
         var sequence = 0
 
@@ -89,7 +100,10 @@ class StudyPlannerEngine(
             while (left > 0) {
                 val date = dateFor(demand, respectShare) ?: break
                 val free = freeByDate.getValue(date)
-                val chunk = minOf(left, free, snapshot.policy.preferredBlockMinutes.coerceAtLeast(snapshot.policy.minimumBlockMinutes))
+                var chunk = minOf(left, free, snapshot.policy.preferredBlockMinutes.coerceAtLeast(snapshot.policy.minimumBlockMinutes))
+                // Sobra menor que um bloco mínimo vai junto, se o dia comporta: nada de "Teoria · 5 min".
+                val rest = left - chunk
+                if (rest in 1 until snapshot.policy.minimumBlockMinutes && free >= left) chunk = left
                 if (chunk < snapshot.policy.minimumBlockMinutes && left >= snapshot.policy.minimumBlockMinutes) {
                     freeByDate[date] = 0
                     continue
@@ -99,7 +113,7 @@ class StudyPlannerEngine(
                 val chunkQuestions = if (chunk == minuteLeftBefore) questionLeft
                 else if (minuteLeftBefore == 0) 0
                 else questionLeft * chunk / minuteLeftBefore
-                val sameDay = generatedIndex[demand.id to date]
+                val sameDay = generatedIndex[mergeKey(demand) to date]
                 if (sameDay != null) {
                     val previous = generated[sameDay]
                     generated[sameDay] = previous.copy(
@@ -108,7 +122,7 @@ class StudyPlannerEngine(
                     )
                 } else {
                     val position = sequence++
-                    generatedIndex[demand.id to date] = generated.size
+                    generatedIndex[mergeKey(demand) to date] = generated.size
                     generated += PlannerTask(
                         id = stableId(snapshot.planId, snapshot.revision.toString(), demand.id, date.toString(), position.toString()),
                         planId = snapshot.planId,

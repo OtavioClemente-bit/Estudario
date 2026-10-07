@@ -204,8 +204,9 @@ fun InitialSetupFlow(
         if (snapshot.status == InitialSetupStatus.NOT_STARTED) viewModel.begin()
     }
     LaunchedEffect(operation) {
-        val message = (operation as? SetupOperation.Success)?.message ?: return@LaunchedEffect
-        snackbar.showSnackbar(message)
+        // Sucesso não vira aviso flutuante: ele cobria o botão de continuar, e a própria tela já
+        // mostra o resultado (edital carregado, plano montado).
+        if (operation !is SetupOperation.Success) return@LaunchedEffect
         viewModel.clearOperation()
     }
     LaunchedEffect(incomingTransfer, snapshot.step) {
@@ -942,7 +943,7 @@ private fun AvailabilityStep(snapshot: InitialSetupSnapshot, viewModel: InitialS
     SetupPage(
         eyebrow = "Seu ritmo",
         title = "Quanto tempo cabe na sua semana?",
-        description = "Arraste cada barra para marcar o tempo líquido do dia, já sem pausas. Zero é folga. Dá para mudar depois.",
+        description = "Use − e + para marcar o tempo líquido de cada dia, já sem pausas. Zero é folga. Dá para mudar depois.",
         icon = Icons.Outlined.Schedule,
         bottom = {
             if (!hasTime) Text("Marque pelo menos um dia com tempo de estudo.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)

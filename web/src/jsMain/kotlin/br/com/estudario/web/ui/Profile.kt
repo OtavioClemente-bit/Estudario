@@ -26,6 +26,8 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import org.jetbrains.compose.web.attributes.InputType
+import org.jetbrains.compose.web.dom.ElementBuilder
+import org.jetbrains.compose.web.dom.TagElement
 import org.jetbrains.compose.web.dom.A
 import org.jetbrains.compose.web.dom.B
 import org.jetbrains.compose.web.dom.Button
@@ -40,9 +42,26 @@ import org.jetbrains.compose.web.dom.Text
 
 // ------------------------------------------------------------------ Folha (o mascote)
 
-/** O Folha desenhado pelo mesmo gerador do site (folha.js). */
+/**
+ * O Folha. Do tamanho de personagem para cima ele é o mesmo do app, vivo (folha-live.js: respira,
+ * pisca, olha em volta, pula ao toque); miniatura dentro de botão fica como desenho parado, para
+ * uma lista cheia de botões não virar dezenas de animações.
+ */
 @Composable
 fun Folha(mood: String = "happy", size: Int = 96, extraStyle: String = "") {
+    if (size >= LIVE_FOLHA_MIN_SIZE) {
+        TagElement<org.w3c.dom.HTMLElement>(
+            elementBuilder = ElementBuilder.createBuilder("estudario-folha"),
+            applyAttrs = {
+                classes("folha", "folha-live")
+                attr("mood", mood)
+                attr("size", size.toString())
+                if (extraStyle.isNotBlank()) attr("style", extraStyle)
+            },
+            content = null,
+        )
+        return
+    }
     val src = remember(mood, size) {
         val svg = runCatching { window.asDynamic().folhaSvg(kotlin.js.json("mood" to mood, "size" to size)) as? String }.getOrNull()
         svg?.let { "data:image/svg+xml;charset=utf-8," + js("encodeURIComponent")(it) as String } ?: "icon.png"
@@ -54,11 +73,23 @@ fun Folha(mood: String = "happy", size: Int = 96, extraStyle: String = "") {
     })
 }
 
-/** Fala do Folha: o mascote com um balão, como nas telas do app. */
+private const val LIVE_FOLHA_MIN_SIZE = 48
+
+/**
+ * Fala do Folha: o mascote com um balão, como nas telas do app. Falando, ele mexe a boca pelo
+ * tempo de ler a fala e depois fica ouvindo (o FolhaTalking do app).
+ */
 @Composable
 fun FolhaSays(mood: String = "talking", size: Int = 72, content: @Composable () -> Unit) {
+    var shown by remember(mood) { mutableStateOf(mood) }
+    LaunchedEffect(mood) {
+        if (mood == "talking") {
+            kotlinx.coroutines.delay(2200)
+            shown = "idle"
+        }
+    }
     Div({ classes("folha-says") }) {
-        key(mood) { Folha(mood, size) }
+        key(size) { Folha(shown, size) }
         Div({ classes("bubble") }) { content() }
     }
 }

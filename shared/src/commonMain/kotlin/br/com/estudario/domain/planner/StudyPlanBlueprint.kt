@@ -86,6 +86,9 @@ object StudyPlanBlueprint {
     private const val THEORY_BASE_MINUTES = 50
     private const val REINFORCEMENT_ACCURACY = 70
 
+    /** Simulado fora do plano por enquanto; a configuração continua guardada para quando voltar. */
+    const val SIMULATIONS_IN_PLAN = false
+
     /**
      * Piso do fator de necessidade sobre o peso do edital. Com 0,55, uma matéria de necessidade
      * mínima conserva 55% do peso que o edital lhe deu e uma de necessidade máxima chega a 145%,
@@ -136,7 +139,16 @@ object StudyPlanBlueprint {
         var reviewUsed = 0
         var overdueCount = 0
         var reviewCount = 0
-        for (review in input.pendingReviews.sortedWith(compareBy({ it.dueDate }, { it.topicId }))) {
+        // Só revisa o que foi estudado (plano começando do zero não herda revisão do histórico de
+        // foco) e uma revisão por tópico: D+1, D+7 e D+30 pendentes juntas viravam três cartões
+        // iguais no mesmo dia.
+        val studiedTopicIds = input.topics.filter { it.studied }.mapTo(hashSetOf()) { it.topicId }
+        val horizonEnd = input.today.plusDays(input.horizonDays.toLong())
+        val reviewsByTopic = input.pendingReviews
+            .filter { it.topicId in studiedTopicIds && it.dueDate.isBefore(horizonEnd) }
+            .groupBy { it.topicId }
+            .map { (_, reviews) -> reviews.minWith(compareBy({ it.dueDate }, { it.id })) }
+        for (review in reviewsByTopic.sortedWith(compareBy({ it.dueDate }, { it.topicId }))) {
             val subject = subjectById[review.subjectId] ?: continue
             if ((review.topicId to PlanTaskType.REVIEW) in input.occupied) continue
             val atrasada = !review.dueDate.isAfter(input.today)
@@ -155,6 +167,8 @@ object StudyPlanBlueprint {
                 questions = review.plannedQuestions,
                 priority = subject.priority,
                 deadline = review.dueDate,
+                // Revisão futura cai no dia dela, não hoje.
+                anchorDate = review.dueDate.takeIf { !atrasada },
                 subjectPosition = subject.position,
             )
         }
@@ -284,7 +298,7 @@ object StudyPlanBlueprint {
             .filter { it.dayOfWeek == input.heaviestDay }
         val anchorSubject = activeSubjects.firstOrNull()
         val heaviestSubject = activeSubjects.maxByOrNull { it.weight }
-        val simulationInterval = if (config.simulationsPerMonth <= 0 || anchorSubject == null) 0 else (30 / config.simulationsPerMonth).coerceAtLeast(7)
+        val simulationInterval = if (!SIMULATIONS_IN_PLAN || config.simulationsPerMonth <= 0 || anchorSubject == null) 0 else (30 / config.simulationsPerMonth).coerceAtLeast(7)
         if (simulationInterval > 0 && anchorSubject != null) {
             val simulationMinutes = StudyMethod.toBlocks(150, block)
             var last: LocalDate? = null

@@ -24,8 +24,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.Icon
@@ -261,16 +264,27 @@ fun WeekHoursPicker(minutes: List<Int>, onChange: (day: Int, minutes: Int) -> Un
     val colors = estudarioColors()
     Surface(shape = EstudarioShapes.panel, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f), contentColor = MaterialTheme.colorScheme.onSurface) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp)) {
-            Row(Modifier.fillMaxWidth().height(200.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                minutes.forEachIndexed { day, value ->
-                    DayBar(
-                        label = weekLabels[day],
-                        value = value,
-                        maxMinutes = maxMinutes,
-                        color = if (day >= 5) colors.subjectPalette[6] else MaterialTheme.colorScheme.primary,
-                        onChange = { onChange(day, it) },
-                        modifier = Modifier.weight(1f).fillMaxHeight(),
+            // Um dia por linha com − e +, em passos de 15 min: preciso e sóbrio, sem barra de arrastar.
+            minutes.forEachIndexed { day, value ->
+                val color = if (day >= 5) colors.subjectPalette[6] else MaterialTheme.colorScheme.primary
+                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(weekLabels[day], Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    androidx.compose.material3.FilledTonalIconButton(
+                        onClick = { onChange(day, (value - 15).coerceAtLeast(0)) },
+                        enabled = value > 0,
+                    ) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.Remove, "Menos 15 minutos na ${weekLabels[day]}") }
+                    Text(
+                        if (value == 0) "Folga" else durationText(value),
+                        Modifier.widthIn(min = 84.dp),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (value == 0) MaterialTheme.colorScheme.onSurfaceVariant else color,
+                        textAlign = TextAlign.Center,
                     )
+                    androidx.compose.material3.FilledTonalIconButton(
+                        onClick = { onChange(day, (value + 15).coerceAtMost(maxMinutes)) },
+                        enabled = value < maxMinutes,
+                    ) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.Add, "Mais 15 minutos na ${weekLabels[day]}") }
                 }
             }
             Spacer(Modifier.height(8.dp))

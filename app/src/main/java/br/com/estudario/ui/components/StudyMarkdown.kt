@@ -189,7 +189,8 @@ fun studyBlocks(markdown: String): List<String> {
         if (block.isNotBlank()) blocks += block
         current.clear()
     }
-    StudyMarkdownNormalizer.normalize(markdown).lines().forEach { line ->
+    // As fontes ficam só na aba Fontes, não no meio da teoria.
+    StudyMarkdownNormalizer.normalize(br.com.estudario.text.SourcesSection.strip(markdown)).lines().forEach { line ->
         val trimmed = line.trim()
         if (trimmed.startsWith("```")) inFence = !inFence
         else if (!inFence && trimmed == "$$") inMath = !inMath

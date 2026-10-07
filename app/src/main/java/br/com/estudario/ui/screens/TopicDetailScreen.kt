@@ -102,6 +102,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
     val studyStartedAt = remember(topicId) { System.currentTimeMillis() }
     var finishStudy by remember { mutableStateOf(false) }
     var desmarcar by remember { mutableStateOf(false) }
+    var apagarMaterial by remember { mutableStateOf(false) }
     val sources by viewModel.sources.collectAsState()
     var completedNow by remember { mutableStateOf(false) }
     var studyNotes by remember { mutableStateOf("") }
@@ -164,7 +165,16 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                     ),
                 )
             }
-            viewModel.completeStudyNow(topicId, pendingCompletionStartedAt, studyNotes)
+            if (topic.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO && taskId != null) {
+                // Tópico já estudado vindo do plano é revisão: fecha a revisão pendente mais antiga
+                // (com o XP dela) e não agenda D+1/D+7/D+30 de novo.
+                viewModel.reviews.value
+                    .filter { it.topicId == topicId && it.completedAt == null && it.ignoredAt == null }
+                    .minByOrNull { it.dueAt }
+                    ?.let { viewModel.completeReview(it, startedAt = pendingCompletionStartedAt) }
+            } else {
+                viewModel.completeStudyNow(topicId, pendingCompletionStartedAt, studyNotes)
+            }
             topicSaved = true
             completedNow = true
             finishStudy = false
@@ -408,6 +418,24 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
     val topicSnippets = snippets.filter { it.topicId == topicId }
     val recallSnippets = topicSnippets.filter { it.kind == SnippetKind.RECUPERACAO && !SavedFlashcards.isSavedCard(it) }
     val tipSnippets = topicSnippets.filter { it.kind != SnippetKind.RECUPERACAO }
+    val hasMaterial = topicTheories.isNotEmpty() || topicSummaries.isNotEmpty() || topicSnippets.isNotEmpty()
+    if (apagarMaterial) {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val answered = topicQuestions.count { it.question.answerCount > 0 }
+        DeleteMaterialDialog(
+            topicTitle = topic.title,
+            theories = topicTheories.size,
+            summaries = topicSummaries.size,
+            snippets = topicSnippets.size,
+            unansweredQuestions = topicQuestions.size - answered,
+            answeredQuestions = answered,
+            onDismiss = { apagarMaterial = false },
+            onConfirm = { withQuestions ->
+                viewModel.deleteTopicMaterial(topicId, withQuestions)
+                android.widget.Toast.makeText(context, "Material apagado. O tópico e seu histórico continuam aqui.", android.widget.Toast.LENGTH_SHORT).show()
+            },
+        )
+    }
     val topicConcepts = errorConcepts.filter { it.topicId == topicId }
         .sortedWith(compareByDescending<br.com.estudario.data.local.ErrorConceptEntity> { it.errorCount }.thenByDescending { it.lastErrorAt ?: 0 })
     val studied = completedNow || topic.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO
@@ -460,6 +488,11 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                             )
                             DropdownMenuItem(text = { Text("Importar arquivo .estudo") }, leadingIcon = { Icon(Icons.Outlined.FileOpen, null) }, onClick = { menuOpen = false; importLauncher.launch(arrayOf("*/*")) })
                             if (studied) DropdownMenuItem(text = { Text("Desmarcar como estudado") }, leadingIcon = { Icon(Icons.Outlined.Undo, null) }, onClick = { menuOpen = false; desmarcar = true })
+                            if (hasMaterial) DropdownMenuItem(
+                                text = { Text("Apagar o material salvo", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Outlined.DeleteOutline, null, tint = MaterialTheme.colorScheme.error) },
+                                onClick = { menuOpen = false; apagarMaterial = true },
+                            )
                         }
                     }
                 }
@@ -520,7 +553,9 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(14.dp),
                     ) { Icon(Icons.Outlined.Timer, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Modo foco") }
-                    if (studied) OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
+                    if (studied && taskId != null && !completedNow) OutlinedButton(onClick = ::requestTopicCompletion, enabled = !completionBusy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
+                        Icon(Icons.Outlined.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Concluir revisão")
+                    } else if (studied) OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
                         Icon(Icons.Outlined.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Concluído")
                     } else OutlinedButton(onClick = { finishStudy = true }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
                         Icon(Icons.Outlined.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Concluir estudo")

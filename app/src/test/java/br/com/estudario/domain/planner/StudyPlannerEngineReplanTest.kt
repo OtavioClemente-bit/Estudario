@@ -96,6 +96,29 @@ class StudyPlannerEngineReplanTest {
         assertEquals(setOf("done"), larger.preservedTaskIds)
     }
 
+    @Test
+    fun `completing work today does not pull tomorrow into today`() {
+        val done = task("done", monday, 90, PlanTaskStatus.CONCLUIDA)
+        val pending = TaskDemand("pending", 10L, 200L, PlanTaskType.THEORY, 600, priority = PlanPriority.CRITICAL)
+        val proposal = engine.plan(snapshot(today = monday, dailyMinutes = 120, tasks = listOf(done), demands = listOf(pending)), ReplanReason.TASK_COMPLETED)
+
+        // 120 min no dia, 90 já feitos: só cabem 30 novos hoje, o resto fica para os outros dias.
+        assertEquals(30, proposal.newTasks.filter { it.date == monday }.sumOf { it.plannedMinutes })
+    }
+
+    @Test
+    fun `minutes already studied in a partial task still count against today`() {
+        val started = task("started", monday, 60, PlanTaskStatus.EM_ANDAMENTO)
+        val execution = TaskExecution("execution-1", "started", 10L, 100L, monday, 40, 0, 0)
+        val pending = TaskDemand("pending", 10L, 200L, PlanTaskType.THEORY, 600, priority = PlanPriority.CRITICAL)
+        val proposal = engine.plan(
+            snapshot(today = monday, dailyMinutes = 120, tasks = listOf(started), executions = listOf(execution), demands = listOf(pending)),
+            ReplanReason.TASK_PARTIAL,
+        )
+
+        assertEquals(80, proposal.newTasks.filter { it.date == monday }.sumOf { it.plannedMinutes })
+    }
+
     private fun snapshot(
         today: LocalDate,
         dailyMinutes: Int,
