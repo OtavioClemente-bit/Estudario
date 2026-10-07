@@ -159,7 +159,17 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             val raw = if (uri != null) {
                 runCatching {
-                    withContext(Dispatchers.IO) { contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } }
+                    withContext(Dispatchers.IO) {
+                        // Arquivo vindo de fora: teto de tamanho antes de ler, para um arquivo gigante
+                        // (por engano ou de propósito) não derrubar o app por falta de memória.
+                        val declared = contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+                        check(declared <= MAX_INCOMING_FILE_BYTES) { "Arquivo grande demais." }
+                        contentResolver.openInputStream(uri)?.use { stream ->
+                            val bytes = stream.readNBytesCompat(MAX_INCOMING_FILE_BYTES + 1)
+                            check(bytes.size.toLong() <= MAX_INCOMING_FILE_BYTES) { "Arquivo grande demais." }
+                            bytes.toString(Charsets.UTF_8)
+                        }
+                    }
                 }.getOrNull()
             } else sharedText
             if (raw.isNullOrBlank()) viewModel.reportIncomingFileError("Não foi possível ler o arquivo. Tente baixá-lo novamente e abrir pelo gerenciador de arquivos, ou use o botão Importar dentro do app.")
@@ -170,4 +180,23 @@ class MainActivity : ComponentActivity() {
     private fun handleNotification(intent: Intent?) {
         intent?.getStringExtra("notification_destination")?.let(viewModel::openFromNotification)
     }
+
+    private companion object {
+        /** Backups e pacotes .estudo têm poucos MB; 50 MB cobre qualquer caso real. */
+        const val MAX_INCOMING_FILE_BYTES = 50L * 1024 * 1024
+    }
+}
+
+/** Lê até [max] bytes (API 24+ não tem readNBytes). */
+private fun java.io.InputStream.readNBytesCompat(max: Long): ByteArray {
+    val out = java.io.ByteArrayOutputStream()
+    val buffer = ByteArray(64 * 1024)
+    var total = 0L
+    while (total < max) {
+        val read = read(buffer, 0, minOf(buffer.size.toLong(), max - total).toInt())
+        if (read < 0) break
+        out.write(buffer, 0, read)
+        total += read
+    }
+    return out.toByteArray()
 }
