@@ -1,0 +1,1800 @@
+{
+  "id": "informatica.banco-dados-sql",
+  "subject": "Informática",
+  "version": 1,
+  "title": "Banco de dados e SQL",
+  "nickname": "Modelagem e consulta de dados",
+  "aliases": [
+    "Banco de dados relacional",
+    "SQL, data warehouse e data lake"
+  ],
+  "theoryTitle": "Modelagem, integridade, consultas e plataformas analíticas",
+  "status": "PUBLISHED",
+  "sourceType": "AUTHORIAL",
+  "board": null,
+  "agency": null,
+  "year": null,
+  "sourceUrl": null,
+  "accessedAt": "2026-10-06",
+  "scope": {
+    "covers": "Conceitos de banco de dados e SGBD; modelo relacional, tabelas, atributos, chaves e integridade; normalização; SQL para definição, manipulação e consulta, junções, agregação e transações; noções de data warehouse, data lake e ETL.",
+    "excludes": "Administração avançada de produtos específicos, sintaxe proprietária extensa, ajuste de desempenho em larga escala e implementação física de mecanismos de armazenamento."
+  },
+  "summary": "Um banco de dados organiza dados para persistência, consulta e atualização; um sistema gerenciador de banco de dados controla acesso, integridade, concorrência e recuperação. No modelo relacional, tabelas representam relações, linhas representam registros e colunas representam atributos. Chaves primárias identificam linhas, enquanto chaves estrangeiras expressam referências entre tabelas. Restrições de integridade evitam estados inválidos. A normalização reduz redundâncias e anomalias por meio de decomposição fundamentada em dependências. SQL permite definir estruturas, inserir e alterar dados, consultar resultados e controlar transações. SELECT combina filtros, junções, agrupamentos e ordenações; NULL representa ausência ou desconhecimento e exige testes próprios. Data warehouses integram dados históricos para análise, enquanto data lakes mantêm dados em formatos diversos, sujeitos a organização e governança. ETL extrai, transforma e carrega dados; a ordem e as validações dependem do fluxo e da arquitetura.",
+  "chapters": [
+    {
+      "id": "como-cobrado",
+      "title": "Como o tema costuma ser cobrado",
+      "markdown": "Em modelagem, observe primeiro as entidades, seus atributos e os relacionamentos do cenário. A chave primária identifica cada registro; uma chave estrangeira referencia uma chave de outra tabela e ajuda a preservar integridade. Em SQL, separe filtragem de linhas por WHERE da filtragem de grupos por HAVING, e lembre que agregações mudam o nível de detalhe do resultado. Analise as condições de junção para não criar combinações indevidas nem duplicar linhas sem perceber. Valores NULL representam ausência ou desconhecimento e exigem testes próprios, não comparação comum com zero ou texto vazio. Questões de normalização investigam dependências e redundância; o objetivo é organizar dados e reduzir anomalias sem perder a possibilidade de relacioná-los. Em arquitetura analítica, diferencie sistemas transacionais, que registram operações correntes, de repositórios voltados a análise; data warehouse tende a estruturar dados para consultas, enquanto data lake pode guardar dados em formatos variados. Escolha a estrutura segundo uso, qualidade e governança."
+    },
+    {
+      "id": "cap1",
+      "title": "Modelo relacional",
+      "markdown": "Um banco de dados é uma coleção estruturada de dados relacionados, mantida para consulta e atualização ao longo do tempo. O sistema gerenciador de banco de dados (SGBD) oferece linguagem de definição e consulta, mecanismos de autorização, integridade, concorrência, persistência e recuperação. Um arquivo isolado pode armazenar dados, mas o SGBD acrescenta controle compartilhado e operações coordenadas. Aplicações acessam o sistema por interfaces e não devem depender de detalhes internos desnecessários.\n\nNo modelo relacional, a estrutura lógica é descrita por relações, frequentemente apresentadas como tabelas. Uma linha, ou tupla, associa valores de atributos para uma ocorrência; uma coluna possui nome e domínio, isto é, o conjunto de valores admitidos. A ordem física das linhas não define a relação. Uma consulta sem ORDER BY não garante uma ordem particular. Os valores devem respeitar tipos e restrições definidos para cada atributo.\n\nUma chave candidata é um conjunto mínimo de atributos que identifica unicamente cada linha. A chave primária é a candidata escolhida para esse papel; deve ser única e, no modelo usual, não nula. Chave estrangeira referencia chave candidata de outra relação e mantém integridade referencial. Ela pode ser composta e pode admitir NULL se o esquema permitir. Identificadores substitutos simplificam referências, mas não dispensam restrições de unicidade sobre identificadores naturais quando o domínio exigir.\n\nRestrições incluem NOT NULL, UNIQUE, PRIMARY KEY, FOREIGN KEY e CHECK. Elas expressam regras no próprio banco e protegem a consistência mesmo quando existem diferentes aplicações de acesso. Uma chave estrangeira impede referência a registro inexistente, salvo ações configuradas para exclusão ou atualização. A política adequada depende do significado dos dados; apagar automaticamente registros relacionados pode não ser aceitável em toda situação.\n\nUm esquema descreve estrutura, tipos, relações e restrições. A instância é o conjunto de valores armazenados em dado momento. Alterar o esquema não é o mesmo que alterar uma linha. Separar estrutura de dados permite evoluir aplicações e preservar consistência, desde que migrações sejam planejadas. O catálogo do SGBD mantém metadados como tabelas, colunas e permissões. Views apresentam consultas nomeadas; em geral, uma view comum não é uma cópia independente dos dados, embora existam views materializadas em alguns sistemas."
+    },
+    {
+      "id": "cap2",
+      "title": "Modelagem e normalização",
+      "markdown": "A modelagem conceitual identifica entidades, atributos, relacionamentos e regras do domínio sem fixar detalhes de um produto. Um relacionamento um-para-muitos costuma ser implementado colocando uma chave estrangeira no lado que pode ter várias ocorrências. Um relacionamento muitos-para-muitos requer uma relação associativa, cujas chaves estrangeiras apontam para as entidades participantes; atributos do próprio vínculo podem ficar nessa relação. A cardinalidade traduz quantas ocorrências podem participar e deve refletir a regra real.\n\nRedundância pode gerar anomalias. Se o mesmo dado de referência aparece em muitas linhas, uma atualização incompleta cria valores divergentes. Uma inserção pode depender artificialmente da existência de outra informação, e a exclusão de uma ocorrência pode apagar por engano o único registro de um fato independente. Normalizar busca reduzir esses problemas por decomposição baseada em dependências funcionais, mantendo informação e relações recuperáveis.\n\nNa primeira forma normal, cada atributo armazena valores atômicos segundo o domínio adotado e grupos repetidos são separados. A segunda forma normal exige primeira forma e ausência de dependência parcial de atributo não chave em parte própria de chave composta. A terceira forma normal, em formulação introdutória, evita dependências transitivas de atributos não chave em relação à chave. Essas formas não são uma lista mecânica de colunas: é preciso analisar significado, chaves candidatas e dependências.\n\nA decomposição em tabelas relacionadas pode exigir junções para reconstruir uma visão de dados, mas torna atualizações mais consistentes. Desnormalização pode ser escolhida para leitura ou desempenho após medir necessidades, documentando a redundância e mantendo mecanismos de sincronização. Não é correção automática de um modelo ruim. Em qualquer projeto, integridade e semântica devem orientar as decisões antes da conveniência de uma consulta isolada.\n\nUm diagrama entidade-relacionamento ajuda a discutir o domínio com pessoas usuárias e técnicas. Entidades com identidade própria viram tabelas; atributos multivalorados normalmente exigem tabela relacionada; atributos derivados podem ser calculados ou armazenados por decisão explícita. A escolha deve considerar frequência, custo, rastreabilidade e consistência. Um diagrama não substitui validação com casos reais nem a documentação das regras de negócio."
+    },
+    {
+      "id": "cap3",
+      "title": "SQL e consultas",
+      "markdown": "SQL é uma linguagem declarativa: o comando descreve o resultado ou a mudança desejada, e o SGBD determina como executá-la. DDL define estruturas, por exemplo CREATE TABLE e ALTER TABLE. DML consulta ou modifica dados, incluindo SELECT, INSERT, UPDATE e DELETE. DCL trata permissões em dialetos usuais, e comandos de transação como COMMIT e ROLLBACK controlam a confirmação ou o desfazimento de operações transacionais. Classificações exatas podem variar entre materiais e produtos.\n\nSELECT escolhe colunas e expressões; FROM identifica fontes; WHERE filtra linhas antes do agrupamento; GROUP BY forma grupos; HAVING filtra grupos; ORDER BY ordena o resultado. DISTINCT remove linhas duplicadas do resultado. A cláusula LIMIT ou equivalente limita quantidade, conforme dialeto, mas sem ordenação explícita não define quais linhas serão priorizadas. Alias simplifica nomes na saída e em expressões.\n\nPredicados combinam comparações e lógica. AND, OR e NOT seguem lógica de três valores quando NULL está envolvido: verdadeiro, falso e desconhecido. Comparar um valor com NULL por igualdade não é a forma correta; IS NULL e IS NOT NULL testam sua presença. COALESCE pode fornecer primeiro valor não nulo em uma lista, mas a substituição deve preservar significado. Funções agregadas como COUNT, SUM, AVG, MIN e MAX resumem valores; em geral, ignoram NULL, enquanto COUNT(*) contabiliza linhas.\n\nJOIN combina linhas por condição. INNER JOIN retorna correspondências; LEFT JOIN preserva todas as linhas da origem esquerda e preenche com NULL quando não há correspondência à direita. A condição de junção precisa ser adequada para evitar multiplicações inesperadas. Uma relação muitos-para-muitos pode produzir várias combinações. Consultas agregadas depois de junções devem verificar a granularidade, pois duplicidades podem inflar totais. Subconsultas e expressões comuns podem tornar a lógica mais clara.\n\nTransação agrupa operações como unidade lógica. As propriedades ACID são atomicidade, consistência, isolamento e durabilidade. Atomicidade trata tudo ou nada; consistência conserva regras; isolamento coordena concorrência conforme nível configurado; durabilidade preserva confirmação após falhas dentro das garantias do sistema. COMMIT confirma e ROLLBACK desfaz mudanças ainda não confirmadas. Níveis de isolamento equilibram concorrência e anomalias possíveis; uma transação curta e delimitada facilita controle e recuperação."
+    },
+    {
+      "id": "cap4",
+      "title": "Plataformas analíticas",
+      "markdown": "Sistemas transacionais apoiam operações correntes, com gravações frequentes e dados atualizados. Um data warehouse integra dados de fontes distintas, mantém histórico e organiza consultas analíticas para apoiar comparações, tendências e agregações. Modelos dimensionais podem separar fatos mensuráveis de dimensões descritivas, mas sua estrutura depende das perguntas de análise. Warehouse não significa automaticamente dados corretos: origem, transformação, atualização e qualidade precisam ser governadas.\n\nData lake é um repositório que pode manter dados estruturados, semiestruturados e não estruturados em escala, muitas vezes em formato próximo ao de origem. Flexibilidade não elimina a necessidade de catálogo, metadados, controle de acesso, linhagem, qualidade, retenção e definição de significado. Sem governança, localizar e interpretar os dados torna-se difícil. Warehouse e lake podem coexistir e atender necessidades diferentes; nenhum é universalmente superior.\n\nETL descreve extração da origem, transformação e carregamento no destino. Transformações podem padronizar unidades, tratar códigos, validar domínios, combinar fontes e derivar campos. Em ELT, os dados são carregados antes de parte das transformações, executadas no ambiente de destino. A distinção descreve ordem de etapas, não qualidade garantida. O processo deve registrar falhas, tratar duplicidade e permitir rastrear origem e regras aplicadas.\n\nQualidade inclui completude, validade, consistência, atualidade e unicidade conforme o uso. Um valor ausente não é necessariamente zero; um código válido em uma fonte pode ter outro significado em outra. Perfis, regras e reconciliações detectam problemas, mas não substituem entendimento do domínio. Indicadores analíticos precisam de definições estáveis e documentadas para que consultas diferentes produzam interpretações comparáveis.\n\nO modelo dimensional frequentemente organiza fatos em torno de medidas e dimensões, como período, local ou categoria. O grão define o que cada linha de fato representa, por exemplo uma transação ou um total diário por categoria. Definir o grão antes das medidas evita somar valores incompatíveis. Dimensões conformadas permitem comparar fatos em contextos comuns, desde que atributos e períodos sejam tratados de modo consistente."
+    }
+  ],
+  "questions": [
+    {
+      "id": "q1",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Modelo relacional",
+      "statement": "No modelo relacional, o que uma linha de uma tabela representa?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Uma ocorrência registrada com valores para seus atributos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Uma regra de autorização aplicada ao banco inteiro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Uma consulta que ainda não foi executada pelo SGBD.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Um tipo de índice físico obrigatório para todas as tabelas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Uma conexão persistente entre duas aplicações diferentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A linha, ou tupla, reúne valores dos atributos para uma ocorrência da relação. Regras, consultas, índices e conexões são elementos distintos da estrutura lógica dos dados.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q2",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Modelo relacional",
+      "statement": "Qual é a função principal de uma chave primária?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Ordenar fisicamente as linhas segundo a data de inclusão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Identificar unicamente cada linha da tabela escolhida.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Substituir todas as regras de validação da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Armazenar cópia integral dos dados referenciados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Impedir que qualquer consulta use junções entre tabelas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A chave primária distingue cada linha e oferece referência estável para outras relações. Ela não define necessariamente a ordem física, não substitui validações e não impede operações de junção.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q3",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Modelo relacional",
+      "statement": "Uma chave estrangeira costuma ser usada para qual finalidade?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Codificar senhas em formato reversível para facilitar consultas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Definir a sequência em que as linhas serão exibidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Expressar referência e integridade entre relações.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "text": "Eliminar valores nulos de qualquer coluna do esquema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Armazenar o resultado de uma consulta analítica periódica.",
+          "correct": false
+        }
+      ],
+      "explanation": "A chave estrangeira relaciona registros e permite ao SGBD verificar a integridade referencial conforme as regras definidas. Ela não ordena dados, não elimina NULL automaticamente nem é um mecanismo de proteção de senha.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q4",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Modelagem e normalização",
+      "statement": "Uma relação associativa é especialmente útil quando o domínio apresenta qual estrutura?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Um atributo simples que possui apenas um valor por registro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Uma tabela sem nenhuma chave candidata identificável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Uma consulta que ordena resultados por duas colunas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Um vínculo muitos-para-muitos entre duas entidades.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Uma restrição de domínio aplicada a uma coluna numérica.",
+          "correct": false
+        }
+      ],
+      "explanation": "A relação associativa representa os vínculos entre ocorrências de duas entidades quando cada lado pode se relacionar com muitas ocorrências do outro. Ela também pode armazenar atributos próprios desse vínculo.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q5",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "SQL e consultas",
+      "statement": "Em uma consulta SQL, qual cláusula filtra linhas antes do agrupamento?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "ORDER BY, que classifica o resultado depois da projeção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "HAVING, que avalia condições sobre grupos já formados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "GROUP BY, que reúne registros com valores relacionados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "DISTINCT, que remove duplicatas do conjunto projetado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "WHERE, aplicada às linhas que participam da consulta.",
+          "correct": true
+        }
+      ],
+      "explanation": "WHERE seleciona as linhas que serão consideradas nas etapas seguintes. HAVING filtra grupos após o agrupamento, enquanto ORDER BY organiza o resultado final segundo as expressões informadas.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q6",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "SQL e consultas",
+      "statement": "Qual expressão testa corretamente se a coluna observacao não possui valor conhecido?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "observacao = NULL, pois igualdade reconhece ausência sem condição adicional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "observacao IS NULL, usando o predicado próprio para esse teste.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "observacao LIKE NULL, porque NULL funciona como padrão textual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "observacao IN (NULL), que equivale em todos os casos a IS NULL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "observacao <> NULL, que retorna verdadeiro quando o campo está ausente.",
+          "correct": false
+        }
+      ],
+      "explanation": "NULL representa ausência ou desconhecimento e não deve ser testado com igualdade comum. IS NULL expressa explicitamente a condição; comparações ordinárias com NULL produzem resultado desconhecido na lógica SQL.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q7",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "SQL e consultas",
+      "statement": "Uma consulta faz LEFT JOIN entre cliente e pedido e não encontra pedido para alguns clientes. O que ocorre com essas linhas?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Os clientes sem pedido são descartados antes do retorno, como em uma junção interna.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Cada cliente sem pedido recebe uma linha artificial com valores iguais a zero.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Os clientes são preservados e as colunas de pedido ficam nulas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "A consulta falha porque toda junção exige correspondência nas duas relações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "O SGBD converte automaticamente a junção em relação associativa permanente.",
+          "correct": false
+        }
+      ],
+      "explanation": "LEFT JOIN preserva todas as linhas da origem esquerda. Quando não há correspondência na direita, as colunas provenientes dessa relação recebem NULL no resultado, sem criar registros persistentes.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q8",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "SQL e consultas",
+      "statement": "Qual cláusula costuma restringir grupos após a aplicação de GROUP BY?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "HAVING, que pode avaliar expressões agregadas sobre cada grupo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "WHERE, que sempre atua somente depois das funções agregadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "FROM, que elimina grupos com contagem inferior ao limite.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "JOIN, que ordena grupos pela chave primária de origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "INSERT, que seleciona grupos sem modificar nenhuma tabela.",
+          "correct": false
+        }
+      ],
+      "explanation": "HAVING filtra grupos formados por GROUP BY, frequentemente com condições agregadas como COUNT ou SUM. WHERE filtra linhas de entrada antes da formação dos grupos.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q9",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "SQL e consultas",
+      "statement": "Uma junção muitos-para-muitos aumenta o número de linhas retornadas. Qual é a interpretação mais adequada?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "O SGBD necessariamente duplicou dados físicos nas tabelas envolvidas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "A junção pode formar uma linha para cada par que satisfaz sua condição.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Uma chave primária deixou de ser única durante a execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Toda junção deve retornar quantidade igual à tabela mais extensa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "O resultado indica corrupção e deve ser apagado antes de nova consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma junção combina pares que satisfazem a condição. Em vínculos muitos-para-muitos, uma linha de cada lado pode participar de múltiplos pares, ampliando a cardinalidade sem duplicar as tabelas armazenadas.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q10",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "SQL e consultas",
+      "statement": "O que expressa a atomicidade de uma transação?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "A consulta deve sempre acessar apenas uma tabela por vez.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "A operação é executada em ordem alfabética de seus comandos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Os dados são mantidos somente em memória temporária.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "As operações do conjunto são tratadas como tudo ou nada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Toda transação impede acesso concorrente até o sistema reiniciar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Atomicidade garante que o conjunto transacional seja confirmado integralmente ou desfeito conforme o mecanismo do SGBD. Ela não impõe uma tabela única nem significa exclusão total de concorrência.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q11",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "SQL e consultas",
+      "statement": "Depois de confirmar uma transação com COMMIT, qual propriedade ACID está mais diretamente relacionada à preservação do resultado após falha?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Isolamento, pois separa todos os usuários em bancos independentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Consistência, pois dispensa qualquer regra de integridade definida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Durabilidade, conforme as garantias de recuperação do sistema.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Atomicidade, pois transforma a confirmação em operação reversível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Normalização, que salva cópias repetidas dos dados em memória.",
+          "correct": false
+        }
+      ],
+      "explanation": "Durabilidade trata a permanência de mudanças confirmadas diante de falhas, segundo as garantias do SGBD. Atomicidade refere-se ao tudo ou nada e isolamento à coordenação das transações concorrentes.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q12",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Modelagem e normalização",
+      "statement": "Em uma tabela com chave composta (pedido_id, produto_id), cada descrição de produto depende apenas de produto_id. Qual risco a normalização busca evitar?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "A criação de consultas que retornem colunas em outra ordem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "A ocorrência de dependência parcial em atributo não chave.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "A impossibilidade de relacionar pedidos com seus produtos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "O uso de valores numéricos em qualquer atributo descritivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "A alteração do tipo físico de armazenamento pelo mecanismo SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "A descrição depende apenas de parte da chave composta, não da chave inteira. Esse padrão caracteriza dependência parcial e pode ser tratado separando a descrição do produto em relação identificada por produto_id.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q13",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Plataformas analíticas",
+      "statement": "Qual característica é típica de um data warehouse analítico?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Integrar dados históricos para consultas e análises.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Eliminar metadados para que cada pessoa defina livremente as colunas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Impedir agregações sobre períodos e dimensões diferentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Substituir qualquer sistema transacional sem mudança de finalidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Armazenar exclusivamente imagens sem estrutura de consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "O warehouse integra e organiza dados, frequentemente históricos, para análise e comparação. Ele complementa sistemas operacionais e depende de regras de atualização, qualidade e governança.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q14",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Plataformas analíticas",
+      "statement": "Em um processo ETL, qual sequência corresponde às etapas usuais?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Transformar, excluir e testar, sem consultar as fontes originais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Transferir, enumerar e bloquear todas as consultas concorrentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Extrair os dados, transformá-los e carregá-los no destino.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Executar, truncar e limitar o acesso, independentemente do destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Estruturar, traduzir e compilar o código da aplicação consumidora.",
+          "correct": false
+        }
+      ],
+      "explanation": "ETL significa extração, transformação e carga. As etapas obtêm dados das fontes, aplicam validações ou padronizações necessárias e inserem o resultado em um destino analítico, com registros para rastreabilidade.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q15",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Plataformas analíticas",
+      "statement": "Qual descrição diferencia melhor um data lake de um data warehouse?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "O lake é sempre menor e não pode armazenar dados históricos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "O warehouse não admite integração entre fontes diferentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "O lake armazena somente tabelas relacionais previamente normalizadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "O warehouse dispensa catálogo porque os dados já são analíticos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "O lake pode manter formatos variados com governança necessária.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um lake pode receber dados em formatos variados e próximos da origem; essa flexibilidade exige catálogo, metadados, acesso e qualidade. Warehouses costumam organizar dados para análise estruturada e histórica.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q16",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "SQL e consultas",
+      "statement": "Qual comando é usado para acrescentar uma nova linha a uma tabela?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "ALTER TABLE, que modifica a definição da estrutura existente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "INSERT, que inclui valores de uma nova ocorrência.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "GRANT, que concede uma permissão de acesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "ROLLBACK, que desfaz uma transação não confirmada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "DROP TABLE, que remove uma definição de tabela inteira.",
+          "correct": false
+        }
+      ],
+      "explanation": "INSERT insere registros, respeitando tipos e restrições da tabela. ALTER TABLE atua na definição, GRANT em permissões, e ROLLBACK no controle de uma transação.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q17",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "SQL e consultas",
+      "statement": "Uma consulta agrega vendas depois de uma junção que relaciona cada venda a várias etiquetas. O total ficou maior que o esperado. Qual verificação é prioritária?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Confirmar se a ordenação alfabética da consulta foi removida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Trocar automaticamente SUM por COUNT sem rever as relações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Excluir a chave primária da tabela antes de agrupar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Examinar a granularidade e a multiplicação de linhas na junção.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Substituir todas as chaves estrangeiras por valores nulos temporários.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se uma venda encontra várias etiquetas, a junção pode replicar seu valor em várias linhas do resultado. Verificar cardinalidade e grão evita somas infladas; uma correção exige preservar a semântica da medida.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q18",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Modelo relacional",
+      "statement": "Uma restrição CHECK serve principalmente para qual propósito?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Validar se os valores atendem a uma condição definida no esquema.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Armazenar uma cópia de segurança em outro equipamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Converter toda chave estrangeira em chave primária automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Garantir que cada linha apareça em ordem cronológica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Permitir consulta sem autenticação em qualquer aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "CHECK declara uma condição que valores inseridos ou atualizados devem satisfazer segundo as regras do sistema. Ela pode representar limites de domínio, mas não é mecanismo de cópia, ordenação ou autenticação.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q19",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "SQL e consultas",
+      "statement": "Qual efeito pode decorrer de usar DISTINCT em uma projeção SQL?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "A consulta altera permanentemente a chave primária das linhas armazenadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "O SGBD converte valores desconhecidos em zeros no armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Linhas duplicadas na saída projetada são removidas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "As tabelas de origem são reordenadas e salvas em nova sequência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "A consulta deixa de aceitar qualquer condição WHERE.",
+          "correct": false
+        }
+      ],
+      "explanation": "DISTINCT elimina duplicatas do resultado de uma consulta considerando as colunas projetadas. Não modifica os registros de origem nem estabelece ordem, que deve ser solicitada com ORDER BY.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q20",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Modelagem e normalização",
+      "statement": "Por que uma dependência transitiva pode ser indesejável em uma relação?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Porque impede qualquer comparação entre valores numéricos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Porque obriga o SGBD a substituir todas as consultas por views.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Porque torna inválidas todas as chaves primárias simples.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Porque elimina a necessidade de conhecer as dependências funcionais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Porque pode manter atributos não chave dependentes de outros não chave.",
+          "correct": true
+        }
+      ],
+      "explanation": "Na terceira forma normal, a análise busca evitar dependência transitiva de atributos não chave em relação à chave. Ela pode gerar redundância e anomalias, e sua avaliação depende das dependências semânticas do domínio.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q21",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Modelo relacional",
+      "statement": "A ordem em que as linhas aparecem fisicamente em uma tabela define a ordem de uma consulta sem ORDER BY.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Sem ORDER BY, a consulta não estabelece uma ordem contratual para a saída. O SGBD pode retornar linhas em sequência distinta conforme plano, índice, atualização ou ambiente de execução.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q22",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Modelo relacional",
+      "statement": "Uma chave estrangeira pode referenciar uma chave candidata de outra relação, conforme o esquema definido.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A referência preserva integridade entre relações e aponta para valores identificadores admitidos no esquema. O desenho pode usar uma chave primária ou outra chave candidata que tenha restrição de unicidade.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q23",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Modelo relacional",
+      "statement": "A restrição NOT NULL, sozinha, garante que os valores de uma coluna sejam únicos.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "NOT NULL exige presença de valor, mas permite que várias linhas tenham o mesmo conteúdo. Unicidade requer restrição UNIQUE ou uma chave que imponha essa propriedade.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q24",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Modelagem e normalização",
+      "statement": "A normalização deve ser decidida apenas contando quantas colunas existem em cada tabela, sem considerar dependências e significado.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A análise de normalização depende de chaves candidatas, dependências funcionais e regras do domínio. A quantidade de colunas, isoladamente, não indica redundância, anomalias ou qualidade da decomposição.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q25",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Modelagem e normalização",
+      "statement": "Uma tabela associativa pode guardar atributos próprios do relacionamento muitos-para-muitos que representa.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Além das chaves estrangeiras participantes, a relação associativa pode registrar atributos do vínculo, como data ou papel, quando esses dados descrevem a associação e não uma entidade isolada.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q26",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "SQL e consultas",
+      "statement": "A cláusula WHERE filtra linhas antes de a consulta formar grupos com GROUP BY.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "WHERE restringe as linhas de entrada. Depois, GROUP BY organiza as linhas remanescentes em grupos, e HAVING pode filtrar esses grupos conforme condições agregadas.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q27",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "SQL e consultas",
+      "statement": "COUNT(*) e COUNT(coluna) necessariamente incluem os mesmos registros quando há valores nulos na coluna.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "COUNT(*) conta linhas, enquanto COUNT(coluna) conta valores não nulos naquela expressão. Assim, a presença de NULL pode fazer os totais divergirem.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q28",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "SQL e consultas",
+      "statement": "Em uma junção externa à esquerda, uma condição no WHERE sobre coluna da tabela direita pode remover linhas sem correspondência que a junção havia preservado.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "As linhas sem correspondência recebem NULL nas colunas direitas. Um predicado WHERE que exija valor nessa coluna pode resultar em falso ou desconhecido e removê-las; a posição da condição altera a semântica.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q29",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "SQL e consultas",
+      "statement": "DISTINCT altera os registros armazenados na tabela para impedir duplicidade futura.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "DISTINCT atua no conjunto projetado pela consulta e não muda a tabela. Para impedir duplicidade de dados persistidos, o esquema deve aplicar restrições apropriadas, como UNIQUE.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q30",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "SQL e consultas",
+      "statement": "Comparar uma coluna com NULL usando igualdade comum produz verdadeiro sempre que o campo está sem valor conhecido.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Comparações ordinárias envolvendo NULL produzem resultado desconhecido, não verdadeiro. IS NULL é o predicado apropriado para verificar ausência ou desconhecimento de valor.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q31",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "SQL e consultas",
+      "statement": "ROLLBACK pode desfazer alterações de uma transação que ainda não foi confirmada.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "ROLLBACK solicita o desfazimento das mudanças ainda não confirmadas no escopo transacional, observadas as regras do sistema e os limites da transação ativa.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q32",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "SQL e consultas",
+      "statement": "Isolamento descreve garantias de coordenação entre transações concorrentes, conforme o nível configurado.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Isolamento regula efeitos de operações simultâneas e possíveis anomalias observáveis. Os níveis variam em garantias e concorrência, portanto a propriedade não significa que toda transação rode sem contato com as demais.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q33",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "SQL e consultas",
+      "statement": "A propriedade de consistência do modelo ACID dispensa a definição de restrições e regras válidas para os dados.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Consistência significa que uma transação válida leva o banco de um estado que satisfaz as regras a outro estado que também as satisfaz. O SGBD não inventa a semântica nem dispensa a definição dessas regras.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q34",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "SQL e consultas",
+      "statement": "Atomicidade e durabilidade são nomes diferentes para a mesma garantia transacional.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Atomicidade expressa o tratamento integral ou o desfazimento do conjunto. Durabilidade trata a preservação de mudanças confirmadas diante de falhas, segundo as garantias do mecanismo.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q35",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Plataformas analíticas",
+      "statement": "ETL envolve extração de dados, transformação e carregamento em um destino.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A sigla descreve as etapas de extrair, transformar e carregar. A transformação pode padronizar ou validar dados, e o fluxo deve registrar falhas e permitir rastrear a origem.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q36",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Plataformas analíticas",
+      "statement": "A existência de um data lake elimina a necessidade de catálogo, metadados e controle de acesso.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A flexibilidade para armazenar formatos diversos aumenta a importância de catálogo, metadados, governança e autorização. Sem esses cuidados, os dados ficam difíceis de localizar, interpretar e proteger.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q37",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Plataformas analíticas",
+      "statement": "Em uma tabela de fatos, definir o grão ajuda a determinar o que cada linha representa e quais agregações são válidas.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O grão especifica a unidade observacional de cada linha, como uma transação ou um total por dia e categoria. Medidas e agregações precisam respeitar essa unidade para não combinar níveis incompatíveis.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q38",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Plataformas analíticas",
+      "statement": "ELT e ETL diferem, em linhas gerais, pela posição da transformação em relação à carga no destino.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "No ETL, transforma-se antes de carregar; no ELT, carrega-se e executa-se parte da transformação no destino. A escolha depende da arquitetura e não garante, sozinha, qualidade dos dados.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q39",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Plataformas analíticas",
+      "statement": "Um warehouse analítico deve conter somente dados atuais e apagar o histórico após cada atualização de origem.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Warehouses frequentemente preservam histórico para análises temporais, embora políticas de retenção dependam de finalidade e governança. Atualização não implica apagar automaticamente períodos anteriores.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q40",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Plataformas analíticas",
+      "statement": "O modelo dimensional pode separar fatos mensuráveis de dimensões descritivas usadas para análise.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Tabelas de fatos guardam medidas no grão definido, e dimensões fornecem contextos de descrição, como tempo ou categoria. A estrutura facilita consultas analíticas quando reflete as perguntas de negócio.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    }
+  ],
+  "flashcards": [
+    {
+      "front": "O que caracteriza uma chave primária?",
+      "back": "Identifica unicamente cada linha e não admite NULL no modelo usual."
+    },
+    {
+      "front": "Para que serve uma chave estrangeira?",
+      "back": "Representa referência entre relações e ajuda a preservar integridade referencial."
+    },
+    {
+      "front": "O que faz WHERE?",
+      "back": "Filtra linhas antes do agrupamento."
+    },
+    {
+      "front": "O que faz HAVING?",
+      "back": "Filtra grupos, frequentemente por condições agregadas."
+    },
+    {
+      "front": "Como testar NULL em SQL?",
+      "back": "Use IS NULL ou IS NOT NULL; igualdade comum não é o teste apropriado."
+    },
+    {
+      "front": "O que preserva LEFT JOIN?",
+      "back": "Todas as linhas da fonte à esquerda; sem correspondência, colunas da direita ficam NULL."
+    },
+    {
+      "front": "O que significa atomicidade?",
+      "back": "Uma transação é tratada integralmente ou desfeita."
+    },
+    {
+      "front": "O que significa durabilidade?",
+      "back": "Mudanças confirmadas são preservadas segundo as garantias do SGBD."
+    },
+    {
+      "front": "Qual é a sequência ETL?",
+      "back": "Extrair, transformar e carregar dados."
+    },
+    {
+      "front": "O que é o grão de uma tabela de fatos?",
+      "back": "A unidade de observação representada por cada linha."
+    },
+    {
+      "front": "O que é um data warehouse?",
+      "back": "Ambiente integrado e histórico orientado a consultas analíticas."
+    },
+    {
+      "front": "O que distingue um data lake?",
+      "back": "Pode armazenar dados em formatos diversos, exigindo catálogo e governança."
+    }
+  ],
+  "tips": [
+    "Antes de somar após uma junção, confira quantas linhas cada registro pode gerar.",
+    "Em consultas sem ORDER BY, não presuma a sequência de apresentação.",
+    "Defina o grão dos fatos antes de escolher medidas e agregações."
+  ],
+  "traps": [
+    "Confundir chave estrangeira com cópia do registro referenciado.",
+    "Usar igualdade comum para comparar uma coluna com NULL.",
+    "Tratar a flexibilidade do data lake como dispensa de governança."
+  ],
+  "activeRecall": [
+    "Explique a diferença entre chave primária e chave estrangeira.",
+    "Compare WHERE e HAVING em uma consulta com agrupamento.",
+    "Por que uma junção pode inflar a soma de uma medida?",
+    "Diferencie atomicidade e durabilidade em ACID.",
+    "Compare data warehouse, data lake, ETL e ELT."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Chaves e integridade",
+      "summary": "Diferenciar identificação única, referência, restrições e domínios de atributos."
+    },
+    {
+      "key": "e2",
+      "title": "Dependências e normalização",
+      "summary": "Relacionar anomalias e decomposição às chaves e dependências do domínio."
+    },
+    {
+      "key": "e3",
+      "title": "Consulta SQL",
+      "summary": "Ordenar filtros, junções, NULL, agregações e cardinalidade do resultado."
+    },
+    {
+      "key": "e4",
+      "title": "Transações ACID",
+      "summary": "Separar atomicidade, consistência, isolamento e durabilidade em cenários."
+    },
+    {
+      "key": "e5",
+      "title": "Dados analíticos",
+      "summary": "Distinguir finalidade, grão, integração, formatos e governança dos repositórios."
+    },
+    {
+      "key": "e6",
+      "title": "Qualidade de dados",
+      "summary": "Verificar origem, consistência, completude e significado antes da análise."
+    }
+  ],
+  "sources": [
+    {
+      "title": "SQL Language",
+      "kind": "OFICIAL",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "SQL Language e comandos de consulta",
+      "url": "https://www.postgresql.org/docs/current/sql.html",
+      "sourceUrl": "https://www.postgresql.org/docs/current/sql.html",
+      "accessedAt": "2026-10-06"
+    },
+    {
+      "title": "Data Definition",
+      "kind": "OFICIAL",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Definição de dados e restrições",
+      "url": "https://www.postgresql.org/docs/current/ddl.html",
+      "sourceUrl": "https://www.postgresql.org/docs/current/ddl.html",
+      "accessedAt": "2026-10-06"
+    },
+    {
+      "title": "Data Manipulation",
+      "kind": "OFICIAL",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Manipulação de dados",
+      "url": "https://www.postgresql.org/docs/current/dml.html",
+      "sourceUrl": "https://www.postgresql.org/docs/current/dml.html",
+      "accessedAt": "2026-10-06"
+    }
+  ]
+}
