@@ -1,6 +1,7 @@
 package br.com.estudario.web.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import org.jetbrains.compose.web.dom.Blockquote
 import org.jetbrains.compose.web.dom.Code
 import org.jetbrains.compose.web.dom.Div
@@ -28,9 +29,9 @@ import org.jetbrains.compose.web.dom.Ul
  * então texto vindo do material não consegue injetar nada na página.
  */
 @Composable
-fun Markdown(source: String) {
-    Div({ classes("reader") }) {
-        parseBlocks(source).forEach { block -> RenderBlock(block) }
+fun Markdown(source: String, compact: Boolean = false) {
+    Div({ classes(*listOfNotNull("reader", if (compact) "compact" else null).toTypedArray()) }) {
+        parseBlocks(MathText.normalize(source)).forEach { block -> RenderBlock(block) }
     }
 }
 
@@ -41,6 +42,7 @@ private sealed interface Block {
     data class Quote(val text: String) : Block
     data class TableBlock(val header: List<String>, val rows: List<List<String>>) : Block
     data object Rule : Block
+    data class Math(val tex: String) : Block
 }
 
 private fun parseBlocks(source: String): List<Block> {
@@ -54,6 +56,15 @@ private fun parseBlocks(source: String): List<Block> {
         val trimmed = line.trim()
         when {
             trimmed.isEmpty() -> { flush(); i++ }
+            trimmed == "\$\$" -> {
+                flush()
+                val tex = StringBuilder()
+                i++
+                while (i < lines.size && lines[i].trim() != "\$\$") { tex.append(lines[i]).append('\n'); i++ }
+                i++
+                blocks += Block.Math(tex.toString().trim())
+            }
+            MathText.lone.matches(trimmed) -> { flush(); blocks += Block.Math(MathText.lone.find(trimmed)!!.groupValues[1].trim()); i++ }
             trimmed.startsWith("#") -> {
                 flush()
                 val level = trimmed.takeWhile { it == '#' }.length.coerceIn(1, 4)
@@ -115,6 +126,7 @@ private fun RenderBlock(block: Block) {
             Tbody { block.rows.forEach { row -> Tr { row.forEach { Td { Inline(it) } } } } }
         } }
         Block.Rule -> Hr()
+        is Block.Math -> MathTex(block.tex, display = true)
     }
 }
 
@@ -124,12 +136,13 @@ private fun RenderBlock(block: Block) {
  */
 @Composable
 fun Inline(text: String) {
-    val pattern = Regex("(!?\\[[^\\]]*\\]\\([^)\\s]+\\)|<?https?://[^\\s<>)]+>?|\\*\\*[^*]+\\*\\*|__[^_]+__|`[^`]+`|\\*[^*\\s][^*]*\\*|(?<![\\w/])_[^_\\s][^_]*_(?!\\w))")
+    val pattern = Regex("(\\\$\\\$[^\\n]+?\\\$\\\$|!?\\[[^\\]]*\\]\\([^)\\s]+\\)|<?https?://[^\\s<>)]+>?|\\*\\*[^*]+\\*\\*|__[^_]+__|`[^`]+`|\\*[^*\\s][^*]*\\*|(?<![\\w/])_[^_\\s][^_]*_(?!\\w))")
     var last = 0
     pattern.findAll(text).forEach { match ->
         if (match.range.first > last) Text(text.substring(last, match.range.first))
         val token = match.value
         when {
+            token.startsWith("\$\$") -> MathTex(token.substring(2, token.length - 2).trim(), display = false)
             token.startsWith("![") -> {
                 val url = token.substringAfter("](").dropLast(1)
                 if (url.startsWith("https://")) org.jetbrains.compose.web.dom.Img(src = url, alt = token.substring(2).substringBefore("]"), attrs = { classes("md-img") })
@@ -160,4 +173,91 @@ private fun hostOf(url: String): String = url.substringAfter("://").substringBef
 private fun LinkOut(url: String, label: String) {
     if (!url.startsWith("http://") && !url.startsWith("https://")) { Text(label); return }
     org.jetbrains.compose.web.dom.A(href = url, { classes("md-link"); attr("target", "_blank"); attr("rel", "noopener noreferrer"); attr("title", url) }) { Text(label) }
+}
+
+/**
+ * Fórmulas (StudyMarkdownNormalizer do app): `\( \)` e `\[ \]` viram `$$`, e valor em reais
+ * escrito como fórmula volta a ser texto. `$` sozinho fica como está, porque também é cifrão.
+ */
+object MathText {
+    private const val D = "$"
+    private const val BS = "\\"
+    private val displayBrackets = Regex("${BS}${BS}${BS}[([${BS}s${BS}S]+?)${BS}${BS}${BS}]")
+    private val inlineParens = Regex("${BS}${BS}${BS}(([${BS}s${BS}S]+?)${BS}${BS}${BS})")
+    private val moneyFormula = Regex("${BS}$D${BS}$D${BS}s*(?:${BS}${BS}text${BS}{)?R${BS}${BS}${BS}$D${BS}}?${BS}s*(?:${BS}${BS}[,;! ])?${BS}s*([${BS}d.,]+)${BS}s*${BS}$D${BS}$D")
+
+    /** Fórmula sozinha numa linha: vira fórmula de bloco, centralizada, como num livro. */
+    val lone = Regex("^${BS}$D${BS}$D([^$D]+)${BS}$D${BS}$D$")
+
+    fun normalize(markdown: String): String = markdown
+        .replace("\r\n", "\n")
+        .replace(displayBrackets) { "\n$D$D\n${it.groupValues[1].trim()}\n$D$D\n" }
+        .replace(inlineParens) { "$D$D${it.groupValues[1].trim()}$D$D" }
+        .replace(moneyFormula) { "R$D ${it.groupValues[1]}" }
+
+    private val symbols = listOf(
+        "cdot" to "·", "times" to "×", "div" to "÷", "leq" to "≤", "le" to "≤", "geq" to "≥", "ge" to "≥",
+        "neq" to "≠", "ne" to "≠", "approx" to "≈", "infty" to "∞", "pm" to "±", "Delta" to "Δ", "pi" to "π",
+        "to" to "→", "Rightarrow" to "⇒", "%" to "%", "," to " ", ";" to " ", "lfloor" to "⌊", "rfloor" to "⌋",
+    ).map { (name, symbol) -> BS + name to symbol }.sortedByDescending { it.first.length }
+
+    // Em MathML o KaTeX desenha "ç" como "c" com uma cedilha solta embaixo e "í" como "ı" com o acento
+    // em cima ("endereço físico" vira "endere c ¸ o f ı ˊ sico"). Depois de desenhar, cada letra com
+    // acento solto volta a ser a letra acentuada de verdade.
+    private val combining = mapOf(
+        "´" to "́", "ˊ" to "́", "`" to "̀", "ˋ" to "̀", "^" to "̂", "ˆ" to "̂",
+        "~" to "̃", "˜" to "̃", "¨" to "̈", "¸" to "̧",
+    )
+
+    fun fixAccents(root: dynamic) {
+        val nodes = root.querySelectorAll("mover, munder")
+        val count = nodes.length as Int
+        for (i in count - 1 downTo 0) {
+            val el = nodes[i]
+            if ((el.children.length as Int) != 2) continue
+            val baseEl = el.children[0]
+            val base = (baseEl.textContent as String?) ?: continue
+            val mark = combining[((el.children[1].textContent as String?) ?: "").trim()] ?: continue
+            if (base.length != 1) continue
+            val letter = when (base) { "ı" -> "i"; "ȷ" -> "j"; else -> base }
+            val composed = (letter + mark).asDynamic().normalize("NFC") as String
+            val replacement = kotlinx.browser.document.createElementNS("http://www.w3.org/1998/Math/MathML", baseEl.tagName as String)
+            val variant = baseEl.getAttribute("mathvariant") as String?
+            if (variant != null) replacement.setAttribute("mathvariant", variant)
+            replacement.textContent = composed
+            el.replaceWith(replacement)
+        }
+    }
+
+    /** A fórmula como texto simples (se o desenhista de fórmulas não carregar): \frac{a}{b} vira (a)/(b). */
+    fun plain(tex: String): String {
+        var out = tex.replace(Regex("${BS}${BS}frac${BS}{([^{}]*)${BS}}${BS}{([^{}]*)${BS}}"), "($1)/($2)")
+            .replace(Regex("${BS}${BS}sqrt${BS}{([^{}]*)${BS}}"), "√($1)")
+            .replace(Regex("${BS}${BS}(?:text|mathrm|mathbf|operatorname)${BS}{([^{}]*)${BS}}"), "$1")
+        symbols.forEach { (latex, symbol) -> out = out.replace(latex, symbol) }
+        return out.replace(Regex("${BS}${BS}left|${BS}${BS}right"), "").replace(Regex("${BS}${BS}[a-zA-Z]+"), "")
+            .replace("{", "").replace("}", "").replace(Regex("${BS}s+"), " ").trim()
+    }
+}
+
+/**
+ * Uma fórmula, desenhada pelo KaTeX (katex.min.js) em MathML, que o navegador mostra com as próprias
+ * fontes. O KaTeX recebe só o texto da fórmula e não executa nada dela; sem ele, fica o texto simples.
+ */
+@Composable
+fun MathTex(tex: String, display: Boolean) {
+    key(tex, display) {
+        org.jetbrains.compose.web.dom.Span({
+            classes(if (display) "math-block" else "math-inline")
+            ref { element ->
+                val katex = kotlinx.browser.window.asDynamic().katex
+                val ok = katex != null && runCatching {
+                    katex.render(tex, element, kotlin.js.json("displayMode" to display, "output" to "mathml", "throwOnError" to false, "strict" to "ignore", "trust" to false))
+                    MathText.fixAccents(element)
+                }.isSuccess
+                if (!ok) element.textContent = MathText.plain(tex)
+                onDispose { }
+            }
+        })
+    }
 }

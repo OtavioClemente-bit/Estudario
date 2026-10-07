@@ -50,7 +50,7 @@ fun studyBlocks(markdown: String): List<String> {
         current.clear()
     }
     // As fontes ficam só na aba Fontes, não no meio da teoria (como no app).
-    br.com.estudario.text.SourcesSection.strip(markdown).lines().forEach { line ->
+    MathText.normalize(br.com.estudario.text.SourcesSection.strip(markdown)).lines().forEach { line ->
         val trimmed = line.trim()
         if (trimmed.startsWith("```")) inFence = !inFence
         else if (!inFence && trimmed == "$$") inMath = !inMath
@@ -410,7 +410,21 @@ private fun TheoryReader(theory: Theory) {
     var readUpTo by remember(theory.id) { mutableStateOf(theory.lastReadBlock) }
     val shown = maxOf(readUpTo, theory.lastReadBlock)
     val percent = if (shown < 0) 0 else ((shown + 1) * 100 / blocks.size.coerceAtLeast(1)).coerceIn(0, 100)
-    val marks = Store.data.theoryMarks.count { it.theoryId == theory.id }
+    val theoryMarks = Store.data.theoryMarks.filter { it.theoryId == theory.id }
+    val marks = theoryMarks.size
+    // Blocos com grifo ganham a marca amarela na margem, como o grifo no app.
+    val markedBlocks = remember(blocks, theoryMarks) { theoryMarks.mapTo(hashSetOf()) { TheoryJump.blockOf(blocks, it.quote, it.blockIndex) } }
+    var flashBlock by remember(theory.id) { mutableStateOf(-1) }
+    LaunchedEffect(theory.id, blocks.size) {
+        val target = TheoryJump.pending?.takeIf { it.theoryId == theory.id } ?: return@LaunchedEffect
+        TheoryJump.pending = null
+        val index = TheoryJump.blockOf(blocks, target.quote, target.blockIndex)
+        delay(250)
+        scrollToBlock(theory.id, index)
+        flashBlock = index
+        delay(2600)
+        flashBlock = -1
+    }
 
     // Conta como lido o bloco que já passou pela tela (o leitor do app grava o mesmo número).
     DisposableEffect(theory.id, blocks.size) {
@@ -459,7 +473,7 @@ private fun TheoryReader(theory: Theory) {
             val trap = calloutTrap(block)
             Div({
                 id("tb-${theory.id}-$i")
-                classes(*listOfNotNull("tblock", trap?.let { if (it) "callout-trap" else "callout-tip" }).toTypedArray())
+                classes(*listOfNotNull("tblock", trap?.let { if (it) "callout-trap" else "callout-tip" }, if (i in markedBlocks) "marked" else null, if (i == flashBlock) "flash-mark" else null).toTypedArray())
             }) {
                 if (trap != null) {
                     Div({ classes("callout-head") }) { Icon(if (trap) "warning" else "lightbulb", filled = true); Text(if (trap) "Atenção" else "Dica") }
@@ -648,5 +662,28 @@ private fun TipsTab(tips: List<br.com.estudario.web.data.Snippet>, onGenerate: (
                 }
             }
         }
+    }
+}
+
+/**
+ * Pulo do Caderno para a teoria: o grifo clicado abre o tópico já na aba Teoria, rolado até o
+ * trecho e com ele piscando em amarelo. O trecho é achado pelo texto (o bloco guardado é o reserva).
+ */
+object TheoryJump {
+    data class Target(val topicId: Long, val theoryId: Long, val blockIndex: Int, val quote: String)
+    var pending: Target? = null
+
+    fun go(topicId: Long, theoryId: Long, blockIndex: Int, quote: String) {
+        pending = Target(topicId, theoryId, blockIndex, quote)
+        Router.go(Route.Topic(topicId))
+    }
+
+    /** Texto sem marcação nem espaços repetidos, para comparar grifo com bloco. */
+    fun plain(text: String): String = text.replace(Regex("""[*_`>#$\\{}|]"""), " ").replace(Regex("""\s+"""), " ").trim().lowercase()
+
+    fun blockOf(blocks: List<String>, quote: String, fallback: Int): Int {
+        val needle = plain(quote).take(60)
+        if (needle.length >= 8) blocks.indexOfFirst { plain(it).contains(needle) }.takeIf { it >= 0 }?.let { return it }
+        return fallback.coerceIn(0, (blocks.size - 1).coerceAtLeast(0))
     }
 }

@@ -61,9 +61,20 @@ fun NotebookScreen() {
     when (tab) {
         "grifos" -> if (marks.isEmpty()) Empty("format_ink_highlighter", "Nenhum grifo ainda", "Na teoria de um tópico, selecione um trecho e grife para guardar aqui.")
         else ByTopic(marks.groupBy { theories[it.theoryId]?.topicId }) { mark ->
-            Div({ classes("saved-item") }) {
-                P({ attr("style", "border-left:4px solid #f2b33d;padding-left:12px") }) { Text(mark.quote) }
-                if (mark.note.isNotBlank()) P({ classes("small", "muted") }) { Text(mark.note) }
+            val topicId = theories[mark.theoryId]?.topicId
+            Div({ classes("saved-item", "mark-item") }) {
+                // Clicar leva para o trecho na teoria, já destacado (como no app).
+                Div({
+                    classes("mark-body", "grow")
+                    if (topicId != null) {
+                        attr("role", "link"); attr("tabindex", "0"); attr("title", "Abrir na teoria")
+                        onClick { TheoryJump.go(topicId, mark.theoryId, mark.blockIndex, mark.quote) }
+                    }
+                }) {
+                    Markdown(mark.quote, compact = true)
+                    if (mark.note.isNotBlank()) P({ classes("small", "muted", "mark-note") }) { Icon("edit_note"); Text(mark.note) }
+                    if (topicId != null) Span({ classes("mark-open") }) { Text("Abrir na teoria") }
+                }
                 IconButton("delete", "Apagar grifo") { Store.update { Actions.deleteTheoryMark(it, mark.id) } }
             }
         }
@@ -71,7 +82,7 @@ fun NotebookScreen() {
             Btn("Treinar as ${favQuestions.size} questões salvas", { Router.go(Route.Quiz("m-favorites~n-200")) }, style = "primary", icon = "play_arrow")
             ByTopic(favQuestions.groupBy { it.topicId }) { q ->
                 Div({ classes("saved-item") }) {
-                    P({ classes("clamp-3") }) { Text(splitStatement(q.statement).let { it.command ?: it.base }.take(300)) }
+                    P({ classes("clamp-3", "grow") }) { Inline(splitStatement(q.statement).let { it.command ?: it.base }.take(300)) }
                     IconButton("star", "Tirar dos salvos") { Store.update { Actions.toggleFavorite(it, q.id) } }
                 }
             }
@@ -96,16 +107,16 @@ fun NotebookScreen() {
 @Composable
 private fun SavedCard(id: Long, topic: String?, text: String, answer: String?) {
     var open by remember { mutableStateOf(false) }
-    Card {
-        Div({ classes("row", "between") }) {
-            if (topic != null) Chip(topic, icon = "lightbulb") else Span {}
-            IconButton("star", "Tirar dos salvos") { Store.update { Actions.toggleSnippetFavorite(it, id) } }
+    Div({ classes("saved-item", "tip-item") }) {
+        Div({ classes("grow"); attr("style", "min-width:0") }) {
+            if (topic != null) Chip(topic, icon = "lightbulb")
+            Markdown(text, compact = true)
+            if (!answer.isNullOrBlank()) {
+                if (open) Div({ classes("recall-answer") }) { Markdown(answer, compact = true) }
+                else Btn("Ver resposta", { open = true }, style = "ghost", small = true, icon = "visibility")
+            }
         }
-        P({ attr("style", "margin-top:8px") }) { Text(text) }
-        if (!answer.isNullOrBlank()) {
-            if (open) P({ classes("small"); attr("style", "background:var(--soft);padding:10px 12px;border-radius:12px") }) { Text(answer) }
-            else Btn("Ver resposta", { open = true }, style = "ghost", small = true, icon = "visibility")
-        }
+        IconButton("star", "Tirar dos salvos") { Store.update { Actions.toggleSnippetFavorite(it, id) } }
     }
 }
 
