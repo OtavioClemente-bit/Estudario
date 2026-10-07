@@ -1,6 +1,10 @@
 # Fila de matérias (o que falta gerar e consertar)
 
-Atualizado em 05/10/2026. Biblioteca publicada: 229 matérias.
+Atualizado em 06/10/2026. Biblioteca publicada: 373 matérias e 171 recortes.
+
+**Agora (06/10):** `07-editais-200.md` (25 blocos de 8 editais para o Codex montar o catálogo) e
+`08-consertar.md` (8 blocos com 38 matérias do Codex que precisam de conserto). Triagem de
+`conteudo/entrada`: `deno run --allow-read conteudo/fila/triagem.ts`.
 
 Ordem combinada:
 1. `01-pm-acabamento.md` — 10 matérias de PM já geradas, só falta consertar o gabarito (Claude faz à mão).

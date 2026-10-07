@@ -1,0 +1,885 @@
+# 200 editais novos (catálogo de concursos)
+
+Criado em 06/10/2026. Os PDFs vieram do Codex (zip "Todos_200_Editais"). O texto de cada um já foi
+extraído e cortado no conteúdo programático em `conteudo/colheita/editais-200/programatico/`
+(o texto inteiro fica em `.../txt/`). Regras e formato: `PEDIDO-EDITAIS.md`.
+
+## Mensagem para o Codex (trocar o BLOCO)
+
+    Leia o AGENTS.md e C:\Users\otavi\Documents\Codex\2026-09-15\vc-x20\conteudo\fila\PEDIDO-EDITAIS.md (regras e formato). Depois abra C:\Users\otavi\Documents\Codex\2026-09-15\vc-x20\conteudo\fila\07-editais-200.md e faça SÓ o BLOCO X. Para cada concurso do bloco, leia o arquivo de texto indicado em "texto" (é o conteúdo programático já extraído do PDF oficial; se faltar algo, use o arquivo inteiro na pasta txt com o mesmo nome) e grave conteudo/entrada/edital-<nome>.json, um arquivo por cargo com conteúdo programático diferente. Se o edital tiver mais de 6 cargos diferentes, faça os 6 de maior procura (cargos gerais de nível superior e médio primeiro) e liste os outros no relatório. Use o link oficial da lista em "url". Um assunto por tópico, sem numeração, todo tópico com "topico": null. UTF-8 sem BOM, um arquivo por vez com a ferramenta de editar arquivos. Depois de cada arquivo rode: deno run --allow-read conteudo/fila/conferir-edital.ts <arquivo> e corrija o que ele apontar. Não pare no meio, não peça confirmação. No fim, liste os arquivos gravados (disciplinas e tópicos de cada) e os pendentes com o motivo.
+
+## Bloco 1
+
+- [ ] **001** · Banco do Brasil — Seleção Externa 2022/001 (2022) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-001_Banco_do_Brasil_Sele_o_Externa_2022_001.txt`
+  - edital: Edital nº 01 – 2022/001 BB, de 23 de dezembro de 2022 — Seleção Externa para Escriturário (Agente Comercial e Agente de Tecnologia)
+  - link oficial: https://www.bb.com.br/docs/portal/dipes/Edital-de-Abertura-de-Selecao-Externa-2022-01.pdf
+- [ ] **002** · CAGE Rio Grande do Sul — Auditor do Estado (2024) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-002_CAGE_Rio_Grande_do_Sul_Auditor_do_Estado.txt`
+  - edital: Edital nº 1 – SEFAZ/RS, de 07 de outubro de 2024 — Concurso para Auditor do Estado
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital-cage-rs-final.03.10.2024_publicacao_07.10.pdf
+- [ ] **003** · Banco Central do Brasil — Analista (2024) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-003_Banco_Central_do_Brasil_Analista.txt`
+  - edital: Edital nº 1 – BCB, de 15 de janeiro de 2024 — Concurso para provimento de vagas e cadastro de reserva no cargo de Analista
+  - link oficial: https://bcb.gov.br/content/acessoinformacao/analista_2024/Edital-n-1-de-Abertura-do-concurso.pdf
+- [ ] **004** · Comissão de Valores Mobiliários — Concurso CVM (2024) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-004_Comiss_o_de_Valores_Mobili_rios_Concurso_CVM.txt`
+  - edital: Edital nº 1/2024 CVM, de 11 de janeiro de 2024 — Inspetor e Analista
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital-1-2024-abertura-concurso-cvm.pdf
+- [ ] **005** · Receita Federal do Brasil — Concurso Público (2022) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-005_Receita_Federal_do_Brasil_Concurso_P_blico.txt`
+  - edital: Edital nº 1 – RFB, de 2 de dezembro de 2022 — Auditor-Fiscal e Analista-Tributário
+  - link oficial: https://www.gov.br/receitafederal/pt-br/assuntos/noticias/2022/dezembro/arquivos-e-imagens/edital-1-2022-concurso-receita-federal.pdf
+- [ ] **006** · Controladoria-Geral da União — CGU (2021) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-006_Controladoria_Geral_da_Uni_o_CGU.txt`
+  - edital: Edital nº 1, de 22 de dezembro de 2021 — Auditor Federal de Finanças e Controle e Técnico Federal de Finanças e Controle
+  - link oficial: https://basedeconhecimento.cgu.gov.br/bitstream/1/17183/1/Edital_1_2021.pdf
+- [ ] **007** · Tesouro Nacional — AFFC (2024) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-007_Tesouro_Nacional_AFFC.txt`
+  - edital: Edital STN nº 01/2024 — abertura — Auditor Federal de Finanças e Controle
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital-stn-16.01.pdf
+- [ ] **008** · Tribunal de Contas da União — Auditor Federal de Controle Externo (2021) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-008_Tribunal_de_Contas_da_Uni_o_Auditor_Federal_de_Controle_Externo.txt`
+  - edital: Edital nº 1 TCU-2021, de 28 de outubro de 2021 — Auditor Federal de Controle Externo, Área Controle Externo
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/28.10.2021-edital-001-2021-abertura-concurso-tcu-.pdf
+
+## Bloco 2
+
+- [ ] **009** · SEFAZ São Paulo — Auditor Fiscal da Receita Estadual (2025) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-009_SEFAZ_S_o_Paulo_Auditor_Fiscal_da_Receita_Estadual.txt`
+  - edital: Edital nº 02/2025 — Abertura de Inscrições — Auditor Fiscal da Receita Estadual
+  - link oficial: https://portal.fazenda.sp.gov.br/servicos/concursos/Documents/EDITAL%20N%C2%BA%2002_2025%20-%20EDITAL%20DE%20ABERTURA%20DAS%20INSCRI%C3%87%C3%95ES.pdf
+- [ ] **010** · SEFAZ Rio de Janeiro — Auditor Fiscal da Receita Estadual (2025) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-010_SEFAZ_Rio_de_Janeiro_Auditor_Fiscal_da_Receita_Estadual.txt`
+  - edital: Edital nº 1 – SEFAZ/RJ – Auditor Fiscal, de 24 de janeiro de 2025 — abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/SEFAZ_RJ_25_AUDITOR/arquivos/ED_1_2024_SEFAZ_RJ_AUDITOR_ABERTURA.PDF
+- [ ] **011** · SEF Minas Gerais — Auditor Fiscal da Receita Estadual (2022) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-011_SEF_Minas_Gerais_Auditor_Fiscal_da_Receita_Estadual.txt`
+  - edital: Edital 01/2022 — Concurso Público para Auditor Fiscal da Receita Estadual
+  - link oficial: https://www.fazenda.mg.gov.br/transparencia/concursos-publicos/arquivos_concursoAFRE2022/Edital-Concurso-AFRE-SEF-MG-Assinado.pdf
+- [ ] **012** · SEFAZ Ceará — Auditor Fiscal (2021) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-012_SEFAZ_Cear_Auditor_Fiscal.txt`
+  - edital: Edital nº 001/2021 – SEFAZ/CE, de 20 de maio de 2021 — concurso para cargos de Auditor Fiscal
+  - link oficial: https://cdn.cebraspe.org.br/concursos/SEFAZ_CE_21/arquivos/ED_1_SEFAZ_CE_2021_ABERTURA.PDF
+- [ ] **013** · SEFAZ Goiás — Auditor Fiscal da Receita Estadual 2025 (2025) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-013_SEFAZ_Goi_s_Auditor_Fiscal_da_Receita_Estadual_2025.txt`
+  - edital: Edital nº 01/2025 — Abertura de Inscrições — Auditor-Fiscal da Receita Estadual
+  - link oficial: https://goias.gov.br/economia/wp-content/uploads/sites/45/2025/05/EDITAL_Concurso_Aud_Sec_Economia_GO.pdf
+- [ ] **014** · SEFAZ Bahia — Agente de Tributos Estaduais (2022) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-014_SEFAZ_Bahia_Agente_de_Tributos_Estaduais.txt`
+  - edital: Edital nº 001, de 25 de fevereiro de 2022 — Agente de Tributos Estaduais
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital_22-03-25.pdf
+- [ ] **015** · SEFAZ Alagoas — Auditor de Finanças e Auditor Fiscal (2021) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-015_SEFAZ_Alagoas_Auditor_de_Finan_as_e_Auditor_Fiscal.txt`
+  - edital: Edital nº 1 – SEFAZ/AL, de 24 de agosto de 2021 — Auditor de Finanças e Auditor Fiscal
+  - link oficial: https://cdn.cebraspe.org.br/concursos/sefaz_al_21_auditor/arquivos/ED_1_SEFAZ_AL_2021_ABT.PDF
+- [ ] **016** · SEFAZ Amazonas — Concurso Público (2022) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-016_SEFAZ_Amazonas_Concurso_P_blico.txt`
+  - edital: Edital nº 01, de 07 de fevereiro de 2022 — cargos de provimento efetivo de níveis médio e superior
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital_de_abertura_sefaz-am-0702.pdf
+
+## Bloco 3
+
+- [ ] **017** · SEFAZ Mato Grosso — Fiscal de Tributos Estaduais (2023) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-017_SEFAZ_Mato_Grosso_Fiscal_de_Tributos_Estaduais.txt`
+  - edital: Edital de abertura — Concurso Público para Fiscal de Tributos Estaduais
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital-sefaz-mt.vf_.pdf
+- [ ] **018** · SEEC Distrito Federal — Auditor Fiscal da Receita (2019) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-018_SEEC_Distrito_Federal_Auditor_Fiscal_da_Receita.txt`
+  - edital: Edital nº 1 – SEEC/DF, de 17 de setembro de 2019 — Auditor Fiscal da Receita do Distrito Federal
+  - link oficial: https://cdn.cebraspe.org.br/concursos/seec_auditor_19/arquivos/ED_1_SEEC_DF_2019_AUDITOR_ABT.PDF
+- [ ] **019** · SEAP/SEFAZ Paraná — Auditor Fiscal da Receita Estadual (2025) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-019_SEAP_SEFAZ_Paran_Auditor_Fiscal_da_Receita_Estadual.txt`
+  - edital: Edital nº 013/2025 — Abertura do Concurso Público para Auditor Fiscal da Receita Estadual
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital-013-25-abertura-concurso-publico-auditor-fiscal-repr_assinado.pdf
+- [ ] **020** · CAIXA — Concurso Público 2024 (Técnico Bancário Novo) (2024) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/1-020_CAIXA_Concurso_P_blico_2024_T_cnico_Banc_rio_Novo.txt`
+  - edital: Edital nº 01/2024/NM, de 21 de fevereiro de 2024 — Concurso Público para Técnico Bancário Novo e Técnico Bancário Novo – Tecnologia da Informação
+  - link oficial: https://pesquisa.in.gov.br/imprensa/servlet/INPDFViewer?captchafield=firstAccess&data=22%2F02%2F2024&jornal=530&pagina=111
+- [ ] **021** · Concurso Público Nacional Unificado 1 (CPNU 2024) (2024) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-021_Concurso_P_blico_Nacional_Unificado_1_CPNU_2024.txt`
+  - edital: Edital nº 1, de 10 de janeiro de 2024 — Bloco Temático 1: Infraestrutura, Exatas e Engenharias
+  - link oficial: https://www.gov.br/gestao/pt-br/concursonacional/editais/edital-cpnu-bloco-1-10jan2024.pdf/@@download/file
+- [ ] **022** · Concurso Público do INSS (Técnico do Seguro Social) (2022) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-022_Concurso_P_blico_do_INSS_T_cnico_do_Seguro_Social.txt`
+  - edital: Edital nº 1 - INSS, de 12 de setembro de 2022
+  - link oficial: https://www.gov.br/trabalho-e-emprego/pt-br/outros/imagens-capa/concurso-inss-2022-edital-no-1/@@download/file
+- [ ] **023** · Concurso Público da Dataprev 2024 (2024) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-023_Concurso_P_blico_da_Dataprev_2024.txt`
+  - edital: Edital nº 1, de 5 de setembro de 2024
+  - link oficial: https://www.dataprev.gov.br/sites/default/files/arquivos/dataprev_edital_0.pdf
+- [ ] **024** · Concurso Público da Polícia Federal — Plano Especial de Cargos (Administrativo) (2025) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-024_Concurso_P_blico_da_Pol_cia_Federal_Plano_Especial_de_Cargos_Administrativo.txt`
+  - edital: Edital nº 1 - PF - Administrativo, de 25 de abril de 2025
+  - link oficial: https://www.gov.br/pf/pt-br/acesso-a-informacao/servidores/concursos/edital/plano-especial-de-cargos-2025/editais/edital-no-1_2025-dgp-pf.pdf/@@download/file
+
+## Bloco 4
+
+- [ ] **025** · Concurso Público da Agência Nacional de Transportes Terrestres (ANTT) (2023) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-025_Concurso_P_blico_da_Ag_ncia_Nacional_de_Transportes_Terrestres_ANTT.txt`
+  - edital: Edital nº 1 - ANTT, de 27 de dezembro de 2023
+  - link oficial: https://cdn.cebraspe.org.br/concursos/antt_23/arquivos/ED_1_2023_ANTT_ABERTURA.PDF
+- [ ] **026** · Concurso Público da Agência Nacional de Vigilância Sanitária (Anvisa) (2024) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-026_Concurso_P_blico_da_Ag_ncia_Nacional_de_Vigil_ncia_Sanit_ria_Anvisa.txt`
+  - edital: Edital nº 1 — Anvisa, de 11 de janeiro de 2024
+  - link oficial: https://cdn.cebraspe.org.br/concursos/anvisa_24/arquivos/ED_1_2024_ANVISA_ABERTURA.PDF
+- [ ] **027** · Concurso Público do Instituto Brasileiro do Meio Ambiente e dos Recursos Naturais Renováveis (Ibama 2021) (2021) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-027_Concurso_P_blico_do_Instituto_Brasileiro_do_Meio_Ambiente_e_dos_Recursos_Naturais_Renov_veis_Ibama_2021.txt`
+  - edital: Edital nº 1 - Ibama, de 29 de novembro de 2021
+  - link oficial: https://cdn.cebraspe.org.br/concursos/IBAMA_21/arquivos/ED_1_2021_IBAMA_ABERTURA.PDF
+- [ ] **028** · Concurso Público do Instituto Chico Mendes de Conservação da Biodiversidade (ICMBio 2021) (2021) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-028_Concurso_P_blico_do_Instituto_Chico_Mendes_de_Conserva_o_da_Biodiversidade_ICMBio_2021.txt`
+  - edital: Edital nº 1 - ICMBio, de 26 de novembro de 2021
+  - link oficial: https://cdn.cebraspe.org.br/concursos/icmbio_21/arquivos/ED_1_ICMBIO_21_ABERTURA.PDF
+- [ ] **029** · Concurso Público do Departamento Nacional de Infraestrutura de Transportes (DNIT) (2023) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-029_Concurso_P_blico_do_Departamento_Nacional_de_Infraestrutura_de_Transportes_DNIT.txt`
+  - edital: Edital nº 1 CONCURSO DNIT-2023/2023/DNIT, de 22 de novembro de 2023
+  - link oficial: https://www.gov.br/dnit/pt-br/acesso-a-informacao/servidores/concurso-publico/concurso-publico-2023/edital-1-2023-concurso-publico.pdf
+- [ ] **030** · CAIXA Econômica Federal — Concurso 2021 (Técnico Bancário Novo, PcD) (2021) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-030_CAIXA_Econ_mica_Federal_Concurso_2021_T_cnico_Banc_rio_Novo_PcD.txt`
+  - edital: Edital nº 1/2021/NM, de 9 de setembro de 2021 — edital original de abertura
+  - link oficial: https://www.caixa.gov.br/Downloads/concurso-publico-editais/EDITAL-2021-PcD-1.pdf
+- [ ] **031** · Concurso Público da Dataprev (2023) (2023) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-031_Concurso_P_blico_da_Dataprev_2023.txt`
+  - edital: Edital nº 1 – Dataprev, de 28 de julho de 2023
+  - link oficial: https://www.dataprev.gov.br/sites/default/files/arquivos/ed_1_2023_dataprev_abertura.pdf
+- [ ] **032** · Concurso Público da Agência Nacional de Mineração (ANM 2024) (2024) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-032_Concurso_P_blico_da_Ag_ncia_Nacional_de_Minera_o_ANM_2024.txt`
+  - edital: Edital nº 1 – ANM, de 21 de novembro de 2024
+  - link oficial: https://cdn.cebraspe.org.br/concursos/anm_24/arquivos/ED_1_ANM_24_CONCURSO_ABERTURA.PDF
+
+## Bloco 5
+
+- [ ] **033** · Concurso Público da Advocacia-Geral da União (AGU) (2022) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-033_Concurso_P_blico_da_Advocacia_Geral_da_Uni_o_AGU.txt`
+  - edital: Edital nº 1 - AGU, de 26 de dezembro de 2022
+  - link oficial: https://www.gov.br/agu/pt-br/edital-no-1-agu-de-26-de-dezembro-de-2022-edital-no-1-agu-de-26-de-dezembro-de-2022-dou-imprensa-nacional.pdf/@@download/file
+- [ ] **034** · Concurso Público da Agência Espacial Brasileira (AEB 2024) (2024) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-034_Concurso_P_blico_da_Ag_ncia_Espacial_Brasileira_AEB_2024.txt`
+  - edital: Edital nº 1 – AEB, de 27 de dezembro de 2024
+  - link oficial: https://www.gov.br/aeb/pt-br/acesso-a-informacao/concurso-e-processos-seletivos/ED_1_AEB_24_ABERTURA.pdf
+- [ ] **035** · Concurso Público da Agência Nacional de Águas e Saneamento Básico (ANA 2024) (2024) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-035_Concurso_P_blico_da_Ag_ncia_Nacional_de_guas_e_Saneamento_B_sico_ANA_2024.txt`
+  - edital: Edital nº 1 – ANA, de 12 de janeiro de 2024
+  - link oficial: https://cdn.cebraspe.org.br/concursos/ana_24/arquivos/ED_1_2024_ANA_ABERTURA.PDF
+- [ ] **036** · Concurso Público do Serviço Federal de Processamento de Dados (SERPRO 2023) (2023) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-036_Concurso_P_blico_do_Servi_o_Federal_de_Processamento_de_Dados_SERPRO_2023.txt`
+  - edital: Edital nº 1 – SERPRO, de 18 de abril de 2023
+  - link oficial: https://www.transparencia.serpro.gov.br/acesso-a-informacao/servidores/concurso-publico/concurso-publico-2023/edital-n-1-concurso-serpro-2023.pdf
+- [ ] **037** · Concurso Público da Agência Nacional de Aviação Civil (ANAC 2023) (2023) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-037_Concurso_P_blico_da_Ag_ncia_Nacional_de_Avia_o_Civil_ANAC_2023.txt`
+  - edital: Edital nº 1 – ANAC, de 7 de dezembro de 2023
+  - link oficial: https://cdn.cebraspe.org.br/concursos/anac_23/arquivos/ED_1_ANAC_2023_ABERTURA.PDF
+- [ ] **038** · Concurso Público do Instituto Brasileiro do Meio Ambiente e dos Recursos Naturais Renováveis (Ibama 2025) (2025) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-038_Concurso_P_blico_do_Instituto_Brasileiro_do_Meio_Ambiente_e_dos_Recursos_Naturais_Renov_veis_Ibama_2025.txt`
+  - edital: Edital nº 1 - Ibama, de 23 de janeiro de 2025
+  - link oficial: https://cdn.cebraspe.org.br/concursos/IBAMA_25/arquivos/ED_1_IBAMA_24_ABERTURA.PDF
+- [ ] **039** · Concurso Público do Instituto Chico Mendes de Conservação da Biodiversidade (ICMBio 2024) (2024) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-039_Concurso_P_blico_do_Instituto_Chico_Mendes_de_Conserva_o_da_Biodiversidade_ICMBio_2024.txt`
+  - edital: Edital nº 1 - ICMBio, de 6 de dezembro de 2024
+  - link oficial: https://cdn.cebraspe.org.br/concursos/icmbio_24/arquivos/ED_1_ICMBIO_24_ABERTURA.PDF
+- [ ] **040** · Concurso Público da NAV Brasil Serviços de Navegação Aérea S.A. (2026) (2026) · Federais e administração
+  - texto: `conteudo/colheita/editais-200/programatico/1-040_Concurso_P_blico_da_NAV_Brasil_Servi_os_de_Navega_o_A_rea_S_A_2026.txt`
+  - edital: Edital nº 01/2026 — Abertura do Concurso Público destinado ao provimento de cargos efetivos da NAV Brasil Serviços de Navegação Aérea S.A.
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital-01-2026-nav-brasil_0.pdf
+
+## Bloco 6
+
+- [ ] **041** · Tribunal de Justiça de Santa Catarina (TJSC) – servidores (2024) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-041_Tribunal_de_Justi_a_de_Santa_Catarina_TJSC_servidores.txt`
+  - edital: Edital nº 25/2024 — Concurso Público para ingresso no quadro de pessoal do Poder Judiciário do Estado de Santa Catarina
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital-25-2024-concurso-servidores-assinado.pdf
+- [ ] **042** · Tribunal Regional do Trabalho da 24ª Região (TRT-24) – servidores (2024) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-042_Tribunal_Regional_do_Trabalho_da_24_Regi_o_TRT_24_servidores.txt`
+  - edital: Edital nº 01/2024 — Concurso Público para Analista Judiciário e Técnico Judiciário
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital-trt-24-em-31.10.pdf
+- [ ] **043** · Tribunal Regional Federal da 1ª Região (TRF1) – servidores (2024) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-043_Tribunal_Regional_Federal_da_1_Regi_o_TRF1_servidores.txt`
+  - edital: Edital nº 1/2024 — Abertura do VIII Concurso Público para provimento de cargos de Analista Judiciário e Técnico Judiciário
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital_1_2024-abertura-8o-concurso.pdf
+- [ ] **044** · Ministério Público de Goiás (MPGO) – Promotor de Justiça Substituto (2023) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-044_Minist_rio_P_blico_de_Goi_s_MPGO_Promotor_de_Justi_a_Substituto.txt`
+  - edital: Resolução n. 03/2023-CSMP — Edital n. 118/2023-CSMP (62º Concurso de Ingresso na Carreira)
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/versao-final-edital-62o-concurso-para-ingresso-na-carreira-do-ministerio-publico.pdf
+- [ ] **045** · Tribunal de Justiça do Estado de Goiás (TJGO) — servidores (2024) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-045_Tribunal_de_Justi_a_do_Estado_de_Goi_s_TJGO_servidores.txt`
+  - edital: Edital nº 01/2024 — 3º Concurso Público Unificado (edital original de abertura)
+  - link oficial: https://www.tjgo.jus.br/files/concursos/servidoresserventuario/editaisPublicados/editaisPublicados_2024/02-EDITAL_Concurso_Analista_2024.pdf
+- [ ] **046** · Tribunal de Justiça de Pernambuco (TJPE) – Juiz Substituto (2024) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-046_Tribunal_de_Justi_a_de_Pernambuco_TJPE_Juiz_Substituto.txt`
+  - edital: Edital nº 01/2024 — Abertura de concurso público para provimento de cargo de Juiz Substituto da Justiça do Estado de Pernambuco
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/tjpe_edital-16.08.2024.pdf
+- [ ] **047** · Tribunal de Justiça de Santa Catarina (TJSC) – Juiz Substituto (2024) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-047_Tribunal_de_Justi_a_de_Santa_Catarina_TJSC_Juiz_Substituto.txt`
+  - edital: Edital n. 44/2024 — Concurso Público para ingresso na carreira da Magistratura do Estado de Santa Catarina
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital-n.-44-2024-abertura-concurso-magistratura.pdf
+- [ ] **048** · Concurso Público Nacional Unificado da Justiça Eleitoral (CPNUJE) – TSE e TREs (2024) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-048_Concurso_P_blico_Nacional_Unificado_da_Justi_a_Eleitoral_CPNUJE_TSE_e_TREs.txt`
+  - edital: Edital nº 1 — CPNUJE, de 27 de maio de 2024 — abertura do Concurso Público Nacional Unificado da Justiça Eleitoral
+  - link oficial: https://cdn.cebraspe.org.br/concursos/cpnuje_24/arquivos/EDITAL_1_2024_CPNUJE_ABERTURA.PDF
+
+## Bloco 7
+
+- [ ] **049** · Tribunal Superior do Trabalho (TST) – servidores (2023) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-049_Tribunal_Superior_do_Trabalho_TST_servidores.txt`
+  - edital: Edital nº 1 — TST, de 21 de setembro de 2023 — Concurso Público para provimento de cargos de Analista Judiciário e Técnico Judiciário
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TST_23/arquivos/ED_1_2023_TST_SERVIDOR_ABERTURA.PDF
+- [ ] **050** · Tribunal Regional do Trabalho da 10ª Região (TRT-10) – servidores (2024) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-050_Tribunal_Regional_do_Trabalho_da_10_Regi_o_TRT_10_servidores.txt`
+  - edital: Edital nº 1 — TRT 10ª Região, de 19 de dezembro de 2024 — abertura do concurso público
+  - link oficial: https://cdn.cebraspe.org.br/concursos/trt10_24/arquivos/ED_1_2024_TRT_10_ABERTURA.PDF
+- [ ] **051** · Tribunal de Contas da União (TCU) — Técnico Federal de Controle Externo (2025) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-051_Tribunal_de_Contas_da_Uni_o_TCU_T_cnico_Federal_de_Controle_Externo.txt`
+  - edital: Edital nº 1 - TCU/TEFC, de 22 de maio de 2025 (edital de abertura)
+  - link oficial: https://portal.tcu.gov.br/data/files/FE/36/7A/F4/D7D07910CEFACB59E18818A8/EDITAL%20N%201%20-%20TCU_TEFC_%20DE%2022%20DE%20MAIO%20DE%202025%20-%20EDITAL%20N%201%20-%20TCU_TEFC_%20DE%2022%20DE%20MAIO%20DE%202025%20-%20DOU%20-%20Imprensa%20Nacional%20_1_.pdf
+- [ ] **052** · Tribunal de Contas do Estado do Paraná (TCE-PR) – Auditor de Controle Externo (2024) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-052_Tribunal_de_Contas_do_Estado_do_Paran_TCE_PR_Auditor_de_Controle_Externo.txt`
+  - edital: Edital nº 1 — TCE-PR, de 20 de maio de 2024 — Concurso para Auditor de Controle Externo
+  - link oficial: https://cdn.cebraspe.org.br/concursos/tce_pr_24_auditor/arquivos/ED_1_2024_TCE_PR_ABERTURA.PDF
+- [ ] **053** · Defensoria Pública do Estado do Rio de Janeiro (DPE-RJ) – Defensor Público (2023) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-053_Defensoria_P_blica_do_Estado_do_Rio_de_Janeiro_DPE_RJ_Defensor_P_blico.txt`
+  - edital: Edital de Abertura do XXVIII Concurso para ingresso na classe inicial da carreira da Defensoria Pública do Estado do Rio de Janeiro
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/sei_1203059_edital_de_concurso_230705_172252-1.pdf
+- [ ] **054** · Defensoria Pública do Estado de Pernambuco (DPE-PE) – Defensor Público (2025) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-054_Defensoria_P_blica_do_Estado_de_Pernambuco_DPE_PE_Defensor_P_blico.txt`
+  - edital: Edital nº 01/2025 — IV Concurso Público para ingresso na carreira de Defensor Público
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital-abertura-dpe-pe-27.02_atualizado.pdf
+- [ ] **055** · Procuradoria-Geral do Estado de Santa Catarina (PGE-SC) – Procurador do Estado (2022) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-055_Procuradoria_Geral_do_Estado_de_Santa_Catarina_PGE_SC_Procurador_do_Estado.txt`
+  - edital: Edital de Concurso Público nº 1/2022 — 10º Concurso para Procurador do Estado
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/versao_final_-_edital_pge-sc_29.08.22_481463346.pdf
+- [ ] **056** · Assembleia Legislativa do Estado do Paraná (ALEP) – Procurador (2024) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-056_Assembleia_Legislativa_do_Estado_do_Paran_ALEP_Procurador.txt`
+  - edital: Edital nº 01/2024 — abertura do Concurso Público para Procurador, Classe 3
+  - link oficial: https://transparencia.assembleia.pr.leg.br/storage/concursos_publicos/2024/Concurso%20P%C3%BAblico%20-%20Edital.pdf
+
+## Bloco 8
+
+- [ ] **057** · Advocacia-Geral do Estado de Minas Gerais (AGE-MG) – Procurador do Estado (2022) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-057_Advocacia_Geral_do_Estado_de_Minas_Gerais_AGE_MG_Procurador_do_Estado.txt`
+  - edital: Concurso Público — Edital 01/2022 — Procurador do Estado Nível I, Grau A
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/fgv_minuta_de_edital_age-mg_-_22.06.2022_.pdf
+- [ ] **058** · Ministério Público do Estado do Rio de Janeiro (MPRJ) – Promotor de Justiça Substituto (2025) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-058_Minist_rio_P_blico_do_Estado_do_Rio_de_Janeiro_MPRJ_Promotor_de_Justi_a_Substituto.txt`
+  - edital: Edital do XXXVIII Concurso para ingresso na classe inicial da carreira do Ministério Público do Estado do Rio de Janeiro
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital-versao-final-mprj-1_0.pdf
+- [ ] **059** · Tribunal Regional Federal da 1ª Região (TRF1) – Juiz Federal Substituto (2023) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-059_Tribunal_Regional_Federal_da_1_Regi_o_TRF1_Juiz_Federal_Substituto.txt`
+  - edital: Edital de Abertura nº 01/2023 — XVII Concurso para Juiz Federal Substituto do TRF da 1ª Região
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital_trf1_0.pdf
+- [ ] **060** · Ministério Público do Estado de São Paulo (MPSP) – Analista de Promotoria I (2022) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/1-060_Minist_rio_P_blico_do_Estado_de_S_o_Paulo_MPSP_Analista_de_Promotoria_I.txt`
+  - edital: Concurso Público nº 01/2022 — Edital de Abertura de Inscrições — Analista de Promotoria I, área de Saúde e Assistência Social
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/mpsp_-_edital_de_abertura_de_analista_area_de_saude_publicado_13_12_2022_versao_mpsp_pdf.pdf
+- [ ] **061** · Concurso público para provimento de vagas nos cargos de Delegado, Perito, Escrivão, Agente e Papiloscopista da Polícia Federal (2025) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-061_Concurso_p_blico_para_provimento_de_vagas_nos_cargos_de_Delegado_Perito_Escriv_o_Agente_e_Papiloscopista_da_Pol_cia_Federal.txt`
+  - edital: EDITAL Nº 1 - PF - POLICIAL, DE 20 DE MAIO DE 2025
+  - link oficial: https://www.gov.br/pf/pt-br/acesso-a-informacao/servidores/concursos/edital/carreira-policial-2025/editais/edital-no-1_2025-dgp-pf.pdf/@@download/file
+- [ ] **062** · Concurso público para admissão aos cursos de Formação de Oficiais e de Formação de Praças da PMAL (2026) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-062_Concurso_p_blico_para_admiss_o_aos_cursos_de_Forma_o_de_Oficiais_e_de_Forma_o_de_Pra_as_da_PMAL.txt`
+  - edital: EDITAL Nº 1 – PMAL, DE 19 DE MARÇO DE 2026
+  - link oficial: https://cdn.cebraspe.org.br/concursos/pm_al_26/arquivos/4F19563019D5F3C31114556A83C09443AAEA573037B5F7D401F8A4EFD4069911.pdf
+- [ ] **063** · Concurso público para admissão aos cursos de Formação de Oficiais e de Formação de Praças do CBMAL (2026) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-063_Concurso_p_blico_para_admiss_o_aos_cursos_de_Forma_o_de_Oficiais_e_de_Forma_o_de_Pra_as_do_CBMAL.txt`
+  - edital: EDITAL Nº 1 – CBM/AL, DE 21 DE MAIO DE 2026
+  - link oficial: https://cdn.cebraspe.org.br/concursos/CBM_AL_26/arquivos/C1EF411689B29A74EB4731A85C78E92A260BE04CD1DCD8388A5BE37EBC1D2EE6.pdf
+- [ ] **064** · Concurso público para Soldado PM de 2ª Classe da Polícia Militar do Estado de São Paulo (2025) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-064_Concurso_p_blico_para_Soldado_PM_de_2_Classe_da_Pol_cia_Militar_do_Estado_de_S_o_Paulo.txt`
+  - edital: EDITAL DE CONCURSO PÚBLICO Nº DP-2/321/25
+  - link oficial: https://concursos.policiamilitar.sp.gov.br/wp-content/uploads/2025/09/Edital-doesp-174-de-03SET25.pdf
+
+## Bloco 9
+
+- [ ] **065** · Concurso público para provimento de vagas no cargo de Oficial Investigador de Polícia da PCES (2025) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-065_Concurso_p_blico_para_provimento_de_vagas_no_cargo_de_Oficial_Investigador_de_Pol_cia_da_PCES.txt`
+  - edital: EDITAL DE CONCURSO PÚBLICO Nº 01/2025 - PCES, DE 06 DE OUTUBRO DE 2025
+  - link oficial: https://pc.es.gov.br/media/2025/diario_oficial_2025-10-06%20edital%20de%20abertura%20PCES.pdf
+- [ ] **066** · Concurso público para Delegado de Polícia Civil do Estado do Ceará (2025) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-066_Concurso_p_blico_para_Delegado_de_Pol_cia_Civil_do_Estado_do_Cear.txt`
+  - edital: EDITAL Nº 1 – PC/CE DELEGADO, DE 14 DE MARÇO DE 2025
+  - link oficial: https://cdn.cebraspe.org.br/concursos/PC_CE_25_DELEGADO/arquivos/Ed_1_2025_PC_CE_Delegado_Abertura.pdf
+- [ ] **067** · Concurso público para provimento de vagas e formação de cadastro de reserva para Oficial Investigador de Polícia da PC-CE (2025) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-067_Concurso_p_blico_para_provimento_de_vagas_e_forma_o_de_cadastro_de_reserva_para_Oficial_Investigador_de_Pol_cia_da_PC_CE.txt`
+  - edital: EDITAL Nº 1 – PC/CE, DE 14 DE ABRIL DE 2025
+  - link oficial: https://www.cev.uece.br/wp-content/uploads/2025/04/edital01pcce.pdf
+- [ ] **068** · Concurso público para Técnico-Assistente da Polícia Civil e de Atividades Governamentais, área Auxiliar de Perícia (2025) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-068_Concurso_p_blico_para_T_cnico_Assistente_da_Pol_cia_Civil_e_de_Atividades_Governamentais_rea_Auxiliar_de_Per_cia.txt`
+  - edital: EDITAL Nº 01/2025 – PCMG, DE 6 DE NOVEMBRO DE 2025
+  - link oficial: https://cdn.cebraspe.org.br/concursos/pc_mg_25_tpag/arquivos/50DD137B23BF474B1B8ED6608D0772F9EEA7CF6F5D3F64A483D9A99F36208796.pdf
+- [ ] **069** · Concurso público para provimento de 1.600 vagas no cargo de Policial Penal da Diretoria-Geral de Polícia Penal (2024) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-069_Concurso_p_blico_para_provimento_de_1_600_vagas_no_cargo_de_Policial_Penal_da_Diretoria_Geral_de_Pol_cia_Penal.txt`
+  - edital: EDITAL Nº 02, DE 02 DE JULHO DE 2024
+  - link oficial: https://goias.gov.br/administracao/wp-content/uploads/sites/27/2024/07/020724-Edital00224-PP.pdf
+- [ ] **070** · Concurso público para admissão ao Curso de Formação de Soldados do Quadro de Praças da PMMG para 2025 (2024) · Polícia e militar · ⚠️ já temos edital parecido, confira antes
+  - texto: `conteudo/colheita/editais-200/programatico/1-070_Concurso_p_blico_para_admiss_o_ao_Curso_de_Forma_o_de_Soldados_do_Quadro_de_Pra_as_da_PMMG_para_2025.txt`
+  - edital: EDITAL DRH/CRS Nº 10, DE 09 DE MAIO DE 2024
+  - link oficial: https://intranet.policiamilitar.mg.gov.br/conteudoportal/sites/concurso/090520242041069440.pdf
+- [ ] **071** · Concurso público para provimento de vagas no Curso de Formação de Soldados do Quadro Policial Militar da PMERJ (2023) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-071_Concurso_p_blico_para_provimento_de_vagas_no_Curso_de_Forma_o_de_Soldados_do_Quadro_Policial_Militar_da_PMERJ.txt`
+  - edital: EDITAL DE ABERTURA Nº 001/2023 – SEPM, EM 25 DE MAIO DE 2023
+  - link oficial: https://d176ag6w8jsbr9.cloudfront.net/uploads/260523-upload-edital-pmerj-1-merged-1.pdf
+- [ ] **072** · Concurso público da PCDF para a carreira de Gestão de Apoio às Atividades Policiais Civis (2024) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-072_Concurso_p_blico_da_PCDF_para_a_carreira_de_Gest_o_de_Apoio_s_Atividades_Policiais_Civis.txt`
+  - edital: EDITAL Nº 1 – PCDF, DE 5 DE SETEMBRO DE 2024
+  - link oficial: https://cdn.cebraspe.org.br/concursos/pc_df_24_adm/arquivos/ED_1_PCDF_ADM_2024_ABERTURA.PDF
+
+## Bloco 10
+
+- [ ] **073** · Concurso público para provimento de vagas nos cargos de Agente, Escrivão e Delegado da Polícia Civil de Pernambuco (2023) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-073_Concurso_p_blico_para_provimento_de_vagas_nos_cargos_de_Agente_Escriv_o_e_Delegado_da_Pol_cia_Civil_de_Pernambuco.txt`
+  - edital: EDITAL Nº 1 – PCPE, DE 21 DE DEZEMBRO DE 2023
+  - link oficial: https://cdn.cebraspe.org.br/concursos/pc_pe_23/arquivos/ED_1_2023_PC_PE_ABERTURA.PDF
+- [ ] **074** · Concurso público para ingresso no Curso de Formação de Praças da Polícia Militar de Santa Catarina (2023) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-074_Concurso_p_blico_para_ingresso_no_Curso_de_Forma_o_de_Pra_as_da_Pol_cia_Militar_de_Santa_Catarina.txt`
+  - edital: EDITAL Nº 002/CGCP/2023 – CFP, DE 09 DE MAIO DE 2023
+  - link oficial: https://cdn.cebraspe.org.br/concursos/pm_sc_23_soldado/arquivos/ED_1_2022_PMSC_ABERTURA_SOLDADO.PDF
+- [ ] **075** · Concurso público para o Curso de Formação de Praças da Polícia Militar do Rio Grande do Norte (2023) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-075_Concurso_p_blico_para_o_Curso_de_Forma_o_de_Pra_as_da_Pol_cia_Militar_do_Rio_Grande_do_Norte.txt`
+  - edital: EDITAL Nº 01/2023 - PMRN - 20 DE JANEIRO DE 2023
+  - link oficial: https://fs.ibfc.org.br/arquivos/b8591c90c1a6cd5661678e75e5329175.pdf
+- [ ] **076** · Concurso público para admissão ao Curso de Formação de Praças Bombeiros Militares do CBMPA (2023) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-076_Concurso_p_blico_para_admiss_o_ao_Curso_de_Forma_o_de_Pra_as_Bombeiros_Militares_do_CBMPA.txt`
+  - edital: EDITAL Nº 1 – CBMPA – CFP/BM, DE 24 DE OUTUBRO DE 2023
+  - link oficial: https://cdn.cebraspe.org.br/concursos/cbm_pa_23_cfp/arquivos/ED_1_CBM_PA_CFP_ABERTURA.PDF
+- [ ] **077** · Concurso público para provimento de vagas de Delegado, Escrivão e Investigador da Polícia Civil da Bahia (2022) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-077_Concurso_p_blico_para_provimento_de_vagas_de_Delegado_Escriv_o_e_Investigador_da_Pol_cia_Civil_da_Bahia.txt`
+  - edital: EDITAL DE ABERTURA DE INSCRIÇÕES - SAEB Nº 02/2022, DE 20 DE ABRIL DE 2022
+  - link oficial: https://www.ba.gov.br/policiacivil/sites/site-pcba/files/migracao_2024/arquivos/File/EDITALDEABERTURA2022/EDITALDEABERTURADEINSCRICOESSAEBNr022022.pdf
+- [ ] **078** · Concurso público para provimento de vagas no cargo de Delegado de Polícia Civil do Espírito Santo (2022) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-078_Concurso_p_blico_para_provimento_de_vagas_no_cargo_de_Delegado_de_Pol_cia_Civil_do_Esp_rito_Santo.txt`
+  - edital: EDITAL Nº 1 – PCES, DE 6 DE JULHO DE 2022
+  - link oficial: https://cdn.cebraspe.org.br/concursos/pc_es_22_delegado/arquivos/ED_1_PCES_DELEGADO_22_ABERTURA.PDF
+- [ ] **079** · Concurso público para provimento de vagas no cargo de Policial Rodoviário Federal (2021) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-079_Concurso_p_blico_para_provimento_de_vagas_no_cargo_de_Policial_Rodovi_rio_Federal.txt`
+  - edital: EDITAL Nº 1, DE 18 DE JANEIRO DE 2021
+  - link oficial: https://cdn.cebraspe.org.br/concursos/prf_21/arquivos/ED_1_PRF_2021_ABERTURA.PDF
+- [ ] **080** · Concurso público para provimento de vagas no cargo de Oficial Combatente da Polícia Militar de Rondônia (2022) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/1-080_Concurso_p_blico_para_provimento_de_vagas_no_cargo_de_Oficial_Combatente_da_Pol_cia_Militar_de_Rond_nia.txt`
+  - edital: EDITAL Nº 1 – SESDEC – PM/RO, DE 7 DE JULHO DE 2022
+  - link oficial: https://cdn.cebraspe.org.br/concursos/PM_RO_22/arquivos/ED_1_2022_PM_RO_ABT.PDF
+
+## Bloco 11
+
+- [ ] **081** · ALECE – Concurso para Analista Legislativo e Técnico Legislativo (2026) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-081_ALECE_Concurso_para_Analista_Legislativo_e_T_cnico_Legislativo.txt`
+  - edital: Edital nº 01/2026, de 21 de maio de 2026
+  - link oficial: https://www.al.ce.gov.br/userfiles/files/Ano%202%20N%C3%BAmero%2089.pdf
+- [ ] **082** · ALESC – Concurso Público para Analista Legislativo III (2024) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-082_ALESC_Concurso_P_blico_para_Analista_Legislativo_III.txt`
+  - edital: Edital nº 01/2024 – Concurso Público para provimento de vagas para cargos efetivos do quadro de pessoal da ALESC
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/alesc_02.02.24.pdf
+- [ ] **083** · SEE-AC – Concurso para cargos da Secretaria de Estado de Educação e Cultura (2024) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-083_SEE_AC_Concurso_para_cargos_da_Secretaria_de_Estado_de_Educa_o_e_Cultura.txt`
+  - edital: Edital nº 001 SEAD/SEE, de 20 de setembro de 2024
+  - link oficial: https://sead.ac.gov.br/wp-content/uploads/2024/12/Edital-no-001-SEE-Edital-de-abertura-20-09-2024.pdf
+- [ ] **084** · SES-MG – Especialista em Políticas e Gestão da Saúde (2026) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-084_SES_MG_Especialista_em_Pol_ticas_e_Gest_o_da_Sa_de.txt`
+  - edital: Edital de Abertura SES nº 01/2026
+  - link oficial: https://www.mg.gov.br/system/files/media/planejamento/documento_detalhado/2026/gestao-de-pessoas/concursos-publicos/ses-mg-edital-3.pdf
+- [ ] **085** · SESA-PR – Concurso para o Quadro Próprio dos Servidores da Saúde (2025) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-085_SESA_PR_Concurso_para_o_Quadro_Pr_prio_dos_Servidores_da_Sa_de.txt`
+  - edital: Concurso Público – Edital n.º 265/2025 – DRH/SEAP (Edital de Abertura)
+  - link oficial: https://anexos.cdn.selecao.net.br/uploads/281/concursos/4122/anexos/cc16396c-3087-4f3c-b3bc-c7f046adca84.pdf
+- [ ] **086** · FUNSAU-MS – Concurso da Fundação de Serviços de Saúde de Mato Grosso do Sul (2024) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-086_FUNSAU_MS_Concurso_da_Funda_o_de_Servi_os_de_Sa_de_de_Mato_Grosso_do_Sul.txt`
+  - edital: Edital nº 1/2024 – SAD/SES/FUNSAU/SUPERIOR/2024
+  - link oficial: https://anexos.cdn.selecao.net.br/uploads/779/concursos/17/anexos/3Yon8uWhsfCnj6UjmwlcWFcSgKz3M08IyJ7WhTYs.pdf
+- [ ] **087** · UFF – Técnico-Administrativos em Educação (2025) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-087_UFF_T_cnico_Administrativos_em_Educa_o.txt`
+  - edital: Edital nº 96/2025
+  - link oficial: https://portal.coseac.uff.br/wp-content/uploads/2025/05/Edital-96-2025-Versao-DOU.pdf
+- [ ] **088** · UFMG – Técnico-Administrativos em Educação (2025) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-088_UFMG_T_cnico_Administrativos_em_Educa_o.txt`
+  - edital: Edital nº 3428, de 23 de dezembro de 2025
+  - link oficial: https://backend.copeve.ufmg.br/uploads/Concurso_TAE_Edital_3428_2025_Edital_67aec41991.pdf
+
+## Bloco 12
+
+- [ ] **089** · UFSM – Técnico-Administrativos em Educação (2025) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-089_UFSM_T_cnico_Administrativos_em_Educa_o.txt`
+  - edital: Edital nº 050/2025-PROGEP/UFSM
+  - link oficial: https://portal.ufsm.br/documentos/download.html?action=arquivosIndexados&download=false&id=15560038
+- [ ] **090** · UFPE – Técnico-Administrativos em Educação (2023) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-090_UFPE_T_cnico_Administrativos_em_Educa_o.txt`
+  - edital: Edital nº 10, de 05 de julho de 2023
+  - link oficial: https://www.ufpe.br/documents/560019/1867531/Edital%2BPCCTAE_10%2B2023.pdf/3d0a66f6-80d6-4e75-a101-bf446ead67b4
+- [ ] **091** · IFMG – Técnico-Administrativos em Educação (Nível E) (2025) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-091_IFMG_T_cnico_Administrativos_em_Educa_o_N_vel_E.txt`
+  - edital: Edital nº 374/2025 – Concurso Público – TAE – Nível E
+  - link oficial: https://concursos.ifmg.edu.br/arquivo.php?file=edital%2F1%2F47%2F70579c8863b67af9b07b048e3b9717f5.pdf
+- [ ] **092** · UFCA – Professor do Magistério Superior (Edital 48/2025) (2025) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-092_UFCA_Professor_do_Magist_rio_Superior_Edital_48_2025.txt`
+  - edital: Edital nº 48/2025 – Concurso Público para o Cargo de Professor do Magistério Superior
+  - link oficial: https://documentos.ufca.edu.br/wp-folder/wp-content/uploads/2025/12/Edital-48_2025.pdf
+- [ ] **093** · UFCA – Técnico-Administrativos em Educação (Edital 01/2025) (2025) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-093_UFCA_T_cnico_Administrativos_em_Educa_o_Edital_01_2025.txt`
+  - edital: Edital nº 01/2025/UFCA/CCV/UFC, de 10 de dezembro de 2025
+  - link oficial: https://documentos.ufca.edu.br/doc/progep-ufca-edital-no-1-ufca-ccv-ufc-concurso-publico-para-tecnico-administrativo-em-educacao-11-12-2025/
+- [ ] **094** · UFCA – Técnico-Administrativos em Educação (Edital 02/2025) (2025) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-094_UFCA_T_cnico_Administrativos_em_Educa_o_Edital_02_2025.txt`
+  - edital: Edital nº 02/2025/UFCA/CCV/UFC, de 10 de dezembro de 2025
+  - link oficial: https://documentos.ufca.edu.br/doc/progep-ufca-edital-no-2-2025-ufca-ccv-ufc-concurso-publico-para-tecnico-administrativo-em-educacao-11-12-2025/
+- [ ] **095** · UFRJ – Técnico-Administrativos em Educação (2025) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-095_UFRJ_T_cnico_Administrativos_em_Educa_o.txt`
+  - edital: Edital nº 1.188, de 9 de dezembro de 2025
+  - link oficial: https://anexos.cdn.selecao.net.br/uploads/746/concursos/64/anexos/1070e349-b968-4eb7-b40f-8ce039c9c695.pdf
+- [ ] **096** · UFBA – Concurso para Professor do Magistério Superior (2024) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-096_UFBA_Concurso_para_Professor_do_Magist_rio_Superior.txt`
+  - edital: Edital Docente nº 1/2024 (Edital de abertura)
+  - link oficial: https://concursos.ufba.br/sites/concursos.ufba.br/files/docentes/edital_docente_1-2024_final_dou.pdf
+
+## Bloco 13
+
+- [ ] **097** · IFRN – Professor da Carreira do Magistério EBTT (2025) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-097_IFRN_Professor_da_Carreira_do_Magist_rio_EBTT.txt`
+  - edital: Edital nº 1/2025-RE/IFRN, de 15 de abril de 2025
+  - link oficial: https://portal.ifrn.edu.br/documents/20398/Edital_1_2025_concursodocente.pdf
+- [ ] **098** · UFU – Concurso Técnico-Administrativo em Educação (Edital PROGEP nº 93/2024) (2024) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-098_UFU_Concurso_T_cnico_Administrativo_em_Educa_o_Edital_PROGEP_n_93_2024.txt`
+  - edital: Edital PROGEP nº 93/2024, de 30 de agosto de 2024 – Concurso Público para Cargo Técnico-Administrativo em Educação
+  - link oficial: https://www.portalselecao.ufu.br/servicos/ArquivoAdministrativo/download/529d61de9a04a13e71dad539be290df4
+- [ ] **099** · IFAM – Técnico-Administrativos em Educação (2025) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-099_IFAM_T_cnico_Administrativos_em_Educa_o.txt`
+  - edital: Edital nº 1, de 3 de fevereiro de 2025 – TAE
+  - link oficial: https://www2.ifam.edu.br/pro-reitorias/diretoria-de-gestao-de-pessoas/concursos-e-processos-seletivos/concurso-publico-tecnico-administrativo-em-educacao-tae/copy_of_edital-1-de-2022/EDITALN1DE3DEFEVEREIRODE2025TAEDOU.pdf
+- [ ] **100** · UFPB – Técnico-Administrativos em Educação (2024) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/1-100_UFPB_T_cnico_Administrativos_em_Educa_o.txt`
+  - edital: Edital nº 134, de 04 de novembro de 2024
+  - link oficial: https://www.ufpb.br/progep/contents/concursos/tecnicos/edital-no-134-2024/Edital_UFPB_01.11%20-%20v2.pdf
+- [ ] **101** · BANCO_DO_NORDESTE_18 (2018) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-001_banco_do_nordeste_18.txt`
+  - edital: Edital nº 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/BANCO_DO_NORDESTE_18/arquivos/ED_1_2018_BNB_18_Abertura.pdf
+- [ ] **102** · IRBR_18_DIPLOMACIA (2018) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-002_irbr_18_diplomacia.txt`
+  - edital: Edital nº 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/IRBR_18_DIPLOMACIA/arquivos/IRBR_ED._N__1_ABERTURA.PDF
+- [ ] **103** · SEFAZ_RS_18_AUDITOR (2018) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-003_sefaz_rs_18_auditor.txt`
+  - edital: Edital nº1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/SEFAZ_RS_18_AUDITOR/arquivos/ED 1 2018 SEFAZ_RS_AUDITOR_18 - Abertura.pdf
+- [ ] **104** · STJ_18 (2018) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-004_stj_18.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/STJ_18/arquivos/EDITAL_DE_ABERTURA.PDF
+
+## Bloco 14
+
+- [ ] **105** · TCE_MG_18 (2018) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-005_tce_mg_18.txt`
+  - edital: Edital n. 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TCE_MG_18/arquivos/ED_1_2018_TCE_MG_ABERTURA.PDF
+- [ ] **106** · ABIN 2017 (2017) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-006_abin_2017.txt`
+  - edital: Edital n. 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/ABIN_17/arquivos/ED_1_2017_ABIN_17_ABT.PDF
+- [ ] **107** · DPU_17_DEFENSOR (2017) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-007_dpu_17_defensor.txt`
+  - edital: Edital n. 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/DPU_17_DEFENSOR/arquivos/Ed 1 2017 DPU 17 Defensor - abertura.PDF
+- [ ] **108** · IRBR_17_DIPLOMACIA (2017) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-008_irbr_17_diplomacia.txt`
+  - edital: Edital n. 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/IRBR_17_DIPLOMACIA/arquivos/IRBR_ED._1_ABERTURA.PDF
+- [ ] **109** · PC/MA DELEGADO 2017 (2017) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-009_pc_ma_delegado_2017.txt`
+  - edital: Edital n. 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/PC_MA_17_DELEGADO/arquivos/ED_1_2017_PC_MA_17_DELEGADO_ABERTURA.PDF
+- [ ] **110** · SEDUC/AL 2017 (2017) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/2-010_seduc_al_2017.txt`
+  - edital: Edital n. 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/SEDUC_AL_17/arquivos/ED_1_2017_SEDUC_AL_17___ABERTURA_FINAL.PDF
+- [ ] **111** · SEFAZ_RS_17 (2017) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-011_sefaz_rs_17.txt`
+  - edital: Edital n. 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/SEFAZ_RS_17/arquivos/ED_1_2017_SEFAZ_RS_17___ABERTURA.PDF
+- [ ] **112** · STM_17_ANALISTA_TECNICO (2017) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-012_stm_17_analista_tecnico.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/STM_17_ANALISTA_TECNICO/arquivos/ED_1_STM_ANALISTA_E_T__CNICO_2017___ABT.PDF
+
+## Bloco 15
+
+- [ ] **113** · TCE_PB_17 (2017) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-013_tce_pb_17.txt`
+  - edital: Edital n. 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TCE_PB_17/arquivos/ED_1_2017_TCE_PB_17_ABERTURA.PDF
+- [ ] **114** · TCE_PE_17 (2017) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-014_tce_pe_17.txt`
+  - edital: Edital n. 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TCE_PE_17/arquivos/ED_1_TCE_PE_2017_ABT.PDF
+- [ ] **115** · TRE_BA_17 (2017) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-015_tre_ba_17.txt`
+  - edital: Edital n. 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TRE_BA_17/arquivos/TRE_BA_2017_ED._1_ABT.PDF
+- [ ] **116** · TRF1_17_SERVIDOR (2017) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-016_trf1_17_servidor.txt`
+  - edital: Edital n. 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TRF1_17_SERVIDOR/arquivos/ED_1_2017_TRF_1__REGI__O_17_ABERTURA.PDF
+- [ ] **117** · TRF5_17_JUIZ (2017) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-017_trf5_17_juiz.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TRF5_17_JUIZ/arquivos/ED_1_2017_TRF_5___JUIZ_17___ABERTURA.PDF
+- [ ] **118** · TRT7_17_ANALISTA_TECNICO (2017) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-018_trt7_17_analista_tecnico.txt`
+  - edital: Edital n. 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TRT7_17_ANALISTA_TECNICO/arquivos/ED_1_2017_TRT7_17_ANALISTA_TECNICO_ABT.PDF
+- [ ] **119** · SDS/PE 16 - Polícia Científica (2016) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-019_sds_pe_16_policia_cientifica.txt`
+  - edital: Edital n. 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/SDS_PE_16_CIENTIFICA/arquivos/ED_1_2016_SDS_PE_16_CIENTIFICA_ABT.PDF
+- [ ] **120** · SDS/PE 16 - Polícia Civil (2016) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-020_sds_pe_16_policia_civil.txt`
+  - edital: Edital n. 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/SDS_PE_16_CIVIL/arquivos/ED_1_2016_SDS_PE_16_CIVIL_ABT.PDF
+
+## Bloco 16
+
+- [ ] **121** · TCE/PA 2016 (2016) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-021_tce_pa_2016.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TCE_PA_16/arquivos/ED_1_2016_TCE_PA_ABT.PDF
+- [ ] **122** · TRE/PE 2016 (2016) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-022_tre_pe_2016.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TRE_PE_16/arquivos/ED_1_TRE_PE_2016___ABT.PDF
+- [ ] **123** · TRT162005 (2016) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-023_trt162005.txt`
+  - edital: Edital nº 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/_antigos/2005/TRT162005/arquivos/ED_2005_TRT_MA_16_ABT.PDF
+- [ ] **124** · DEPEN 2015 (2015) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-024_depen_2015.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/DEPEN_15/arquivos/ED_1_2015_DEPEN_15_ABT.PDF
+- [ ] **125** · TCE/RN 2015 - Auditor (2015) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-025_tce_rn_2015_auditor.txt`
+  - edital: Edital n. 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TC_RN_15_AUDITOR/arquivos/TCRN_AUDITOR_2015___ED_DE_ABERTURA.PDF
+- [ ] **126** · TRE/RS - 2015 (2015) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-026_tre_rs_2015.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TRE_RS_15/arquivos/TRE_RS_2015___ED_1___ABERTURA.PDF
+- [ ] **127** · CÂMARA DOS DEPUTADOS 2014 Analista e Técnico Legislativo (2014) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-027_camara_dos_deputados_2014_analista_e_tecnico_legislativo.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/CD_14_AT/arquivos/ED_1_2014_CAMARA_DOS_DEPUTADOS_14_ABERTURA.PDF
+- [ ] **128** · IRBR 2014 DIPLOMACIA (2014) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-028_irbr_2014_diplomacia.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/IRBR_14_DIPLOMACIA/arquivos/ED__1_IRBR_DIPLOMATA_2014.PDF
+
+## Bloco 17
+
+- [ ] **129** · DEPEN 2013 (2013) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-029_depen_2013.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/DEPEN_13/arquivos/ED_1_2013_DEPEN_13_ABERTURA.PDF
+- [ ] **130** · DPF 2013 Administrativo (2013) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-030_dpf_2013_administrativo.txt`
+  - edital: Edital n° 28 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/DPF_13_ADMINISTRATIVO/arquivos/ED_1_2013_DPF_ADMINISTRATIVO___ABERTURA.PDF
+- [ ] **131** · DPRF 2013 (2013) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-031_dprf_2013.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/DPRF_13/arquivos/ED_1_DPRF_AGENTE_2013_ABERTURA.PDF
+- [ ] **132** · IRBR 2013 DIPLOMACIA (2013) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-032_irbr_2013_diplomacia.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/IRBR_13_DIPLOMACIA/arquivos/ED._1_IRBR_DIPLOMATA_2013.PDF
+- [ ] **133** · MPU 2013 (2013) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-033_mpu_2013.txt`
+  - edital: Edital n°1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/MPU_13/arquivos/ED_1_2013_MPU_13_ABT.PDF
+- [ ] **134** · MPU 2013/2 (2013) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-034_mpu_2013_2.txt`
+  - edital: Edital n°1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/MPU_13_2/arquivos/ED_1_2013_MPU_13_2_ABERTURA.PDF
+- [ ] **135** · PC/DF AGENTE 2013 (2013) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-035_pc_df_agente_2013.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/PC_DF_13_AGENTE/arquivos/ED_1_2013_PCDF_AGENTE_13_ABT.PDF
+- [ ] **136** · TCE/ES 2013 ANALISTA (2013) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-036_tce_es_2013_analista.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TCE_ES_13_ANALISTA/arquivos/EDITAL__DE_ABERTURA_N___1_TCE_ES.PDF
+
+## Bloco 18
+
+- [ ] **137** · TCE/PB 2013 (2013) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-037_tce_pb_2013.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TCE_PB_13/arquivos/ED_1_2013_TCE_PB_13_ABERTURA.PDF
+- [ ] **138** · TCE/RO 2013 (2013) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-038_tce_ro_2013.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TCE_RO_13/arquivos/ED__1_TCE_RO_ABT.PDF
+- [ ] **139** · TCE/RS OFICIAL 2013 (2013) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-039_tce_rs_oficial_2013.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TCE_RS_13_OFICIAL/arquivos/TCE_RS_EDITAL_DE_ABERTURA.PDF
+- [ ] **140** · TJDFT 13 JUIZ (2013) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-040_tjdft_13_juiz.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TJDFT_13_JUIZ/arquivos/ED_1_2013_TJDFT_13_ABERTURA.PDF
+- [ ] **141** · TJDFT 2013 (2013) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-041_tjdft_2013.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TJDFT_13/arquivos/ED._1_TJDFT_ED._ABT.PDF
+- [ ] **142** · TJDFT NOTÁRIOS 2013 (2013) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-042_tjdft_notarios_2013.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TJDFT_13_NOTARIOS/arquivos/ED_1_2013_TJDFT_NOTARIOS_13_ABERTURA.PDF
+- [ ] **143** · TRF 1ª Região 2013 (2013) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-043_trf_1a_regiao_2013.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TRF1_13_JUIZ/arquivos/EDITAL_N___1___TRF_1___REGI__O__NOVO.PDF
+- [ ] **144** · TRT 17 2013 (2013) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-044_trt_17_2013.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TRT17_13/arquivos/ED_ABT_TRT_17___ABT.PDF
+
+## Bloco 19
+
+- [ ] **145** · TRT8 2013 (2013) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-045_trt8_2013.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TRT8_13/arquivos/EDITAL_N___1_TRT_8___REGI__O___ABT.PDF
+- [ ] **146** · BANCO DA AMAZÔNIA 2012 (2012) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-046_banco_da_amazonia_2012.txt`
+  - edital: Edital n°1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/BANCO_DA_AMAZONIA_12/arquivos/ED_1_2012_BANCO_DA_AMAZONIA___ABERTURA.PDF
+- [ ] **147** · CÂMARA DOS DEPUTADOS 2012 (2012) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-047_camara_dos_deputados_2012.txt`
+  - edital: Edital n°1 - Abertura.
+  - link oficial: https://cdn.cebraspe.org.br/concursos/CAMARA2012/arquivos/ED__N_1_2012___CMARA_ABERTURA.PDF
+- [ ] **148** · DPF AGENTE 2012 (2012) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-048_dpf_agente_2012.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/DPF_12_AGENTE/arquivos/ED_1_2012_DPF_AGENTE_ABT.DOCX.PDF
+- [ ] **149** · DPRF 2012 ADMINISTRATIVO (2012) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-049_dprf_2012_administrativo.txt`
+  - edital: Edital n°1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/DPRF_12_ADMINISTRATIVO/arquivos/ED_1_2012_DPRF_ADM_ABT.PDF
+- [ ] **150** · IRBr Diplomacia 2012 (2012) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-050_irbr_diplomacia_2012.txt`
+  - edital: Edital n°1 - Edital de abertura.
+  - link oficial: https://cdn.cebraspe.org.br/concursos/DIPLOMACIA2012/arquivos/ED_1_CACD_2012_ABT_FINAL.PDF
+- [ ] **151** · PC/AL 2012 (2012) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-051_pc_al_2012.txt`
+  - edital: Edital n° 1 - Edital de Abertura.
+  - link oficial: https://cdn.cebraspe.org.br/concursos/PC_AL_12/arquivos/EDITAL_N__1___EDITAL_DE_ABERTURA.PDF
+- [ ] **152** · SEDU/ES 2012 PROFESSOR (2012) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/2-052_sedu_es_2012_professor.txt`
+  - edital: Edital n° 1 - Edital de Abertura.
+  - link oficial: https://cdn.cebraspe.org.br/concursos/SEDU_ES_12_PROFESSOR/arquivos/ED__54_2012_SEDU___ES_PROFESSOR_ABT.PDF
+
+## Bloco 20
+
+- [ ] **153** · STJ 2012 (2012) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-053_stj_2012.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/STJ2012/arquivos/ED_N_1_ABERTURA_STJ_2012_ABERTURA_FINAL.PDF
+- [ ] **154** · STM 2012 (2012) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-054_stm_2012.txt`
+  - edital: Edital n° 5 - Reabertura do período para impugnação ao Edital n° 1  STM, de 16 de novembro de 2012
+  - link oficial: https://cdn.cebraspe.org.br/concursos/STM_12/arquivos/ED_5_STM_2012_RET_PERIODO_IMPUGNACAO.PDF
+- [ ] **155** · TCDF Procurador 2012 (2012) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-055_tcdf_procurador_2012.txt`
+  - edital: Edital n°1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/tcdfprocurador2012/arquivos/ED_1_TCDF___PROCURADOR___ABERTURA_FINAL_2.PDF
+- [ ] **156** · TCE/ES 2012 Auditor (2012) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-056_tce_es_2012_auditor.txt`
+  - edital: Edital n°1 - Edital de Abertura.
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TCE_ES_12_Auditor/arquivos/ED_1_2012_TCEES__AUDITOR_ABT_1.PDF
+- [ ] **157** · TJ/BA JUIZ 2012 (2012) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-057_tj_ba_juiz_2012.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TJBA_JUIZ2012/arquivos/ED_1_TJBA__ABERTURA.PDF
+- [ ] **158** · TJ/RN 2012 (2012) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-058_tj_rn_2012.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TJRN_12/arquivos/ED_1_2012_TJRN_ABT_PUBLICADO.PDF
+- [ ] **159** · TRE/MS 2012 (2012) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-059_tre_ms_2012.txt`
+  - edital: Edital n°1 - Edital de Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TRE_MS_12/arquivos/ED__1_2012_TRE_MS_ABT.PDF
+- [ ] **160** · TRE/RJ 2012 (2012) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-060_tre_rj_2012.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TRE_RJ_12/arquivos/ED_1_ABERTURA_TRE_RJ_2012.PDF
+
+## Bloco 21
+
+- [ ] **161** · TRF5 2012 JUIZ (2012) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-061_trf5_2012_juiz.txt`
+  - edital: Edital n°1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TRF5_12_JUIZ/arquivos/ED_1_2012_TRF5_ABT_4_10_FINAL___DEFINITIVO___EDITAL_DE_ABERTURA___04.10.2012___1715.PDF
+- [ ] **162** · TRT 10ª REGIÃO 2012 (2012) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-062_trt_10a_regiao_2012.txt`
+  - edital: Edital n°1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TRT10_12/arquivos/ED_1_2012_TRT_10___ABT.PDF
+- [ ] **163** · CBM DF QOBM_S / QOBM_Compl. 2011 (2011) · Federal e administração
+  - texto: `conteudo/colheita/editais-200/programatico/2-063_cbm_df_qobm_s_qobm_compl_2011.txt`
+  - edital: Edital n° 1 - Abertura (atualizado conforme publicação no DODF)
+  - link oficial: https://cdn.cebraspe.org.br/concursos/CBMDFCOMPLEMENTAR_SAUDE2011/arquivos/ED_1_2011_CBM_DF___COMPL__E_SADE_ABERTURA_FINAL_ATUALIZADO.PDF
+- [ ] **164** · PC/CE INSPETOR 2011 (2011) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-064_pc_ce_inspetor_2011.txt`
+  - edital: Edital n°1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/PCCE_INSPETOR2011/arquivos/ED_01_PCCE_INSPERTOR_ABT.PDF
+- [ ] **165** · PM/CE 2011 (2011) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-065_pm_ce_2011.txt`
+  - edital: Edital n°1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/PMCE2011/arquivos/ED_01_PMCE_ABT.PDF
+- [ ] **166** · SEDUC/AM 2011 (2011) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/2-066_seduc_am_2011.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/SEDUC_AM2011/arquivos/ED_1_2011_SEDUC_AM_ABERTURA.PDF
+- [ ] **167** · TC/DF 2011 (2011) · Federal e administração
+  - texto: `conteudo/colheita/editais-200/programatico/2-067_tc_df_2011.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TCDF_2011/arquivos/EDITAL_N_1_DE_ABT_TCDF.PDF
+- [ ] **168** · TRF 2.ª REGIÃO - JUIZ 2011 (2011) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-068_trf_2_a_regiao_juiz_2011.txt`
+  - edital: Edital n°1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TRF2JUIZ2011/arquivos/EDITAL_2011__PARA_PUBLICAO.PDF
+
+## Bloco 22
+
+- [ ] **169** · TRF 3ª Região 2011 (2011) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-069_trf_3a_regiao_2011.txt`
+  - edital: Edital n°1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/trf3juiz2011/arquivos/ED_1_2011_TRF_3_ABERTURA.PDF
+- [ ] **170** · TRF 5.ª REGIÃO - JUIZ 2011 (2011) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-070_trf_5_a_regiao_juiz_2011.txt`
+  - edital: Edital n°1 - ABERTURA
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TRF5JUIZ2011/arquivos/ED_1_2011_TRF_5A_REGIAO___EDITAL_DE_ABERTURA___DEFINITIVO___25.02.2011.PDF
+- [ ] **171** · AGU/Administrativo 2010 (2010) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-071_agu_administrativo_2010.txt`
+  - edital: Edital n°1 - ABERTURA
+  - link oficial: https://cdn.cebraspe.org.br/concursos/AGU_ADM2010/arquivos/AGU_ADM_2010_ED_1_ABT_FINAL___28.04.2010.PDF
+- [ ] **172** · AGU/PROCURADOR 2010 (2010) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-072_agu_procurador_2010.txt`
+  - edital: Edital n°1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/AGUPGF2010/arquivos/ED_1_2010_AGU_PROCURADOR_ABERTURA_FINAL.PDF
+- [ ] **173** · CAIXA Nível Médio Nacional (2010) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-073_caixa_nivel_medio_nacional.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/caixanm22010/arquivos/ED_1_2010_TBN_NACIONAL_ABT_FINAL_12.03.2010.PDF
+- [ ] **174** · DPU 2010 ADMINISTRATIVO (2010) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-074_dpu_2010_administrativo.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/DPU_ADMINISTRATIVO2010/arquivos/ED_1_2010_DPU___ADMINISTRATIVO_ABERTURA_30.03.2010.PDF
+- [ ] **175** · INSS 2010 MÉDICO (2010) · Federal e administração
+  - texto: `conteudo/colheita/editais-200/programatico/2-075_inss_2010_medico.txt`
+  - edital: Edital n°1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/INSSMEDICO2010/arquivos/EDITAL_N__1___INSS__20100113_PERITO_MEDICO_PREVIDENCIARIO_PARA_CESPE.PDF
+- [ ] **176** · MPU 2010 (2010) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-076_mpu_2010.txt`
+  - edital: Edital n°1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/MPU2010/arquivos/ED_1_2010_MPU_30_6_FINAL_SEM_O_CONTEDO___VER_OBSERVAO_FINAL___06.07.2010.PDF
+
+## Bloco 23
+
+- [ ] **177** · SEFAZ-ES/Consultor 2010 (2010) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-077_sefaz_es_consultor_2010.txt`
+  - edital: Edital n°1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/SEFAZ_CONSULTOR2010/arquivos/ED_1_2010_SEFAZ_ES_CONSULTOR_ABERTURA.PDF
+- [ ] **178** · TCE/BA 2010 (2010) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-078_tce_ba_2010.txt`
+  - edital: Edital n° 1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TCEBA2010/arquivos/EDITAL___VERSO_PUBLICAO_DOE_FONTE_ARIAL_TAMANHO9_22.06.2010.PDF
+- [ ] **179** · TJ/PB LEIGO 2010 (2010) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-079_tj_pb_leigo_2010.txt`
+  - edital: Edital n°1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TJPB_LEIGO2010/arquivos/TJPB_JUIZ_LEIGO_ED_N._1_ABT___01.11.2010.PDF
+- [ ] **180** · TRT 1.ª REGIÃO - JUIZ 2010 (2010) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-080_trt_1_a_regiao_juiz_2010.txt`
+  - edital: Edital de Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/trt1juiz2010/arquivos/ED_1_2010_TRTRJ_JUIZ_ABT_FINAL_19_5.PDF
+- [ ] **181** · TRT 21ª REGIÃO/RN 2010 (2010) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-081_trt_21a_regiao_rn_2010.txt`
+  - edital: Edital n°1 - Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/trt21rn2010/arquivos/EDITAL_N_1_TRT_RN_21_ABERTURA___24.09.2010.PDF
+- [ ] **182** · Banco do Brasil — Seleção Externa 2021/001 (2021) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-082_banco_do_brasil_selecao_externa_2021_001.txt`
+  - edital: Edital nº 1 - Seleção Externa 2021/001 — abertura
+  - link oficial: https://dhg1h5j42swfq.cloudfront.net/2021/06/24105731/bb0121_edital.pdf
+- [ ] **183** · Caixa Econômica Federal — Concurso 2014 — Técnico Bancário Novo (2014) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-083_caixa_economica_federal_concurso_2014_tecnico_bancario_novo.txt`
+  - edital: Edital nº 1/2014 — Edital de abertura — Nível Médio
+  - link oficial: https://cdn.cebraspe.org.br/concursos/CAIXA_14_NM/arquivos/ED_1_CAIXA_2014_NM___EDITAL_DE_ABERTURA__SEM_ANEXO_2_.PDF
+- [ ] **184** · Banco do Nordeste — Analista Bancário 1 (2024) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-084_banco_do_nordeste_analista_bancario_1.txt`
+  - edital: Edital nº 1 - BNB, de 26 de janeiro de 2024 — Abertura
+  - link oficial: https://bnb.gov.br/documents/45807/5758094/Edital%2Bn%C2%BA%2B1%2B-%2BAbertura%2Bde%2Bconcurso%2Bp%C3%BAblico%2B2024.pdf/e7c60060-0998-fce8-b122-d916e0b7085b?t=1706265706480&version=1.0
+
+## Bloco 24
+
+- [ ] **185** · Petrobras — PSP 2023 — nível técnico (2023) · Federal e administração
+  - texto: `conteudo/colheita/editais-200/programatico/2-085_petrobras_psp_2023_nivel_tecnico.txt`
+  - edital: Edital de abertura — PSP Petrobras 2023
+  - link oficial: https://webserver-petrobrasecossistemaint-prod1.lfr.cloud/documents/d/f3a44542-113e-11ee-be56-0242ac120002/edital_petrobras
+- [ ] **186** · Polícia Federal — Agente, Escrivão, Papiloscopista e Delegado (2021) · Polícia e militar · ⚠️ já temos edital parecido, confira antes
+  - texto: `conteudo/colheita/editais-200/programatico/2-086_policia_federal_agente_escrivao_papiloscopista_e_delegado.txt`
+  - edital: Edital nº 1 - DPF, de 15 de janeiro de 2021 — Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/pf_21/arquivos/ED_1_DPF_2021_ABT.PDF
+- [ ] **187** · Conselho Nacional de Justiça — Analista e Técnico (2024) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-087_conselho_nacional_de_justica_analista_e_tecnico.txt`
+  - edital: Edital nº 1 - CNJ, de 28 de março de 2024 — Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/cnj_24/arquivos/ED_1_CNJ_2024_ABERTURA.PDF
+- [ ] **188** · Polícia Militar do Paraná — Soldado (CFSd 2020) (2020) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-088_policia_militar_do_parana_soldado_cfsd_2020.txt`
+  - edital: Edital nº 01 — Concurso para Soldado PMPR 2020 — abertura
+  - link oficial: https://www.pmpr.pr.gov.br/sites/default/arquivos_restritos/files/documento/2024-10/EDITAL%20n%C2%BA%2001%20%E2%80%93%20SOLDADO%20PMPR-2020%20-%20Edital%20Regulador.pdf
+- [ ] **189** · Superior Tribunal de Justiça — Analista e Técnico (2024) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-089_superior_tribunal_de_justica_analista_e_tecnico.txt`
+  - edital: Edital nº 1 - STJ, de 16 de agosto de 2024 — Abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/STJ_24/arquivos/ED_1_2024_STJ_ABERTURA.PDF
+- [ ] **190** · SEFAZ Santa Catarina — Auditor Estadual de Finanças Públicas (2026) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-090_sefaz_santa_catarina_auditor_estadual_de_financas_publicas.txt`
+  - edital: Edital nº 01/2026-DE — Abertura de Inscrições
+  - link oficial: https://jcconcursos.uol.com.br/media/uploads/anexos/concurso-sefaz-sc-edital-1-2026.pdf
+- [ ] **191** · PMCE — Soldado 2021 (2021) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-091_pmce_soldado_2021.txt`
+  - edital: Edital nº 01 — Soldado PMCE, de 27 de julho de 2021 — abertura
+  - link oficial: https://www.aesp.ce.gov.br/wp-content/uploads/sites/29/2021/08/do20210802p02.pdf-EDITAL-PMCE.pdf
+- [ ] **192** · PMMG — Soldado 2018 (2018) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-092_pmmg_soldado_2018.txt`
+  - edital: Edital DRH/CRS nº 06/2018 — abertura para o CFSd 2019
+  - link oficial: https://dhg1h5j42swfq.cloudfront.net/2018/06/30111914/Edital-PM-MG.pdf
+
+## Bloco 25
+
+- [ ] **193** · EsPCEx — Admissão 2026 (2026) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-093_espcex_admissao_2026.txt`
+  - edital: Edital nº 01/2026 — Concurso de Admissão
+  - link oficial: https://www.acheconcursos.com.br/imagens/anexo/62392/edital-especex-2026-oficial.pdf
+- [ ] **194** · Tribunal de Justiça do Rio de Janeiro — Analista Judiciário 2025 (2025) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-094_tribunal_de_justica_do_rio_de_janeiro_analista_judiciario_2025.txt`
+  - edital: Edital nº 01/2025 — Abertura
+  - link oficial: https://conhecimento.fgv.br/sites/default/files/concursos/edital-de-abertura-tjrj-analista-judiciario-final-23.10.pdf
+- [ ] **195** · Tribunal de Justiça de Minas Gerais — Servidores 2022 (2022) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-095_tribunal_de_justica_de_minas_gerais_servidores_2022.txt`
+  - edital: Edital nº 1/2022 — abertura do concurso para servidores
+  - link oficial: https://jcconcursos.com.br/media/uploads/anexos/concurso-tj-mg-edital-1-2022.pdf
+- [ ] **196** · Polícia Civil de Minas Gerais — Investigador 2021 (2021) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-096_policia_civil_de_minas_gerais_investigador_2021.txt`
+  - edital: Edital nº 04/2021 — Investigador de Polícia — abertura
+  - link oficial: https://dhg1h5j42swfq.cloudfront.net/2021/10/09072447/edital-pc-mg-2021.pdf
+- [ ] **197** · TRT da 8ª Região — Servidores 2026 (2026) · Justiça e jurídico
+  - texto: `conteudo/colheita/editais-200/programatico/2-097_trt_da_8a_regiao_servidores_2026.txt`
+  - edital: Edital nº 1/2026 — Abertura de inscrições
+  - link oficial: https://jcconcursos.uol.com.br/media/uploads/anexos/concurso-trt-8-edital-1-2026.pdf
+- [ ] **198** · PMBA/CBMBA — Soldado 2022 (2022) · Polícia e militar
+  - texto: `conteudo/colheita/editais-200/programatico/2-098_pmba_cbmba_soldado_2022.txt`
+  - edital: Edital de Abertura de Inscrições SAEB/05/2022, de 27 de setembro de 2022
+  - link oficial: https://www.simuladosbr.net/wp-content/uploads/2022/09/edital-pmba-2022-simuladosbr.pdf
+- [ ] **199** · EBSERH Nacional — Área Assistencial 2023 (2023) · Educação e saúde
+  - texto: `conteudo/colheita/editais-200/programatico/2-099_ebserh_nacional_area_assistencial_2023.txt`
+  - edital: Edital nº 03 — EBSERH/Nacional — Área Assistencial, de 02 de outubro de 2023 — abertura
+  - link oficial: https://jcconcursos.com.br/media/uploads/anexos/concurso-ebserh-edital-3-2023-area-assistencial.pdf
+- [ ] **200** · TCE/RN — Servidores (nível superior) 2015 (2015) · Bancos e fiscal
+  - texto: `conteudo/colheita/editais-200/programatico/2-100_tce_rn_2015_servidor.txt`
+  - edital: Edital nº 1 — TCE/RN — Servidor, de 21 de setembro de 2015 — abertura
+  - link oficial: https://cdn.cebraspe.org.br/concursos/TCE_RN_15_SERVIDOR/arquivos/TCE_RN_SERVIDOR_2015.PDF
+
