@@ -45,6 +45,8 @@ object Store {
         private set
 
     private var baseRevision = 0L
+    /** Última edição feita neste navegador; decide o conflito sem perguntar. */
+    private var lastLocalChangeAt = 0.0
     private var saveJob: Job? = null
 
     init {
@@ -162,6 +164,7 @@ object Store {
     /** Aplica uma mudança e agenda o envio. */
     fun update(change: (Snapshot) -> Snapshot) {
         data = change(data)
+        lastLocalChangeAt = kotlin.js.Date.now()
         if (load == LoadState.NoData) load = LoadState.Ready
         if (!demo) scheduleSave(1500)
     }
@@ -182,8 +185,10 @@ object Store {
             baseRevision = Cloud.upload(data.encode(), expected)
             save = SaveState.Saved
         } catch (error: CloudConflictException) {
-            conflict = error.head
-            save = SaveState.Pending
+            // Outro aparelho publicou depois da nossa base: vence quem mudou por último, sem
+            // perguntar (as fotos anteriores ficam guardadas na conta).
+            val remoteAt = error.head.updatedAt?.let { kotlin.js.Date(it).getTime() } ?: 0.0
+            if (lastLocalChangeAt >= remoteAt) pushNow(force = true) else reload()
         } catch (_: SignedOutException) {
             load = LoadState.SignedOut
         } catch (_: Throwable) {

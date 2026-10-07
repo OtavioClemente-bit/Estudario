@@ -59,11 +59,24 @@ class CloudSyncService(
     private val _status = MutableStateFlow<CloudSyncStatus>(CloudSyncStatus.Idle)
     val status: StateFlow<CloudSyncStatus> = _status.asStateFlow()
 
+    /** Ligada por padrão: com conta, o celular e o app web são um só. Dá para pausar nos ajustes. */
     var enabled: Boolean
-        get() = prefs.getBoolean(KEY_ENABLED, false)
+        get() = prefs.getBoolean(KEY_ENABLED, true)
         set(value) { prefs.edit().putBoolean(KEY_ENABLED, value).apply() }
 
     val lastSyncAt: Long get() = prefs.getLong(KEY_LAST_SYNC, 0L)
+
+    /** Quando este aparelho mudou algo pela última vez (qualquer tabela), fora da própria restauração. */
+    @Volatile private var restoring = false
+    private val changeObserver = object : androidx.room.InvalidationTracker.Observer(allTables(database)) {
+        override fun onInvalidated(tables: Set<String>) {
+            if (restoring) return
+            prefs.edit().putLong(KEY_LOCAL_CHANGED_AT, System.currentTimeMillis()).apply()
+            // Mudou algo: sobe para a conta daqui a pouco (cada nova mudança adia, para não enviar a cada toque).
+            if (enabled) CloudSyncWorker.syncSoon(context, delaySeconds = 20)
+        }
+    }
+    init { runCatching { database.invalidationTracker.addObserver(changeObserver) } }
 
     private val deviceId: String
         get() = prefs.getString(KEY_DEVICE, null) ?: UUID.randomUUID().toString().also { prefs.edit().putString(KEY_DEVICE, it).apply() }
@@ -112,7 +125,9 @@ class CloudSyncService(
             SyncPlanner.Action.AdoptRemote -> { remember(head.revision, localSha); "igual" }
             SyncPlanner.Action.Upload -> { upload(userId, snapshot, localSha, head.revision); "enviado" }
             SyncPlanner.Action.Download -> { download(head); "recebido" }
-            SyncPlanner.Action.Conflict -> when (choice) {
+            // Os dois lados mudaram: vence o que mudou por último, sem perguntar (a outra versão fica
+            // guardada: na conta, as fotos anteriores; aqui, a cópia em sync-backups).
+            SyncPlanner.Action.Conflict -> when (choice ?: autoChoice(head)) {
                 null -> throw SyncConflictException(head.deviceLabel, head.updatedAt)
                 ConflictChoice.KEEP_THIS_DEVICE -> { upload(userId, snapshot, localSha, head.revision); "enviado" }
                 ConflictChoice.KEEP_CLOUD -> { download(head); "recebido" }
@@ -185,11 +200,20 @@ class CloudSyncService(
         val sha = Sha256.digest(text.encodeToByteArray()).toHex()
         if (sha != head.sha256) error("A cópia baixada veio incompleta. Tente de novo.")
         keepLocalCopy()
-        backup.restore(text)
+        restoring = true
+        try { backup.restore(text) } finally { restoring = false }
         // A base é o que este aparelho exporta depois de restaurar (a ordem das linhas pode sair
         // diferente da foto recebida); assim a próxima rodada não confunde isso com uma edição.
         val restoredSha = Sha256.digest(canonicalSnapshot().encodeToByteArray()).toHex()
         remember(head.revision, restoredSha)
+    }
+
+    private fun autoChoice(head: RemoteHead): ConflictChoice {
+        val remoteAt = head.updatedAt?.let { runCatching { java.time.OffsetDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() } ?: 0L
+        // Sem registro de quando mudou aqui, a mudança local é tratada como agora (quem está usando o
+        // aparelho tem a versão mais fresca).
+        val localAt = prefs.getLong(KEY_LOCAL_CHANGED_AT, 0L).takeIf { it > 0L } ?: System.currentTimeMillis()
+        return if (localAt >= remoteAt) ConflictChoice.KEEP_THIS_DEVICE else ConflictChoice.KEEP_CLOUD
     }
 
     /** Guarda a versão deste aparelho antes de substituí-la (mantém as 5 mais recentes). */
@@ -240,6 +264,13 @@ class CloudSyncService(
         private const val KEY_BASE_REVISION = "base_revision"
         private const val KEY_BASE_SHA = "base_sha"
         private const val KEY_LAST_SYNC = "last_sync"
+        private const val KEY_LOCAL_CHANGED_AT = "local_changed_at"
+
+        private fun allTables(database: AppDatabase): Array<String> = runCatching {
+            database.openHelper.readableDatabase.query("select name from sqlite_master where type = 'table' and name not like 'sqlite_%' and name not like 'room_%' and name not like 'android_%'").use { cursor ->
+                buildList { while (cursor.moveToNext()) add(cursor.getString(0)) }
+            }.toTypedArray()
+        }.getOrDefault(emptyArray())
 
         /** O backup sem o horário de exportação, compacto: mesmo conteúdo, mesmo hash. */
         fun canonicalize(backupJson: String): String = JSONObject(backupJson).apply { remove("exportedAt") }.toString()

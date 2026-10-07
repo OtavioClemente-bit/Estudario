@@ -31,11 +31,14 @@ class CloudSyncWorker(context: Context, params: WorkerParameters) : CoroutineWor
         private const val PERIODIC = "cloud-sync-periodic"
         private val network = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
 
-        fun syncSoon(context: Context) {
+        fun syncSoon(context: Context, delaySeconds: Long = 0) {
             WorkManager.getInstance(context).enqueueUniqueWork(
                 NOW,
                 ExistingWorkPolicy.REPLACE,
-                OneTimeWorkRequestBuilder<CloudSyncWorker>().setConstraints(network).build(),
+                OneTimeWorkRequestBuilder<CloudSyncWorker>()
+                    .setConstraints(network)
+                    .setInitialDelay(delaySeconds, TimeUnit.SECONDS)
+                    .build(),
             )
         }
 
