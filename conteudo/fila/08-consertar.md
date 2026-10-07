@@ -32,13 +32,13 @@ O que cada problema pede:
 - [x] `crimes-dignidade-sexual.json` · validador(1): questions: a alternativa certa é a mais longa em 16 de 24 (máximo 40%); equilibre o tamanh · certa mais longa 16/24
 - [x] `crimes-militares-especie.json` · validador(2): questions: gabarito concentrado demais numa letra · certa mais longa 21/24 · gabarito concentrado {"A":24}
 
-## Bloco 3
+## Bloco 3 (feito e publicado em 07/10)
 
-- [ ] `direito-civil.pessoas-naturais.json` · validador(1): questions: a alternativa certa é a mais longa em 19 de 25 (máximo 40%); equilibre o tamanh · certa mais longa 19/25
-- [ ] `disposicoes-especiais.json` · JSON: Unexpected token ',', ..."ull},
-- [ ] `eca-ato-infracional.json` · validador(1): questions: a alternativa certa é a mais longa em 22 de 25 (máximo 40%); equilibre o tamanh · certa mais longa 22/25
-- [ ] `estatistica.probabilidade-avancada.json` · validador(36): questions[12]: questão AUTHORIAL deixa sourceUrl, board, agency e year como null
-- [ ] `estatistica.series-temporais-numeros-indices.json` · validador(45): questions[1]: questão AUTHORIAL deixa sourceUrl, board, agency e year como null
+- [x] `direito-civil.pessoas-naturais.json` · validador(1): questions: a alternativa certa é a mais longa em 19 de 25 (máximo 40%); equilibre o tamanh · certa mais longa 19/25
+- [x] `disposicoes-especiais.json` · JSON: Unexpected token ',', ..."ull},
+- [x] `eca-ato-infracional.json` · validador(1): questions: a alternativa certa é a mais longa em 22 de 25 (máximo 40%); equilibre o tamanh · certa mais longa 22/25
+- [x] `estatistica.probabilidade-avancada.json` · validador(36): questions[12]: questão AUTHORIAL deixa sourceUrl, board, agency e year como null
+- [x] `estatistica.series-temporais-numeros-indices.json` · validador(45): questions[1]: questão AUTHORIAL deixa sourceUrl, board, agency e year como null
 
 ## Bloco 4
 
