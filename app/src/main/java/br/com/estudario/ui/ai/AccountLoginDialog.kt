@@ -78,15 +78,15 @@ private fun GoogleLoginDialog(onDismiss: () -> Unit, onSignedIn: () -> Unit) {
                 )
                 Text("Falta só entrar", style = MaterialTheme.typography.headlineSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.Black)
                 Text(
-                    "Com a sua conta Google, a mesma do Play, o Estudário gera seu material e guarda tudo com segurança.",
+                    "Entre com a conta Google do seu celular. É ela que libera a geração de material e leva seu estudo para o computador.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     LoginReason(br.com.estudario.ui.brand.Glyph.Pencil, "Teoria, flashcards e questões do seu edital")
-                    LoginReason(br.com.estudario.ui.brand.Glyph.Cloud, "Backup no seu Drive, sem perder nada")
-                    LoginReason(br.com.estudario.ui.brand.Glyph.Phone, "Trocou de celular? Entra e continua de onde parou")
+                    LoginReason(br.com.estudario.ui.brand.Glyph.Cloud, "Seu estudo na sua conta e no computador")
+                    LoginReason(br.com.estudario.ui.brand.Glyph.Phone, "Trocou de celular? Entra e está tudo lá")
                 }
                 error?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)

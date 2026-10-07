@@ -354,13 +354,13 @@ fun SettingsScreen() {
         }
         Card {
             CardHead("Sincronização")
-            P({ classes("small", "muted") }) { Text("O que você faz aqui vai para a sua conta em segundos e aparece no app do celular na próxima abertura. Se o mesmo dado mudar nos dois lugares, o Estudário pergunta qual versão manter.") }
+            P({ classes("small", "muted") }) { Text("Cada mudança feita aqui vai para a sua conta em segundos; o celular busca ao abrir e a cada poucos minutos. Se os dois lados mudarem antes de se falarem, vale a mudança mais recente, e as versões anteriores ficam guardadas na conta.") }
             Div({ classes("row", "wrap"); attr("style", "margin-top:12px") }) {
                 Btn("Recarregar da conta", { Store.start() }, style = "outline", icon = "refresh", small = true)
                 A(href = "https://estudario.com.br/privacidade.html", { attr("target", "_blank"); classes("btn", "ghost", "small") }) { Text("Privacidade") }
             }
         }
     }
-    P({ classes("xs", "faint"); attr("style", "text-align:center") }) { Text("Estudário web · seus dados ficam na sua conta e só você tem acesso.") }
+    P({ classes("xs", "faint"); attr("style", "text-align:center") }) { Text("Estudário no computador · app.estudario.com.br") }
 }
 

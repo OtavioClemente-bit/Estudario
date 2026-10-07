@@ -390,7 +390,7 @@ private fun ProfileHeader(
             IconButton(onClick = onEditName, modifier = Modifier.size(28.dp)) { Icon(Icons.Outlined.Edit, "Editar nome", Modifier.size(17.dp)) }
         }
         Text(
-            if (profile.signedIn) profile.email else "Sem conta, o progresso fica só neste celular. Entre para ter backup.",
+            if (profile.signedIn) profile.email else "Sem conta, o progresso fica só neste celular.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -704,7 +704,7 @@ private fun AccountBand(
             Text("Entre com o Google", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
             Spacer(Modifier.height(EstudarioSpacing.tight))
             Text(
-                "Uma conta para tudo: libera as gerações do Estudário, guarda seu plano e faz o backup do seu estudo no seu Google Drive. Sem senha e sem código por e-mail.",
+                "Com a conta você gera material, estuda também no computador (app.estudario.com.br) e, se trocar de celular, entra e está tudo lá. Sem senha.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -713,7 +713,7 @@ private fun AccountBand(
                 Text("G", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold); Spacer(Modifier.width(10.dp)); Text("Continuar com Google")
             }
             Spacer(Modifier.height(EstudarioSpacing.tight))
-            Text("Sem entrar, o app funciona inteiro neste aparelho, só sem as gerações e sem backup na nuvem.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Sem conta, o app funciona inteiro, mas só neste celular e sem gerar material.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
                 Icon(Icons.Outlined.VerifiedUser, null, tint = estudarioColors().completed)

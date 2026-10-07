@@ -132,16 +132,16 @@ private fun WelcomeContent(
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
-                            "Entre com o Google para gerar seu material e guardar uma cópia do progresso no seu Drive.",
+                            "Entre com o Google para gerar material e levar seu estudo para o computador, em app.estudario.com.br.",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                     }
                     Surface(shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
                         Column(Modifier.padding(vertical = 6.dp)) {
-                            BenefitRow(Icons.Rounded.CloudDone, "Geração e backup", "Gere material com o Estudário e guarde seu histórico na sua conta")
+                            BenefitRow(Icons.Rounded.CloudDone, "Celular e computador", "O que você estuda num aparece no outro")
                             BenefitDivider()
-                            BenefitRow(Icons.Rounded.SettingsBackupRestore, "Troque de celular sem perder nada", "Restaure tudo em outro aparelho")
+                            BenefitRow(Icons.Rounded.SettingsBackupRestore, "Trocou de celular?", "Entra com a mesma conta e está tudo lá")
                             BenefitDivider()
                             BenefitRow(Icons.Rounded.AccountCircle, "Seu perfil", "Nome e foto da sua conta Google")
                         }

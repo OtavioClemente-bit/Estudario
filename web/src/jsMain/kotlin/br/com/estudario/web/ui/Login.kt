@@ -70,7 +70,7 @@ fun LoginScreen() {
             Div({ classes("auth-card", "rise") }) {
                 Img(src = "icon.png", alt = "", attrs = { classes("auth-icon") })
                 H2 { Text("Entrar no Estudário") }
-                P({ classes("muted") }) { Text("Use sua conta Google. Se você já usa o app no celular, entre com a mesma conta para ver tudo sincronizado.") }
+                P({ classes("muted") }) { Text("Entre com a conta Google que você usa no app do celular. Se ainda não tem o app, pode começar por aqui.") }
                 if (GoogleSignIn.available) {
                     Div({ classes("gbtn-wrap"); if (busy) classes("busy") }) {
                         Div({ id("google-button"); classes("gbtn") })
@@ -84,8 +84,8 @@ fun LoginScreen() {
                 } else Div({ classes("banner", "error") }) { Text("O login com Google não está configurado neste endereço.") }
                 error?.let { Div({ classes("banner", "error") }) { Icon("error"); Text(it) } }
                 Ul({ classes("auth-trust") }) {
-                    Li { Icon("shield"); Text("Seus dados ficam na sua conta. Só você tem acesso.") }
-                    Li { Icon("cloud_sync"); Text("O que você faz aqui aparece no app, e vice-versa.") }
+                    Li { Icon("cloud_sync"); Text("Mesma conta do celular: o plano, as questões e o progresso aparecem aqui em segundos.") }
+                    Li { Icon("shield"); Text("Sem senha para decorar. Entra pelo Google e pronto.") }
                 }
                 Div({ classes("auth-sep") })
                 P({ classes("small", "muted") }) {
