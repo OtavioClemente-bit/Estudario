@@ -152,7 +152,7 @@ async function libraryContent(
   }
   const fresh = input.avoidStatements.length === 0;
   const servedKey = `lib:${found.topicId}@${found.version}:${await contentCacheKey(input)}`;
-  const content = assembleFromLibrary(found.material, found.note, input, `${job.id}:${job.userId}`);
+  const content = assembleFromLibrary(found.material, found.note, input, `${job.id}:${job.userId}`, found.focus ?? null);
   if (!content) return null;
   if (fresh) await store.markServed?.(servedKey, job.userId).catch(() => undefined);
   await store.recordLibraryHit?.(found.topicId).catch(() => undefined);

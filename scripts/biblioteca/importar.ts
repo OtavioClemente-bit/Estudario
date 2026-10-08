@@ -135,6 +135,27 @@ for (const { path, value } of await jsonFiles("editais")) {
   }
 }
 
+// Foco por tópico (conteudo/foco/<id>.json): tópico estreito abre a matéria nos capítulos e nas
+// questões dele. Só vale para o apelido que é mesmo daquela matéria; "inteira" fica sem foco.
+const focusByAlias = new Map<string, { capitulos: number[]; questoes: string[] }>();
+for (const { path, value } of await jsonFiles("foco")) {
+  const material = materials.get(String(value.materia));
+  if (!material) {
+    problems.push(`${path}: matéria ${value.materia} não existe`);
+    continue;
+  }
+  const chapterCount = (material.chapters as unknown[]).length;
+  const questionCount = (material.questions as unknown[]).length;
+  for (const topic of (Array.isArray(value.topicos) ? value.topicos : []) as Json[]) {
+    if (topic.foco === "inteira") continue;
+    const alias = normalizeAlias(String(topic.texto ?? ""));
+    if (aliasOwner.get(alias) !== material.id) continue;
+    const capitulos = ((topic.capitulos ?? []) as unknown[]).map(Number).filter((i) => Number.isInteger(i) && i >= 0 && i < chapterCount);
+    const questoes = ((topic.questoes ?? []) as unknown[]).map(String).filter((q) => /^q\d+$/.test(q) && Number(q.slice(1)) >= 1 && Number(q.slice(1)) <= questionCount);
+    if (capitulos.length > 0 || questoes.length > 0) focusByAlias.set(alias, { capitulos, questoes });
+  }
+}
+
 // Catálogo de editais que o app mostra na busca ("PMMG", "polícia federal"). Cada arquivo de
 // conteudo/editais vira uma linha; "catalogo": false deixa um edital só como fonte de apelidos.
 const catalogRows: Json[] = [];
@@ -180,6 +201,7 @@ for (const { path, value } of await jsonFiles("editais")) {
 }
 
 console.log(`Matérias: ${materials.size} · Recortes: ${notes.length} · Apelidos: ${aliasOwner.size} · Editais no catálogo: ${catalogRows.length}`);
+console.log(`Apelidos com foco (tópico estreito): ${focusByAlias.size}`);
 if (ambiguous.size > 0) console.log(`Textos de edital ligados a matérias diferentes (ficam sem apelido): ${ambiguous.size}`);
 if (missing.length > 0) {
   console.log(`\nTópicos de edital ainda sem matéria (${missing.length}):`);
@@ -230,8 +252,15 @@ for (let i = 0; i < topicRows.length; i += 20) {
 }
 
 // Apelidos e recortes espelham o repositório: o que saiu daqui sai do banco.
+// Banco ainda sem a coluna focus (migração não aplicada): envia sem foco, para nunca apagar os
+// apelidos e falhar ao recriá-los.
+const hasFocusColumn = await fetch(`${url}/rest/v1/library_topic_aliases?select=focus&limit=1`, {
+  headers: { apikey: key!, authorization: `Bearer ${key}` },
+}).then(async (r) => { await r.body?.cancel().catch(() => {}); return r.ok; }).catch(() => false);
+if (!hasFocusColumn && focusByAlias.size > 0) console.log("Aviso: o banco ainda não tem a coluna focus; apelidos enviados sem foco.");
 await rest("library_topic_aliases?alias_norm=not.is.null", "DELETE");
-await rest("library_topic_aliases", "POST", [...aliasOwner].map(([alias_norm, topic_id]) => ({ alias_norm, topic_id })));
+await rest("library_topic_aliases", "POST", [...aliasOwner].map(([alias_norm, topic_id]) =>
+  hasFocusColumn ? { alias_norm, topic_id, focus: focusByAlias.get(alias_norm) ?? null } : { alias_norm, topic_id }));
 // Só os recortes escritos aqui (MANUAL) são refeitos; os automáticos ficam, salvo quando um
 // recorte revisado da mesma banca os substitui (upsert abaixo).
 await rest("library_board_notes?origin=eq.MANUAL", "DELETE");

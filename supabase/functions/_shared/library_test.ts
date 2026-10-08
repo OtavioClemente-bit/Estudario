@@ -102,6 +102,21 @@ Deno.test("só as partes pedidas; sem questões suficientes devolve nulo", () =>
   assertEquals(assembleFromLibrary(m, null, { board: null, options: { ...ALL, questionStyle: "FOUR_OPTIONS", difficulty: "HARD", questionCount: 30 }, avoidStatements: [] }, "s"), null);
 });
 
+Deno.test("foco: questões do tópico primeiro, depois as do capítulo, e a teoria abre no capítulo", () => {
+  const m = validateLibraryMaterial(material());
+  // q2, q6 e q10 (posições 1, 5 e 9: cinco alternativas, seção "Gráfico"); capítulo 1 = "Gráfico".
+  const content = assembleFromLibrary(m, null, { board: null, options: { ...ALL, questionCount: 10 }, avoidStatements: [] }, "s", { capitulos: [1], questoes: ["q2", "q6", "q10"] })!;
+  const statements = (content.questions as Json[]).map((q) => String(q.statement));
+  const focused = [1, 5, 9].map((i) => `Questão ${i} sobre`);
+  assert(statements.slice(0, 3).every((s) => focused.some((f) => s.startsWith(f))), statements.slice(0, 3).join(" | "));
+  assert(statements.slice(3).every((s) => Number(s.match(/Questão (\d+)/)![1]) % 2 === 1), "o resto vem do capítulo Gráfico");
+  assertEquals((content.chapters as Json[])[0].title, "Gráfico");
+  assertEquals((content.chapters as Json[]).length, 2);
+  // Sem foco, nada muda.
+  const plain = assembleFromLibrary(m, null, { board: null, options: ALL, avoidStatements: [] }, "s", null)!;
+  assertEquals((plain.chapters as Json[])[0].title, "Definição");
+});
+
 Deno.test("mais questões não repete as que a pessoa já tem", () => {
   const m = material();
   const first = assembleFromLibrary(m, null, { board: null, options: ALL, avoidStatements: [] }, "a")!;

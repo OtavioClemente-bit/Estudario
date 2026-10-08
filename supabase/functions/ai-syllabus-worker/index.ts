@@ -238,6 +238,8 @@ export interface LibraryHit {
   version: number;
   material: Record<string, unknown>;
   note: Record<string, unknown> | null;
+  /** Foco do apelido que bateu (tópico estreito); nulo = matéria inteira. */
+  focus?: { capitulos?: number[]; questoes?: string[] } | null;
 }
 
 export interface LibraryMiss {
@@ -1370,9 +1372,9 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
       await response.body?.cancel().catch(() => {});
       return null;
     }
-    const rows = await response.json() as Array<{ topic_id: string; version: number; material: Record<string, unknown>; note: Record<string, unknown> | null }>;
+    const rows = await response.json() as Array<{ topic_id: string; version: number; material: Record<string, unknown>; note: Record<string, unknown> | null; focus?: { capitulos?: number[]; questoes?: string[] } | null }>;
     const row = rows[0];
-    return row ? { topicId: row.topic_id, version: row.version, material: row.material, note: row.note ?? null } : null;
+    return row ? { topicId: row.topic_id, version: row.version, material: row.material, note: row.note ?? null, focus: row.focus ?? null } : null;
   }
   async recordLibraryHit(topicId: string): Promise<void> {
     const response = await this.rest("rpc/library_record_hit", { method: "POST", body: JSON.stringify({ p_topic_id: topicId }) });

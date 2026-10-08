@@ -11,6 +11,12 @@ import { validateTopicContent } from "./text-job-validators.ts";
 
 type Json = Record<string, unknown>;
 
+/** Foco de um apelido (tópico estreito): capítulos (índices) e questões (ids) que cobram o tópico. */
+export interface LibraryFocus {
+  capitulos?: number[];
+  questoes?: string[];
+}
+
 export const LIBRARY_MODEL_VERSION = "biblioteca";
 
 /** Minúsculas, sem acento, sem numeração de edital ("1.2 Função afim." → "funcao afim"). */
@@ -487,6 +493,7 @@ export function assembleFromLibrary(
   note: Json | null,
   input: Pick<ContentJobInput, "board" | "options" | "avoidStatements">,
   seed: string,
+  focus: LibraryFocus | null = null,
 ): Json | null {
   const options = input.options;
   const wants = (block: string) => options.blocks.includes(block as never);
@@ -500,11 +507,28 @@ export function assembleFromLibrary(
   const boardPool = usable((note?.questions as Json[] | undefined) ?? []);
   const topicPool = usable(material.questions as Json[]);
   // Em cada nível, as questões do recorte da banca vêm antes das da matéria.
-  const tier = (level: string | null) => [
-    ...shuffled(boardPool.filter((q) => level === null || q.difficulty === level), seed),
-    ...shuffled(topicPool.filter((q) => level === null || q.difficulty === level), seed),
+  const tier = (board: Json[], topic: Json[]) => (level: string | null) => [
+    ...shuffled(board.filter((q) => level === null || q.difficulty === level), seed),
+    ...shuffled(topic.filter((q) => level === null || q.difficulty === level), seed),
   ];
-  const ordered = wanted === null ? tier(null) : nearest[wanted].flatMap(tier);
+  const byLevel = (board: Json[], topic: Json[]) => wanted === null ? tier(board, topic)(null) : nearest[wanted].flatMap(tier(board, topic));
+  const allChapters = material.chapters as Json[];
+  const focusChapters = (focus?.capitulos ?? []).filter((i) => Number.isInteger(i) && i >= 0 && i < allChapters.length);
+  // "q12" é a 12ª questão da matéria, pela posição (muitas matérias não têm id nas questões).
+  const allQuestions = material.questions as Json[];
+  const focusQuestions = new Set((focus?.questoes ?? []).map((ref) => allQuestions[Number(String(ref).replace(/^q/i, "")) - 1]).filter(Boolean));
+  let ordered: Json[];
+  if (focusChapters.length === 0 && focusQuestions.size === 0) {
+    ordered = byLevel(boardPool, topicPool);
+  } else {
+    // Tópico estreito: primeiro as questões que cobram o tópico, depois as do mesmo capítulo e só
+    // então o resto, para completar a quantidade pedida sem mandar o pedido para a IA.
+    const titles = new Set(focusChapters.map((i) => String(allChapters[i].title).trim()));
+    const direct = topicPool.filter((q) => focusQuestions.has(q));
+    const sameChapter = topicPool.filter((q) => !focusQuestions.has(q) && titles.has(String(q.section).trim()));
+    const rest = topicPool.filter((q) => !focusQuestions.has(q) && !titles.has(String(q.section).trim()));
+    ordered = [...byLevel([], direct), ...byLevel(boardPool, sameChapter), ...byLevel([], rest)];
+  }
   const questions = ordered
     .slice(0, options.questionCount)
     .map((question) => structuredClone(question));
@@ -513,7 +537,9 @@ export function assembleFromLibrary(
   // geração por IA (content-repair faz o mesmo).
   if (wanted !== null) for (const question of questions) question.difficulty = wanted;
 
-  const chapters = wants("THEORY") ? structuredClone(material.chapters as Json[]) : [];
+  // No foco, a teoria abre pelos capítulos do tópico; os outros continuam depois, para consulta.
+  const chapterOrder = [...focusChapters, ...allChapters.keys()].filter((i, index, list) => list.indexOf(i) === index);
+  const chapters = wants("THEORY") ? structuredClone(chapterOrder.map((i) => allChapters[i])) : [];
   const board = typeof note?.board === "string" ? note.board : input.board;
   const howItFalls = typeof note?.howItFalls === "string" ? note.howItFalls : null;
   let summary = wants("SUMMARY") ? String(material.summary) : "";
