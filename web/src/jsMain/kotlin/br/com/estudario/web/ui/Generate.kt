@@ -137,7 +137,11 @@ fun GenerateDialog(topicId: Long, onClose: () -> Unit) {
                         }
                     }
                 }
-                if (p is AiContent.Progress.Failed) Div({ classes("banner", "error") }) { Icon("error"); Text(p.message) }
+                if (p is AiContent.Progress.Failed) {
+                    Div({ classes("banner", "error") }) { Icon("error"); Text(p.message) }
+                    var upgradeSeen by remember(p) { mutableStateOf(false) }
+                    if (isQuotaMessage(p.message) && !upgradeSeen) UpgradeModal(UpgradeReason.CONTENT) { upgradeSeen = true }
+                }
                 Div({ classes("row", "between"); attr("style", "margin-top:4px") }) {
                     if (step > 0) Btn("Voltar", { step-- }, style = "ghost", icon = "arrow_back") else Btn("Cancelar", onClose, style = "ghost")
                     if (step < steps.lastIndex) Btn("Continuar", { step++ }, style = "primary", enabled = blocks.isNotEmpty())

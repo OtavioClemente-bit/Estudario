@@ -111,6 +111,10 @@ class EstudarioApplication : Application() {
     val contentReportClient: br.com.estudario.data.remote.ContentReportClient by lazy {
         br.com.estudario.data.remote.ContentReportClient(supabaseClientConfig, supabaseAuthRepository)
     }
+    /** Assinaturas pelo Google Play: a compra é conferida no servidor antes de valer. */
+    val playBilling: br.com.estudario.data.billing.PlayBilling by lazy {
+        br.com.estudario.data.billing.PlayBilling(this, supabaseClientConfig, supabaseAuthRepository)
+    }
     /** Plano efetivo, catálogo e uso. Somente leitura: quem decide cota é o servidor. */
     val aiPlanRepository: br.com.estudario.ui.plans.AiPlanRepository by lazy {
         br.com.estudario.ui.plans.HttpAiPlanRepository(

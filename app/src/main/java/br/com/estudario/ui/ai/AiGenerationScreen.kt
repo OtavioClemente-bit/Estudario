@@ -162,7 +162,8 @@ private fun StatusCard(
                     OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(16.dp)) { Text("Tentar de novo") }
                 }
                 is AiTextJobState.QuotaUsed -> {
-                    GateStatus(Icons.Outlined.HourglassTop, "Você já usou a geração de hoje", state.resetLabel ?: "Uma nova geração libera à meia-noite (horário de Brasília).", StatusTone(scheme.tertiaryContainer, scheme.onTertiaryContainer))
+                    GateStatus(Icons.Outlined.HourglassTop, "Seus materiais deste mês acabaram", state.resetLabel ?: "O saldo renova no próximo mês. Os planos pagos liberam mais agora.", StatusTone(scheme.tertiaryContainer, scheme.onTertiaryContainer))
+                    br.com.estudario.ui.plans.UpgradeCta(br.com.estudario.ui.plans.UpgradeReason.CONTENT, onSignIn = onLogin)
                 }
                 is AiTextJobState.Ready -> {
                     StatusPill(state.quotaLabel, StatusTone(scheme.secondaryContainer, estudarioColors().completed))

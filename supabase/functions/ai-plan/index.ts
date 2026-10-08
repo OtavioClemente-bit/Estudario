@@ -18,6 +18,22 @@ export interface AiPlanHandlerDependencies {
   authenticate: (request: Request) => Promise<AuthenticatedUser>;
   policyForUser: (user: AuthenticatedUser) => Pick<ClosedBetaAiPolicy, "getPlanSummary">;
   registerAdInterest: (user: AuthenticatedUser) => Promise<number>;
+  /** Catálogo com preços (tabela plan_catalog), para a tela de planos. */
+  pricing: (user: AuthenticatedUser) => Promise<PlanPricing[]>;
+  /** As assinaturas estão abertas (conta de serviço do Play configurada). */
+  playEnabled: () => boolean;
+}
+
+export interface PlanPricing {
+  planTier: string;
+  name: string;
+  tagline: string;
+  priceMonthCents: number;
+  priceYearCents: number;
+  playProductId: string | null;
+  playBasePlanMonth: string | null;
+  playBasePlanYear: string | null;
+  featured: boolean;
 }
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
@@ -68,7 +84,8 @@ export function createAiPlanHandler(
         const taps = await dependencies.registerAdInterest(user);
         return jsonResponse({ recorded: true, rewardGranted: false, tapsToday: taps });
       }
-      return jsonResponse(await dependencies.policyForUser(user).getPlanSummary(user.userId));
+      const summary = await dependencies.policyForUser(user).getPlanSummary(user.userId);
+      return jsonResponse({ ...summary, pricing: await dependencies.pricing(user), billing: { playEnabled: dependencies.playEnabled() } });
     } catch {
       return safeError("AI_PLAN_UNAVAILABLE", 503);
     }
@@ -101,6 +118,26 @@ async function registerAdInterest(user: AuthenticatedUser): Promise<number> {
   return taps;
 }
 
+async function loadPricing(user: AuthenticatedUser): Promise<PlanPricing[]> {
+  const { supabaseUrl, publishableKey, accessToken } = environment(user);
+  const response = await fetch(`${supabaseUrl.replace(/\/$/, "")}/rest/v1/plan_catalog?select=*&order=sort_order.asc`, {
+    headers: { apikey: publishableKey, authorization: `Bearer ${accessToken}`, accept: "application/json" },
+  });
+  if (!response.ok) return [];
+  const rows = await response.json() as Record<string, unknown>[];
+  return rows.map((row) => ({
+    planTier: String(row.plan_tier ?? "FREE"),
+    name: String(row.name ?? ""),
+    tagline: String(row.tagline ?? ""),
+    priceMonthCents: Number(row.price_month_cents ?? 0),
+    priceYearCents: Number(row.price_year_cents ?? 0),
+    playProductId: typeof row.play_product_id === "string" ? row.play_product_id : null,
+    playBasePlanMonth: typeof row.play_base_plan_month === "string" ? row.play_base_plan_month : null,
+    playBasePlanYear: typeof row.play_base_plan_year === "string" ? row.play_base_plan_year : null,
+    featured: row.featured === true,
+  }));
+}
+
 async function handleAiPlan(request: Request): Promise<Response> {
   return createAiPlanHandler({
     authenticate: authenticateSupabaseRequest,
@@ -116,6 +153,8 @@ async function handleAiPlan(request: Request): Promise<Response> {
       );
     },
     registerAdInterest,
+    pricing: loadPricing,
+    playEnabled: () => !!Deno.env.get("PLAY_SERVICE_ACCOUNT_JSON")?.trim(),
   })(request);
 }
 

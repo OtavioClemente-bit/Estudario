@@ -55,6 +55,8 @@ class MainActivity : ComponentActivity() {
                 while (true) {
                     br.com.estudario.ui.ai.GoogleAccountSignIn.renewIfNeeded(this@MainActivity)
                     br.com.estudario.data.sync.CloudSyncWorker.syncSoon(this@MainActivity)
+                    // Assinatura comprada em outro aparelho ou ainda não confirmada: confere com o servidor.
+                    runCatching { (application as EstudarioApplication).playBilling.restore() }
                     kotlinx.coroutines.delay(10 * 60 * 1_000L)
                 }
             }

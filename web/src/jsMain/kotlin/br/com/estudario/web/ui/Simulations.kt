@@ -149,7 +149,11 @@ private fun CreateSimulationDialog(competitionId: Long, mode: SimulationMode, on
             }
         }
         P({ classes("xs", "muted") }) { Text("A geração leva alguns minutos e acontece em partes. Pode navegar pelo site enquanto isso; deixe esta aba aberta.") }
-        error?.let { Div({ classes("banner", "error") }) { Text(it) } }
+        error?.let {
+            Div({ classes("banner", "error") }) { Text(it) }
+            var upgradeSeen by remember(it) { mutableStateOf(false) }
+            if (isQuotaMessage(it) && !upgradeSeen) UpgradeModal(UpgradeReason.SIMULATION) { upgradeSeen = true }
+        }
         Div({ classes("row", "end") }) {
             Btn("Cancelar", onClose, style = "ghost")
             Btn("Gerar simulado", {

@@ -407,7 +407,10 @@ fun NotificationsScreen() {
 
 private class Usage(val feature: String, val limit: Int, val used: Int, val remaining: Int, val resetAt: String?)
 private class PlanLimit(val feature: String, val periodKind: String, val quota: Int, val maxPerRequest: Int?)
-private class PlanInfo(val tier: String, val renewsAt: String?, val plans: List<Pair<String, List<PlanLimit>>>, val usage: List<Usage>)
+private class Pricing(val name: String, val tagline: String, val monthCents: Int, val yearCents: Int, val featured: Boolean)
+private class PlanInfo(val tier: String, val renewsAt: String?, val plans: List<Pair<String, List<PlanLimit>>>, val usage: List<Usage>, val pricing: Map<String, Pricing>, val playEnabled: Boolean)
+
+private fun brl(cents: Int): String = "R$ " + (cents / 100).toString().reversed().chunked(3).joinToString(".").reversed() + "," + (cents % 100).toString().padStart(2, '0')
 
 private fun featureLabel(feature: String) = when (feature) {
     "SYLLABUS_GENERATION" -> "Editais organizados"
@@ -453,7 +456,11 @@ private fun parsePlan(body: String): PlanInfo {
     val usage = (root["usage"] as? JsonArray).orEmpty().map { it.jsonObject }.map { u ->
         Usage(u.s("feature") ?: "", u.i("limit") ?: 0, u.i("used") ?: 0, u.i("remaining") ?: 0, u.s("resetAt"))
     }
-    return PlanInfo(root.s("planTier") ?: "FREE", root.s("planRenewsAt"), plans, usage)
+    val pricing = (root["pricing"] as? JsonArray).orEmpty().map { it.jsonObject }.associate { p ->
+        (p.s("planTier") ?: "FREE") to Pricing(p.s("name") ?: "", p.s("tagline") ?: "", p.i("priceMonthCents") ?: 0, p.i("priceYearCents") ?: 0, (p["featured"] as? JsonPrimitive)?.contentOrNull == "true")
+    }
+    val playEnabled = ((root["billing"] as? JsonObject)?.get("playEnabled") as? JsonPrimitive)?.contentOrNull == "true"
+    return PlanInfo(root.s("planTier") ?: "FREE", root.s("planRenewsAt"), plans, usage, pricing, playEnabled)
 }
 
 @Composable
@@ -509,25 +516,36 @@ fun PlanLimitsScreen() {
             }
         }
     }
-    Div({ classes("grid", "cols-3") }) {
-        current.plans.forEach { (tier, limits) ->
+    Div({ classes("grid", "cols-3", "plan-grid") }) {
+        current.plans.sortedBy { listOf("ESSENCIAL", "PRO", "FREE").indexOf(it.first) }.forEach { (tier, limits) ->
             key(tier) {
-                Card(extra = if (tier == current.tier) "selected" else null) {
+                val price = current.pricing[tier]
+                val paid = (price?.monthCents ?: 0) > 0
+                Card(extra = if (price?.featured == true) "selected plan-featured" else if (tier == current.tier) "selected" else null) {
+                    if (price?.featured == true) Span({ classes("plan-badge") }) { Text("MAIS ESCOLHIDO") }
                     Div({ classes("row", "between") }) {
-                        H2 { Text(planName(tier)) }
+                        H2 { Text(price?.name?.ifBlank { null } ?: planName(tier)) }
                         if (tier == current.tier) Chip("Seu plano", tone = "green")
                     }
-                    P({ classes("small", "muted") }) { Text(planTagline(tier)) }
+                    P({ classes("small", "muted") }) { Text(price?.tagline?.ifBlank { null } ?: planTagline(tier)) }
+                    Div({ classes("plan-price") }) {
+                        B { Text(if (paid) brl(price!!.monthCents) else "R$ 0") }
+                        Span({ classes("small", "muted") }) { Text(if (paid) " por mês · ou " + brl(price!!.yearCents) + " por ano (2 meses grátis)" else " para sempre") }
+                    }
                     Div({ classes("stack", "tight"); attr("style", "margin-top:10px") }) {
                         limits.filter { it.feature in visibleFeatures }.sortedBy { visibleFeatures.indexOf(it.feature) }.forEach { l ->
                             Div({ classes("row") }) { Icon("check", extraClass = "ok"); Span({ classes("small") }) { B { Text(featureLabel(l.feature)) }; Text(" · ${limitCopy(l)}") } }
                         }
                     }
+                    if (paid && tier != current.tier) Div({ classes("stack", "tight"); attr("style", "margin-top:14px") }) {
+                        A(href = PLAY_URL, { attr("target", "_blank"); attr("rel", "noopener"); classes("btn", "primary", "block") }) { Icon("smartphone"); Text("Assinar no app") }
+                        Span({ classes("xs", "muted"); attr("style", "text-align:center") }) { Text("Pela Google Play, na mesma conta. Vale aqui na hora.") }
+                    }
                 }
             }
         }
     }
-    P({ classes("xs", "faint"); attr("style", "text-align:center") }) { Text("Assinaturas abrem depois do teste fechado. O plano de estudo é montado sem IA e não tem limite.") }
+    P({ classes("xs", "faint"); attr("style", "text-align:center") }) { Text("A assinatura é feita no app, pela Google Play, e vale aqui na mesma conta. Cancela quando quiser, sem multa. O plano de estudo é montado sem IA e não tem limite em nenhum plano.") }
 }
 
 @Composable

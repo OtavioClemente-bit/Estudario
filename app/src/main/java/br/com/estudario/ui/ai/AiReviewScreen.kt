@@ -476,10 +476,12 @@ private fun AiGate(
                         PrimaryAction("Entrar para continuar", onLogin)
                     }
                     AiReviewAccessKind.DENIED -> {
-                        GateStatus(Icons.Outlined.Lock, "Acesso beta indisponível", access.reasonCode.toUserMessage(), StatusTone(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.onSurfaceVariant))
+                        val paywall = access.reasonCode == "QUOTA_EXHAUSTED"
+                        GateStatus(Icons.Outlined.Lock, if (paywall) "Edital pelo seu PDF é dos planos pagos" else "Geração de edital indisponível", access.reasonCode.toUserMessage(), StatusTone(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.onSurfaceVariant))
                         OutlinedButton(onClick = onFallback, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
                             Text("Importar .estudo ou montar manualmente")
                         }
+                        if (paywall) br.com.estudario.ui.plans.UpgradeCta(br.com.estudario.ui.plans.UpgradeReason.SYLLABUS, onSignIn = onLogin)
                     }
                     AiReviewAccessKind.READY -> {
                         GateStatus(Icons.Outlined.CheckCircle, "Pronto para analisar o edital", "Escolha o PDF oficial. Prefira a versão com o conteúdo programático completo.", StatusTone(MaterialTheme.colorScheme.secondaryContainer, estudarioColors().completed))
@@ -542,7 +544,7 @@ internal fun PrimaryAction(label: String, onClick: () -> Unit, icon: ImageVector
 private fun String?.toUserMessage(): String = when (this) {
     "BETA_ACCESS_REQUIRED", "BETA_DISABLED" -> "Sua conta ainda não tem acesso à beta fechada."
     "FEATURE_DISABLED" -> "A geração de edital está temporariamente desativada."
-    "QUOTA_EXHAUSTED" -> "A cota de geração desta conta foi atingida."
+    "QUOTA_EXHAUSTED" -> "No Grátis você usa os editais do catálogo. Para mandar o PDF do seu concurso, assine o Essencial ou o Pro."
     "DEVICE_QUOTA_EXHAUSTED" -> br.com.estudario.data.ai.DEVICE_QUOTA_MESSAGE
     "CONFIGURATION_CLOSED", "ACCESS_UNAVAILABLE" -> "O acesso online está fechado nesta configuração."
     else -> "A conta não pode usar a geração de edital agora."

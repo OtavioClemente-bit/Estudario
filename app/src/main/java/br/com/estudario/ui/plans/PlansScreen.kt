@@ -70,7 +70,12 @@ import br.com.estudario.EstudarioApplication
 import br.com.estudario.data.ai.AiPlanCatalogEntry
 import br.com.estudario.data.ai.AiPlanLimit
 import br.com.estudario.data.ai.AiPlanSummary
+import br.com.estudario.data.ai.AiPlanPricing
 import br.com.estudario.data.ai.AiPlanUsage
+import br.com.estudario.data.ai.formatBrl
+import br.com.estudario.data.billing.PurchaseEvent
+import com.android.billingclient.api.ProductDetails
+import androidx.compose.runtime.collectAsState
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -144,13 +149,17 @@ private sealed interface PlansState {
 
 @Composable
 fun PlansDialog(onDismiss: () -> Unit, onSignIn: (() -> Unit)? = null) {
-    val app = LocalContext.current.applicationContext as EstudarioApplication
+    val context = LocalContext.current
+    val app = context.applicationContext as EstudarioApplication
     val repository = app.aiPlanRepository
+    val billing = app.playBilling
     val scope = rememberCoroutineScope()
     var state by remember { mutableStateOf<PlansState>(PlansState.Loading) }
     var reload by remember { mutableIntStateOf(0) }
-    var adBusy by remember { mutableStateOf(false) }
-    var adMessage by remember { mutableStateOf<String?>(null) }
+    var products by remember { mutableStateOf<List<ProductDetails>>(emptyList()) }
+    var yearly by remember { mutableStateOf(false) }
+    var buying by remember { mutableStateOf(false) }
+    val event by billing.events.collectAsState()
 
     LaunchedEffect(reload) {
         state = PlansState.Loading
@@ -159,6 +168,15 @@ fun PlansDialog(onDismiss: () -> Unit, onSignIn: (() -> Unit)? = null) {
             AiPlanLoadResult.SignedOut -> PlansState.SignedOut
             AiPlanLoadResult.Unavailable -> PlansState.Unavailable
         }
+        val summary = (state as? PlansState.Ready)?.summary
+        if (summary != null && summary.billing.playEnabled) {
+            products = billing.products(summary.pricing.mapNotNull { it.playProductId })
+        }
+    }
+    // Compra confirmada pelo servidor: recarrega para mostrar o plano novo.
+    LaunchedEffect(event) {
+        if (event is PurchaseEvent.Activated) { buying = false; reload++ }
+        if (event is PurchaseEvent.Cancelled || event is PurchaseEvent.Failed || event is PurchaseEvent.Pending) buying = false
     }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -177,7 +195,7 @@ fun PlansDialog(onDismiss: () -> Unit, onSignIn: (() -> Unit)? = null) {
                         PlansState.Loading -> Row(Modifier.fillMaxWidth().padding(32.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator() }
                         PlansState.SignedOut -> Notice(
                             "Entre na sua conta",
-                            "O saldo fica vinculado à sua conta Estudário, não ao aparelho. Entre com o Google para ver seu plano e quanto ainda pode gerar.",
+                            "O plano fica na sua conta Estudário, não no aparelho. Entre com o Google para ver seu plano, o que ainda pode gerar e assinar.",
                             actionLabel = if (onSignIn != null) "Entrar com o Google" else null,
                             onAction = { onSignIn?.invoke() },
                         )
@@ -188,24 +206,21 @@ fun PlansDialog(onDismiss: () -> Unit, onSignIn: (() -> Unit)? = null) {
                             onAction = { reload++ },
                         )
                         is PlansState.Ready -> {
-                            UsageSection(current.summary.usage)
-                            AdRewardCard(
-                                visible = current.summary.planTier == "FREE",
-                                busy = adBusy,
-                                onClick = {
-                                    adBusy = true
-                                    scope.launch {
-                                        val result = repository.registerAdInterest()
-                                        adBusy = false
-                                        adMessage = if (result?.recorded == true) {
-                                            "Os anúncios recompensados chegam depois do teste fechado. Registramos seu interesse; nenhum anúncio foi exibido e nenhum crédito foi adicionado."
-                                        } else {
-                                            "Não foi possível registrar agora. Tente novamente mais tarde."
-                                        }
-                                    }
+                            PlanCatalog(
+                                summary = current.summary,
+                                products = products,
+                                yearly = yearly,
+                                onYearly = { yearly = it },
+                                buying = buying,
+                                onSubscribe = { pricing ->
+                                    val activity = context.findActivity() ?: return@PlanCatalog
+                                    val product = products.firstOrNull { it.productId == pricing.playProductId } ?: return@PlanCatalog
+                                    val basePlan = (if (yearly) pricing.playBasePlanYear else pricing.playBasePlanMonth) ?: return@PlanCatalog
+                                    buying = true
+                                    scope.launch { if (!billing.subscribe(activity, product, basePlan)) buying = false }
                                 },
                             )
-                            PlanCatalog(current.summary.plans, current.summary.planTier)
+                            UsageSection(current.summary.usage)
                             EveryPlanHas()
                             HowQuotaWorks()
                         }
@@ -216,24 +231,43 @@ fun PlansDialog(onDismiss: () -> Unit, onSignIn: (() -> Unit)? = null) {
         }
     }
 
-    adMessage?.let { message ->
-        AlertDialog(
-            onDismissRequest = { adMessage = null },
-            icon = { Icon(Icons.Outlined.OndemandVideo, null) },
-            title = { Text("Gerações extras com anúncio") },
-            text = { Text(message) },
-            confirmButton = { TextButton(onClick = { adMessage = null }) { Text("Entendi") } },
+    when (val current = event) {
+        is PurchaseEvent.Activated -> AlertDialog(
+            onDismissRequest = { billing.consumeEvent() },
+            icon = { Icon(Icons.Outlined.WorkspacePremium, null) },
+            title = { Text("Assinatura ativa") },
+            text = { Text("Seu plano ${planDisplayName(current.planTier)} já está valendo nesta conta, no celular e no computador. Bons estudos!") },
+            confirmButton = { TextButton(onClick = { billing.consumeEvent() }) { Text("Começar") } },
         )
+        is PurchaseEvent.Pending -> AlertDialog(
+            onDismissRequest = { billing.consumeEvent() },
+            title = { Text("Pagamento em análise") },
+            text = { Text("A Google Play ainda está confirmando o pagamento. Assim que cair, o plano é liberado sozinho.") },
+            confirmButton = { TextButton(onClick = { billing.consumeEvent() }) { Text("Entendi") } },
+        )
+        is PurchaseEvent.Failed -> AlertDialog(
+            onDismissRequest = { billing.consumeEvent() },
+            title = { Text("A compra não foi concluída") },
+            text = { Text(current.message) },
+            confirmButton = { TextButton(onClick = { billing.consumeEvent() }) { Text("Fechar") } },
+        )
+        else -> Unit
     }
 }
 
-/** Violeta que fecha o gradiente da marca (o terciário do tema é quente e sujava a mistura). */
-private val BRAND_VIOLET = Color(0xFF9F5BF5)
+private fun android.content.Context.findActivity(): android.app.Activity? {
+    var current: android.content.Context = this
+    while (current is android.content.ContextWrapper) {
+        if (current is android.app.Activity) return current
+        current = current.baseContext
+    }
+    return null
+}
 
-/** Gradiente da marca, do índigo para o violeta. */
+/** Fundo do topo: índigo chapado, como o resto do app (sem degradê). */
 @Composable
 private fun brandBrush(): Brush = Brush.linearGradient(
-    listOf(MaterialTheme.colorScheme.primary, BRAND_VIOLET),
+    listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primary),
 )
 
 @Composable
@@ -289,7 +323,7 @@ private fun Hero(currentTier: String?, renewsAt: String?, onDismiss: () -> Unit)
                             val renew = formatDate(renewsAt)
                             Text(
                                 when {
-                                    currentTier == "FREE" -> "Assinaturas abrem depois do teste fechado"
+                                    currentTier == "FREE" -> "Plano grátis · assine para gerar mais"
                                     renew != null -> "Ativo até $renew"
                                     else -> "Ativo"
                                 },
@@ -393,91 +427,169 @@ private fun AdRewardCard(visible: Boolean, busy: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun PlanCatalog(plans: List<AiPlanCatalogEntry>, currentTier: String) {
-    if (plans.isEmpty()) return
+private fun PlanCatalog(
+    summary: AiPlanSummary,
+    products: List<ProductDetails>,
+    yearly: Boolean,
+    onYearly: (Boolean) -> Unit,
+    buying: Boolean,
+    onSubscribe: (AiPlanPricing) -> Unit,
+) {
+    if (summary.plans.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        SectionTitle("Escolha seu ritmo", "Todos os planos têm o mesmo conteúdo, com as mesmas fontes conferidas.")
+        SectionTitle("Escolha seu plano", "Todos têm o mesmo conteúdo, com as mesmas fontes conferidas. Muda só quanto você pode gerar.")
+        PeriodToggle(yearly, onYearly)
         // O recomendado primeiro, depois o mais completo e por fim o grátis.
-        plans.sortedBy { listOf("ESSENCIAL", "PRO", "FREE").indexOf(it.planTier).let { i -> if (i < 0) 9 else i } }.forEach { plan ->
-            PlanCard(plan, isCurrent = plan.planTier == currentTier, featured = plan.planTier == "ESSENCIAL")
+        summary.plans.sortedBy { listOf("ESSENCIAL", "PRO", "FREE").indexOf(it.planTier).let { i -> if (i < 0) 9 else i } }.forEach { plan ->
+            val pricing = summary.pricingOf(plan.planTier) ?: AiPlanPricing(plan.planTier)
+            PlanCard(
+                plan = plan,
+                pricing = pricing,
+                product = products.firstOrNull { it.productId == pricing.playProductId },
+                yearly = yearly,
+                isCurrent = plan.planTier == summary.planTier,
+                featured = pricing.featured,
+                storeOpen = summary.billing.playEnabled,
+                buying = buying,
+                onSubscribe = { onSubscribe(pricing) },
+            )
+        }
+    }
+}
+
+/** Mensal ou anual, com o quanto o anual economiza. */
+@Composable
+private fun PeriodToggle(yearly: Boolean, onYearly: (Boolean) -> Unit) {
+    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+        Row(Modifier.padding(4.dp)) {
+            listOf(false to "Mensal", true to "Anual · 2 meses grátis").forEach { (value, label) ->
+                val selected = yearly == value
+                Surface(
+                    onClick = { onYearly(value) },
+                    shape = RoundedCornerShape(11.dp),
+                    color = if (selected) MaterialTheme.colorScheme.surface else Color.Transparent,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(
+                        label,
+                        Modifier.padding(vertical = 10.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun PlanCard(plan: AiPlanCatalogEntry, isCurrent: Boolean, featured: Boolean) {
-    val premium = plan.planTier != "FREE"
-    val highlight = plan.limits.firstOrNull { it.feature == "CONTENT_GENERATION" }
-    val shape = RoundedCornerShape(28.dp)
+private fun PlanCard(
+    plan: AiPlanCatalogEntry,
+    pricing: AiPlanPricing,
+    product: ProductDetails?,
+    yearly: Boolean,
+    isCurrent: Boolean,
+    featured: Boolean,
+    storeOpen: Boolean,
+    buying: Boolean,
+    onSubscribe: () -> Unit,
+) {
+    val premium = pricing.isPaid
+    val shape = RoundedCornerShape(24.dp)
     val border = when {
-        featured -> Modifier.border(2.dp, brandBrush(), shape)
-        isCurrent -> Modifier.border(2.dp, MaterialTheme.colorScheme.primary, shape)
-        else -> Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
+        featured -> Modifier.border(2.dp, MaterialTheme.colorScheme.primary, shape)
+        isCurrent -> Modifier.border(2.dp, MaterialTheme.colorScheme.secondary, shape)
+        else -> Modifier.border(2.dp, MaterialTheme.colorScheme.outlineVariant, shape)
     }
+    // Preço: o da loja (já na moeda da pessoa) quando a Google Play respondeu; senão o do servidor.
+    val basePlan = if (yearly) pricing.playBasePlanYear else pricing.playBasePlanMonth
+    val storePrice = product?.subscriptionOfferDetails.orEmpty()
+        .firstOrNull { it.basePlanId == basePlan && it.offerId == null }
+        ?.pricingPhases?.pricingPhaseList?.lastOrNull()?.formattedPrice
+    val price = storePrice ?: formatBrl(if (yearly) pricing.priceYearCents else pricing.priceMonthCents)
+    val perMonth = if (yearly && premium) formatBrl(pricing.priceYearCents / 12) else null
+
     Box(Modifier.fillMaxWidth()) {
         Surface(
             Modifier.fillMaxWidth().padding(top = if (featured) 14.dp else 0.dp).then(border),
             shape = shape,
             color = if (featured) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surfaceContainerLow,
-            tonalElevation = if (featured) 2.dp else 0.dp,
         ) {
             Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(if (premium) brandBrush() else Brush.linearGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant))),
+                        Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(if (premium) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             if (plan.planTier == "PRO") Icons.Outlined.Bolt else if (premium) Icons.Outlined.WorkspacePremium else Icons.Outlined.AutoAwesome,
                             null,
-                            tint = if (premium) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = if (premium) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(planDisplayName(plan.planTier), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                        Text(planTagline(plan.planTier), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(pricing.name.ifBlank { planDisplayName(plan.planTier) }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                        Text(pricing.tagline.ifBlank { planTagline(plan.planTier) }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     if (isCurrent) {
-                        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary) {
-                            Text("Atual", Modifier.padding(horizontal = 10.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.secondary) {
+                            Text("Seu plano", Modifier.padding(horizontal = 10.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSecondary, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
-                if (highlight != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${highlight.quotaLimit}", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            if (highlight.periodKind == "LIFETIME") "materiais completos\npara experimentar" else "materiais completos\npor mês",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(if (premium) price else "R$ 0", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        when {
+                            !premium -> "para sempre"
+                            yearly -> "por ano" + (perMonth?.let { "\n$it por mês" } ?: "")
+                            else -> "por mês"
+                        },
+                        Modifier.padding(bottom = 6.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     plan.limits
-                        .filter { it.feature in VISIBLE_FEATURES && it.feature != "CONTENT_GENERATION" }
+                        .filter { it.feature in VISIBLE_FEATURES }
                         .groupBy { it.feature }
                         .toSortedMap(compareBy<String> { featureOrder(it) })
                         .forEach { (feature, limits) -> Benefit(featureLabel(feature), limits.joinToString(" · ") { limitCopy(it) }) }
                     if (premium) Benefit("Teoria, flashcards, dicas e questões", "em cada material, com explicação de cada alternativa")
+                    else Benefit("Editais do catálogo", "dezenas de concursos prontos; o seu PDF é dos planos pagos")
                 }
-                if (!isCurrent && premium) {
+                if (premium && !isCurrent) {
+                    val available = storeOpen && product != null && basePlan != null
                     Button(
-                        onClick = {},
-                        enabled = false,
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        onClick = onSubscribe,
+                        enabled = available && !buying,
+                        modifier = Modifier.fillMaxWidth().height(54.dp),
                         shape = RoundedCornerShape(16.dp),
-                    ) { Text("Disponível após o teste fechado", fontWeight = FontWeight.Bold) }
+                    ) {
+                        if (buying) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                        else Text(if (available) "Assinar ${pricing.name}" else "Em breve na Google Play", fontWeight = FontWeight.Bold)
+                    }
+                    if (available) Text(
+                        "Cobrado pela Google Play. Cancela quando quiser, sem multa.",
+                        Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
                 }
             }
         }
         if (featured) {
             Box(
-                Modifier.align(Alignment.TopCenter).clip(RoundedCornerShape(50)).background(brandBrush()).padding(horizontal = 14.dp, vertical = 6.dp),
+                Modifier.align(Alignment.TopCenter).clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.primary).padding(horizontal = 14.dp, vertical = 6.dp),
             ) {
-                Text("MAIS ESCOLHIDO", style = MaterialTheme.typography.labelMedium, color = Color.White, fontWeight = FontWeight.Black)
+                Text("MAIS ESCOLHIDO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Black)
             }
         }
     }
@@ -534,7 +646,7 @@ private fun HowQuotaWorks() {
             Triple(Icons.Outlined.Replay, "Sem cobrança em dobro", "Repetir o mesmo pedido depois de um erro técnico não cobra de novo."),
         ).forEach { (icon, title, detail) -> Perk(icon, title, detail) }
         Text(
-            "Os preços aparecem aqui quando as assinaturas abrirem.",
+            "A cobrança é feita pela Google Play, na sua conta Google. Para cancelar: Google Play › Assinaturas.",
             Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

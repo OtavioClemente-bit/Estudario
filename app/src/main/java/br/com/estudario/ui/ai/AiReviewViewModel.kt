@@ -1064,7 +1064,7 @@ class AiReviewViewModel(
         } else if (error.code == "NOT_AN_EDITAL") {
             br.com.estudario.domain.ai.EditalGuard.MESSAGE
         } else if (error.code == "QUOTA_EXHAUSTED") {
-            "A cota de geração desta conta foi atingida. Confira seu plano e uso no Perfil."
+            "Edital pelo seu PDF é dos planos pagos. No Grátis, use um edital do catálogo ou assine em Perfil › Planos."
         } else if (error.code == "INTEGRITY_REQUIRED" || error.code == "INTEGRITY_FAILED") {
             "Não foi possível confirmar que este é o app original da Google Play. Instale ou atualize o Estudário pela Play Store e tente novamente."
         } else if (error.code == "INTEGRITY_UNAVAILABLE") {

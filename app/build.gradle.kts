@@ -173,6 +173,7 @@ dependencies {
     implementation("com.google.android.gms:play-services-auth:21.3.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
     implementation("com.google.android.play:integrity:1.4.0")
+    implementation("com.android.billingclient:billing-ktx:7.1.1")
     // Login com a conta Google do celular (Credential Manager).
     implementation("androidx.credentials:credentials:1.3.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")

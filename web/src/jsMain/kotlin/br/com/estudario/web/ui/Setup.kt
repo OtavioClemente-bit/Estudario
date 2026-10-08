@@ -92,7 +92,11 @@ internal fun PdfEditalDialog(onClose: () -> Unit, onDone: (String, String, List<
                     Div({ classes("field") }) { org.jetbrains.compose.web.dom.Label { Text("Cargo (opcional)") }; Input(InputType.Text) { classes("input"); value(role); onInput { role = it.value } } }
                     Div({ classes("field") }) { org.jetbrains.compose.web.dom.Label { Text("Banca (opcional)") }; Input(InputType.Text) { classes("input"); value(board); onInput { board = it.value } } }
                 }
-                error?.let { Div({ classes("banner", "error") }) { Text(it) } }
+                error?.let {
+            Div({ classes("banner", "error") }) { Text(it) }
+            var upgradeSeen by remember(it) { mutableStateOf(false) }
+            if (isQuotaMessage(it) && !upgradeSeen) UpgradeModal(UpgradeReason.SIMULATION) { upgradeSeen = true }
+        }
                 Div({ classes("row", "end") }) {
                     Btn("Cancelar", onClose, style = "ghost")
                     Btn("Montar edital", {

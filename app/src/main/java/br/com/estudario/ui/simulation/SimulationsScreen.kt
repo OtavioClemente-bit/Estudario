@@ -131,7 +131,12 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
             onChangeBoard = { boardDialog = true },
             onChangeTarget = { targetDialog = true },
         ) }
-        message?.let { text -> item { Text(text, color = MaterialTheme.colorScheme.error) } }
+        message?.let { text ->
+            item {
+                Text(text, color = MaterialTheme.colorScheme.error)
+                if ("plano" in text || "grátis" in text) br.com.estudario.ui.plans.UpgradeCta(br.com.estudario.ui.plans.UpgradeReason.SIMULATION, Modifier.padding(top = 8.dp))
+            }
+        }
         items(active, key = { "active-${it.id}" }) { simulation ->
             ActiveSimulationCard(
                 simulation,
