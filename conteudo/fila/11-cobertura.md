@@ -49,19 +49,19 @@ typescript, python.
 - [x] **direito-empresarial.empresario-estabelecimento** — Empresário, empresa, registro, nome empresarial, estabelecimento, escrituração, EIRELI/SLU (atual).
 - [x] **direito-empresarial.sociedades** — Sociedades em geral, limitada, anônima (noções), desconsideração, dissolução.
 
-## Onda 4
-- [ ] **direito-empresarial.titulos-credito** — Teoria geral, letra de câmbio, nota promissória, cheque, duplicata.
-- [ ] **direito-empresarial.falencia-recuperacao** — Recuperação judicial e extrajudicial, falência (noções centrais).
-- [ ] **direito-previdenciario.seguridade-custeio** — Seguridade social na CF, princípios, custeio, contribuições, salário de contribuição, segurados e dependentes.
-- [ ] **direito-previdenciario.beneficios-rgps** — Benefícios do RGPS: aposentadorias, auxílios, pensão, salário-maternidade, carência, regras após a EC 103/2019 (só o que tiver certeza).
-- [ ] **direito-tributario.icms-impostos-estaduais** — ICMS (noções gerais na CF e LC), IPVA, ITCMD.
-- [ ] **direito-tributario.processo-administrativo-fiscal** — Processo administrativo fiscal, consulta, execução fiscal (noções).
-- [ ] **direito-ambiental.fundamentos-snuc** — Princípios, competências, PNMA, SNUC, áreas de preservação.
-- [ ] **direito-ambiental.licenciamento-responsabilidade** — Licenciamento, EIA/RIMA, responsabilidade civil, administrativa e penal ambiental.
-- [ ] **direito-consumidor.relacoes-consumo** — CDC: conceitos, direitos básicos, responsabilidade pelo fato e vício.
-- [ ] **direito-consumidor.praticas-defesa** — Práticas comerciais, publicidade, cláusulas abusivas, defesa em juízo, SNDC.
-- [ ] **direito-eleitoral.justica-eleitoral-alistamento** — Organização da Justiça Eleitoral, alistamento, elegibilidade e inelegibilidade.
-- [ ] **direito-eleitoral.partidos-propaganda** — Partidos políticos, eleições, propaganda, prestação de contas (noções).
+## Onda 4 — [x] publicada em 08/10/2026 (6 escritas por Haiku, reescritas e auditadas pelo Opus)
+- [x] **direito-empresarial.titulos-credito** — Teoria geral, letra de câmbio, nota promissória, cheque, duplicata.
+- [x] **direito-empresarial.falencia-recuperacao** — Recuperação judicial e extrajudicial, falência (noções centrais).
+- [x] **direito-previdenciario.seguridade-custeio** — Seguridade social na CF, princípios, custeio, contribuições, salário de contribuição, segurados e dependentes.
+- [x] **direito-previdenciario.beneficios-rgps** — Benefícios do RGPS: aposentadorias, auxílios, pensão, salário-maternidade, carência, regras após a EC 103/2019 (só o que tiver certeza).
+- [x] **direito-tributario.icms-impostos-estaduais** — ICMS (noções gerais na CF e LC), IPVA, ITCMD.
+- [x] **direito-tributario.processo-administrativo-fiscal** — Processo administrativo fiscal, consulta, execução fiscal (noções).
+- [x] **direito-ambiental.fundamentos-snuc** — Princípios, competências, PNMA, SNUC, áreas de preservação.
+- [x] **direito-ambiental.licenciamento-responsabilidade** — Licenciamento, EIA/RIMA, responsabilidade civil, administrativa e penal ambiental.
+- [x] **direito-consumidor.relacoes-consumo** — CDC: conceitos, direitos básicos, responsabilidade pelo fato e vício.
+- [x] **direito-consumidor.praticas-defesa** — Práticas comerciais, publicidade, cláusulas abusivas, defesa em juízo, SNDC.
+- [x] **direito-eleitoral.justica-eleitoral-alistamento** — Organização da Justiça Eleitoral, alistamento, elegibilidade e inelegibilidade.
+- [x] **direito-eleitoral.partidos-propaganda** — Partidos políticos, eleições, propaganda, prestação de contas (noções).
 
 ## Onda 5
 - [ ] **direito-internacional.publico-fundamentos** — Fontes, tratados, sujeitos, nacionalidade e estrangeiro (noções), organizações internacionais.
