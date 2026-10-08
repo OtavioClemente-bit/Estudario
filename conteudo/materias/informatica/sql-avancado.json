@@ -1,0 +1,2128 @@
+{
+  "id": "informatica.sql-avancado",
+  "subject": "Informática",
+  "version": 1,
+  "title": "SQL avançado",
+  "nickname": "Views, triggers, rotinas, transações e índices",
+  "aliases": [
+    "Triggers, funções, stored procedures.",
+    "Procedures e triggers, incluindo stored procedures e gatilhos.",
+    "Índices, triggers, procedures, functions e packages.",
+    "Views, funções, stored procedures, triggers e segurança."
+  ],
+  "theoryTitle": "Normalização, views, índices, triggers, funções, procedures e transações",
+  "status": "PUBLISHED",
+  "sourceType": "AUTHORIAL",
+  "board": null,
+  "agency": null,
+  "year": null,
+  "sourceUrl": null,
+  "accessedAt": "2026-10-08",
+  "scope": {
+    "covers": "Normalização aprofundada (1FN, 2FN, 3FN, FNBC, dependências funcionais e desnormalização); views comuns, atualizáveis e materializadas; índices (B-tree, compostos, únicos, custo de escrita, plano de execução); triggers (BEFORE, AFTER, INSTEAD OF, por linha e por comando, OLD e NEW); funções e stored procedures; transações (COMMIT, ROLLBACK, SAVEPOINT), níveis de isolamento e anomalias de concorrência.",
+    "excludes": "Conceitos básicos de banco de dados, modelo relacional, SELECT, junções, agregação, NULL e noções de ACID, data warehouse e ETL (estão em informatica.banco-dados-sql); administração e ajuste fino de produtos específicos."
+  },
+  "summary": "SQL avançado é o que vem depois do SELECT: como organizar as tabelas (normalização), como guardar consultas com nome (views), como acelerar buscas (índices), como fazer o banco reagir sozinho a mudanças (triggers), como guardar lógica dentro do banco (funções e stored procedures) e como garantir que um conjunto de operações aconteça inteiro ou não aconteça (transações). Normalização remove redundância com base em dependências funcionais: 1FN exige valores atômicos, 2FN proíbe dependência parcial de chave composta, 3FN proíbe dependência transitiva e a FNBC exige que todo determinante seja superchave. Uma view comum não guarda dados, só a consulta; a materializada guarda o resultado e precisa ser atualizada. Índice acelera leitura e filtro, mas ocupa espaço e deixa INSERT, UPDATE e DELETE mais caros. Trigger é disparado por evento (INSERT, UPDATE, DELETE), antes ou depois, por linha ou por comando, e enxerga OLD e NEW. Função devolve valor e pode ser usada dentro de expressões; procedure é chamada com CALL ou EXEC. Transação começa, executa e termina com COMMIT (confirma) ou ROLLBACK (desfaz); SAVEPOINT permite desfazer só um pedaço. Os níveis de isolamento do padrão SQL (READ UNCOMMITTED, READ COMMITTED, REPEATABLE READ e SERIALIZABLE) evitam progressivamente leitura suja, leitura não repetível e fantasma.",
+  "chapters": [
+    {
+      "id": "normalizacao",
+      "title": "Normalização: dependências, formas normais e desnormalização",
+      "markdown": "### Por que normalizar\n\nImagine uma única tabela de pedidos que repete, em cada linha, o nome e o telefone do cliente. Se o cliente trocar de telefone, você precisa alterar dezenas de linhas; se esquecer uma, o banco passa a ter dois telefones para a mesma pessoa. Esses problemas têm nome: **anomalias de atualização, inserção e exclusão**. Normalizar é decompor a tabela em tabelas menores para que cada fato fique guardado **em um só lugar**.\n\n### Dependência funcional\n\nA ferramenta da normalização é a **dependência funcional** (DF). Escreve-se `A -> B` e lê-se \"A determina B\": conhecido o valor de A, o valor de B é um só. Exemplo: `cpf -> nome`. O lado esquerdo chama-se **determinante**.\n\n### As formas normais, uma por vez\n\nUse esta tabela como exemplo:\n\n```\nITEM_PEDIDO(pedido_id, produto_id, quantidade, nome_produto, cliente_id, cidade_cliente)\nchave primária: (pedido_id, produto_id)\n```\n\n- **1FN**: todo atributo tem valor **atômico** (indivisível) e não há grupos repetidos. Uma coluna `telefones` com \"3333-1111, 9999-2222\" viola a 1FN.\n- **2FN**: está na 1FN e **nenhum atributo não chave depende de só parte da chave composta**. Aqui `nome_produto` depende só de `produto_id` (dependência **parcial**), então a tabela viola a 2FN. Solução: levar `nome_produto` para uma tabela `PRODUTO(produto_id, nome_produto)`. Atenção: tabela com chave primária de **uma só coluna** que já está na 1FN está automaticamente na 2FN, porque não existe \"parte\" da chave.\n- **3FN**: está na 2FN e **não há dependência transitiva**: um atributo não chave não pode depender de outro atributo não chave. Em `PEDIDO(pedido_id, cliente_id, cidade_cliente)`, temos `pedido_id -> cliente_id -> cidade_cliente`. A cidade é do cliente, não do pedido: vai para `CLIENTE(cliente_id, cidade_cliente)`.\n- **FNBC (forma normal de Boyce-Codd)**: versão mais rígida da 3FN: **todo determinante precisa ser superchave**. Toda tabela em FNBC está na 3FN, mas nem toda tabela em 3FN está em FNBC. O caso clássico aparece quando há chaves candidatas compostas que se sobrepõem.\n\nFrase para decorar (em inglês, muito citada): cada atributo depende \"da chave, da chave inteira e de nada além da chave\". \"Da chave\" = 1FN, \"inteira\" = 2FN, \"nada além\" = 3FN.\n\n### Exemplo resolvido\n\n`ALUNO_CURSO(matricula, curso_id, nome_aluno, nome_curso, nota)`, chave `(matricula, curso_id)`. DFs: `matricula -> nome_aluno`, `curso_id -> nome_curso`, `(matricula, curso_id) -> nota`. Há duas dependências parciais, logo não está na 2FN. Decomposição: `ALUNO(matricula, nome_aluno)`, `CURSO(curso_id, nome_curso)` e `MATRICULA(matricula, curso_id, nota)`. Agora cada fato aparece uma vez.\n\n### Desnormalização\n\nNormalizar demais pode exigir muitas junções. Em sistemas de leitura intensa ou analíticos, às vezes se **desnormaliza de propósito**: guarda-se um dado redundante (por exemplo, o total do pedido) para ler mais rápido, aceitando o custo de mantê-lo coerente (muitas vezes com trigger). Desnormalização é uma decisão consciente, não um erro de projeto.\n\n### Pegadinhas\n\n- 2FN só faz sentido discutir quando a chave é **composta**; com chave simples, quem está na 1FN já está na 2FN.\n- Dependência **parcial** viola a 2FN; dependência **transitiva** viola a 3FN. Não troque os nomes.\n- Normalizar não é \"ter menos colunas\": é eliminar redundância com base nas DFs.\n- A decomposição correta é **sem perda**: a junção das tabelas novas reconstrói a original."
+    },
+    {
+      "id": "views-indices",
+      "title": "Views e índices",
+      "markdown": "### View: uma consulta com nome\n\nUma **view** (visão) é uma consulta guardada no banco com um nome. Ela se comporta como uma tabela virtual: você faz `SELECT` nela, mas a view comum **não armazena linhas**; cada vez que é consultada, a consulta de origem roda de novo sobre os dados atuais.\n\n```sql\nCREATE TABLE produto (id INTEGER PRIMARY KEY, nome TEXT, preco NUMERIC, ativo INTEGER);\nINSERT INTO produto VALUES (1,'Caneta',2,1),(2,'Caderno',15,1),(3,'Mochila',90,0);\n\nCREATE VIEW v_ativos AS\n  SELECT nome, preco FROM produto WHERE ativo = 1;\n\nSELECT nome FROM v_ativos ORDER BY nome;\n-- Caderno\n-- Caneta\n```\n\nSe amanhã a mochila for reativada (`UPDATE produto SET ativo = 1 WHERE id = 3`), a mesma consulta na view passa a mostrar Mochila, sem recriar nada.\n\nPara que serve: **simplificar** consultas complexas, **esconder colunas** sensíveis (o usuário recebe permissão na view, não na tabela) e dar uma **interface estável** mesmo que as tabelas mudem. Remove-se com `DROP VIEW v_ativos;` e isso não apaga dado nenhum da tabela.\n\n### View atualizável e WITH CHECK OPTION\n\nViews simples (uma tabela, sem `GROUP BY`, `DISTINCT`, agregação ou junção complexa) costumam aceitar `INSERT`, `UPDATE` e `DELETE`, que são repassados à tabela base. No PostgreSQL, por exemplo, views simples são automaticamente atualizáveis. Uma view com `GROUP BY` não é atualizável diretamente: a linha \"total por categoria\" não corresponde a uma linha da tabela.\n\n`WITH CHECK OPTION` impede que, pela view, se grave uma linha que **a própria view não enxergaria**. Em `v_ativos` com essa opção, inserir um produto com `ativo = 0` pela view seria recusado.\n\n### View materializada\n\nA **view materializada** guarda fisicamente o resultado. Leitura rápida, mas o conteúdo fica **desatualizado** até ser atualizado; no PostgreSQL o comando é `REFRESH MATERIALIZED VIEW nome;`. Útil para relatórios pesados que não precisam do dado do último segundo.\n\n### Índice: o índice remissivo do livro\n\nSem índice, para achar `WHERE titular = 'Ana'` o banco lê a tabela inteira (varredura completa). Com índice, ele vai direto às linhas certas, como você usa o índice remissivo de um livro.\n\n```sql\nCREATE INDEX idx_conta_titular ON conta(titular);\n```\n\nNo SQLite, `EXPLAIN QUERY PLAN SELECT * FROM conta WHERE titular = 'Ana';` passa a mostrar `SEARCH conta USING INDEX idx_conta_titular (titular=?)`; antes mostrava `SCAN conta`. Em outros SGBDs o comando é `EXPLAIN` (PostgreSQL, MySQL).\n\nPontos que caem:\n- A estrutura padrão na maioria dos SGBDs relacionais é a **árvore B (B-tree)**, boa para igualdade, intervalos (`<`, `>`, `BETWEEN`) e ordenação. Índice **hash** serve basicamente para igualdade.\n- **Custo**: índice ocupa espaço e precisa ser atualizado a cada `INSERT`, `UPDATE` e `DELETE`. Muitos índices = escrita mais lenta.\n- `PRIMARY KEY` e `UNIQUE` normalmente criam um índice automaticamente. `CREATE UNIQUE INDEX` também impede valores repetidos.\n- **Índice composto** `(a, b)` funciona como lista telefônica ordenada por sobrenome e depois nome: ajuda filtros por `a` ou por `a` e `b`; para filtrar só por `b`, em regra, aproveita pouco.\n- Aplicar função à coluna (`WHERE lower(titular) = 'ana'`) em regra impede o uso do índice comum sobre `titular`; no exemplo acima o SQLite volta a fazer `SCAN conta`. Alguns SGBDs permitem índice sobre a expressão.\n- **Índice clusterizado** (SQL Server, por exemplo) define a ordem física das linhas; por isso há no máximo um por tabela. Os demais são não clusterizados.\n- Colunas com pouquíssimos valores distintos (como sexo ou um booleano) costumam se beneficiar pouco de índice B-tree comum.\n\n### Pegadinhas\n\n- View comum não guarda dados; materializada guarda e pode ficar defasada.\n- Apagar a view não apaga a tabela.\n- Índice não muda o resultado da consulta, só o caminho para obtê-lo. E não garante ordem sem `ORDER BY`.\n- \"Criar índice em todas as colunas\" não é boa prática: piora escrita e ocupa espaço."
+    },
+    {
+      "id": "triggers",
+      "title": "Triggers",
+      "markdown": "### O que é\n\n**Trigger** (gatilho) é um código guardado no banco que roda **sozinho** quando acontece um evento numa tabela: `INSERT`, `UPDATE` ou `DELETE`. Ninguém o chama diretamente; quem dispara é o evento. Usos típicos: auditoria (registrar quem mudou o quê), validações complexas, manter um campo calculado atualizado.\n\n### Exemplo resolvido (SQLite, testado)\n\n```sql\nCREATE TABLE conta (id INTEGER PRIMARY KEY, titular TEXT NOT NULL,\n                    saldo NUMERIC NOT NULL CHECK (saldo >= 0));\nINSERT INTO conta VALUES (1,'Ana',500),(2,'Bruno',100);\nCREATE TABLE auditoria (conta_id INTEGER, saldo_antigo NUMERIC, saldo_novo NUMERIC);\n\nCREATE TRIGGER trg_audita_saldo AFTER UPDATE OF saldo ON conta\nFOR EACH ROW BEGIN\n  INSERT INTO auditoria VALUES (OLD.id, OLD.saldo, NEW.saldo);\nEND;\n\nUPDATE conta SET saldo = saldo - 50 WHERE id = 1;\nSELECT * FROM auditoria;\n-- 1 | 500 | 450\n```\n\n### As peças\n\n- **Momento**: `BEFORE` (antes da alteração; bom para validar ou ajustar o valor), `AFTER` (depois; bom para auditoria e efeitos em outras tabelas) e `INSTEAD OF` (no lugar da operação; usado em **views**, para dizer o que fazer quando alguém tenta alterar uma view não atualizável).\n- **Evento**: `INSERT`, `UPDATE` (pode ser restrito a colunas: `UPDATE OF saldo`) e `DELETE`.\n- **Granularidade**: `FOR EACH ROW` roda **uma vez por linha afetada**; `FOR EACH STATEMENT` roda **uma vez por comando**, mesmo que o comando afete mil linhas ou nenhuma. Um `UPDATE` sem `WHERE` numa tabela de 3 linhas dispara um trigger por linha 3 vezes.\n- **OLD e NEW**: em trigger de linha, `NEW` é a linha nova e `OLD` a antiga. No `INSERT` só existe `NEW`; no `DELETE` só existe `OLD`; no `UPDATE` existem os dois.\n- **Condição**: `WHEN (...)` limita quando o corpo executa.\n\n### Bloqueando uma operação\n\n```sql\nCREATE TRIGGER trg_bloqueia BEFORE DELETE ON conta\nFOR EACH ROW WHEN OLD.saldo > 0\nBEGIN\n  SELECT RAISE(ABORT, 'conta com saldo');\nEND;\nDELETE FROM conta WHERE id = 1;  -- erro: conta com saldo\n```\n\n### Como fica no PostgreSQL\n\nNo PostgreSQL o corpo fica numa **função que retorna `trigger`**, e o `CREATE TRIGGER` aponta para ela:\n\n```sql\nCREATE FUNCTION f_audita() RETURNS trigger LANGUAGE plpgsql AS $$\nBEGIN\n  INSERT INTO auditoria VALUES (OLD.id, OLD.saldo, NEW.saldo);\n  RETURN NEW;\nEND;\n$$;\n\nCREATE TRIGGER trg_audita AFTER UPDATE ON conta\nFOR EACH ROW EXECUTE FUNCTION f_audita();\n```\n\nNum trigger `BEFORE ... FOR EACH ROW` do PostgreSQL, devolver `NULL` faz a operação **daquela linha ser ignorada**; devolver `NEW` (possivelmente alterado) faz gravar essa versão. Se o `FOR EACH` for omitido, o padrão é `FOR EACH STATEMENT`.\n\n### Trigger e transação\n\nO que o trigger faz acontece **dentro da mesma transação** do comando que o disparou. Se a transação sofrer `ROLLBACK`, o registro de auditoria gravado pelo trigger também é desfeito. Se o trigger der erro, o comando que o disparou falha.\n\n### Pegadinhas\n\n- Trigger não é chamado pelo usuário; procedure é.\n- `OLD` não existe em `INSERT`; `NEW` não existe em `DELETE`.\n- `INSTEAD OF` é coisa de view, não de tabela comum (na maioria dos SGBDs).\n- Triggers em cascata (um dispara outro) dificultam depuração e podem pesar no desempenho."
+    },
+    {
+      "id": "rotinas-transacoes",
+      "title": "Functions, stored procedures e transações",
+      "markdown": "### Função (function)\n\nUma **função** armazenada recebe parâmetros e **devolve um valor** (ou uma tabela). Por isso pode ser usada dentro de expressões, como num `SELECT` ou num `WHERE`. Exemplo em PostgreSQL:\n\n```sql\nCREATE FUNCTION dobro(x integer) RETURNS integer\nLANGUAGE sql AS $$ SELECT x * 2; $$;\n\nSELECT dobro(21);   -- 42\n```\n\n### Stored procedure\n\nUma **stored procedure** (procedimento armazenado) é um bloco de comandos guardado no banco e **chamado explicitamente**: `CALL` no PostgreSQL e no MySQL, `EXEC` (ou `EXECUTE`) no SQL Server. Serve para encapsular uma rotina de negócio, como uma transferência:\n\n```sql\nCREATE PROCEDURE transferir(origem int, destino int, valor numeric)\nLANGUAGE plpgsql AS $$\nBEGIN\n  UPDATE conta SET saldo = saldo - valor WHERE id = origem;\n  UPDATE conta SET saldo = saldo + valor WHERE id = destino;\nEND;\n$$;\n\nCALL transferir(1, 2, 50);\n```\n\nVantagens cobradas: a lógica fica **centralizada** no banco (várias aplicações reaproveitam), há **menos idas e vindas** pela rede, pode servir de **porta controlada** às tabelas (no PostgreSQL isso exige criar a rotina com `SECURITY DEFINER`, que a faz rodar com os direitos do dono; o padrão é `SECURITY INVOKER`, com os direitos de quem chama), e consultas parametrizadas reduzem o risco de injeção de SQL. Desvantagem: a regra de negócio fica presa ao dialeto do SGBD (PL/pgSQL, PL/SQL da Oracle, T-SQL da Microsoft).\n\n**Resumo da diferença**: função devolve valor e entra em expressões; procedure é chamada com `CALL`/`EXEC` e não é usada no meio de um `SELECT`. A procedure pode ter parâmetros de saída (`OUT`, `INOUT`).\n\n### Transações na prática\n\nUma **transação** agrupa comandos para que aconteçam todos ou nenhum. O ciclo é: `BEGIN` (ou `START TRANSACTION`), comandos, e então `COMMIT` (confirma, torna permanente) ou `ROLLBACK` (desfaz tudo desde o início).\n\n```sql\n-- Ana tem 450 e Bruno 300\nBEGIN;\nUPDATE conta SET saldo = saldo - 100 WHERE id = 1;\nUPDATE conta SET saldo = saldo + 100 WHERE id = 2;\nROLLBACK;\nSELECT id, saldo FROM conta;   -- 1 | 450  e  2 | 300 (nada mudou)\n```\n\n**SAVEPOINT** cria um ponto de retorno dentro da transação; `ROLLBACK TO nome` desfaz só o que veio depois dele, e a transação continua aberta:\n\n```sql\nBEGIN;\nINSERT INTO conta VALUES (3,'Caio',10);\nSAVEPOINT s1;\nINSERT INTO conta VALUES (4,'Dora',20);\nROLLBACK TO s1;\nCOMMIT;\n-- ficam as contas 1, 2 e 3; a 4 foi desfeita\n```\n\n### Concorrência: as três anomalias\n\nQuando duas transações rodam ao mesmo tempo, podem surgir:\n- **Leitura suja (dirty read)**: ler um dado que outra transação alterou e **ainda não confirmou** (e que talvez seja desfeito).\n- **Leitura não repetível**: ler a mesma linha duas vezes e obter **valores diferentes**, porque outra transação alterou e confirmou entre as leituras.\n- **Fantasma (phantom read)**: repetir uma consulta com filtro e aparecerem (ou sumirem) **linhas** que outra transação inseriu ou apagou.\n\n### Níveis de isolamento (padrão SQL)\n\n| Nível | Leitura suja | Não repetível | Fantasma |\n|---|---|---|---|\n| READ UNCOMMITTED | pode | pode | pode |\n| READ COMMITTED | não | pode | pode |\n| REPEATABLE READ | não | não | pode |\n| SERIALIZABLE | não | não | não |\n\nQuanto mais alto o nível, mais proteção e, em geral, menos concorrência (mais bloqueios ou mais transações abortadas para tentar de novo). O padrão do PostgreSQL é **READ COMMITTED**, e ali READ UNCOMMITTED se comporta como READ COMMITTED (o padrão SQL só fixa o **mínimo** de proteção de cada nível). **Deadlock** é quando duas transações esperam uma pela outra; o SGBD detecta e aborta uma delas.\n\n### Pegadinhas\n\n- `ROLLBACK` não desfaz o que já sofreu `COMMIT`.\n- `ROLLBACK TO savepoint` não encerra a transação; ainda é preciso `COMMIT` ou `ROLLBACK`.\n- READ COMMITTED evita leitura suja, mas **não** evita leitura não repetível.\n- Função entra em `SELECT`; procedure é chamada com `CALL`/`EXEC`."
+    },
+    {
+      "id": "como-cobrado",
+      "title": "Como o tema costuma ser cobrado",
+      "markdown": "### Os formatos mais comuns\n\n1. **Identificar a forma normal violada** a partir de uma tabela e suas dependências. Roteiro: a chave é composta? Algum atributo depende só de parte dela? (viola 2FN). Algum atributo não chave depende de outro não chave? (viola 3FN). Há determinante que não é superchave? (viola FNBC).\n2. **Comparar objetos**: view x tabela, view x view materializada, função x procedure, trigger x procedure. Lembre a frase: o trigger é disparado pelo evento; a procedure é chamada; a função devolve valor.\n3. **Prever o efeito de um código**: quantas vezes um trigger `FOR EACH ROW` roda, o que sobra depois de `ROLLBACK TO savepoint`, se a view mostra dado novo.\n4. **Tabela de isolamento**: qual nível evita qual anomalia. Monte a tabela de cabeça: cada nível acima evita uma anomalia a mais (suja, não repetível, fantasma).\n5. **Índices**: vantagem (leitura), custo (escrita e espaço), quando não ajuda (função na coluna, baixa seletividade, coluna fora da ordem do índice composto).\n\n### Exemplo de raciocínio\n\nItem: \"Um trigger AFTER UPDATE FOR EACH ROW de auditoria é disparado e grava um registro; em seguida a transação sofre ROLLBACK. O registro de auditoria permanece.\" Raciocínio: o trigger roda dentro da mesma transação; o ROLLBACK desfaz tudo o que ela fez, inclusive o registro. Item **errado**.\n\n### Armadilhas preferidas\n\n- Trocar dependência parcial (2FN) com transitiva (3FN).\n- Dizer que view comum armazena os dados.\n- Dizer que índice sempre melhora o desempenho.\n- Dizer que READ COMMITTED impede leitura não repetível.\n- Dizer que `OLD` está disponível em `INSERT`.\n- Dizer que `ROLLBACK` desfaz transação já confirmada."
+    }
+  ],
+  "questions": [
+    {
+      "id": "q1",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Views e índices",
+      "statement": "O que uma view comum (não materializada) armazena no banco de dados?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Uma cópia completa das linhas das tabelas consultadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Um índice sobre todas as colunas da tabela de origem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "A definição da consulta, executada quando a view é lida.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Um histórico das alterações feitas nas tabelas de origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Uma cópia de segurança das tabelas, atualizada a cada COMMIT.",
+          "correct": false
+        }
+      ],
+      "explanation": "A view comum guarda só a consulta com um nome; a cada leitura ela roda sobre os dados atuais. Cópia das linhas é o que faz a view materializada (A), índice é outro objeto (B), histórico de alterações seria auditoria, por exemplo via trigger (D), e view não é backup (E).",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q2",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Triggers",
+      "statement": "O que caracteriza um trigger em um banco de dados relacional?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "É executado automaticamente quando ocorre um evento na tabela.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "É chamado pelo usuário com o comando CALL e o nome da rotina desejada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "É uma consulta salva com nome que se comporta como uma tabela virtual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "É uma estrutura auxiliar que acelera buscas por uma coluna específica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "É um ponto de retorno dentro de uma transação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Trigger é disparado pelo próprio evento (INSERT, UPDATE ou DELETE), sem chamada explícita. Chamar com CALL descreve uma procedure (B), consulta salva com nome é view (C), estrutura que acelera busca é índice (D) e ponto de retorno é SAVEPOINT (E).",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q3",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Functions, stored procedures e transações",
+      "statement": "Qual comando confirma de forma permanente as alterações feitas em uma transação?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "ROLLBACK, que encerra e grava a transação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "SAVEPOINT, que grava tudo até aquele ponto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "BEGIN, quando executado pela segunda vez.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "GRANT, que libera as alterações aos usuários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "COMMIT, que encerra a transação gravando tudo.",
+          "correct": true
+        }
+      ],
+      "explanation": "COMMIT confirma a transação e torna as alterações duráveis. ROLLBACK faz o contrário, desfaz (A); SAVEPOINT só marca um ponto de retorno sem confirmar nada (B); BEGIN inicia a transação (C); GRANT concede privilégios e não tem relação com confirmar dados (D).",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q4",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Normalização: dependências, formas normais e desnormalização",
+      "statement": "Uma tabela CLIENTE tem a coluna telefones com valores como '3333-1111, 9999-2222'. Qual forma normal essa coluna viola?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "A terceira forma normal, por haver dependência transitiva.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "A primeira forma normal, por não ter valor atômico.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "A segunda forma normal, por haver dependência parcial da chave.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "A forma normal de Boyce-Codd, por haver determinante não chave.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Nenhuma, pois texto separado por vírgula é valor atômico.",
+          "correct": false
+        }
+      ],
+      "explanation": "A 1FN exige valores atômicos, sem listas ou grupos repetidos dentro de uma coluna; vários telefones na mesma célula violam essa regra. Dependência transitiva (A), parcial (C) e determinante não chave (D) são problemas de outras formas normais, e a lista separada por vírgula não é atômica (E).",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q5",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Views e índices",
+      "statement": "Qual é o principal custo de criar muitos índices em uma tabela?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "As consultas passam a devolver resultados em ordem diferente e às vezes incorreta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "A tabela deixa de aceitar chave primária e chaves estrangeiras.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "As consultas com WHERE passam a ler a tabela inteira toda vez.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Mais espaço ocupado e escritas mais lentas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Os dados da tabela passam a ser duplicados em uma view materializada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada índice ocupa espaço e precisa ser mantido em todo INSERT, UPDATE e DELETE, o que encarece a escrita. Índice não altera o resultado da consulta (A), não impede chaves (B), serve justamente para evitar ler a tabela inteira (C) e não cria view materializada (E).",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q6",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Triggers",
+      "statement": "Em um trigger de linha disparado por INSERT, qual referência dá acesso aos valores da linha que está sendo inserida?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "OLD, que guarda a versão anterior da linha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "NEW, que representa a linha nova a ser gravada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "CURRENT, que aponta para a linha mais recente da tabela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "SELF, que aponta para o próprio trigger em execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Tanto OLD quanto NEW, que trazem os mesmos valores no INSERT.",
+          "correct": false
+        }
+      ],
+      "explanation": "No INSERT só existe a linha nova, acessada por NEW. OLD representa a versão antiga e só existe em UPDATE e DELETE (A e E erram por isso); CURRENT e SELF não são as referências usadas para a linha em triggers SQL (C e D).",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q7",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Functions, stored procedures e transações",
+      "statement": "Qual afirmação descreve corretamente uma stored procedure?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "É executada sozinha sempre que uma linha da tabela é alterada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "É uma tabela temporária de sessão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "É um tipo de índice usado para ordenar fisicamente as linhas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "É uma view que aceita parâmetros e guarda o resultado em disco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "É uma rotina guardada no banco e chamada explicitamente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Procedure é um bloco de comandos armazenado no SGBD e chamado de forma explícita, por exemplo com CALL ou EXEC. Executar sozinha após alteração é trigger (A); tabela temporária (B), índice clusterizado (C) e view materializada (D) são outros objetos.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q8",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Functions, stored procedures e transações",
+      "statement": "Qual anomalia de concorrência ocorre quando uma transação lê um dado alterado por outra que ainda não fez COMMIT?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Leitura suja, pois o dado pode ainda ser desfeito.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Leitura fantasma, com linhas novas surgindo na consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Leitura não repetível, com valores mudados após o COMMIT.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Deadlock entre transações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Anomalia de inserção, típica de tabelas não normalizadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ler dado ainda não confirmado é leitura suja (dirty read): o valor pode ser desfeito depois. Fantasma envolve linhas que aparecem (B), não repetível envolve valor alterado e já confirmado (C), deadlock é espera circular (D) e anomalia de inserção é problema de modelagem, não de concorrência (E).",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q9",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Normalização: dependências, formas normais e desnormalização",
+      "statement": "A tabela ITEM(pedido_id, produto_id, quantidade, nome_produto) tem chave primária (pedido_id, produto_id), e nome_produto depende só de produto_id. Qual é o diagnóstico correto?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Viola a 1FN, porque a chave primária tem duas colunas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Viola a 3FN, porque há dependência transitiva entre atributos não chave.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Está na FNBC, porque todo atributo depende de alguma coluna da chave.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Viola a 2FN, porque nome_produto depende de só parte da chave.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Está na 2FN, mas viola a 1FN por repetir o nome do produto.",
+          "correct": false
+        }
+      ],
+      "explanation": "nome_produto depende de só parte da chave composta (produto_id), o que é dependência parcial e viola a 2FN. Chave composta não viola a 1FN (A e E); a dependência é de parte da chave, não entre não chaves (B); e depender de parte da chave não basta para a FNBC (C).",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q10",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Triggers",
+      "statement": "A tabela produto tem 3 linhas e um trigger AFTER UPDATE ... FOR EACH ROW que grava uma linha em log. Quantas linhas entram em log após UPDATE produto SET preco = preco * 2; ?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Uma, porque o trigger roda uma vez por comando executado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Nenhuma, porque o UPDATE não tem cláusula WHERE.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Três, uma para cada linha atingida pelo UPDATE.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Seis, porque o trigger roda antes e depois de cada linha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Depende da ordem física das linhas armazenadas na tabela.",
+          "correct": false
+        }
+      ],
+      "explanation": "FOR EACH ROW executa o corpo uma vez para cada linha afetada; o UPDATE sem WHERE atinge as 3 linhas, então entram 3 registros. Uma execução por comando seria FOR EACH STATEMENT (A); a ausência de WHERE não impede o trigger (B); AFTER roda só depois (D); a ordem física não muda a contagem (E).",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q11",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Views e índices",
+      "statement": "Qual é a diferença essencial entre uma view comum e uma view materializada?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "A materializada guarda o resultado e pode ficar defasada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "A comum guarda o resultado em disco; a materializada só guarda o texto da consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "A materializada é sempre atualizada automaticamente a cada INSERT na tabela base.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "A comum não pode usar junção; a materializada não pode usar filtro WHERE.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Não há diferença de armazenamento, só de permissão de acesso dos usuários.",
+          "correct": false
+        }
+      ],
+      "explanation": "A view materializada armazena fisicamente o resultado e, até ser atualizada (no PostgreSQL, com REFRESH MATERIALIZED VIEW), mostra dados antigos. A alternativa B inverte os papéis; C erra ao dizer que a atualização é sempre automática; D inventa restrições; E ignora a diferença de armazenamento.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q12",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Functions, stored procedures e transações",
+      "statement": "As contas 1 e 2 já existem. Após BEGIN; INSERT da conta 3; SAVEPOINT s1; INSERT da conta 4; ROLLBACK TO s1; COMMIT; quais contas existem?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Apenas 1 e 2, pois o ROLLBACK desfaz a transação inteira.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "1, 2, 3 e 4, pois o COMMIT final confirma tudo o que foi inserido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "1, 2 e 4, pois o ROLLBACK TO desfaz o que veio antes do savepoint.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Nenhuma conta nova, e a transação continua aberta aguardando ROLLBACK.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "1, 2 e 3, pois só o que veio após o savepoint foi desfeito.",
+          "correct": true
+        }
+      ],
+      "explanation": "ROLLBACK TO s1 desfaz só o que veio depois do savepoint (a conta 4) e mantém a transação aberta; o COMMIT confirma a conta 3. Não é rollback total (A), a conta 4 foi desfeita (B), o que se desfaz é o posterior, não o anterior (C), e o COMMIT encerrou a transação (D).",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q13",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Functions, stored procedures e transações",
+      "statement": "No padrão SQL, qual é o nível de isolamento mais baixo que impede a leitura não repetível?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "READ UNCOMMITTED, que já bloqueia releituras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "READ COMMITTED, por só ler dados confirmados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "REPEATABLE READ, o terceiro nível.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "SERIALIZABLE, único que trata essa anomalia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Nenhum nível impede.",
+          "correct": false
+        }
+      ],
+      "explanation": "REPEATABLE READ é o primeiro nível que garante que a mesma linha relida traga o mesmo valor. READ UNCOMMITTED não protege nada (A); READ COMMITTED evita só leitura suja (B); SERIALIZABLE também impede, mas não é o mais baixo (D); logo E está errada.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q14",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Functions, stored procedures e transações",
+      "statement": "Em PostgreSQL, foi criada a função dobro(x integer) RETURNS integer, que devolve x * 2. Qual uso é válido?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "EXEC dobro 21; pois funções só são executadas por EXEC.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "SELECT dobro(21); que devolve o valor 42.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "CREATE TRIGGER dobro ON tabela; para chamar a função.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "SELECT * FROM dobro; pois a função vira uma tabela fixa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Nenhum: funções não podem ser usadas em comandos SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "Função devolve valor e pode entrar em expressões, então SELECT dobro(21) retorna 42. EXEC é sintaxe do SQL Server para procedures (A); CREATE TRIGGER não chama função dessa forma (C); a função escalar não é uma tabela (D); e funções são justamente usadas em SQL (E).",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q15",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Views e índices",
+      "statement": "Existe índice B-tree comum sobre a coluna titular. Qual filtro tende a NÃO aproveitar esse índice?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "WHERE titular = 'Ana', por comparar a coluna por igualdade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "WHERE titular BETWEEN 'A' AND 'C', por ser um intervalo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "WHERE titular > 'M', por usar operador de comparação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "WHERE lower(titular) = 'ana', por aplicar função à coluna.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "ORDER BY titular, por exigir ordenação pela coluna indexada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Aplicar função à coluna faz o banco comparar o resultado de lower(titular), que não está no índice comum; por isso ele tende a varrer a tabela (no SQLite o plano vira SCAN). Igualdade (A), intervalo (B), comparação (C) e ordenação (E) são justamente usos típicos de B-tree.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q16",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Triggers",
+      "statement": "Para que serve um trigger INSTEAD OF?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Para rodar só depois do COMMIT.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Para substituir o índice de uma tabela durante consultas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Para executar uma vez por comando, e não uma vez por linha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Para validar a linha antes da gravação, devolvendo NEW alterado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Para tratar alterações feitas sobre uma view.",
+          "correct": true
+        }
+      ],
+      "explanation": "INSTEAD OF executa no lugar da operação e é usado sobretudo em views, definindo o que fazer quando alguém tenta INSERT, UPDATE ou DELETE nelas. Triggers rodam dentro da transação (A), não substituem índices (B), execução por comando é FOR EACH STATEMENT (C) e validar antes é papel típico do BEFORE (D).",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q17",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Normalização: dependências, formas normais e desnormalização",
+      "statement": "PEDIDO(pedido_id, data, cliente_id, cidade_cliente), chave pedido_id, com cliente_id -> cidade_cliente. Qual é a situação da tabela?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Está na 2FN, mas viola a 3FN por haver dependência transitiva via cliente_id.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Viola a 2FN, pois cidade_cliente depende só de parte da chave primária.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Está na 3FN, pois todos os atributos dependem, direta ou indiretamente, da chave.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Viola a 1FN, pois cidade_cliente se repete em vários pedidos do mesmo cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Está na FNBC, pois cliente_id é chave estrangeira e portanto é determinante válido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com chave simples não existe dependência parcial, então está na 2FN; mas pedido_id -> cliente_id -> cidade_cliente é transitiva e viola a 3FN. B erra porque a chave não é composta; C erra porque dependência indireta é justamente o problema; D confunde repetição com valor não atômico; E erra porque cliente_id não é superchave de PEDIDO.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q18",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Triggers",
+      "statement": "Em uma transação, um UPDATE dispara um trigger AFTER de auditoria que grava em historico. Depois, a transação sofre ROLLBACK. Qual é o resultado?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "O UPDATE é desfeito, mas o registro em historico permanece por ter sido gravado por trigger.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "O UPDATE permanece, porque o trigger AFTER já confirmou a operação na tabela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Ambos são desfeitos, pois o trigger roda na mesma transação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "O ROLLBACK é recusado, pois triggers impedem desfazer operações auditadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Só o registro em historico é desfeito, e o UPDATE fica pendente de COMMIT.",
+          "correct": false
+        }
+      ],
+      "explanation": "O trigger roda dentro da mesma transação do comando que o disparou; o ROLLBACK desfaz tudo o que ela fez, inclusive a gravação em historico (testado no SQLite). Trigger não tem transação própria (A), AFTER não faz COMMIT (B), não impede ROLLBACK (D) e o UPDATE também é desfeito (E).",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q19",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Views e índices",
+      "statement": "Há um índice composto sobre (uf, cidade). Qual consulta, em regra, aproveita MENOS esse índice?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "WHERE uf = 'MG', que usa a primeira coluna do índice composto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "WHERE cidade = 'Contagem', que usa só a segunda coluna.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "WHERE uf = 'MG' AND cidade = 'Contagem', que usa as duas colunas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "WHERE uf = 'MG' ORDER BY cidade, que segue a ordem do índice.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "WHERE uf IN ('MG','SP'), que busca valores da primeira coluna.",
+          "correct": false
+        }
+      ],
+      "explanation": "O índice composto é ordenado primeiro por uf e depois por cidade, como lista telefônica por sobrenome e nome; filtrar só pela segunda coluna não permite descer direto pela árvore. As demais filtram pela primeira coluna (A, E), pelas duas (C) ou filtram por uf e ordenam por cidade, na mesma ordem do índice (D).",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q20",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Normalização: dependências, formas normais e desnormalização",
+      "statement": "Qual afirmação sobre a forma normal de Boyce-Codd (FNBC) está correta?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Toda tabela na 3FN está automaticamente na FNBC.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Ela permite dependência parcial desde que não haja dependência transitiva.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Ela é menos rígida que a 3FN e por isso é usada em data warehouses.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Exige que todo determinante de dependência não trivial seja superchave.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Ela só pode ser aplicada a tabelas que tenham chave primária simples.",
+          "correct": false
+        }
+      ],
+      "explanation": "A FNBC exige que, em toda dependência funcional não trivial, o determinante seja superchave; é mais rígida que a 3FN. Por isso toda FNBC está na 3FN, mas não o contrário (A); ela não admite dependência parcial (B); não é menos rígida (C); e se aplica a qualquer tabela, inclusive com chaves compostas (E).",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q21",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Views e índices",
+      "statement": "A view v_ativos, criada com WITH CHECK OPTION, mostra só produtos com ativo = 1. O que acontece com um INSERT, feito pela view, de produto com ativo = 0?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "É recusado, pois a linha ficaria fora do filtro da própria view.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "É gravado na tabela base, mas não aparece ao consultar a view depois.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "É gravado na view, mas não chega à tabela base, pois views guardam dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "É gravado com ativo alterado automaticamente para 1 pela opção de verificação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "É recusado porque views nunca aceitam INSERT, com ou sem a opção.",
+          "correct": false
+        }
+      ],
+      "explanation": "WITH CHECK OPTION impede gravar, pela view, uma linha que ela própria não enxergaria; ativo = 0 contraria o WHERE e o comando falha. Sem a opção, ocorreria o descrito em B. View comum não guarda dados (C), a opção não corrige valores (D) e views simples aceitam INSERT (E).",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q22",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Triggers",
+      "statement": "No PostgreSQL, um trigger BEFORE INSERT FOR EACH ROW tem uma função que, em certa condição, executa RETURN NULL. O que acontece com a linha nessa condição?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "É gravada com todas as colunas preenchidas com NULL.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "É gravada normalmente, pois o retorno de trigger BEFORE é ignorado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Provoca ROLLBACK da transação inteira e encerra a sessão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "É gravada, mas o próximo trigger AFTER deixa de ser executado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "A inserção daquela linha é pulada, sem erro e sem gravar nada.",
+          "correct": true
+        }
+      ],
+      "explanation": "Em trigger BEFORE de linha no PostgreSQL, devolver NULL manda o sistema pular a operação para aquela linha, sem erro; devolver NEW grava a linha. NULL não vira valores nulos (A), o retorno não é ignorado no BEFORE de linha (B), não há rollback nem fim de sessão (C) e a linha não é gravada (D).",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q23",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Functions, stored procedures e transações",
+      "statement": "A transação T1 executa SELECT * FROM conta WHERE saldo > 100 duas vezes; entre as leituras, T2 insere uma conta com saldo 500 e faz COMMIT, e ela aparece na segunda leitura. Que anomalia é essa e qual nível do padrão a impede?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Leitura suja; impedida já em READ COMMITTED.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Leitura não repetível; impedida em REPEATABLE READ.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Fantasma; impedida em SERIALIZABLE.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Fantasma; impedida já em READ COMMITTED.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Deadlock entre T1 e T2.",
+          "correct": false
+        }
+      ],
+      "explanation": "Surgir linha nova numa consulta repetida, por inserção confirmada de outra transação, é leitura fantasma; pelo padrão SQL, só SERIALIZABLE garante sua ausência. Não é leitura suja, pois houve COMMIT (A); não repetível trata de valor de linha já lida (B); READ COMMITTED permite fantasmas (D); não há espera circular (E).",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q24",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Functions, stored procedures e transações",
+      "statement": "Qual afirmação compara corretamente função armazenada e stored procedure?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Procedure devolve obrigatoriamente um valor e pode ser usada no meio de um SELECT.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Função entra em expressões; procedure é chamada com CALL ou EXEC.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Função é disparada por evento na tabela; procedure é disparada por COMMIT.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Ambas são sinônimos e todo SGBD aceita qualquer uma com a mesma sintaxe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Procedure não aceita parâmetros; só a função pode receber argumentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A função devolve valor e por isso pode aparecer em SELECT ou WHERE; a procedure é invocada explicitamente (CALL no PostgreSQL e MySQL, EXEC no SQL Server). A alternativa A inverte os papéis; nenhuma das duas é disparada por evento ou COMMIT (C); a sintaxe varia entre SGBDs (D); e procedures aceitam parâmetros, inclusive de saída (E).",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q25",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Normalização: dependências, formas normais e desnormalização",
+      "statement": "Um sistema de relatórios lento passa a guardar o valor total em cada pedido, embora ele possa ser calculado a partir dos itens. Como se classifica essa decisão?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Normalização até a FNBC, pois o total passa a depender só da chave.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Violação da 1FN, pois um valor calculado nunca é atômico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Criação de índice, pois o total acelera a busca por pedidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Desnormalização intencional, trocando redundância por leitura rápida.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Erro de projeto sem justificativa, que todo SGBD recusa ao criar a coluna.",
+          "correct": false
+        }
+      ],
+      "explanation": "Guardar dado redundante para ler mais rápido é desnormalização intencional; o preço é manter o total coerente com os itens, muitas vezes com trigger. Não é normalizar (A); um número calculado continua atômico (B); coluna não é índice (C); e o SGBD não recusa redundância, que pode ser escolha legítima (E).",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q26",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Views e índices",
+      "statement": "Excluir uma view comum com DROP VIEW apaga também as linhas da tabela sobre a qual ela foi definida.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A view comum só guarda a definição da consulta; DROP VIEW remove essa definição e as tabelas base, com suas linhas, continuam intactas. Para apagar dados seria necessário DELETE, TRUNCATE ou DROP TABLE.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q27",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Functions, stored procedures e transações",
+      "statement": "O comando ROLLBACK desfaz as alterações de uma transação que ainda não foi confirmada.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ROLLBACK descarta tudo o que a transação aberta fez desde o BEGIN e a encerra, voltando os dados ao estado anterior. Depois de COMMIT, porém, as alterações já são permanentes e não podem ser desfeitas por ROLLBACK.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q28",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Triggers",
+      "statement": "Um trigger pode ser associado aos eventos INSERT, UPDATE e DELETE de uma tabela.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esses são os eventos de manipulação de dados que disparam triggers de tabela; o UPDATE pode até ser restrito a colunas específicas, como em UPDATE OF saldo. O trigger então executa antes, depois ou no lugar da operação.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q29",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Views e índices",
+      "statement": "Criar um índice sobre uma coluna altera o resultado das consultas que filtram por ela, eliminando linhas repetidas.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O índice muda apenas o caminho de acesso aos dados, tornando a busca mais rápida; o conjunto de linhas devolvido é o mesmo. Eliminar repetição no resultado é papel do DISTINCT, e impedir duplicatas na tabela é papel de UNIQUE.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q30",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Normalização: dependências, formas normais e desnormalização",
+      "statement": "Um dos objetivos da normalização é reduzir redundância e, com ela, as anomalias de inserção, atualização e exclusão.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Ao decompor tabelas com base nas dependências funcionais, cada fato passa a ficar em um só lugar; assim, mudar o telefone de um cliente exige alterar uma linha, e não várias, evitando dados contraditórios.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q31",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Functions, stored procedures e transações",
+      "statement": "Uma stored procedure é executada automaticamente pelo SGBD sempre que uma linha da tabela associada é alterada.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Execução automática por evento descreve o trigger. A stored procedure não fica associada a evento de tabela: ela é chamada explicitamente pela aplicação ou pelo usuário, com CALL ou EXEC conforme o SGBD.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q32",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Views e índices",
+      "statement": "Uma view pode ser usada para dar a um usuário acesso a apenas algumas colunas de uma tabela, ocultando as demais.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Basta a view projetar só as colunas permitidas e conceder ao usuário privilégio sobre a view, e não sobre a tabela base. Assim, colunas sensíveis como salário ou CPF ficam fora do alcance dele.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q33",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Triggers",
+      "statement": "Em um trigger de linha disparado por DELETE, a referência NEW contém os valores da linha que está sendo excluída.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. No DELETE não existe linha nova: os valores da linha excluída estão em OLD. NEW existe no INSERT e no UPDATE; OLD existe no UPDATE e no DELETE. Trocar as duas é a pegadinha clássica do tema.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q34",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Normalização: dependências, formas normais e desnormalização",
+      "statement": "Uma tabela que está na 1FN e cuja chave primária é formada por uma única coluna está também na 2FN.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A 2FN proíbe que atributo não chave dependa de só parte da chave; com chave de uma coluna não existe \"parte\", então não pode haver dependência parcial. A tabela ainda pode, porém, violar a 3FN por dependência transitiva.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q35",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Functions, stored procedures e transações",
+      "statement": "No nível de isolamento READ COMMITTED, uma transação pode ler duas vezes a mesma linha e obter valores diferentes, se outra transação a alterar e confirmar entre as leituras.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. READ COMMITTED só garante que não se leia dado não confirmado (evita leitura suja). Cada comando enxerga o que já foi confirmado no momento, então a leitura não repetível continua possível; ela só é evitada a partir de REPEATABLE READ.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q36",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Views e índices",
+      "statement": "Uma view comum mostra as alterações feitas na tabela base depois de sua criação, sem que seja necessário recriá-la.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Como a view comum guarda só a consulta, cada leitura roda sobre os dados atuais. Por exemplo, se um produto inativo for reativado, ele passa a aparecer numa view de produtos ativos na consulta seguinte. Quem pode ficar defasada é a view materializada.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q37",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Functions, stored procedures e transações",
+      "statement": "O comando ROLLBACK TO SAVEPOINT encerra a transação, descartando tudo o que foi feito desde o BEGIN.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. ROLLBACK TO desfaz apenas o que foi feito depois do savepoint indicado e mantém a transação aberta; o que veio antes do savepoint continua pendente e ainda depende de COMMIT ou ROLLBACK para ser confirmado ou descartado.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q38",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Triggers",
+      "statement": "Um trigger declarado FOR EACH STATEMENT é executado uma vez para cada linha afetada pelo comando que o disparou.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O trigger de comando roda uma vez por instrução SQL, mesmo que ela altere mil linhas ou nenhuma. Já o FOR EACH ROW roda uma vez para cada linha afetada. No PostgreSQL, omitir a cláusula equivale a FOR EACH STATEMENT.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q39",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Views e índices",
+      "statement": "Declarar uma coluna como UNIQUE costuma levar o SGBD a criar um índice para garantir a unicidade dos valores.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Para verificar rapidamente se um valor já existe, os SGBDs mantêm um índice único para restrições UNIQUE e PRIMARY KEY (o PostgreSQL, por exemplo, cria esse índice automaticamente). Uma inserção repetida falha com erro de violação de unicidade.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q40",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Normalização: dependências, formas normais e desnormalização",
+      "statement": "Toda tabela que está na terceira forma normal está necessariamente na forma normal de Boyce-Codd.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A relação é a inversa: toda tabela em FNBC está na 3FN, mas há tabelas em 3FN com um determinante que não é superchave, o que viola a FNBC. Isso aparece tipicamente quando existem chaves candidatas compostas que se sobrepõem.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q41",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Functions, stored procedures e transações",
+      "statement": "Pelo padrão SQL, o nível REPEATABLE READ impede a leitura não repetível, mas ainda admite o fenômeno da leitura fantasma.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Na tabela do padrão, REPEATABLE READ veda leitura suja e não repetível, mas permite fantasma, que só SERIALIZABLE proíbe. O padrão fixa o mínimo de proteção: alguns SGBDs, como o PostgreSQL, vão além e também evitam fantasmas nesse nível.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q42",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Views e índices",
+      "statement": "Em um índice composto sobre (a, b), uma consulta que filtra apenas pela coluna b aproveita o índice tão bem quanto uma que filtra apenas por a.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O índice é ordenado primeiro por a e, dentro de cada a, por b. Filtrar por a permite descer direto pela árvore; filtrar só por b obriga a percorrer todos os valores de a, então o aproveitamento é bem menor ou nulo.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q43",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Triggers",
+      "statement": "Se o corpo de um trigger BEFORE DELETE lança um erro, a exclusão que o disparou falha e a linha permanece na tabela.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O trigger faz parte da execução do comando; um erro nele aborta o comando. No teste em SQLite, o trigger com RAISE(ABORT, 'conta com saldo') impediu o DELETE e a conta continuou listada, o que permite usar triggers como regra de bloqueio.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q44",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Views e índices",
+      "statement": "Uma view definida com GROUP BY e SUM sobre uma tabela pode receber UPDATE direto em suas colunas agregadas, que o SGBD repassa automaticamente às linhas da tabela base.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma linha agregada (por exemplo, o total de uma categoria) não corresponde a uma linha da tabela base, então o SGBD não sabe como repassar a alteração. Views com GROUP BY ou agregação não são atualizáveis diretamente; seria preciso um trigger INSTEAD OF com regra própria.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q45",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Functions, stored procedures e transações",
+      "statement": "No PostgreSQL, uma função criada sem a cláusula SECURITY DEFINER executa, por padrão, com os privilégios do dono da função, e não com os de quem a chama.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O padrão do PostgreSQL é SECURITY INVOKER: a função roda com os privilégios de quem a chama. Só com SECURITY DEFINER ela passa a usar os direitos do dono, o que permite liberar a rotina sem dar acesso direto às tabelas.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    }
+  ],
+  "flashcards": [
+    {
+      "front": "O que viola a 1FN?",
+      "back": "Valores não atômicos ou grupos repetidos numa coluna (ex.: vários telefones na mesma célula)."
+    },
+    {
+      "front": "O que viola a 2FN?",
+      "back": "Dependência parcial: atributo não chave que depende de só parte de uma chave composta."
+    },
+    {
+      "front": "O que viola a 3FN?",
+      "back": "Dependência transitiva: atributo não chave que depende de outro atributo não chave."
+    },
+    {
+      "front": "Qual é a regra da FNBC?",
+      "back": "Todo determinante precisa ser superchave. Toda FNBC está na 3FN; o inverso não vale."
+    },
+    {
+      "front": "O que é desnormalização?",
+      "back": "Introduzir redundância de propósito para ganhar desempenho de leitura, assumindo o custo de mantê-la coerente."
+    },
+    {
+      "front": "View comum guarda dados?",
+      "back": "Não. Guarda a consulta; cada leitura roda sobre os dados atuais."
+    },
+    {
+      "front": "O que faz a view materializada?",
+      "back": "Guarda o resultado fisicamente; precisa ser atualizada (no PostgreSQL, REFRESH MATERIALIZED VIEW)."
+    },
+    {
+      "front": "Para que serve WITH CHECK OPTION?",
+      "back": "Impede gravar, pela view, linha que a própria view não enxergaria."
+    },
+    {
+      "front": "Custo de um índice?",
+      "back": "Espaço em disco e escrita mais lenta, pois INSERT, UPDATE e DELETE precisam mantê-lo."
+    },
+    {
+      "front": "Índice composto (a, b) ajuda filtro só por b?",
+      "back": "Em regra, pouco: ele é ordenado primeiro por a."
+    },
+    {
+      "front": "OLD e NEW em triggers",
+      "back": "INSERT: só NEW. DELETE: só OLD. UPDATE: os dois."
+    },
+    {
+      "front": "FOR EACH ROW x FOR EACH STATEMENT",
+      "back": "Por linha: uma execução por linha afetada. Por comando: uma execução por instrução."
+    },
+    {
+      "front": "Para que serve INSTEAD OF?",
+      "back": "Trigger que roda no lugar da operação, típico para tornar views alteráveis."
+    },
+    {
+      "front": "Função x procedure",
+      "back": "Função devolve valor e entra em expressões (SELECT). Procedure é chamada com CALL ou EXEC."
+    },
+    {
+      "front": "O que faz ROLLBACK TO savepoint?",
+      "back": "Desfaz só o que veio depois do savepoint; a transação continua aberta."
+    },
+    {
+      "front": "Leitura suja, não repetível e fantasma",
+      "back": "Suja: dado não confirmado. Não repetível: valor da linha muda. Fantasma: aparecem ou somem linhas."
+    },
+    {
+      "front": "Qual nível evita qual anomalia?",
+      "back": "READ COMMITTED: suja. REPEATABLE READ: suja e não repetível. SERIALIZABLE: as três."
+    },
+    {
+      "front": "Trigger e ROLLBACK",
+      "back": "O trigger roda na mesma transação; ROLLBACK desfaz também o que ele gravou."
+    }
+  ],
+  "tips": [
+    "Em normalização, pergunte primeiro: a chave é composta? Se não for, esqueça a 2FN e procure dependência transitiva.",
+    "Monte de cabeça a tabela de isolamento: cada nível acima evita uma anomalia a mais, na ordem suja, não repetível, fantasma.",
+    "Trigger é disparado, procedure é chamada, função devolve valor: essa frase resolve a maioria das comparações.",
+    "Ao ver um código com trigger FOR EACH ROW, conte as linhas afetadas pelo comando para saber quantas vezes ele roda.",
+    "Índice acelera leitura e encarece escrita; desconfie de alternativas que digam que índice sempre melhora o desempenho."
+  ],
+  "traps": [
+    "Trocar dependência parcial (2FN) com dependência transitiva (3FN).",
+    "Dizer que a view comum armazena as linhas consultadas.",
+    "Dizer que READ COMMITTED impede leitura não repetível.",
+    "Usar OLD em trigger de INSERT ou NEW em trigger de DELETE.",
+    "Achar que ROLLBACK TO savepoint encerra a transação.",
+    "Achar que toda tabela em 3FN está em FNBC."
+  ],
+  "activeRecall": [
+    "Dada uma tabela com chave composta, como você identifica uma dependência parcial e como a remove?",
+    "Explique por que uma view materializada pode mostrar dados antigos e uma view comum não.",
+    "Cite dois custos de criar índices e duas situações em que o índice comum não ajuda.",
+    "Quantas vezes roda um trigger FOR EACH ROW num UPDATE que afeta 5 linhas? E um FOR EACH STATEMENT?",
+    "Diferencie leitura suja, leitura não repetível e fantasma, dizendo o nível que evita cada uma.",
+    "Compare função armazenada, stored procedure e trigger quanto a quem os executa."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Normalização",
+      "summary": "Relacionar 1FN, 2FN, 3FN e FNBC às dependências funcionais e saber quando desnormalizar."
+    },
+    {
+      "key": "e2",
+      "title": "Views e índices",
+      "summary": "Distinguir view comum, atualizável e materializada; prever quando um índice ajuda e quanto custa."
+    },
+    {
+      "key": "e3",
+      "title": "Triggers",
+      "summary": "Momento (BEFORE, AFTER, INSTEAD OF), granularidade (linha ou comando), OLD e NEW e relação com a transação."
+    },
+    {
+      "key": "e4",
+      "title": "Funções e procedures",
+      "summary": "Diferenciar função de procedure pelo retorno e pela forma de chamada, e conhecer vantagens e limites."
+    },
+    {
+      "key": "e5",
+      "title": "Transações e isolamento",
+      "summary": "COMMIT, ROLLBACK, SAVEPOINT, anomalias de concorrência e níveis de isolamento do padrão SQL."
+    }
+  ],
+  "sources": [
+    {
+      "title": "CREATE TRIGGER",
+      "kind": "OFICIAL",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Documentação do comando CREATE TRIGGER: BEFORE, AFTER, INSTEAD OF, FOR EACH ROW e STATEMENT",
+      "url": "https://www.postgresql.org/docs/current/sql-createtrigger.html",
+      "sourceUrl": "https://www.postgresql.org/docs/current/sql-createtrigger.html",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "title": "CREATE VIEW",
+      "kind": "OFICIAL",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Views, views atualizáveis e WITH CHECK OPTION",
+      "url": "https://www.postgresql.org/docs/current/sql-createview.html",
+      "sourceUrl": "https://www.postgresql.org/docs/current/sql-createview.html",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "title": "CREATE FUNCTION",
+      "kind": "OFICIAL",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Funções definidas pelo usuário, SECURITY INVOKER e SECURITY DEFINER",
+      "url": "https://www.postgresql.org/docs/current/sql-createfunction.html",
+      "sourceUrl": "https://www.postgresql.org/docs/current/sql-createfunction.html",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "title": "CREATE PROCEDURE",
+      "kind": "OFICIAL",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Procedimentos armazenados e chamada com CALL",
+      "url": "https://www.postgresql.org/docs/current/sql-createprocedure.html",
+      "sourceUrl": "https://www.postgresql.org/docs/current/sql-createprocedure.html",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "title": "Transaction Isolation",
+      "kind": "OFICIAL",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Níveis de isolamento do padrão SQL e fenômenos de leitura",
+      "url": "https://www.postgresql.org/docs/current/transaction-iso.html",
+      "sourceUrl": "https://www.postgresql.org/docs/current/transaction-iso.html",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "title": "Indexes",
+      "kind": "OFICIAL",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Tipos de índice, índices compostos, únicos e sobre expressões",
+      "url": "https://www.postgresql.org/docs/current/indexes.html",
+      "sourceUrl": "https://www.postgresql.org/docs/current/indexes.html",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "title": "CREATE TRIGGER (SQLite)",
+      "kind": "OFICIAL",
+      "publisher": "SQLite",
+      "reference": "Sintaxe de triggers no SQLite, OLD, NEW e RAISE",
+      "url": "https://www.sqlite.org/lang_createtrigger.html",
+      "sourceUrl": "https://www.sqlite.org/lang_createtrigger.html",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "title": "SAVEPOINT (SQLite)",
+      "kind": "OFICIAL",
+      "publisher": "SQLite",
+      "reference": "SAVEPOINT, RELEASE e ROLLBACK TO",
+      "url": "https://www.sqlite.org/lang_savepoint.html",
+      "sourceUrl": "https://www.sqlite.org/lang_savepoint.html",
+      "accessedAt": "2026-10-08"
+    }
+  ]
+}

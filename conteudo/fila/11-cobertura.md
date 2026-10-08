@@ -64,18 +64,18 @@ typescript, python.
 - [x] **direito-eleitoral.partidos-propaganda** — Partidos políticos, eleições, propaganda, prestação de contas (noções).
 
 ## Onda 5
-- [ ] **direito-internacional.publico-fundamentos** — Fontes, tratados, sujeitos, nacionalidade e estrangeiro (noções), organizações internacionais.
-- [ ] **auditoria.auditoria-governamental** — Normas de auditoria governamental, tipos, controle externo, achados.
-- [ ] **controle-externo.controle-interno-coso** — Controle interno, COSO, gestão de riscos, governança.
-- [ ] **contabilidade.intangivel-impairment-provisoes** — Intangível, redução ao valor recuperável, provisões e contingências.
-- [ ] **economia.economia-brasileira** — Planos econômicos, inflação, câmbio e política monetária no Brasil (histórico até o presente com cuidado).
-- [ ] **economia.financas-publicas** — Funções do governo, bens públicos, externalidades, tributação e eficiência, déficit e dívida.
-- [ ] **administracao-publica.planejamento-estrategico** — Planejamento estratégico, BSC, SWOT, indicadores.
-- [ ] **raciocinio-logico.logica-primeira-ordem** — Quantificadores, predicados, negação de proposições quantificadas, validade.
-- [ ] **matematica.matrizes-determinantes** — Matrizes, operações, determinantes, sistemas (Cramer).
-- [ ] **informatica.bi-mineracao-dados** — Data warehouse, OLAP, ETL, mineração de dados, aprendizado de máquina (noções).
-- [ ] **informatica.seguranca-normas-iso27001** — Gestão de segurança, ISO 27001/27002, continuidade, gestão de incidentes.
-- [ ] **informatica.sql-avancado** — Triggers, views, functions, stored procedures, transações, índices, normalização.
+- [x] **direito-internacional.publico-fundamentos** — Fontes, tratados, sujeitos, nacionalidade e estrangeiro (noções), organizações internacionais.
+- [x] **auditoria.auditoria-governamental** — Normas de auditoria governamental, tipos, controle externo, achados.
+- [x] **controle-externo.controle-interno-coso** — Controle interno, COSO, gestão de riscos, governança.
+- [x] **contabilidade.intangivel-impairment-provisoes** — Intangível, redução ao valor recuperável, provisões e contingências.
+- [x] **economia.economia-brasileira** — Planos econômicos, inflação, câmbio e política monetária no Brasil (histórico até o presente com cuidado).
+- [x] **economia.financas-publicas** — Funções do governo, bens públicos, externalidades, tributação e eficiência, déficit e dívida.
+- [x] **administracao-publica.planejamento-estrategico** — Planejamento estratégico, BSC, SWOT, indicadores.
+- [x] **raciocinio-logico.logica-primeira-ordem** — Quantificadores, predicados, negação de proposições quantificadas, validade.
+- [x] **matematica.matrizes-determinantes** — Matrizes, operações, determinantes, sistemas (Cramer).
+- [x] **informatica.bi-mineracao-dados** — Data warehouse, OLAP, ETL, mineração de dados, aprendizado de máquina (noções).
+- [x] **informatica.seguranca-normas-iso27001** — Gestão de segurança, ISO 27001/27002, continuidade, gestão de incidentes.
+- [x] **informatica.sql-avancado** — Triggers, views, functions, stored procedures, transações, índices, normalização.
 
 ## Onda 6
 - [ ] **criminalistica.fundamentos-pericia** — Local de crime, cadeia de custódia, vestígios, documentoscopia e balística (noções).
