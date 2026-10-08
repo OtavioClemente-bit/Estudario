@@ -6,27 +6,27 @@ Reescrever com Opus no padrão de Penas (v2): artigos e números do texto oficia
 
 | # | editais | matéria | versão | motivos | feito |
 |---|---|---|---|---|---|
-| 1 | 303 | direito-administrativo.ato-administrativo | v2 | lei com só 0 citações; 22 distratores absolutos | [ ] |
-| 2 | 291 | direito-administrativo.poderes-administrativos | v3 | capítulos curtos (1962); lei com só 7 citações; 8 frases vagas; 29 distratores absolutos | [ ] |
-| 3 | 284 | direito-administrativo.organizacao-administrativa | v4 | lei com só 3 citações; 4 frases vagas; 12 distratores absolutos | [ ] |
-| 4 | 275 | legislacao.lei-8429-1992-improbidade | v2 | 6 frases vagas; 33 distratores absolutos | [ ] |
-| 5 | 263 | direito-constitucional.organizacao-politico-administrativa | v2 | lei com só 5 citações; 6 frases vagas; 13 distratores absolutos | [ ] |
-| 6 | 261 | direito-constitucional.administracao-publica | v4 | 5 frases vagas; 43 distratores absolutos | [ ] |
-| 7 | 259 | portugues.pontuacao | v3 | capítulos curtos (1711) | [ ] |
-| 8 | 257 | direito-constitucional.direitos-individuais-coletivos | v4 | lei com só 3 citações; 45 distratores absolutos | [ ] |
-| 9 | 249 | direito-administrativo.responsabilidade-civil-estado | v2 | lei com só 4 citações; 28 distratores absolutos | [ ] |
-| 10 | 242 | portugues.ortografia | v5 | capítulos curtos (1983) | [ ] |
-| 11 | 233 | legislacao.lei-9784-1999-processo-administrativo | v3 | lei com só 5 citações; 22 distratores absolutos | [ ] |
-| 12 | 233 | portugues.concordancia | v4 | capítulos curtos (1886) | [ ] |
-| 13 | 227 | direito-administrativo.agentes-publicos | v5 | 6 frases vagas; 31 distratores absolutos | [ ] |
-| 14 | 212 | direito-administrativo.controle-administracao | v2 | capítulos curtos (1936); lei com só 0 citações; 4 frases vagas; 14 distratores absolutos | [ ] |
-| 15 | 194 | direito-administrativo.principios-administracao | v3 | capítulos curtos (1886); 40 distratores absolutos | [ ] |
-| 16 | 183 | direito-constitucional.poder-executivo | v2 | lei com só 0 citações; 13 distratores absolutos | [ ] |
-| 17 | 172 | direito-administrativo.regime-juridico-fontes | v3 | lei com só 0 citações; 28 distratores absolutos | [ ] |
-| 18 | 172 | portugues.colocacao-pronominal | v3 | capítulos curtos (1947) | [ ] |
-| 19 | 166 | portugues.frase-oracao-periodo | v3 | 3 capítulos; 35 distratores absolutos | [ ] |
-| 20 | 165 | portugues.acentuacao | v4 | capítulos curtos (1928) | [ ] |
-| 21 | 159 | portugues.regencia-verbal-nominal | v4 | capítulos curtos (1827) | [ ] |
+| 1 | 303 | direito-administrativo.ato-administrativo | v2 | lei com só 0 citações; 22 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 2 | 291 | direito-administrativo.poderes-administrativos | v3 | capítulos curtos (1962); lei com só 7 citações; 8 frases vagas; 29 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 3 | 284 | direito-administrativo.organizacao-administrativa | v4 | lei com só 3 citações; 4 frases vagas; 12 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 4 | 275 | legislacao.lei-8429-1992-improbidade | v2 | 6 frases vagas; 33 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 5 | 263 | direito-constitucional.organizacao-politico-administrativa | v2 | lei com só 5 citações; 6 frases vagas; 13 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 6 | 261 | direito-constitucional.administracao-publica | v4 | 5 frases vagas; 43 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 7 | 259 | portugues.pontuacao | v3 | capítulos curtos (1711) | [x] 08/10 ChatGPT+Opus |
+| 8 | 257 | direito-constitucional.direitos-individuais-coletivos | v4 | lei com só 3 citações; 45 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 9 | 249 | direito-administrativo.responsabilidade-civil-estado | v2 | lei com só 4 citações; 28 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 10 | 242 | portugues.ortografia | v5 | capítulos curtos (1983) | [x] 08/10 ChatGPT+Opus |
+| 11 | 233 | legislacao.lei-9784-1999-processo-administrativo | v3 | lei com só 5 citações; 22 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 12 | 233 | portugues.concordancia | v4 | capítulos curtos (1886) | [x] 08/10 ChatGPT+Opus |
+| 13 | 227 | direito-administrativo.agentes-publicos | v5 | 6 frases vagas; 31 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 14 | 212 | direito-administrativo.controle-administracao | v2 | capítulos curtos (1936); lei com só 0 citações; 4 frases vagas; 14 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 15 | 194 | direito-administrativo.principios-administracao | v3 | capítulos curtos (1886); 40 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 16 | 183 | direito-constitucional.poder-executivo | v2 | lei com só 0 citações; 13 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 17 | 172 | direito-administrativo.regime-juridico-fontes | v3 | lei com só 0 citações; 28 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 18 | 172 | portugues.colocacao-pronominal | v3 | capítulos curtos (1947) | [x] 08/10 ChatGPT+Opus |
+| 19 | 166 | portugues.frase-oracao-periodo | v3 | 3 capítulos; 35 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 20 | 165 | portugues.acentuacao | v4 | capítulos curtos (1928) | [x] 08/10 ChatGPT+Opus |
+| 21 | 159 | portugues.regencia-verbal-nominal | v4 | capítulos curtos (1827) | [x] 08/10 ChatGPT+Opus |
 | 22 | 157 | direito-constitucional.aplicabilidade-normas-constitucionais | v4 | lei com só 3 citações; 23 distratores absolutos | [ ] |
 | 23 | 147 | raciocinio-logico.conjuntos | v4 | capítulos curtos (1765) | [ ] |
 | 24 | 144 | portugues.classes-de-palavras | v3 | capítulos curtos (1956) | [ ] |
