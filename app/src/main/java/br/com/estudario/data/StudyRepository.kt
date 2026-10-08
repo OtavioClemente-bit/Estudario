@@ -112,6 +112,20 @@ class StudyRepository(private val db: AppDatabase) {
         dao.deleteTopic(value)
     }
 
+    /**
+     * Apaga o material salvo de um tópico (teoria com as marcações, resumos, flashcards, dicas e
+     * fontes) e, se pedido, as questões que ainda não foram respondidas. O tópico, o status de
+     * estudo, as revisões, as questões já respondidas e o XP ficam: é limpar o material, não a história.
+     */
+    suspend fun deleteTopicMaterial(topicId: Long, includeUnansweredQuestions: Boolean): Int = db.withTransaction {
+        var removed = dao.deleteTheoriesForTopic(topicId)
+        removed += dao.deleteSummariesForTopic(topicId)
+        removed += dao.deleteSnippetsForTopic(topicId)
+        removed += dao.deleteSourcesForTopic(topicId)
+        if (includeUnansweredQuestions) removed += dao.deleteUnansweredQuestionsForTopic(topicId)
+        removed
+    }
+
     private suspend fun cleanupTopicReferences(topicIds: List<Long>) {
         if (topicIds.isEmpty()) return
         dao.deleteQueueForTopics(topicIds)

@@ -216,6 +216,12 @@ interface AppDao {
     @Query("DELETE FROM review_history WHERE topicId IN (:topicIds)") suspend fun deleteReviewHistoryForTopics(topicIds: List<Long>)
     /** Revisões ainda não feitas de um tópico, some ao desmarcar o tópico como estudado. */
     @Query("DELETE FROM review_schedule WHERE topicId = :topicId AND completedAt IS NULL AND ignoredAt IS NULL") suspend fun deletePendingReviews(topicId: Long)
+    @Query("DELETE FROM theory_documents WHERE topicId = :topicId") suspend fun deleteTheoriesForTopic(topicId: Long): Int
+    @Query("DELETE FROM summaries WHERE topicId = :topicId") suspend fun deleteSummariesForTopic(topicId: Long): Int
+    @Query("DELETE FROM topic_snippets WHERE topicId = :topicId") suspend fun deleteSnippetsForTopic(topicId: Long): Int
+    @Query("DELETE FROM content_sources WHERE topicId = :topicId") suspend fun deleteSourcesForTopic(topicId: Long): Int
+    /** Só as questões nunca respondidas: apagar uma respondida levaria junto o histórico e o XP. */
+    @Query("DELETE FROM questions WHERE topicId = :topicId AND id NOT IN (SELECT questionId FROM question_attempts)") suspend fun deleteUnansweredQuestionsForTopic(topicId: Long): Int
     @Query("SELECT COUNT(*) FROM review_schedule WHERE topicId = :topicId AND completedAt IS NOT NULL") suspend fun completedReviewCount(topicId: Long): Int
     @Query("SELECT COUNT(*) FROM study_sessions WHERE topicId = :topicId") suspend fun studySessionCount(topicId: Long): Int
 

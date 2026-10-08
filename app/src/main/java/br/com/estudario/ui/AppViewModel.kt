@@ -671,6 +671,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateTopic(value: TopicEntity) = launchCatching { repository.updateTopic(value) }
     fun setTopicPriorityOverride(id: Long, override: PriorityLevel?) = launchCatching { repository.setTopicPriorityOverride(id, override) }
     fun deleteTopic(value: TopicEntity) = launchCatching { repository.deleteTopic(value) }
+    fun deleteTopicMaterial(topicId: Long, includeQuestions: Boolean) = launchCatching { repository.deleteTopicMaterial(topicId, includeQuestions) }
     fun markStudied(value: TopicEntity) = launchCatching { repository.markStudied(value, reviewIntervals.value) }
     fun unmarkStudied(value: TopicEntity) = launchCatching { repository.unmarkStudied(value) }
     fun addSummary(topicId: Long, title: String, markdown: String) = launchCatching { if (title.isNotBlank() && markdown.isNotBlank()) repository.addSummary(topicId, title, markdown) }
