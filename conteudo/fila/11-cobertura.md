@@ -1,33 +1,109 @@
 # Cobertura dos editais — matérias novas
 
-Ranking de 07/10/2026 (550 editais; tópicos sem matéria por tema, contagem aproximada de editais).
-Cada matéria: um agente escreve (`PEDIDO-MATERIA-AGENTE.md`), outro audita (`PEDIDO-AUDITORIA-AGENTE.md`
-sobre a cópia em entrada), e só então publica.
+Ranking de 07/10/2026 (550 editais). O usuário autorizou fazer TODAS as ondas abaixo, uma após a
+outra, sem perguntar de novo (07/10/2026). Objetivo: biblioteca ampla para que o plano grátis use
+matéria pronta em vez de gerar com IA (custo).
 
-## Onda 1
+## Como tocar cada onda (Claude)
+1. Para cada id da onda, lançar um agente: "Projeto: <repo>. Leia conteudo/fila/PEDIDO-MATERIA-AGENTE.md
+   e siga exatamente. Sua matéria é <id> (escopo em conteudo/fila/11-cobertura.md)." (máx. 20 agentes
+   simultâneos; 12 por onda.)
+2. Quando cada uma voltar, lançar o auditor: passos 2–6 de PEDIDO-AUDITORIA-AGENTE.md direto em
+   conteudo/entrada/<id>.json, version 1, sem copiar nem apagar; conferir números de artigo/súmula
+   citados; matérias de programação: RODAR o código (node; tsc; Python via Pyodide no Node).
+3. Com a onda toda auditada: conferir.ts em cada uma → receber.ts → ligar-editais.ts → importar.ts
+   (resolver apelido repetido: genérico sai das duas; senão sai da antiga e sobe a versão dela) →
+   publicar.sh → commit + push. Marcar [x] aqui.
 
-### Processo Civil (~230 editais)
-- **processo-civil.jurisdicao-competencia** — Jurisdição (conceito, características, princípios) e competência (critérios, absoluta e relativa, modificação, conexão e continência, conflito, incompetência). NÃO: petição inicial, procedimento comum.
-- **processo-civil.sujeitos-processo** — Partes e procuradores (capacidade, deveres, litigância de má-fé, honorários, gratuidade), litisconsórcio, intervenção de terceiros (assistência, denunciação, chamamento, desconsideração, amicus curiae), juiz (poderes, impedimento e suspeição), auxiliares da justiça, MP, Defensoria e advocacia pública no processo.
-- **processo-civil.atos-prazos-processuais** — Forma, tempo e lugar dos atos; prazos (contagem em dias úteis, preclusão); comunicação dos atos (citação, intimação, cartas); nulidades processuais; distribuição e registro; valor da causa.
-- **processo-civil.formacao-suspensao-extincao** — Formação, suspensão e extinção do processo; julgamento conforme o estado do processo; saneamento. NÃO: sentença e coisa julgada em detalhe (há matéria).
-- **processo-civil.recursos** — Teoria geral (admissibilidade, efeitos, fungibilidade, reformatio in pejus), apelação, agravo de instrumento, agravo interno, embargos de declaração, recursos especial e extraordinário (noções), ordem dos processos nos tribunais.
-- **processo-civil.execucao** — Processo de execução de título extrajudicial: títulos executivos, responsabilidade patrimonial, execução por quantia certa, penhora e avaliação, expropriação, embargos à execução, suspensão e extinção. NÃO: cumprimento de sentença (há matéria).
+## Onda 1 — [x] publicada em 07/10/2026
+processo-civil: jurisdicao-competencia, sujeitos-processo, atos-prazos-processuais,
+formacao-suspensao-extincao, recursos, execucao · processo-penal: jurisdicao-competencia-sujeitos,
+citacoes-sentenca-procedimentos, nulidades-recursos-habeas-corpus · informatica: javascript,
+typescript, python.
 
-### Processo Penal (~220 editais)
-- **processo-penal.jurisdicao-competencia-sujeitos** — Aplicação da lei processual penal no tempo e no espaço; jurisdição e competência (lugar, natureza, prerrogativa de função, conexão e continência); juiz, MP, acusado, defensor, assistente e auxiliares.
-- **processo-penal.citacoes-sentenca-procedimentos** — Citações e intimações; sentença (emendatio e mutatio libelli); procedimentos comum ordinário, sumário e sumaríssimo; tribunal do júri.
-- **processo-penal.nulidades-recursos-habeas-corpus** — Nulidades; recursos em geral, recurso em sentido estrito, apelação, embargos; habeas corpus e revisão criminal.
+## Onda 2 — núcleo comum
+- [ ] **direito-constitucional.defesa-estado-instituicoes** — Estado de defesa, estado de sítio, Forças Armadas (noção, sem repetir a matéria forcas-armadas), segurança pública na CF.
+- [ ] **direito-constitucional.ordem-economica-financeira** — Princípios da ordem econômica, atuação do Estado, política urbana e agrícola, sistema financeiro nacional na CF.
+- [ ] **direito-constitucional.tributacao-orcamento** — Sistema tributário na CF (visão geral, sem repetir competência/limitações), repartição das receitas tributárias, finanças públicas e orçamentos na CF.
+- [ ] **direito-civil.familia** — Casamento, regimes de bens, união estável, parentesco, filiação, poder familiar, alimentos, guarda, tutela e curatela.
+- [ ] **direito-civil.sucessoes** — Sucessão em geral, herança, vocação hereditária, ordem da sucessão legítima, herdeiros necessários, testamento, inventário e partilha (noções).
+- [ ] **direito-civil.responsabilidade-civil** — Atos ilícitos, abuso de direito, responsabilidade subjetiva e objetiva, nexo, dano material, moral e estético, excludentes, responsabilidade por fato de terceiro e da coisa.
+- [ ] **administracao-geral.funcoes-administrativas** — Teorias da administração (noções), planejamento, organização (estruturas), direção (liderança, motivação, comunicação), controle, tomada de decisão, cultura organizacional.
+- [ ] **gestao-pessoas.fundamentos-subsistemas** — Gestão de pessoas: recrutamento e seleção, treinamento e desenvolvimento, avaliação de desempenho, gestão por competências, clima e qualidade de vida, comportamento organizacional.
+- [ ] **administracao-geral.projetos-qualidade** — Gestão de projetos (ciclo de vida, PMBOK em noções, escopo, prazo, custo, riscos), gestão da qualidade (PDCA, ferramentas, 5S, qualidade no serviço público).
+- [ ] **administracao-publica.modelos-governanca** — Patrimonialismo, burocracia, administração gerencial, reformas do Estado, governança pública, accountability, gestão por resultados, excelência nos serviços públicos.
+- [ ] **informatica.linux** — Linux: conceitos, distribuições, estrutura de diretórios, permissões, usuários, comandos básicos do terminal, pacotes.
+- [ ] **informatica.internet-busca-redes-sociais** — Ferramentas de busca (operadores), redes sociais, grupos de discussão, fóruns, wikis, comunicação online, segurança e privacidade no uso.
 
-### Programação (~180 editais)
-- **informatica.javascript** — JavaScript do zero: tipos, variáveis (let/const), operadores, funções e arrow functions, objetos e arrays (métodos map/filter/reduce), escopo e closures, DOM e eventos, promises e async/await, JSON, módulos. Código sempre correto.
-- **informatica.typescript** — TypeScript para quem sabe o básico de JS: tipos primitivos, inferência, interfaces e types, union e intersection, generics, enums, classes e modificadores, narrowing, tsconfig e compilação.
-- **informatica.python** — Python do zero: tipos, variáveis, operadores, strings, listas, tuplas, dicionários e conjuntos, controle de fluxo, funções, compreensões, exceções, arquivos, módulos, orientação a objetos básica. NÃO: R e APIs (há matéria python-r-api).
+## Onda 3
+- [ ] **sustentabilidade.desenvolvimento-sustentavel** — Desenvolvimento sustentável, ODS, A3P, compras sustentáveis, resíduos sólidos (noções), mudanças climáticas (noções).
+- [ ] **informatica.html-css-web** — HTML5, CSS3, HTTP, APIs REST e JSON, noções de front-end.
+- [ ] **informatica.engenharia-software-ageis** — Processos de software, requisitos, UML, testes, Scrum, Kanban, XP, DevOps (noções).
+- [ ] **informatica.governanca-ti** — ITIL 4, COBIT, gerenciamento de serviços de TI.
+- [ ] **informatica.redes-protocolos** — Modelo OSI e TCP/IP, endereçamento IP, roteamento, VLAN, DNS, DHCP, protocolos de aplicação.
+- [ ] **informatica.criptografia-certificacao** — Criptografia simétrica e assimétrica, hash, assinatura e certificado digital, ICP-Brasil (noções), VPN, IDS/IPS, firewall.
+- [ ] **informatica.estruturas-dados-algoritmos** — Algoritmos, complexidade, vetores, listas, pilhas, filas, árvores, ordenação e busca.
+- [ ] **informatica.orientacao-objetos** — Classes, objetos, encapsulamento, herança, polimorfismo, interfaces, princípios SOLID (noções).
+- [ ] **contabilidade.estrutura-conceitual-cpc** — Estrutura conceitual, características qualitativas, elementos das demonstrações, DMPL, principais CPCs (noções).
+- [ ] **legislacao.eca-direitos-fundamentais** — ECA: direitos fundamentais, prevenção, medidas de proteção, conselho tutelar, guarda/tutela/adoção. NÃO: ato infracional (há matéria).
+- [ ] **direito-empresarial.empresario-estabelecimento** — Empresário, empresa, registro, nome empresarial, estabelecimento, escrituração, EIRELI/SLU (atual).
+- [ ] **direito-empresarial.sociedades** — Sociedades em geral, limitada, anônima (noções), desconsideração, dissolução.
 
-## Próximas ondas (depois de auditar e publicar a onda 1)
-- Constitucional: defesa do Estado e das instituições; ordem econômica e financeira; finanças públicas na CF.
-- Direito Civil: família; sucessões; posse e propriedade; responsabilidade civil; fatos jurídicos.
-- Administração geral: funções administrativas; gestão de pessoas; projetos e qualidade; governança pública.
-- Informática: Linux; internet (busca, redes sociais, grupos).
-- TI: web (HTML/CSS/APIs), engenharia de software e ágil, ITIL/COBIT, redes e criptografia.
-- Sustentabilidade; Direito Empresarial (3); Previdenciário (2); Contabilidade (CPCs); ECA.
+## Onda 4
+- [ ] **direito-empresarial.titulos-credito** — Teoria geral, letra de câmbio, nota promissória, cheque, duplicata.
+- [ ] **direito-empresarial.falencia-recuperacao** — Recuperação judicial e extrajudicial, falência (noções centrais).
+- [ ] **direito-previdenciario.seguridade-custeio** — Seguridade social na CF, princípios, custeio, contribuições, salário de contribuição, segurados e dependentes.
+- [ ] **direito-previdenciario.beneficios-rgps** — Benefícios do RGPS: aposentadorias, auxílios, pensão, salário-maternidade, carência, regras após a EC 103/2019 (só o que tiver certeza).
+- [ ] **direito-tributario.icms-impostos-estaduais** — ICMS (noções gerais na CF e LC), IPVA, ITCMD.
+- [ ] **direito-tributario.processo-administrativo-fiscal** — Processo administrativo fiscal, consulta, execução fiscal (noções).
+- [ ] **direito-ambiental.fundamentos-snuc** — Princípios, competências, PNMA, SNUC, áreas de preservação.
+- [ ] **direito-ambiental.licenciamento-responsabilidade** — Licenciamento, EIA/RIMA, responsabilidade civil, administrativa e penal ambiental.
+- [ ] **direito-consumidor.relacoes-consumo** — CDC: conceitos, direitos básicos, responsabilidade pelo fato e vício.
+- [ ] **direito-consumidor.praticas-defesa** — Práticas comerciais, publicidade, cláusulas abusivas, defesa em juízo, SNDC.
+- [ ] **direito-eleitoral.justica-eleitoral-alistamento** — Organização da Justiça Eleitoral, alistamento, elegibilidade e inelegibilidade.
+- [ ] **direito-eleitoral.partidos-propaganda** — Partidos políticos, eleições, propaganda, prestação de contas (noções).
+
+## Onda 5
+- [ ] **direito-internacional.publico-fundamentos** — Fontes, tratados, sujeitos, nacionalidade e estrangeiro (noções), organizações internacionais.
+- [ ] **auditoria.auditoria-governamental** — Normas de auditoria governamental, tipos, controle externo, achados.
+- [ ] **controle-externo.controle-interno-coso** — Controle interno, COSO, gestão de riscos, governança.
+- [ ] **contabilidade.intangivel-impairment-provisoes** — Intangível, redução ao valor recuperável, provisões e contingências.
+- [ ] **economia.economia-brasileira** — Planos econômicos, inflação, câmbio e política monetária no Brasil (histórico até o presente com cuidado).
+- [ ] **economia.financas-publicas** — Funções do governo, bens públicos, externalidades, tributação e eficiência, déficit e dívida.
+- [ ] **administracao-publica.planejamento-estrategico** — Planejamento estratégico, BSC, SWOT, indicadores.
+- [ ] **raciocinio-logico.logica-primeira-ordem** — Quantificadores, predicados, negação de proposições quantificadas, validade.
+- [ ] **matematica.matrizes-determinantes** — Matrizes, operações, determinantes, sistemas (Cramer).
+- [ ] **informatica.bi-mineracao-dados** — Data warehouse, OLAP, ETL, mineração de dados, aprendizado de máquina (noções).
+- [ ] **informatica.seguranca-normas-iso27001** — Gestão de segurança, ISO 27001/27002, continuidade, gestão de incidentes.
+- [ ] **informatica.sql-avancado** — Triggers, views, functions, stored procedures, transações, índices, normalização.
+
+## Onda 6
+- [ ] **criminalistica.fundamentos-pericia** — Local de crime, cadeia de custódia, vestígios, documentoscopia e balística (noções).
+- [ ] **medicina-legal.traumatologia-tanatologia** — Traumatologia, tanatologia, sexologia forense (noções).
+- [ ] **legislacao-penal-especial.lavagem-dinheiro** — Lei de lavagem de dinheiro (aspectos penais e processuais).
+- [ ] **legislacao-penal-especial.crimes-ordem-tributaria** — Crimes contra a ordem tributária, econômica e relações de consumo.
+- [ ] **legislacao-penal-especial.interceptacao-telefonica** — Interceptação telefônica e telemática.
+- [ ] **legislacao-penal-especial.execucao-penal** — LEP: regimes, progressão, remição, faltas, direitos do preso.
+- [ ] **informatica.cloud-devops-containers** — Modelos de nuvem avançados, contêineres, orquestração, CI/CD.
+- [ ] **informatica.arquitetura-software** — Arquiteturas em camadas, MVC, microsserviços, padrões de projeto.
+- [ ] **arquivologia.gestao-documentos** — Gestão de documentos, classificação, tabela de temporalidade, preservação digital.
+- [ ] **direito-civil.contratos-especie** — Compra e venda, doação, locação, empréstimo, prestação de serviço, mandato, fiança.
+- [ ] **historia.brasil-colonia-imperio** — História do Brasil da colonização ao Império.
+- [ ] **historia.brasil-republica** — História do Brasil República.
+
+## Onda 7
+- [ ] **lingua-espanhola.interpretacao-gramatica** — Leitura e gramática do espanhol para concurso.
+- [ ] **administracao-geral.comportamento-organizacional** — Motivação, liderança, grupos, conflito, poder, mudança.
+- [ ] **administracao-publica.gestao-processos** — Gestão de processos (BPM), mapeamento, melhoria. (Ver processo-organizacional para não repetir.)
+- [ ] **direito-administrativo.improbidade-anticorrupcao** — Lei anticorrupção (empresas), acordo de leniência. (Improbidade já existe; não repetir.)
+- [ ] **direito-processual-civil.procedimentos-especiais** — Procedimentos especiais e juizados especiais cíveis (noções).
+- [ ] **informatica.ia-generativa-etica** — IA, aprendizado de máquina, IA generativa, ética e uso no setor público.
+- [ ] **informatica.sistemas-operacionais-conceitos** — Processos, threads, memória, sistemas de arquivos.
+- [ ] **informatica.redes-sem-fio-voip** — Wi-Fi, padrões, segurança sem fio, VoIP (noções).
+- [ ] **estatistica.amostragem-pesquisas** — Planos amostrais, tamanho da amostra, pesquisas.
+- [ ] **matematica.geometria-espacial-areas** — Áreas de sólidos (complementa volumes).
+- [ ] **direito.direitos-humanos-sistema-interamericano** — Comissão e Corte Interamericana (ver matérias existentes para não repetir).
+- [ ] **legislacao.estatuto-servidor-estadual-generico** — NÃO FAZER (é específico de cada estado; deixar para a IA).
+
+Depois da onda 7: olhar `library_misses` no servidor (pedidos sem matéria pronta) e priorizar por
+demanda real.
