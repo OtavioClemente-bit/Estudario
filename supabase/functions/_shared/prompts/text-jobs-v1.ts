@@ -4,7 +4,7 @@ import type { ContentJobInput, PlanJobInput } from "../text-job-input.ts";
 // prompt do usuário, delimitados como DADOS. Regras de qualidade vêm do prompt de conteúdo que o
 // app já usa com IAs externas, condensadas para gastar menos tokens de entrada.
 
-export const CONTENT_PROMPT_VERSION = "topic-content-v13" as const;
+export const CONTENT_PROMPT_VERSION = "topic-content-v14" as const;
 export const PLAN_PROMPT_VERSION = "study-plan-v1" as const;
 
 const SECURITY = `Limites de segurança:
@@ -19,6 +19,7 @@ Barreira de evidência (a regra mais importante):
 - Pesquise na web antes de escrever. Priorize fontes oficiais e primárias (legislação e diários oficiais, órgãos públicos, tribunais, bancas, documentação técnica oficial). Sem explicação oficial, use fontes complementares confiáveis (universidades, obras de referência) e marque-as como COMPLEMENTAR; nunca as chame de oficiais.
 - Toda afirmação factual precisa de fonte realmente aberta. Não invente lei, artigo, súmula, número, prazo, percentual, data, versão de norma, URL, título ou órgão. Sem certeza, explique o conceito sem o número e registre um aviso.
 - Antes de citar norma, confirme qual diploma se aplica ao órgão e à esfera informados e sua redação vigente. Se não conseguir confirmar, não cite número e registre LAW_VERSION_UNCERTAIN.
+- Em matéria jurídica, prazos, idades, frações, quóruns, valores e números de artigo SÃO o que a prova cobra. Abra o texto oficial vigente (planalto.gov.br ou o site do órgão) e escreva a regra com o número e o dispositivo ("autópsia pelo menos seis horas depois do óbito (CPP, art. 162)"). Omitir o número só quando você não conseguir abrir a fonte. Nunca escreva "no prazo legal", "nos limites previstos" ou "conforme a lei" se o número está no texto que você abriu: material sem os números de uma matéria de lei não serve para a prova.
 - "sources" lista só o que você abriu, com URL exata e data de acesso (AAAA-MM-DD).
 
 Padrão de cursinho preparatório (não é apostila escolar nem enciclopédia):
@@ -55,7 +56,7 @@ Recorte:
 - Dê mais espaço ao que tem histórico de cobrança em provas; o resto, mais curto.
 
 Partes: gere SOMENTE as partes listadas em PEDIDO. Parte não pedida fica vazia: lista vazia ou texto "".
-- chapters (TEORIA): 2 a 6 capítulos em Markdown, didáticos e autossuficientes (fundamentos, desenvolvimento, exemplos concretos, pegadinhas de banca), com tabelas quando ajudarem. Títulos numerados ("1. Fundamentos"); o markdown do capítulo não repete o título (o app já o mostra). No fim do último capítulo, "### Fontes consultadas". A profundidade pedida manda: ESSENCIAL é direto ao ponto; APROFUNDADA traz exemplos e exceções; LIVRO é o mais completo possível.
+- chapters (TEORIA): 2 a 6 capítulos em Markdown, didáticos e autossuficientes (fundamentos, desenvolvimento, exemplos concretos, pegadinhas de banca), com tabelas quando ajudarem. Títulos numerados ("1. Fundamentos"); o markdown do capítulo não repete o título (o app já o mostra). No fim do último capítulo, "### Fontes consultadas". A profundidade pedida manda: ESSENCIAL é direto ao ponto; APROFUNDADA traz exemplos e exceções; LIVRO é o mais completo possível: 4 a 6 capítulos, cada um com pelo menos 2.500 caracteres de conteúdo útil, cobrindo TODOS os subitens do tópico do edital e os pontos vizinhos que a banca cobra junto (ex.: em "corpo de delito e peritos", também que o juiz não fica adstrito ao laudo e os prazos de autópsia e de exame complementar). Antes de entregar, liste mentalmente os subitens do tópico e confira se cada um tem regra, exemplo e pegadinha.
 - summary (RESUMO): resumo completo em Markdown, suficiente para revisar só por ele.
 - flashcards (FLASHCARDS): um baralho para estudar por repetição, de 15 a 25 cartões. Regras de um bom cartão:
   - UMA ideia por cartão, do tipo que a prova cobra. Nada de "explique tudo sobre X" nem de definição óbvia.
@@ -79,7 +80,8 @@ Questões (só se QUESTÕES estiver em PEDIDO; quantidade EXATA pedida):
 - Enunciado e alternativas coerentes: as alternativas respondem exatamente ao comando, no mesmo formato. Com lacuna, cada alternativa é só o que preenche a lacuna; se pergunta como analisar a expressão X, as alternativas são análises de X, não reescritas do trecho. O trecho do enunciado nunca reaparece igual numa alternativa e a resposta nunca está no próprio enunciado. Em Língua Portuguesa, use texto-base próprio (3 a 6 linhas) e pergunte sobre ele.
 - Língua Portuguesa: pelo menos metade das questões parte de um texto-base próprio de 3 a 6 linhas (trecho de ofício, notícia, artigo de opinião) e pergunta sobre ele. Em gramática, cada distrator erra num caso de dúvida real que a banca explora (concordância com o núcleo mais próximo, haver com auxiliar, se apassivador x índice de indeterminação, crase facultativa, colocação pronominal), nunca por erro grosseiro de flexão ou de digitação que ninguém marcaria. Proibido questão em que a norma culta admite duas alternativas, e proibido criar critério artificial no enunciado para salvar uma questão ambígua.
 - Antes de entregar, resolva cada questão como candidato: comando e alternativas combinam, só uma é defensável em recurso, o gabarito é ela e a explicação descarta cada errada. Reescreva a que falhar.
-- Cada questão cobra um ponto diferente. Distratores são o erro de quem estudou. Proibido "todas/nenhuma das anteriores", absolutos só para marcar o errado e a correta ser a mais longa. Espalhe o gabarito entre as letras.
+- Cada questão cobra um ponto diferente. Espalhe o gabarito entre as letras. Proibido "todas/nenhuma das anteriores", absolutos ("sempre", "exclusivamente", "nunca") só para marcar o errado e a correta ser a mais longa.
+- DISTRATORES (o que mais separa questão de prova de questão fraca): cada alternativa errada é o que um candidato que estudou MAL marcaria — o conceito vizinho (deontologia × diceologia), o artigo, prazo, fração ou autor trocado, a regra certa aplicada ao caso errado, a exceção esquecida, o resultado de um erro de conta comum. Se dá para eliminar a alternativa sem saber nada do tópico, ela está proibida: alternativa absurda ("a cor do recibo", "o preço da ferramenta", "o perito decide a culpa"), de outra época ou matéria ("Roma e Cartago" numa questão de Guerra Fria), que contradiz o próprio enunciado ou que troca papéis óbvios ("vestígio é o perito"). Releia cada alternativa errada perguntando "um candidato mediano poderia marcar isto?"; se a resposta for não, reescreva.
 - explanation detalhada com a fonte (artigo/seção), escrita como versão final para o aluno: justifica a certa e descarta cada errada uma vez, sem rascunho, sem repetir frases e sem comentários sobre corrigir a própria questão. section = título EXATO de um capítulo que responde a questão, ou "Questões" quando não houver teoria. errorConceptKey = um item de errorConcepts.
 - sourceType REAL só se você confirmou enunciado, alternativas, banca, órgão, ano e gabarito definitivo no documento oficial e há permissão clara de reuso; preencha board, agency, year e sourceUrl reais. Caso contrário, AUTHORIAL com board, agency, year e sourceUrl nulos. Na dúvida, AUTHORIAL.
 
