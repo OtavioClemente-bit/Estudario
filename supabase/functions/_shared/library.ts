@@ -537,9 +537,9 @@ export function assembleFromLibrary(
   // geração por IA (content-repair faz o mesmo).
   if (wanted !== null) for (const question of questions) question.difficulty = wanted;
 
-  // No foco, a teoria abre pelos capítulos do tópico; os outros continuam depois, para consulta.
-  const chapterOrder = [...focusChapters, ...allChapters.keys()].filter((i, index, list) => list.indexOf(i) === index);
-  const chapters = wants("THEORY") ? structuredClone(chapterOrder.map((i) => allChapters[i])) : [];
+  // A teoria fica sempre na ordem original: capítulos numerados fora de ordem ("3., 4., 1., 2.")
+  // pareciam matéria embaralhada. O foco vale para as questões.
+  const chapters = wants("THEORY") ? structuredClone(allChapters) : [];
   const board = typeof note?.board === "string" ? note.board : input.board;
   const howItFalls = typeof note?.howItFalls === "string" ? note.howItFalls : null;
   let summary = wants("SUMMARY") ? String(material.summary) : "";
