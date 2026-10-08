@@ -96,7 +96,8 @@ sealed interface StudyChart {
             val caption = root.text("legenda", "fonte", "caption")
             when (type) {
                 "pizza", "pie", "setores" -> items(root)?.let { Pie(title, caption, it, root.text("unidade", "unit")) }
-                "barras", "barra", "bar", "bars", "colunas" -> items(root)?.let { Bars(title, caption, it, root.text("unidade", "unit")) }
+                // Barras aceitam negativo (fluxo de caixa, potenciais, PG alternada); pizza não.
+                "barras", "barra", "bar", "bars", "colunas" -> items(root, allowNegative = true)?.let { Bars(title, caption, it, root.text("unidade", "unit")) }
                 "linha", "linhas", "line" -> {
                     val series = (root["series"] as? JsonArray)?.mapNotNull { element ->
                         val obj = element as? JsonObject ?: return@mapNotNull null
@@ -126,12 +127,12 @@ sealed interface StudyChart {
             }
         }.getOrNull()
 
-        private fun items(root: JsonObject): List<Item>? = (root["itens"] ?: root["items"] ?: root["dados"]).let { it as? JsonArray }?.mapNotNull { element ->
+        private fun items(root: JsonObject, allowNegative: Boolean = false): List<Item>? = (root["itens"] ?: root["items"] ?: root["dados"]).let { it as? JsonArray }?.mapNotNull { element ->
             val obj = element as? JsonObject ?: return@mapNotNull null
             val label = obj.text("rotulo", "label", "nome") ?: return@mapNotNull null
             val value = obj.number("valor") ?: obj.number("value") ?: return@mapNotNull null
-            if (value.isNaN() || value < 0) null else Item(label, value)
-        }?.take(12)?.takeIf { list -> list.size >= 2 && list.sumOf { it.value } > 0 }
+            if (value.isNaN() || (value < 0 && !allowNegative)) null else Item(label, value)
+        }?.take(12)?.takeIf { list -> list.size >= 2 && list.sumOf { kotlin.math.abs(it.value) } > 0 }
 
         private fun JsonObject.text(vararg keys: String): String? = keys.firstNotNullOfOrNull { key ->
             (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim()?.takeIf(String::isNotEmpty)

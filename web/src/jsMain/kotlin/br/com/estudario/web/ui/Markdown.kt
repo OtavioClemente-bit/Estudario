@@ -43,6 +43,8 @@ private sealed interface Block {
     data class TableBlock(val header: List<String>, val rows: List<List<String>>) : Block
     data object Rule : Block
     data class Math(val tex: String) : Block
+    data class CodeBlock(val code: String) : Block
+    data class Chart(val source: String) : Block
 }
 
 private fun parseBlocks(source: String): List<Block> {
@@ -56,6 +58,16 @@ private fun parseBlocks(source: String): List<Block> {
         val trimmed = line.trim()
         when {
             trimmed.isEmpty() -> { flush(); i++ }
+            // Bloco entre ```: gráfico (```grafico) vira desenho; o resto é código, mostrado como está.
+            trimmed.startsWith("```") -> {
+                flush()
+                val lang = trimmed.removePrefix("```").trim().lowercase()
+                val body = StringBuilder()
+                i++
+                while (i < lines.size && !lines[i].trim().startsWith("```")) { body.append(lines[i]).append('\n'); i++ }
+                i++
+                blocks += if (lang in WebChart.fences) Block.Chart(body.toString()) else Block.CodeBlock(body.toString().trimEnd('\n'))
+            }
             trimmed == "\$\$" -> {
                 flush()
                 val tex = StringBuilder()
@@ -127,6 +139,8 @@ private fun RenderBlock(block: Block) {
         } }
         Block.Rule -> Hr()
         is Block.Math -> MathTex(block.tex, display = true)
+        is Block.CodeBlock -> org.jetbrains.compose.web.dom.Pre({ classes("code-block") }) { Code { Text(block.code) } }
+        is Block.Chart -> ChartBlock(block.source)
     }
 }
 
