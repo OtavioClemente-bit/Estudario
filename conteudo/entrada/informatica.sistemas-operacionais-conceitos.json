@@ -1,0 +1,1017 @@
+{
+  "id": "informatica.sistemas-operacionais-conceitos",
+  "subject": "Informática",
+  "version": 1,
+  "title": "Sistemas operacionais: conceitos (processos, threads, memória e arquivos)",
+  "nickname": "SO por dentro",
+  "aliases": [
+    "Sistemas operacionais: kernel, processos, threads, memória, sistemas de arquivos e permissões.",
+    "Processos, threads, concorrência, sincronização e comunicação interprocessos.",
+    "Conceitos básicos de sistemas operacionais.",
+    "Sistemas operacionais: fundamentos; gestão de processos; gestão de memória; gestão de entrada e saída.",
+    "Gerenciamento de processos e threads: alocação de CPU, comunicação e sincronização entre processos, deadlocks e starvation.",
+    "Gerenciamento de memória: alocação, segmentação, memória virtual e paginação.",
+    "Processos, threads, deadlocks, memória e entrada e saída.",
+    "Sistemas operacionais: gerenciamento de processos e memória.",
+    "Sistemas de arquivos: arquivos, diretórios e inodes.",
+    "Sistemas operacionais: processos, memória, entrada e saída e fundamentos.",
+    "Sistemas operacionais: gestão e escalonamento de processos e threads.",
+    "Processos e estados, comunicação entre processos, threads e escalonamento.",
+    "Primitivas de sincronização, deadlocks e starvation.",
+    "Gerenciamento de memória, alocação, fragmentação, paginação, segmentação e memória virtual.",
+    "Substituição de páginas, entrada e saída, processos e sistemas de arquivos.",
+    "Conceito de processo e threads.",
+    "Gerenciamento de Memória: Memória Real e Memória Virtual, Paginação, Segmentação, segmentação com paginação e \"Swap\".",
+    "Sistemas operacionais: gerenciamento de memória, alocação, paginação, segmentação e memória virtual.",
+    "Processos: conceitos, comunicação, sincronização e escalonamento.",
+    "Gerência de memória, memória virtual, swapping e sistemas de arquivos."
+  ],
+  "theoryTitle": "Sistemas operacionais por dentro: do kernel aos sistemas de arquivos",
+  "status": "PUBLISHED",
+  "sourceType": "AUTHORIAL",
+  "board": null,
+  "agency": null,
+  "year": null,
+  "sourceUrl": null,
+  "accessedAt": "2026-10-08",
+  "scope": {
+    "covers": "Funções do sistema operacional (gerenciador de recursos e máquina estendida); núcleo, shell, drivers; modo usuário e modo núcleo; chamadas de sistema; interrupções e exceções; E/S programada, por interrupção e DMA, buffer e spooling; núcleo monolítico, micronúcleo, híbrido e em camadas; multiprogramação, tempo compartilhado, multiprocessamento e tempo real. Programa e processo, PCB, estados e transições, troca de contexto, fork, exec e wait, processos zumbi e órfão; threads, o que compartilham, threads de usuário e de núcleo; escalonamento preemptivo e não preemptivo, critérios e algoritmos FCFS, SJF, SRTF, prioridade, round robin e múltiplas filas, com cálculos de espera e retorno. Condição de corrida, região crítica, exclusão mútua, espera ocupada, semáforos, mutex, monitores, problemas clássicos e comunicação entre processos; deadlock, condições de Coffman, prevenção, evitação (banqueiro), detecção e recuperação, inanição e envelhecimento. Hierarquia de memória, endereço lógico e físico, MMU, partições, fragmentação interna e externa, first, best e worst fit, swapping, paginação, TLB, segmentação, segmentação paginada, memória virtual, falta de página, algoritmos de substituição (ótimo, FIFO, LRU, relógio), anomalia de Belady e thrashing. Arquivos, atributos e métodos de acesso, estruturas de diretório, alocação contígua, encadeada, FAT e indexada, inodes, links físicos e simbólicos, journaling, permissões em linhas gerais e comparação entre FAT32, exFAT, NTFS, ext2, ext3, ext4 e outros.",
+    "excludes": "Uso do Windows e do Explorador de Arquivos, comandos e administração do Linux (matérias próprias), componentes físicos do computador, virtualização e nuvem, sistemas distribuídos, sistemas operacionais móveis em detalhe, programação concorrente em uma linguagem específica, LVM, RAID e redes de armazenamento."
+  },
+  "summary": "O sistema operacional gerencia os recursos do computador (CPU, memória, arquivos e dispositivos) e oferece aos programas uma interface mais simples que o hardware. O núcleo (kernel) roda em modo privilegiado; os aplicativos rodam em modo usuário e pedem serviços por chamadas de sistema. Interrupções avisam a CPU de eventos, e o DMA copia blocos inteiros sem ocupar o processador byte a byte. Processo é um programa em execução, descrito no PCB, que passa pelos estados novo, pronto, executando, bloqueado e terminado; ao fim de uma espera, o processo volta para pronto, nunca direto para executando. Threads do mesmo processo compartilham código, dados e arquivos, mas têm pilha e registradores próprios. O escalonador escolhe quem usa a CPU: FCFS segue a chegada, SJF dá a menor espera média, round robin reveza com quantum e prioridade pode causar inanição, resolvida com envelhecimento. Acesso simultâneo a dados compartilhados exige exclusão mútua (semáforos, mutex, monitores). Deadlock exige ao mesmo tempo exclusão mútua, posse e espera, não preempção e espera circular. Na memória, a MMU traduz endereços lógicos em físicos; paginação elimina a fragmentação externa e deixa só a interna; memória virtual mantém partes do processo no disco e provoca faltas de página, tratadas por algoritmos como FIFO, LRU e ótimo. Nos sistemas de arquivos, o inode guarda os metadados (mas não o nome), o journaling ajuda na recuperação após falhas e o FAT32 não aceita arquivo de 4 GB ou mais.",
+  "chapters": [
+    {
+      "id": "fundamentos",
+      "title": "Fundamentos: o que o sistema operacional faz",
+      "markdown": "### Para que serve um sistema operacional\n\nO **sistema operacional (SO)** é o programa que fica entre o hardware e os aplicativos. Windows, Linux, macOS, Android e iOS são exemplos. Ele tem dois papéis clássicos:\n\n1. **Gerenciador de recursos**: decide quem usa o processador, quanta memória cada programa recebe, quem grava no disco e em que ordem os pedidos à impressora são atendidos.\n2. **Máquina estendida (ou abstração)**: esconde os detalhes do hardware. O programa pede *abra o arquivo relatorio.txt* e não precisa saber em que setor do disco os dados estão.\n\nEm qualquer SO você encontra as mesmas grandes áreas, que são os capítulos desta matéria: **processos**, **memória**, **arquivos** e **entrada e saída (E/S)**.\n\n### Núcleo, shell e drivers\n\n- **Núcleo (kernel)**: a parte central, carregada na memória durante a inicialização. Roda em modo privilegiado e controla diretamente CPU, memória e dispositivos.\n- **Shell**: o interpretador de comandos, em texto (como o bash) ou gráfico. É a interface com o usuário, **não** o núcleo.\n- **Drivers**: módulos que sabem conversar com um dispositivo específico (uma placa de vídeo, uma impressora).\n- O **firmware** (BIOS ou UEFI) e o **carregador de inicialização** apenas colocam o núcleo para rodar; eles não são o sistema operacional.\n\n### Modo usuário e modo núcleo\n\nO processador trabalha em pelo menos dois modos:\n\n- **Modo núcleo** (também chamado de supervisor ou privilegiado): pode executar qualquer instrução, inclusive as que configuram a proteção de memória, desligam interrupções ou acessam dispositivos.\n- **Modo usuário**: onde rodam os aplicativos. Instruções privilegiadas são proibidas; se um programa tentar usá-las, o processador gera uma exceção e o SO decide o que fazer (normalmente encerra o programa).\n\nÉ essa separação que impede um programa com defeito de derrubar os outros ou de ler a memória alheia.\n\n### Chamadas de sistema\n\nQuando o aplicativo precisa de algo que só o núcleo faz (ler um arquivo, criar um processo, enviar dados pela rede), ele faz uma **chamada de sistema** (*system call*). Uma instrução especial, chamada *trap*, troca o processador para o modo núcleo; o SO executa o serviço e devolve o controle ao programa, de novo em modo usuário.\n\n**Exemplo resolvido.** Um editor de texto vai salvar um documento.\n\n1. O editor chama a função de gravação da biblioteca da linguagem.\n2. A biblioteca faz a chamada de sistema de escrita (no Unix, `write`).\n3. O processador passa para o modo núcleo.\n4. O SO localiza blocos livres, pede ao driver do disco a gravação e atualiza as informações do arquivo.\n5. O controle volta ao editor, em modo usuário.\n\nO editor nunca falou com o disco diretamente: quem fala é o núcleo.\n\n### Interrupções\n\nUma **interrupção** é um sinal que faz a CPU suspender o que estava fazendo, salvar o estado, desviar para uma rotina de tratamento e, depois, retomar a execução interrompida.\n\n- **De hardware**: tecla pressionada, fim de uma leitura de disco, pacote chegando pela rede e, muito importante, o **relógio (timer)**, que interrompe a CPU periodicamente e permite ao SO retomar o controle de um programa que não larga o processador.\n- **De software e exceções**: divisão por zero, acesso a endereço inválido e a própria chamada de sistema (o *trap*).\n\n### Três formas de fazer entrada e saída\n\n| Técnica | Como funciona | Custo para a CPU |\n|---|---|---|\n| E/S programada (*polling*) | a CPU pergunta repetidamente ao dispositivo se ele terminou | alto: espera ocupada |\n| E/S por interrupção | o dispositivo avisa a CPU quando cada dado está pronto | médio |\n| DMA (acesso direto à memória) | um controlador copia o bloco inteiro entre dispositivo e memória e interrompe a CPU só no fim | baixo |\n\nNo DMA a CPU ainda trabalha: ela programa a transferência (origem, destino e tamanho) e trata a interrupção final. O que ela não faz é copiar cada byte.\n\nDois termos ligados à E/S: **buffer** é uma área de memória que guarda dados temporariamente para compensar a diferença de velocidade entre dispositivo e programa; **spooling** grava em disco uma fila de trabalhos (o exemplo clássico é a impressão) que são enviados ao dispositivo um de cada vez.\n\n### Como o núcleo pode ser organizado\n\n- **Monolítico**: quase todo o SO (escalonador, memória, sistemas de arquivos, drivers) roda junto, dentro do núcleo. É rápido, mas um driver com defeito pode derrubar o sistema inteiro. O Linux é monolítico e modular: carrega módulos de driver durante a execução.\n- **Micronúcleo (microkernel)**: o núcleo fica mínimo (comunicação entre processos, escalonamento e memória básicos); drivers e sistemas de arquivos rodam como processos em modo usuário. Ganha robustez e modularidade, mas paga com mais troca de mensagens. Exemplos: MINIX 3 e QNX.\n- **Híbrido**: mistura as duas ideias, como os núcleos do Windows (família NT) e do macOS.\n- **Em camadas**: cada camada só usa os serviços da camada de baixo.\n\n### Multiprogramação, multitarefa e outros tipos\n\n- **Multiprogramação**: vários programas ficam na memória; quando um para à espera de E/S, a CPU passa para outro. O objetivo é não deixar a CPU ociosa.\n- **Tempo compartilhado (multitarefa)**: a CPU é alternada tão depressa entre os programas que o usuário tem a impressão de que todos rodam ao mesmo tempo.\n- **Multiprocessamento**: há mais de um processador ou núcleo, e aí sim programas rodam de fato ao mesmo tempo.\n- **Tempo real**: o sistema precisa cumprir prazos (no tempo real crítico, perder o prazo é falha grave; no não crítico, só piora a qualidade).\n\nCom um único núcleo, a multitarefa é **concorrência** (alternância rápida), não **paralelismo** (execução simultânea de verdade).\n\n### Pegadinhas\n\n- Shell não é kernel: o shell é só a interface de comandos.\n- Chamada de sistema não é uma chamada de função comum: ela envolve a troca para o modo núcleo.\n- Micronúcleo não é sinônimo de núcleo mais rápido; sua vantagem é robustez e modularidade.\n- DMA não dispensa totalmente a CPU: ela inicia a transferência e recebe a interrupção do fim.\n- Multiprogramação existe mesmo com uma CPU só; multiprocessamento exige mais de uma."
+    },
+    {
+      "id": "processos-threads",
+      "title": "Processos, threads e escalonamento",
+      "markdown": "### Programa e processo\n\n**Programa** é um arquivo passivo guardado no disco, com instruções. **Processo** é um programa **em execução**: tem espaço de endereçamento próprio (código, dados, heap e pilha), valores nos registradores, contador de programa, arquivos abertos e um número de identificação, o **PID**. Se você abre o mesmo editor duas vezes, há **um programa** e **dois processos**.\n\nO SO guarda as informações de cada processo no **bloco de controle de processo (PCB)**: PID, estado, registradores salvos, prioridade, dados de memória, arquivos abertos e tempo de CPU consumido.\n\n### Estados de um processo\n\n- **Novo**: está sendo criado.\n- **Pronto**: tem tudo de que precisa, só espera a CPU.\n- **Executando**: está usando a CPU (em cada núcleo, um processo por vez).\n- **Bloqueado** (ou em espera): aguarda um evento, como o fim de uma leitura de disco, uma tecla ou uma mensagem.\n- **Terminado**: acabou e está sendo removido.\n\nTransições que caem em prova:\n\n| De | Para | Quando |\n|---|---|---|\n| pronto | executando | o escalonador o escolheu (despacho) |\n| executando | pronto | preempção: acabou a fatia de tempo ou chegou alguém mais prioritário |\n| executando | bloqueado | pediu E/S ou passou a esperar um evento |\n| bloqueado | pronto | o evento aconteceu |\n| executando | terminado | o processo acabou |\n\nNão existem as transições **bloqueado → executando** (quem sai do bloqueio volta para a fila de prontos) nem **pronto → bloqueado** (só quem está executando pode pedir E/S). Alguns livros acrescentam estados **suspensos**, para processos levados ao disco por swapping.\n\n### Troca de contexto\n\nTrocar de processo exige salvar o contexto do que sai (registradores, contador de programa) no seu PCB e carregar o contexto do que entra. Essa **troca de contexto** é sobrecarga: enquanto ela acontece, nenhum trabalho útil do usuário é feito.\n\n### Criação de processos no Unix: fork, exec e wait\n\n- `fork()` cria um processo **filho** que é cópia do pai. A chamada retorna **0 no filho** e o **PID do filho no pai**.\n- `exec` substitui o programa do processo por outro (o PID continua o mesmo).\n- `wait` faz o pai esperar o término de um filho e recolher seu código de saída.\n- **Zumbi**: o filho já terminou, mas o pai ainda não chamou `wait`; sobra uma entrada na tabela de processos.\n- **Órfão**: o pai terminou antes do filho; o filho é adotado pelo processo inicial do sistema (o init ou equivalente).\n\n**Exemplo resolvido.** Quantas linhas este programa em C imprime num sistema do tipo Unix?\n\n```c\n#include <stdio.h>\n#include <unistd.h>\n\nint main(void) {\n    fork();\n    fork();\n    printf(\"oi\\n\");\n    return 0;\n}\n```\n\nO primeiro `fork` transforma 1 processo em 2. Cada um desses 2 executa o segundo `fork`, e passam a ser 4. Os 4 executam o `printf`. Saída:\n\n```\noi\noi\noi\noi\n```\n\nRegra: **n** chamadas de `fork` em sequência, sem testar o retorno, geram **2 elevado a n** processos.\n\n### Threads\n\nUma **thread** é um fluxo de execução dentro de um processo. Threads do mesmo processo **compartilham** o código, os dados globais, o heap e os arquivos abertos; cada uma tem **seu próprio** contador de programa, seus registradores e sua **pilha**.\n\nExemplo: num editor de texto, uma thread atende a digitação, outra faz a correção ortográfica e outra salva automaticamente. Como compartilham o documento na memória, conversam sem esforço.\n\nVantagens: criar e trocar threads é mais barato que criar e trocar processos, a comunicação é fácil e várias threads podem rodar em núcleos diferentes. Risco: uma thread pode estragar os dados da outra, por isso é preciso sincronização (próximo capítulo).\n\n- **Threads de usuário**: gerenciadas por uma biblioteca, sem o núcleo saber delas. No modelo **muitos-para-um**, se uma thread faz uma chamada bloqueante, o processo inteiro bloqueia, e as threads não aproveitam vários núcleos.\n- **Threads de núcleo**: o núcleo conhece e escalona cada uma (modelo **um-para-um**, usado por Windows e Linux). Há ainda o modelo **muitos-para-muitos**.\n\n### Escalonamento da CPU\n\nO **escalonador** escolhe qual processo pronto recebe a CPU.\n\n- **Não preemptivo** (cooperativo): o processo fica com a CPU até terminar ou bloquear.\n- **Preemptivo**: o SO pode tirar a CPU do processo, por exemplo ao fim do quantum, usando a interrupção do relógio.\n\nCritérios: **utilização da CPU**, **vazão** (processos concluídos por unidade de tempo), **tempo de retorno** (término menos chegada), **tempo de espera** (tempo total na fila de prontos) e **tempo de resposta** (até a primeira reação).\n\n| Algoritmo | Ideia | Preemptivo? | Observação |\n|---|---|---|---|\n| FCFS (FIFO) | atende por ordem de chegada | não | efeito comboio: um processo longo atrasa os curtos |\n| SJF | menor tempo de CPU primeiro | não | menor espera média; precisa estimar a duração; pode causar inanição |\n| SRTF | menor tempo restante primeiro | sim | versão preemptiva do SJF |\n| Prioridade | maior prioridade primeiro | pode ser dos dois tipos | inanição; solução: envelhecimento (aging) |\n| Round robin (circular) | fila circular, cada um usa um quantum | sim | típico de tempo compartilhado |\n| Múltiplas filas | uma fila por classe de processo | depende | com realimentação, o processo muda de fila |\n\n**Exemplo resolvido 1: FCFS e SJF.** P1, P2 e P3 chegam no instante 0, nessa ordem, com 6, 3 e 1 unidades de CPU.\n\n- FCFS (ordem P1, P2, P3): esperas 0, 6 e 9. Média = 15 / 3 = **5**. Retornos 6, 9 e 10, média 25 / 3, cerca de 8,33.\n- SJF (ordem P3, P2, P1): esperas 0, 1 e 4. Média = 5 / 3, cerca de **1,67**.\n\n**Exemplo resolvido 2: round robin.** Quantum 3; P1 = 7, P2 = 4 e P3 = 2, todos no instante 0, nessa ordem; ignore o tempo de troca.\n\n- 0 a 3: P1 (restam 4) · 3 a 6: P2 (resta 1) · 6 a 8: P3 termina em **8**\n- 8 a 11: P1 (resta 1) · 11 a 12: P2 termina em **12** · 12 a 13: P1 termina em **13**\n\nQuantum muito grande faz o round robin virar FCFS; quantum muito pequeno faz o sistema gastar boa parte do tempo em trocas de contexto.\n\n### Pegadinhas\n\n- Ao terminar a E/S, o processo vai para **pronto**, não para executando.\n- Threads do mesmo processo **não** têm espaço de endereçamento separado; o que é de cada uma é a pilha e os registradores.\n- Zumbi já terminou; órfão continua rodando sem o pai original.\n- SJF tem a menor espera média, mas não é implementável com exatidão, porque o SO não sabe de antemão quanto cada processo vai durar.\n- Tempo de espera conta só o tempo na fila de prontos; tempo de retorno conta tudo, da chegada ao término."
+    },
+    {
+      "id": "concorrencia-deadlock",
+      "title": "Concorrência, sincronização e deadlock",
+      "markdown": "### Condição de corrida\n\nQuando dois processos ou threads acessam um dado compartilhado e o resultado depende da ordem exata em que foram executados, há uma **condição de corrida**.\n\n**Exemplo resolvido.** Um saldo vale 100. Duas threads somam 10 cada, e cada soma tem três passos: ler, somar, gravar.\n\n1. Thread A lê 100.\n2. Thread B lê 100 (A ainda não gravou).\n3. A grava 110.\n4. B grava 110.\n\nO certo seria 120, mas uma atualização se perdeu. O problema não é a conta, é a intercalação.\n\n### Região crítica e exclusão mútua\n\n**Região crítica** é o trecho do código que acessa o recurso compartilhado. A solução é a **exclusão mútua**: no máximo um processo dentro da região crítica por vez. Uma boa solução também garante:\n\n- **progresso**: quem está fora da região crítica não impede a entrada dos outros;\n- **espera limitada**: ninguém espera para sempre;\n- nada supõe sobre a velocidade ou o número de CPUs.\n\nFormas de obter exclusão mútua:\n\n- **Desabilitar interrupções**: funciona só com uma CPU e é perigoso entregar isso a programas de usuário.\n- **Espera ocupada** (*busy waiting*, *spinlock*): o processo fica num laço testando uma variável até poder entrar. Funciona, mas **gasta CPU** enquanto espera.\n- **Instruções atômicas** do hardware, como *test-and-set*, e algoritmos em software, como o de Peterson para dois processos.\n- **Semáforos, mutex e monitores**, que permitem **bloquear** o processo em vez de deixá-lo girando.\n\n### Semáforos\n\nProposto por Dijkstra, o **semáforo** é uma variável inteira com duas operações atômicas:\n\n- **down** (também chamada P ou wait): se o valor é maior que zero, diminui 1 e segue; se é zero, o processo **bloqueia**.\n- **up** (V ou signal): aumenta 1 ou, se houver alguém bloqueado, acorda um deles.\n\nUm **semáforo binário** (0 ou 1) faz exclusão mútua. Um **semáforo contador**, iniciado com N, controla N unidades de um recurso: com N = 2 impressoras, dois processos passam e o terceiro bloqueia até alguém dar up.\n\nO **mutex** é uma trava de dois estados (livre ou ocupada), em geral com dono: quem trancou é quem destranca.\n\n### Monitores\n\n**Monitor** é uma construção da linguagem que junta dados e procedimentos e garante que **só um processo** esteja ativo dentro dele por vez. Para esperar uma condição, usa **variáveis de condição** com operações wait e signal. O `synchronized` do Java é um exemplo de ideia de monitor.\n\n### Problemas clássicos\n\n- **Produtor e consumidor** (buffer limitado): o produtor não pode inserir com o buffer cheio, nem o consumidor retirar com ele vazio. Solução típica com três semáforos: um que conta posições vazias, um que conta posições cheias e um mutex para o acesso ao buffer.\n- **Leitores e escritores**: vários leitores podem ler juntos; um escritor precisa de acesso exclusivo.\n- **Jantar dos filósofos**: ilustra deadlock e inanição na disputa por recursos (os garfos).\n\n### Comunicação entre processos (IPC)\n\n- **Memória compartilhada**: uma área comum aos processos; é rápida, mas exige sincronização.\n- **Troca de mensagens**: operações send e receive, com filas de mensagens; mais simples de sincronizar, com custo maior.\n- **Pipes**: canal em que um processo escreve e outro lê (no shell, `ls | sort`).\n- **Sinais**: avisos assíncronos (por exemplo, pedido de término).\n- **Sockets**: comunicação inclusive entre máquinas diferentes.\n\n### Deadlock (impasse)\n\n**Deadlock** é quando um conjunto de processos fica bloqueado para sempre, cada um esperando um recurso que outro do conjunto segura.\n\nExemplo: P1 tem a impressora e pede o scanner; P2 tem o scanner e pede a impressora. Nenhum cede.\n\nAs **quatro condições de Coffman** precisam ocorrer **ao mesmo tempo**:\n\n1. **Exclusão mútua**: o recurso só pode ser usado por um processo de cada vez.\n2. **Posse e espera**: o processo segura recursos enquanto espera outros.\n3. **Não preempção**: o recurso não pode ser tirado à força; só quem o tem o libera.\n4. **Espera circular**: existe um ciclo de processos, cada um esperando o recurso do próximo.\n\nNo grafo de alocação de recursos, o deadlock aparece como **ciclo** (com uma unidade por recurso, ciclo significa deadlock; com várias unidades, ciclo é só possibilidade).\n\n### Como tratar\n\n| Estratégia | Ideia | Exemplo |\n|---|---|---|\n| Ignorar (algoritmo do avestruz) | aceita o risco, porque é raro e caro de evitar | muitos sistemas de uso geral |\n| Detectar e recuperar | deixa ocorrer, procura ciclos e depois age | encerrar processos, tomar recursos, voltar a um ponto salvo |\n| Evitar | analisa cada pedido e só o atende se o sistema continuar em **estado seguro** | algoritmo do banqueiro, de Dijkstra |\n| Prevenir | garante por construção que uma das quatro condições nunca ocorra | numerar os recursos e pedir só em ordem crescente (sem espera circular); pedir tudo no início (sem posse e espera) |\n\n### Inanição e outros nomes parecidos\n\n- **Inanição (starvation)**: um processo espera indefinidamente porque outros sempre passam na frente, enquanto o sistema continua andando. Solução comum: **envelhecimento (aging)**, que aumenta a prioridade de quem espera muito.\n- **Livelock**: os processos não estão bloqueados, mudam de estado o tempo todo, mas nenhum avança (como duas pessoas que se desviam para o mesmo lado no corredor).\n- **Inversão de prioridade**: um processo de alta prioridade espera um recurso preso por um de baixa prioridade; a herança de prioridade é uma solução.\n\n### Pegadinhas\n\n- Basta eliminar **uma** das quatro condições para prevenir deadlock.\n- Preempção não é condição de deadlock; a condição é a **não** preempção.\n- Evitar (banqueiro, estado seguro) é diferente de prevenir (negar uma condição).\n- Inanição não é deadlock: no deadlock há um ciclo de espera e ninguém do grupo anda; na inanição o sistema anda, mas aquele processo fica para trás.\n- Espera ocupada consome CPU; semáforo bem implementado bloqueia o processo."
+    },
+    {
+      "id": "memoria",
+      "title": "Gerência de memória e memória virtual",
+      "markdown": "### Hierarquia de memória\n\nDo mais rápido e caro ao mais lento e barato: **registradores → cache → memória principal (RAM) → armazenamento secundário (SSD ou HD)**. A RAM é volátil e é onde os processos precisam estar para executar. O gerente de memória do SO decide o que fica na RAM, onde fica e o que vai para o disco.\n\n### Endereço lógico e físico\n\nO programa gera **endereços lógicos** (virtuais), como se tivesse a memória toda para ele. A **MMU** (unidade de gerência de memória), um componente de hardware, traduz cada endereço lógico no **endereço físico** da RAM durante a execução. No esquema mais simples, há um registrador **base** (somado ao endereço) e um registrador **limite** (que impede o acesso além da área do processo). Isso permite a **realocação**: o processo pode ser carregado em qualquer lugar da memória.\n\n### Partições e fragmentação\n\n- **Partições fixas**: a memória é dividida de antemão. Um processo de 30 KB numa partição de 50 KB desperdiça 20 KB **dentro** da partição: é a **fragmentação interna**.\n- **Partições variáveis**: cada processo recebe exatamente o que pede. Com as entradas e saídas, sobram buracos espalhados que, somados, caberiam um processo, mas separados não cabem: é a **fragmentação externa**. Uma solução é a **compactação** (juntar os processos e unir os buracos), que é cara.\n\nPara escolher a lacuna livre:\n\n- **first fit**: a primeira que couber;\n- **best fit**: a menor que couber (deixa a menor sobra);\n- **worst fit**: a maior de todas (deixa a maior sobra).\n\n**Exemplo resolvido.** Lacunas livres, nesta ordem: 50, 200, 120 e 400 KB. Pedido de 110 KB. First fit escolhe **200** (a de 50 não cabe); best fit escolhe **120**; worst fit escolhe **400**.\n\n**Swapping**: o SO tira um processo inteiro da memória, grava no disco (área de troca) e o traz de volta depois.\n\n### Paginação\n\nA memória lógica é dividida em **páginas** e a física em **molduras** (quadros, *frames*) do **mesmo tamanho**. Cada processo tem uma **tabela de páginas** que diz em que moldura está cada página. Molduras de um processo não precisam ser vizinhas, por isso **não há fragmentação externa**; sobra só a **fragmentação interna** na última página.\n\nO endereço lógico se divide em **número da página** e **deslocamento** dentro da página.\n\n**Exemplo resolvido 1.** Páginas de 1 KB (1024 bytes); endereço lógico 3000; a página 2 está na moldura 7.\n\n1. Página = 3000 dividido por 1024 = 2 (parte inteira), pois 2 × 1024 = 2048.\n2. Deslocamento = 3000 − 2048 = 952.\n3. Endereço físico = 7 × 1024 + 952 = 7168 + 952 = **8120**.\n\n**Exemplo resolvido 2.** Endereços de 16 bits e páginas de 1 KB: 1 KB = 2 elevado a 10, então o deslocamento usa 10 bits e sobram 6 bits para a página, ou seja, até 64 páginas.\n\n**Exemplo resolvido 3.** Processo de 9 KB com páginas de 4 KB ocupa 3 páginas (12 KB) e desperdiça 3 KB na última: fragmentação interna.\n\nComo consultar a tabela de páginas na RAM a cada acesso dobraria o custo, o hardware usa a **TLB**, uma pequena memória associativa e rápida que guarda as traduções mais recentes.\n\n### Segmentação\n\nNa **segmentação**, o programa é dividido em **segmentos de tamanho variável** que correspondem a partes lógicas: código, dados, pilha. O endereço é **segmento + deslocamento**, e a tabela de segmentos guarda base e limite de cada um. É visível ao programador e facilita proteção e compartilhamento, mas, por ter tamanhos variáveis, sofre **fragmentação externa**. A **segmentação paginada** divide cada segmento em páginas e junta as vantagens dos dois esquemas.\n\n| | Paginação | Segmentação |\n|---|---|---|\n| Tamanho dos blocos | fixo | variável |\n| Visível ao programador | não | sim |\n| Fragmentação | interna | externa |\n\n### Memória virtual\n\nA **memória virtual** deixa na RAM só as partes do processo em uso e mantém o resto no disco (área de troca, ou *swap*, no Linux; arquivo de paginação no Windows). Assim um processo pode ser maior que a RAM e cabem mais processos ao mesmo tempo. Ela funciona por causa do **princípio da localidade**: o programa tende a usar de novo o que usou há pouco (temporal) e o que está perto (espacial).\n\nNa **paginação sob demanda**, a página só é carregada quando é usada. Se o processo acessa uma página que não está na RAM, a MMU gera uma **falta de página** (*page fault*); o SO busca a página no disco, coloca numa moldura livre (ou libera uma) e reinicia a instrução.\n\n### Algoritmos de substituição de páginas\n\n- **Ótimo**: tira a página que vai demorar mais a ser usada. Gera o menor número de faltas, mas exige conhecer o futuro, então serve só de referência.\n- **FIFO**: tira a página que entrou há mais tempo. Simples, mas sofre a **anomalia de Belady**: com mais molduras pode haver **mais** faltas (na sequência 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5, são 9 faltas com 3 molduras e 10 com 4).\n- **LRU**: tira a página usada há mais tempo (menos recentemente usada). Aproxima o ótimo e não sofre a anomalia de Belady.\n- **Relógio (segunda chance)**: FIFO com um bit de referência; a página usada recentemente ganha mais uma volta.\n\n**Exemplo resolvido.** Três molduras vazias, sequência 2, 3, 2, 1, 5, 2.\n\n- FIFO: 2 (falta), 3 (falta), 2 (acerto), 1 (falta), 5 (falta, sai o 2), 2 (falta, sai o 3). Total: **5 faltas**.\n- LRU: 2 (falta), 3 (falta), 2 (acerto), 1 (falta), 5 (falta, sai o 3, usado há mais tempo), 2 (acerto). Total: **4 faltas**.\n\nConte também as faltas iniciais, de molduras vazias: elas entram no total.\n\n**Thrashing** (paginação excessiva): há tantos processos e tão pouca memória que o sistema passa mais tempo trocando páginas do que executando; o uso útil da CPU despenca. Solução: reduzir o número de processos na memória ou dar mais molduras a cada um.\n\n### Pegadinhas\n\n- Paginação tem fragmentação interna; o que ela elimina é a externa.\n- Quem traduz endereço é a MMU (hardware), com ajuda da tabela montada pelo SO.\n- Memória virtual não é memória cache nem aumento físico da RAM.\n- Mais molduras com FIFO nem sempre significa menos faltas.\n- Best fit não é a lacuna maior: é a menor que cabe."
+    },
+    {
+      "id": "arquivos-cobranca",
+      "title": "Sistemas de arquivos e como o tema costuma ser cobrado",
+      "markdown": "### Arquivo e seus atributos\n\n**Arquivo** é a unidade lógica de armazenamento. Além do conteúdo, tem **atributos** (metadados): nome, tipo ou extensão, tamanho, dono, permissões, datas de criação, acesso e modificação, e a localização dos dados no disco. As operações básicas são criar, abrir, ler, escrever, reposicionar, fechar e excluir.\n\nFormas de acesso: **sequencial** (do início ao fim, como uma fita) e **direto** ou aleatório (vai ao bloco desejado sem ler os anteriores).\n\n### Diretórios\n\n- **Nível único**: todos os arquivos juntos; nomes não podem repetir.\n- **Dois níveis**: um diretório por usuário.\n- **Árvore (hierárquico)**: pastas dentro de pastas; o mesmo nome pode existir em diretórios diferentes, porque o caminho completo é que identifica o arquivo.\n- **Grafo acíclico**: permite que um arquivo apareça em mais de um diretório, por meio de links.\n\n### Como o disco é alocado aos arquivos\n\n| Método | Como funciona | Vantagem | Problema |\n|---|---|---|---|\n| Contígua | blocos consecutivos | leitura sequencial e acesso direto rápidos | fragmentação externa; difícil crescer |\n| Encadeada | cada bloco aponta para o próximo | sem fragmentação externa | acesso direto lento; um ponteiro perdido estraga o resto |\n| FAT | encadeada, mas os ponteiros ficam numa tabela à parte | acesso direto mais rápido que a encadeada pura | a tabela ocupa memória em discos grandes |\n| Indexada (inode) | um bloco de índice lista os blocos do arquivo | acesso direto bom, sem fragmentação externa | custo do bloco de índice em arquivos pequenos |\n\nNa **FAT**, o diretório registra o primeiro cluster do arquivo; a entrada da tabela correspondente a esse cluster diz qual é o próximo, e assim por diante, até uma marca de fim.\n\nO espaço livre costuma ser controlado por **mapa de bits** (um bit por bloco) ou por lista de blocos livres.\n\n### Inodes e links (Unix e Linux)\n\nO **inode** guarda os metadados do arquivo: tipo, permissões, dono e grupo, tamanho, datas, contador de links e ponteiros para os blocos de dados (diretos e indiretos). Ele **não guarda o nome**: o nome fica na **entrada de diretório**, que associa nome ao número do inode.\n\n- **Link físico (hard link)**: outro nome apontando para o **mesmo inode**. O inode conta quantos nomes existem; os dados só são liberados quando esse contador chega a zero. Em geral não atravessa sistemas de arquivos e não é permitido para diretórios.\n- **Link simbólico (soft link)**: um arquivo pequeno que guarda o **caminho** de outro. Pode apontar para diretórios e outros sistemas de arquivos, mas quebra se o alvo for apagado ou movido.\n\n**Exemplo resolvido.** relatorio.txt tem um hard link chamado copia.txt e um link simbólico chamado atalho.txt. Apaga-se relatorio.txt. O inode ainda tem um nome (copia.txt), então os dados continuam acessíveis por copia.txt. Já atalho.txt guardava o caminho relatorio.txt, que não existe mais: o link simbólico fica quebrado.\n\n### Journaling\n\nUm desligamento no meio de uma gravação pode deixar o sistema de arquivos inconsistente. Com **journaling**, o sistema primeiro anota a alteração num diário (*journal*) e só depois a aplica; após a falha, basta reler o diário para refazer ou descartar as operações pendentes, em vez de varrer o disco inteiro.\n\n### Sistemas de arquivos que mais aparecem\n\n| Sistema | Onde aparece | Pontos cobrados |\n|---|---|---|\n| FAT32 | pen drives antigos, compatibilidade ampla | sem journaling e sem permissões por usuário; arquivo individual limitado a 4 GB menos 1 byte |\n| exFAT | pen drives e cartões de memória | aceita arquivos bem maiores que 4 GB; sem journaling |\n| NTFS | Windows | journaling, permissões por listas de controle de acesso (ACL), compressão, criptografia de arquivos, cotas de disco |\n| ext2 | Linux, mais antigo | sem journaling |\n| ext3 | Linux | é o ext2 com journaling |\n| ext4 | Linux, padrão em muitas distribuições | journaling, extents, arquivos e volumes maiores |\n| XFS, Btrfs, ReFS | servidores | XFS com journaling e foco em grandes volumes; Btrfs com cópia na escrita e snapshots; ReFS, do Windows Server, voltado à resiliência |\n\n**Permissões**: no NTFS, cada arquivo tem uma lista de controle de acesso com permissões por usuário e grupo; no modelo Unix, cada arquivo tem permissões de leitura, escrita e execução para dono, grupo e outros (o detalhe dos comandos fica na matéria de Linux).\n\n**Fragmentação de arquivos**: com o uso, um arquivo pode ficar espalhado em blocos distantes. Em discos rígidos, a desfragmentação reagrupa os blocos e melhora a leitura; em SSDs, que não têm cabeça de leitura se movendo, ela não traz esse ganho.\n\n### Como o tema costuma ser cobrado\n\n1. **Conceito puro**: funções do SO, kernel x shell, modo usuário x núcleo, chamada de sistema, tipos de núcleo. Procure a palavra que está trocada.\n2. **Estados de processo**: quase sempre a pegadinha é bloqueado indo direto para executando, ou pronto indo para bloqueado.\n3. **Processo x thread**: o que é compartilhado (código, dados, arquivos) e o que é próprio (pilha, registradores, contador de programa).\n4. **Cálculo de escalonamento**: desenhe a linha do tempo antes de calcular. Espera = término − chegada − tempo de CPU.\n5. **Deadlock**: as quatro condições e a diferença entre prevenir, evitar e detectar.\n6. **Semáforos**: siga o valor do contador a cada down e up.\n7. **Paginação**: divida o endereço pelo tamanho da página; o quociente é a página e o resto é o deslocamento.\n8. **Substituição de páginas**: monte uma tabela com as molduras a cada referência e marque as faltas, incluindo as iniciais.\n9. **Sistemas de arquivos**: limite de 4 GB do FAT32, journaling, inode sem nome, hard link x link simbólico.\n\n### Pegadinhas\n\n- O nome do arquivo não está no inode.\n- Apagar o original quebra o link simbólico, mas não o hard link.\n- O limite do FAT32 é por arquivo, não pelo espaço livre do pen drive.\n- ext3 acrescentou journaling ao ext2, e não o contrário.\n- O mesmo nome de arquivo pode existir em pastas diferentes."
+    }
+  ],
+  "questions": [
+    {
+      "id": "q1",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Fundamentos: o que o sistema operacional faz",
+      "statement": "Entre as funções de um sistema operacional, qual descreve melhor o seu papel principal?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "Traduzir programas escritos em linguagem de alto nível para código de máquina.", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "Gerenciar os recursos do computador e oferecer aos programas uma forma de usá-los.", "correct": true},
+        {"key": "C", "label": "C", "id": "C", "text": "Editar documentos, planilhas e apresentações produzidos pelos usuários do computador.", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "Fornecer energia elétrica estável aos componentes físicos ligados à placa-mãe.", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "Proteger a rede contra invasões externas, tarefa que ele executa sozinho e sem ajuda.", "correct": false}
+      ],
+      "explanation": "O SO é gerenciador de recursos (CPU, memória, arquivos, dispositivos) e máquina estendida, que oferece aos programas uma interface mais simples que o hardware. Traduzir código é papel do compilador; editar documentos é papel de aplicativos de escritório; energia é tarefa da fonte; e proteção de rede envolve firewall e outros mecanismos, não só o SO.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q2",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Fundamentos: o que o sistema operacional faz",
+      "statement": "Que parte do sistema operacional fica carregada na memória, roda em modo privilegiado e controla diretamente processador, memória e dispositivos?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "O shell, interpretador que recebe os comandos digitados pelo usuário", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "O compilador, que gera o código executável dos programas instalados", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "O gerenciador de janelas, responsável pela parte gráfica do sistema", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "O núcleo, também chamado de kernel", "correct": true},
+        {"key": "E", "label": "E", "id": "E", "text": "O navegador padrão, que conecta o computador aos serviços da internet", "correct": false}
+      ],
+      "explanation": "O núcleo (kernel) é a parte central do SO, roda em modo privilegiado e controla CPU, memória e dispositivos. O shell é apenas a interface de comandos; o compilador é um programa de desenvolvimento; o gerenciador de janelas cuida da interface gráfica em modo usuário; e o navegador é um aplicativo comum.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q3",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Fundamentos: o que o sistema operacional faz",
+      "statement": "Um programa comum precisa ler um arquivo do disco. Como, em regra, ele consegue isso num sistema operacional moderno?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "Fazendo uma chamada de sistema, que passa o controle ao núcleo em modo privilegiado para executar a leitura.", "correct": true},
+        {"key": "B", "label": "B", "id": "B", "text": "Acessando diretamente a controladora do disco, já que todo programa roda em modo núcleo.", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "Desligando as interrupções do processador até que a leitura do disco termine por completo.", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "Pedindo ao usuário que copie o arquivo para a memória antes de o programa ser aberto.", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "Executando por conta própria as instruções privilegiadas de entrada e saída, mesmo em modo usuário, sem passar pelo núcleo.", "correct": false}
+      ],
+      "explanation": "Aplicativos rodam em modo usuário e pedem serviços ao núcleo por chamadas de sistema; um trap troca para o modo núcleo, que faz a leitura e devolve o controle. Programas comuns não rodam em modo núcleo, não podem desligar interrupções (instrução privilegiada) nem executar E/S privilegiada por conta própria; e o usuário não carrega arquivos na memória à mão.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q4",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Fundamentos: o que o sistema operacional faz",
+      "statement": "Durante a cópia de um bloco grande do disco para a memória, o processador continua executando outros programas e só é avisado quando o bloco inteiro foi transferido. Que técnica de entrada e saída permite isso?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "E/S programada com espera ocupada (polling), em que a CPU consulta o dispositivo em laço", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "E/S por interrupção a cada byte, em que a própria CPU copia cada dado recebido", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "Spooling, que grava em disco os trabalhos destinados à impressora até que ela fique livre", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "Swapping, que move processos inteiros entre a memória principal e o disco", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "Acesso direto à memória (DMA), com um controlador que copia o bloco e avisa no fim", "correct": true}
+      ],
+      "explanation": "No DMA, a CPU programa a transferência e um controlador copia o bloco inteiro entre dispositivo e memória, gerando uma única interrupção no fim. No polling a CPU fica presa consultando o dispositivo; na E/S por interrupção ela ainda copia cada dado; spooling é fila de trabalhos em disco, típica da impressão; swapping é gerência de memória, não técnica de E/S de dispositivo.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q5",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Processos, threads e escalonamento",
+      "statement": "Qual afirmação diferencia corretamente programa e processo?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "Programa e processo são sinônimos e designam o arquivo executável gravado no disco.", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "Processo é o arquivo no disco; programa é a cópia que está em execução na memória.", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "Programa é o código armazenado; processo é esse código em execução, com estado próprio.", "correct": true},
+        {"key": "D", "label": "D", "id": "D", "text": "Um programa só pode originar um processo por vez, mesmo que vários usuários o abram.", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "Processo é qualquer arquivo de dados que um programa abre durante a sua execução.", "correct": false}
+      ],
+      "explanation": "Programa é passivo, um arquivo com instruções; processo é o programa em execução, com memória, registradores, PID e arquivos abertos. Não são sinônimos, a alternativa B inverte os conceitos, um mesmo programa pode gerar vários processos ao mesmo tempo (abrir o editor duas vezes) e arquivo de dados não é processo.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q6",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Processos, threads e escalonamento",
+      "statement": "Um processo tem tudo de que precisa para continuar, mas o processador está ocupado com outro processo. Em que estado ele se encontra?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "Pronto", "correct": true},
+        {"key": "B", "label": "B", "id": "B", "text": "Bloqueado", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "Executando", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "Terminado", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "Em espera de entrada e saída", "correct": false}
+      ],
+      "explanation": "Pronto é o estado de quem só aguarda a CPU. Bloqueado (ou em espera de E/S) é o de quem aguarda um evento externo, como o fim de uma leitura; executando é quem está na CPU naquele instante; terminado é quem já acabou. Como nada falta ao processo além do processador, ele está pronto.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q7",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Processos, threads e escalonamento",
+      "statement": "Sobre as threads de um mesmo processo, qual afirmação está correta?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "Cada thread tem seu próprio espaço de endereçamento, isolado das demais threads do processo.", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "As threads não compartilham arquivos abertos; cada uma precisa abri-los de novo por conta própria.", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "Criar uma thread costuma ser bem mais caro do que criar um processo inteiro, e por isso os sistemas modernos evitam usá-las.", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "Uma thread não tem pilha própria: todas usam a mesma pilha e os mesmos registradores.", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "Compartilham código, dados globais e arquivos abertos, mas cada uma tem pilha e registradores.", "correct": true}
+      ],
+      "explanation": "Threads do mesmo processo dividem o espaço de endereçamento (código, dados, heap) e os arquivos abertos; o que cada uma tem de seu é a pilha, os registradores e o contador de programa. Por isso A, B e D erram. A C também erra: criar thread é mais barato que criar processo, justamente porque não se copia o espaço de endereçamento.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q8",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Processos, threads e escalonamento",
+      "statement": "Três processos chegam juntos no instante 0, na ordem P1, P2 e P3, com tempos de CPU de 8, 4 e 2 unidades. Quais são os tempos médios de espera com FCFS e com SJF não preemptivo, respectivamente?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "2,67 e 6,67", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "6,67 e 2,67", "correct": true},
+        {"key": "C", "label": "C", "id": "C", "text": "8,00 e 4,00", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "6,67 e 4,67", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "4,67 e 2,67", "correct": false}
+      ],
+      "explanation": "FCFS (P1, P2, P3): esperas 0, 8 e 12, soma 20, média 20/3 ≈ 6,67. SJF (P3, P2, P1): esperas 0, 2 e 6, soma 8, média 8/3 ≈ 2,67. A inverte a ordem dos algoritmos; C toma valores de tempo de CPU como se fossem médias de espera; D acerta o FCFS, mas erra o SJF (soma 14 em vez de 8); E acerta o SJF, mas erra o FCFS (soma 14 em vez de 20). Lembre: o SJF dá a menor espera média.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q9",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Processos, threads e escalonamento",
+      "statement": "Com round robin de quantum 2, os processos P1 (5 unidades), P2 (3 unidades) e P3 (1 unidade) chegam no instante 0, nessa ordem da fila. Ignorando o tempo de troca de contexto, em que instantes terminam P1, P2 e P3?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "P1 em 5, P2 em 8 e P3 em 9", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "P1 em 9, P2 em 5 e P3 em 8", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "P1 em 7, P2 em 8 e P3 em 3", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "P1 em 9, P2 em 8 e P3 em 5", "correct": true},
+        {"key": "E", "label": "E", "id": "E", "text": "P1 em 9, P2 em 7 e P3 em 5", "correct": false}
+      ],
+      "explanation": "Linha do tempo: 0-2 P1 (restam 3), 2-4 P2 (resta 1), 4-5 P3 (termina em 5), 5-7 P1 (resta 1), 7-8 P2 (termina em 8), 8-9 P1 (termina em 9). A é o resultado do FCFS, sem revezamento por quantum; B troca os términos de P2 e P3; C esquece que P3 só entra depois de P1 e P2 usarem seus quanta; E põe P2 terminando em 7, mas de 5 a 7 quem roda é P1, e P2 só usa sua última unidade de 7 a 8.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q10",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Processos, threads e escalonamento",
+      "statement": "Considere o programa em C abaixo, executado num sistema do tipo Unix, e suponha que todas as chamadas fork funcionem.\n\n```c\n#include <stdio.h>\n#include <unistd.h>\n\nint main(void) {\n    fork();\n    fork();\n    fork();\n    printf(\"oi\\n\");\n    return 0;\n}\n```\n\nQuantas vezes a palavra oi é impressa no total?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "3", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "6", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "8", "correct": true},
+        {"key": "D", "label": "D", "id": "D", "text": "4", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "9", "correct": false}
+      ],
+      "explanation": "Cada fork duplica todos os processos que o executam: 1 vira 2, 2 viram 4 e 4 viram 8. Os 8 processos chegam ao printf, então oi aparece 8 vezes (2 elevado a 3). Quem marca 3 conta só as chamadas; 6 soma 2 por fork; 4 esquece o terceiro fork; 9 conta o pai como se fosse extra além dos 8.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q11",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Concorrência, sincronização e deadlock",
+      "statement": "Dois processos atualizam ao mesmo tempo a mesma variável compartilhada, e o resultado final depende da ordem exata em que foram executados. Como se chama essa situação?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "Deadlock", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "Thrashing", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "Fragmentação externa", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "Troca de contexto", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "Condição de corrida", "correct": true}
+      ],
+      "explanation": "Condição de corrida é o resultado depender da intercalação dos acessos a um dado compartilhado; resolve-se com exclusão mútua. Deadlock é espera circular em que ninguém anda; thrashing é paginação excessiva; fragmentação externa são buracos espalhados na memória; troca de contexto é a passagem da CPU de um processo a outro.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q12",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Concorrência, sincronização e deadlock",
+      "statement": "Qual das condições abaixo NÃO está entre as quatro condições necessárias para a ocorrência de deadlock?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "Preempção, com o sistema podendo retirar o recurso de quem o detém", "correct": true},
+        {"key": "B", "label": "B", "id": "B", "text": "Exclusão mútua, com o recurso usado por um único processo de cada vez", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "Posse e espera, com o processo segurando um recurso enquanto pede outro", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "Espera circular, com cada processo aguardando o recurso do seguinte", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "Não preempção, com o recurso liberado só por vontade de quem o detém", "correct": false}
+      ],
+      "explanation": "As condições de Coffman são exclusão mútua, posse e espera, não preempção e espera circular, todas ao mesmo tempo. A condição é justamente a não preempção (E); permitir preempção, como diz A, é uma das formas de prevenir o deadlock, não uma causa dele. B, C e D estão entre as quatro.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q13",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Concorrência, sincronização e deadlock",
+      "statement": "Um semáforo contador iniciado com o valor 3 controla o acesso a um conjunto de impressoras. Cinco processos executam down (wait) sobre ele, um depois do outro, sem que ninguém execute up (signal). O que acontece?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "Os cinco passam, porque o semáforo só bloqueia quando atinge valores negativos muito altos", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "Nenhum passa, porque o semáforo só libera a entrada quando seu valor é exatamente zero", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "Só um passa, já que todo semáforo funciona apenas como trava de exclusão mútua", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "Três passam e os outros dois ficam bloqueados até que alguém execute up", "correct": true},
+        {"key": "E", "label": "E", "id": "E", "text": "Dois passam e três aguardam, pois uma unidade do valor inicial fica reservada ao sistema", "correct": false}
+      ],
+      "explanation": "Cada down com valor maior que zero diminui 1 e deixa passar: 3 vira 2, 1 e 0, e três processos entram. Com valor zero, o quarto e o quinto bloqueiam até um up. A e B descrevem um funcionamento que não existe; C vale só para semáforo binário (valor inicial 1); E inventa uma reserva que o semáforo não tem.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q14",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Concorrência, sincronização e deadlock",
+      "statement": "O algoritmo do banqueiro analisa cada pedido de recurso e só o atende se o sistema continuar em estado seguro. Como essa abordagem é classificada no tratamento de deadlocks?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "Prevenção, porque elimina por construção a exclusão mútua de todos os recursos", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "Evitação, porque decide a cada pedido se atendê-lo mantém um estado seguro", "correct": true},
+        {"key": "C", "label": "C", "id": "C", "text": "Detecção e recuperação, porque deixa o impasse ocorrer e depois encerra processos", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "Algoritmo do avestruz, porque ignora o problema e reinicia o sistema quando trava", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "Prevenção, porque obriga cada processo a pedir os recursos numa ordem numérica fixa", "correct": false}
+      ],
+      "explanation": "O banqueiro é o exemplo clássico de evitação: com as necessidades máximas declaradas, simula cada pedido e só o concede se houver uma ordem em que todos possam terminar. Prevenção nega uma das quatro condições por construção (A e E descrevem formas de prevenção, mas não o banqueiro); detecção deixa o deadlock ocorrer; o avestruz simplesmente ignora o problema.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q15",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Concorrência, sincronização e deadlock",
+      "statement": "Num escalonador por prioridade fixa, processos de baixa prioridade podem nunca ser executados enquanto continuarem chegando processos mais prioritários. Qual é o nome do problema e a técnica usual para resolvê-lo?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "Deadlock, resolvido pelo algoritmo do banqueiro aplicado aos processos de baixa prioridade", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "Thrashing, resolvido com o aumento do número de molduras disponíveis na memória principal", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "Inanição, resolvida com envelhecimento (aging), que eleva a prioridade de quem espera", "correct": true},
+        {"key": "D", "label": "D", "id": "D", "text": "Condição de corrida, resolvida com um semáforo binário em volta da fila de processos prontos", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "Inversão de prioridade, resolvida desligando a preempção para os processos mais prioritários", "correct": false}
+      ],
+      "explanation": "Esperar indefinidamente enquanto o sistema segue andando é inanição (starvation); o envelhecimento aumenta aos poucos a prioridade de quem espera, até que ele seja atendido. Não há ciclo de espera, então não é deadlock; thrashing é problema de memória; condição de corrida envolve dado compartilhado; inversão de prioridade é o mais prioritário esperar recurso preso por um menos prioritário.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q16",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Gerência de memória e memória virtual",
+      "statement": "Qual componente de hardware traduz, durante a execução, os endereços lógicos gerados pelo programa em endereços físicos da memória principal?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "O controlador de DMA", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "A unidade lógica e aritmética (ULA) do processador", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "O escalonador de processos", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "A unidade de gerência de memória (MMU)", "correct": true},
+        {"key": "E", "label": "E", "id": "E", "text": "O sistema de arquivos", "correct": false}
+      ],
+      "explanation": "A MMU faz a tradução de endereço lógico para físico a cada acesso, usando a tabela de páginas montada pelo SO e a TLB. O controlador de DMA copia dados entre dispositivo e memória; a ULA faz contas e comparações; o escalonador escolhe o processo que usa a CPU; o sistema de arquivos organiza dados no disco.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q17",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Gerência de memória e memória virtual",
+      "statement": "Num sistema paginado com páginas de 4 KB (4096 bytes), a página lógica 2 de um processo está na moldura 5. Qual é o endereço físico correspondente ao endereço lógico 10000?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "10000", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "20480", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "22288", "correct": true},
+        {"key": "D", "label": "D", "id": "D", "text": "12288", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "21808", "correct": false}
+      ],
+      "explanation": "10000 dividido por 4096 dá página 2 (2 × 4096 = 8192) e deslocamento 10000 − 8192 = 1808. Na moldura 5: 5 × 4096 + 1808 = 20480 + 1808 = 22288. A ignora a tradução; B esquece o deslocamento; D é o início da página 3, sem relação com a moldura; E usa 5 × 4000 em vez de 5 × 4096.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q18",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Gerência de memória e memória virtual",
+      "statement": "Com 3 molduras inicialmente vazias e substituição FIFO, quantas faltas de página ocorrem para a sequência de referências 7, 0, 1, 2, 0, 3, 0, 4?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "4", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "5", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "6", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "8", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "7", "correct": true}
+      ],
+      "explanation": "7, 0 e 1 entram com 3 faltas; 2 é falta e sai o 7 (fica 0, 1, 2); 0 é acerto; 3 é falta e sai o 0 (1, 2, 3); 0 é falta e sai o 1 (2, 3, 0); 4 é falta e sai o 2. Total de 7 faltas. Quem marca 4 esquece as faltas iniciais; 6 é o resultado do LRU, que não tiraria o 0 recém-usado; 5 e 8 vêm de erro de contagem.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q19",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Gerência de memória e memória virtual",
+      "statement": "Usando LRU com 3 molduras inicialmente vazias, analise a sequência de referências 1, 2, 3, 1, 4, 2, 5. Quantas faltas de página ocorrem e quais páginas ficam na memória ao final?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "6 faltas; ficam as páginas 4, 2 e 5", "correct": true},
+        {"key": "B", "label": "B", "id": "B", "text": "5 faltas; ficam as páginas 3, 4 e 5", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "6 faltas; ficam as páginas 1, 2 e 5", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "7 faltas; ficam as páginas 4, 2 e 5", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "5 faltas; ficam as páginas 1, 4 e 5", "correct": false}
+      ],
+      "explanation": "1, 2 e 3 são faltas; 1 é acerto e passa a ser o mais recente; 4 é falta e sai o 2 (usado há mais tempo), ficando 1, 3, 4; 2 é falta e sai o 3, ficando 1, 4, 2; 5 é falta e sai o 1, ficando 4, 2, 5. São 6 faltas. B é o resultado do FIFO; C erra a última vítima; D conta o acerto do 1 como falta; E mistura os dois algoritmos.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q20",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Gerência de memória e memória virtual",
+      "statement": "A memória tem lacunas livres de 100, 500, 200, 300 e 600 KB, nessa ordem, e chega um pedido de 212 KB. Em qual lacuna o pedido é colocado pelas estratégias first fit, best fit e worst fit, respectivamente?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "500 KB, 200 KB e 600 KB", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "500 KB, 300 KB e 600 KB", "correct": true},
+        {"key": "C", "label": "C", "id": "C", "text": "100 KB, 300 KB e 500 KB", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "300 KB, 500 KB e 600 KB", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "500 KB, 300 KB e 100 KB", "correct": false}
+      ],
+      "explanation": "First fit pega a primeira que cabe: 100 não cabe, então 500. Best fit pega a menor que cabe: 200 é pequena demais para 212, então 300. Worst fit pega a maior: 600. A coloca 212 KB numa lacuna de 200; C usa lacuna que não cabe; D troca first por best; E confunde worst fit com a menor lacuna.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q21",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Sistemas de arquivos e como o tema costuma ser cobrado",
+      "statement": "Um usuário tenta copiar um vídeo de 6 GB para um pen drive formatado em FAT32 e recebe erro, embora o pen drive tenha 20 GB livres. Qual é a explicação mais provável?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "O FAT32 não aceita arquivos individuais de 4 GB ou mais", "correct": true},
+        {"key": "B", "label": "B", "id": "B", "text": "O FAT32 só aceita arquivos de texto, e não de vídeo", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "Pen drives não aceitam arquivos de mais de 1 GB em nenhum sistema", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "O arquivo precisa estar compactado antes de ir para o FAT32", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "O FAT32 limita o volume inteiro a 8 GB, qualquer que seja o espaço", "correct": false}
+      ],
+      "explanation": "No FAT32 cada arquivo pode ter no máximo 4 GB menos 1 byte, então um vídeo de 6 GB não cabe, sobrando espaço ou não. A solução é usar exFAT ou NTFS. O FAT32 grava qualquer tipo de arquivo; pen drives aceitam arquivos grandes em outros sistemas; compactar não é exigência; e o limite de volume do FAT32 é bem maior que 8 GB.",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q22",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Sistemas de arquivos e como o tema costuma ser cobrado",
+      "statement": "Qual recurso de sistemas de arquivos como NTFS e ext4 registra as alterações num diário antes de aplicá-las, permitindo recuperar a consistência rapidamente após um desligamento abrupto?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "Desfragmentação", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "Compactação de arquivos", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "Tabela de alocação duplicada", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "Cota de disco por usuário", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "Journaling", "correct": true}
+      ],
+      "explanation": "Journaling anota as operações num diário (journal) antes de executá-las; depois de uma queda, o sistema relê o diário e refaz ou descarta o que ficou pendente. Desfragmentação reorganiza blocos espalhados; compactação reduz tamanho; a cópia da tabela de alocação é redundância do FAT, não diário; cota limita o espaço de cada usuário.",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q23",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Sistemas de arquivos e como o tema costuma ser cobrado",
+      "statement": "Em sistemas de arquivos do tipo Unix, qual destas informações NÃO fica guardada no inode do arquivo?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "O tamanho do arquivo em bytes", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "As permissões e o dono do arquivo", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "O nome do arquivo no diretório", "correct": true},
+        {"key": "D", "label": "D", "id": "D", "text": "Os ponteiros para os blocos de dados", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "As datas de acesso e de modificação", "correct": false}
+      ],
+      "explanation": "O inode guarda os metadados (tamanho, permissões, dono, datas, contador de links e ponteiros para os blocos), mas não o nome. O nome fica na entrada de diretório, que liga o nome ao número do inode; é por isso que um mesmo inode pode ter vários nomes por meio de hard links.",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q24",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Sistemas de arquivos e como o tema costuma ser cobrado",
+      "statement": "No Linux, o arquivo dados.txt ganhou um link físico (hard link) chamado copia.txt e um link simbólico chamado atalho.txt. Em seguida, dados.txt foi apagado. O que acontece com os links?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "Os dois ficam inválidos, pois ambos apontavam para o nome dados.txt", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "Os dois continuam funcionando, pois os dados só somem quando o disco é formatado", "correct": false},
+        {"key": "C", "label": "C", "id": "C", "text": "O link simbólico continua funcionando e o link físico fica quebrado", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "O link físico continua com acesso aos dados e o simbólico fica quebrado", "correct": true},
+        {"key": "E", "label": "E", "id": "E", "text": "O sistema impede a exclusão enquanto houver algum link apontando para o arquivo", "correct": false}
+      ],
+      "explanation": "O hard link é outro nome para o mesmo inode; apagar dados.txt só reduz o contador de links, e os dados seguem acessíveis por copia.txt. O link simbólico guarda o caminho dados.txt, que deixou de existir, e por isso quebra. A e C erram o comportamento do hard link; B ignora a quebra do simbólico; E inventa um bloqueio que o sistema não faz.",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q25",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Gerência de memória e memória virtual",
+      "statement": "Qual é a ideia central da memória virtual?",
+      "options": [
+        {"key": "A", "label": "A", "id": "A", "text": "Usar só a memória cache do processador, dispensando de vez a memória RAM", "correct": false},
+        {"key": "B", "label": "B", "id": "B", "text": "Deixar um processo usar mais memória que a RAM, mantendo partes dele no disco", "correct": true},
+        {"key": "C", "label": "C", "id": "C", "text": "Gravar todos os programas na memória ROM para que estejam prontos ao ligar a máquina", "correct": false},
+        {"key": "D", "label": "D", "id": "D", "text": "Dividir a CPU em várias CPUs virtuais, uma para cada processo em execução", "correct": false},
+        {"key": "E", "label": "E", "id": "E", "text": "Apagar da memória os programas pouco usados, sem guardar nenhuma parte deles no disco", "correct": false}
+      ],
+      "explanation": "A memória virtual mantém na RAM só as partes em uso de cada processo e guarda o restante no disco (swap ou arquivo de paginação), trazendo-as quando ocorre falta de página. Ela não substitui a RAM pela cache, não usa ROM para programas, não trata de dividir a CPU (isso é escalonamento ou virtualização) e não descarta dados sem guardá-los.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q26",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Fundamentos: o que o sistema operacional faz",
+      "statement": "Em modo usuário, um programa não pode executar diretamente instruções privilegiadas, como as que configuram a proteção de memória; essas instruções ficam reservadas ao modo núcleo.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": true},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": false}
+      ],
+      "explanation": "Certo. A separação entre modo usuário e modo núcleo existe para proteger o sistema: se um aplicativo tenta uma instrução privilegiada, o processador gera uma exceção e o SO assume. Para obter um serviço protegido, o programa faz uma chamada de sistema.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q27",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Fundamentos: o que o sistema operacional faz",
+      "statement": "Num núcleo monolítico, como o do Linux, drivers e sistemas de arquivos rodam fora do núcleo, como processos comuns em modo usuário, e é isso que o distingue de um micronúcleo.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": false},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": true}
+      ],
+      "explanation": "Errado. O item descreve o micronúcleo, em que o núcleo é mínimo e drivers e sistemas de arquivos viram processos em modo usuário. No monolítico, como o Linux, esses componentes rodam dentro do núcleo, no mesmo espaço privilegiado, o que dá desempenho mas expõe o sistema a falhas de um driver.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q28",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Fundamentos: o que o sistema operacional faz",
+      "statement": "A interrupção periódica do relógio (timer) é o que permite ao sistema operacional retomar o controle da CPU de um programa que não a libera por conta própria, viabilizando o escalonamento preemptivo.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": true},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": false}
+      ],
+      "explanation": "Certo. Sem a interrupção do relógio, um programa em laço infinito ficaria com a CPU para sempre, pois o SO só voltaria a rodar se o programa fizesse uma chamada de sistema. O timer interrompe a CPU de tempos em tempos, o núcleo assume e pode decidir trocar de processo ao fim do quantum.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q29",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Processos, threads e escalonamento",
+      "statement": "Quando um processo em execução solicita uma leitura de disco e precisa aguardar o término da operação, ele passa do estado executando para o estado pronto.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": false},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": true}
+      ],
+      "explanation": "Errado. Quem espera um evento externo, como o fim de uma leitura, vai para o estado bloqueado (em espera). O estado pronto é para quem só falta a CPU. Quando a leitura terminar, aí sim o processo passa de bloqueado para pronto e volta a disputar o processador.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q30",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Processos, threads e escalonamento",
+      "statement": "No escalonamento circular (round robin), um quantum muito grande faz o comportamento se aproximar do FCFS, e um quantum muito pequeno faz o sistema gastar uma parte grande do tempo em trocas de contexto.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": true},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": false}
+      ],
+      "explanation": "Certo. Se o quantum é maior que qualquer rajada de CPU, cada processo termina na primeira vez e o round robin vira ordem de chegada. Se é pequeno demais, a CPU troca de processo o tempo todo e a sobrecarga de salvar e carregar contextos come o tempo útil. O ideal fica entre os extremos.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q31",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Processos, threads e escalonamento",
+      "statement": "Processo zumbi é aquele cujo processo pai terminou antes dele e que, por isso, continua executando sem pai até ser adotado pelo processo inicial do sistema.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": false},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": true}
+      ],
+      "explanation": "Errado. O item descreve o processo órfão. Zumbi é o filho que já terminou, mas cujo pai ainda não recolheu o código de saída com wait; ele não executa mais nada, só ocupa uma entrada na tabela de processos até que o pai faça o wait.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q32",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Processos, threads e escalonamento",
+      "statement": "No escalonamento preemptivo, o sistema operacional pode retirar a CPU de um processo, por exemplo ao fim do seu quantum, mesmo que ele não tenha terminado nem pedido entrada e saída.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": true},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": false}
+      ],
+      "explanation": "Certo. É exatamente isso que define a preempção: o SO interrompe o processo (fim de quantum ou chegada de um mais prioritário) e o devolve à fila de prontos. No não preemptivo, o processo só larga a CPU ao terminar ou ao bloquear por conta própria.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q33",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Concorrência, sincronização e deadlock",
+      "statement": "Na espera ocupada (busy waiting), o processo que não consegue entrar na região crítica fica bloqueado pelo núcleo e não consome tempo de CPU enquanto aguarda.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": false},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": true}
+      ],
+      "explanation": "Errado. Na espera ocupada o processo fica num laço testando uma variável até poder entrar, e gasta CPU o tempo todo. Quem bloqueia o processo e o tira da CPU são mecanismos como semáforos e mutex implementados com fila de espera; é por isso que eles são preferidos quando a espera pode ser longa.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q34",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Concorrência, sincronização e deadlock",
+      "statement": "Se todos os recursos receberem uma numeração e cada processo só puder pedi-los em ordem crescente, a espera circular se torna impossível e, com ela, o deadlock.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": true},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": false}
+      ],
+      "explanation": "Certo. Com a ordem crescente, nenhum processo que segura o recurso 5 pode esperar pelo recurso 2, então não se forma um ciclo. Como as quatro condições precisam ocorrer juntas, eliminar a espera circular basta para prevenir o deadlock. É uma técnica de prevenção, não de evitação.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q35",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Concorrência, sincronização e deadlock",
+      "statement": "Região crítica é o trecho de código em que o processo acessa recursos compartilhados e no qual não deve haver mais de um processo executando ao mesmo tempo.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": true},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": false}
+      ],
+      "explanation": "Certo. A região crítica é onde mora o risco da condição de corrida, porque ali se lê e se altera um dado comum. A exclusão mútua garante que só um processo esteja nesse trecho por vez, usando semáforos, mutex, monitores ou instruções atômicas.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q36",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Concorrência, sincronização e deadlock",
+      "statement": "Inanição (starvation) e deadlock são sinônimos: nos dois casos todos os processos envolvidos ficam parados esperando uns pelos outros num ciclo.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": false},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": true}
+      ],
+      "explanation": "Errado. O ciclo de espera é característica do deadlock. Na inanição, o sistema continua funcionando e outros processos são atendidos; um processo específico é que fica sempre para trás, por exemplo por ter prioridade baixa. Envelhecimento resolve a inanição; para deadlock são outras técnicas.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q37",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Gerência de memória e memória virtual",
+      "statement": "Na paginação, como páginas e molduras têm tamanho fixo, não ocorre nenhum tipo de fragmentação, nem interna nem externa.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": false},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": true}
+      ],
+      "explanation": "Errado. A paginação elimina a fragmentação externa, porque qualquer moldura livre serve, mas mantém a interna: a última página do processo raramente fica cheia. Um processo de 9 KB com páginas de 4 KB ocupa 12 KB e desperdiça 3 KB dentro da última página.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q38",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Gerência de memória e memória virtual",
+      "statement": "A TLB é uma pequena memória associativa que guarda traduções recentes de página para moldura, evitando consultar a tabela de páginas na RAM a cada acesso.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": true},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": false}
+      ],
+      "explanation": "Certo. Sem a TLB, cada acesso à memória exigiria antes um acesso à tabela de páginas, dobrando o custo. Como os programas reutilizam as mesmas páginas (localidade), a maior parte das traduções é encontrada na TLB, e só nos erros de TLB a tabela completa é consultada.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q39",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Gerência de memória e memória virtual",
+      "statement": "No algoritmo FIFO de substituição de páginas, aumentar o número de molduras sempre reduz ou, no pior caso, mantém o número de faltas de página.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": false},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": true}
+      ],
+      "explanation": "Errado. O FIFO sofre a anomalia de Belady: em certas sequências, mais molduras geram mais faltas. Na sequência 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5, o FIFO tem 9 faltas com 3 molduras e 10 com 4. O LRU e o ótimo não apresentam essa anomalia.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q40",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Gerência de memória e memória virtual",
+      "statement": "Com endereços lógicos de 32 bits e páginas de 4 KB, os 12 bits menos significativos indicam o deslocamento na página, e os 20 bits restantes identificam o número da página, o que permite até 2 elevado a 20 páginas por processo.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": true},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": false}
+      ],
+      "explanation": "Certo. 4 KB são 4096 bytes, ou 2 elevado a 12, então o deslocamento ocupa 12 bits. Dos 32 bits sobram 20 para o número da página, o que dá 2 elevado a 20, ou 1.048.576 páginas possíveis no espaço de endereçamento lógico de cada processo.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q41",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Sistemas de arquivos e como o tema costuma ser cobrado",
+      "statement": "Num sistema de arquivos com diretórios em árvore, dois arquivos com o mesmo nome não podem existir em hipótese alguma, mesmo que estejam em diretórios diferentes.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": false},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": true}
+      ],
+      "explanation": "Errado. Na estrutura hierárquica, o que identifica o arquivo é o caminho completo, então relatorio.txt pode existir em duas pastas diferentes. A restrição de nome único para todo o disco era típica do diretório de nível único, o mais primitivo.",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q42",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Sistemas de arquivos e como o tema costuma ser cobrado",
+      "statement": "Na alocação contígua, cada arquivo ocupa blocos consecutivos do disco, o que torna rápidos a leitura sequencial e o acesso direto, mas favorece a fragmentação externa e dificulta o crescimento do arquivo.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": true},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": false}
+      ],
+      "explanation": "Certo. Com blocos em sequência, basta saber o bloco inicial e o tamanho para chegar a qualquer posição, e a leitura corrida é muito eficiente. Em compensação, as exclusões deixam buracos de tamanhos variados, e um arquivo que cresce pode não ter espaço livre logo depois do seu último bloco.",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q43",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Sistemas de arquivos e como o tema costuma ser cobrado",
+      "statement": "O ext2 já trazia journaling, recurso que o ext3 removeu para ganhar desempenho e que o ext4 voltou a adotar.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": false},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": true}
+      ],
+      "explanation": "Errado. A história é a inversa: o ext2 não tinha journaling, e a principal novidade do ext3 foi justamente acrescentá-lo ao ext2. O ext4 manteve o journaling e trouxe outras melhorias, como extents e suporte a arquivos e volumes maiores.",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q44",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Sistemas de arquivos e como o tema costuma ser cobrado",
+      "statement": "Na tabela de alocação de arquivos (FAT), cada entrada indica qual é o próximo cluster do arquivo, formando uma cadeia que começa no cluster inicial registrado no diretório.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": true},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": false}
+      ],
+      "explanation": "Certo. A FAT é uma alocação encadeada em que os ponteiros saem dos blocos e vão para uma tabela separada. O diretório aponta o primeiro cluster; a entrada desse cluster na tabela diz o seguinte, e assim até a marca de fim de arquivo. Isso agiliza o acesso direto em relação à encadeada pura.",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q45",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Sistemas de arquivos e como o tema costuma ser cobrado",
+      "statement": "O NTFS não oferece permissões por usuário e grupo, recurso que só existe nos sistemas de arquivos do Linux, como o ext4.",
+      "options": [
+        {"key": "C", "label": "Certo", "id": "C", "text": "Certo", "correct": false},
+        {"key": "E", "label": "Errado", "id": "E", "text": "Errado", "correct": true}
+      ],
+      "explanation": "Errado. O NTFS tem permissões detalhadas por usuário e grupo, organizadas em listas de controle de acesso (ACL), além de journaling, compressão, criptografia e cotas. Quem não tem permissões por usuário é o FAT32. O ext4 usa outro modelo, o de dono, grupo e outros.",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    }
+  ],
+  "flashcards": [
+    {"front": "Quais são os dois papéis clássicos do sistema operacional?", "back": "Gerenciador de recursos (CPU, memória, arquivos, dispositivos) e máquina estendida, que esconde o hardware atrás de serviços simples."},
+    {"front": "Kernel e shell são a mesma coisa?", "back": "Não. O kernel é o núcleo privilegiado que controla o hardware; o shell é o interpretador de comandos, a interface com o usuário."},
+    {"front": "O que é uma chamada de sistema?", "back": "O pedido de um programa ao núcleo por um serviço protegido (ler arquivo, criar processo); um trap troca a CPU para o modo núcleo."},
+    {"front": "Qual a vantagem do DMA?", "back": "Um controlador copia o bloco inteiro entre dispositivo e memória e só interrompe a CPU no fim, que fica livre para outros programas."},
+    {"front": "Monolítico x micronúcleo", "back": "Monolítico: drivers e sistemas de arquivos dentro do núcleo (ex.: Linux), mais rápido. Micronúcleo: núcleo mínimo, serviços em modo usuário, mais robusto."},
+    {"front": "Programa x processo", "back": "Programa é o arquivo passivo com instruções; processo é o programa em execução, com memória, registradores, PID e estado próprios."},
+    {"front": "Quais são os estados de um processo?", "back": "Novo, pronto, executando, bloqueado (em espera) e terminado. Ao fim da espera, bloqueado vai para pronto, nunca direto para executando."},
+    {"front": "O que threads do mesmo processo compartilham e o que é de cada uma?", "back": "Compartilham código, dados globais, heap e arquivos abertos. Cada uma tem pilha, registradores e contador de programa."},
+    {"front": "Zumbi x órfão", "back": "Zumbi: já terminou e o pai ainda não chamou wait. Órfão: o pai terminou primeiro e ele é adotado pelo processo inicial do sistema."},
+    {"front": "Qual algoritmo de escalonamento dá o menor tempo médio de espera?", "back": "SJF (menor tarefa primeiro); na versão preemptiva, SRTF. Exige estimar a duração e pode causar inanição dos longos."},
+    {"front": "Efeito do tamanho do quantum no round robin", "back": "Grande demais: vira FCFS. Pequeno demais: muito tempo perdido em trocas de contexto."},
+    {"front": "Quais são as quatro condições de Coffman?", "back": "Exclusão mútua, posse e espera, não preempção e espera circular, todas ao mesmo tempo."},
+    {"front": "Prevenir x evitar deadlock", "back": "Prevenir: negar por construção uma das quatro condições. Evitar: analisar cada pedido e só atender se o estado continuar seguro (banqueiro)."},
+    {"front": "Como funcionam down e up num semáforo?", "back": "down (P, wait): se o valor é maior que zero, diminui 1; se é zero, bloqueia. up (V, signal): aumenta 1 ou acorda quem está bloqueado."},
+    {"front": "Fragmentação interna x externa", "back": "Interna: sobra dentro da área entregue (partição fixa, última página). Externa: buracos livres espalhados que não servem por estarem separados (partições variáveis, segmentação)."},
+    {"front": "Como achar página e deslocamento de um endereço lógico?", "back": "Divida o endereço pelo tamanho da página: o quociente é a página e o resto é o deslocamento. Físico = moldura × tamanho + deslocamento."},
+    {"front": "O que é a anomalia de Belady?", "back": "No FIFO, aumentar o número de molduras pode aumentar as faltas de página. LRU e ótimo não sofrem disso."},
+    {"front": "O que é thrashing?", "back": "Paginação excessiva: o sistema passa mais tempo trocando páginas do que executando, e o uso útil da CPU cai."},
+    {"front": "O inode guarda o nome do arquivo?", "back": "Não. Guarda metadados e ponteiros para os blocos; o nome fica na entrada de diretório, que aponta para o número do inode."},
+    {"front": "Qual é o limite de tamanho de arquivo no FAT32?", "back": "4 GB menos 1 byte por arquivo. Para arquivos maiores, use exFAT ou NTFS."}
+  ],
+  "tips": [
+    "Em cálculo de escalonamento, desenhe a linha do tempo com o início e o fim de cada fatia antes de calcular qualquer média.",
+    "Tempo de espera = término − chegada − tempo de CPU; tempo de retorno = término − chegada.",
+    "Em paginação, transforme o tamanho da página em potência de 2: o expoente é o número de bits do deslocamento.",
+    "Em substituição de páginas, monte uma coluna por referência com o conteúdo das molduras e conte as faltas iniciais também.",
+    "Para deadlock, decore a sigla mental EPNC: Exclusão mútua, Posse e espera, Não preempção, Circular.",
+    "Em semáforo contador, acompanhe o número a cada down e up: o valor inicial diz quantos podem passar sem bloquear."
+  ],
+  "traps": [
+    "Dizer que o processo sai de bloqueado direto para executando: ele volta para pronto.",
+    "Afirmar que threads do mesmo processo têm espaços de endereçamento separados: o que é de cada uma é a pilha e os registradores.",
+    "Listar preempção entre as condições de deadlock: a condição é a não preempção.",
+    "Dizer que a paginação não tem fragmentação: ela elimina a externa, mas tem a interna.",
+    "Achar que mais molduras sempre reduzem as faltas no FIFO (anomalia de Belady).",
+    "Afirmar que o inode guarda o nome do arquivo ou que apagar o original quebra o hard link.",
+    "Confundir o limite de 4 GB por arquivo do FAT32 com falta de espaço no dispositivo."
+  ],
+  "activeRecall": [
+    {"question": "Explique por que existem dois modos de operação do processador e como um aplicativo obtém um serviço do núcleo.", "answer": "O modo núcleo executa qualquer instrução e o modo usuário proíbe as privilegiadas, protegendo o sistema de programas com defeito. O aplicativo faz uma chamada de sistema, que por um trap passa ao modo núcleo, executa o serviço e volta ao modo usuário."},
+    {"question": "Descreva as transições entre os estados pronto, executando e bloqueado.", "answer": "Pronto vai para executando quando o escalonador o escolhe; executando volta a pronto por preempção; executando vai a bloqueado ao pedir E/S ou aguardar evento; bloqueado vai a pronto quando o evento ocorre."},
+    {"question": "Calcule a espera média com FCFS e SJF para P1 = 6, P2 = 3 e P3 = 1, todos chegando em 0 nessa ordem.", "answer": "FCFS: esperas 0, 6 e 9, média 5. SJF (P3, P2, P1): esperas 0, 1 e 4, média 5/3, cerca de 1,67."},
+    {"question": "Cite as quatro condições do deadlock e uma forma de prevenir cada uma.", "answer": "Exclusão mútua (tornar o recurso compartilhável quando possível), posse e espera (pedir tudo de uma vez), não preempção (permitir tirar o recurso), espera circular (numerar os recursos e pedir em ordem crescente)."},
+    {"question": "Com páginas de 1 KB, onde fica o endereço lógico 3000 se a página 2 está na moldura 7?", "answer": "Página 2, deslocamento 952 (3000 − 2048). Endereço físico = 7 × 1024 + 952 = 8120."},
+    {"question": "Diferencie paginação e segmentação quanto ao tamanho dos blocos e à fragmentação.", "answer": "Paginação usa blocos de tamanho fixo, invisíveis ao programador, e só tem fragmentação interna. Segmentação usa segmentos de tamanho variável ligados à lógica do programa e sofre fragmentação externa."},
+    {"question": "O que acontece com um hard link e com um link simbólico quando o arquivo original é apagado?", "answer": "O hard link continua acessando os dados, porque aponta para o mesmo inode e o contador de links ainda não zerou. O link simbólico quebra, porque guardava o caminho que deixou de existir."}
+  ],
+  "errorConcepts": [
+    {"key": "e1", "title": "Funções do SO, núcleo e E/S", "summary": "Confundir kernel com shell, modo usuário com modo núcleo, chamada de sistema com função comum, núcleo monolítico com micronúcleo e o papel das interrupções e do DMA."},
+    {"key": "e2", "title": "Processos, estados e threads", "summary": "Trocar programa por processo, errar as transições entre pronto, executando e bloqueado, confundir zumbi com órfão, contar mal os processos criados por fork e o que as threads compartilham."},
+    {"key": "e3", "title": "Escalonamento da CPU", "summary": "Errar a linha do tempo de FCFS, SJF e round robin, misturar tempo de espera com tempo de retorno, ignorar o efeito do quantum e não reconhecer a inanição e o envelhecimento."},
+    {"key": "e4", "title": "Sincronização e deadlock", "summary": "Confundir condição de corrida, deadlock e inanição, errar as quatro condições de Coffman, trocar prevenção por evitação e seguir mal o valor de um semáforo."},
+    {"key": "e5", "title": "Memória, paginação e memória virtual", "summary": "Errar o cálculo de página e deslocamento, confundir fragmentação interna e externa, trocar first, best e worst fit, contar mal as faltas de página e esquecer a anomalia de Belady."},
+    {"key": "e6", "title": "Sistemas de arquivos", "summary": "Achar que o inode guarda o nome, confundir hard link com link simbólico, errar o limite do FAT32, a história do journaling no ext2, ext3 e ext4 e os métodos de alocação."}
+  ],
+  "sources": [
+    {"title": "Operating Systems: Three Easy Pieces", "kind": "COMPLEMENTAR", "publisher": "Remzi H. Arpaci-Dusseau e Andrea C. Arpaci-Dusseau", "reference": "Livro aberto sobre virtualização da CPU e da memória, concorrência e persistência (sistemas de arquivos)", "url": "https://pages.cs.wisc.edu/~remzi/OSTEP/", "sourceUrl": "https://pages.cs.wisc.edu/~remzi/OSTEP/", "accessedAt": "2026-10-08"},
+    {"title": "The Linux Kernel documentation", "kind": "OFICIAL", "publisher": "The kernel development community", "reference": "Documentação oficial do núcleo Linux, incluindo gerência de memória e sistemas de arquivos", "url": "https://docs.kernel.org/", "sourceUrl": "https://docs.kernel.org/", "accessedAt": "2026-10-08"},
+    {"title": "File system functionality comparison", "kind": "OFICIAL", "publisher": "Microsoft", "reference": "Comparação de recursos e limites entre NTFS, exFAT, FAT32 e outros sistemas de arquivos do Windows", "url": "https://learn.microsoft.com/en-us/windows/win32/fileio/filesystem-functionality-comparison", "sourceUrl": "https://learn.microsoft.com/en-us/windows/win32/fileio/filesystem-functionality-comparison", "accessedAt": "2026-10-08"}
+  ]
+}
