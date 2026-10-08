@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.browser.window
+import kotlinx.coroutines.launch
 
 /** Endereços do app: #/inicio, #/plano, #/edital/12 ... (hash para funcionar em hospedagem estática). */
 sealed class Route(val path: String) {
@@ -92,6 +93,8 @@ object Router {
         window.addEventListener("hashchange", {
             current = Route.parse(window.location.hash)
             window.scrollTo(0.0, 0.0)
+            // Trocar de tela confere se o celular publicou algo novo (plano, tarefas concluídas).
+            kotlinx.coroutines.MainScope().launch { br.com.estudario.web.data.Store.refreshIfRemoteChanged() }
         })
     }
 

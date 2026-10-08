@@ -62,6 +62,29 @@ fun studyBlocks(markdown: String): List<String> {
     return blocks.filterIndexed { i, block -> i == 0 || heading(block)?.let { it != heading(blocks[i - 1]) } ?: true }
 }
 
+/**
+ * Fontes citadas no meio do texto, como "([kernel.org](https://...))" ou "(https://...)": saem do
+ * parágrafo e vão para a lista do fim da teoria. Só os parênteses que têm apenas links saem; link
+ * que faz parte da frase continua onde está.
+ */
+object InlineSources {
+    private val link = Regex("""\[([^\]]+)\]\((https?://[^)\s]+)\)|<?(https?://[^\s<>()]+)>?""")
+    private val citation = Regex("""\s*\(\s*(?:(?:\[[^\]]+\]\(https?://[^)\s]+\)|<?https?://[^\s<>()]+>?)\s*[;,]?\s*)+\)""")
+
+    fun extract(block: String): Pair<String, List<Pair<String, String>>> {
+        val found = mutableListOf<Pair<String, String>>()
+        val cleaned = citation.replace(block) { m ->
+            link.findAll(m.value).forEach { l ->
+                val url = (l.groupValues[2].ifBlank { l.groupValues[3] }).trimEnd('.', ',', ';')
+                val label = l.groupValues[1].ifBlank { url.substringAfter("://").substringBefore('/').removePrefix("www.") }
+                found += label to url
+            }
+            ""
+        }
+        return cleaned to found
+    }
+}
+
 private fun chaptersOf(blocks: List<String>): List<Pair<Int, String>> =
     blocks.withIndex().filter { (i, b) -> b.trimStart().startsWith("## ") || (b.trimStart().startsWith("# ") && i > 0) }
         .map { it.index to it.value.trimStart().trimStart('#').trim().lineSequence().first().trim('*').trim() }
@@ -468,8 +491,11 @@ private fun TheoryReader(theory: Theory) {
             }
         }
     }
+    // Fontes citadas no meio dos parágrafos saem do texto e vão, numeradas, para o fim da teoria.
+    val extracted = remember(blocks) { blocks.map { InlineSources.extract(it) } }
+    val citedSources = remember(extracted) { extracted.flatMap { it.second }.distinctBy { it.second } }
     Div({ classes("theory-text") }) {
-        blocks.forEachIndexed { i, block ->
+        extracted.map { it.first }.forEachIndexed { i, block ->
             val trap = calloutTrap(block)
             Div({
                 id("tb-${theory.id}-$i")
@@ -479,6 +505,16 @@ private fun TheoryReader(theory: Theory) {
                     Div({ classes("callout-head") }) { Icon(if (trap) "warning" else "lightbulb", filled = true); Text(if (trap) "Atenção" else "Dica") }
                     Markdown(block.lines().joinToString("\n") { it.trimStart().removePrefix(">").removePrefix(" ") })
                 } else Markdown(block)
+            }
+        }
+        if (citedSources.isNotEmpty()) Div({ classes("theory-sources") }) {
+            org.jetbrains.compose.web.dom.H4 { Text("Fontes citadas") }
+            org.jetbrains.compose.web.dom.Ol {
+                citedSources.forEach { (label, url) ->
+                    org.jetbrains.compose.web.dom.Li {
+                        org.jetbrains.compose.web.dom.A(href = url, { classes("md-link"); attr("target", "_blank"); attr("rel", "noopener noreferrer"); attr("title", url) }) { Text(label) }
+                    }
+                }
             }
         }
         Div({ classes("theory-end") }) {

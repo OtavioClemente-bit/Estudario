@@ -45,9 +45,15 @@ object Store {
         private set
 
     private var baseRevision = 0L
-    /** Última edição feita neste navegador; decide o conflito sem perguntar. */
-    private var lastLocalChangeAt = 0.0
     private var saveJob: Job? = null
+
+    /**
+     * As edições feitas aqui desde o último envio, na ordem. Cada uma é uma função pura sobre a foto
+     * ("conclua a tarefa X e reorganize o plano"). Se o celular publicou no meio-tempo, a foto da
+     * conta é baixada e só essas edições são refeitas sobre ela: nada do celular se perde, e o que
+     * já tinha sido feito lá (uma tarefa concluída) vira uma edição sem efeito aqui.
+     */
+    private val pending = mutableListOf<(Snapshot) -> Snapshot>()
 
     init {
         window.addEventListener("beforeunload", { event ->
@@ -71,7 +77,7 @@ object Store {
         }
     }
 
-    private const val REFRESH_EVERY_MS = 30_000L
+    private const val REFRESH_EVERY_MS = 15_000L
     private var refreshing = false
 
     /**
@@ -120,6 +126,7 @@ object Store {
             }
             save = SaveState.Saved
             conflict = null
+            pending.clear()
         } catch (_: SignedOutException) {
             load = LoadState.SignedOut
         } catch (error: Throwable) {
@@ -164,9 +171,11 @@ object Store {
     /** Aplica uma mudança e agenda o envio. */
     fun update(change: (Snapshot) -> Snapshot) {
         data = change(data)
-        lastLocalChangeAt = kotlin.js.Date.now()
         if (load == LoadState.NoData) load = LoadState.Ready
-        if (!demo) scheduleSave(1500)
+        if (!demo) {
+            pending += change
+            scheduleSave(1500)
+        }
     }
 
     private fun scheduleSave(delayMillis: Long) {
@@ -178,17 +187,31 @@ object Store {
         }
     }
 
-    private suspend fun pushNow(force: Boolean = false) {
+    private suspend fun pushNow(force: Boolean = false, attempt: Int = 0) {
         save = SaveState.Saving
+        val sent = pending.size
         try {
             val expected = if (force) Cloud.head().revision else baseRevision
             baseRevision = Cloud.upload(data.encode(), expected)
-            save = SaveState.Saved
+            // Só saem da fila as edições que foram nesta foto; as feitas durante o envio vão na próxima.
+            repeat(sent.coerceAtMost(pending.size)) { pending.removeAt(0) }
+            save = if (pending.isEmpty()) SaveState.Saved else SaveState.Pending
+            if (pending.isNotEmpty()) scheduleSave(800)
         } catch (error: CloudConflictException) {
-            // Outro aparelho publicou depois da nossa base: vence quem mudou por último, sem
-            // perguntar (as fotos anteriores ficam guardadas na conta).
-            val remoteAt = error.head.updatedAt?.let { kotlin.js.Date(it).getTime() } ?: 0.0
-            if (lastLocalChangeAt >= remoteAt) pushNow(force = true) else reload()
+            // Outro aparelho publicou depois da nossa base: baixa a versão da conta e refaz só as
+            // edições feitas aqui por cima dela. Nunca sobrescreve o que veio do celular.
+            if (attempt >= 3) { save = SaveState.Offline; return }
+            try {
+                var merged = Snapshot.parse(Cloud.download(error.head))
+                pending.toList().forEach { change -> merged = runCatching { change(merged) }.getOrDefault(merged) }
+                data = merged
+                baseRevision = error.head.revision
+                pushNow(attempt = attempt + 1)
+            } catch (_: SignedOutException) {
+                load = LoadState.SignedOut
+            } catch (_: Throwable) {
+                save = SaveState.Offline
+            }
         } catch (_: SignedOutException) {
             load = LoadState.SignedOut
         } catch (_: Throwable) {
