@@ -12,6 +12,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.remember
+import br.com.estudario.domain.catalog.ExamCategory
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -60,41 +66,92 @@ internal fun CatalogSearchField(query: String, onQueryChange: (String) -> Unit) 
     )
 }
 
-/** Atalhos com os concursos do catálogo, para quem ainda não sabe o que digitar. */
+/** A área de cada edital (Segurança pública, Tribunais...), calculada uma vez por edital. */
+internal fun ExamCatalogEntry.category(): ExamCategory = ExamCategory.of(shortName, agency, role)
+
+/**
+ * Filtro por área, em chips: "Todos" e só as áreas que têm edital no catálogo, cada uma com a
+ * quantidade. Rola de lado para não empurrar a lista para baixo.
+ */
 @Composable
-internal fun CatalogShortcuts(entries: List<ExamCatalogEntry>, onPick: (String) -> Unit) {
-    val names = entries.groupBy { it.shortName }.entries
-        .sortedByDescending { (_, list) -> list.maxOf { it.year ?: 0 } }
-        .map { it.key }
-        .take(10)
-    if (names.isEmpty()) return
-    Text("Editais disponíveis", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        names.forEach { name -> FilterChip(selected = false, onClick = { onPick(name) }, label = { Text(name) }) }
+internal fun CatalogCategoryChips(entries: List<ExamCatalogEntry>, selected: ExamCategory?, onSelect: (ExamCategory?) -> Unit) {
+    val counts = remember(entries) { entries.groupingBy { it.category() }.eachCount() }
+    if (counts.isEmpty()) return
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        FilterChip(selected = selected == null, onClick = { onSelect(null) }, label = { Text("Todos · ${entries.size}") })
+        ExamCategory.present(counts.keys).forEach { category ->
+            FilterChip(
+                selected = selected == category,
+                onClick = { onSelect(if (selected == category) null else category) },
+                label = { Text("${category.label} · ${counts[category]}") },
+            )
+        }
     }
 }
 
+/** Título da lista: quantos editais aparecem e em que ordem. */
+@Composable
+internal fun CatalogListHeader(count: Int, searching: Boolean) {
+    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            when {
+                count == 0 -> ""
+                searching -> if (count == 1) "1 edital encontrado" else "$count editais encontrados"
+                else -> if (count == 1) "1 edital pronto" else "$count editais prontos"
+            },
+            Modifier.weight(1f),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+        )
+        if (!searching && count > 1) Text("mais completos primeiro", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** Cor fixa da sigla, pela mesma conta da cor de matéria: o mesmo concurso tem sempre a mesma cor. */
+@Composable
+private fun monogramColor(shortName: String): Color =
+    br.com.estudario.ui.components.subjectAccentColor(shortName, estudarioColors().subjectPalette)
+
 /**
- * Um edital do resultado da busca: sigla e cargo em destaque, órgão, banca e ano embaixo, e o
- * tamanho do edital com quanto dele já tem matéria pronta.
+ * Um edital do catálogo: a sigla num selo colorido, o cargo em destaque, órgão, banca e ano, o
+ * tamanho do edital e quanto dele já tem material pronto.
  */
 @Composable
 internal fun ExamResultCard(entry: ExamCatalogEntry, selected: Boolean, onClick: () -> Unit) {
+    val year = java.time.LocalDate.now().year
+    val old = entry.year != null && entry.year < year - 2
     br.com.estudario.ui.brand.BrandChoice(selected, onClick) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(entry.shortName, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-            Text(entry.role, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 3, overflow = TextOverflow.Ellipsis)
-            if (entry.details.isNotBlank()) {
-                Text(entry.details, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+        val tone = monogramColor(entry.shortName)
+        Box(
+            Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(tone.copy(alpha = 0.16f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            val mono = ExamCategory.monogram(entry.shortName)
+            Text(
+                mono,
+                style = if (mono.length >= 5) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Black,
+                color = tone,
+                maxLines = 1,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    "${entry.subjectCount} matérias · ${entry.topicCount} tópicos",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (entry.readyPercent >= 50) ReadyBadge(entry.readyPercent)
+                Text(entry.shortName, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                entry.year?.let { YearTag(it, old) }
             }
+            Text(entry.role, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            val details = listOfNotNull(entry.agency.takeIf { !it.equals(entry.shortName, true) }, entry.board).joinToString(" · ")
+            if (details.isNotBlank()) Text(details, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text("${entry.subjectCount} matérias · ${entry.topicCount} tópicos", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // Temporário: mostra quanto do edital já tem material pronto, para acompanhar a biblioteca.
+            ReadyBar(entry.readyPercent)
         }
         Spacer(Modifier.width(8.dp))
         br.com.estudario.ui.brand.BrandChoiceMark(selected)
@@ -102,14 +159,31 @@ internal fun ExamResultCard(entry: ExamCatalogEntry, selected: Boolean, onClick:
 }
 
 @Composable
-private fun ReadyBadge(percent: Int) {
+private fun YearTag(year: Int, old: Boolean) {
+    val color = if (old) estudarioColors().attention else MaterialTheme.colorScheme.onSurfaceVariant
     Text(
-        "$percent% com material pronto",
-        Modifier.clip(RoundedCornerShape(50)).background(estudarioColors().completed.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 2.dp),
+        if (old) "$year · antigo" else "$year",
+        Modifier.clip(RoundedCornerShape(8.dp)).background(color.copy(alpha = 0.12f)).padding(horizontal = 7.dp, vertical = 1.dp),
         style = MaterialTheme.typography.labelSmall,
-        color = estudarioColors().completed,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Bold,
+        color = color,
     )
+}
+
+/** Barra fina com a parte do edital que já tem material pronto. */
+@Composable
+private fun ReadyBar(percent: Int) {
+    val color = when {
+        percent >= 80 -> estudarioColors().completed
+        percent >= 40 -> MaterialTheme.colorScheme.primary
+        else -> estudarioColors().attention
+    }
+    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+            Box(Modifier.fillMaxWidth((percent / 100f).coerceIn(0.02f, 1f)).fillMaxHeight().clip(RoundedCornerShape(50)).background(color))
+        }
+        Text("$percent% com material", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = color)
+    }
 }
 
 /** Resumo do edital escolhido, com o aviso do edital quando houver. */

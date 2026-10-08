@@ -21,9 +21,15 @@ data class CatalogEntry(
     @SerialName("search_norm") val searchNorm: String = "",
     @SerialName("subject_count") val subjectCount: Int = 0,
     @SerialName("topic_count") val topicCount: Int = 0,
+    @SerialName("ready_topic_count") val readyTopicCount: Int = 0,
 ) {
     val title: String get() = "$shortName · $role"
     val details: String get() = listOfNotNull(agency.takeIf { !it.equals(shortName, true) }, board, year?.toString()).joinToString(" · ")
+
+    /** Parte do edital que já tem material pronto, de 0 a 100. */
+    val readyPercent: Int get() = if (topicCount == 0) 0 else (readyTopicCount * 100 / topicCount).coerceIn(0, 100)
+
+    val category: br.com.estudario.domain.catalog.ExamCategory get() = br.com.estudario.domain.catalog.ExamCategory.of(shortName, agency, role)
 }
 
 @Serializable
@@ -39,7 +45,7 @@ object Catalog {
 
     suspend fun entries(): List<CatalogEntry> {
         cache?.let { return it }
-        val fields = "id,short_name,agency,role,board,year,search_norm,subject_count,topic_count"
+        val fields = "id,short_name,agency,role,board,year,search_norm,subject_count,topic_count,ready_topic_count"
         val response = httpRequest("GET", "${WebConfig.SUPABASE_URL}/rest/v1/exam_catalog?select=$fields&status=eq.PUBLISHED&order=short_name.asc,role.asc", headers)
         if (!response.ok) throw IllegalStateException("Não consegui carregar a lista de editais agora. Tente de novo.")
         return snapshotJson.decodeFromString(ListSerializer(CatalogEntry.serializer()), response.body).also { cache = it }

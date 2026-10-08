@@ -508,6 +508,9 @@ private fun CompetitionStep(
     var name by rememberSaveable(snapshot.competitionId) { mutableStateOf(snapshot.competitionName) }
     var role by rememberSaveable(snapshot.competitionId) { mutableStateOf(snapshot.role) }
     var query by rememberSaveable { mutableStateOf("") }
+    var category by remember { mutableStateOf<br.com.estudario.domain.catalog.ExamCategory?>(null) }
+    var shownCount by rememberSaveable { mutableStateOf(20) }
+    LaunchedEffect(query) { shownCount = 20 }
     var selectedExamId by rememberSaveable(snapshot.competitionId) { mutableStateOf(snapshot.catalogExamId) }
     // Quem já digitou um concurso fora do catálogo volta direto para o formulário.
     var manual by rememberSaveable { mutableStateOf(snapshot.catalogExamId == null && snapshot.competitionName.isNotBlank()) }
@@ -548,13 +551,22 @@ private fun CompetitionStep(
         }
         if (!manual) {
             CatalogSearchField(query) { query = it }
-            if (query.isBlank()) CatalogShortcuts(catalog.entries) { query = it }
-            results.forEach { entry ->
+            CatalogCategoryChips(catalog.entries, category) { category = it; shownCount = 20 }
+            // Sem busca: o catálogo inteiro da área, dos editais mais completos para os menos.
+            val pool = if (query.isBlank()) catalog.entries.sortedWith(compareByDescending<br.com.estudario.data.catalog.ExamCatalogEntry> { it.readyPercent }.thenByDescending { it.year ?: 0 }) else results
+            val filtered = if (category == null) pool else pool.filter { it.category() == category }
+            if (filtered.isNotEmpty()) CatalogListHeader(filtered.size, searching = query.isNotBlank())
+            filtered.take(shownCount).forEach { entry ->
                 ExamResultCard(entry, entry.id == selectedExamId) {
                     selectedExamId = if (selectedExamId == entry.id) null else entry.id
                 }
             }
-            if (results.isEmpty()) {
+            if (filtered.size > shownCount) {
+                OutlinedButton(onClick = { shownCount += 20 }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Mostrar mais ${minOf(20, filtered.size - shownCount)} de ${filtered.size - shownCount}")
+                }
+            }
+            if (filtered.isEmpty()) {
                 CatalogEmptyState(
                     query = query,
                     loading = catalog.loading && catalog.entries.isEmpty(),
