@@ -248,8 +248,9 @@ class Expression private constructor(private val root: Node) {
  */
 private val chartFences = setOf(StudyChart.FENCE, "gráfico", "geometria", "figura", "funcao", "função", "pizza", "barras", "linha", "chart")
 
+// Cerca de três crases ou de três tils (~~~grafico): as duas são Markdown válido e o material usa ambas.
 private fun isChartFence(trimmed: String): Boolean =
-    trimmed.startsWith("```") && trimmed.removePrefix("```").trim().lowercase() in chartFences
+    (trimmed.startsWith("```") || trimmed.startsWith("~~~")) && trimmed.drop(3).trim().lowercase() in chartFences
 
 internal fun splitCharts(markdown: String): List<Pair<String, StudyChart?>> {
     if (markdown.lines().none { isChartFence(it.trim()) }) return listOf(markdown to null)
@@ -264,7 +265,7 @@ internal fun splitCharts(markdown: String): List<Pair<String, StudyChart?>> {
                 if (text.isNotBlank()) parts += text.toString().trim('\n') to null
                 text.clear(); inChart = true
             }
-            inChart && trimmed.startsWith("```") -> {
+            inChart && (trimmed.startsWith("```") || trimmed.startsWith("~~~")) -> {
                 StudyChart.parse(chart.toString())?.let { parts += "" to it }
                 chart.clear(); inChart = false
             }

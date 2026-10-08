@@ -41,7 +41,7 @@ import kotlin.js.Date
 fun studyBlocks(markdown: String): List<String> {
     val blocks = mutableListOf<String>()
     val current = StringBuilder()
-    var inFence = false
+    var fence: String? = null // ``` ou ~~~ aberto
     var inMath = false
     var inTable = false
     fun flush() {
@@ -52,10 +52,12 @@ fun studyBlocks(markdown: String): List<String> {
     // As fontes ficam só na aba Fontes, não no meio da teoria (como no app).
     MathText.normalize(br.com.estudario.text.SourcesSection.strip(markdown)).lines().forEach { line ->
         val trimmed = line.trim()
-        if (trimmed.startsWith("```")) inFence = !inFence
-        else if (!inFence && trimmed == "$$") inMath = !inMath
+        val mark = trimmed.take(3).takeIf { it == "```" || it == "~~~" }
+        // Bloco numa linha só (~~~grafico {...} ~~~) abre e fecha na mesma linha.
+        if (mark != null && (fence == null || fence == mark)) { if (fence == null && !(trimmed.length > 6 && trimmed.endsWith(mark))) fence = mark else fence = null }
+        else if (fence == null && trimmed == "$$") inMath = !inMath
         inTable = trimmed.startsWith("|")
-        if (trimmed.isEmpty() && !inFence && !inMath) flush() else current.append(line).append('\n')
+        if (trimmed.isEmpty() && fence == null && !inMath) flush() else current.append(line).append('\n')
     }
     flush()
     fun heading(block: String) = block.trim().takeIf { it.startsWith("#") && '\n' !in it }?.trimStart('#')?.trim()?.trim('*')?.trim()?.lowercase()

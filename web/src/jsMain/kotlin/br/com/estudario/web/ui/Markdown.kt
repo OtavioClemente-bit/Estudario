@@ -25,7 +25,7 @@ import org.jetbrains.compose.web.dom.Ul
 
 /**
  * Markdown das teorias e resumos (o mesmo subconjunto que o app desenha): títulos, parágrafos,
- * listas, citações, tabelas, negrito, itálico e código. Tudo vira elemento HTML, nunca innerHTML,
+ * listas, citações, tabelas, negrito, itálico, código e gráficos (```grafico / ~~~grafico). Tudo vira elemento HTML, nunca innerHTML,
  * então texto vindo do material não consegue injetar nada na página.
  */
 @Composable
@@ -58,15 +58,31 @@ private fun parseBlocks(source: String): List<Block> {
         val trimmed = line.trim()
         when {
             trimmed.isEmpty() -> { flush(); i++ }
-            // Bloco entre ```: gráfico (```grafico) vira desenho; o resto é código, mostrado como está.
-            trimmed.startsWith("```") -> {
+            // Gráfico (```grafico ou ~~~grafico). Também aceita o bloco inteiro numa linha só.
+            chartFenceName(trimmed) != null -> {
                 flush()
-                val lang = trimmed.removePrefix("```").trim().lowercase()
+                val fence = trimmed.take(3)
+                val afterFence = trimmed.drop(3).trim()
+                val rest = afterFence.substring(afterFence.indexOfFirst { it == ' ' || it == '{' }.takeIf { it >= 0 } ?: afterFence.length).trim()
                 val body = StringBuilder()
+                if (rest.isNotEmpty() && rest.trimEnd().endsWith(fence)) {
+                    body.append(rest.trimEnd().removeSuffix(fence)); i++
+                } else {
+                    if (rest.isNotEmpty()) body.append(rest).append('\n')
+                    i++
+                    while (i < lines.size && !lines[i].trim().startsWith(fence)) { body.append(lines[i]).append('\n'); i++ }
+                    i++
+                }
+                if (body.isNotBlank()) blocks += Block.Chart(body.toString())
+            }
+            trimmed.startsWith("```") || trimmed.startsWith("~~~") -> {
+                flush()
+                val fence = trimmed.take(3)
+                val code = StringBuilder()
                 i++
-                while (i < lines.size && !lines[i].trim().startsWith("```")) { body.append(lines[i]).append('\n'); i++ }
+                while (i < lines.size && !lines[i].trim().startsWith(fence)) { code.append(lines[i]).append('\n'); i++ }
                 i++
-                blocks += if (lang in WebChart.fences) Block.Chart(body.toString()) else Block.CodeBlock(body.toString().trimEnd('\n'))
+                if (code.isNotBlank()) blocks += Block.CodeBlock(code.toString().trimEnd())
             }
             trimmed == "\$\$" -> {
                 flush()
