@@ -35,19 +35,19 @@ typescript, python.
 - [x] **informatica.linux** — Linux: conceitos, distribuições, estrutura de diretórios, permissões, usuários, comandos básicos do terminal, pacotes.
 - [x] **informatica.internet-busca-redes-sociais** — Ferramentas de busca (operadores), redes sociais, grupos de discussão, fóruns, wikis, comunicação online, segurança e privacidade no uso.
 
-## Onda 3
-- [ ] **sustentabilidade.desenvolvimento-sustentavel** — Desenvolvimento sustentável, ODS, A3P, compras sustentáveis, resíduos sólidos (noções), mudanças climáticas (noções).
-- [ ] **informatica.html-css-web** — HTML5, CSS3, HTTP, APIs REST e JSON, noções de front-end.
-- [ ] **informatica.engenharia-software-ageis** — Processos de software, requisitos, UML, testes, Scrum, Kanban, XP, DevOps (noções).
-- [ ] **informatica.governanca-ti** — ITIL 4, COBIT, gerenciamento de serviços de TI.
-- [ ] **informatica.redes-protocolos** — Modelo OSI e TCP/IP, endereçamento IP, roteamento, VLAN, DNS, DHCP, protocolos de aplicação.
-- [ ] **informatica.criptografia-certificacao** — Criptografia simétrica e assimétrica, hash, assinatura e certificado digital, ICP-Brasil (noções), VPN, IDS/IPS, firewall.
-- [ ] **informatica.estruturas-dados-algoritmos** — Algoritmos, complexidade, vetores, listas, pilhas, filas, árvores, ordenação e busca.
-- [ ] **informatica.orientacao-objetos** — Classes, objetos, encapsulamento, herança, polimorfismo, interfaces, princípios SOLID (noções).
-- [ ] **contabilidade.estrutura-conceitual-cpc** — Estrutura conceitual, características qualitativas, elementos das demonstrações, DMPL, principais CPCs (noções).
-- [ ] **legislacao.eca-direitos-fundamentais** — ECA: direitos fundamentais, prevenção, medidas de proteção, conselho tutelar, guarda/tutela/adoção. NÃO: ato infracional (há matéria).
-- [ ] **direito-empresarial.empresario-estabelecimento** — Empresário, empresa, registro, nome empresarial, estabelecimento, escrituração, EIRELI/SLU (atual).
-- [ ] **direito-empresarial.sociedades** — Sociedades em geral, limitada, anônima (noções), desconsideração, dissolução.
+## Onda 3 — [x] publicada em 08/10/2026
+- [x] **sustentabilidade.desenvolvimento-sustentavel** — Desenvolvimento sustentável, ODS, A3P, compras sustentáveis, resíduos sólidos (noções), mudanças climáticas (noções).
+- [x] **informatica.html-css-web** — HTML5, CSS3, HTTP, APIs REST e JSON, noções de front-end.
+- [x] **informatica.engenharia-software-ageis** — Processos de software, requisitos, UML, testes, Scrum, Kanban, XP, DevOps (noções).
+- [x] **informatica.governanca-ti** — ITIL 4, COBIT, gerenciamento de serviços de TI.
+- [x] **informatica.redes-protocolos** — Modelo OSI e TCP/IP, endereçamento IP, roteamento, VLAN, DNS, DHCP, protocolos de aplicação.
+- [x] **informatica.criptografia-certificacao** — Criptografia simétrica e assimétrica, hash, assinatura e certificado digital, ICP-Brasil (noções), VPN, IDS/IPS, firewall.
+- [x] **informatica.estruturas-dados-algoritmos** — Algoritmos, complexidade, vetores, listas, pilhas, filas, árvores, ordenação e busca.
+- [x] **informatica.orientacao-objetos** — Classes, objetos, encapsulamento, herança, polimorfismo, interfaces, princípios SOLID (noções).
+- [x] **contabilidade.estrutura-conceitual-cpc** — Estrutura conceitual, características qualitativas, elementos das demonstrações, DMPL, principais CPCs (noções).
+- [x] **legislacao.eca-direitos-fundamentais** — ECA: direitos fundamentais, prevenção, medidas de proteção, conselho tutelar, guarda/tutela/adoção. NÃO: ato infracional (há matéria).
+- [x] **direito-empresarial.empresario-estabelecimento** — Empresário, empresa, registro, nome empresarial, estabelecimento, escrituração, EIRELI/SLU (atual).
+- [x] **direito-empresarial.sociedades** — Sociedades em geral, limitada, anônima (noções), desconsideração, dissolução.
 
 ## Onda 4
 - [ ] **direito-empresarial.titulos-credito** — Teoria geral, letra de câmbio, nota promissória, cheque, duplicata.

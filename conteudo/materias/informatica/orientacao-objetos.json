@@ -1,0 +1,2123 @@
+{
+  "id": "informatica.orientacao-objetos",
+  "subject": "Informática",
+  "version": 1,
+  "title": "Orientação a objetos",
+  "nickname": "POO a fundo",
+  "aliases": [
+    "Orientação a objetos: classes, objetos, relacionamentos, herança, polimorfismo e encapsulamento.",
+    "Princípios de orientação a objetos: abstração, encapsulamento, herança e polimorfismo.",
+    "Princípios de design SOLID.",
+    "Polimorfismo, Herança, Abstração e Encapsulamento.",
+    "Princípios SOLID.",
+    "Polimorfismo, herança, abstração e encapsulamento.",
+    "Noções de linguagens de programação orientadas a objetos: objetos, classes, herança, polimorfismo, sobrecarga de métodos.",
+    "Orientação a objetos: abstração de dados, definição de classes, métodos e atributos, herança, polimorfismo, encapsulamento, reutilização de componentes.",
+    "Orientação a objetos: classes, objetos, métodos, herança, polimorfismo, interfaces, estados, pacotes e mensagens."
+  ],
+  "theoryTitle": "Orientação a objetos a fundo: pilares, polimorfismo, interfaces e SOLID",
+  "status": "PUBLISHED",
+  "sourceType": "AUTHORIAL",
+  "board": null,
+  "agency": null,
+  "year": null,
+  "sourceUrl": null,
+  "accessedAt": "2026-10-08",
+  "scope": {
+    "covers": "Os quatro pilares (abstração, encapsulamento, herança e polimorfismo) e o que cada um resolve; estado, comportamento, identidade e troca de mensagens; coesão e acoplamento; associação, agregação, composição e dependência; \"é um\" x \"tem um\" e composição no lugar de herança; ordem de construção e super(); equals, hashCode e toString; regras de sobrescrita; ligação dinâmica x resolução estática da sobrecarga; campos e métodos static não polimórficos; upcast, downcast, instanceof e ClassCastException; classes abstratas x interfaces, métodos default e static, conflito de default; noções dos princípios SOLID. Exemplos em Java.",
+    "excludes": "O básico da sintaxe Java (tipos, operadores, laços, criação de classe, construtor, tabela de modificadores, extends e implements simples), já em informatica.java-fundamentos; padrões de projeto (GoF) e GRASP; UML em detalhe; tratamento de exceções; programação funcional e genéricos em profundidade."
+  },
+  "summary": "Orientação a objetos organiza o programa em objetos que juntam estado (atributos), comportamento (métodos) e identidade, e que conversam trocando mensagens (chamadas de método). Abstração é escolher só o que importa do mundo real; encapsulamento é proteger o estado e garantir as regras do objeto (não é só criar getter e setter); herança é a relação \"é um\"; polimorfismo é tratar objetos diferentes pelo mesmo tipo e deixar cada um responder do seu jeito. Bom projeto tem alta coesão e baixo acoplamento. Composição (\"tem um\", parte que morre com o todo) e agregação (parte que vive sozinha) são formas de associação, e muitas vezes compor é melhor que herdar. Na construção, o construtor da mãe roda antes do da filha; se a mãe não tem construtor sem parâmetros, a filha precisa chamar super(...). Sobrescrita é decidida em execução pelo objeto real; sobrecarga é decidida na compilação pelo tipo declarado; atributos e métodos static não são polimórficos. Ao sobrescrever não se reduz visibilidade, e o retorno pode ser um subtipo. Downcast errado compila, mas lança ClassCastException. Interfaces têm constantes public static final, métodos abstratos, default e static; dois default iguais obrigam a classe a sobrescrever. SOLID: responsabilidade única, aberto/fechado, substituição de Liskov, segregação de interfaces e inversão de dependência.",
+  "chapters": [
+    {
+      "id": "pilares-relacionamentos",
+      "title": "Pilares e relacionamentos entre classes",
+      "markdown": "### Por que orientar a objetos\n\nNa matéria de Java do zero você já viu como escrever uma classe, um construtor e usar `private`. Aqui a pergunta é outra: **por que** organizar o programa assim e **como** ligar as classes entre si. A ideia é imitar o mundo: em vez de um programa gigante com funções soltas mexendo em dados soltos, cada **objeto** cuida dos próprios dados e oferece serviços aos outros.\n\nTodo objeto tem três coisas:\n\n- **Estado**: os valores dos atributos naquele momento (saldo = 150).\n- **Comportamento**: o que ele sabe fazer (depositar, sacar).\n- **Identidade**: ele é ele mesmo, mesmo que outro objeto tenha o mesmo estado. Duas contas com saldo 150 são objetos diferentes.\n\nQuando um objeto chama um método de outro, a literatura diz que ele **envia uma mensagem**. `carro.partir()` é a mensagem \"parta\" enviada ao objeto `carro`.\n\n### Os quatro pilares\n\n1. **Abstração**: modelar só o que interessa ao problema. Um `Aluno` num sistema de matrículas tem nome e matrícula; a cor do cabelo fica de fora. Abstrair é ignorar o irrelevante.\n2. **Encapsulamento**: esconder o estado e só permitir mudanças por métodos que garantem as regras (as **invariantes**) do objeto.\n3. **Herança**: uma classe aproveita e especializa outra (relação \"**é um**\").\n4. **Polimorfismo**: objetos de classes diferentes respondem à mesma mensagem, cada um do seu jeito.\n\nAlgumas provas falam em três pilares (encapsulamento, herança e polimorfismo) e tratam a abstração como base de todos. As duas listas aparecem; o que muda é a contagem, não os conceitos.\n\n### Encapsulamento de verdade: o exemplo resolvido\n\n```java\nclass Termometro {\n    private double celsius;\n\n    public void ajustar(double c) {\n        if (c < -273.15) throw new IllegalArgumentException(\"abaixo do zero absoluto\");\n        celsius = c;\n    }\n\n    public double getFahrenheit() { return celsius * 9 / 5 + 32; }\n}\n```\n\nCom `t.ajustar(25)`, `t.getFahrenheit()` devolve `77.0` (25 × 9 / 5 + 32). Repare em duas coisas:\n\n- Ninguém consegue colocar o termômetro abaixo do zero absoluto: a regra mora dentro da classe.\n- Quem usa a classe nem sabe se ela guarda Celsius ou Fahrenheit. Se amanhã ela passar a guardar Kelvin, nenhum cliente muda. Isso é **ocultação de informação**.\n\nCriar `getCelsius()` e `setCelsius()` públicos para tudo, sem nenhuma regra, **não** é encapsular de verdade: o atributo ficou tão exposto quanto se fosse `public`.\n\n### Coesão e acoplamento\n\n- **Coesão** mede o quanto as tarefas de uma classe têm a ver umas com as outras. Queremos **alta coesão**: a classe `Termometro` só cuida de temperatura.\n- **Acoplamento** mede o quanto uma classe depende dos detalhes de outra. Queremos **baixo acoplamento**: mexer numa classe não deve quebrar dez outras.\n\nGrave a dupla da prova: **alta coesão, baixo acoplamento**.\n\n### Relacionamentos entre classes\n\n| Relação | Ideia | Exemplo |\n|---|---|---|\n| Dependência | usa outra classe de passagem, como parâmetro | `Caixa` recebe um `Desconto` no método |\n| Associação | conhece outra classe e guarda referência a ela | `Aluno` conhece sua `Turma` |\n| Agregação | todo e parte, mas a parte **vive sozinha** | `Departamento` e `Professor` |\n| Composição | todo e parte, e a parte **não existe sem o todo** | `Carro` e o `Motor` que ele mesmo cria |\n\n```java\nclass Carro {\n    private final Motor motor = new Motor(); // composição: o carro cria e controla o motor\n    void partir() { motor.ligar(); }\n}\n\nclass Departamento {\n    private final List<Professor> professores = new ArrayList<>();\n    void contratar(Professor p) { professores.add(p); } // agregação: o professor veio de fora\n}\n```\n\nSe o departamento fechar, o professor continua existindo e pode ir para outro. O motor criado dentro do carro só existe para aquele carro. Agregação e composição são tipos especiais de associação; a composição é a forma **mais forte**.\n\n### \"É um\" x \"tem um\"\n\nUse herança só quando a frase \"X **é um** Y\" for verdadeira sempre: um `Gerente` é um `Funcionario`. Se a frase certa for \"X **tem um** Y\" (um carro tem um motor), use composição. A recomendação clássica é **preferir composição a herança**: a herança amarra a filha a todos os detalhes da mãe (acoplamento forte), enquanto a composição permite trocar a peça.\n\n### Pegadinhas\n\n- Encapsulamento não é sinônimo de getter e setter; é proteger as regras do objeto.\n- Dois objetos com o mesmo estado continuam sendo dois objetos (identidade).\n- Agregação: a parte sobrevive ao todo. Composição: a parte morre com o todo. Inverter isso é o erro mais comum.\n- O desejável é coesão **alta** e acoplamento **baixo**, não os dois altos nem os dois baixos."
+    },
+    {
+      "id": "heranca-na-pratica",
+      "title": "Herança na prática: construção, Object e regras de sobrescrita",
+      "markdown": "### A ordem de construção\n\nQuando você cria um objeto de uma subclasse, o Java monta o objeto **de cima para baixo**: primeiro roda o construtor da mãe, depois o da filha. Isso acontece porque a **primeira instrução** de todo construtor é uma chamada a `super(...)` ou a `this(...)`. Se você não escrever, o compilador coloca `super();` sozinho.\n\n**Exemplo resolvido:**\n\n```java\nclass A { A() { System.out.print(\"A \"); } }\nclass B extends A { B() { System.out.print(\"B \"); } }\nclass C extends B { C() { super(); System.out.print(\"C\"); } }\n\nnew C(); // imprime: A B C\n```\n\n`new C()` chama o construtor de C, que primeiro chama o de B, que primeiro chama o de A (e o de A chama o de `Object`). Só na volta cada um imprime: **A B C**.\n\n### Quando o super() automático quebra\n\n```java\nclass Mae { Mae(String n) { } }\nclass Filha extends Mae { Filha() { } } // NÃO COMPILA\n```\n\nO compilador inseriu `super();` no construtor de `Filha`, mas `Mae` não tem construtor sem parâmetros (ao escrever `Mae(String)`, o padrão sumiu). A correção é chamar `super(\"algum nome\");` como primeira linha. `super(...)` e `this(...)` não podem aparecer juntos no mesmo construtor, porque os dois querem ser a primeira linha.\n\n### A mãe de todas: Object\n\nToda classe herda de `Object` três métodos muito cobrados:\n\n- `toString()`: o texto que representa o objeto. Sem sobrescrever, sai algo como `Cpf@1b6d3586`.\n- `equals(Object o)`: sem sobrescrever, compara **identidade** (o mesmo que `==`).\n- `hashCode()`: um número usado por `HashSet` e `HashMap` para achar o objeto.\n\nO **contrato**: se dois objetos são iguais pelo `equals`, eles **têm de** ter o mesmo `hashCode`. Por isso quem sobrescreve `equals` deve sobrescrever `hashCode` junto. Sem isso, um `HashSet` pode guardar dois objetos \"iguais\" como se fossem diferentes.\n\n```java\nfinal class Cpf {\n    private final String numero;\n    Cpf(String numero) { this.numero = numero; }\n\n    @Override public boolean equals(Object o) {\n        if (this == o) return true;\n        if (!(o instanceof Cpf)) return false;\n        return numero.equals(((Cpf) o).numero);\n    }\n    @Override public int hashCode() { return numero.hashCode(); }\n    @Override public String toString() { return \"CPF \" + numero; }\n}\n```\n\nCom esses três métodos, colocar `new Cpf(\"123\")` duas vezes num `HashSet` deixa o conjunto com **1** elemento, e imprimir `new Cpf(\"1\")` mostra `CPF 1`. Note o parâmetro `Object` no `equals`: escrever `equals(Cpf o)` cria uma **sobrecarga**, não uma sobrescrita, e o `HashSet` continua usando o `equals` de `Object`. A anotação `@Override` existe justamente para o compilador avisar esse engano.\n\n### Regras para sobrescrever\n\nAo sobrescrever um método herdado:\n\n1. **Mesmo nome e mesma lista de parâmetros** (senão é sobrecarga).\n2. O retorno pode ser o mesmo tipo ou um **subtipo** (retorno **covariante**): se `Animal criar()` existe na mãe, a filha `Gato` pode declarar `Gato criar()`.\n3. A visibilidade **não pode diminuir**: um método `public` não pode virar `protected` na filha (não compila). Aumentar pode: `protected` vira `public`.\n4. Não pode declarar exceções verificadas novas ou mais amplas que as da mãe.\n5. Métodos `private` não são herdados de forma visível, então **não são sobrescritos**: um método com o mesmo nome na filha é um método novo. Métodos `final` não podem ser sobrescritos.\n\n### Herança dentro de um método da mãe\n\n```java\nabstract class Relatorio {\n    final String gerar() { return \"[\" + corpo() + \"]\"; }\n    abstract String corpo();\n}\nclass Vendas extends Relatorio { String corpo() { return \"vendas\"; } }\n\nRelatorio r = new Vendas();\nSystem.out.println(r.gerar()); // [vendas]\n```\n\nO método `gerar` está escrito na mãe, mas a chamada `corpo()` dentro dele vai para a versão do objeto real (`Vendas`). A mãe define o roteiro; a filha preenche o passo que varia.\n\n### Pegadinhas\n\n- O construtor da mãe roda **antes** do da filha.\n- Mãe sem construtor sem parâmetros obriga a filha a chamar `super(argumentos)`.\n- `equals` sobrescrito sem `hashCode` quebra coleções de hash.\n- `equals(Cpf o)` é sobrecarga; o certo é `equals(Object o)`.\n- Reduzir visibilidade na sobrescrita não compila; retorno covariante compila."
+    },
+    {
+      "id": "polimorfismo-interfaces",
+      "title": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "markdown": "### Dois tipos em jogo\n\nEm `Animal a = new Gato();` há dois tipos:\n\n- o **tipo declarado** (da variável): `Animal`;\n- o **tipo real** (do objeto): `Gato`.\n\nGuardar uma filha numa variável da mãe chama-se **upcast** e é automático. O compilador só deixa chamar métodos que existam no tipo declarado; mas, para métodos **sobrescritos**, quem decide qual versão roda é o tipo real, **na execução**. Isso é a **ligação dinâmica** (dynamic binding), o coração do polimorfismo.\n\n```java\nAnimal[] bichos = { new Cachorro(), new Gato(), new Animal() };\nfor (Animal b : bichos) System.out.print(b.som() + \" \"); // Au Miau ...\n```\n\nO laço não sabe quais animais vêm aí, e não precisa saber.\n\n### O que NÃO é polimórfico\n\n**Exemplo resolvido** (o mais cobrado em questões difíceis):\n\n```java\nclass Pai {\n    String nome = \"pai\";\n    static String tipo() { return \"static do Pai\"; }\n    String quem() { return \"Pai\"; }\n}\nclass Filho extends Pai {\n    String nome = \"filho\";\n    static String tipo() { return \"static do Filho\"; }\n    @Override String quem() { return \"Filho\"; }\n}\n\nPai p = new Filho();\nSystem.out.println(p.nome + \" \" + p.quem()); // pai Filho\nSystem.out.println(p.tipo());                // static do Pai\n```\n\n- `p.quem()` é método de instância sobrescrito: vale o objeto real, **Filho**.\n- `p.nome` é **atributo**: atributos não são sobrescritos, só **escondidos**. Vale o tipo declarado, **pai**.\n- `tipo()` é `static`: pertence à classe, também é escondido e não sobrescrito. Vale o tipo declarado, **static do Pai**.\n\n### Sobrecarga é decidida na compilação\n\n```java\nclass Impressora {\n    static void mostrar(Object o) { System.out.println(\"Object\"); }\n    static void mostrar(String s) { System.out.println(\"String\"); }\n}\nObject x = \"oi\";\nImpressora.mostrar(x);    // Object\nImpressora.mostrar(\"oi\"); // String\n```\n\nO objeto é uma `String`, mas a variável é `Object`. Na sobrecarga, o compilador escolhe a versão olhando o **tipo declarado** dos argumentos. Por isso se diz que a sobrecarga é polimorfismo **estático** (em tempo de compilação) e a sobrescrita é polimorfismo **dinâmico** (em tempo de execução).\n\n### Downcast, instanceof e ClassCastException\n\nVoltar de `Animal` para `Gato` é **downcast** e exige cast explícito. O compilador aceita porque um `Animal` **pode** ser um `Gato`; quem confere de verdade é a JVM:\n\n```java\nAnimal a = new Gato();\nCachorro c = (Cachorro) a; // compila, mas lança ClassCastException na execução\n```\n\nPara evitar, teste antes: `if (a instanceof Cachorro) { ... }`. Já um cast entre classes que não têm parentesco, como `(Cachorro) new Gato()`, **nem compila**: o compilador sabe que um `Gato` nunca é um `Cachorro`.\n\n### Classe abstrata x interface\n\n| | Classe abstrata | Interface |\n|---|---|---|\n| Instanciar com `new` | não | não |\n| Atributos de instância | sim | não; só constantes, implicitamente `public static final` |\n| Construtor | sim (chamado pelas filhas via `super`) | não |\n| Métodos com corpo | sim | `default`, `static` e `private` |\n| Quantas uma classe pode ter | uma (`extends`) | várias (`implements`) |\n\nDetalhes que caem:\n\n- Uma classe abstrata **pode não ter nenhum** método abstrato; o `abstract` só impede o `new`. Mas toda classe com método abstrato tem de ser abstrata.\n- Métodos abstratos de interface são implicitamente `public`, e por isso a classe que implementa **precisa** declarar o método como `public`; sem isso, não compila.\n- Uma interface pode **estender várias** interfaces: `interface Anfibio extends Voador, Nadador`.\n- Método `static` de interface só é chamado pelo nome da interface (`Voador.info()`), nunca pelo objeto nem pela classe que implementa.\n\n### Conflito de métodos default\n\n```java\ninterface Voador  { default String mover() { return \"voando\"; } }\ninterface Nadador { default String mover() { return \"nadando\"; } }\n\nclass Pato implements Voador, Nadador {\n    @Override public String mover() {\n        return Voador.super.mover() + \" e \" + Nadador.super.mover();\n    }\n}\n// new Pato().mover() devolve \"voando e nadando\"\n```\n\nSem o `mover()` em `Pato`, o código **não compila**: o compilador não escolhe sozinho entre dois `default` com a mesma assinatura. A sintaxe `Interface.super.metodo()` chama a versão de uma das interfaces.\n\n### Pegadinhas\n\n- Sobrescrita: vale o objeto real. Sobrecarga, atributo e `static`: vale o tipo declarado.\n- Downcast errado compila e falha só na execução; cast entre classes sem parentesco nem compila.\n- Classe abstrata pode ter construtor e pode não ter método abstrato.\n- Constantes de interface são `public static final` mesmo sem escrever nada."
+    },
+    {
+      "id": "solid",
+      "title": "Princípios SOLID (noções)",
+      "markdown": "### De onde vem\n\nSOLID é um acrônimo divulgado por Robert C. Martin (o \"Uncle Bob\") que junta cinco princípios de projeto orientado a objetos. Eles não são regras da linguagem: o código compila violando todos. São orientações para que o sistema seja fácil de mudar.\n\n| Letra | Nome em inglês | Em português |\n|---|---|---|\n| S | Single Responsibility | Responsabilidade única |\n| O | Open/Closed | Aberto/fechado |\n| L | Liskov Substitution | Substituição de Liskov |\n| I | Interface Segregation | Segregação de interfaces |\n| D | Dependency Inversion | Inversão de dependência |\n\n### S: responsabilidade única\n\nUma classe deve ter **um único motivo para mudar**. Não quer dizer \"um único método\". Uma classe `Relatorio` que calcula os totais, monta o PDF e envia por e-mail tem três motivos para mudar (regra de cálculo, layout, servidor de e-mail). Separar em três classes deixa cada mudança num lugar só. É a alta coesão aplicada.\n\n### O: aberto para extensão, fechado para modificação\n\nDeve ser possível acrescentar comportamento **sem mexer** no código que já funciona. O sinal de violação é o `if`/`switch` que cresce a cada caso novo.\n\n```java\ninterface Desconto { double aplicar(double valor); }\nclass SemDesconto implements Desconto { public double aplicar(double v) { return v; } }\nclass DescontoEstudante implements Desconto { public double aplicar(double v) { return v * 0.5; } }\n\nclass Caixa {\n    double cobrar(double valor, Desconto d) { return d.aplicar(valor); }\n}\n// new Caixa().cobrar(80, new DescontoEstudante()) devolve 40.0\n```\n\nPara criar o desconto de idoso, escreve-se uma classe nova; `Caixa` não muda. Repare que quem viabiliza o princípio é o **polimorfismo**.\n\n### L: substituição de Liskov\n\nOnde o programa espera a classe mãe, **qualquer filha deve funcionar sem surpresa**. A filha pode fazer mais, mas não pode quebrar o que a mãe prometia. O exemplo clássico: `Quadrado extends Retangulo`. Um código escrito para retângulo faz `setLargura(5)` e `setAltura(4)` e espera área 20; com um quadrado, mudar a altura muda a largura, e a área sai 16. Matematicamente o quadrado é um retângulo, mas **no comportamento** ele não substitui o retângulo. Outros sinais de violação: a filha lança exceção num método que na mãe sempre funcionava, ou exige mais do que a mãe exigia dos parâmetros.\n\n### I: segregação de interfaces\n\nNenhuma classe deve ser obrigada a depender de métodos que não usa. Uma interface `Multifuncional` com `imprimir()`, `escanear()` e `enviarFax()` força uma impressora simples a implementar `escanear` e `enviarFax` com corpo vazio ou exceção. Melhor: interfaces pequenas (`Impressora`, `Scanner`, `Fax`), e a máquina completa implementa as três.\n\n### D: inversão de dependência\n\nMódulos de alto nível (a regra de negócio) **não devem depender de módulos de baixo nível** (detalhes como e-mail, banco, arquivo); **os dois devem depender de abstrações**.\n\n**Exemplo resolvido:**\n\n```java\ninterface Notificador { void enviar(String msg); }\n\nclass EmailNotificador implements Notificador {\n    public void enviar(String msg) { System.out.println(\"e-mail: \" + msg); }\n}\n\nclass Pedido {\n    private final Notificador notificador;\n    Pedido(Notificador notificador) { this.notificador = notificador; }\n    void fechar() { notificador.enviar(\"pedido fechado\"); }\n}\n\nnew Pedido(new EmailNotificador()).fechar(); // e-mail: pedido fechado\n```\n\n`Pedido` não sabe que existe e-mail: conhece só a interface. Trocar por SMS é criar `SmsNotificador` e passar no construtor. Entregar a dependência pronta pelo construtor chama-se **injeção de dependência**, a técnica mais comum para aplicar o D. Cuidado: inversão de dependência (o princípio) e injeção de dependência (a técnica) não são a mesma coisa.\n\n### Pegadinhas\n\n- Responsabilidade única = um motivo para mudar, não um método.\n- Aberto/fechado: estender sem modificar; não é \"proibido mexer em código\".\n- Liskov fala de **comportamento**, não de matemática nem de sintaxe.\n- Inversão de dependência: alto nível e baixo nível dependem de **abstrações**."
+    },
+    {
+      "id": "como-cai",
+      "title": "Como o tema costuma ser cobrado",
+      "markdown": "### Os quatro formatos\n\n1. **Conceito puro**: definição de abstração, encapsulamento, coesão, acoplamento, agregação x composição. As erradas costumam trocar um conceito pelo outro (\"encapsulamento é a relação é-um\") ou inverter o desejável (\"alto acoplamento\").\n2. **Código com saída**: herança com construtores, polimorfismo com atributo e método do mesmo nome, sobrecarga com tipo declarado diferente do real. Faça o teste de mesa e pergunte, para cada chamada: é método de instância sobrescrito (vale o objeto) ou é atributo, `static` ou sobrecarga (vale a variável)?\n3. **Compila ou não compila**: redução de visibilidade, falta de `super(...)`, dois `default` em conflito, método de interface implementado sem `public`, cast entre classes sem parentesco, chamada de `static` de interface pelo objeto.\n4. **SOLID por cenário**: a questão descreve um código e pergunta qual princípio foi violado ou aplicado.\n\n### Exemplo resolvido no estilo da prova\n\n> Um sistema calcula frete com um `switch` sobre o tipo de entrega. A cada nova transportadora, o método é editado e todos os testes precisam ser refeitos. Qual princípio é violado?\n\nO problema é ter de **modificar** código pronto para **estender** o sistema: viola o **aberto/fechado**. A solução é uma interface `Frete` com uma implementação por transportadora, escolhida por polimorfismo. Se a pergunta falasse de uma classe que calcula o frete **e** imprime a etiqueta **e** grava no banco, a resposta seria responsabilidade única.\n\n### Roteiro para cenário de SOLID\n\n- Classe faz coisas de naturezas diferentes → **S**.\n- Caso novo exige editar `if`/`switch` existente → **O**.\n- Filha quebra quem usava a mãe → **L**.\n- Classe implementa método vazio ou que lança exceção porque a interface é grande demais → **I**.\n- Regra de negócio dá `new` direto numa classe concreta de infraestrutura → **D**.\n\n### Pegadinhas finais\n\n- \"Polimorfismo exige herança de classe\": errado; implementar interface também dá polimorfismo.\n- \"Sobrecarga é decidida em execução\": errado; é na compilação.\n- \"Classe abstrata não pode ter construtor\": errado.\n- \"Interface só pode ter métodos abstratos\": errado desde que existem métodos `default` e `static`.\n- \"Herança é sempre a melhor forma de reaproveitar código\": errado; prefira composição quando a relação for \"tem um\"."
+    }
+  ],
+  "questions": [
+    {
+      "id": "q1",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Pilares e relacionamentos entre classes",
+      "statement": "Ao modelar a classe Aluno de um sistema de matrículas, o programador incluiu nome e número de matrícula, mas deixou de fora altura e cor dos olhos. Qual pilar da orientação a objetos ele aplicou?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Abstração, ao selecionar só o que importa ao problema.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Herança, porque Aluno reaproveita atributos de uma pessoa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Polimorfismo, pois o aluno pode assumir várias formas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Sobrecarga, já que o nome aparece em mais de um lugar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Composição, porque nome e matrícula são partes do aluno.",
+          "correct": false
+        }
+      ],
+      "explanation": "Abstração é escolher só as características relevantes para o problema e ignorar o resto, exatamente o que foi feito. Não há herança (nenhuma classe mãe), nem polimorfismo (nenhuma mensagem com respostas diferentes); sobrecarga é método com mesmo nome e parâmetros diferentes; composição é relação entre objetos, não seleção de atributos.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q2",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Pilares e relacionamentos entre classes",
+      "statement": "Um Departamento guarda uma lista de objetos Professor recebidos de fora; se o departamento for extinto, os professores continuam existindo e podem ir para outro. Como se classifica essa relação?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Composição, porque o departamento é o todo e o professor é a parte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Agregação, pois a parte sobrevive ao todo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Herança, pois todo professor é um departamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Generalização, já que professor é caso geral de departamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Sobrescrita, pois o professor redefine o departamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "É todo e parte em que a parte sobrevive ao todo: agregação. Na composição a parte não existiria sem o todo (como o motor criado dentro do carro). Herança e generalização exigem a relação \"é um\", que não existe entre professor e departamento, e sobrescrita é redefinição de método, não relação entre classes.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q3",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Pilares e relacionamentos entre classes",
+      "statement": "Em qual dos pares abaixo o uso de herança (extends) é o mais adequado?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Carro herdando de Motor, para aproveitar o método ligar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Pedido herdando de Cliente, porque todo pedido tem um cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Gerente herdando de Funcionario.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Casa herdando de Porta, já que a casa tem várias portas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Turma herdando de Aluno, porque a turma reúne alunos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Herança cabe quando a frase \"X é um Y\" é sempre verdadeira: um gerente é um funcionário. Nos outros pares a relação é \"tem um\" (carro tem motor, pedido tem cliente, casa tem porta, turma tem alunos), que se modela com composição, agregação ou associação, e não com extends.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q4",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Pilares e relacionamentos entre classes",
+      "statement": "A classe Termometro guarda a temperatura num atributo private e só a altera pelo método ajustar, que rejeita valores abaixo do zero absoluto. Qual é o principal benefício desse encapsulamento?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Permitir que a classe Termometro herde de várias classes ao mesmo tempo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Fazer o programa rodar mais rápido, porque private dispensa a JVM.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Impedir que se criem objetos da classe Termometro com new.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Garantir a regra do objeto e esconder como ele guarda o dado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Obrigar cada objeto a ter a mesma temperatura dos demais objetos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Encapsular protege as invariantes (ninguém coloca temperatura impossível) e oculta a representação interna, que pode mudar sem afetar os clientes. Private não tem relação com herança múltipla nem com desempenho, não impede o new (quem faz isso é abstract ou construtor privado) e não torna o valor compartilhado (isso seria static).",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q5",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Herança na prática: construção, Object e regras de sobrescrita",
+      "statement": "Sobre a chamada super(...) dentro de um construtor em Java, assinale a alternativa correta.",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Pode aparecer em qualquer linha do construtor, inclusive na última.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Chama um método estático da própria classe com o mesmo nome dela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Só existe em classes abstratas e não pode ser usada nas demais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Deve ser escrita sempre, pois o compilador nunca a acrescenta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Chama o construtor da mãe e deve ser a primeira instrução.",
+          "correct": true
+        }
+      ],
+      "explanation": "super(...) chama o construtor da classe mãe e precisa ser a primeira instrução do construtor; quando não é escrita, o compilador insere super() sem argumentos. Não pode ir para outra linha, não chama método estático, vale para qualquer subclasse (não só abstratas) e não é obrigatória de escrever quando a mãe tem construtor sem parâmetros.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q6",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "statement": "Considere: class Animal { String som() { return \"...\"; } } e class Gato extends Animal { @Override String som() { return \"Miau\"; } }. O que imprime o trecho Animal a = new Gato(); System.out.println(a.som());?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Miau",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "...",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "...Miau",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Nada, porque o código não compila.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Lança ClassCastException.",
+          "correct": false
+        }
+      ],
+      "explanation": "Guardar um Gato numa variável Animal é upcast, automático e válido. Como som() é método de instância sobrescrito, vale o objeto real (ligação dinâmica) e sai Miau. A versão da mãe não roda, as duas não se somam, o código compila e não há cast explícito que possa lançar ClassCastException.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q7",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Princípios SOLID (noções)",
+      "statement": "O princípio da responsabilidade única (a letra S de SOLID) afirma que:",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "cada classe deve ter exatamente um método público.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "uma classe deve ter um único motivo para mudar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "cada sistema deve ter um único objeto de cada classe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "uma classe só pode herdar de uma única outra classe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "cada interface deve ser implementada por uma só classe.",
+          "correct": false
+        }
+      ],
+      "explanation": "Responsabilidade única significa um só motivo para mudar, ou seja, a classe cuida de uma única preocupação (alta coesão). Não limita a quantidade de métodos nem de objetos; a herança simples de classes é regra da linguagem Java, não do princípio; e uma interface pode ter quantas implementações forem úteis.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q8",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Princípios SOLID (noções)",
+      "statement": "No acrônimo SOLID, a letra D corresponde a qual princípio?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Design por contrato (Design by Contract).",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Encapsulamento de dados (Data Hiding).",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Inversão de dependência (Dependency Inversion).",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Não se repita (Don't Repeat Yourself).",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Injeção de dependência (Dependency Injection).",
+          "correct": false
+        }
+      ],
+      "explanation": "O D de SOLID é o princípio da inversão de dependência. Design por contrato, ocultação de dados e DRY são ideias reais de engenharia de software, mas não fazem parte do acrônimo. Injeção de dependência é a técnica mais usada para aplicar o princípio, e não o princípio em si.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q9",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Pilares e relacionamentos entre classes",
+      "statement": "Qual combinação de coesão e acoplamento é buscada num bom projeto orientado a objetos?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Baixa coesão e baixo acoplamento, para as classes ficarem independentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Alta coesão e alto acoplamento, para as classes cooperarem mais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Baixa coesão e alto acoplamento, para reaproveitar o máximo de código.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Alta coesão e baixo acoplamento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Coesão e acoplamento iguais, pois uma medida anula a outra.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quer-se alta coesão (cada classe com tarefas relacionadas entre si) e baixo acoplamento (pouca dependência dos detalhes de outras classes). Baixa coesão gera classes que fazem de tudo; alto acoplamento faz uma mudança se espalhar pelo sistema; e as duas medidas são independentes, uma não anula a outra.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q10",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Herança na prática: construção, Object e regras de sobrescrita",
+      "statement": "Dadas as classes class A { A() { System.out.print(\"A \"); } }, class B extends A { B() { System.out.print(\"B \"); } } e class C extends B { C() { super(); System.out.print(\"C\"); } }, o que imprime new C();?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "C",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "C B A",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "B C",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Nada, pois falta super() no construtor de B.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "A B C",
+          "correct": true
+        }
+      ],
+      "explanation": "O construtor de C chama o de B, que chama implicitamente o de A; cada um só imprime depois que a chamada à mãe termina, então a saída é A B C. O construtor da mãe roda antes, não depois, por isso C B A erra; e o super() de B é inserido pelo compilador, então o código compila normalmente.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q11",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Herança na prática: construção, Object e regras de sobrescrita",
+      "statement": "Uma classe Cpf sobrescreveu equals para comparar o número, mas não sobrescreveu hashCode. Qual problema isso pode causar?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Um HashSet pode guardar dois Cpf iguais pelo equals como se fossem diferentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "O código deixa de compilar, pois equals e hashCode são abstratos em Object.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "O método toString passa a lançar exceção sempre que é chamado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "O operador == passa a comparar o conteúdo em vez da identidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Nenhum, porque hashCode só é usado por ArrayList.",
+          "correct": false
+        }
+      ],
+      "explanation": "O contrato exige que objetos iguais pelo equals tenham o mesmo hashCode; sem sobrescrever, dois Cpf iguais tendem a ter códigos diferentes e o HashSet os trata como distintos. Os métodos de Object não são abstratos (compila), toString não é afetado, == continua comparando identidade e quem usa hashCode são as coleções de hash, não o ArrayList.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q12",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Herança na prática: construção, Object e regras de sobrescrita",
+      "statement": "A classe Animal declara protected Animal criar() e public String som(). Qual das declarações abaixo, numa classe Gato extends Animal, compila como sobrescrita válida?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "protected String som() { return \"Miau\"; }",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "public Gato criar() { return new Gato(); }",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "String som() { return \"Miau\"; }",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "private Animal criar() { return new Gato(); }",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "public int som() { return 1; }",
+          "correct": false
+        }
+      ],
+      "explanation": "Na sobrescrita a visibilidade pode aumentar (protected para public) e o retorno pode ser um subtipo (Gato em vez de Animal, retorno covariante), por isso B compila. A e C reduzem a visibilidade de som(), que é public; D reduz criar() para private; E troca o retorno por int, tipo incompatível com String, e não compila.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q13",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "statement": "A classe Impressora tem static void mostrar(Object o) { System.out.println(\"Object\"); } e static void mostrar(String s) { System.out.println(\"String\"); }. O que imprime Object x = \"oi\"; Impressora.mostrar(x);?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "String, porque o objeto guardado em x é uma String.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Nada, porque a chamada é ambígua e não compila.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Object",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Object e depois String, pois as duas versões rodam.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "oi",
+          "correct": false
+        }
+      ],
+      "explanation": "Na sobrecarga, a versão é escolhida na compilação pelo tipo declarado do argumento; x é declarado Object, então roda mostrar(Object) e sai Object. O tipo real String só importaria em sobrescrita. Não há ambiguidade, só uma versão executa e nenhum método imprime o conteúdo oi.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q14",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "statement": "Numa interface, foi declarado int MAXIMO = 10; sem nenhum modificador. Como o Java trata esse campo?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Como atributo de instância, com uma cópia em cada objeto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Como atributo private visível só dentro da interface.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Como erro de compilação, pois interface não tem campos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Como constante public static final.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Como variável que cada classe que implementa pode alterar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Todo campo declarado em interface é implicitamente public, static e final: uma constante acessível pelo nome da interface, como em NomeDaInterface.MAXIMO. Interfaces não têm atributos de instância, o campo não é private, a declaração compila normalmente e, por ser final, nenhuma classe pode mudar o valor.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q15",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Princípios SOLID (noções)",
+      "statement": "Um método calcula o frete com um switch sobre o tipo de entrega, e cada nova transportadora obriga a editar esse switch. Qual alternativa aponta o princípio violado e a correção usual?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Segregação de interfaces; dividir o switch em dois métodos menores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Substituição de Liskov; transformar o método em static.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Responsabilidade única; trocar o switch por uma sequência de if.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Inversão de dependência; tornar a classe de frete final.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Aberto/fechado; criar uma interface Frete com uma classe por entrega.",
+          "correct": true
+        }
+      ],
+      "explanation": "Ter de modificar código pronto para acrescentar um caso viola o aberto/fechado; com uma interface Frete e uma implementação por transportadora, o sistema cresce por novas classes, via polimorfismo. Trocar switch por if, dividir o método, usar static ou final não resolve, e os outros princípios citados tratam de outros problemas.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q16",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Princípios SOLID (noções)",
+      "statement": "A interface Multifuncional tem imprimir(), escanear() e enviarFax(). A classe ImpressoraSimples a implementa e deixa escanear e enviarFax lançando exceção. Qual princípio está sendo violado?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Segregação de interfaces, por forçar métodos que a classe não usa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Aberto/fechado, porque a classe não pode ser estendida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Inversão de dependência, pois a classe não tem construtor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Encapsulamento, já que os métodos da interface são públicos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Responsabilidade única, porque imprimir é uma só tarefa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Segregação de interfaces diz que nenhuma classe deve ser forçada a depender de métodos que não usa; a solução é quebrar Multifuncional em interfaces menores. O problema não é extensão, construtor ou métodos públicos (todo método de interface é público), e a impressora simples em si tem uma responsabilidade só.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q17",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "statement": "Dadas class Pai { String nome = \"pai\"; String quem() { return \"Pai\"; } } e class Filho extends Pai { String nome = \"filho\"; @Override String quem() { return \"Filho\"; } }, o que imprime Pai p = new Filho(); System.out.println(p.nome + \" \" + p.quem());?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "filho Filho",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "pai Filho",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "pai Pai",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "filho Pai",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Não compila, pois nome está declarado duas vezes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Atributos não são polimórficos: o nome da filha só esconde o da mãe, e o acesso p.nome usa o tipo declarado, Pai, dando pai. Já quem() é método de instância sobrescrito e segue o objeto real, dando Filho. Declarar atributo com o mesmo nome na subclasse é permitido, então o código compila.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q18",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "statement": "Gato e Cachorro estendem Animal. Sobre as linhas Animal a = new Gato(); Cachorro c = (Cachorro) a;, assinale a alternativa correta.",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Não compilam, pois o compilador sabe que a aponta para um Gato.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Compilam e c passa a ser um Cachorro com os dados do Gato.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Compilam, mas lançam ClassCastException na execução.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Compilam e c recebe null, sem nenhum erro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Não compilam, porque todo downcast é proibido em Java.",
+          "correct": false
+        }
+      ],
+      "explanation": "O compilador só olha o tipo declarado: um Animal pode ser um Cachorro, então o cast é aceito. Na execução a JVM vê que o objeto é um Gato e lança ClassCastException. Cast não converte um objeto em outro nem devolve null, e downcast é permitido (o erro de compilação só ocorre entre tipos sem parentesco).",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q19",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "statement": "As interfaces Voador e Nadador têm, cada uma, default String mover() com corpos diferentes. A classe Pato implements Voador, Nadador. Qual afirmação é correta?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Compila, e prevalece a versão da interface que aparece primeiro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Compila, e a versão é sorteada pela JVM a cada execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Não compila de jeito nenhum: Java proíbe as duas interfaces juntas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Pato deve sobrescrever mover() e pode chamar Voador.super.mover().",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Basta Pato ser abstrata para herdar as duas versões ao mesmo tempo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com dois default de mesma assinatura, o compilador exige que Pato sobrescreva mover(); dentro dele, Interface.super.metodo() escolhe uma das versões. Sem a sobrescrita não compila, não existe regra de ordem nem sorteio, as interfaces podem conviver desde que o conflito seja resolvido, e marcar Pato como abstrata não elimina o conflito.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q20",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "statement": "Pai declara static String tipo() { return \"static do Pai\"; } e Filho extends Pai declara static String tipo() { return \"static do Filho\"; }. O que imprime Pai p = new Filho(); System.out.println(p.tipo());?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "static do Filho, porque o objeto real é Filho.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Não compila: método static não pode ter o mesmo nome na filha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "static do Filho, pois static sempre segue a subclasse.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Lança NullPointerException, pois static não tem objeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "static do Pai",
+          "correct": true
+        }
+      ],
+      "explanation": "Métodos static pertencem à classe e não são sobrescritos, só escondidos; a chamada é resolvida pelo tipo declarado da variável, Pai, e sai static do Pai. Declarar static com o mesmo nome na filha é permitido, o objeto real não entra na decisão e chamar static por uma variável não lança exceção (apenas não é boa prática).",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q21",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Herança na prática: construção, Object e regras de sobrescrita",
+      "statement": "Considere class Mae { Mae(String n) { } } e class Filha extends Mae { Filha() { } }. O que acontece?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Não compila: o super() implícito não acha Mae sem parâmetros.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Compila, e o construtor da mãe recebe null automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Compila, e o construtor da mãe simplesmente não é executado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Compila, mas lança exceção ao criar new Filha() na execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Compila, pois o compilador cria Mae() sem parâmetros sozinho.",
+          "correct": false
+        }
+      ],
+      "explanation": "O compilador insere super() no construtor de Filha, mas Mae só tem Mae(String); ao escrever esse construtor, o padrão sem parâmetros deixou de existir. O erro é de compilação, não de execução; o Java não passa null sozinho, não pula o construtor da mãe e não cria Mae() quando já existe outro construtor.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q22",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Princípios SOLID (noções)",
+      "statement": "Quadrado estende Retangulo e, ao receber setAltura(4), muda também a largura. Um código que faz setLargura(5) e setAltura(4) num Retangulo espera área 20, mas com Quadrado obtém 16. O que esse caso ilustra?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Violação da responsabilidade única, pois Quadrado calcula área.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Violação da substituição de Liskov.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Aplicação correta do aberto/fechado, já que Retangulo não mudou.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Erro de compilação, porque Quadrado não pode estender Retangulo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Violação da segregação de interfaces, por haver dois setters.",
+          "correct": false
+        }
+      ],
+      "explanation": "A filha não pode ser usada onde se espera a mãe sem quebrar o comportamento prometido, que é a definição da violação de Liskov. Calcular área é a responsabilidade natural da classe, Retangulo não mudar não salva o projeto quando os clientes quebram, a herança compila normalmente e os setters não forçam métodos inúteis em ninguém.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q23",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Princípios SOLID (noções)",
+      "statement": "A classe Pedido recebe no construtor um objeto do tipo Notificador (uma interface) e, em fechar(), chama notificador.enviar(\"pedido fechado\"). EmailNotificador implementa Notificador. Qual afirmação é correta?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Pedido viola a inversão de dependência por não criar o e-mail com new.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Pedido precisa ser alterado se o envio passar de e-mail para SMS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Pedido depende da abstração, e a implementação vem por injeção.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "EmailNotificador pode declarar enviar sem public e ainda compilar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Interfaces não podem ser tipo de parâmetro de construtor em Java.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pedido (alto nível) conhece só a interface Notificador, e a implementação concreta chega pronta pelo construtor: inversão de dependência aplicada com injeção de dependência. Por isso trocar para SMS não altera Pedido; dar new em EmailNotificador dentro dele é que violaria o princípio; o método da interface é public e precisa continuar public; e interface pode ser tipo de qualquer parâmetro.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q24",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "statement": "Sobre classes abstratas e interfaces em Java, assinale a alternativa correta.",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Uma classe abstrata não pode declarar construtor, já que não é instanciada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Uma classe abstrata precisa ter pelo menos um método abstrato.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Uma interface pode ter atributos de instância, desde que privados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Classe abstrata pode ter construtor, chamado pelas filhas via super.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Uma interface só pode estender uma única outra interface.",
+          "correct": false
+        }
+      ],
+      "explanation": "Classe abstrata pode ter construtor para inicializar seus atributos, e as subclasses o chamam com super(...). Ela pode inclusive não ter nenhum método abstrato (o abstract só impede o new). Interface não tem atributos de instância, só constantes, e pode estender várias interfaces ao mesmo tempo.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q25",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Herança na prática: construção, Object e regras de sobrescrita",
+      "statement": "Dadas abstract class Relatorio { final String gerar() { return \"[\" + corpo() + \"]\"; } abstract String corpo(); } e class Vendas extends Relatorio { String corpo() { return \"vendas\"; } }, o que imprime Relatorio r = new Vendas(); System.out.println(r.gerar());?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "[]",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Não compila, porque gerar() é final e Vendas não pode usá-lo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Não compila, porque Relatorio não pode ser tipo de variável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "[null]",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "[vendas]",
+          "correct": true
+        }
+      ],
+      "explanation": "gerar() é herdado por Vendas (final só impede sobrescrever, não usar), e a chamada corpo() dentro dele vai para a versão do objeto real, que devolve vendas, resultando em [vendas]. Classe abstrata pode ser tipo de variável, só não pode ser instanciada; e corpo() não volta vazio nem null porque Vendas o implementou.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q26",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Pilares e relacionamentos entre classes",
+      "statement": "Todo objeto possui estado, comportamento e identidade, de modo que dois objetos com os mesmos valores nos atributos continuam sendo objetos distintos.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Estado são os valores dos atributos, comportamento são os métodos e identidade é o fato de cada objeto ser único; duas contas com o mesmo saldo são dois objetos, e == entre elas dá false enquanto equals não for sobrescrito.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q27",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Pilares e relacionamentos entre classes",
+      "statement": "Encapsulamento significa, simplesmente, criar um getter e um setter públicos para cada atributo privado da classe.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Encapsular é proteger o estado e garantir as regras do objeto, expondo só operações que fazem sentido. Getter e setter para tudo, sem nenhuma validação, deixam o atributo praticamente tão exposto quanto se ele fosse público.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q28",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Pilares e relacionamentos entre classes",
+      "statement": "Na composição, a parte depende do todo para existir: um motor criado e controlado exclusivamente por um carro deixa de existir junto com esse carro.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Composição é a forma mais forte de associação todo-parte: o ciclo de vida da parte está preso ao do todo. Na agregação, ao contrário, a parte vive sozinha, como o professor que continua existindo quando o departamento é extinto.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q29",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "statement": "Em Java, só há polimorfismo quando as classes envolvidas herdam de uma mesma classe mãe por meio de extends.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Classes sem parentesco que implementam a mesma interface também são tratadas polimorficamente: uma variável Desconto pode guardar SemDesconto ou DescontoEstudante, e cada um responde a aplicar do seu jeito.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q30",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "statement": "Polimorfismo permite que um laço percorra um array de Animal e chame som() em cada elemento, obtendo de cada objeto a resposta da sua própria classe.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Com Animal[] bichos = { new Cachorro(), new Gato(), new Animal() }, o laço que imprime som() produz Au Miau ..., porque cada chamada segue o objeto real; o laço não precisa saber quais tipos concretos estão no array.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q31",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Princípios SOLID (noções)",
+      "statement": "Segundo o princípio da responsabilidade única, cada classe deve possuir um único método.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O princípio fala em um único motivo para mudar, não em um único método. A classe Termometro pode ter ajustar e getFahrenheit e continuar com uma responsabilidade só, a temperatura; o que se evita é misturar cálculo, gravação e envio na mesma classe.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q32",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "statement": "Em Java, uma interface pode estender mais de uma interface, como em interface Anfibio extends Voador, Nadador.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A restrição de herdar de uma só vale para classes; interfaces podem estender várias interfaces. Se duas delas tiverem default com a mesma assinatura, a interface filha precisa resolver o conflito, por exemplo redeclarando o método.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q33",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "statement": "Na sobrecarga de métodos, a versão executada é escolhida em tempo de execução, conforme o tipo real do objeto passado como argumento.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A sobrecarga é resolvida pelo compilador olhando o tipo declarado dos argumentos (polimorfismo estático). Com Object x = \"oi\", a chamada mostrar(x) usa a versão de Object, mesmo que o objeto seja String. Quem decide em execução pelo objeto real é a sobrescrita.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q34",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Herança na prática: construção, Object e regras de sobrescrita",
+      "statement": "Um método private da classe mãe não é sobrescrito: se a filha declarar um método com o mesmo nome e parâmetros, trata-se de um método novo, sem relação com o da mãe.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Membros private não são visíveis na subclasse, então não podem ser sobrescritos. O método da filha é independente, e colocar @Override nele gera erro de compilação, justamente porque não há método herdado a sobrescrever.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q35",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "statement": "Para ser declarada abstract, uma classe Java precisa conter obrigatoriamente pelo menos um método abstrato.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. abstract class SemAbstrato { void x() {} } compila: uma classe abstrata pode ter só métodos concretos, e o abstract apenas impede o new. A regra que existe é a inversa: se a classe tem um método abstrato, ela tem de ser abstrata.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q36",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "statement": "Métodos default permitem que uma interface forneça uma implementação com corpo, que as classes que a implementam herdam sem precisar reescrever.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um método default tem corpo dentro da interface e é herdado pelas classes que a implementam, que podem usá-lo como está ou sobrescrevê-lo. Por isso não é mais verdade que interface só tem métodos abstratos.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q37",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Herança na prática: construção, Object e regras de sobrescrita",
+      "statement": "Escrever public boolean equals(Cpf o) na classe Cpf sobrescreve o equals de Object, e a anotação @Override sobre ele seria aceita pelo compilador.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O equals de Object recebe Object; com parâmetro Cpf, o método é uma sobrecarga, e @Override nele gera erro de compilação. Coleções como HashSet continuam chamando equals(Object), por isso a versão correta precisa receber Object.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q38",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Princípios SOLID (noções)",
+      "statement": "Pelo princípio da inversão de dependência, módulos de alto nível não devem depender de módulos de baixo nível; ambos devem depender de abstrações.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. É o enunciado do princípio: a regra de negócio (como Pedido) conhece uma interface (Notificador), e o detalhe de infraestrutura (EmailNotificador) a implementa. Assim o detalhe pode ser trocado sem mexer na regra de negócio.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q39",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Herança na prática: construção, Object e regras de sobrescrita",
+      "statement": "Ao sobrescrever um método public herdado, a subclasse pode declará-lo como protected para restringir o acesso.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A sobrescrita não pode reduzir a visibilidade; trocar public por protected gera erro de compilação. Faz sentido: quem usa uma variável do tipo da mãe conta com o método público, e a filha não pode retirar essa promessa. Aumentar a visibilidade é permitido.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q40",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "statement": "Sendo Gato e Cachorro subclasses de Animal, a instrução Cachorro c = (Cachorro) new Gato(); não compila, enquanto Animal a = new Gato(); Cachorro c = (Cachorro) a; compila e falha só na execução.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No primeiro caso o compilador sabe que a expressão é um Gato, que nunca pode ser Cachorro, e recusa o cast. No segundo, o tipo declarado é Animal, que poderia ser Cachorro, então compila, e a JVM lança ClassCastException ao ver o objeto real.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q41",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "statement": "Se a interface Voador declara static String info(), e a classe Ave implementa Voador, a chamada new Ave().info() compila e executa normalmente.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Métodos static de interface não são herdados pelas classes que a implementam; só podem ser chamados pelo nome da interface, como Voador.info(). A chamada pelo objeto de Ave gera erro de compilação (símbolo não encontrado).",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q42",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Herança na prática: construção, Object e regras de sobrescrita",
+      "statement": "Se Animal declara Animal criar(), a subclasse Gato pode sobrescrevê-lo como Gato criar(), pois Java admite tipo de retorno covariante na sobrescrita.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Na sobrescrita o retorno pode ser o mesmo tipo ou um subtipo dele. Como todo Gato é um Animal, quem chama criar() por uma variável Animal continua recebendo algo compatível, e o código compila com @Override.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q43",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "statement": "Se Pai e Filho declaram, cada um, um atributo String nome com valores diferentes, então Pai p = new Filho(); faz p.nome devolver o valor declarado em Filho, por causa da ligação dinâmica.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Ligação dinâmica vale para métodos de instância sobrescritos, não para atributos. O atributo da filha apenas esconde o da mãe, e o acesso p.nome é resolvido pelo tipo declarado, Pai, devolvendo o valor declarado em Pai.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q44",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Princípios SOLID (noções)",
+      "statement": "Uma subclasse que lança exceção num método que, na classe mãe, sempre funcionava, quebrando o código escrito para a mãe, viola o princípio da substituição de Liskov.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Liskov exige que a filha possa ocupar o lugar da mãe sem surpreender quem a usa. Lançar exceção onde a mãe funcionava muda o comportamento prometido e quebra os clientes, mesmo que o código compile perfeitamente.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q45",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Polimorfismo a fundo, classes abstratas e interfaces",
+      "statement": "Dada interface Notificador { void enviar(String msg); }, a classe class Sms implements Notificador { void enviar(String msg) { } } compila, porque sem modificador o método fica visível no pacote.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O método abstrato da interface é implicitamente public, e implementá-lo sem public seria reduzir a visibilidade, o que a sobrescrita não admite. O compilador acusa que enviar em Sms não pode implementar o método de Notificador.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    }
+  ],
+  "flashcards": [
+    {
+      "front": "Quais são os três elementos de todo objeto?",
+      "back": "Estado (valores dos atributos), comportamento (métodos) e identidade (cada objeto é único, mesmo com estado igual a outro)."
+    },
+    {
+      "front": "O que é abstração?",
+      "back": "Modelar só o que importa ao problema e ignorar o irrelevante."
+    },
+    {
+      "front": "Encapsulamento é só getter e setter?",
+      "back": "Não. É proteger o estado e garantir as regras (invariantes) do objeto, escondendo como ele guarda os dados."
+    },
+    {
+      "front": "Coesão e acoplamento desejáveis?",
+      "back": "Alta coesão e baixo acoplamento."
+    },
+    {
+      "front": "Agregação x composição?",
+      "back": "Agregação: a parte vive sem o todo (professor e departamento). Composição: a parte morre com o todo (motor criado pelo carro)."
+    },
+    {
+      "front": "Quando usar herança?",
+      "back": "Quando \"X é um Y\" for sempre verdade. Se for \"X tem um Y\", use composição."
+    },
+    {
+      "front": "Em que ordem rodam os construtores numa hierarquia A > B > C?",
+      "back": "De cima para baixo: A, depois B, depois C."
+    },
+    {
+      "front": "Mãe só tem construtor com parâmetro. E a filha?",
+      "back": "Precisa chamar super(argumentos) na primeira linha; senão não compila."
+    },
+    {
+      "front": "Sobrescreveu equals. E aí?",
+      "back": "Sobrescreva hashCode também: objetos iguais pelo equals devem ter o mesmo hashCode."
+    },
+    {
+      "front": "O que pode mudar ao sobrescrever?",
+      "back": "Visibilidade pode aumentar (nunca diminuir) e o retorno pode ser um subtipo (covariante)."
+    },
+    {
+      "front": "Sobrecarga x sobrescrita: quando cada uma é decidida?",
+      "back": "Sobrecarga: na compilação, pelo tipo declarado. Sobrescrita: na execução, pelo objeto real."
+    },
+    {
+      "front": "Atributo e método static são polimórficos?",
+      "back": "Não. São escondidos, e vale o tipo declarado da variável."
+    },
+    {
+      "front": "Downcast errado: erro de compilação ou execução?",
+      "back": "Execução (ClassCastException), se os tipos têm parentesco. Entre classes sem parentesco, nem compila."
+    },
+    {
+      "front": "Campos de interface são o quê?",
+      "back": "Constantes: implicitamente public static final."
+    },
+    {
+      "front": "Dois default iguais vindos de interfaces diferentes?",
+      "back": "A classe é obrigada a sobrescrever; pode chamar Interface.super.metodo()."
+    },
+    {
+      "front": "Classe abstrata pode ter construtor?",
+      "back": "Sim, e as filhas o chamam com super(...). Também pode não ter nenhum método abstrato."
+    },
+    {
+      "front": "O que significa cada letra de SOLID?",
+      "back": "Responsabilidade única, aberto/fechado, substituição de Liskov, segregação de interfaces, inversão de dependência."
+    },
+    {
+      "front": "Sinal clássico de violação do aberto/fechado?",
+      "back": "Um if/switch que precisa ser editado a cada novo caso."
+    },
+    {
+      "front": "Exemplo clássico de violação de Liskov?",
+      "back": "Quadrado estendendo Retangulo: mudar a altura muda a largura e quebra quem esperava um retângulo."
+    },
+    {
+      "front": "Inversão x injeção de dependência?",
+      "back": "Inversão é o princípio (depender de abstrações); injeção é a técnica de receber a dependência pronta, por exemplo no construtor."
+    }
+  ],
+  "tips": [
+    "Em código com Pai p = new Filho(), pergunte para cada chamada: é método de instância sobrescrito? Então vale o objeto real. Atributo, static ou sobrecarga? Vale o tipo da variável.",
+    "Em \"compila ou não compila\", procure: visibilidade reduzida, falta de super(...), dois default em conflito, método de interface implementado sem public, cast entre classes sem parentesco.",
+    "Para saber se é herança, leia em voz alta \"X é um Y\". Se soar estranho, a resposta é composição ou agregação.",
+    "Em cenário de SOLID, procure o sintoma: classe faz de tudo (S), switch que cresce (O), filha que quebra o cliente (L), método vazio por obrigação (I), new direto na infraestrutura (D).",
+    "Viu equals(Algo o) com parâmetro que não é Object? É sobrecarga, e @Override nele não compila."
+  ],
+  "traps": [
+    "Dizer que encapsulamento é apenas gerar getters e setters.",
+    "Trocar agregação por composição: na composição a parte morre com o todo.",
+    "Achar que p.nome segue o objeto real: atributos não são polimórficos.",
+    "Afirmar que a sobrecarga é decidida em tempo de execução.",
+    "Dizer que classe abstrata não pode ter construtor ou que precisa ter método abstrato.",
+    "Ler responsabilidade única como \"um único método por classe\"."
+  ],
+  "activeRecall": [
+    {
+      "question": "Por que criar getter e setter públicos para tudo não garante encapsulamento?",
+      "answer": "Porque o atributo pode ser alterado livremente, sem nenhuma regra; encapsular é deixar a mudança passar por métodos que preservam as invariantes do objeto."
+    },
+    {
+      "question": "Explique a diferença entre agregação e composição com um exemplo de cada.",
+      "answer": "Agregação: Departamento e Professor, o professor existe sem o departamento. Composição: Carro e o Motor que ele cria, o motor não existe fora daquele carro."
+    },
+    {
+      "question": "O que imprime new C() se A, B e C formam a cadeia de herança e cada construtor imprime a própria letra? Por quê?",
+      "answer": "A B C, porque cada construtor chama primeiro o da mãe (super() implícito ou explícito) e só imprime depois que ele termina."
+    },
+    {
+      "question": "Com Pai p = new Filho(), o que segue o objeto real e o que segue a variável?",
+      "answer": "Segue o objeto real: método de instância sobrescrito. Segue a variável: atributos, métodos static e a escolha entre versões sobrecarregadas."
+    },
+    {
+      "question": "Como resolver duas interfaces com o mesmo método default numa só classe?",
+      "answer": "Sobrescrevendo o método na classe; dentro dele pode-se chamar Voador.super.mover() ou Nadador.super.mover()."
+    },
+    {
+      "question": "Como a classe Pedido aplica a inversão de dependência?",
+      "answer": "Ela depende só da interface Notificador e recebe a implementação concreta pelo construtor; trocar e-mail por SMS não muda Pedido."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Pilares e relacionamentos",
+      "summary": "Confundir abstração, encapsulamento, herança e polimorfismo; inverter agregação e composição; errar o desejável em coesão e acoplamento; usar herança onde a relação é \"tem um\"."
+    },
+    {
+      "key": "e2",
+      "title": "Construção, Object e sobrescrita",
+      "summary": "Errar a ordem dos construtores e a regra do super(); esquecer o contrato equals/hashCode; não saber o que é permitido ao sobrescrever (visibilidade, retorno covariante, private e final)."
+    },
+    {
+      "key": "e3",
+      "title": "Polimorfismo e casts",
+      "summary": "Confundir ligação dinâmica com resolução da sobrecarga; achar que atributos e static são polimórficos; errar quando um cast falha na compilação ou na execução."
+    },
+    {
+      "key": "e4",
+      "title": "Classes abstratas e interfaces",
+      "summary": "Errar regras de classe abstrata (construtor, métodos), de interface (constantes, default, static, public implícito) e o conflito entre métodos default."
+    },
+    {
+      "key": "e5",
+      "title": "Princípios SOLID",
+      "summary": "Confundir as cinco letras, ler responsabilidade única como um método, não reconhecer o sintoma de cada violação e misturar inversão com injeção de dependência."
+    }
+  ],
+  "sources": [
+    {
+      "title": "The Java Tutorials: Object-Oriented Programming Concepts",
+      "kind": "OFICIAL",
+      "publisher": "Oracle",
+      "reference": "Conceitos de objeto, classe, herança, interface e pacote",
+      "url": "https://docs.oracle.com/javase/tutorial/java/concepts/",
+      "sourceUrl": "https://docs.oracle.com/javase/tutorial/java/concepts/",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "title": "The Java Tutorials: Interfaces and Inheritance",
+      "kind": "OFICIAL",
+      "publisher": "Oracle",
+      "reference": "Interfaces, métodos default e static, herança, sobrescrita, polimorfismo, Object e classes abstratas",
+      "url": "https://docs.oracle.com/javase/tutorial/java/IandI/",
+      "sourceUrl": "https://docs.oracle.com/javase/tutorial/java/IandI/",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "title": "The Java Language Specification",
+      "kind": "OFICIAL",
+      "publisher": "Oracle",
+      "reference": "Especificação da linguagem: classes, interfaces, sobrescrita e ocultação de membros",
+      "url": "https://docs.oracle.com/javase/specs/",
+      "sourceUrl": "https://docs.oracle.com/javase/specs/",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "title": "The Principles of OOD",
+      "kind": "COMPLEMENTAR",
+      "publisher": "Robert C. Martin",
+      "reference": "Texto do autor que reúne os princípios de projeto orientado a objetos depois conhecidos como SOLID",
+      "url": "http://butunclebob.com/ArticleS.UncleBob.PrinciplesOfOod",
+      "sourceUrl": "http://butunclebob.com/ArticleS.UncleBob.PrinciplesOfOod",
+      "accessedAt": "2026-10-08"
+    }
+  ]
+}
