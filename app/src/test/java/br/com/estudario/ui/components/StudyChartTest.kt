@@ -70,6 +70,14 @@ class StudyChartTest {
     }
 
     @Test
+    fun cercaComTilsTambemViraGrafico() {
+        val parts = splitCharts("Antes\n\n~~~grafico\n{\"tipo\":\"barras\",\"itens\":[{\"rotulo\":\"A\",\"valor\":5},{\"rotulo\":\"B\",\"valor\":10}]}\n~~~\n\nDepois")
+        assertEquals(3, parts.size)
+        assertTrue(parts[1].second is StudyChart.Bars)
+        assertEquals("Depois", parts[2].first)
+    }
+
+    @Test
     fun graficoQuebradoNaoAparece() {
         val parts = splitCharts("Texto\n```grafico\n{quebrado\n```")
         assertEquals(listOf("Texto"), parts.map { it.first })
