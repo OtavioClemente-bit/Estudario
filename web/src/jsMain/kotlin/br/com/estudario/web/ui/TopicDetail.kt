@@ -492,8 +492,8 @@ private fun TheoryReader(theory: Theory) {
         }
     }
     // Fontes citadas no meio dos parágrafos saem do texto e vão, numeradas, para o fim da teoria.
+    // Citações da busca no meio do texto saem; as fontes ficam só em "Sobre este conteúdo".
     val extracted = remember(blocks) { blocks.map { InlineSources.extract(it) } }
-    val citedSources = remember(extracted) { extracted.flatMap { it.second }.distinctBy { it.second } }
     Div({ classes("theory-text") }) {
         extracted.map { it.first }.forEachIndexed { i, block ->
             val trap = calloutTrap(block)
@@ -505,16 +505,6 @@ private fun TheoryReader(theory: Theory) {
                     Div({ classes("callout-head") }) { Icon(if (trap) "warning" else "lightbulb", filled = true); Text(if (trap) "Atenção" else "Dica") }
                     Markdown(block.lines().joinToString("\n") { it.trimStart().removePrefix(">").removePrefix(" ") })
                 } else Markdown(block)
-            }
-        }
-        if (citedSources.isNotEmpty()) Div({ classes("theory-sources") }) {
-            org.jetbrains.compose.web.dom.H4 { Text("Fontes citadas") }
-            org.jetbrains.compose.web.dom.Ol {
-                citedSources.forEach { (label, url) ->
-                    org.jetbrains.compose.web.dom.Li {
-                        org.jetbrains.compose.web.dom.A(href = url, { classes("md-link"); attr("target", "_blank"); attr("rel", "noopener noreferrer"); attr("title", url) }) { Text(label) }
-                    }
-                }
             }
         }
         Div({ classes("theory-end") }) {

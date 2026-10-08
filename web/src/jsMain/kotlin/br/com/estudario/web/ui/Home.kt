@@ -78,9 +78,9 @@ fun HomeScreen() {
             Div({ classes("hh-bar") }) { Span({ attr("style", "width:${coverage.coerceAtLeast(2)}%") }) }
         }
         Div({ classes("hh-pills") }) {
-            Span({ classes("hh-pill") }) { Icon("local_fire_department"); Text(if (streak.current == 0) "Comece a sequência hoje" else "${streak.current} ${if (streak.current == 1) "dia" else "dias"} seguidos") }
-            Span({ classes("hh-pill") }) { Icon("military_tech"); Text("Nível ${progress.level} · ${progress.levelTitle}") }
-            Span({ classes("hh-pill") }) { Icon("bolt"); Text("+${progress.xpToday} XP hoje") }
+            Span({ classes("hh-pill", "link"); onClick { it.stopPropagation(); Router.go(Route.Plan) } }) { Icon("local_fire_department"); Text(if (streak.current == 0) "Comece a sequência hoje" else "${streak.current} ${if (streak.current == 1) "dia" else "dias"} seguidos") }
+            Span({ classes("hh-pill", "link"); onClick { it.stopPropagation(); Router.go(Route.Achievements) } }) { Icon("military_tech"); Text("Nível ${progress.level} · ${progress.levelTitle}") }
+            Span({ classes("hh-pill", "link"); onClick { it.stopPropagation(); Router.go(Route.Stats) } }) { Icon("bolt"); Text("+${progress.xpToday} XP hoje") }
         }
     }
 
@@ -239,7 +239,7 @@ private fun PaceCard(data: Snapshot, planId: String?, exam: Long?) {
         exam - forecast >= 0 -> Triple("#F2A900", "Ritmo apertado.", "A previsão de cobertura é ${Queries.dayLabel(LocalDate.fromEpochDays(forecast))}, perto demais da prova para sobrar tempo de revisão.")
         else -> Triple("var(--red)", "O ritmo atual não fecha o edital.", "Sobra conteúdo para ${forecast - exam} dias depois da prova. Ajustar as horas da semana ou as prioridades muda essa conta.")
     }
-    Div({ classes("insight", "clickable"); onClick { Router.go(if (planId == null) Route.Setup else Route.Plan) } }) {
+    Div({ classes("insight", "clickable"); onClick { if (planId == null) Router.go(Route.Setup) else { PlanEntry.overview = true; Router.go(Route.Plan) } } }) {
         Span({ classes("insight-mark"); attr("style", "background:$tone") })
         Div({ classes("grow") }) {
             Span({ classes("insight-label") }) { Text("Previsão") }
@@ -282,7 +282,8 @@ private fun PerformanceAndStanding(data: Snapshot, streakDays: Int, best: Int) {
                 }
             }
         }
-        Card(extra = "clickable mini-stat", attrs = { onClick { Router.go(Route.Profile) } }) {
+        // Constância: "Comece hoje" leva ao plano do dia.
+        Card(extra = "clickable mini-stat", attrs = { onClick { Router.go(Route.Plan) } }) {
             Span({ classes("insight-label") }) { Text("Constância") }
             if (streakDays == 0) {
                 B({ classes("big-num") }) { Text("Comece hoje") }

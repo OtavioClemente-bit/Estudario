@@ -32,11 +32,14 @@ import org.jetbrains.compose.web.dom.Ul
 
 private enum class PlanView(val label: String, val icon: String) { TODAY("Hoje", "today"), WEEK("Semana", "date_range"), MONTH("Mês", "calendar_month"), OVERVIEW("Visão geral", "insights") }
 
+/** Quem abre o plano pela "Previsão" do Início cai direto na visão geral; o resto, no dia de hoje. */
+object PlanEntry { var overview = false }
+
 @Composable
 fun PlanScreen() {
     val data = Store.data
     val plan = Queries.activePlan(data)
-    var view by remember { mutableStateOf(PlanView.TODAY) }
+    var view by remember { mutableStateOf(if (PlanEntry.overview) PlanView.OVERVIEW else PlanView.TODAY).also { PlanEntry.overview = false } }
     var dayOffset by remember { mutableStateOf(0) }
     var weekOffset by remember { mutableStateOf(0) }
     var selectedDay by remember { mutableStateOf(Queries.todayEpoch()) }
