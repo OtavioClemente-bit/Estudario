@@ -133,38 +133,6 @@ fun deckCards(markdown: String): List<DeckCard> {
 
 // ------------------------------------------------------------------ foco do tópico (fica rodando enquanto a pessoa lê)
 
-object TopicFocus {
-    var topicId by mutableStateOf<Long?>(null)
-    var title by mutableStateOf("")
-    var startedAt by mutableStateOf(0L)
-    var now by mutableStateOf(0L)
-
-    fun start(id: Long, name: String) { topicId = id; title = name; startedAt = Date.now().toLong(); now = startedAt }
-
-    fun stop() {
-        val id = topicId ?: return
-        val end = Date.now().toLong()
-        val seconds = (end - startedAt) / 1000
-        topicId = null
-        if (seconds < 60) { Toast.show("Foco encerrado (menos de 1 minuto não conta)"); return }
-        val subjectId = Store.data.topics.firstOrNull { it.id == id }?.subjectId
-        Store.update {
-            it.append(
-                Keys.FOCUS_SESSIONS,
-                jsonOf(
-                    "id" to Actions.newSessionId(), "title" to title, "startedAt" to startedAt, "completedAt" to end, "durationSeconds" to seconds,
-                    "subjectIds" to (subjectId?.toString() ?: ""), "origin" to "TOPICO", "topicId" to id, "taskId" to null,
-                ),
-            )
-        }
-        Toast.show("Foco salvo: ${Queries.minutesLabel((seconds / 60).toInt())}")
-    }
-
-    fun clock(): String {
-        val s = ((now - startedAt) / 1000).coerceAtLeast(0)
-        return "${(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}"
-    }
-}
 
 // ------------------------------------------------------------------ tela do tópico
 

@@ -52,7 +52,7 @@ import kotlin.math.sin
  * para nada: o relógio do foco continua contando.
  */
 @Composable
-fun FocusTimeUpDialog(plannedMinutes: Int, title: String, onContinue: () -> Unit, onFinish: () -> Unit) {
+fun FocusTimeUpDialog(plannedMinutes: Int, title: String, onContinue: () -> Unit, onFinish: () -> Unit, onFinishAndComplete: (() -> Unit)? = null) {
     val haptics = LocalHapticFeedback.current
     LaunchedEffect(Unit) { haptics.performHapticFeedback(HapticFeedbackType.LongPress) }
     Dialog(onDismissRequest = onContinue) {
@@ -70,8 +70,11 @@ fun FocusTimeUpDialog(plannedMinutes: Int, title: String, onContinue: () -> Unit
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
-                Button(onClick = onContinue, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) { Text("Ok, vou seguir") }
-                TextButton(onClick = onFinish, modifier = Modifier.fillMaxWidth()) { Text("Encerrar a sessão") }
+                // Encerrar e concluir: fecha o cronômetro, marca o tópico como estudado e conclui a tarefa do plano.
+                if (onFinishAndComplete != null) Button(onClick = onFinishAndComplete, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) { Text("Encerrar e concluir o tópico") }
+                if (onFinishAndComplete != null) TextButton(onClick = onContinue, modifier = Modifier.fillMaxWidth()) { Text("Ok, vou seguir") }
+                else Button(onClick = onContinue, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) { Text("Ok, vou seguir") }
+                TextButton(onClick = onFinish, modifier = Modifier.fillMaxWidth()) { Text("Só encerrar a sessão") }
             }
         }
     }

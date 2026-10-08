@@ -297,12 +297,14 @@ fun FocusHistoryScreen() {
     val data = Store.data
     val topics = data.topics.associateBy { it.id }
     val subjects = data.subjects.associateBy { it.id }
-    val sessions = data.focusSessions.sortedByDescending { it.startedAt }
+    val scopeTopics = CompetitionFilter.topicIds(data)
+    val sessions = data.focusSessions.filter { s -> s.topicId == null || s.topicId in scopeTopics }.sortedByDescending { it.startedAt }
     val totalMin = (sessions.sumOf { it.durationSeconds } / 60).toInt()
     BackToProfile()
     PageHead("Histórico do foco", "Quanto tempo você ficou concentrado") {
         Btn("Iniciar foco", { Router.go(Route.Focus) }, style = "primary", icon = "timer", small = true)
     }
+    CompetitionTabs()
     if (sessions.isEmpty()) {
         Empty("timer", "Nenhuma sessão de foco", "Use o Modo foco para cronometrar o estudo; cada sessão aparece aqui.")
         return

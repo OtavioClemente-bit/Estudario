@@ -26,11 +26,13 @@ fun ReviewsScreen() {
     val data = Store.data
     val topics = data.topics.associateBy { it.id }
     val subjects = data.subjects.associateBy { it.id }
-    val due = Queries.dueReviews(data)
-    val upcoming = data.reviews.filter { it.completedAt == null && it.ignoredAt == null && it.dueAt >= Queries.endOfToday() }.sortedBy { it.dueAt }.take(12)
+    val scope = CompetitionFilter.topicIds(data)
+    val due = Queries.dueReviews(data).filter { it.topicId in scope }
+    val upcoming = data.reviews.filter { it.completedAt == null && it.ignoredAt == null && it.dueAt >= Queries.endOfToday() && it.topicId in scope }.sortedBy { it.dueAt }.take(12)
     var reviewing by remember { mutableStateOf<Review?>(null) }
 
     PageHead("Revisões", "Revisões espaçadas: D+1, D+7, D+30 e depois intervalos que crescem com você")
+    CompetitionTabs()
     Card {
         CardHead(if (due.isEmpty()) "Nada para hoje" else "Para fazer agora (${due.size})")
         if (due.isEmpty()) {
@@ -102,12 +104,14 @@ fun ErrorsScreen() {
     val data = Store.data
     val questions = data.questions.associateBy { it.id }
     val topics = data.topics.associateBy { it.id }
-    val pending = Queries.pendingErrors(data).sortedByDescending { it.lastErrorAt }
+    val scope = CompetitionFilter.topicIds(data)
+    val pending = Queries.pendingErrors(data).filter { questions[it.questionId]?.topicId in scope }.sortedByDescending { it.lastErrorAt }
     val concepts = data.errorConcepts.filter { !it.mastered && it.errorCount > 0 }.sortedByDescending { it.errorCount }.take(8)
 
     PageHead("Caderno de erros", "As questões que você errou voltam em 3, 10 e 30 dias até você dominar") {
         Btn("Refazer erradas", { Router.go(Route.Quiz("erros-20")) }, icon = "replay", enabled = pending.isNotEmpty())
     }
+    CompetitionTabs()
     if (pending.isEmpty()) Card { Empty("task_alt", "Caderno limpo", "Nenhuma questão errada esperando revisão.") }
     else ByTopic(pending.take(120).filter { questions[it.questionId] != null }.groupBy { questions[it.questionId]!!.topicId }) { entry ->
         val question = questions[entry.questionId]!!

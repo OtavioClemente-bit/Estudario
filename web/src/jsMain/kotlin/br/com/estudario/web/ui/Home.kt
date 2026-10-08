@@ -401,7 +401,9 @@ fun TaskRow(task: PlanTask, onComplete: () -> Unit) {
         Div({ classes("mission-top") }) {
             Div({ classes("row", "grow"); attr("style", "gap:8px;min-width:0") }) {
                 Span({ classes("status-dot") })
-                Span({ classes("mission-subject", "clamp-2") }) { Text(task.subjectName.ifBlank { "Plano" }.uppercase()) }
+                // Com mais de um concurso, o nome dele vai junto da matéria.
+                val competitionName = Store.data.competitions.takeIf { it.size > 1 }?.firstOrNull { it.id == task.competitionId }?.name
+                Span({ classes("mission-subject", "clamp-2") }) { Text((task.subjectName.ifBlank { "Plano" } + (competitionName?.let { " · $it" } ?: "")).uppercase()) }
             }
             Span({ classes("type-chip") }) { Icon(taskIcon(task.type)); Text(Queries.taskTypeLabel(task.type)) }
         }

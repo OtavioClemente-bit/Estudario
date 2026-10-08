@@ -44,7 +44,7 @@ private val difficulties = listOf("all" to "Todas", "FACIL" to "Fácil", "MEDIA"
 @Composable
 fun TrainScreen() {
     val data = Store.data
-    val competition = Queries.primaryCompetition(data)
+    val competition = CompetitionFilter.current(data)
     val subjects = Queries.subjectsOf(data, competition?.id)
     val questions = Queries.visibleQuestions(data)
     val topicsById = data.topics.associateBy { it.id }
@@ -60,7 +60,7 @@ fun TrainScreen() {
     val available = pickQuestions(data, scope, preview = true).size
 
     PageHead("Treinar", "Escolha a matéria, a banca e a dificuldade")
-
+    CompetitionTabs()
 
     Card(extra = "pad-lg") {
         if (questions.isEmpty()) {
@@ -89,6 +89,7 @@ fun TrainScreen() {
 
     // Visão por matéria: quanto já foi feito e o acerto.
     val bySubject = questions.groupBy { topicsById[it.topicId]?.subjectId }
+    TrainPreferences()
     Card {
         CardHead("Seu banco por matéria")
         Div({ classes("stack") }) {
@@ -172,6 +173,28 @@ fun pickQuestions(data: Snapshot, scope: String, preview: Boolean = false): List
         else -> return smart(filtered, count)
     }
     return chosen.take(count)
+}
+
+/** Meta diária e explicação após responder: ficam aqui, onde a pessoa treina (antes estavam nos ajustes). */
+@Composable
+fun TrainPreferences() {
+    var goal by remember { mutableStateOf(Prefs.dailyGoal) }
+    var explain by remember { mutableStateOf(Prefs.explanationRightAway) }
+    Card {
+        CardHead("Suas preferências de treino")
+        Div({ classes("day-row") }) {
+            Div({ classes("grow") }) {
+                Div({ classes("name") }) { Text("Meta diária de questões") }
+                Div({ classes("hint") }) { Text("Ou uma tarefa do plano, ou uma revisão, também fecham o dia") }
+            }
+            Stepper(goal, { goal = it; Prefs.dailyGoal = it }, step = 5, min = 5, max = 100, label = "Meta diária de questões")
+        }
+        Div({ classes("setting") }) {
+            Icon("visibility")
+            Div({ classes("grow") }) { B { Text("Explicação logo após responder") }; Div({ classes("small", "muted") }) { Text("Desligue para ver a correção só no fim.") } }
+            Switch(explain, "Explicação logo após responder") { explain = it; Prefs.explanationRightAway = it }
+        }
+    }
 }
 
 @Composable

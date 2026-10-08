@@ -326,5 +326,46 @@ object Actions {
     fun savedCardId(summaryId: Long, front: String, back: String): String =
         "flashcard:$summaryId:" + br.com.estudario.text.Sha256.digest("$front\u0000$back".encodeToByteArray()).let { bytes -> bytes.joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') } }.take(24)
 
+    // ------------------------------------------------------------------ excluir matéria / concurso
+
+    private fun JsonObject.longOf(key: String): Long? = (this[key] as? JsonPrimitive)?.content?.toLongOrNull()
+    private fun JsonObject.textOf(key: String): String? = (this[key] as? JsonPrimitive)?.content
+
+    /** Apaga a matéria e tudo que pende dela: tópicos, material, questões, respostas, erros, revisões, notas e tarefas do plano. */
+    fun deleteSubject(data: Snapshot, subjectId: Long): Snapshot {
+        val topicIds = data.topics.filter { it.subjectId == subjectId }.mapTo(hashSetOf()) { it.id }
+        val questionIds = data.questions.filter { it.topicId in topicIds }.mapTo(hashSetOf()) { it.id }
+        val theoryIds = data.theories.filter { it.topicId in topicIds }.mapTo(hashSetOf()) { it.id }
+        var next = data
+        fun dropWhere(key: String, pick: (JsonObject) -> Boolean) { next = next.edit(key) { if (pick(it)) null else it } }
+        listOf(Keys.THEORIES, Keys.SUMMARIES, Keys.SNIPPETS, Keys.QUESTIONS, Keys.REVIEWS, Keys.REVIEW_HISTORY, Keys.REVIEW_SESSIONS, Keys.ERROR_CONCEPTS, "notes")
+            .forEach { key -> dropWhere(key) { it.longOf("topicId") in topicIds } }
+        dropWhere("theoryMarks") { it.longOf("theoryId") in theoryIds }
+        listOf(Keys.ATTEMPTS, Keys.ERRORS, Keys.ERROR_CONCEPT_ENTRIES).forEach { key -> dropWhere(key) { it.longOf("questionId") in questionIds } }
+        dropWhere(Keys.TASKS) { it.longOf("subjectId") == subjectId }
+        dropWhere(Keys.PLAN_SUBJECTS) { it.longOf("subjectId") == subjectId }
+        dropWhere(Keys.TOPICS) { it.longOf("id") in topicIds }
+        dropWhere(Keys.SUBJECTS) { it.longOf("id") == subjectId }
+        return next
+    }
+
+    /** Apaga o concurso inteiro: matérias (em cascata), planos, simulados. Se era o principal, o próximo vira principal. */
+    fun deleteCompetition(data: Snapshot, competitionId: Long): Snapshot {
+        var next = data
+        data.subjects.filter { it.competitionId == competitionId }.forEach { next = deleteSubject(next, it.id) }
+        val planIds = next.plans.filter { it.competitionId == competitionId }.mapTo(hashSetOf()) { it.id }
+        fun dropWhere(key: String, pick: (JsonObject) -> Boolean) { next = next.edit(key) { if (pick(it)) null else it } }
+        listOf(Keys.TASKS, Keys.EXECUTIONS, Keys.AVAILABILITY, Keys.PLAN_SUBJECTS, Keys.PLAN_REVISIONS).forEach { key -> dropWhere(key) { it.textOf("planId") in planIds } }
+        dropWhere(Keys.PLANS) { it.textOf("id") in planIds }
+        dropWhere(Keys.SIMULATIONS) { it.longOf("competitionId") == competitionId }
+        dropWhere(Keys.COMPETITIONS) { it.longOf("id") == competitionId }
+        val remaining = next.competitions
+        if (remaining.isNotEmpty() && remaining.none { it.primary }) {
+            val first = remaining.first().id
+            next = next.edit(Keys.COMPETITIONS) { if (it.longOf("id") == first) JsonObject(it + ("primary" to JsonPrimitive(true))) else it }
+        }
+        return next
+    }
+
     fun newSessionId(): String = uuid()
 }

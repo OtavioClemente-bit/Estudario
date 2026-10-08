@@ -36,17 +36,20 @@ private val notebookTabs = listOf(
 fun NotebookScreen() {
     val data = Store.data
     var tab by remember { mutableStateOf("grifos") }
-    val topics = data.topics.associateBy { it.id }
-    val theories = data.theories.associateBy { it.id }
-    val marks = data.theoryMarks.sortedByDescending { it.createdAt }
-    val favQuestions = data.questions.filter { it.favorite && !it.hidden }
-    val recallCards = data.snippets.filter { it.kind == "RECUPERACAO" && it.favorite }
-    val favDecks = data.summaries.filter { it.kind == "RAPIDO" && it.favorite }
-    val tips = data.snippets.filter { it.favorite && it.kind != "RECUPERACAO" }
-    val notes = data.notes.sortedByDescending { it.createdAt }
+    // Só o concurso em foco (aba no topo quando há mais de um).
+    val scope = CompetitionFilter.topicIds(data)
+    val topics = data.topics.filter { it.id in scope }.associateBy { it.id }
+    val theories = data.theories.filter { it.topicId in scope }.associateBy { it.id }
+    val marks = data.theoryMarks.filter { it.theoryId in theories }.sortedByDescending { it.createdAt }
+    val favQuestions = data.questions.filter { it.favorite && !it.hidden && it.topicId in scope }
+    val recallCards = data.snippets.filter { it.kind == "RECUPERACAO" && it.favorite && it.topicId in scope }
+    val favDecks = data.summaries.filter { it.kind == "RAPIDO" && it.favorite && it.topicId in scope }
+    val tips = data.snippets.filter { it.favorite && it.kind != "RECUPERACAO" && it.topicId in scope }
+    val notes = data.notes.filter { it.topicId == null || it.topicId in scope }.sortedByDescending { it.createdAt }
     val counts = mapOf("grifos" to marks.size, "questoes" to favQuestions.size, "flashcards" to recallCards.size + favDecks.size, "dicas" to tips.size, "notas" to notes.size)
 
     PageHead("Caderno de estudo", "Tudo o que você grifou, salvou e favoritou enquanto estudava")
+    CompetitionTabs()
     val tabIcons = mapOf("grifos" to "format_ink_highlighter", "questoes" to "quiz", "flashcards" to "style", "dicas" to "lightbulb", "notas" to "edit_note")
     Div({ classes("topic-tabs", "nb-tabs"); attr("role", "tablist") }) {
         notebookTabs.forEach { (id, label) ->

@@ -208,6 +208,25 @@ private fun MainNavigation(viewModel: AppViewModel) {
             title = focusSession.title,
             onContinue = { markSeen() },
             onFinish = { markSeen(); focusSheetOpen = true },
+            onFinishAndComplete = focusSession.topicId?.let { topicId ->
+                {
+                    markSeen()
+                    val startedAt = focusSession.startedAt
+                    val taskId = focusSession.taskId
+                    focusScope.launch {
+                        val planId = if (taskId != null) runCatching { planViewModel.matchingPendingTask(topicId, taskId)?.entity?.planId }.getOrNull() else null
+                        val minutes = viewModel.stopFocus()
+                        runCatching { viewModel.completeStudyNow(topicId, startedAt) }
+                        if (taskId != null) runCatching {
+                            planViewModel.completeFromTopic(
+                                taskId,
+                                br.com.estudario.data.planner.CompleteTaskInput(startedAt = startedAt, completedAt = System.currentTimeMillis(), actualMinutes = minutes),
+                            )
+                            planId?.let { planViewModel.replanAfterTopicCompletion(it) }
+                        }
+                    }
+                }
+            },
         )
     }
     // Nenhum guia abre por cima de uma importação em andamento: a pessoa está no meio de um

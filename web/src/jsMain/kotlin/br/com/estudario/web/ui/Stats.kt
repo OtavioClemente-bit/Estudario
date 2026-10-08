@@ -71,8 +71,9 @@ fun StatsScreen() {
     val streak = view.streak
     val topics = data.topics.associateBy { it.id }
     val questions = data.questions.associateBy { it.id }
-    val competition = Queries.primaryCompetition(data)
+    val competition = CompetitionFilter.current(data)
     val subjects = Queries.subjectsOf(data, competition?.id)
+    CompetitionTabs()
     var days by remember { mutableStateOf(30) }
     val seed = rememberSeed()
     val span = if (days == 0) (activity.keys.minOfOrNull { today.toEpochDay() - it.toEpochDay() }?.toInt()?.plus(1) ?: 1).coerceAtLeast(7) else days
@@ -335,22 +336,9 @@ fun SettingsScreen() {
             }
         }
         Card {
-            CardHead("Meta diária")
-            Div({ classes("day-row") }) {
-                Div({ classes("grow") }) {
-                    Div({ classes("name") }) { Text("Questões por dia") }
-                    Div({ classes("hint") }) { Text("Ou uma tarefa do plano, ou uma revisão, fecham o dia") }
-                }
-                Stepper(goal, { goal = it; Prefs.dailyGoal = it }, step = 5, min = 5, max = 100, label = "Meta diária de questões")
-            }
-        }
-        Card {
-            CardHead("Questões")
-            Div({ classes("setting") }) {
-                Icon("visibility")
-                Div({ classes("grow") }) { B { Text("Explicação logo após responder") }; Div({ classes("small", "muted") }) { Text("Desligue para ver a correção só quando quiser.") } }
-                Switch(explain, "Explicação logo após responder") { explain = it; Prefs.explanationRightAway = it }
-            }
+            CardHead("Treino")
+            P({ classes("small", "muted") }) { Text("A meta diária de questões e a explicação logo após responder ficam em Treinar, onde você usa.") }
+            Btn("Abrir Treinar", { Router.go(Route.Train) }, style = "outline", icon = "quiz", small = true)
         }
         Card {
             CardHead("Sincronização")

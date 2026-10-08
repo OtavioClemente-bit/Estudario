@@ -160,6 +160,7 @@ private fun Shell(content: @Composable () -> Unit) {
                 Button({ classes("icon-btn", "menu-btn"); attr("aria-label", "Abrir menu"); onClick { drawerOpen = true } }) { Icon("menu") }
                 Span({ classes("title") }) { Text(titleOf(route)) }
                 Div({ classes("spacer") })
+                FocusBar()
                 SaveIndicator()
                 A(href = "#/perfil", { classes("avatar"); attr("aria-label", "Perfil") }) {
                     val session = Store.session

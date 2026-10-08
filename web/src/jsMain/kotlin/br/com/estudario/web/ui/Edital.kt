@@ -10,6 +10,7 @@ import br.com.estudario.domain.PriorityLevel
 import br.com.estudario.web.Route
 import br.com.estudario.web.Router
 import br.com.estudario.web.data.Queries
+import br.com.estudario.web.data.Actions
 import br.com.estudario.web.data.Store
 import br.com.estudario.web.data.Subject
 import br.com.estudario.web.data.Topic
@@ -40,6 +41,7 @@ fun EditalScreen() {
     var open by remember { mutableStateOf(setOf<Long>()) }
     var generatingFor by remember { mutableStateOf<Long?>(null) }
     generatingFor?.let { id -> GenerateDialog(id) { generatingFor = null } }
+    var deletingCompetition by remember { mutableStateOf(false) }
     val competition = competitions.firstOrNull { it.id == competitionId }
     val subjects = Queries.subjectsOf(data, competitionId)
     val subjectIds = subjects.mapTo(hashSetOf()) { it.id }
@@ -56,6 +58,18 @@ fun EditalScreen() {
 
     PageHead("Concursos", "Cada tópico vira material de estudo") {
         Btn("Novo concurso", { Store.startEmpty(); Router.go(Route.Setup) }, style = "tonal", small = true, icon = "add")
+        if (competition != null && !Store.demo) Btn("Excluir", { deletingCompetition = true }, style = "ghost", small = true, icon = "delete")
+    }
+    if (deletingCompetition && competition != null) ConfirmDeleteModal(
+        title = "Excluir o concurso ${competition.name}?",
+        body = "Saem as matérias, os tópicos, o material gerado, as questões, as revisões e o plano deste concurso. Isso vale no celular também. Não dá para desfazer.",
+        onDismiss = { deletingCompetition = false },
+    ) {
+        val id = competition.id
+        deletingCompetition = false
+        Store.update { Actions.deleteCompetition(it, id) }
+        competitionId = Store.data.competitions.firstOrNull()?.id
+        Toast.show("Concurso excluído.")
     }
 
     if (competitions.size > 1) Div({ classes("filter-chips") }) {
@@ -167,6 +181,12 @@ private fun SubjectCard(
     onGenerate: (Long) -> Unit,
 ) {
     val data = Store.data
+    var deleting by remember { mutableStateOf(false) }
+    if (deleting) ConfirmDeleteModal(
+        title = "Excluir a matéria ${subject.name}?",
+        body = "Saem os ${topics.size} tópicos, o material gerado, as questões, as revisões e as tarefas do plano desta matéria. Isso vale no celular também. Não dá para desfazer.",
+        onDismiss = { deleting = false },
+    ) { deleting = false; Store.update { Actions.deleteSubject(it, subject.id) }; Toast.show("Matéria excluída.") }
     val difficulty = subjectDifficulty(data, subject.id)
     val priority = subjectPriority(subject, parentPriority)
     val attention = Attention.of(priority, difficulty)
@@ -190,6 +210,9 @@ private fun SubjectCard(
             }
             Span({ classes("subject-pct") }) { B { Text("${percent(studied, topics.size)}%") }; Span({ classes("xs", "muted") }) { Text("estudado") } }
             Icon("expand_more", extraClass = "chev", plain = true)
+        }
+        if (expanded && !Store.demo) Div({ classes("row", "end", "subject-tools") }) {
+            Btn("Excluir matéria", { deleting = true }, style = "ghost", small = true, icon = "delete")
         }
         if (expanded) Div({ classes("subject-body") }) {
             val visible: (Topic) -> Boolean = { t -> (!onlyWithContent || hasContentBelow(t.id)) && (query.isEmpty() || t.title.lowercase().contains(query) || subject.name.lowercase().contains(query)) }
