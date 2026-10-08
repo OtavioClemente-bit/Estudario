@@ -170,9 +170,11 @@ object Planning {
         val subjectNames = data.subjects.associate { it.id to it.name }
         val topicNames = data.topics.associate { it.id to it.title }
         val competitionId = planRow.long("competitionId") ?: 0
+        // A tarefa pertence ao concurso da matéria (o plano pode juntar vários concursos).
+        val subjectCompetition = data.subjects.associate { it.id to it.competitionId }
         val newRows = proposal.newTasks.map { task ->
             jsonOf(
-                "id" to task.id, "planId" to planId, "competitionId" to competitionId, "annualPhaseId" to null, "monthlyPlanId" to null, "weeklyPlanId" to null,
+                "id" to task.id, "planId" to planId, "competitionId" to (task.subjectId?.let { subjectCompetition[it] } ?: competitionId), "annualPhaseId" to null, "monthlyPlanId" to null, "weeklyPlanId" to null,
                 "subjectId" to task.subjectId, "topicId" to task.topicId, "subjectName" to (task.subjectId?.let { subjectNames[it] } ?: "Matéria não vinculada"),
                 "topicName" to task.topicId?.let { topicNames[it] }, "day" to task.date.toEpochDay(), "type" to task.type.name, "minutes" to task.plannedMinutes,
                 "questions" to task.plannedQuestions, "priority" to task.priority.name, "status" to task.status.name, "origin" to task.origin.name, "notes" to "",
@@ -194,6 +196,56 @@ object Planning {
                     Keys.PLAN_REVISIONS to listOf(jsonOf("planId" to planId, "revision" to nextRevision, "base" to revision, "reason" to "PROPOSAL_APPLIED", "proposalId" to proposal.id, "summary" to summary, "createdAt" to at)),
                 ),
             )
+    }
+
+    /** Quais concursos o plano cobre: os das matérias dele. */
+    fun competitionsOf(data: Snapshot, planId: String): Set<Long> {
+        val subjectCompetition = data.subjects.associate { it.id to it.competitionId }
+        val fromSubjects = data.planSubjects.filter { it.planId == planId }.mapNotNull { subjectCompetition[it.subjectId] }
+        val own = data.plans.firstOrNull { it.id == planId }?.competitionId
+        return (fromSubjects + listOfNotNull(own)).toSet()
+    }
+
+    /**
+     * Um plano para quantos concursos a pessoa quiser: entra com as matérias de cada concurso
+     * marcado (prioridade média, peso 3; a pessoa ajusta depois) e sai com as dos desmarcados. O
+     * concurso principal do plano fica sempre. Os outros planos ativos desses concursos são
+     * desativados, para o dia ter um plano só.
+     */
+    fun setCompetitions(data: Snapshot, planId: String, competitionIds: Set<Long>): Snapshot {
+        val plan = data.plans.firstOrNull { it.id == planId } ?: return data
+        val wanted = competitionIds + plan.competitionId
+        val subjectCompetition = data.subjects.associate { it.id to it.competitionId }
+        val current = data.planSubjects.filter { it.planId == planId }
+        val keepIds = current.filter { subjectCompetition[it.subjectId] in wanted }.mapTo(hashSetOf()) { it.subjectId }
+        val removedIds = current.filter { it.subjectId !in keepIds }.mapTo(hashSetOf()) { it.subjectId }
+        val missing = data.subjects.filter { it.competitionId in wanted && it.id !in keepIds }.sortedWith(compareBy({ it.competitionId }, { it.position }))
+        var position = (current.maxOfOrNull { it.position } ?: -1) + 1
+        var next = data
+            .edit(Keys.PLAN_SUBJECTS) { if (it.str("planId") == planId && it.long("subjectId") in removedIds) null else it }
+            // Tarefas ainda não feitas das matérias que saíram vão embora; as concluídas ficam no histórico.
+            .edit(Keys.TASKS) { if (it.str("planId") == planId && it.long("subjectId") in removedIds && it.str("status") in setOf("PLANEJADA", "EM_ANDAMENTO")) null else it }
+            .edit(Keys.PLANS) { if (it.str("id") != planId && it.long("competitionId") in wanted && it.bool("active") == true) it.with("active" to JsonPrimitive(false)) else it }
+            .appendAll(
+                mapOf(
+                    Keys.PLAN_SUBJECTS to missing.map { subject ->
+                        jsonOf(
+                            "planId" to planId, "subjectId" to subject.id, "name" to subject.name, "priority" to PlanPriority.MEDIUM.name, "paused" to false,
+                            "maintenance" to 0, "weight" to 3, "position" to position++, "personalDifficulty" to PersonalDifficulty.NORMAL.name, "initialKnowledge" to InitialKnowledge.NONE.name,
+                        )
+                    },
+                ),
+            )
+        next = bumpRevision(next, planId, "SUBJECT_CHANGED", "Concursos do plano: ${wanted.size}.")
+        return replan(next, planId, ReplanReason.SUBJECT_CHANGED)
+    }
+
+    /** Apaga o plano e tudo que é dele (tarefas, execuções, horas, matérias, revisões, fases). */
+    fun deletePlan(data: Snapshot, planId: String): Snapshot {
+        var next = data
+        listOf(Keys.TASKS, Keys.EXECUTIONS, Keys.AVAILABILITY, Keys.PLAN_SUBJECTS, Keys.PLAN_REVISIONS, "annualPhases", "monthlyPlans", "weeklyPlans", "studyDayOverrides")
+            .forEach { key -> next = next.edit(key) { if (it.str("planId") == planId) null else it } }
+        return next.edit(Keys.PLANS) { if (it.str("id") == planId) null else it }
     }
 
     /** Uma linha de revisão e o plano na revisão seguinte (o claimRevision do app). */

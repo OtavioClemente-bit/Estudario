@@ -71,7 +71,22 @@ fun PlanSettingsScreen() {
     var profile by remember(plan.id) { mutableStateOf(StudyProfile.entries.firstOrNull { it.name == plan.profile } ?: StudyProfile.DO_ZERO) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    Div({ classes("row") }) { Btn("Plano", { Router.go(Route.Plan) }, style = "ghost", small = true, icon = "arrow_back") }
+    var deleting by remember { mutableStateOf(false) }
+    if (deleting) ConfirmDeleteModal(
+        title = "Excluir o plano ${plan.name}?",
+        body = "Saem as tarefas, as horas e o histórico de replanejamento deste plano. O que você estudou (tópicos, questões, revisões) continua. Isso vale no celular também.",
+        onDismiss = { deleting = false },
+    ) {
+        deleting = false
+        val id = plan.id
+        Store.update { Planning.deletePlan(it, id) }
+        Toast.show("Plano excluído.")
+        Router.go(Route.Plan)
+    }
+    Div({ classes("row", "between") }) {
+        Btn("Plano", { Router.go(Route.Plan) }, style = "ghost", small = true, icon = "arrow_back")
+        if (!Store.demo) Btn("Excluir plano", { deleting = true }, style = "ghost", small = true, icon = "delete")
+    }
     PageHead("Ajustar plano", "Mudou a rotina? O plano se reorganiza com as novas horas, sem perder o que você já fez.")
     error?.let { Div({ classes("banner", "error") }) { Text(it) } }
 
@@ -112,6 +127,31 @@ fun PlanSettingsScreen() {
                         Store.update { Planning.updateMethod(it, plan.id, exam, profile) }
                         Toast.show("Plano recalculado.")
                     }, style = "tonal", icon = "autorenew", block = true)
+                }
+            }
+        }
+    }
+
+    // Um plano para vários concursos: marque os que entram; as matérias deles passam a dividir o tempo.
+    if (data.competitions.size > 1) Card {
+        CardHead("Concursos neste plano")
+        P({ classes("small", "muted"); attr("style", "margin:-8px 0 12px") }) { Text("Marque os concursos que este plano cobre. As matérias de cada um entram no rodízio e o tempo é dividido pelo peso delas. Dá para pausar matérias logo abaixo.") }
+        val inPlan = Planning.competitionsOf(data, plan.id)
+        Div({ classes("stack", "tight") }) {
+            data.competitions.forEach { c ->
+                androidx.compose.runtime.key(c.id) {
+                    val locked = c.id == plan.competitionId
+                    Div({ classes("day-row") }) {
+                        Div({ classes("grow") }) {
+                            Div({ classes("name") }) { Text(c.name) }
+                            Div({ classes("hint") }) { Text(if (locked) "Concurso principal do plano" else if (c.id in inPlan) "No plano" else "Fora do plano") }
+                        }
+                        if (locked) Chip("Principal", tone = "green") else Switch(c.id in inPlan, "Incluir ${c.name}") { on ->
+                            val next = if (on) inPlan + c.id else inPlan - c.id
+                            Store.update { Planning.setCompetitions(it, plan.id, next) }
+                            Toast.show(if (on) "${c.name} entrou no plano." else "${c.name} saiu do plano.")
+                        }
+                    }
                 }
             }
         }

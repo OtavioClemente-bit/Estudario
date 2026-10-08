@@ -60,6 +60,8 @@ fun PlanWizardScreen(
 ) {
     var step by remember { mutableIntStateOf(0) }
     var competitionId by remember { mutableLongStateOf(competitions.firstOrNull { it.isPrimary }?.id ?: competitions.firstOrNull()?.id ?: 0) }
+    // Quantos concursos quiser: o plano junta as matérias de todos; o primeiro escolhido é o principal do plano.
+    val competitionIds = remember { mutableStateListOf<Long>().also { list -> (competitions.firstOrNull { it.isPrimary } ?: competitions.firstOrNull())?.id?.let(list::add) } }
     var name by remember { mutableStateOf("Meu plano de estudos") }
     var objective by remember { mutableStateOf("Concluir o edital com revisões e questões") }
     var profile by remember { mutableStateOf(StudyProfile.DO_ZERO) }
@@ -76,7 +78,9 @@ fun PlanWizardScreen(
     var simulations by remember { mutableIntStateOf(1) }
     var discursives by remember { mutableIntStateOf(0) }
 
-    val selectedSubjects = subjects.filter { it.competitionId == competitionId }.sortedBy { it.position }
+    val selectedSubjects = subjects.filter { it.competitionId in competitionIds }.sortedWith(compareBy({ competitionIds.indexOf(it.competitionId) }, { it.position }))
+    fun subjectLabel(subject: SubjectEntity): String =
+        if (competitionIds.size > 1) subject.name + " · " + (competitions.firstOrNull { it.id == subject.competitionId }?.name ?: "") else subject.name
     val subjectIds = selectedSubjects.mapTo(hashSetOf()) { it.id }
     val selectedTopics = topics.filter { it.subjectId in subjectIds }
 
@@ -112,7 +116,7 @@ fun PlanWizardScreen(
 
     val podeAvancar = when (step) {
         0 -> name.isNotBlank() && objective.isNotBlank()
-        1 -> competitionId > 0 && selectedSubjects.isNotEmpty()
+        1 -> competitionIds.isNotEmpty() && selectedSubjects.isNotEmpty()
         3 -> weeklyCapacity > 0
         else -> true
     }
@@ -157,7 +161,8 @@ fun PlanWizardScreen(
                                     if (step < PASSOS.lastIndex) step++ else {
                                         onCreate(
                                             CreatePlanInput(
-                                                competitionId = competitionId,
+                                                competitionId = competitionIds.firstOrNull() ?: competitionId,
+                                                competitionIds = competitionIds.toList(),
                                                 name = name,
                                                 objective = objective,
                                                 startDate = LocalDate.now(),
@@ -192,9 +197,13 @@ fun PlanWizardScreen(
                             OutlinedTextField(objective, { objective = it }, label = { Text("Objetivo") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
                         }
                         1 -> {
-                            SecaoTitulo("Para qual concurso?")
-                            competitions.forEach { item ->
-                                FilterChip(competitionId == item.id, { competitionId = item.id }, { Text(item.name) })
+                            SecaoTitulo("Para quais concursos?")
+                            Text("Marque um ou vários. O plano junta as matérias de todos e divide o tempo entre eles pelo peso de cada matéria.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                competitions.forEach { item ->
+                                    val on = item.id in competitionIds
+                                    FilterChip(on, { if (on) { if (competitionIds.size > 1) competitionIds.remove(item.id) } else competitionIds.add(item.id) }, { Text(item.name) })
+                                }
                             }
                             if (selectedSubjects.isEmpty()) Aviso("Este concurso ainda não tem matérias. Adicione as matérias primeiro, na aba Concursos.")
                             else Text("${selectedSubjects.size} matéria(s) • ${selectedTopics.size} tópico(s) • ${selectedTopics.count { it.status == TopicStatus.NAO_ESTUDADO }} ainda não estudado(s)", style = MaterialTheme.typography.bodyMedium)
@@ -250,7 +259,7 @@ fun PlanWizardScreen(
                                 val peso = weightOf(subject)
                                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text(subject.name, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                                        Text(subjectLabel(subject), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                                         Text(pesoLabel(peso), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                                     }
                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

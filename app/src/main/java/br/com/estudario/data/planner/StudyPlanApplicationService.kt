@@ -48,7 +48,10 @@ data class PlanSubjectInput(
 )
 
 data class CreatePlanInput(
+    /** Concurso "principal" do plano (o primeiro escolhido); as matérias podem vir de vários. */
     val competitionId: Long,
+    /** Todos os concursos cobertos pelo plano. O plano ativo de cada um deles é desativado. */
+    val competitionIds: List<Long> = emptyList(),
     val name: String,
     val objective: String,
     val startDate: LocalDate,
@@ -98,6 +101,8 @@ class StudyPlanApplicationService(
         )
         planner.insertRevision(StudyPlanRevisionEntity(id, 0, 0, "CREATED", summary = "Plano criado."))
         planner.upsertAvailability(input.availability.map { it.copy(planId = id) })
+        // Plano com vários concursos: fica como o plano ativo de cada um deles.
+        if (input.active) (input.competitionIds + input.competitionId).distinct().forEach { planner.activateOnly(it, id) }
         planner.upsertPlanSubjects(input.subjects.map { subject ->
             PlanSubjectEntity(
                 planId = id,
@@ -248,7 +253,8 @@ class StudyPlanApplicationService(
         val topics = db.dao().topicsOnce().associateBy { it.id }
         val entities = proposal.newTasks.map { task ->
             task.toEntity(
-                competitionId = plan.competitionId,
+                // A tarefa pertence ao concurso da matéria (o plano pode juntar vários concursos).
+                competitionId = task.subjectId?.let { subjects[it]?.competitionId } ?: plan.competitionId,
                 revision = nextRevision,
                 subjectName = task.subjectId?.let { subjects[it]?.name } ?: "Matéria não vinculada",
                 topicName = task.topicId?.let { topics[it]?.title },
