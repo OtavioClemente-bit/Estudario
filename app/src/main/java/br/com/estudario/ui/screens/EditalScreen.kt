@@ -118,30 +118,21 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
     if (showCatalogReview) br.com.estudario.ui.catalog.CatalogReviewDialog(onDismiss = { showCatalogReview = false })
     if (showEditalPrompt) EditalPromptBuilderDialog(viewModel, selectedCompetitionId.takeIf { it != 0L }, onDismiss = { showEditalPrompt = false }, onPickFile = pickFile)
     contentPromptFor?.let { (subjectId, topicIds) -> ContentPromptBuilderDialog(viewModel, subjectId, topicIds, onDismiss = { contentPromptFor = null }, onPickFile = pickFile) }
-    if (addCompetition) NewCompetitionDialog(
-        onDismiss = { addCompetition = false },
-        onCreate = { name, role, path ->
+    // Novo concurso: o mesmo assistente da primeira vez (catálogo de editais com as áreas, ou o PDF).
+    LaunchedEffect(addCompetition) {
+        if (addCompetition) {
             addCompetition = false
-            scope.launch {
-                val id = viewModel.createCompetition(name)
-                selectedCompetitionId = id
-                when (path) {
-                    NewCompetitionPath.EDITAL -> viewModel.openAiReview(id, name.trim(), preferences = br.com.estudario.data.ai.AiSyllabusPreferences(competitionName = name.trim(), role = role.trim()))
-                    NewCompetitionPath.MANUAL -> addSubject = true
-                    NewCompetitionPath.IMPORT -> pickFile()
-                }
-            }
-        },
-    )
+            viewModel.startNewCompetitionSetup()
+        }
+    }
     competitionMenu?.let { competition ->
         ActionSheet(
             title = competition.name,
             subtitle = if (competition.isPrimary) "Concurso principal" else "Concurso",
             actions = buildList {
-                add(SheetAction(Icons.Outlined.Add, "Novo concurso", "Pelo edital, manualmente ou por arquivo") { addCompetition = true })
+                add(SheetAction(Icons.Outlined.Add, "Novo concurso", "Pelo catálogo de editais ou pelo PDF do edital") { addCompetition = true })
                 add(SheetAction(Icons.Outlined.Flag, "Prioridade do concurso", "Quanto este concurso pesa no seu plano") { priorityTarget = PriorityTarget.Competition(competition, competition.priorityState()) })
                 if (!competition.isPrimary) add(SheetAction(Icons.Outlined.Star, "Tornar principal", "Aparece primeiro no Início e no plano") { viewModel.setPrimary(competition.id) })
-                add(SheetAction(Icons.Outlined.FileOpen, "Importar arquivo .estudo", "Matérias, tópicos ou material prontos") { pickFile() })
                 if (isCatalogAdmin) add(SheetAction(Icons.Outlined.VerifiedUser, "Aprovar envios do catálogo") { showCatalogReview = true })
                 add(SheetAction(Icons.Outlined.DeleteOutline, "Excluir concurso", "Apaga matérias, tópicos e material deste aparelho", destructive = true) { deleteCompetition = competition })
             },
@@ -508,66 +499,3 @@ fun TopicStatus.displayName(): String = when (this) {
     TopicStatus.DOMINADO -> "Dominado"
 }
 
-private enum class NewCompetitionPath { EDITAL, MANUAL, IMPORT }
-
-/** Novo concurso: o nome e por onde começar. Ler o edital é o caminho recomendado. */
-@Composable
-private fun NewCompetitionDialog(onDismiss: () -> Unit, onCreate: (String, String, NewCompetitionPath) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var role by remember { mutableStateOf("") }
-    var path by remember { mutableStateOf(NewCompetitionPath.EDITAL) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Novo concurso") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    name,
-                    { name = it.take(120) },
-                    Modifier.fillMaxWidth(),
-                    label = { Text("Nome do concurso") },
-                    placeholder = { Text("Ex.: Polícia Federal") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                )
-                OutlinedTextField(
-                    role,
-                    { role = it.take(120) },
-                    Modifier.fillMaxWidth(),
-                    label = { Text(if (path == NewCompetitionPath.EDITAL) "Cargo ou área" else "Cargo ou área (opcional)") },
-                    placeholder = { Text("Ex.: Agente de Polícia") },
-                    supportingText = if (path == NewCompetitionPath.EDITAL) ({ Text("É por ele que achamos as suas matérias no edital.") }) else null,
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                )
-                Text("Como montar as matérias?", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                PathOption(path == NewCompetitionPath.EDITAL, Icons.Outlined.AutoAwesome, "Ler o edital com o Estudário", "Envie o PDF: matérias e tópicos saem prontos. Recomendado.") { path = NewCompetitionPath.EDITAL }
-                PathOption(path == NewCompetitionPath.MANUAL, Icons.Outlined.EditNote, "Montar manualmente", "Você digita as matérias e os tópicos.") { path = NewCompetitionPath.MANUAL }
-                PathOption(path == NewCompetitionPath.IMPORT, Icons.Outlined.FileOpen, "Importar arquivo .estudo", "Um edital já organizado em arquivo.") { path = NewCompetitionPath.IMPORT }
-            }
-        },
-        confirmButton = { Button(onClick = { onCreate(name, role, path) }, enabled = name.isNotBlank() && (path != NewCompetitionPath.EDITAL || role.isNotBlank()), shape = RoundedCornerShape(12.dp)) { Text("Criar") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
-    )
-}
-
-@Composable
-private fun PathOption(selected: Boolean, icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(14.dp),
-        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
-        border = androidx.compose.foundation.BorderStroke(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            RadioButton(selected = selected, onClick = null)
-        }
-    }
-}

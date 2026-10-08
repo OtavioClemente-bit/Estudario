@@ -42,4 +42,17 @@ class SourcesSectionTest {
         val markdown = "## Fontes\n- A\n## Exercícios\nTexto."
         assertEquals("## Exercícios\nTexto.", SourcesSection.strip(markdown))
     }
+
+    @Test
+    fun `citacao so com links no meio do texto sai`() {
+        val text = "O prazo é de cinco anos ([planalto.gov.br](https://www.planalto.gov.br/l8112.htm?utm_source=openai)). Depois."
+        assertEquals("O prazo é de cinco anos. Depois.", SourcesSection.stripInline(text))
+        assertEquals("Veja isto.", SourcesSection.stripInline("Veja isto ([A](https://a.gov.br); [B](https://b.gov.br))."))
+    }
+
+    @Test
+    fun `parenteses com texto ou link no meio da frase ficam`() {
+        val text = "Use a regra (ver também a Súmula 134) e o [portal](https://x.gov.br) (oficial)."
+        assertEquals(text, SourcesSection.stripInline(text))
+    }
 }

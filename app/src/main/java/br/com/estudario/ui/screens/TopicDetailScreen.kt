@@ -486,7 +486,6 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                                 enabled = queueItem == null,
                                 onClick = { menuOpen = false; viewModel.enqueue(topic.id) },
                             )
-                            DropdownMenuItem(text = { Text("Importar arquivo .estudo") }, leadingIcon = { Icon(Icons.Outlined.FileOpen, null) }, onClick = { menuOpen = false; importLauncher.launch(arrayOf("*/*")) })
                             if (studied) DropdownMenuItem(text = { Text("Desmarcar como estudado") }, leadingIcon = { Icon(Icons.Outlined.Undo, null) }, onClick = { menuOpen = false; desmarcar = true })
                             if (hasMaterial) DropdownMenuItem(
                                 text = { Text("Apagar o material salvo", color = MaterialTheme.colorScheme.error) },

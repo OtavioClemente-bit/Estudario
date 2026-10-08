@@ -264,6 +264,7 @@ fun InitialSetupFlow(
                     Text(
                         when {
                             snapshot.step == InitialSetupStep.READY -> "Seu ponto de partida"
+                            planMode && snapshot.step == InitialSetupStep.COMPETITION -> "Novo concurso"
                             planMode -> "Novo plano"
                             else -> "Configuração inicial"
                         },
@@ -310,7 +311,8 @@ fun InitialSetupFlow(
                 when (step) {
                     InitialSetupStep.INTRO -> IntroStep(onContinue = { viewModel.advance(step, InitialSetupStep.COMPETITION) })
                     InitialSetupStep.COMPETITION -> CompetitionStep(
-                        snapshot, uiState.competition, uiState.competitions, viewModel,
+                        // Novo concurso (vindo da aba Concursos): sem os atalhos para retomar os já salvos.
+                        snapshot, uiState.competition, if (planMode && snapshot.competitionId == null) emptyList() else uiState.competitions, viewModel,
                         catalog = catalogState,
                         attachmentCheck = attachmentCheck,
                         editalAttachment = editalAttachment,
@@ -726,10 +728,11 @@ internal fun SyllabusMethodStep(
     onClearEditalAttachment: () -> Unit,
     onOpenIntegratedAi: (PromptAttachment?) -> Unit,
 ) {
-    var pastedText by rememberSaveable { mutableStateOf("") }
     val method = when (snapshot.syllabusMethod) {
         // Configurações iniciadas em uma versão anterior que apontavam para o ChatGPT seguem pelo fluxo unificado de IA.
         SyllabusMethod.CHATGPT -> SyllabusMethod.DIRECT_AI
+        // Importar arquivo .estudo saiu do app: quem tinha escolhido isso segue pela geração.
+        SyllabusMethod.IMPORT_ESTUDO -> SyllabusMethod.DIRECT_AI
         else -> snapshot.syllabusMethod
     }
     SetupPage(
@@ -743,7 +746,7 @@ internal fun SyllabusMethodStep(
             } else if (method == SyllabusMethod.CATALOG) {
                 SetupPrimaryButton("Revisar matérias", { viewModel.jumpTo(InitialSetupStep.SYLLABUS_REVIEW) })
             } else {
-                Text("Depois de importar um .estudo válido, você verá um resumo antes de confirmar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Você confere matérias e tópicos antes de salvar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
     ) {
@@ -751,7 +754,6 @@ internal fun SyllabusMethodStep(
             ChoiceCard("Edital oficial do catálogo", "As matérias do edital escolhido já estão carregadas, na ordem oficial.", method == SyllabusMethod.CATALOG, icon = Icons.Outlined.CheckCircle, badge = "Pronto") { viewModel.chooseSyllabusMethod(SyllabusMethod.CATALOG) }
         }
         ChoiceCard("Gerar com o Estudário", "O Estudário lê o edital e organiza matérias e tópicos para você revisar.", method == SyllabusMethod.DIRECT_AI, icon = Icons.Outlined.AutoAwesome, badge = if (snapshot.catalogExamId != null) null else "Recomendado") { viewModel.chooseSyllabusMethod(SyllabusMethod.DIRECT_AI) }
-        ChoiceCard("Importar arquivo .estudo", "Use um edital que você já tenha gerado ou recebido.", method == SyllabusMethod.IMPORT_ESTUDO, icon = Icons.Outlined.UploadFile) { viewModel.chooseSyllabusMethod(SyllabusMethod.IMPORT_ESTUDO) }
         ChoiceCard("Montar manualmente", "Crie matérias e tópicos agora e edite tudo antes de continuar.", method == SyllabusMethod.MANUAL, icon = Icons.Outlined.School) { viewModel.chooseSyllabusMethod(SyllabusMethod.MANUAL) }
 
         when (method) {
@@ -760,14 +762,7 @@ internal fun SyllabusMethodStep(
                 StudioAiCard(editalAttachment) { onOpenIntegratedAi(editalAttachment) }
                 br.com.estudario.ui.ai.AiAccessPanel()
             }
-            SyllabusMethod.IMPORT_ESTUDO -> {
-                ImportActionCard(
-                    pastedText = pastedText,
-                    onPastedTextChange = { pastedText = it },
-                    onChooseFile = { picker.launch(arrayOf("application/json", "text/plain", "*/*")) },
-                    onInspect = { viewModel.inspectEstudo(pastedText) },
-                )
-            }
+            SyllabusMethod.IMPORT_ESTUDO -> Unit
             SyllabusMethod.MANUAL -> ManualSyllabusEditor(snapshot, viewModel)
             SyllabusMethod.CHATGPT -> Unit
             SyllabusMethod.CATALOG -> Text(
@@ -1355,28 +1350,6 @@ private fun SelectionMark(selected: Boolean) {
     ) { if (selected) Icon(Icons.Outlined.Check, null, Modifier.size(15.dp), tint = MaterialTheme.colorScheme.onPrimary) }
 }
 
-@Composable
-private fun ImportActionCard(pastedText: String, onPastedTextChange: (String) -> Unit, onChooseFile: () -> Unit, onInspect: () -> Unit) {
-    SetupCard {
-        // Área de arquivo em destaque: é o caminho mais comum.
-        Surface(
-            onClick = onChooseFile,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
-        ) {
-            Column(Modifier.padding(vertical = 22.dp, horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Outlined.UploadFile, null, Modifier.size(34.dp), tint = MaterialTheme.colorScheme.primary)
-                Text("Escolher .estudo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
-                Text("Você vê um resumo antes de importar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        OrDivider("ou cole o conteúdo")
-        OutlinedTextField(pastedText, onPastedTextChange, Modifier.fillMaxWidth(), label = { Text("Ou cole o JSON aqui") }, minLines = 4, shape = RoundedCornerShape(14.dp))
-        OutlinedButton(onClick = onInspect, enabled = pastedText.isNotBlank(), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("Analisar texto") }
-    }
-}
 
 @Composable
 private fun OrDivider(label: String) {

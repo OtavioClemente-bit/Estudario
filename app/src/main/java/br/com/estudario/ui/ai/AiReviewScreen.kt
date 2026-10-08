@@ -479,7 +479,7 @@ private fun AiGate(
                         val paywall = access.reasonCode == "QUOTA_EXHAUSTED"
                         GateStatus(Icons.Outlined.Lock, if (paywall) "Edital pelo seu PDF é dos planos pagos" else "Geração de edital indisponível", access.reasonCode.toUserMessage(), StatusTone(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.onSurfaceVariant))
                         OutlinedButton(onClick = onFallback, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
-                            Text("Importar .estudo ou montar manualmente")
+                            Text("Montar manualmente")
                         }
                         if (paywall) br.com.estudario.ui.plans.UpgradeCta(br.com.estudario.ui.plans.UpgradeReason.SYLLABUS, onSignIn = onLogin)
                     }
@@ -788,7 +788,7 @@ private fun AiFailure(content: AiReviewContent.Failure, onRetry: () -> Unit, onF
             OutlinedButton(onClick = onPickSource, modifier = Modifier.fillMaxWidth().testTag("ai_failure_change_source")) { Text("Trocar PDF") }
             TextButton(onClick = onEditInformation) { Text("Editar informações") }
             OutlinedButton(onClick = onFallback, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
-                Text("Importar .estudo ou montar manualmente")
+                Text("Montar manualmente")
             }
         }
     }

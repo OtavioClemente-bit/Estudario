@@ -197,6 +197,9 @@ fun studyBlocks(markdown: String): List<String> {
         if (trimmed.isEmpty() && !inFence && !inMath) flush() else current.append(line).append('\n')
     }
     flush()
+    // Citações da busca entre parênteses no meio da frase também saem (as fontes ficam na aba Fontes).
+    // Bloco a bloco, para a contagem de blocos (marcas e progresso de leitura) não mudar.
+    for (i in blocks.indices) blocks[i] = br.com.estudario.text.SourcesSection.stripInline(blocks[i]).ifBlank { blocks[i] }
     // Capítulo cujo texto já abre com o próprio título ("## 1. X" seguido de "## 1. X"): mostra uma vez só.
     return blocks.filterIndexed { i, block -> i == 0 || headingText(block)?.let { it != headingText(blocks[i - 1]) } ?: true }
 }

@@ -69,7 +69,7 @@ fun studyBlocks(markdown: String): List<String> {
  */
 object InlineSources {
     private val link = Regex("""\[([^\]]+)\]\((https?://[^)\s]+)\)|<?(https?://[^\s<>()]+)>?""")
-    private val citation = Regex("""\s*\(\s*(?:(?:\[[^\]]+\]\(https?://[^)\s]+\)|<?https?://[^\s<>()]+>?)\s*[;,]?\s*)+\)""")
+    private val citation = Regex("""(?<!\])\s*\(\s*(?:(?:\[[^\]]+\]\(https?://[^)\s]+\)|<?https?://[^\s<>()]+>?)\s*[;,]?\s*)+\)""")
 
     fun extract(block: String): Pair<String, List<Pair<String, String>>> {
         val found = mutableListOf<Pair<String, String>>()

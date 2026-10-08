@@ -16,6 +16,14 @@ object SourcesSection {
     /** Rótulo em negrito no começo da linha: "**Fontes:**", "**Fontes consultadas**". */
     private val sourcesLabel = Regex("""^[*_]{2}\s*$NAME\s*:?\s*[*_]{2}\s*:?""", RegexOption.IGNORE_CASE)
 
+    /**
+     * Citação no meio do texto que a busca na web deixa entre parênteses, só com links:
+     * "... cinco anos ([planalto.gov.br](https://...))". Sai inteira; o texto em volta fica.
+     */
+    private val inlineCitation = Regex("""(?<!\])\s*\(\s*(?:(?:\[[^\]]+\]\(https?://[^)\s]+\)|<?https?://[^\s<>()]+>?)\s*[;,]?\s*)+\)""")
+
+    fun stripInline(text: String): String = inlineCitation.replace(text, "")
+
     fun strip(markdown: String): String {
         val lines = markdown.replace("\r\n", "\n").lines()
         val out = ArrayList<String>(lines.size)

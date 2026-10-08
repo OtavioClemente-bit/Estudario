@@ -138,7 +138,7 @@ fun AiAccessSummary(
                     Icon(Icons.Outlined.OfflineBolt, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Column {
                         Text("Sempre disponível, sem internet", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("Importar .estudo ou montar manualmente", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Montar manualmente", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }

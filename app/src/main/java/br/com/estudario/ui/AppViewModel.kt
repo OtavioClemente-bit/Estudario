@@ -772,6 +772,36 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
     }
+    /**
+     * Novo concurso: o mesmo assistente do primeiro acesso (busca no catálogo, áreas, ou o PDF do
+     * edital), começando do zero no passo do concurso. A rotina e o tempo de estudo já informados
+     * continuam; o que era do concurso anterior (nome, cargo, edital, data, matérias) sai.
+     */
+    fun startNewCompetitionSetup() = launchCatching {
+        val previous = app.preferences.initialSetup.first()
+        app.getSharedPreferences(br.com.estudario.ui.setup.PLAN_MODE_PREFS, android.content.Context.MODE_PRIVATE).edit()
+            .putString(br.com.estudario.ui.setup.PLAN_MODE_PREVIOUS_STATUS, previous.status.name)
+            .putString(br.com.estudario.ui.setup.PLAN_MODE_PREVIOUS_STEP, previous.step.name)
+            .apply()
+        app.preferences.updateInitialSetup { current ->
+            current.copy(
+                status = InitialSetupStatus.IN_PROGRESS,
+                step = br.com.estudario.domain.setup.InitialSetupStep.COMPETITION,
+                competitionId = null,
+                competitionName = "",
+                role = "",
+                catalogExamId = null,
+                examDate = null,
+                syllabusMethod = null,
+                manualSubjects = emptyList(),
+                manualTopics = emptyMap(),
+                subjectDifficulties = emptyMap(),
+                subjectKnowledge = emptyMap(),
+                subjectPriorities = emptyMap(),
+                lastValidPlanId = null,
+            )
+        }
+    }
     fun toggleFocusPause() = launchCatching {
         if (focusSession.value.paused) FocusSessionManager.resume(app) else FocusSessionManager.pause(app)
     }
