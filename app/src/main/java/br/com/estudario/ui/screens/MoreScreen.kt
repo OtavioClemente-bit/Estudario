@@ -116,7 +116,7 @@ fun MoreScreen(
         }
 
         item {
-            Group("Conta e app web") { br.com.estudario.ui.sync.CloudSyncCard() }
+            Group("Sincronização com o site") { br.com.estudario.ui.sync.CloudSyncCard() }
         }
 
         item {

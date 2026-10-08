@@ -50,6 +50,16 @@ class MainActivity : ComponentActivity() {
         // sessão é renovada em silêncio antes de vencer (sem isso a pessoa "caía" depois de 1 hora).
         // No mesmo ritmo, sincroniza com a conta: ao voltar para o app, o que foi feito no app web
         // entra aqui; com o app aberto por muito tempo, o que foi estudado sobe sem esperar sair.
+        // Com o app na tela, confere a conta a cada 45 s: o que foi feito no site aparece aqui logo
+        // (só lê a revisão; baixa ou junta apenas quando algo mudou).
+        lifecycleScope.launch {
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+                while (true) {
+                    kotlinx.coroutines.delay(45_000L)
+                    br.com.estudario.data.sync.CloudSyncWorker.syncSoon(this@MainActivity)
+                }
+            }
+        }
         lifecycleScope.launch {
             repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
                 while (true) {

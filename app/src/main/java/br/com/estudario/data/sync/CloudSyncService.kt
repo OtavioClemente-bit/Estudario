@@ -122,15 +122,15 @@ class CloudSyncService(
         )
         val action = when (decision) {
             SyncPlanner.Action.Nothing -> "nada"
-            SyncPlanner.Action.AdoptRemote -> { remember(head.revision, localSha); "igual" }
+            SyncPlanner.Action.AdoptRemote -> { remember(head.revision, localSha, snapshot); "igual" }
             SyncPlanner.Action.Upload -> { upload(userId, snapshot, localSha, head.revision); "enviado" }
             SyncPlanner.Action.Download -> { download(head); "recebido" }
-            // Os dois lados mudaram: vence o que mudou por último, sem perguntar (a outra versão fica
-            // guardada: na conta, as fotos anteriores; aqui, a cópia em sync-backups).
-            SyncPlanner.Action.Conflict -> when (choice ?: autoChoice(head)) {
-                null -> throw SyncConflictException(head.deviceLabel, head.updatedAt)
+            // Os dois lados mudaram (celular e site): junta as duas versões linha a linha, sem que
+            // uma apague a outra. A escolha explícita (manter uma só) continua valendo quando pedida.
+            SyncPlanner.Action.Conflict -> when (choice) {
                 ConflictChoice.KEEP_THIS_DEVICE -> { upload(userId, snapshot, localSha, head.revision); "enviado" }
                 ConflictChoice.KEEP_CLOUD -> { download(head); "recebido" }
+                null -> { mergeAndUpload(userId, snapshot, head); "juntado" }
             }
         }
         val now = System.currentTimeMillis()
@@ -143,8 +143,35 @@ class CloudSyncService(
     private suspend fun isLocalEmpty(): Boolean =
         database.dao().competitionsOnce().isEmpty() && database.plannerDao().plansOnce().isEmpty()
 
-    private fun remember(revision: Long, sha: String) {
+    /**
+     * Guarda a revisão e o hash da última versão que este aparelho e a conta tinham em comum, e a
+     * própria versão (a base da junção quando os dois lados mudarem ao mesmo tempo).
+     */
+    private fun remember(revision: Long, sha: String, snapshot: String? = null) {
         prefs.edit().putLong(KEY_BASE_REVISION, revision).putString(KEY_BASE_SHA, sha).apply()
+        if (snapshot != null) runCatching { baseFile().writeText(snapshot) }
+    }
+
+    private fun baseFile() = File(context.filesDir, "sync-base.json")
+
+    /**
+     * Celular e site mudaram desde a última vez: baixa a versão da conta, junta com a daqui usando a
+     * base (SnapshotMerge), aplica o resultado neste aparelho e envia. Se outro envio chegar no meio,
+     * a próxima rodada junta de novo.
+     */
+    private suspend fun mergeAndUpload(userId: String, localSnapshot: String, head: RemoteHead) {
+        val path = head.objectPath ?: error("A nuvem não tem foto.")
+        val response = request("GET", "/storage/v1/object/authenticated/$BUCKET/$path", null, null)
+        if (response.status !in 200..299) error("Não deu para baixar os dados (${response.status}).")
+        val remoteText = response.body
+        if (Sha256.digest(remoteText.encodeToByteArray()).toHex() != head.sha256) error("A cópia baixada veio incompleta. Tente de novo.")
+        val base = runCatching { baseFile().takeIf { it.exists() }?.readText()?.let(::JSONObject) }.getOrNull()
+        val merged = SnapshotMerge.merge(base, JSONObject(localSnapshot), JSONObject(remoteText))
+        keepLocalCopy()
+        restoring = true
+        try { backup.restore(merged.toString()) } finally { restoring = false }
+        val snapshot = canonicalSnapshot()
+        upload(userId, snapshot, Sha256.digest(snapshot.encodeToByteArray()).toHex(), head.revision)
     }
 
     private suspend fun upload(userId: String, snapshot: String, sha: String, expectedRevision: Long) {
@@ -168,7 +195,7 @@ class CloudSyncService(
         }
         if (commit.status !in 200..299) error("A nuvem não aceitou a versão (${commit.status}).")
         val revision = JSONObject(commit.body).getLong("revision")
-        remember(revision, sha)
+        remember(revision, sha, snapshot)
         runCatching { prune(userId, path) }
     }
 
@@ -204,8 +231,9 @@ class CloudSyncService(
         try { backup.restore(text) } finally { restoring = false }
         // A base é o que este aparelho exporta depois de restaurar (a ordem das linhas pode sair
         // diferente da foto recebida); assim a próxima rodada não confunde isso com uma edição.
-        val restoredSha = Sha256.digest(canonicalSnapshot().encodeToByteArray()).toHex()
-        remember(head.revision, restoredSha)
+        val restored = canonicalSnapshot()
+        val restoredSha = Sha256.digest(restored.encodeToByteArray()).toHex()
+        remember(head.revision, restoredSha, restored)
     }
 
     private fun autoChoice(head: RemoteHead): ConflictChoice {

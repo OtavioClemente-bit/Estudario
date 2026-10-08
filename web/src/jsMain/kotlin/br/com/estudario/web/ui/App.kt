@@ -301,7 +301,7 @@ private fun WelcomeScreen() {
         Div({ classes("row", "wrap", "between") }) {
             Div({ classes("grow") }) {
                 org.jetbrains.compose.web.dom.H3 { Text("Já usa o app no celular?") }
-                P({ classes("muted", "small") }) { Text("No app, abra Mais › Ajustes › Conta e app web e ligue a sincronização. Seus estudos aparecem aqui.") }
+                P({ classes("muted", "small") }) { Text("Entre no app com esta mesma conta Google: seus estudos aparecem aqui sozinhos.") }
             }
             Btn("Já liguei, atualizar", { Store.start() }, style = "outline", icon = "refresh")
         }

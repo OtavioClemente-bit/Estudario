@@ -48,9 +48,9 @@ fun CloudSyncCard() {
             Icon(Icons.Outlined.CloudSync, null, Modifier.size(38.dp), tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text("Conta e app web", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                Text("Sincronizar com o site", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                 Text(
-                    "O que você estuda aqui aparece em app.estudario.com.br, e vice-versa, sozinho.",
+                    "Seu estudo fica igual aqui e em app.estudario.com.br.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -67,15 +67,15 @@ fun CloudSyncCard() {
             )
         }
         when {
-            !signedIn -> Hint("Entre com sua conta Google no Perfil para usar no computador também.")
-            !enabled -> Hint("Pausada. Ligue para voltar a atualizar nos dois lados.")
+            !signedIn -> Hint("Entre com sua conta Google no Perfil para estudar também pelo site.")
+            !enabled -> Hint("Sincronização pausada.")
             else -> when (val current = status) {
                 CloudSyncStatus.Running -> Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(8.dp))
-                    Hint("Atualizando…")
+                    Hint("Sincronizando…")
                 }
-                is CloudSyncStatus.Failed -> Hint("Não atualizou agora: ${current.message}")
+                is CloudSyncStatus.Failed -> Hint("Não sincronizou agora: ${current.message}")
                 CloudSyncStatus.SignedOut -> Hint("A sessão da conta expirou. Entre de novo no Perfil.")
                 else -> Hint(lastSyncText(sync.lastSyncAt))
             }
@@ -89,4 +89,4 @@ private fun Hint(text: String) {
 }
 
 private fun lastSyncText(at: Long): String =
-    if (at <= 0L) "Ainda não atualizou." else "Atualizado ${DateUtils.getRelativeTimeSpanString(at, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS)}."
+    if (at <= 0L) "Ainda não sincronizou." else "Sincronizado ${DateUtils.getRelativeTimeSpanString(at, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS)}."
