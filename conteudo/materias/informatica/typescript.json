@@ -1,0 +1,2098 @@
+{
+  "id": "informatica.typescript",
+  "subject": "Informática",
+  "version": 1,
+  "title": "TypeScript: tipos, interfaces, generics e compilação",
+  "nickname": "TypeScript",
+  "aliases": [
+    "TypeScript (versão 4).",
+    "TypeScript 4.0."
+  ],
+  "theoryTitle": "TypeScript para quem já sabe JavaScript: do tipo primitivo ao tsconfig",
+  "status": "PUBLISHED",
+  "sourceType": "AUTHORIAL",
+  "board": null,
+  "agency": null,
+  "year": null,
+  "sourceUrl": null,
+  "accessedAt": "2026-10-07",
+  "scope": {
+    "covers": "O que é TypeScript e como ele se relaciona com JavaScript; compilação com tsc e apagamento de tipos; tipos primitivos, any, unknown, void, never, arrays e tuplas; anotação e inferência (inclusive tipos literais com const); interfaces e type aliases, propriedades opcionais e readonly, extensão e mesclagem de declarações; union e intersection; generics em funções, interfaces e classes, com restrição extends e keyof; tipos utilitários mais comuns (Partial, Readonly, Pick, Omit, Record); enums numéricos e de string; classes, modificadores public, private, protected e readonly, propriedades de parâmetro, classes abstratas e implements; narrowing com typeof, instanceof, in, igualdade e uniões discriminadas; asserção com as e operador !; tsconfig.json (target, module, outDir, strict, noImplicitAny, strictNullChecks) e comandos tsc --init, tsc --watch e tsc --noEmit.",
+    "excludes": "Fundamentos de JavaScript já tratados em informatica.javascript (let/const, funções, arrays, closures, DOM, promises, módulos); frameworks como Angular, React e Vue; decorators; tipos condicionais e mapeados avançados; declaração de bibliotecas (.d.ts) em profundidade; ferramentas de build como webpack e bundlers."
+  },
+  "summary": "TypeScript é um superconjunto de JavaScript: todo JavaScript válido é aceito, e a linguagem acrescenta um sistema de tipos estático. O compilador tsc confere os tipos e gera JavaScript comum; os tipos são apagados e não existem em tempo de execução, por isso não mudam o comportamento do programa. Os primitivos são string, number, boolean, bigint, symbol, null e undefined; any desliga a checagem, unknown aceita qualquer valor mas exige verificação antes do uso, void indica função sem retorno útil e never indica algo que nunca acontece. Quando não há anotação, o compilador infere o tipo: let x = 10 vira number, const y = 10 vira o literal 10. Interfaces e type aliases descrevem formatos de objetos; interface pode ser estendida com extends e reaberta (mesclagem de declarações), type não pode ser reaberto, mas expressa uniões e tuplas. Union (A | B) aceita um ou outro; intersection (A & B) exige os dois. Generics (<T>) criam código reutilizável que preserva o tipo, e extends restringe o que T pode ser. Enums numéricos começam em 0 e têm mapeamento reverso; enums de string não têm. Classes ganham modificadores public, private, protected e readonly, checados só na compilação. Narrowing é o estreitamento do tipo por typeof, instanceof, in, comparação e uniões discriminadas. O tsconfig.json guarda as opções do compilador; strict liga um conjunto de verificações rígidas, como noImplicitAny e strictNullChecks.",
+  "chapters": [
+    {
+      "id": "o-que-e-typescript",
+      "title": "O que é TypeScript e como ele vira JavaScript",
+      "markdown": "### Por que existe o TypeScript\n\nEm JavaScript, o tipo de uma variável só é conhecido quando o programa roda. Isso permite erros bobos que só aparecem na tela do usuário, como somar texto com número ou chamar um método que não existe. O **TypeScript** (criado pela Microsoft) resolve isso acrescentando **tipos estáticos**: o erro aparece enquanto você escreve, antes de o programa rodar.\n\n### Superconjunto de JavaScript\n\nTypeScript é um **superconjunto** (*superset*) de JavaScript. Na prática:\n\n- todo código JavaScript válido também é código TypeScript sintaticamente válido;\n- o TypeScript acrescenta anotações de tipo, interfaces, enums, generics e modificadores de acesso;\n- o navegador e o Node.js **não executam TypeScript diretamente** no modo tradicional: o código é antes **compilado** (muitos dizem *transpilado*) para JavaScript.\n\n### Do .ts ao .js\n\n1. Você escreve o código em arquivos `.ts`.\n2. O compilador `tsc` confere os tipos e gera arquivos `.js`.\n3. O JavaScript gerado roda no navegador ou no Node.js.\n\n```ts\n// soma.ts\nfunction soma(a: number, b: number): number {\n  return a + b;\n}\nconsole.log(soma(2, 3));\n```\n\nDepois de `tsc soma.ts`, o arquivo `soma.js` fica assim:\n\n```js\nfunction soma(a, b) {\n    return a + b;\n}\nconsole.log(soma(2, 3));\n```\n\nSaída ao rodar: `5`.\n\n### Apagamento de tipos (type erasure)\n\nRepare que as anotações `: number` sumiram. Os tipos servem **só para a checagem em tempo de compilação** e são **apagados** no JavaScript gerado. Consequências:\n\n- tipos **não mudam o comportamento** do programa nem deixam o código mais rápido;\n- você **não consegue perguntar em tempo de execução** se um valor \"é de uma interface\": a interface não existe mais no `.js`;\n- se um dado vem de fora (API, formulário) com formato errado, o TypeScript não impede: ele só confia nas suas declarações.\n\n### Erro de tipo não impede, por padrão, a geração do .js\n\nPor padrão, o `tsc` **mostra o erro e ainda assim gera o JavaScript**. Para bloquear a saída quando houver erro, existe a opção `noEmitOnError`.\n\n### Exemplo resolvido\n\n```ts\nlet idade: number = 30;\nidade = \"trinta\"; // erro de compilação\n```\n\nO compilador acusa: o tipo `string` não pode ser atribuído ao tipo `number`. Em JavaScript puro, a troca seria aceita sem aviso.\n\n### Pegadinhas\n\n- \"TypeScript é executado diretamente pelo navegador\": errado no uso tradicional; ele é compilado para JavaScript.\n- \"Os tipos ficam no JavaScript gerado e são checados em execução\": errado; são apagados.\n- \"TypeScript é uma linguagem totalmente diferente de JavaScript\": errado; é um superconjunto."
+    },
+    {
+      "id": "tipos-basicos-inferencia",
+      "title": "Tipos básicos, inferência, any, unknown, void e never",
+      "markdown": "### Anotação de tipo\n\nA anotação vem depois do nome, com dois-pontos:\n\n```ts\nlet nome: string = \"Ana\";\nlet idade: number = 30;      // number cobre inteiros e decimais\nlet ativo: boolean = true;\nlet grande: bigint = 100n;\nlet nada: null = null;\nlet indefinido: undefined = undefined;\n```\n\nOs **primitivos** são `string`, `number`, `boolean`, `bigint`, `symbol`, `null` e `undefined`. Atenção: o tipo se escreve em minúsculas (`string`, `number`); `String` e `Number` com maiúscula são os objetos empacotadores do JavaScript e não devem ser usados como tipo.\n\n### Arrays e tuplas\n\n```ts\nlet notas: number[] = [7, 8.5, 10];\nlet nomes: Array<string> = [\"Ana\", \"Bia\"]; // forma genérica, equivalente\nlet par: [string, number] = [\"Ana\", 30];   // tupla: tamanho e tipo por posição\n```\n\nNa tupla, `par[0]` é `string` e `par[1]` é `number`. Inverter a ordem (`[30, \"Ana\"]`) dá erro.\n\n### Inferência\n\nSe você não anota, o compilador **deduz** o tipo pelo valor inicial:\n\n```ts\nlet x = 10;       // x: number\nconst y = 10;     // y: 10 (tipo literal)\nlet z = [1, 2];   // z: number[]\n```\n\nComo `const` não pode ser reatribuída, o compilador guarda o **tipo literal** exato (`10`). Com `let`, ele **alarga** para `number`, porque o valor pode mudar. Depois de inferido, o tipo vale: `x = \"oi\"` dá erro.\n\nO retorno de funções também é inferido: `function dobro(n: number) { return n * 2; }` tem retorno `number`.\n\n### Tipos literais\n\n```ts\nlet direcao: \"norte\" | \"sul\" = \"norte\";\ndirecao = \"leste\"; // erro\n```\n\n### any, unknown, void e never\n\n- **any**: desliga a checagem. Aceita tudo e permite usar o valor de qualquer jeito. É uma \"saída de emergência\" perigosa.\n- **unknown**: também aceita qualquer valor, mas **não deixa usar** o valor antes de verificar o tipo. É o `any` seguro.\n- **void**: função que não devolve valor útil.\n- **never**: algo que **nunca acontece**, como uma função que sempre lança erro ou entra em laço infinito.\n\n```ts\nlet a: any = \"texto\";\na.toFixed(2);          // compila (e quebra em execução)\n\nlet u: unknown = \"texto\";\n// u.toUpperCase();    // erro de compilação\nif (typeof u === \"string\") {\n  console.log(u.toUpperCase()); // TEXTO\n}\n\nfunction avisar(msg: string): void { console.log(msg); }\nfunction falhar(msg: string): never { throw new Error(msg); }\n```\n\n### Opcional e valor padrão em funções\n\n```ts\nfunction saudar(nome: string, titulo?: string): string {\n  return titulo ? `${titulo} ${nome}` : nome;\n}\nconsole.log(saudar(\"Ana\"));          // Ana\nconsole.log(saudar(\"Ana\", \"Dra.\"));  // Dra. Ana\n```\n\nO parâmetro opcional (`titulo?`) tem tipo `string | undefined` e precisa vir depois dos obrigatórios.\n\n### Pegadinhas\n\n- `unknown` e `any` aceitam qualquer valor; a diferença está no **uso**: `unknown` exige verificar antes.\n- `const y = 10` não tem tipo `number`, e sim o literal `10`.\n- `void` não é o mesmo que `never`: a função `void` termina normalmente; a `never` nunca termina normalmente."
+    },
+    {
+      "id": "interfaces-types-union-generics",
+      "title": "Interfaces, types, union, intersection e generics",
+      "markdown": "### Interface\n\nDescreve o **formato** de um objeto:\n\n```ts\ninterface Pessoa {\n  nome: string;\n  idade?: number;        // opcional\n  readonly cpf: string;  // só leitura depois de criado\n}\n\nconst p: Pessoa = { nome: \"Ana\", cpf: \"123\" };\n// p.cpf = \"999\";        // erro: cpf é readonly\n```\n\nO TypeScript usa **tipagem estrutural**: o que importa é o formato, não o nome. Qualquer objeto com as propriedades exigidas é compatível.\n\nSe você escreve um **objeto literal** direto com uma propriedade a mais (`{ nome: \"Ana\", cpf: \"1\", cor: \"azul\" }`), o compilador acusa excesso de propriedade. Esse aviso vale para literais escritos no ponto da atribuição.\n\n### Extensão e mesclagem\n\n```ts\ninterface Funcionario extends Pessoa {\n  salario: number;\n}\n\ninterface Pessoa { email?: string; } // mesclagem: Pessoa agora tem email também\n```\n\nDuas declarações de `interface` com o mesmo nome **se fundem** (declaration merging).\n\n### Type alias\n\n```ts\ntype Id = string | number;           // união\ntype Ponto = { x: number; y: number };\ntype Par = [string, number];         // tupla\n```\n\nDiferenças cobradas:\n\n| | interface | type |\n|---|---|---|\n| Descrever objeto | sim | sim |\n| Reabrir/mesclar com o mesmo nome | sim | não (erro de identificador duplicado) |\n| União, tupla, primitivo com outro nome | não | sim |\n| Estender | `extends` | `&` (intersection) |\n\n### Union e intersection\n\n- **Union** `A | B`: o valor é **um ou outro**. Só dá para usar diretamente o que for comum aos dois.\n- **Intersection** `A & B`: o valor precisa ter **tudo** de A **e** tudo de B.\n\n```ts\ntype ComNome = { nome: string };\ntype ComIdade = { idade: number };\ntype Completo = ComNome & ComIdade;\nconst c: Completo = { nome: \"Ana\", idade: 30 }; // precisa dos dois campos\n```\n\nCuidado com intuição: a **união de tipos** aceita mais valores, mas permite usar menos propriedades; a **interseção** aceita menos valores, mas cada valor tem mais propriedades.\n\n### Generics\n\nPermitem escrever uma função que funciona com vários tipos **sem perder** o tipo:\n\n```ts\nfunction primeiro<T>(lista: T[]): T | undefined {\n  return lista[0];\n}\nconst n = primeiro([10, 20]);   // n: number | undefined\nconst s = primeiro([\"a\", \"b\"]); // s: string | undefined\nconsole.log(n, s);              // 10 a\n```\n\nCom `any` no lugar de `T`, o retorno viraria `any` e a checagem se perderia.\n\nRestrição com `extends`:\n\n```ts\nfunction tamanho<T extends { length: number }>(v: T): number {\n  return v.length;\n}\ntamanho(\"abc\");   // 3\ntamanho([1, 2]);  // 2\n// tamanho(10);   // erro: number não tem length\n\nfunction pegar<T, K extends keyof T>(obj: T, chave: K): T[K] {\n  return obj[chave];\n}\npegar({ a: 1, b: \"x\" }, \"b\"); // \"x\", tipo string\n```\n\n`keyof T` é a união dos nomes das propriedades de T.\n\n### Tipos utilitários mais cobrados\n\n- `Partial<T>`: todas as propriedades opcionais.\n- `Readonly<T>`: todas só leitura.\n- `Pick<T, \"a\" | \"b\">`: só as propriedades escolhidas.\n- `Omit<T, \"a\">`: todas menos as indicadas.\n- `Record<K, V>`: objeto com chaves K e valores V.\n\n### Pegadinhas\n\n- Em `A | B`, não dá para acessar uma propriedade que só existe em A sem antes estreitar o tipo.\n- `type` não se mescla; `interface` sim.\n- Generic não é `any`: ele **preserva** o tipo que entrou."
+    },
+    {
+      "id": "enums-classes-narrowing",
+      "title": "Enums, classes, modificadores e narrowing",
+      "markdown": "### Enums\n\n```ts\nenum Cor { Vermelho, Verde = 5, Azul }\nconsole.log(Cor.Vermelho); // 0\nconsole.log(Cor.Azul);     // 6\nconsole.log(Cor[5]);       // Verde\n```\n\n- Enum **numérico** começa em 0 e **incrementa** a partir do último valor definido (por isso `Azul` vale 6).\n- Enum numérico tem **mapeamento reverso**: `Cor[5]` devolve o nome `\"Verde\"`.\n- Enum de **string** exige valor em cada membro e **não** tem mapeamento reverso:\n\n```ts\nenum Status { Ativo = \"ATIVO\", Inativo = \"INATIVO\" }\nconsole.log(Status.Ativo); // ATIVO\n```\n\nDiferente de interfaces, um `enum` comum **gera código** no JavaScript (um objeto). `const enum` é substituído pelos valores na compilação.\n\n### Classes e modificadores\n\n```ts\nclass Conta {\n  private saldo: number = 0;\n  protected readonly numero: string;\n  public titular: string;\n\n  constructor(numero: string, titular: string) {\n    this.numero = numero;\n    this.titular = titular;\n  }\n\n  depositar(valor: number): void { this.saldo += valor; }\n  verSaldo(): number { return this.saldo; }\n}\n\nconst c = new Conta(\"001\", \"Ana\");\nc.depositar(50);\nconsole.log(c.verSaldo()); // 50\n// c.saldo;                // erro: private\n```\n\n- **public** (padrão): acesso livre.\n- **private**: só dentro da própria classe.\n- **protected**: na classe e nas subclasses.\n- **readonly**: atribuído na declaração ou no construtor, depois não muda.\n\nEsses modificadores são checados **só na compilação**: no JavaScript gerado a propriedade existe normalmente. Para privacidade real em execução, o JavaScript tem campos `#nome`.\n\n**Propriedade de parâmetro** (atalho):\n\n```ts\nclass Ponto {\n  constructor(public x: number, private y: number) {}\n}\n```\n\nIsso declara e atribui `x` e `y` automaticamente.\n\n**Classe abstrata e implements**:\n\n```ts\ninterface Forma { area(): number; }\nabstract class Base implements Forma {\n  abstract area(): number;\n  descrever(): string { return `Área: ${this.area()}`; }\n}\nclass Quadrado extends Base {\n  constructor(private lado: number) { super(); }\n  area(): number { return this.lado * this.lado; }\n}\nconsole.log(new Quadrado(3).descrever()); // Área: 9\n```\n\nClasse abstrata não pode ser instanciada com `new`. Uma classe estende (`extends`) uma só classe, mas pode implementar (`implements`) várias interfaces.\n\n### Narrowing (estreitamento)\n\nÉ quando o compilador **reduz** um tipo amplo dentro de um bloco, depois de uma verificação:\n\n```ts\nfunction formatar(v: string | number): string {\n  if (typeof v === \"string\") {\n    return v.toUpperCase();   // aqui v é string\n  }\n  return v.toFixed(1);        // aqui v é number\n}\nconsole.log(formatar(\"ok\")); // OK\nconsole.log(formatar(2));    // 2.0\n```\n\nFormas de estreitar: `typeof` (primitivos), `instanceof` (classes), `in` (existência de propriedade), comparação de igualdade e **união discriminada**:\n\n```ts\ntype Circulo = { tipo: \"circulo\"; raio: number };\ntype Retangulo = { tipo: \"retangulo\"; base: number; altura: number };\ntype Figura = Circulo | Retangulo;\n\nfunction area(f: Figura): number {\n  switch (f.tipo) {\n    case \"circulo\": return Math.PI * f.raio ** 2;\n    case \"retangulo\": return f.base * f.altura;\n    default:\n      const impossivel: never = f; // checagem de exaustividade\n      return impossivel;\n  }\n}\n```\n\nSe alguém criar um novo tipo de figura e esquecer o `case`, a linha com `never` dá erro de compilação.\n\n### Asserção e operador !\n\n- `valor as Tipo`: você diz ao compilador \"confie em mim\". **Não converte** nada em execução.\n- `valor!`: afirma que não é `null` nem `undefined`.\n\n### Pegadinhas\n\n- `typeof` não serve para interfaces (elas não existem em execução); use `in` ou um campo discriminante.\n- `typeof null` é `\"object\"`, herança do JavaScript.\n- `as` não transforma `\"10\"` em número; só muda o que o compilador acha."
+    },
+    {
+      "id": "tsconfig-e-cobranca",
+      "title": "tsconfig, compilação e como o tema costuma ser cobrado",
+      "markdown": "### tsconfig.json\n\nArquivo na raiz do projeto com as opções do compilador. Com ele, basta rodar `tsc` sem nome de arquivo.\n\n```json\n{\n  \"compilerOptions\": {\n    \"target\": \"ES2020\",\n    \"module\": \"commonjs\",\n    \"outDir\": \"./dist\",\n    \"rootDir\": \"./src\",\n    \"strict\": true\n  },\n  \"include\": [\"src\"]\n}\n```\n\n- **target**: versão do JavaScript gerado (ES5, ES2015, ES2020...). Com target antigo, recursos novos são reescritos de forma compatível quando possível.\n- **module**: sistema de módulos do código gerado (commonjs, ESNext...).\n- **outDir**: pasta onde ficam os `.js` gerados; **rootDir**: pasta dos fontes.\n- **strict**: liga de uma vez um conjunto de verificações rígidas, entre elas `noImplicitAny` e `strictNullChecks`.\n- **noImplicitAny**: erro quando o compilador teria de assumir `any` sem você pedir (por exemplo, parâmetro sem tipo).\n- **strictNullChecks**: `null` e `undefined` deixam de caber em todos os tipos; `let s: string = null` passa a dar erro.\n- **noEmitOnError**: não gera `.js` se houver erro.\n- **sourceMap**: gera mapas para depurar o `.ts` no navegador.\n\n### Comandos\n\n- `tsc --init`: cria um `tsconfig.json` com opções comentadas.\n- `tsc`: compila o projeto do tsconfig.\n- `tsc arquivo.ts`: compila só esse arquivo (ignora o tsconfig).\n- `tsc --watch` (ou `-w`): recompila a cada alteração.\n- `tsc --noEmit`: só confere tipos, sem gerar arquivos.\n\n### Exemplo resolvido\n\nCom `noImplicitAny` ligado:\n\n```ts\nfunction dobro(n) { return n * 2; } // erro: parâmetro n tem tipo any implícito\nfunction dobroOk(n: number) { return n * 2; } // ok\n```\n\nCom `strictNullChecks` ligado:\n\n```ts\nconst el = document.getElementById(\"x\"); // HTMLElement | null\n// el.innerText = \"oi\";   // erro: el pode ser null\nif (el) { el.innerText = \"oi\"; } // ok depois do estreitamento\n```\n\n### Como o tema costuma ser cobrado\n\n1. **Conceito**: superconjunto de JavaScript, tipagem estática, compilação para JavaScript, tipos apagados.\n2. **Código curto**: \"o trecho compila?\" ou \"qual a saída?\" com enum, tupla, generic ou narrowing. Faça o teste de mesa e lembre que tipo não muda o resultado.\n3. **Comparações**: interface x type; any x unknown; void x never; union x intersection; private do TypeScript x `#` do JavaScript.\n4. **tsconfig**: o que faz `strict`, `target`, `outDir`, `noImplicitAny`, `strictNullChecks`.\n\n### Pegadinhas finais\n\n- `tsc arquivo.ts` não lê o tsconfig.json.\n- `strict: true` não é uma opção isolada: liga várias verificações.\n- Erro de tipo não impede o `.js` de ser gerado, a menos que `noEmitOnError` esteja ligado."
+    }
+  ],
+  "questions": [
+    {
+      "id": "q1",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "O que é TypeScript e como ele vira JavaScript",
+      "statement": "Qual afirmação descreve corretamente a relação entre TypeScript e JavaScript?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "TypeScript é um subconjunto de JavaScript que remove recursos considerados inseguros da linguagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "TypeScript é um superconjunto de JavaScript que acrescenta tipos e é compilado para JavaScript.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "TypeScript é executado pelo navegador sem compilação, no lugar do motor JavaScript.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "TypeScript é compilado para bytecode e executado por uma máquina virtual própria, como a JVM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "TypeScript é uma linguagem independente, sem compatibilidade alguma com código JavaScript existente.",
+          "correct": false
+        }
+      ],
+      "explanation": "TypeScript é um superconjunto de JavaScript: acrescenta tipos estáticos e é compilado pelo tsc para JavaScript comum. Não é subconjunto (não remove recursos), não roda direto no navegador no uso tradicional, não gera bytecode para VM própria e aceita código JavaScript existente.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q2",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "O que é TypeScript e como ele vira JavaScript",
+      "statement": "Qual ferramenta oficial compila arquivos .ts para .js?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "javac, o compilador oficial distribuído junto com o JDK.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "npm, que converte os arquivos ao instalar pacotes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "o próprio navegador, ao abrir a página que referencia o .ts.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "tsc, o compilador que acompanha o pacote typescript",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "o comando node --types, que interpreta e gera o .js.",
+          "correct": false
+        }
+      ],
+      "explanation": "O compilador oficial do TypeScript é o tsc. O javac compila Java, o npm é gerenciador de pacotes (pode instalar o TypeScript, mas não é o compilador), o navegador não compila .ts no uso tradicional e node --types não é o comando de compilação.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q3",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Tipos básicos, inferência, any, unknown, void e never",
+      "statement": "Qual declaração está correta em TypeScript?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "let ativo: boolean = true;",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "let idade: number = \"30\"; já que o texto é convertido sozinho",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "let nome: string = 10; pois number vira string automaticamente",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "let preco: int = 9.90; usando o tipo inteiro da linguagem",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "let lista: number[] = [\"a\", \"b\"]; porque arrays aceitam tudo",
+          "correct": false
+        }
+      ],
+      "explanation": "Só let ativo: boolean = true compila. TypeScript não converte \"30\" em number nem 10 em string; não existe tipo int (number cobre inteiros e decimais); e number[] só aceita números, então [\"a\", \"b\"] dá erro.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q4",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Tipos básicos, inferência, any, unknown, void e never",
+      "statement": "Qual é o tipo de retorno adequado para uma função que apenas exibe uma mensagem no console e não devolve valor útil?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "never, porque a função não devolve nada para quem chamou",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "null, que é o tipo próprio de funções sem retorno",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "unknown, para não precisar declarar o que volta",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "any, pois a função não tem return no corpo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "void, indicando que nada útil é devolvido",
+          "correct": true
+        }
+      ],
+      "explanation": "void indica função que termina normalmente sem retorno útil. never é para algo que nunca termina normalmente (lança erro sempre ou laço infinito); null é valor, não o tipo de funções sem retorno; unknown e any apagam ou adiam a informação sem necessidade.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q5",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Interfaces, types, union, intersection e generics",
+      "statement": "Na declaração let id: string | number;, o que o símbolo | indica?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Que id precisa ser string e number ao mesmo tempo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Que id é um array contendo strings e números.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Uma union: id pode guardar uma string ou um number, um de cada vez.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Uma operação OU bit a bit feita sobre os dois tipos na execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Que id será convertido de string para number durante a compilação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O | entre tipos forma uma union: o valor pode ser de um tipo ou do outro. \"Os dois ao mesmo tempo\" seria intersection (&); array seria (string | number)[]; em tipos, | não é operação bit a bit; e não há conversão de valores na compilação.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q6",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Interfaces, types, union, intersection e generics",
+      "statement": "Dada interface Pessoa { nome: string; idade?: number; }, qual objeto é aceito como Pessoa?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "{ nome: \"Ana\" }, sem a propriedade opcional idade",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "{ idade: 30 }, já que o nome pode ser omitido sem problema",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "{ nome: 30, idade: 30 }, pois os dois campos são numéricos",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "{ nome: \"Ana\", idade: \"trinta\" }, por ser campo opcional",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "{ }, porque toda propriedade de interface é opcional",
+          "correct": false
+        }
+      ],
+      "explanation": "nome é obrigatório e string; idade é opcional, mas, se vier, tem de ser number. Assim, { nome: \"Ana\" } é válido. Faltar nome (B e E) dá erro, nome numérico (C) dá erro e idade em texto (D) dá erro: opcional não significa tipo livre.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q7",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Enums, classes, modificadores e narrowing",
+      "statement": "Em uma classe TypeScript, qual modificador permite acessar o membro apenas dentro da própria classe?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "public, que é o padrão quando nada é escrito",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "protected, que bloqueia também as subclasses",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "readonly, que esconde o campo de quem está fora",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "private, que fecha o membro para fora da classe",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "static, que prende o membro dentro da classe",
+          "correct": false
+        }
+      ],
+      "explanation": "private restringe o acesso à própria classe. public é o padrão e libera tudo; protected libera também as subclasses; readonly impede reatribuição, mas não esconde o membro; static faz o membro pertencer à classe, e não ao objeto, sem restringir acesso.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q8",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "tsconfig, compilação e como o tema costuma ser cobrado",
+      "statement": "Qual comando cria um arquivo tsconfig.json inicial no projeto?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "tsc --watch, que observa os arquivos e cria a configuração",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "tsc --init, que gera o arquivo com opções comentadas",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "tsc --noEmit, que gera só o arquivo de configuração",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "npm start, que monta o tsconfig a partir do package",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "tsc --config, opção que cria o arquivo na raiz",
+          "correct": false
+        }
+      ],
+      "explanation": "tsc --init cria o tsconfig.json com opções comentadas. tsc --watch recompila a cada alteração; tsc --noEmit só confere tipos sem gerar arquivos; npm start roda o script definido no package.json; --config não é a opção de criação do arquivo.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q9",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Tipos básicos, inferência, any, unknown, void e never",
+      "statement": "Sem anotação explícita, quais tipos o compilador infere para x e y em let x = 10; const y = 10;?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "x: any e y: any, porque não houve anotação nenhuma",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "x: number e y: number, já que o valor é o mesmo",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "x: 10 e y: number, pois let guarda o literal exato",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "x: unknown e y: 10, até que haja uma verificação",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "x: number e y: 10, o tipo literal do valor fixo",
+          "correct": true
+        }
+      ],
+      "explanation": "Com let o valor pode mudar, então o tipo é alargado para number; com const não há reatribuição, e o compilador guarda o tipo literal 10. A inferência não produz any nem unknown aqui, e a inversão (C) troca os papéis de let e const.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q10",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Tipos básicos, inferência, any, unknown, void e never",
+      "statement": "Considere let v: unknown = \"texto\";. Qual trecho compila sem erro?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "v.toUpperCase(); chamado diretamente sobre a variável",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "let n: number = v; atribuindo o valor sem verificação",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "if (typeof v === \"string\") { v.toUpperCase(); } com o teste antes",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "v.length; já que o valor atual é uma string conhecida",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "let s: string = v; pois unknown se comporta como any",
+          "correct": false
+        }
+      ],
+      "explanation": "unknown aceita qualquer valor, mas não permite usá-lo sem estreitar o tipo. Depois de typeof v === \"string\", v é string dentro do if e toUpperCase compila. Chamar método, ler length ou atribuir a string/number sem verificação dá erro: unknown não se comporta como any.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q11",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Tipos básicos, inferência, any, unknown, void e never",
+      "statement": "Dada let par: [string, number];, qual atribuição é válida?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "par = [\"Ana\", 30]; respeitando a ordem e os tipos",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "par = [30, \"Ana\"]; já que a ordem dos itens não importa",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "par = [\"Ana\"]; deixando a segunda posição vazia",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "par = [\"Ana\", \"30\"]; porque o texto representa número",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "par = { 0: \"Ana\", 1: 30 }; que tem as mesmas posições",
+          "correct": false
+        }
+      ],
+      "explanation": "A tupla [string, number] exige duas posições, nessa ordem e com esses tipos. [\"Ana\", 30] atende. A ordem importa (B erra), falta elemento em C, \"30\" é string e não number (D) e um objeto comum não é array, então não serve como tupla (E).",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q12",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Interfaces, types, union, intersection e generics",
+      "statement": "Sobre interface e type alias, assinale a alternativa correta.",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Somente type pode descrever o formato de um objeto; interface serve apenas para classes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Duas declarações type com o mesmo nome são mescladas automaticamente pelo compilador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Interfaces podem representar uniões como string | number, o que type não consegue.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Interfaces declaradas duas vezes com o mesmo nome se mesclam; type repetido gera erro.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Interfaces geram um objeto no JavaScript compilado para checagem em tempo de execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Declarações de interface com o mesmo nome se fundem (declaration merging); repetir um type com o mesmo nome dá erro. Ambos descrevem objetos; quem expressa união é o type, não a interface; e interfaces são apagadas na compilação, sem gerar código.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q13",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Interfaces, types, union, intersection e generics",
+      "statement": "Considere type A = { nome: string }; type B = { idade: number }; type C = A & B;. Qual valor é aceito como C?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "{ nome: \"Ana\" }, já que basta um dos dois tipos",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "{ nome: \"Ana\", idade: 30 }, com as duas partes",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "{ idade: 30 }, porque & funciona como alternativa",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "\"Ana\", pois a interseção de objetos vira string",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "{ }, porque a interseção não tem propriedade comum",
+          "correct": false
+        }
+      ],
+      "explanation": "Intersection (&) exige tudo de A e tudo de B, então o valor precisa ter nome e idade. Ter só uma das partes (A e C) seria union; uma string não é objeto com essas propriedades; e o objeto vazio não tem nenhuma das obrigatórias.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q14",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Interfaces, types, union, intersection e generics",
+      "statement": "Dada a função function primeiro<T>(lista: T[]): T | undefined { return lista[0]; }, qual é o tipo de r em const r = primeiro([\"a\", \"b\"]);?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "any, porque T aceita qualquer tipo de entrada",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "string[], igual ao tipo do argumento passado",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "unknown, até o valor ser verificado com typeof",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "T, já que o genérico não é resolvido na chamada",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "string | undefined, pois T é inferido como string",
+          "correct": true
+        }
+      ],
+      "explanation": "Ao receber string[], o compilador infere T = string, e o retorno declarado T | undefined vira string | undefined. Generic preserva o tipo, então não vira any nem unknown; o retorno é um elemento, não o array; e T é resolvido em cada chamada.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q15",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Enums, classes, modificadores e narrowing",
+      "statement": "Qual é a saída de enum Cor { Vermelho, Verde = 5, Azul } console.log(Cor.Vermelho, Cor.Azul);?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "1 3, porque enums começam a contar a partir de 1",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "0 2, seguindo a posição de cada membro na lista",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "0 6, contando a partir do valor 5 de Verde",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Vermelho Azul, já que o enum imprime os nomes",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "0 5, pois Azul repete o último valor definido",
+          "correct": false
+        }
+      ],
+      "explanation": "Enum numérico começa em 0 (Vermelho = 0) e continua incrementando a partir do último valor explícito: Verde = 5, logo Azul = 6. Não começa em 1, não segue a posição depois de um valor fixado, não imprime nomes ao acessar Cor.Azul e não repete o valor anterior.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q16",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Enums, classes, modificadores e narrowing",
+      "statement": "Na função function f(v: string | number) { if (typeof v === \"string\") { /* bloco 1 */ } else { /* bloco 2 */ } }, qual é o tipo de v em cada bloco?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "string no bloco 1 e number no bloco 2, por estreitamento",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "string | number nos dois blocos, já que typeof não altera tipos",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "string no bloco 1 e never no bloco 2, pois não há mais tipos",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "any nos dois blocos, porque o teste acontece só em execução",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "number no bloco 1 e string no bloco 2, invertendo a união",
+          "correct": false
+        }
+      ],
+      "explanation": "É narrowing: o compilador entende o typeof e estreita v para string dentro do if e, por exclusão, para number no else. O tipo muda, sim, dentro de cada bloco; never só apareceria se nenhum tipo restasse; não vira any; e a ordem não é invertida.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q17",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "tsconfig, compilação e como o tema costuma ser cobrado",
+      "statement": "No tsconfig.json, qual opção define a pasta onde serão gravados os arquivos .js gerados?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "target, que indica o destino dos arquivos compilados",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "rootDir, que aponta onde a saída deve ficar",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "module, que separa os arquivos por pasta de saída",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "outDir, que aponta a pasta de saída dos arquivos",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "include, que lista as pastas onde gravar o resultado",
+          "correct": false
+        }
+      ],
+      "explanation": "outDir é a pasta de saída dos .js. target é a versão do JavaScript gerado (ES5, ES2020...); rootDir é a pasta dos fontes; module é o sistema de módulos do código gerado; include lista os arquivos de entrada a compilar, não o destino.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q18",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "O que é TypeScript e como ele vira JavaScript",
+      "statement": "Um projeto declara interface Usuario { id: number; } e recebe de uma API o objeto { id: \"7\" }, tratado no código como Usuario. Qual é a consequência?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "O JavaScript gerado verifica a interface e lança erro assim que o objeto chega.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Nada confere o formato em execução, e o id segue como a string \"7\" no programa.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "O valor \"7\" é convertido para o número 7 por causa da anotação de tipo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "O compilador analisa a resposta da API durante a compilação e acusa o erro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "O navegador recusa a resposta, porque a interface fica registrada no runtime.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os tipos são apagados na compilação, então a interface não existe em execução e nada confere o dado vindo de fora: id continua sendo a string \"7\". Não há checagem automática, conversão, análise da resposta da API pelo compilador (ele não vê dados de execução) nem registro da interface no navegador.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q19",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Interfaces, types, union, intersection e generics",
+      "statement": "Considere function pegar<T, K extends keyof T>(obj: T, chave: K): T[K] { return obj[chave]; } e const o = { a: 1, b: \"x\" };. Qual chamada causa erro de compilação?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "pegar(o, \"a\"), que devolve um valor do tipo number",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "pegar(o, \"b\"), que devolve um valor do tipo string",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "pegar({ c: true }, \"c\"), que devolve um boolean",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "pegar(o, \"a\" as \"a\"), com a chave escrita como literal",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "pegar(o, \"c\"), já que c não é chave do objeto o",
+          "correct": true
+        }
+      ],
+      "explanation": "K extends keyof T obriga a chave a ser um nome de propriedade do objeto. Para o, keyof é \"a\" | \"b\", então \"c\" dá erro. As chamadas com \"a\" e \"b\" são válidas (retornos number e string), { c: true } com \"c\" também, e \"a\" as \"a\" é apenas o mesmo literal.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q20",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Interfaces, types, union, intersection e generics",
+      "statement": "Dada interface Produto { id: number; nome: string; preco: number; }, qual tipo utilitário produz exatamente { nome: string; preco: number }?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Partial<Produto>, que retira o campo id do tipo",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Pick<Produto, \"id\">, que remove a chave informada",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Omit<Produto, \"id\">, que remove só a chave id",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Readonly<Produto>, que mantém só os campos editáveis",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Record<\"id\", Produto>, que exclui a chave indicada",
+          "correct": false
+        }
+      ],
+      "explanation": "Omit<Produto, \"id\"> mantém todas as propriedades exceto id. Partial deixa todas opcionais, sem remover; Pick<Produto, \"id\"> faz o contrário, ficando só com id; Readonly torna todas só leitura; Record<\"id\", Produto> cria um objeto com a chave id cujo valor é um Produto.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q21",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Enums, classes, modificadores e narrowing",
+      "statement": "Qual é a saída de enum Nivel { Baixo = 1, Medio, Alto } console.log(Nivel[2]);?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Medio, pelo mapeamento reverso do enum numérico",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Alto, porque o índice 2 é a terceira posição do enum",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "2, pois o acesso por índice devolve o próprio número",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "undefined, já que enums não têm mapeamento reverso",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Erro de compilação ao acessar o enum por número",
+          "correct": false
+        }
+      ],
+      "explanation": "Baixo = 1, Medio = 2 e Alto = 3. Enum numérico tem mapeamento reverso, então Nivel[2] devolve o nome \"Medio\". O índice não é posição na lista (B), o acesso devolve o nome e não o número (C), o mapeamento reverso existe em enums numéricos (D) e o acesso compila (E).",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q22",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Enums, classes, modificadores e narrowing",
+      "statement": "Em type Figura = { tipo: \"circulo\"; raio: number } | { tipo: \"quadrado\"; lado: number }, o default de um switch (f.tipo) faz const x: never = f;. Para que serve essa linha?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Para converter f em um valor nulo quando nenhum case for executado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Para lançar uma exceção em execução, já que never sempre gera erro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Para desligar a checagem de tipos dentro do default do switch.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Para acusar na compilação um caso da união não tratado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Para obrigar f a ter, ao mesmo tempo, as propriedades raio e lado.",
+          "correct": false
+        }
+      ],
+      "explanation": "É a checagem de exaustividade: se todos os casos foram tratados, no default f é never e a atribuição compila; se surgir um tipo novo sem case, f não é never e o compilador acusa erro. A linha não converte valor, não lança exceção sozinha, não desliga checagem e não cria interseção.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q23",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Enums, classes, modificadores e narrowing",
+      "statement": "Sobre o código class Ponto { constructor(public x: number, private y: number) {} } const p = new Ponto(1, 2);, assinale a correta.",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "x e y são só parâmetros do construtor e não viram propriedades do objeto criado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "p.x compila normalmente; p.y, fora da classe, dá erro de compilação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "p.x e p.y dão erro de compilação, porque o construtor não atribui nada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "p.y fica inacessível também em execução, como acontece com campos #y.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "O código não compila, pois modificadores não podem aparecer em parâmetros.",
+          "correct": false
+        }
+      ],
+      "explanation": "São propriedades de parâmetro: o modificador no parâmetro declara e atribui a propriedade. x é public (p.x compila) e y é private (p.y dá erro fora da classe). Como private é só checagem de compilação, em execução y existe normalmente, ao contrário de #y; e a sintaxe é válida.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q24",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "tsconfig, compilação e como o tema costuma ser cobrado",
+      "statement": "Com strictNullChecks ligado, const el = document.getElementById(\"x\"); tem tipo HTMLElement | null. Qual linha compila sem erro?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "el.innerText = \"oi\"; já que o elemento existe na página",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "const t: HTMLElement = el; atribuindo direto o resultado",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "el.focus(); pois métodos ignoram a possibilidade de null",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "const n: null = el; já que o tipo começa por HTMLElement",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "if (el) { el.innerText = \"oi\"; } depois de testar o null",
+          "correct": true
+        }
+      ],
+      "explanation": "Com strictNullChecks, o compilador exige tratar o null antes de usar o valor. O if (el) estreita para HTMLElement e a atribuição compila. Usar el diretamente (A e C) ou atribuí-lo a HTMLElement (B) dá erro porque pode ser null; e atribuir a null dá erro porque pode ser HTMLElement.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q25",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "tsconfig, compilação e como o tema costuma ser cobrado",
+      "statement": "Um desenvolvedor quer que o tsc apenas confira os tipos do projeto, sem gravar nenhum arquivo .js. Qual comando atende?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "tsc --watch, que confere os tipos sem gerar saída",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "tsc --init, que valida o projeto e não emite nada",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "tsc --noEmit, que checa e não grava saída",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "tsc --strict, que bloqueia a geração dos arquivos",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "tsc --outDir null, que descarta a pasta de saída",
+          "correct": false
+        }
+      ],
+      "explanation": "--noEmit faz o tsc checar os tipos sem gerar arquivos. --watch recompila a cada alteração e continua emitindo; --init só cria o tsconfig.json; --strict liga verificações rígidas, mas não impede a saída; e outDir define a pasta de saída, não a desliga.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q26",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "O que é TypeScript e como ele vira JavaScript",
+      "statement": "Todo código JavaScript sintaticamente válido também é aceito como código TypeScript do ponto de vista da sintaxe.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. TypeScript é superconjunto de JavaScript, então a sintaxe JavaScript é aceita. O compilador ainda pode apontar erros de tipo em alguns trechos, mas isso é checagem de tipos, não rejeição da sintaxe.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q27",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "O que é TypeScript e como ele vira JavaScript",
+      "statement": "As anotações de tipo do TypeScript permanecem no JavaScript gerado e são verificadas pelo navegador durante a execução.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os tipos são apagados na compilação (type erasure): o JavaScript gerado não tem anotações, e nenhuma verificação de tipo acontece em execução. A checagem é feita só pelo compilador.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q28",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Tipos básicos, inferência, any, unknown, void e never",
+      "statement": "Em TypeScript, o tipo number representa tanto valores inteiros quanto valores com casas decimais.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Assim como no JavaScript, number cobre inteiros e decimais (ponto flutuante). Não existem tipos separados como int ou float; para inteiros muito grandes há o tipo bigint.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q29",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Tipos básicos, inferência, any, unknown, void e never",
+      "statement": "Depois de let total = 10;, a instrução total = \"dez\"; compila normalmente, porque a variável não recebeu anotação de tipo.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mesmo sem anotação, o compilador infere number pelo valor inicial 10, e esse tipo passa a valer. Atribuir a string \"dez\" depois gera erro de compilação.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q30",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Interfaces, types, union, intersection e generics",
+      "statement": "Em uma interface, o ponto de interrogação após o nome de uma propriedade, como em idade?: number, indica que ela é opcional.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A propriedade marcada com ? pode faltar no objeto; se estiver presente, precisa respeitar o tipo declarado. Na leitura, seu tipo é number | undefined.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q31",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Enums, classes, modificadores e narrowing",
+      "statement": "Quando nenhum modificador de acesso é escrito em um membro de classe TypeScript, ele é considerado private.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O padrão em TypeScript é public: sem modificador, o membro pode ser acessado de qualquer lugar. Para restringir, é preciso escrever private ou protected.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q32",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "tsconfig, compilação e como o tema costuma ser cobrado",
+      "statement": "O arquivo tsconfig.json guarda as opções do compilador TypeScript para o projeto.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O tsconfig.json fica na raiz do projeto e reúne compilerOptions (target, outDir, strict etc.) e a lista de arquivos a compilar. Com ele, basta rodar tsc sem informar nome de arquivo.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q33",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Tipos básicos, inferência, any, unknown, void e never",
+      "statement": "Os tipos any e unknown são equivalentes: ambos aceitam qualquer valor e permitem chamar qualquer método sobre ele sem verificação.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os dois aceitam qualquer valor, mas só any permite usar o valor livremente. Com unknown, o compilador exige estreitar o tipo (por exemplo, com typeof) antes de chamar métodos ou atribuir a um tipo específico.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q34",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Tipos básicos, inferência, any, unknown, void e never",
+      "statement": "Uma função que sempre lança uma exceção e nunca termina normalmente pode ter o tipo de retorno never.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. never representa algo que nunca acontece, como o retorno de uma função que sempre lança erro ou fica em laço infinito. Já void é para funções que terminam normalmente sem devolver valor útil.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q35",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Interfaces, types, union, intersection e generics",
+      "statement": "Se p tem tipo { nome: string } | { idade: number }, é possível ler p.nome diretamente, sem nenhuma verificação, porque nome existe em um dos tipos da união.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Numa union, só se acessa diretamente o que é comum a todos os membros. Como nome não existe em { idade: number }, é preciso estreitar antes, por exemplo com if (\"nome\" in p).",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q36",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Interfaces, types, union, intersection e generics",
+      "statement": "Uma interface pode herdar as propriedades de outra interface por meio da palavra-chave extends.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em interface Funcionario extends Pessoa { salario: number }, Funcionario recebe tudo de Pessoa e acrescenta salario. Uma interface pode inclusive estender mais de uma interface, separadas por vírgula.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q37",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Enums, classes, modificadores e narrowing",
+      "statement": "Em enum Status { Ativo = \"ATIVO\", Inativo }, o membro Inativo recebe automaticamente o valor \"ATIVO1\".",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Só membros numéricos são autoincrementados. Depois de um membro com valor string, o seguinte precisa de inicializador explícito; sem ele, o código não compila. Não existe concatenação automática.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q38",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Enums, classes, modificadores e narrowing",
+      "statement": "Uma classe TypeScript pode estender uma única classe e, ao mesmo tempo, implementar várias interfaces.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A herança de classes é simples (um só extends), mas implements aceita uma lista: class Pato extends Animal implements Voador, Nadador { ... } é válido, desde que a classe tenha os membros exigidos por cada interface.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q39",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Enums, classes, modificadores e narrowing",
+      "statement": "A expressão \"10\" as unknown as number converte a string \"10\" no número 10 em tempo de execução.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Asserção de tipo (as) só muda o que o compilador acha do valor; ela é apagada e não converte nada. Em execução o valor continua sendo a string \"10\". Para converter, use Number(\"10\") ou parseInt.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q40",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Enums, classes, modificadores e narrowing",
+      "statement": "Um membro declarado com private em TypeScript continua existindo como propriedade comum no JavaScript gerado, ao contrário de um campo declarado com #.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O private do TypeScript é checado só na compilação; no JavaScript gerado, a propriedade é comum e pode ser acessada em execução. Já o campo #nome é privacidade do próprio JavaScript, garantida em execução.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q41",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Enums, classes, modificadores e narrowing",
+      "statement": "Para verificar em tempo de execução se um objeto implementa determinada interface, basta usar obj instanceof NomeDaInterface.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Interfaces são apagadas na compilação e não existem em execução, por isso não podem aparecer à direita de instanceof (o compilador acusa erro). instanceof serve para classes; para interfaces, estreita-se com in ou com um campo discriminante.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q42",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Interfaces, types, union, intersection e generics",
+      "statement": "Na função function tamanho<T extends { length: number }>(v: T): number { return v.length; }, a chamada tamanho(10) gera erro de compilação.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A restrição T extends { length: number } só aceita valores que tenham a propriedade length numérica, como strings e arrays. O tipo number não tem length, então tamanho(10) é rejeitado pelo compilador.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q43",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "tsconfig, compilação e como o tema costuma ser cobrado",
+      "statement": "Por padrão, quando o tsc encontra um erro de tipo, ele não gera nenhum arquivo .js, mesmo sem nenhuma opção adicional no tsconfig.json.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Por padrão, o tsc relata o erro e ainda assim gera o JavaScript. Para bloquear a saída quando houver erro, é preciso ligar o ajuste noEmitOnError.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q44",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "tsconfig, compilação e como o tema costuma ser cobrado",
+      "statement": "A opção strict do tsconfig.json liga de uma vez um conjunto de verificações rígidas, entre as quais noImplicitAny e strictNullChecks.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. strict: true é um atalho que ativa vários ajustes de rigor, como noImplicitAny (proíbe any implícito) e strictNullChecks (null e undefined deixam de caber em todo tipo). Cada uma ainda pode ser desligada individualmente.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q45",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "tsconfig, compilação e como o tema costuma ser cobrado",
+      "statement": "Ao executar tsc arquivo.ts, informando o nome do arquivo na linha de comando, o compilador aplica as opções do tsconfig.json existente na pasta.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Quando arquivos são passados diretamente na linha de comando, o tsc ignora o tsconfig.json e usa a configuração padrão (ou as flags passadas). Para usar o tsconfig, roda-se tsc sem nome de arquivo ou com --project.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    }
+  ],
+  "flashcards": [
+    {
+      "front": "O que significa dizer que TypeScript é superconjunto de JavaScript?",
+      "back": "Todo JavaScript válido é aceito, e o TypeScript acrescenta tipos estáticos, interfaces, enums e generics."
+    },
+    {
+      "front": "Qual comando compila TypeScript?",
+      "back": "tsc. Ele confere os tipos e gera arquivos .js."
+    },
+    {
+      "front": "O que é apagamento de tipos?",
+      "back": "Os tipos somem no JavaScript gerado; não existem nem são verificados em execução."
+    },
+    {
+      "front": "Quais são os tipos primitivos?",
+      "back": "string, number, boolean, bigint, symbol, null e undefined."
+    },
+    {
+      "front": "Tipo inferido de let x = 10 e de const y = 10?",
+      "back": "x: number; y: o literal 10."
+    },
+    {
+      "front": "Diferença entre any e unknown?",
+      "back": "Os dois aceitam tudo; unknown exige verificar o tipo antes de usar, any não exige nada."
+    },
+    {
+      "front": "Diferença entre void e never?",
+      "back": "void: função termina sem retorno útil. never: nunca termina normalmente (erro ou laço infinito)."
+    },
+    {
+      "front": "O que é uma tupla?",
+      "back": "Array de tamanho e tipos fixos por posição, como [string, number]."
+    },
+    {
+      "front": "Union x intersection?",
+      "back": "A | B: um ou outro. A & B: precisa ter tudo de A e de B."
+    },
+    {
+      "front": "O que só interface faz e só type faz?",
+      "back": "Interface se mescla com outra de mesmo nome; type expressa uniões, tuplas e apelidos de primitivos."
+    },
+    {
+      "front": "Para que servem generics?",
+      "back": "Escrever código reutilizável que preserva o tipo, como function f<T>(v: T): T."
+    },
+    {
+      "front": "O que é keyof T?",
+      "back": "A união dos nomes das propriedades de T."
+    },
+    {
+      "front": "Valor de Azul em enum Cor { Vermelho, Verde = 5, Azul }?",
+      "back": "6: o enum continua incrementando a partir do último valor definido."
+    },
+    {
+      "front": "Enum de string tem mapeamento reverso?",
+      "back": "Não. Só enums numéricos têm."
+    },
+    {
+      "front": "Modificador padrão em classes?",
+      "back": "public."
+    },
+    {
+      "front": "private x protected?",
+      "back": "private: só a própria classe. protected: a classe e suas subclasses."
+    },
+    {
+      "front": "O que é narrowing?",
+      "back": "Estreitamento do tipo dentro de um bloco após typeof, instanceof, in, igualdade ou campo discriminante."
+    },
+    {
+      "front": "O que faz strict no tsconfig?",
+      "back": "Liga várias verificações rígidas, como noImplicitAny e strictNullChecks."
+    },
+    {
+      "front": "outDir x target?",
+      "back": "outDir: pasta dos .js gerados. target: versão do JavaScript gerado."
+    },
+    {
+      "front": "O que faz tsc --noEmit?",
+      "back": "Só confere os tipos, sem gerar arquivos."
+    }
+  ],
+  "tips": [
+    "Em questão de saída de código, lembre que os tipos são apagados: o resultado é o mesmo do JavaScript equivalente.",
+    "Em enum numérico, conte a partir do último valor explícito, não pela posição do membro.",
+    "Viu any x unknown? A diferença está no uso: unknown obriga a verificar antes.",
+    "Em union, pergunte o que é comum a todos os membros; só isso pode ser usado sem estreitar.",
+    "Em tsconfig, associe: target = versão gerada, outDir = pasta de saída, strict = pacote de rigor."
+  ],
+  "traps": [
+    "Achar que o TypeScript checa tipos em execução: ele é apagado na compilação.",
+    "Dizer que const y = 10 tem tipo number: o tipo inferido é o literal 10.",
+    "Confundir | (um ou outro) com & (os dois ao mesmo tempo).",
+    "Afirmar que type com o mesmo nome se mescla como interface.",
+    "Achar que as converte valores: só muda o tipo para o compilador.",
+    "Supor que um erro de tipo impede o .js por padrão: isso só ocorre com noEmitOnError."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique o caminho de um arquivo .ts até o programa rodar e o que acontece com os tipos.",
+      "answer": "O tsc confere os tipos e gera um .js sem as anotações; esse JavaScript roda no navegador ou no Node.js. Os tipos não existem em execução."
+    },
+    {
+      "question": "Quando usar unknown no lugar de any?",
+      "answer": "Quando o valor pode ser qualquer coisa, mas você quer que o compilador obrigue uma verificação (typeof, instanceof) antes do uso."
+    },
+    {
+      "question": "Cite duas diferenças entre interface e type.",
+      "answer": "Interface pode ser reaberta e mesclada; type não. Type expressa uniões e tuplas; interface não."
+    },
+    {
+      "question": "Por que generics são melhores que any numa função de lista?",
+      "answer": "Porque preservam o tipo: primeiro<T>(lista: T[]) devolve T, e o compilador continua checando o uso do resultado; com any, a checagem se perde."
+    },
+    {
+      "question": "Como garantir que todos os casos de uma união discriminada foram tratados?",
+      "answer": "Num switch pelo campo discriminante, atribuir o valor a uma variável never no default: se faltar caso, dá erro de compilação."
+    },
+    {
+      "question": "O que muda ao ligar strictNullChecks?",
+      "answer": "null e undefined deixam de caber em todos os tipos; é preciso tratar a possibilidade de null antes de usar o valor."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Natureza do TypeScript e compilação",
+      "summary": "Confundir superconjunto com linguagem independente, achar que o navegador executa .ts e que os tipos existem em execução."
+    },
+    {
+      "key": "e2",
+      "title": "Tipos básicos e inferência",
+      "summary": "Errar primitivos, tuplas, inferência com let e const, e as diferenças entre any, unknown, void e never."
+    },
+    {
+      "key": "e3",
+      "title": "Interfaces, types, union e generics",
+      "summary": "Confundir interface e type, union e intersection, não estreitar uniões e não entender generics, keyof e tipos utilitários."
+    },
+    {
+      "key": "e4",
+      "title": "Enums, classes e narrowing",
+      "summary": "Errar valores de enum e mapeamento reverso, modificadores de acesso, propriedades de parâmetro, asserções e formas de estreitar tipos."
+    },
+    {
+      "key": "e5",
+      "title": "tsconfig e comandos do tsc",
+      "summary": "Confundir target, outDir e rootDir, o efeito de strict, noImplicitAny e strictNullChecks e os comandos --init, --watch e --noEmit."
+    }
+  ],
+  "sources": [
+    {
+      "title": "The TypeScript Handbook",
+      "kind": "OFICIAL",
+      "publisher": "Microsoft",
+      "reference": "Manual oficial da linguagem: tipos do dia a dia, narrowing, generics, classes e enums",
+      "url": "https://www.typescriptlang.org/docs/handbook/intro.html",
+      "sourceUrl": "https://www.typescriptlang.org/docs/handbook/intro.html",
+      "accessedAt": "2026-10-07"
+    },
+    {
+      "title": "TSConfig Reference",
+      "kind": "OFICIAL",
+      "publisher": "Microsoft",
+      "reference": "Referência oficial das opções do tsconfig.json",
+      "url": "https://www.typescriptlang.org/tsconfig",
+      "sourceUrl": "https://www.typescriptlang.org/tsconfig",
+      "accessedAt": "2026-10-07"
+    }
+  ]
+}
