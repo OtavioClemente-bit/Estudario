@@ -1,0 +1,1736 @@
+{
+  "id": "informatica.power-bi-visualizacao",
+  "subject": "Informática",
+  "title": "Power BI e visualização de dados",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Power BI e visualização de dados",
+    "Ferramentas de criação de dashboards: Power BI.",
+    "Power BI, apresentação e interpretação de gráficos, tabelas e mapas."
+  ],
+  "scope": {
+    "covers": "Preparação de dados com Power Query, tipos e transformações, modelo semântico e esquema estrela, relacionamentos e filtros, medidas e colunas calculadas, DAX básico, visuais, relatórios e dashboards e boas práticas de visualização.",
+    "excludes": "Administração de capacidade e licenciamento detalhado, DAX avançado, engenharia de data warehouse, mineração de dados e programação de conectores."
+  },
+  "theoryTitle": "Da preparação dos dados à leitura correta dos indicadores",
+  "chapters": [
+    {
+      "title": "1. Power Query e preparação dos dados",
+      "markdown": "### Separar etapas\nPower BI combina preparação, modelagem, cálculo e visualização. Power Query conecta fontes e registra passos de transformação, usando a linguagem M. Na importação, os resultados podem ser carregados para o modelo. Medidas DAX operam no modelo, enquanto visuais apresentam resultados. Corrigir uma coluna de datas na preparação é diferente de escolher o gráfico que a exibirá. Transformar uma consulta normalmente não altera a fonte original: modifica o resultado preparado para consumo.\n\nTipos influenciam conversão e operações. Código de produto pode ser texto mesmo se contiver dígitos, preservando zeros à esquerda. Uma data escrita como dia/mês pode exigir localidade apropriada; conversão silenciosa para mês/dia muda interpretação. Nulo é ausência de valor, não necessariamente zero. Remover erros ou substituir nulos exige regra do negócio, pois pode alterar contagens e médias. O perfil de dados auxilia a identificar vazios, erros e distribuição, mas a abrangência da análise deve ser verificada.\n\n| Transformação | Uso | Erro comum |\n|---|---|---|\n| Acrescentar consultas | Empilhar linhas de fontes compatíveis | Confundir com junção por chave |\n| Mesclar consultas | Relacionar linhas por colunas-chave | Multiplicar registros por correspondências repetidas |\n| Agrupar | Resumir por categoria | Perder a granularidade necessária |\n| Anular dinamização | Transformar colunas de períodos em linhas | Manter uma coluna para cada novo mês |\n| Alterar tipo | Definir interpretação dos valores | Ignorar localidade e zeros de códigos |\n\nPassos são reaplicados ao atualizar a consulta. Isso torna o processo repetível, mas mudanças no esquema da fonte podem quebrar etapas. Query folding, quando suportado, permite que transformações sejam executadas na origem; sua existência depende do conector e dos passos. Não é sinônimo de agrupar linhas nem garantia de que toda transformação será enviada à fonte.\n\n### Exemplo resolvido\n1. Duas tabelas mensais têm as mesmas colunas, e o objetivo é obter todas as vendas em sequência. A operação é **acrescentar consultas**. Para trazer a descrição do produto a partir de seu código, a operação pertinente seria mesclar com uma tabela de produtos.\n\n> Pegadinhas: M e DAX não são a mesma linguagem; acrescentar empilha linhas, mesclar cruza por chaves; formato exibido e tipo de dado não são equivalentes."
+    },
+    {
+      "title": "2. Modelo semântico, granularidade e filtros",
+      "markdown": "### Uma linha representa o quê?\nGranularidade define o evento ou unidade representado por cada linha. Uma tabela de itens de venda pode ter várias linhas para a mesma venda. Contar linhas nessa tabela não significa contar pedidos distintos. Antes de relacionar ou somar, identifique chaves e granularidade. Tabelas fato registram eventos e medidas; dimensões descrevem entidades, como produto, cliente e data. No esquema estrela, dimensões se conectam à fato e apoiam filtros e agrupamentos.\n\nEm um relacionamento típico de um para muitos, a dimensão possui uma chave única e a fato repete essa chave em vários eventos. O filtro da dimensão pode se propagar à fato conforme direção e estado do relacionamento. Linhas de uma fato com chave sem correspondência precisam ser investigadas; duplicatas no lado que deveria ser único impedem representar corretamente a relação esperada. Não se deve escolher muitos-para-muitos apenas para ocultar um problema de qualidade.\n\n```grafico\n{\"tipo\":\"geometria\",\"titulo\":\"Esquema estrela simplificado\",\"pontos\":[{\"nome\":\"Produtos\",\"x\":-3,\"y\":2},{\"nome\":\"Datas\",\"x\":3,\"y\":2},{\"nome\":\"Vendas\",\"x\":0,\"y\":0}],\"vetores\":[{\"de\":\"Produtos\",\"ate\":\"Vendas\",\"rotulo\":\"Filtro pela chave de produto\"},{\"de\":\"Datas\",\"ate\":\"Vendas\",\"rotulo\":\"Filtro pela chave de data\"}],\"legenda\":\"Esquema ilustrativo; dimensões com chaves únicas e fato com eventos repetidos.\"}\n```\n\n| Aspecto | Dimensão | Fato |\n|---|---|---|\n| Conteúdo típico | Descrição de entidades | Eventos e valores |\n| Chave na relação usual | Única | Repetida conforme eventos |\n| Uso nos visuais | Categoria e filtro | Agregação de valores |\n\nRelacionamentos não são o mesmo que mesclar consultas: podem propagar filtros sem adicionar colunas fisicamente por expansão. A direção bidirecional pode ser útil em casos específicos, mas também criar caminhos ambíguos; não é uma correção universal. Relações ativas participam da propagação padrão; relações inativas exigem uso apropriado para influenciar um cálculo.\n\n### Exemplo resolvido\n1. Produtos contém um registro por código; Vendas contém vários itens por código. A relação adequada é **Produtos no lado único e Vendas no lado muitos**. Um filtro para produto A pode restringir a soma de vendas a seus itens, se a relação estiver ativa e corretamente configurada.\n\n> Pegadinhas: coluna com valores numéricos pode ser identificador, não medida somável. Contagem de linhas, pedidos distintos e clientes distintos respondem perguntas diferentes."
+    },
+    {
+      "title": "3. DAX básico e contexto de avaliação",
+      "markdown": "### Medida não é coluna armazenada\nUma coluna calculada é avaliada por linha no modelo e, no modo Import, seu resultado fica armazenado e é recalculado na atualização. Uma medida é avaliada no contexto da consulta e pode responder a filtros de visuais, página, relatório e segmentações. Contexto de linha significa uma linha corrente; contexto de filtro define o conjunto considerado. Eles não são intercambiáveis.\n\nA base ilustrativa Vendas possui colunas Mes, Produto, Quantidade, PrecoUnitario e Valor. Valores monetários da tabela estão em reais.\n\n| Mes | Produto | Quantidade | PrecoUnitario | Valor |\n|---|---|---|---|---|\n| Janeiro | A | 2 | 100 | 200 |\n| Janeiro | B | 1 | 300 | 300 |\n| Fevereiro | A | 3 | 100 | 300 |\n\nDados ilustrativos, sem representar resultados de uma organização real. Para criar medidas nesse modelo, use:\n\n```dax\nReceita = SUM(Vendas[Valor])\n```\n\n```dax\nReceitaItens = SUMX(Vendas, Vendas[Quantidade] * Vendas[PrecoUnitario])\n```\n\nSUM agrega uma coluna numérica. SUMX percorre linhas e soma o resultado de uma expressão em cada uma. Não se deve multiplicar a soma das quantidades pela soma dos preços para calcular receita de itens com preços diferentes. CALCULATE avalia expressão em contexto de filtro modificado. Um filtro simples sobre uma coluna pode substituir o filtro existente dessa coluna; preservação por interseção requer mecanismos como KEEPFILTERS.\n\n### Fórmula de razão\nUma margem agregada pode ser definida pela razão entre lucro e receita:\n\n$$\nM = \\frac{L}{R}\n$$\n\n- $$M$$: margem, razão adimensional, formatável como percentual.\n- $$L$$: lucro agregado, em reais.\n- $$R$$: receita agregada, em reais.\n\nEm DAX, DIVIDE trata divisão por denominador zero; sem resultado alternativo especificado, retorna BLANK nesse caso. BLANK não é automaticamente o mesmo que zero. A formatação percentual muda apresentação, não multiplica conceitualmente a margem armazenada por uma nova receita.\n\n### Exemplos resolvidos\n1. Sem filtros: $$R = 200 + 300 + 300 = 800$$. Resultado: **R$ 800,00**.\n2. Com filtro de Janeiro: $$R_{jan} = 200 + 300 = 500$$. Resultado: **R$ 500,00**.\n3. Por itens: $$R = 2 \\cdot 100 + 1 \\cdot 300 + 3 \\cdot 100 = 800$$. Resultado: **R$ 800,00**, igual à coluna Valor dessa base.\n\n> Pegadinhas: total de uma medida é reavaliado no contexto total, não necessariamente soma dos números exibidos; média simples de percentuais pode diferir da razão dos totais."
+    },
+    {
+      "title": "4. Visuais, relatórios e dashboards",
+      "markdown": "### Escolher o visual pela pergunta\nBarras facilitam comparação entre categorias; linhas mostram evolução ordenada no tempo; dispersão ajuda a investigar associação entre duas variáveis quantitativas; cartão destaca um indicador agregado. Pizza pode mostrar partes de um total quando há poucas categorias, mas é inadequada para muitas fatias semelhantes. Tabela ou matriz é útil para valores exatos e cruzamentos. Um mapa exige significado geográfico e localização bem identificada; nomes ambíguos podem colocar pontos no lugar errado.\n\nNa base ilustrativa, Janeiro soma R$ 500,00 e Fevereiro R$ 300,00. Uma comparação por mês pode ser exibida assim:\n\n```grafico\n{\"tipo\":\"barras\",\"titulo\":\"Receita por mês\",\"unidade\":\"R$\",\"itens\":[{\"rotulo\":\"Janeiro\",\"valor\":500},{\"rotulo\":\"Fevereiro\",\"valor\":300}],\"legenda\":\"Dados ilustrativos da tabela Vendas.\"}\n```\n\nA ordem cronológica deve ser preservada em análises temporais. Ordenar meses por nome pode gerar sequência alfabética indevida; usar número de mês ou data ajuda. Barras geralmente precisam de linha de base zero para que comprimentos representem proporções. Em linhas, outras escalas podem ser úteis, desde que explicitadas e não usadas para induzir leitura enganosa. Unidade, período, fonte e filtros ativos devem estar claros.\n\n### Distinção de produto\nNo Power BI, relatório pode ter várias páginas de visuais vinculados ao modelo semântico. Dashboard, no sentido específico do serviço, é uma página de blocos que pode reunir conteúdo de diferentes relatórios e modelos. Uma página de relatório visualmente organizada como painel não passa a ser, por esse motivo, o objeto dashboard do serviço.\n\n| Objeto ou recurso | Função |\n|---|---|\n| Relatório | Explorar visuais e páginas de um modelo |\n| Dashboard do serviço | Sintetizar conteúdo em uma página de blocos |\n| Segmentação | Seleção interativa que filtra contexto |\n| Tooltip | Informação contextual ao inspecionar um ponto |\n| Drill-down | Navegação em níveis de hierarquia |\n\nContraste, texto alternativo, ordem de navegação e rótulos ajudam acessibilidade. Não use apenas vermelho e verde para diferenciar estados: acrescente texto ou formas. Excesso de decoração, efeitos tridimensionais e rótulos truncados pode dificultar interpretação.\n\n### Exemplo resolvido\n1. Para comparar Janeiro e Fevereiro da base, um gráfico de barras permite verificar **R$ 500,00 contra R$ 300,00**. Para acompanhar muitos meses em sequência, uma linha pode evidenciar tendência. A decisão depende da pergunta, não do visual mais chamativo.\n\n> Pegadinha: filtro altera o conjunto de dados considerado; formatação altera como o resultado é exibido. Trocar cor ou unidade aparente não corrige medida errada."
+    },
+    {
+      "title": "5. Como o tema costuma ser cobrado",
+      "markdown": "### Rastrear a origem do resultado\nUm total estranho pode nascer na fonte, na transformação, no relacionamento ou no cálculo. Antes de trocar o gráfico, compare contagem de linhas, valores e chaves após cada etapa. Uma mesclagem com chave repetida na tabela auxiliar pode multiplicar linhas quando os resultados são expandidos. Remover duplicatas sem definir quais registros representam eventos reais pode apagar vendas legítimas. O critério é granularidade e identidade do evento, não aparência repetida.\n\nFiltros de página, relatório e visual podem coexistir com segmentações. Interações entre visuais podem filtrar ou destacar, conforme configuração. Uma medida que usa CALCULATE ou remove filtros pode mostrar valor diferente da soma intuitiva do que o usuário selecionou. Explique o contexto antes de afirmar que o programa ignorou os dados. Segurança por linha e filtros de visual também não são equivalentes: esconder uma categoria em um gráfico não substitui uma regra de acesso.\n\n### Razões e médias\nConsidere dois períodos ilustrativos: um com lucro R$ 10,00 e receita R$ 100,00; outro com lucro R$ 90,00 e receita R$ 300,00. As margens são distintas e têm denominadores diferentes.\n\n| Período | Lucro em reais | Receita em reais | Margem |\n|---|---|---|---|\n| Primeiro | 10 | 100 | Dez por cento |\n| Segundo | 90 | 300 | Trinta por cento |\n\n1. Razão dos totais: $$M = \\frac{10 + 90}{100 + 300} = \\frac{100}{400} = 0{,}25$$. Resultado: **vinte e cinco por cento**.\n2. Média simples das margens: $$\\bar{M} = \\frac{0{,}10 + 0{,}30}{2} = 0{,}20$$. Resultado: **vinte por cento**, outra estatística, não a margem global.\n\n```grafico\n{\"tipo\":\"barras\",\"titulo\":\"Dois cálculos de margem\",\"unidade\":\"%\",\"itens\":[{\"rotulo\":\"Razão dos totais\",\"valor\":25},{\"rotulo\":\"Média simples\",\"valor\":20}],\"legenda\":\"Dados ilustrativos; os cálculos respondem perguntas diferentes.\"}\n```\n\n### Publicação e atualização\nPublicar um relatório não garante que dados importados acompanhem a fonte em tempo real. Atualização depende de modo de conexão, credenciais, políticas e, quando necessário, gateway. Import armazena dados no modelo; DirectQuery consulta a origem no funcionamento de consulta, com limites e comportamento próprios. Nem todo conector aceita todos os modos. Um dashboard atraente não torna corretos dados desatualizados.\n\n### Exemplo resolvido\n1. Um visual repete o total geral para todos os produtos. Verifique **relação e propagação de filtro**, depois a medida e suas modificações de contexto. Repetição pode ser sintoma de dimensão desconectada ou de expressão que remove o filtro, não um defeito de cor do gráfico.\n\n> Pegadinhas: total geral pode não ser a soma dos percentuais; criar uma medida não limpa a fonte; publicar não significa atualizar; filtros de apresentação não substituem segurança de acesso."
+    }
+  ],
+  "summary": "Power Query prepara e transforma consultas com M; DAX calcula no modelo. Acrescentar empilha linhas, mesclar relaciona por chave, e tipos precisam respeitar o significado dos dados. Granularidade define o evento por linha. Dimensões com chaves únicas e fatos com eventos sustentam o esquema estrela e a propagação de filtros. Medidas respondem ao contexto de consulta; colunas calculadas importadas ficam armazenadas. SUM agrega uma coluna; SUMX soma expressões por linha; CALCULATE modifica contexto de filtro; DIVIDE trata denominador zero. Gráficos devem responder à pergunta e explicitar unidade e período. Relatório e dashboard do serviço são objetos distintos. Qualidade, acessibilidade, atualização e correta agregação são necessárias para interpretar indicadores.",
+  "flashcards": [
+    {
+      "front": "Power Query e M",
+      "back": "Preparam dados por consultas com passos de transformação, sem confundir essa etapa com medidas DAX."
+    },
+    {
+      "front": "Acrescentar e mesclar",
+      "back": "Acrescentar empilha linhas; mesclar cruza tabelas por colunas-chave."
+    },
+    {
+      "front": "Anular dinamização",
+      "back": "Transforma colunas, como meses, em registros com atributos e valores em linhas."
+    },
+    {
+      "front": "Granularidade",
+      "back": "Define o evento ou unidade representado por uma linha da tabela."
+    },
+    {
+      "front": "Dimensão e fato",
+      "back": "Dimensão descreve entidades; fato registra eventos e medidas."
+    },
+    {
+      "front": "Lado único da relação",
+      "back": "No padrão um para muitos, a chave da dimensão não se repete."
+    },
+    {
+      "front": "Medida",
+      "back": "Expressão avaliada no contexto de consulta, podendo responder a filtros."
+    },
+    {
+      "front": "Coluna calculada em Import",
+      "back": "Resultado por linha armazenado no modelo e recalculado na atualização."
+    },
+    {
+      "front": "SUM e SUMX",
+      "back": "SUM agrega coluna; SUMX avalia expressão por linha e soma resultados."
+    },
+    {
+      "front": "CALCULATE",
+      "back": "Avalia uma expressão em contexto de filtro modificado."
+    },
+    {
+      "front": "DIVIDE sem alternativa",
+      "back": "Retorna BLANK quando o denominador é zero, sem exigir um resultado alternativo informado."
+    },
+    {
+      "front": "Contexto de filtro",
+      "back": "Conjunto de restrições que determina quais dados participam da avaliação."
+    },
+    {
+      "front": "Barras e linhas",
+      "back": "Barras comparam categorias; linhas favorecem leitura de evolução temporal ordenada."
+    },
+    {
+      "front": "Dashboard do serviço",
+      "back": "Página de blocos que pode reunir conteúdo de diferentes relatórios e modelos."
+    },
+    {
+      "front": "Relatório",
+      "back": "Conjunto de páginas e visuais vinculados ao modelo semântico."
+    },
+    {
+      "front": "Margem global",
+      "back": "Razão entre lucro total e receita total; pode diferir da média simples das margens de grupos."
+    },
+    {
+      "front": "Atualização em Import",
+      "back": "Dados ficam armazenados no modelo e precisam de atualização para incorporar mudanças da fonte."
+    },
+    {
+      "front": "Acessibilidade de cores",
+      "back": "Acrescente rótulos, símbolos e contraste; não dependa apenas de diferenças entre cores."
+    }
+  ],
+  "tips": [
+    "Defina o significado de cada linha antes de contar ou somar.",
+    "Verifique tipos e chaves antes de criar relacionamentos.",
+    "Compare resultados sem filtros e com filtros conhecidos para conferir medidas.",
+    "Use visuais compatíveis com comparação, tendência ou associação.",
+    "Nos percentuais, identifique denominadores antes de calcular um total."
+  ],
+  "traps": [
+    "Mesclar por uma chave não única pode multiplicar linhas quando os resultados são expandidos.",
+    "Um código composto por dígitos não precisa ser uma coluna numérica.",
+    "O total de uma medida pode ser reavaliado, e não somado a partir das células visíveis.",
+    "Uma página de relatório não é automaticamente o objeto dashboard do serviço.",
+    "Filtrar um visual não equivale a implantar segurança por linha."
+  ],
+  "activeRecall": [
+    {
+      "question": "Quando acrescentar consultas é preferível a mesclar?",
+      "answer": "Quando a intenção é reunir registros de tabelas compatíveis em sequência, e não buscar atributos por chave."
+    },
+    {
+      "question": "Por que chave duplicada na dimensão merece investigação?",
+      "answer": "A relação usual exige unicidade nesse lado; duplicatas podem indicar granularidade errada ou causar expansão de registros em mesclagens."
+    },
+    {
+      "question": "Qual é a receita total da base ilustrativa?",
+      "answer": "R$ 800,00; Janeiro representa R$ 500,00 e Fevereiro R$ 300,00."
+    },
+    {
+      "question": "Por que SUMX é útil para receita por quantidade e preço?",
+      "answer": "Permite multiplicar cada quantidade pelo preço de sua linha antes de somar, em vez de multiplicar somas separadas."
+    },
+    {
+      "question": "Como diferem margem global e média simples das margens?",
+      "answer": "A global divide totais; a simples atribui o mesmo peso a cada margem, mesmo com receitas diferentes."
+    },
+    {
+      "question": "Por que publicar não basta para mostrar dados recentes?",
+      "answer": "A atualização depende do modo de conexão, credenciais e configuração, e dados importados permanecem no estado carregado até atualização."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Preparação confundida com apresentação",
+      "summary": "Usar formatação ou gráfico para tentar corrigir tipos, transformações e problemas da fonte."
+    },
+    {
+      "key": "e2",
+      "title": "Granularidade e relações ignoradas",
+      "summary": "Somar ou contar sem definir eventos por linha, chaves e propagação de filtros."
+    },
+    {
+      "key": "e3",
+      "title": "Contexto DAX confundido",
+      "summary": "Trocar coluna e medida ou ignorar filtros e a avaliação de expressões por linha."
+    },
+    {
+      "key": "e4",
+      "title": "Visual e indicador sem significado",
+      "summary": "Escolher visual incompatível ou agregar percentuais sem conferir denominadores, unidades e contexto."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Qual componente é diretamente voltado a conectar fontes e registrar transformações de preparação de dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Segmentação de dados no relatório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cartão que exibe uma medida agregada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Power Query com passos de consulta.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Dashboard com blocos fixados no serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tooltip com informação do ponto selecionado.",
+          "correct": false
+        }
+      ],
+      "explanation": "C identifica preparação e transformação. A filtra contexto na apresentação. B exibe indicador, D reúne blocos e E fornece informação contextual. Esses recursos não substituem o processamento de fontes no Power Query.",
+      "section": "1. Power Query e preparação dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cálculo deve responder à seleção de mês feita pelo leitor do relatório. Qual objeto é apropriado para agregação dinâmica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Medida DAX avaliada no contexto de filtro.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Coluna importada com total fixo por linha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Rótulo textual digitado no título do gráfico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Etapa do Power Query que filtra o mês antes da carga.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Coluna calculada com CALCULATE avaliada em cada linha.",
+          "correct": false
+        }
+      ],
+      "explanation": "A pode recalcular a agregação conforme o filtro. B armazena valores por linha, sem ser a agregação dinâmica descrita. C é conteúdo fixo. D fixa o recorte na preparação, sem responder à seleção do leitor. E continua sendo coluna: é calculada na atualização, não a cada seleção.",
+      "section": "3. DAX básico e contexto de avaliação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas consultas de vendas têm as mesmas colunas e devem ter suas linhas reunidas. Qual operação corresponde ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mesclar por código para trazer atributos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Agrupar por código para resumir eventos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dinamizar meses para criar colunas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Acrescentar consultas para empilhar registros.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Remover duplicatas considerando apenas o produto.",
+          "correct": false
+        }
+      ],
+      "explanation": "D reúne as linhas. A cruza por chave; B resume e pode perder eventos. C muda a disposição dos dados. E elimina registros segundo um critério que não atende à união e pode apagar vendas legítimas do mesmo produto.",
+      "section": "1. Power Query e preparação dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para trazer a descrição do produto de outra tabela usando seu código, qual transformação é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acrescentar registros das duas tabelas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mesclar consultas pelas colunas-chave.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ordenar os códigos em ordem crescente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Agrupar descrições sem preservar códigos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transformar toda coluna de código em percentual.",
+          "correct": false
+        }
+      ],
+      "explanation": "B relaciona registros pela chave e permite expandir atributos. A empilha entidades distintas. C só reordena; D perde a referência necessária. E altera tipo ou apresentação de um identificador sem buscar a descrição associada.",
+      "section": "1. Power Query e preparação dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual visual tende a facilitar comparação de valores entre poucas categorias nominais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Linha ligando categorias sem ordem definida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dispersão sem duas variáveis quantitativas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pizza com uma fatia por categoria de valores próximos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cartão único sem identificar cada categoria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Barras com categorias e valores identificados.",
+          "correct": true
+        }
+      ],
+      "explanation": "E usa comprimentos para comparar categorias. A sugere continuidade sem ordem. B requer outra estrutura de variáveis. C dificulta comparar ângulos parecidos. D resume um indicador e não compara os valores de cada categoria solicitada.",
+      "section": "4. Visuais, relatórios e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para destacar a evolução de um indicador ao longo de muitos meses em ordem cronológica, qual visual é usualmente adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pizza com uma fatia para cada dia.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Linha com período no eixo temporal.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Cartão apenas com o total de todos os meses.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pizza com uma fatia para cada mês do período.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dispersão com categorias textuais sem ordem.",
+          "correct": false
+        }
+      ],
+      "explanation": "B explicita trajetória temporal. A dificulta comparar sequência e tendência. C perde evolução. D mostra partes de um total, não a trajetória ao longo dos meses. E não estabelece a ordem cronológica necessária à leitura proposta.",
+      "section": "4. Visuais, relatórios e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual visual é diretamente voltado a destacar um único indicador agregado, como receita total?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mapa com pontos de localização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Linha de evolução de períodos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dispersão de pares quantitativos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cartão com valor e rótulo do indicador.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Matriz com várias dimensões cruzadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "D evidencia um resultado único. A responde a distribuição espacial; B evolução; C associação. E é útil para detalhamento e cruzamento de categorias, mas não é o recurso mais direto para destacar um só total.",
+      "section": "4. Visuais, relatórios e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual distinção entre linguagens corresponde ao fluxo básico do Power BI?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "M calcula medidas e DAX prepara consultas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "M e DAX são nomes da mesma linguagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "M prepara consultas e DAX calcula no modelo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "M define relacionamentos e DAX carrega as fontes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "M cria dashboards e DAX faz somente junções de fontes.",
+          "correct": false
+        }
+      ],
+      "explanation": "C separa preparação e cálculo no modelo. A inverte os papéis; B apaga diferenças de linguagem. D atribui à M a modelagem e à DAX a carga, e E troca transformação e objetos visuais. Recursos se integram, mas não são equivalentes.",
+      "section": "1. Power Query e preparação dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela Produtos tem um registro por código e será relacionada a muitos itens de vendas. Qual papel usual ela exerce no esquema estrela?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dimensão descritiva com chave única.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fato com uma linha por item vendido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Medida que soma valores por categoria.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dashboard que agrupa relatórios distintos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Segmentação que armazena eventos de vendas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A descreve a entidade que classifica os eventos. B tem a granularidade de Vendas. C é cálculo, não tabela descritiva. D é objeto do serviço. E é controle de seleção, sem substituir armazenamento de entidades ou eventos.",
+      "section": "2. Modelo semântico, granularidade e filtros",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso permite ao leitor selecionar interativamente uma categoria para filtrar o relatório?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dica de ferramenta exibindo a categoria do ponto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Filtro aplicado na etapa do Power Query.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Rótulo fixo dentro do título da página.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conversão de coluna em tipo texto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Segmentação de dados ligada ao campo.",
+          "correct": true
+        }
+      ],
+      "explanation": "E é o controle interativo de filtro. A só informa ao inspecionar um ponto, e C é conteúdo estático. B recorta os dados na preparação, fora do alcance do leitor, e D prepara tipo de dado. Nenhuma dessas operações fornece, por si, o controle de seleção da categoria durante a leitura.",
+      "section": "4. Visuais, relatórios e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na base ilustrativa, Janeiro tem valores de R$ 200,00 e R$ 300,00; Fevereiro tem R$ 300,00. A medida soma Valor. Com filtro somente para Janeiro, qual resultado é esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "R$ 800,00, total sem restringir o mês.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "R$ 300,00, mantendo apenas o maior item.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "R$ 250,00, calculando a média dos itens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "R$ 500,00, soma dos registros de Janeiro.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "R$ 200,00, usando apenas o primeiro registro.",
+          "correct": false
+        }
+      ],
+      "explanation": "D aplica o filtro antes da soma: $$200 + 300 = 500$$. A inclui Fevereiro; B usa máximo; C calcula $$500/2 = 250$$; E ignora o segundo registro. A medida solicitada soma todos os valores do mês selecionado.",
+      "section": "3. DAX básico e contexto de avaliação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Três itens têm quantidade e preço unitário de 2 e R$ 100,00; 1 e R$ 300,00; 3 e R$ 100,00. Qual receita resulta da soma dos produtos por linha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "R$ 3.000,00, multiplicando as somas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "R$ 500,00, somando apenas os preços.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "R$ 600,00, usando o primeiro preço para todos os itens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "R$ 700,00, reduzindo uma unidade do último item.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "R$ 800,00, somando cada quantidade vezes seu preço.",
+          "correct": true
+        }
+      ],
+      "explanation": "E segue $$2 \\cdot 100 + 1 \\cdot 300 + 3 \\cdot 100 = 800$$. A faz $$6 \\cdot 500 = 3000$$; B soma preços sem quantidades; C aplica $$6 \\cdot 100 = 600$$; D usa quantidade final errada. SUMX permite a avaliação por linha.",
+      "section": "3. DAX básico e contexto de avaliação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma dimensão Produtos tem chave única, e Vendas repete a chave por evento. Qual relação usual favorece filtro da dimensão sobre a fato?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um para muitos, de Produtos para Vendas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um para um, por ambas terem coluna de código.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Muitos para um, com Vendas no lado único.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Muitos para muitos, sem considerar a unicidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ausência de relação, porque os códigos se repetem na fato.",
+          "correct": false
+        }
+      ],
+      "explanation": "A acompanha a unicidade em Produtos e repetição em Vendas. B ignora vários eventos por produto; C inverte os lados. D adota cardinalidade desnecessária. E toma a repetição normal da fato como motivo para não relacionar.",
+      "section": "2. Modelo semântico, granularidade e filtros",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela tem uma linha por item de pedido, e o mesmo pedido pode ter vários itens. Qual cálculo responde ao número de pedidos distintos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Contagem de todas as linhas de itens.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Soma dos identificadores numéricos dos pedidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Contagem distinta do identificador de pedido.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Média do número de itens sem identificar pedidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Contagem distinta de produtos vendidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "C respeita a unidade solicitada. A conta itens, podendo repetir pedido. B soma códigos sem significado quantitativo. D mede outra grandeza, e E conta produtos, que não equivalem ao número de pedidos.",
+      "section": "2. Modelo semântico, granularidade e filtros",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma medida, CALCULATE aplica um filtro simples de Produto igual a A sobre a mesma coluna já filtrada por B, sem KEEPFILTERS. Qual efeito básico é esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter B e ignorar o filtro indicado na expressão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir nesse ponto o filtro de B pelo filtro de A.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Somar A e B por transformar o filtro em operação de adição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Interseccionar A e B como se KEEPFILTERS estivesse presente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Modificar permanentemente os produtos armazenados na fonte.",
+          "correct": false
+        }
+      ],
+      "explanation": "B descreve substituição do filtro existente na mesma coluna pelo argumento simples. A nega a modificação. C confunde filtros com soma; D presume preservação por interseção que não foi pedida. E troca contexto de avaliação por atualização da fonte.",
+      "section": "3. DAX básico e contexto de avaliação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um período tem lucro R$ 10,00 e receita R$ 100,00; outro tem lucro R$ 90,00 e receita R$ 300,00. Qual é a margem calculada pela razão dos totais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Vinte por cento, média simples das margens.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dez por cento, usando apenas o primeiro período.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trinta por cento, usando apenas o segundo período.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quarenta por cento, somando as duas margens.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Vinte e cinco por cento, dividindo lucro total pela receita total.",
+          "correct": true
+        }
+      ],
+      "explanation": "E usa $$\\frac{10+90}{100+300} = \\frac{100}{400} = 0{,}25$$. A faz $$\\frac{0{,}10+0{,}30}{2}=0{,}20$$, outra estatística. B e C usam só um grupo; D soma razões e não representa a margem global.",
+      "section": "5. Como o tema costuma ser cobrado",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em DAX, DIVIDE recebe denominador zero e nenhum resultado alternativo. Qual retorno é documentado para esse caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Zero numérico em todo contexto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O numerador convertido em percentual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "BLANK como resultado da divisão.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um como resultado neutro da operação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A soma entre numerador e denominador.",
+          "correct": false
+        }
+      ],
+      "explanation": "C corresponde ao retorno padrão de DIVIDE nessa condição. A confundiria um resultado alternativo zero com o padrão. B, D e E atribuem operações ou valores que não são a semântica documentada para denominador zero sem alternativa.",
+      "section": "3. DAX básico e contexto de avaliação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No sentido específico do serviço Power BI, que característica corresponde a um dashboard?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consulta M que prepara colunas da fonte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Página de blocos que pode reunir conteúdo de diferentes modelos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Tabela fato com eventos e chaves repetidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Expressão DAX calculada para cada linha importada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Qualquer página de relatório com muitos gráficos, pelo formato visual.",
+          "correct": false
+        }
+      ],
+      "explanation": "B define o objeto dashboard do serviço. A é preparação, C é tabela e D cálculo. E usa aparência como critério, mas uma página de relatório não muda de tipo apenas por organizar vários visuais como painel.",
+      "section": "4. Visuais, relatórios e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma data textual 03/04/2026 significa três de abril na fonte, mas é convertida como quatro de março. Qual ajuste enfrenta a causa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar o gráfico de barras por uma pizza.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Formatar a medida de receita como moeda.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ordenar os nomes dos meses alfabeticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter a data com a localidade compatível com a fonte.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Renomear a coluna sem mudar sua interpretação.",
+          "correct": false
+        }
+      ],
+      "explanation": "D corrige a interpretação dia/mês na conversão. A altera visual; B outra medida; C ordem de apresentação. E apenas nomeia o campo. Exibir uma data com outro formato depois da conversão errada não recupera automaticamente o significado original.",
+      "section": "1. Power Query e preparação dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas vendas de R$ 100,00 e R$ 200,00 são mescladas a uma tabela auxiliar em que cada chave encontra duas linhas. Após expandir todos os resultados, qual soma aparece se nada mais mudar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "R$ 600,00, devido à duplicação das correspondências.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "R$ 300,00, mantendo automaticamente uma linha por venda.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "R$ 150,00, dividindo a soma pela quantidade de correspondências.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "R$ 400,00, repetindo somente a venda de maior valor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "R$ 200,00, substituindo cada venda por seu valor médio.",
+          "correct": false
+        }
+      ],
+      "explanation": "A resulta de $$2 \\cdot 100 + 2 \\cdot 200 = 600$$. B presume deduplicação; C divide sem regra; D descreve repetição desigual; E introduz média inexistente. A expansão de duas correspondências para cada venda multiplica linhas e total.",
+      "section": "5. Como o tema costuma ser cobrado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório repete o total geral para cada produto, embora a medida apenas some a coluna de valor. Qual hipótese merece verificação inicial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "As barras têm a mesma cor para todos os produtos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O formato monetário eliminou a distinção entre categorias.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A dimensão de produtos pode não estar filtrando a fato.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A medida deveria usar SUMX, pois SUM ignora filtros de dimensão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ordenação alfabética transformou cada soma em média.",
+          "correct": false
+        }
+      ],
+      "explanation": "C aponta relação ausente, inativa ou configuração inadequada de propagação. A e B são apresentação, sem explicar esse total com soma simples. D é falso: SUM respeita o contexto de filtro que chega à tabela. E confunde ordem com função de agregação.",
+      "section": "2. Modelo semântico, granularidade e filtros",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gráfico de barras compara valores 100 e 110, mas inicia o eixo em 99 sem deixar isso claro. Qual crítica é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O problema é usar categorias nominais em barras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O eixo truncado torna os dados numéricos incorretos na fonte.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Em barras, o eixo deve começar no menor valor exibido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A diferença real desaparece porque os valores são próximos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os comprimentos podem exagerar a diferença por falta de base zero.",
+          "correct": true
+        }
+      ],
+      "explanation": "E identifica distorção visual: segmentos exibidos não correspondem às proporções dos valores completos. A rejeita um uso adequado de barras; B confunde apresentação com fonte. C inverte a recomendação de base zero, e D nega uma diferença que existe, ainda que pequena.",
+      "section": "4. Visuais, relatórios e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna calculada de um modelo Import guarda receita por linha, enquanto uma medida soma essa coluna. O que ocorre ao mudar uma segmentação sem atualizar os dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A medida pode mudar seu resultado; os valores armazenados da coluna não são reescritos pela seleção.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A segmentação recalcula e armazena novamente cada linha da coluna antes da medida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A medida fica fixa porque a coluna já está armazenada no modelo Import.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A seleção modifica permanentemente as quantidades da fonte de vendas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Coluna e medida passam a ser o mesmo objeto após aplicar o primeiro filtro.",
+          "correct": false
+        }
+      ],
+      "explanation": "A distingue armazenamento por linha e agregação em contexto. B atribui à segmentação atualização da coluna; C ignora o conjunto filtrado. D confunde consulta com escrita na fonte. E elimina uma distinção que permanece mesmo com filtros.",
+      "section": "3. DAX básico e contexto de avaliação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual expressão calcula receita de itens quando Quantidade e PrecoUnitario podem variar por linha de Vendas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SUM(Vendas[Quantidade]) * SUM(Vendas[PrecoUnitario])",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SUM(Vendas[Quantidade]) + SUM(Vendas[PrecoUnitario])",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "AVERAGE(Vendas[Quantidade]) * SUM(Vendas[PrecoUnitario])",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SUMX(Vendas, Vendas[Quantidade] * Vendas[PrecoUnitario])",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "COUNTROWS(Vendas) * SUM(Vendas[PrecoUnitario])",
+          "correct": false
+        }
+      ],
+      "explanation": "D multiplica valores da mesma linha e soma os produtos. A multiplica totais independentes; B soma grandezas sem obter receita; C usa quantidade média no lugar de cada item. E troca quantidade vendida por número de registros, inadequado quando quantidades variam.",
+      "section": "3. DAX básico e contexto de avaliação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um painel distingue aprovação e reprovação apenas por verde e vermelho. Qual melhoria atende mais diretamente à acessibilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar saturação das mesmas duas cores sem rótulos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Acrescentar texto ou símbolos e garantir contraste legível.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Trocar verde e vermelho por laranja e azul, sem rótulos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eliminar títulos e legendas para destacar a cor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reduzir o tamanho da fonte para caber mais categorias.",
+          "correct": false
+        }
+      ],
+      "explanation": "B oferece pistas além da cor e melhora leitura. A mantém dependência cromática. C ajuda alguns leitores, mas continua dependendo só da cor; D remove contexto. E pode piorar legibilidade, sem resolver distinção entre estados para quem não percebe essas cores.",
+      "section": "4. Visuais, relatórios e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Transformações registradas no Power Query podem ser reaplicadas quando a consulta é atualizada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os passos compõem um processo de preparação repetível. A reaplicação depende de a fonte e seu esquema continuarem compatíveis; registrar passos não garante que mudanças de colunas ou credenciais sejam irrelevantes.",
+      "section": "1. Power Query e preparação dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna com códigos de produto escritos com dígitos precisa ser numérica e somada para análise.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Identificadores podem ser texto, preservando zeros à esquerda e evitando agregação sem significado. A aparência numérica não transforma código em quantidade nem fornece justificativa para somar entidades.",
+      "section": "1. Power Query e preparação dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um esquema estrela costuma distinguir tabelas de eventos e tabelas descritivas de entidades.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Fatos registram eventos e valores, enquanto dimensões descrevem entidades usadas em filtros e agrupamentos. Essa distinção organiza granularidade e relacionamentos, em vez de depender da aparência do nome das tabelas.",
+      "section": "2. Modelo semântico, granularidade e filtros",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Renomear um campo altera automaticamente os valores incorretos armazenados nele.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Nome identifica a coluna, mas não corrige conteúdo ou interpretação. Erros de conversão, nulos inadequados e códigos inválidos exigem transformações ou correções específicas na preparação dos dados.",
+      "section": "1. Power Query e preparação dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma segmentação pode modificar o contexto de avaliação de uma medida no relatório.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A seleção acrescenta restrições consideradas nas consultas dos visuais conforme interações e modelo. A medida é avaliada nesse contexto, embora sua expressão possa modificar filtros explicitamente.",
+      "section": "3. DAX básico e contexto de avaliação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Anular dinamização pode transformar uma tabela com colunas de meses em registros com mês e valor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A operação muda o formato largo para uma estrutura em que períodos aparecem como valores de um atributo. Isso pode facilitar filtros e agregações sem criar uma coluna diferente para cada mês no modelo.",
+      "section": "1. Power Query e preparação dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No relacionamento um para muitos, é adequado haver vários registros com a mesma chave no lado que deve ser único.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Unicidade é requisito do lado um nessa relação. Duplicatas podem revelar granularidade diferente da pretendida ou erro de dados; aceitar repetição sem revisar o modelo contraria o significado da cardinalidade.",
+      "section": "2. Modelo semântico, granularidade e filtros",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "CALCULATE permite avaliar uma expressão sob modificações no contexto de filtro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Seus argumentos podem acrescentar, substituir ou remover filtros de acordo com a expressão utilizada. Isso atua na avaliação do modelo, sem equivaler a reescrever os registros da fonte original.",
+      "section": "3. DAX básico e contexto de avaliação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela com três itens do mesmo pedido representa três pedidos distintos quando suas linhas são contadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A granularidade é item, então contar linhas mede itens e pode repetir pedidos. Para número de pedidos, deve-se avaliar os identificadores distintos na estrutura apropriada, sem trocar evento e subevento.",
+      "section": "2. Modelo semântico, granularidade e filtros",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um dashboard do serviço pode reunir blocos originados de mais de um relatório ou modelo semântico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A síntese em uma página de blocos é uma característica desse objeto. Isso não transforma toda página visual de um relatório em dashboard, nem implica que os modelos de origem tenham sido fundidos em uma única tabela.",
+      "section": "4. Visuais, relatórios e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ordenar nomes de meses alfabeticamente é equivalente a ordená-los cronologicamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A sequência textual dos nomes não acompanha o calendário. Uma coluna de número do mês ou data pode apoiar ordenação temporal, mantendo o nome como rótulo sem criar uma tendência artificial pela ordem alfabética.",
+      "section": "4. Visuais, relatórios e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Nulo pode representar ausência de dado e não deve ser substituído por zero sem avaliar o significado da coluna.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Zero é um valor, enquanto ausência pode significar não informado ou não aplicável. Substituição sem critério pode alterar médias, contagens e interpretações, devendo seguir a regra do negócio.",
+      "section": "1. Power Query e preparação dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A soma das porcentagens exibidas por categoria é necessariamente igual ao resultado de uma medida percentual no total geral.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O total pode reavaliar a razão no contexto agregado. Somar razões com denominadores diferentes não fornece automaticamente a razão dos totais; é preciso conhecer a definição da medida e a pergunta estatística.",
+      "section": "5. Como o tema costuma ser cobrado",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Remover linhas repetidas considerando apenas produto pode apagar vendas distintas do mesmo produto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A identidade do evento não é necessariamente o produto: datas, pedidos e itens podem distinguir transações legítimas. Deduplicar por critério insuficiente reduz registros e total sem provar que as linhas eram erros.",
+      "section": "5. Como o tema costuma ser cobrado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Relacionamentos bidirecionais devem ser usados como correção geral para qualquer total incorreto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A direção precisa refletir o modelo e as necessidades de filtro; caminhos bidirecionais podem introduzir ambiguidades e efeitos inesperados. Totais exigem investigar dados, granularidade e cálculo antes de modificar a propagação.",
+      "section": "2. Modelo semântico, granularidade e filtros",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ocultar uma categoria por filtro de visual oferece a mesma garantia de acesso que uma regra de segurança por linha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Filtros de apresentação determinam o que aparece naquele visual; regras de segurança limitam os dados acessíveis conforme configuração e identidade. Uma seleção visual não deve ser usada como substituta do controle de acesso.",
+      "section": "5. Como o tema costuma ser cobrado",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Query folding, quando suportado, permite que transformações de preparação sejam executadas na fonte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O mecanismo traduz passos compatíveis para operações da origem, podendo reduzir trabalho local. Seu suporte depende de conector e transformações; não é garantia de que cada etapa de qualquer consulta possa ser enviada à fonte.",
+      "section": "1. Power Query e preparação dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Publicar um relatório baseado em Import garante que cada mudança posterior na fonte apareça imediatamente sem configuração de atualização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O modo Import mantém dados carregados no modelo, e incorporar novas informações exige atualização apropriada. Publicação, credenciais, conectividade e política de refresh são aspectos distintos; publicar não os resolve automaticamente.",
+      "section": "5. Como o tema costuma ser cobrado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma relação entre dimensão e fato pode propagar filtros sem acrescentar fisicamente todas as colunas descritivas à fato por mesclagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Relacionamento no modelo e mesclagem de consulta são mecanismos diferentes. O primeiro pode conectar avaliações e filtros entre tabelas preservadas, enquanto a mesclagem prepara uma tabela resultante e pode expandir atributos.",
+      "section": "2. Modelo semântico, granularidade e filtros",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Maior precisão decimal exibida em um cartão comprova que a origem e o cálculo do indicador estão corretos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Casas decimais são escolha de apresentação; não validam granularidade, filtros ou qualidade da fonte. Um número calculado com duplicação de linhas pode ser exibido com grande precisão e continuar conceitualmente errado.",
+      "section": "4. Visuais, relatórios e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "What is Power Query?",
+      "publisher": "Microsoft Learn",
+      "reference": "Preparação de dados, passos e linguagem M.",
+      "url": "https://learn.microsoft.com/en-us/power-query/power-query-what-is-power-query",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Understand star schema and the importance for Power BI",
+      "publisher": "Microsoft Learn",
+      "reference": "Dimensões, fatos, granularidade e relacionamentos.",
+      "url": "https://learn.microsoft.com/en-us/power-bi/guidance/star-schema",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "CALCULATE function (DAX)",
+      "publisher": "Microsoft Learn",
+      "reference": "Modificação de contexto de filtro.",
+      "url": "https://learn.microsoft.com/en-us/dax/calculate-function-dax",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SUMX function (DAX)",
+      "publisher": "Microsoft Learn",
+      "reference": "Soma de expressões avaliadas por linha.",
+      "url": "https://learn.microsoft.com/en-us/dax/sumx-function-dax",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "DIVIDE function (DAX)",
+      "publisher": "Microsoft Learn",
+      "reference": "Divisão e tratamento de denominador zero.",
+      "url": "https://learn.microsoft.com/en-us/dax/divide-function-dax",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Intro to dashboards for Power BI designers",
+      "publisher": "Microsoft Learn",
+      "reference": "Dashboard do serviço e distinção em relação a relatórios.",
+      "url": "https://learn.microsoft.com/en-us/power-bi/create-reports/service-dashboards",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Design Power BI Reports for Accessibility",
+      "publisher": "Microsoft Learn",
+      "reference": "Contraste, pistas adicionais à cor e recursos de acessibilidade.",
+      "url": "https://learn.microsoft.com/en-us/power-bi/create-reports/desktop-accessibility-creating-reports",
+      "accessedAt": "2026-10-08"
+    }
+  ]
+}
