@@ -407,18 +407,28 @@ private fun Legend(entries: List<Pair<String, Color>>) {
 
 private fun DrawScope.drawBars(chart: StudyChart.Bars, tones: List<Color>, measurer: TextMeasurer, style: TextStyle, valueColor: Color) {
     val labelWidth = size.width * 0.34f
-    val maxValue = chart.items.maxOf { it.value }.takeIf { it > 0 } ?: 1.0
+    val maxPositive = chart.items.maxOf { it.value }.coerceAtLeast(0.0)
+    val maxNegative = (-chart.items.minOf { it.value }).coerceAtLeast(0.0)
+    // Com valores negativos (fluxo de caixa, potenciais, PG alternada) as barras saem de uma linha
+    // do zero: negativas para a esquerda, positivas para a direita.
+    val span = (maxPositive + maxNegative).takeIf { it > 0 } ?: 1.0
     val row = 34.dp.toPx()
+    val valueTexts = chart.items.map { formatNumber(it.value) + (chart.unit?.let { u -> if (u == "%") u else " $u" } ?: "") }
+    val widest = valueTexts.maxOf { measurer.measure(it, style.copy(fontWeight = FontWeight.Bold)).size.width }
+    val gap = 6.dp.toPx()
+    val room = size.width - labelWidth - (if (maxNegative > 0) 2 else 1) * (widest + gap)
+    val zeroX = labelWidth + (if (maxNegative > 0) widest + gap else 0f) + (room * (maxNegative / span)).toFloat()
+    if (maxNegative > 0) drawLine(valueColor.copy(alpha = 0.4f), Offset(zeroX, 0f), Offset(zeroX, chart.items.size * row), strokeWidth = 1.dp.toPx())
     chart.items.forEachIndexed { index, item ->
         val top = index * row + 4.dp.toPx()
         val label = measurer.measure(item.label, style, maxLines = 2, softWrap = true, constraints = androidx.compose.ui.unit.Constraints(maxWidth = (labelWidth - 8.dp.toPx()).toInt()))
         drawText(label, topLeft = Offset(0f, top + (row - 8.dp.toPx() - label.size.height) / 2))
-        val valueText = formatNumber(item.value) + (chart.unit?.let { if (it == "%") it else " $it" } ?: "")
-        val value = measurer.measure(valueText, style.copy(color = valueColor, fontWeight = FontWeight.Bold))
-        val room = size.width - labelWidth - value.size.width - 8.dp.toPx()
-        val width = (room * (item.value / maxValue)).toFloat().coerceAtLeast(3.dp.toPx())
-        drawRoundRect(tones[index % tones.size], Offset(labelWidth, top + 3.dp.toPx()), Size(width, row - 14.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(6.dp.toPx()))
-        drawText(value, topLeft = Offset(labelWidth + width + 6.dp.toPx(), top + (row - 8.dp.toPx() - value.size.height) / 2))
+        val value = measurer.measure(valueTexts[index], style.copy(color = valueColor, fontWeight = FontWeight.Bold))
+        val width = (room * (kotlin.math.abs(item.value) / span)).toFloat().coerceAtLeast(3.dp.toPx())
+        val left = if (item.value < 0) zeroX - width else zeroX
+        drawRoundRect(tones[index % tones.size], Offset(left, top + 3.dp.toPx()), Size(width, row - 14.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(6.dp.toPx()))
+        val textX = if (item.value < 0) left - gap - value.size.width else zeroX + width + gap
+        drawText(value, topLeft = Offset(textX, top + (row - 8.dp.toPx() - value.size.height) / 2))
     }
 }
 
