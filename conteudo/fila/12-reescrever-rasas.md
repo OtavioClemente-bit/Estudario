@@ -27,28 +27,28 @@ Reescrever com Opus no padrão de Penas (v2): artigos e números do texto oficia
 | 19 | 166 | portugues.frase-oracao-periodo | v3 | 3 capítulos; 35 distratores absolutos | [x] 08/10 ChatGPT+Opus |
 | 20 | 165 | portugues.acentuacao | v4 | capítulos curtos (1928) | [x] 08/10 ChatGPT+Opus |
 | 21 | 159 | portugues.regencia-verbal-nominal | v4 | capítulos curtos (1827) | [x] 08/10 ChatGPT+Opus |
-| 22 | 157 | direito-constitucional.aplicabilidade-normas-constitucionais | v4 | lei com só 3 citações; 23 distratores absolutos | [ ] |
-| 23 | 147 | raciocinio-logico.conjuntos | v4 | capítulos curtos (1765) | [ ] |
-| 24 | 144 | portugues.classes-de-palavras | v3 | capítulos curtos (1956) | [ ] |
-| 25 | 143 | direito-administrativo.autarquias-agencias-reguladoras-executivas | v4 | 7 frases vagas; 26 distratores absolutos | [ ] |
-| 26 | 134 | etica.etica-moral-funcao-publica | v3 | capítulos curtos (1587); lei com só 0 citações; 19 distratores absolutos | [ ] |
-| 27 | 133 | portugues.retextualizacao | v4 | capítulos curtos (1942) | [ ] |
-| 28 | 125 | direito-constitucional.poder-judiciario-disposicoes-gerais | v3 | capítulos curtos (1936); lei com só 6 citações; 14 distratores absolutos | [ ] |
-| 29 | 122 | direito-constitucional.direitos-politicos | v2 | lei com só 6 citações; 26 distratores absolutos | [ ] |
-| 30 | 122 | direito-constitucional.processo-legislativo | v3 | capítulos curtos (1963); 22 distratores absolutos | [ ] |
-| 31 | 114 | direito-administrativo.licitacao-principios-modalidades | v3 | 8 frases vagas; 24 distratores absolutos | [ ] |
-| 32 | 113 | afo.lei-responsabilidade-fiscal | v1 | capítulos curtos (1792); 18 distratores absolutos | [ ] |
-| 33 | 112 | direito-constitucional.ministerio-publico | v3 | lei com só 0 citações; 15 distratores absolutos | [ ] |
-| 34 | 111 | etica.codigo-etica-servidor-federal | v1 | capítulos curtos (1396); lei com só 0 citações; 13 distratores absolutos | [ ] |
-| 35 | 111 | direito-constitucional.fiscalizacao-contabil-financeira | v2 | lei com só 5 citações; 27 distratores absolutos | [ ] |
-| 36 | 111 | legislacao.lei-8112-1990-provimento | v2 | 4 frases vagas; 18 distratores absolutos | [ ] |
-| 37 | 110 | direito-constitucional.conceito-classificacao-constituicao | v3 | lei com só 0 citações | [ ] |
+| 22 | 157 | direito-constitucional.aplicabilidade-normas-constitucionais | v4 | lei com só 3 citações; 23 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 23 | 147 | raciocinio-logico.conjuntos | v4 | capítulos curtos (1765) | [x] 08/10 ChatGPT+Opus |
+| 24 | 144 | portugues.classes-de-palavras | v3 | capítulos curtos (1956) | [x] 08/10 ChatGPT+Opus |
+| 25 | 143 | direito-administrativo.autarquias-agencias-reguladoras-executivas | v4 | 7 frases vagas; 26 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 26 | 134 | etica.etica-moral-funcao-publica | v3 | capítulos curtos (1587); lei com só 0 citações; 19 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 27 | 133 | portugues.retextualizacao | v4 | capítulos curtos (1942) | [x] 08/10 ChatGPT+Opus |
+| 28 | 125 | direito-constitucional.poder-judiciario-disposicoes-gerais | v3 | capítulos curtos (1936); lei com só 6 citações; 14 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 29 | 122 | direito-constitucional.direitos-politicos | v2 | lei com só 6 citações; 26 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 30 | 122 | direito-constitucional.processo-legislativo | v3 | capítulos curtos (1963); 22 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 31 | 114 | direito-administrativo.licitacao-principios-modalidades | v3 | 8 frases vagas; 24 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 32 | 113 | afo.lei-responsabilidade-fiscal | v1 | capítulos curtos (1792); 18 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 33 | 112 | direito-constitucional.ministerio-publico | v3 | lei com só 0 citações; 15 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 34 | 111 | etica.codigo-etica-servidor-federal | v1 | capítulos curtos (1396); lei com só 0 citações; 13 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 35 | 111 | direito-constitucional.fiscalizacao-contabil-financeira | v2 | lei com só 5 citações; 27 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 36 | 111 | legislacao.lei-8112-1990-provimento | v2 | 4 frases vagas; 18 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 37 | 110 | direito-constitucional.conceito-classificacao-constituicao | v3 | lei com só 0 citações | [x] 08/10 ChatGPT+Opus |
 | 38 | 102 | direito-penal.aplicacao-lei-penal | v3 | lei com só 0 citações; 24 distratores absolutos | [ ] |
-| 39 | 101 | direito-constitucional.organizacao-poderes | v2 | lei com só 2 citações; 18 distratores absolutos | [ ] |
-| 40 | 101 | informatica.internet-navegadores | v1 | capítulos curtos (1730); 16 distratores absolutos | [ ] |
+| 39 | 101 | direito-constitucional.organizacao-poderes | v2 | lei com só 2 citações; 18 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 40 | 101 | informatica.internet-navegadores | v1 | capítulos curtos (1730); 16 distratores absolutos | [x] 08/10 ChatGPT+Opus |
 | 41 | 100 | direito-penal.teoria-do-crime | v3 | capítulos curtos (1954); lei com só 0 citações; 16 distratores absolutos | [ ] |
-| 42 | 100 | direito-constitucional.nacionalidade | v3 | lei com só 5 citações; 4 frases vagas; 28 distratores absolutos | [ ] |
-| 43 | 99 | legislacao.lei-8112-1990-processo-disciplinar | v1 | 12 frases vagas; 21 distratores absolutos | [ ] |
+| 42 | 100 | direito-constitucional.nacionalidade | v3 | lei com só 5 citações; 4 frases vagas; 28 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 43 | 99 | legislacao.lei-8112-1990-processo-disciplinar | v1 | 12 frases vagas; 21 distratores absolutos | [x] 08/10 ChatGPT+Opus |
 | 44 | 98 | matematica.probabilidade | v3 | capítulos curtos (1955) | [ ] |
 | 45 | 97 | administracao-publica.lei-acesso-informacao | v2 | 3 capítulos; 7 frases vagas; 18 distratores absolutos | [ ] |
 | 46 | 94 | direito-constitucional.advocacia-defensoria | v3 | lei com só 1 citações; 18 distratores absolutos | [ ] |
