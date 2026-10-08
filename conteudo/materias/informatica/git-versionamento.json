@@ -1,0 +1,2142 @@
+{
+  "id": "informatica.git-versionamento",
+  "subject": "Informática",
+  "version": 1,
+  "title": "Git e controle de versão",
+  "nickname": "Git sem medo",
+  "aliases": [
+    "Versionamento de dados e código (Git).",
+    "Ferramentas de versionamento Git.",
+    "Ferramentas de controle de versão.",
+    "Versionamento com Git.",
+    "Ferramenta de versionamento Git.",
+    "Versionamento Git.",
+    "Controle de versões com Git.",
+    "Desenvolvimento de Software: controle de versões (Git e SVN).",
+    "Repositórios de código, versionamento, GitHub e SVN."
+  ],
+  "theoryTitle": "Git do zero: do primeiro commit ao pull request",
+  "status": "PUBLISHED",
+  "sourceType": "AUTHORIAL",
+  "board": null,
+  "agency": null,
+  "year": null,
+  "sourceUrl": null,
+  "accessedAt": "2026-10-08",
+  "scope": {
+    "covers": "Para que serve o controle de versão; modelos centralizado (CVS, SVN) e distribuído (Git, Mercurial); conceitos do Git: repositório, working tree, staging area (index), commit, hash, HEAD e estados dos arquivos; comandos init, clone, status, add, commit, log, diff, branch, checkout e switch, merge (fast-forward, three-way, --no-ff, --squash), rebase, stash, restore, reset (soft, mixed, hard) x revert, commit --amend, reflog, tag (leve e anotada), remote, fetch, pull e push; conflitos de merge e como resolvê-los; .gitignore; fluxos de trabalho Git Flow, GitHub Flow e trunk-based; pull request e merge request, fork e revisão de código; noções de GitHub e GitLab.",
+    "excludes": "Pipelines de CI/CD em detalhe (GitLab CI, GitHub Actions, Jenkins), GitOps e DevOps em geral, métodos ágeis, internals do Git (formato dos objetos, packfiles), submódulos, hooks, cherry-pick e bisect em profundidade, e administração de servidores Git."
+  },
+  "summary": "Controle de versão guarda cada versão registrada de um projeto, com autor, data e motivo, e permite voltar atrás e trabalhar em equipe. No modelo centralizado (CVS, SVN) só o servidor tem o histórico; no distribuído (Git, Mercurial) cada clone tem o histórico completo e permite commit sem rede. O Git trabalha com três áreas: diretório de trabalho (onde se edita), staging area ou index (o que vai para o próximo commit, preenchido com git add) e repositório (.git, onde git commit grava). Cada commit é uma fotografia do projeto, identificada por hash, e aponta para o commit pai. Branch é só um ponteiro móvel para um commit; HEAD indica onde você está. git merge integra branches: avança o ponteiro (fast-forward) quando não há divergência ou cria um commit de merge com dois pais; se as duas linhas mudaram o mesmo trecho, há conflito, marcado com <<<<<<<, ======= e >>>>>>>, resolvido editando, git add e git commit. git rebase reaplica commits sobre outra base e gera hashes novos, por isso não se faz rebase de commits já compartilhados. Para desfazer: git restore descarta mudanças em arquivo, git reset move a branch para trás (--soft mantém no staging, --mixed, o padrão, mantém só nos arquivos, --hard descarta tudo) e git revert cria um commit novo que desfaz outro, sem reescrever histórico. git stash guarda trabalho inacabado; tags marcam versões. Com remotos: fetch só baixa, pull baixa e integra, push envia. Fluxos: Git Flow (main, develop, feature, release, hotfix), GitHub Flow (main sempre implantável e pull request) e trunk-based (integração pequena e frequente no tronco). Pull request (GitHub) e merge request (GitLab) são recursos das plataformas, não do Git.",
+  "chapters": [
+    {
+      "id": "conceitos-basicos",
+      "title": "Controle de versão e os conceitos básicos do Git",
+      "markdown": "### Para que serve controle de versão\n\nQuem nunca viu uma pasta com `relatorio_final.docx`, `relatorio_final2.docx` e `relatorio_final_agora_vai.docx`? Um **sistema de controle de versão** (VCS, *version control system*) resolve isso de forma organizada: guarda cada versão registrada do projeto, anota **quem** mudou, **quando** e **por quê**, permite **voltar** a qualquer ponto e deixa várias pessoas mexerem nos mesmos arquivos sem apagar o trabalho umas das outras.\n\n### Centralizado x distribuído\n\n| | Centralizado | Distribuído |\n|---|---|---|\n| Exemplos | CVS, Subversion (SVN) | Git, Mercurial |\n| Onde fica o histórico | Só no servidor | Em cada clone, completo |\n| Commit sem rede | Não | Sim (o commit é local) |\n| Servidor caiu | Ninguém registra versões | Todos continuam trabalhando |\n| Identificação da versão | Número sequencial (revisão 101, 102…) | Hash (ex.: `732b540`) |\n\nNo **centralizado**, cada pessoa tem só uma cópia de trabalho da versão que baixou; registrar uma revisão ou consultar o histórico antigo exige falar com o servidor, que é um ponto único de falha. No **distribuído**, cada clone é um repositório completo: dá para fazer commit, ver o log, criar branch e comparar versões no avião, e depois sincronizar com `push` e `pull`. Um servidor central (GitHub, GitLab ou um servidor da empresa) continua existindo, mas por **combinação da equipe**, não por exigência técnica.\n\n> O Git foi criado em 2005 por Linus Torvalds para o desenvolvimento do kernel Linux.\n\n### As três áreas do Git\n\n1. **Diretório de trabalho** (*working tree*): os arquivos que você vê e edita na pasta.\n2. **Área de preparação** (*staging area* ou *index*): a lista do que vai entrar no **próximo** commit. Você a monta com `git add`.\n3. **Repositório** (a pasta oculta `.git`): o banco de commits. `git commit` grava ali o que estava no staging.\n\nCada arquivo está **não rastreado** (*untracked*, o Git nunca o viu) ou **rastreado**; e o rastreado pode estar sem mudança, **modificado** ou **preparado** (*staged*).\n\n### Exemplo resolvido (testado)\n\n```\n$ git init projeto\nInitialized empty Git repository in /home/ana/projeto/.git/\n$ cd projeto\n$ echo 'linha 1' > a.txt\n$ git status -s\n?? a.txt\n$ git add a.txt\n$ git status -s\nA  a.txt\n$ git commit -m 'Primeiro commit'\n[main (root-commit) 732b540] Primeiro commit\n 1 file changed, 1 insertion(+)\n create mode 100644 a.txt\n$ git log --oneline\n732b540 Primeiro commit\n```\n\nNo `git status -s` (formato curto), a **coluna da esquerda** fala do staging e a **da direita**, do diretório de trabalho: `??` não rastreado, `A ` adicionado, ` M` modificado e não preparado, `M ` modificado e preparado, `AM` adicionado e alterado de novo depois do add, `UU` conflito. Antes do primeiro commit, configure sua identidade, que vai gravada em cada commit: `git config --global user.name 'Ana Souza'` e `git config --global user.email ana@exemplo.com`. O exemplo usou `main` como branch inicial (configuração `init.defaultBranch`); sem essa configuração, o Git 2.x ainda cria a branch inicial com o nome `master` e mostra um aviso.\n\n`git clone <endereço>` faz o contrário do init: copia um repositório existente **com todo o histórico**, já registra o endereço como o remoto **origin** e deixa a branch principal pronta para uso.\n\n### Commit, hash e HEAD\n\nUm **commit** é uma **fotografia** (*snapshot*) dos arquivos rastreados naquele momento (o que não mudou é reaproveitado), com autor, e-mail, data, mensagem e a referência ao **commit pai**. Ele é identificado por um **hash** (SHA-1, 40 caracteres hexadecimais, mostrado abreviado como `732b540`); mudar qualquer coisa no commit muda o hash. **HEAD** é a referência a \"onde você está\": normalmente aponta para a branch atual, que aponta para o último commit dela. `HEAD~1` é o pai de HEAD; `HEAD~2`, o avô.\n\n### Ver diferenças: os três diffs\n\n- `git diff`: diretório de trabalho x staging (o que você mudou e **ainda não** adicionou).\n- `git diff --staged` (sinônimo `--cached`): staging x último commit (o que **vai** entrar no commit).\n- `git diff HEAD`: diretório de trabalho x último commit (tudo junto).\n\n`git log` lista os commits do mais novo para o mais antigo; `--oneline` mostra uma linha por commit, `--graph` desenha as ramificações e `-n 3` limita a três.\n\n### .gitignore\n\nArquivo de texto com **padrões** de arquivos não rastreados que o Git deve ignorar (não aparecem no `git status` nem entram com `git add .`):\n\n```\n# todo arquivo terminado em .log\n*.log\n# exceção: este volta a ser considerado\n!keep.log\n# a pasta build e tudo dentro dela\nbuild/\n# arquivo de segredos local\n.env\n```\n\nO `#` só marca comentário no **início da linha**: escrito depois de um padrão, na mesma linha, ele passa a fazer parte do padrão, que deixa de funcionar.\n\n### Pegadinhas\n\n- `.gitignore` **não** afeta arquivo **já rastreado**. Para parar de rastrear sem apagá-lo do disco: `git rm --cached arquivo` e commit.\n- `git commit -a` prepara sozinho os arquivos **rastreados** modificados, mas **não** inclui arquivo novo.\n- O Git não rastreia **pasta vazia**: só arquivos.\n- Git (a ferramenta) não é GitHub (a plataforma de hospedagem). O Git funciona sem internet e sem conta em site algum."
+    },
+    {
+      "id": "branches-merge-rebase",
+      "title": "Branches, merge, rebase e conflitos",
+      "markdown": "### Branch é só um ponteiro\n\nUma **branch** (ramo) é um **ponteiro móvel** para um commit. Criar branch não copia arquivos: o Git só grava uma referência nova, por isso é instantâneo. A cada commit, a branch em que você está (a que HEAD aponta) avança para o commit novo.\n\n| Comando | O que faz |\n|---|---|\n| `git branch` | lista as branches; `*` marca a atual |\n| `git branch relatorio` | cria, mas **não** muda para ela |\n| `git switch relatorio` ou `git checkout relatorio` | muda para a branch |\n| `git switch -c relatorio` ou `git checkout -b relatorio` | cria **e** muda |\n| `git branch -d relatorio` | apaga, só se já estiver integrada |\n| `git branch -D relatorio` | apaga à força |\n\nO `checkout` faz muita coisa (trocar de branch e restaurar arquivo); por isso versões recentes do Git separaram as tarefas em `git switch` (trocar de branch) e `git restore` (restaurar arquivo). Tentando apagar com `-d` uma branch com commits não integrados, o Git recusa (saída real):\n\n```\nerror: the branch 'naomerge' is not fully merged.\nIf you are sure you want to delete it, run 'git branch -D naomerge'\n```\n\n### HEAD destacado (detached HEAD)\n\nQuando HEAD aponta direto para um commit, e não para uma branch, diz-se **HEAD destacado**. Serve para olhar uma versão antiga: `git checkout 732b540` ou `git switch --detach 732b540`. Sem `--detach`, o `switch` recusa: `fatal: a branch is expected, got commit '732b540'`. Commits feitos nesse estado ficam sem branch; para guardá-los, crie uma (`git switch -c nova`).\n\n### Merge: dois jeitos de integrar\n\n**Fast-forward (avanço rápido).** Se `main` não andou desde que `feature` saiu dela, basta empurrar o ponteiro de `main` para frente. Não nasce commit novo:\n\n```\n$ git switch main\n$ git merge feature\nUpdating 0da82c1..75ff345\nFast-forward\n f.txt | 1 +\n```\n\n**Three-way (de três vias).** Se as duas branches receberam commits, o Git compara as duas pontas com o ancestral comum e cria um **commit de merge com dois pais**:\n\n```\n$ git merge outra\nMerge made by the 'ort' strategy.\n$ git log --oneline --graph\n*   a9d729d Merge branch 'outra'\n|\\\n| * 19234fa o\n* | 9fd21ef m\n|/\n* 75ff345 feature f\n```\n\n- `git merge --no-ff feature`: **sempre** cria commit de merge, mesmo quando daria fast-forward (deixa registrado que houve uma branch).\n- `git merge --squash feature`: junta todas as mudanças da branch no staging, **sem** fazer commit e sem registrar a branch como pai; você conclui com um `git commit` único.\n\n### Conflito de merge\n\nAcontece quando as duas branches mudaram **o mesmo trecho** do mesmo arquivo (ou uma apagou o que a outra alterou). Exemplo real: em `main` a linha virou `cor: vermelho`; em `tema`, `cor: verde`.\n\n```\n$ git merge tema\nAuto-merging c.txt\nCONFLICT (content): Merge conflict in c.txt\nAutomatic merge failed; fix conflicts and then commit the result.\n$ cat c.txt\ntitulo\n<<<<<<< HEAD\ncor: vermelho\n=======\ncor: verde\n>>>>>>> tema\nfim\n```\n\nEntre `<<<<<<< HEAD` e `=======` está a versão da **branch atual** (main); entre `=======` e `>>>>>>> tema`, a da branch que está **chegando**. Para resolver: (1) edite o arquivo deixando o conteúdo certo e **apagando os marcadores**; (2) `git add c.txt` para marcar como resolvido; (3) `git commit`. Para desistir e voltar ao estado anterior: `git merge --abort`. Enquanto isso, `git status` mostra o arquivo em *Unmerged paths* como `both modified`.\n\n### Rebase: reescrever a base\n\n`git rebase main`, executado na branch `topico`, **reaplica** os commits de `topico` um a um sobre a ponta de `main`. O histórico fica **linear**, mas os commits reaplicados são **novos**, com **hashes novos** (no teste, `1d1ea08 T1` virou `8474ad6 T1`). Depois disso, um `git merge topico` em `main` vira fast-forward.\n\nConflito no rebase se resolve igual, mas se continua com `git rebase --continue` (ou se desiste com `git rebase --abort`). O `git rebase -i` (interativo) permite juntar (*squash*), reordenar, renomear ou descartar commits.\n\n> **Regra de ouro:** não faça rebase de commits que já foram enviados e que outras pessoas já baixaram. Como os hashes mudam, o histórico dos colegas deixa de bater com o seu.\n\n| | merge | rebase |\n|---|---|---|\n| Histórico | Preserva como aconteceu, com commit de merge | Linear, sem commit de merge |\n| Hashes existentes | Mantidos | Commits reaplicados ganham hash novo |\n| Seguro em branch compartilhada | Sim | Não |\n\n### Pegadinhas\n\n- `git branch nome` só cria; quem troca de branch é `switch`/`checkout`.\n- Fast-forward **não** gera commit de merge; `--no-ff` obriga a gerar.\n- Conflito não é erro do Git: é o Git pedindo que **você** decida. Duas branches que mexem em arquivos diferentes normalmente se integram sem conflito."
+    },
+    {
+      "id": "desfazer-stash-tags",
+      "title": "Desfazer mudanças, guardar trabalho e marcar versões",
+      "markdown": "### Desfazer antes do commit: git restore\n\n- `git restore a.txt`: descarta as mudanças **não preparadas** do arquivo, que volta a ficar como no staging (ou no último commit). Cuidado: o que foi descartado não fica guardado em lugar nenhum.\n- `git restore --staged a.txt`: tira o arquivo do staging, **mantendo** as mudanças no diretório de trabalho (o contrário do `git add`).\n\nO comando antigo `git checkout -- a.txt` faz o mesmo que `git restore a.txt` e ainda aparece em provas.\n\n### Consertar o último commit: --amend\n\n`git commit --amend` substitui o último commit por um novo (com a mensagem corrigida ou com arquivos que faltaram). É um commit **novo, com hash novo**: só use em commit que ainda não foi compartilhado.\n\n### git reset: mover a branch para trás\n\n`git reset <commit>` move a branch atual (e HEAD) para o commit indicado. O que acontece com as mudanças dos commits \"desfeitos\" depende da opção:\n\n| Opção | Branch volta | Staging | Diretório de trabalho |\n|---|---|---|---|\n| `--soft` | sim | mudanças **continuam preparadas** | mantido |\n| `--mixed` (**padrão**) | sim | limpo | mudanças **continuam nos arquivos** |\n| `--hard` | sim | limpo | **descartado** |\n\nExemplo testado com os commits r1, r2 e r3 (r3 criou `r3.txt`); cada um dos três comandos foi rodado partindo de novo de r3:\n\n```\n$ git reset --soft HEAD~1\n$ git status -s\nA  r3.txt          # preparado, pronto para novo commit\n\n$ git reset HEAD~1   # mixed, o padrão\n$ git status -s\n?? r3.txt          # na pasta, fora do staging\n\n$ git reset --hard HEAD~1\nHEAD is now at 43161ce r2\n```\n\nO `reset` **reescreve** o histórico da branch: em commits já enviados, ele obriga os colegas a reconciliar históricos diferentes. Sem argumento de commit, `git reset arquivo` apenas tira o arquivo do staging.\n\n### O reflog salva a pele\n\n`git reflog` registra para onde HEAD andou (commits, resets, trocas de branch). Um commit que \"sumiu\" do `git log` depois de um `reset --hard` em regra ainda pode ser achado ali e recuperado (por exemplo, `git reset --hard HEAD@{1}` ou criando uma branch nele), até o Git fazer a limpeza automática de objetos antigos.\n\n```\n$ git reflog\n43161ce HEAD@{0}: reset: moving to HEAD~1\nb2bb6e9 HEAD@{1}: commit: r3 terceira\n```\n\n### git revert: desfazer sem apagar\n\n`git revert <commit>` cria um **commit novo** que aplica o inverso das mudanças do commit indicado. O histórico só cresce, nada é reescrito; por isso é o jeito seguro de desfazer algo **já publicado**.\n\n```\n$ git revert --no-edit HEAD\n[main 2d1b2ab] Revert \"r2\"\n 1 file changed, 1 deletion(-)\n```\n\nPara reverter um **commit de merge**, o Git exige `-m 1` (ou `-m 2`), que diz qual pai é a linha principal; sem isso responde `error: commit ... is a merge but no -m option was given.`\n\n**Resumo prático:** commit local, ainda não enviado → `reset` (ou `--amend`) resolve; commit já compartilhado → `revert`.\n\n### git stash: guardar trabalho inacabado\n\nPrecisa trocar de branch às pressas, mas o trabalho não está pronto para commit? `git stash` guarda as mudanças dos arquivos **rastreados** (preparadas ou não) numa pilha e deixa a pasta como no último commit.\n\n```\n$ git stash\nSaved working directory and index state WIP on main: 5817961 ...\n$ git stash list\nstash@{0}: WIP on main: 5817961 ...\n```\n\n- `git stash pop`: aplica o mais recente **e o remove** da pilha.\n- `git stash apply`: aplica e **mantém** na pilha; `git stash drop` remove.\n- Arquivo **não rastreado** fica de fora, a menos que se use `git stash -u` (`--include-untracked`).\n\n### Tags: marcar versões\n\nTag é um nome fixo para um commit (normalmente uma versão lançada, como `v1.0`). Diferente da branch, **não anda**.\n\n- **Leve:** `git tag v1.0`, apenas um ponteiro com nome.\n- **Anotada:** `git tag -a v1.1 -m 'Versao 1.1'`, um objeto próprio com autor da tag, data e mensagem (recomendada para lançamentos).\n- Dá para marcar commit antigo: `git tag v0.9 9fd21ef`.\n- Um `git push` comum **não envia tags**: use `git push origin v1.0` ou `git push --tags`.\n\n### Pegadinhas\n\n- `reset` mexe no histórico; `revert` acrescenta histórico.\n- O padrão do `reset` é `--mixed`, não `--hard`.\n- `pop` remove da pilha; `apply` mantém.\n- `git rm arquivo` apaga do disco e do índice; `git rm --cached arquivo` só tira do índice."
+    },
+    {
+      "id": "remotos-fluxos-plataformas",
+      "title": "Repositórios remotos, fluxos de trabalho e plataformas",
+      "markdown": "### Remotos\n\nUm **remoto** é outro repositório com o qual o seu se sincroniza, identificado por um apelido. O `clone` já cria o remoto **origin**; num repositório criado com `init`, você o adiciona:\n\n```\n$ git remote add origin https://exemplo.com/ana/projeto.git\n$ git remote -v\norigin  https://exemplo.com/ana/projeto.git (fetch)\norigin  https://exemplo.com/ana/projeto.git (push)\n$ git push -u origin main\nbranch 'main' set up to track 'origin/main'.\n```\n\nO `-u` liga a branch local à remota (*upstream*); depois disso, basta `git push` e `git pull`. Do seu lado ficam as **branches de rastreamento remoto**, como `origin/main`: uma cópia local de como o remoto estava na **última sincronização**.\n\n### fetch, pull e push\n\n- `git fetch`: **baixa** os commits novos e atualiza `origin/main`, mas **não mexe** na sua branch nem nos seus arquivos. Dá para olhar antes de integrar (`git log main..origin/main`).\n- `git pull`: `fetch` **+ integração** (merge ou, com `git pull --rebase`, rebase). Se só o remoto andou, o pull faz fast-forward; se as duas linhas divergiram e nada foi configurado, as versões atuais recusam com `fatal: Need to specify how to reconcile divergent branches.` e pedem que se escolha `--no-rebase` (merge), `--rebase` ou `--ff-only` (ou a configuração `pull.rebase`).\n- `git push`: **envia** seus commits ao remoto.\n\nO `git status` compara com `origin/main` **local**. Por isso pode dizer `Your branch is up to date with 'origin/main'.` mesmo que alguém tenha feito push há pouco; depois de um `git fetch`, o teste mostrou `Your branch is behind 'origin/main' by 1 commit, and can be fast-forwarded.`\n\n### Push recusado\n\nSe o remoto tem commits que você não tem, o push é recusado (saída real):\n\n```\n ! [rejected]        main -> main (fetch first)\nerror: failed to push some refs to '../srv.git'\nhint: Updates were rejected because the remote contains work that you do not\nhint: have locally. ...\n```\n\nA conduta é integrar primeiro (`git pull`, resolvendo conflitos se houver) e repetir o push. `git push --force` sobrescreve o remoto e **apaga** o trabalho alheio; se for inevitável (por exemplo, depois de um rebase na sua própria branch), prefira `--force-with-lease`, que recusa se o remoto mudou desde a sua última sincronização.\n\n### Fluxos de trabalho\n\n**Git Flow** (modelo proposto por Vincent Driessen): duas branches permanentes e três tipos de branch de apoio.\n\n| Branch | Sai de | Volta para | Função |\n|---|---|---|---|\n| `main` (ou `master`) | — | — | só versões em produção, marcadas com tag |\n| `develop` | `main` | — | integração das funcionalidades prontas |\n| `feature/*` | `develop` | `develop` | uma funcionalidade |\n| `release/*` | `develop` | `main` e `develop` | preparar um lançamento |\n| `hotfix/*` | `main` | `main` e `develop` | correção urgente em produção |\n\nBom para software com versões numeradas e lançamentos planejados; pesado para quem implanta várias vezes por dia.\n\n**GitHub Flow**: uma só branch permanente, `main`, **sempre implantável**. Para cada mudança: crie uma branch curta a partir de `main`, faça commits, abra um **pull request**, receba revisão e testes, integre em `main` e implante.\n\n**Trunk-based development** (desenvolvimento baseado em tronco): todos integram **mudanças pequenas** no tronco (`main`) com muita frequência, ao menos diariamente, direto ou por branches de vida curtíssima. O que ainda não está pronto fica escondido por **feature flags** (chaves de funcionalidade). Depende de testes automatizados e integração contínua.\n\n### Pull request, merge request e fork\n\nO **pull request** (GitHub, Bitbucket) e o **merge request** (GitLab) são a mesma ideia: um pedido, na **plataforma**, para que as mudanças de uma branch sejam integradas em outra. Ali acontecem a **revisão de código** (comentários linha a linha, aprovação ou pedido de ajustes), as verificações automáticas e o botão de integrar (merge comum, squash ou rebase). Não é um comando do dia a dia do Git: é recurso da plataforma.\n\nUm **fork** é uma cópia de um repositório na sua conta da plataforma. É o caminho para contribuir com um projeto em que você não tem permissão de escrita: você faz push no seu fork e abre o pull request para o original.\n\n### GitHub e GitLab\n\n- **GitHub**: a maior plataforma de hospedagem de repositórios Git, da Microsoft desde 2018. Oferece pull requests, issues, wikis, GitHub Pages e automação com GitHub Actions.\n- **GitLab**: plataforma que reúne repositório, merge requests, issues e CI/CD integrado no mesmo produto; pode ser usada como serviço ou **instalada no servidor da própria organização** (há edição de código aberto).\n- Nas duas é comum proteger a branch principal: proibir push direto e exigir pull/merge request aprovado.\n\n### Pegadinhas\n\n- `fetch` não altera seus arquivos; `pull` altera.\n- Pull request não existe no Git puro instalado na máquina: existe na plataforma.\n- No Git Flow, **hotfix sai de main**; **feature sai de develop**."
+    },
+    {
+      "id": "como-e-cobrado",
+      "title": "Como o tema costuma ser cobrado",
+      "markdown": "### Os tipos de questão mais comuns\n\n1. **Centralizado x distribuído.** Itens de Certo/Errado trocam as características: dizem que no SVN cada desenvolvedor tem o histórico completo, ou que no Git é preciso estar conectado para fazer commit. Lembre: **distribuído = histórico completo em cada clone e commit local**.\n2. **Três áreas.** A questão descreve um arquivo editado, adicionado ou commitado e pergunta onde ele está, ou qual comando o leva à próxima área. Desenhe as caixas: diretório de trabalho → `add` → staging → `commit` → repositório → `push` → remoto.\n3. **Comando certo para a tarefa.** Criar e já trocar de branch (`switch -c`, `checkout -b`), ver o que vai entrar no commit (`diff --staged`), baixar sem integrar (`fetch`), desfazer commit publicado (`revert`), guardar trabalho às pressas (`stash`).\n4. **reset x revert x restore.** É o trio mais cobrado em questões difíceis. Pergunte-se: mexe no histórico? (`reset`, `--amend` e `rebase` mexem; `revert` não). Mexe só em arquivo? (`restore`). E as três opções do reset: soft (staging), mixed, o padrão (arquivos), hard (nada).\n5. **merge x rebase e conflito.** Quando há fast-forward, o que fazem `--no-ff` e `--squash`, o que significam os marcadores `<<<<<<<`, `=======` e `>>>>>>>` e quais passos encerram a resolução.\n6. **Fluxos e plataformas.** De onde sai e para onde volta cada branch do Git Flow, o que caracteriza GitHub Flow e trunk-based, e o que é pull request, merge request e fork.\n\n### Estratégia de prova\n\n- Em questão com saída de terminal, leia a saída **inteira**: mensagens como `Fast-forward`, `CONFLICT`, `Untracked files` ou `rejected` já entregam a resposta.\n- Em item com \"sempre\", \"nunca\", \"qualquer\" e \"automaticamente\", procure a exceção: `-d` não apaga **qualquer** branch, o `.gitignore` não ignora **qualquer** arquivo (só os não rastreados), `git commit -a` não inclui **todos** os arquivos (fica de fora o novo).\n- Desconfie de troca de pares: `pop`/`apply`, `--soft`/`--mixed`, `fetch`/`pull`, `feature`/`hotfix`, `branch`/`switch`.\n- Lembre que comando que muda hash (rebase, amend, reset) só é seguro em commit que **ainda não** foi compartilhado.\n\n### Exemplo resolvido\n\n*Item:* \"Para desfazer um commit que já está no repositório compartilhado, o mais seguro é `git reset --hard HEAD~1` seguido de `git push --force`.\"\n\n*Resolução:* **Errado.** O reset reescreve o histórico e o push forçado apaga do remoto um commit que colegas já podem ter baixado. O seguro é `git revert <hash>` seguido de `git push` comum: o commit novo desfaz o efeito e o histórico continua coerente para todos."
+    }
+  ],
+  "questions": [
+    {
+      "id": "q1",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Controle de versão e os conceitos básicos do Git",
+      "statement": "Qual característica distingue um sistema de controle de versão distribuído, como o Git, de um centralizado, como o Subversion (SVN)?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "No distribuído, só o servidor guarda o histórico, e cada desenvolvedor recebe apenas a última versão dos arquivos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "No distribuído, cada clone traz o histórico completo do projeto, o que permite fazer commit sem conexão com o servidor.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "No distribuído não existe repositório remoto, de modo que a equipe precisa trocar arquivos compactados entre si.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "No centralizado, cada desenvolvedor tem uma cópia integral do histórico, e o servidor serve apenas como backup opcional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "No centralizado, as revisões são identificadas por hash SHA-1, enquanto o distribuído usa números sequenciais.",
+          "correct": false
+        }
+      ],
+      "explanation": "B está certa: no modelo distribuído (Git, Mercurial) cada clone é um repositório completo, então commit, log e branch funcionam sem rede, e a sincronização vem depois com push e pull. A descreve o centralizado; D inverte os modelos; C erra porque o Git usa remotos normalmente (GitHub, GitLab, servidor próprio); E inverte a identificação, pois o SVN numera revisões em sequência e o Git usa hash.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q2",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Controle de versão e os conceitos básicos do Git",
+      "statement": "Um arquivo foi alterado e já passou por git add, mas ainda não houve commit. Em que área do Git está a versão que entrará no próximo commit?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Somente no diretório de trabalho (working tree).",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "No repositório remoto chamado origin.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "No stash, a pilha de trabalho guardado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Na área de preparação (staging area ou index).",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "No reflog, o registro dos movimentos do HEAD.",
+          "correct": false
+        }
+      ],
+      "explanation": "D está certa: git add copia a versão atual do arquivo para a staging area (index), que é exatamente o conteúdo do próximo commit. Não está só no diretório de trabalho (isso seria antes do add); o remoto só recebe algo com push; o stash só é usado com git stash; e o reflog apenas registra para onde o HEAD se moveu, sem guardar arquivos preparados.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q3",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Controle de versão e os conceitos básicos do Git",
+      "statement": "Qual comando cria um repositório Git novo e vazio na pasta atual, gerando o subdiretório .git?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "git init",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "git clone",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "git create",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "git new",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "git status",
+          "correct": false
+        }
+      ],
+      "explanation": "A está certa: git init cria o subdiretório .git e transforma a pasta num repositório vazio, ainda sem commits. git clone copia um repositório que já existe, com histórico; git create e git new não são comandos do Git; git status só informa o estado dos arquivos e, fora de um repositório, responde com erro.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q4",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Controle de versão e os conceitos básicos do Git",
+      "statement": "Ao rodar git status -s, aparece a linha ?? relatorio.txt. O que ela informa?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "O arquivo está na área de preparação e entrará no próximo commit.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "O arquivo foi modificado depois do último commit, mas não foi preparado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "O arquivo tem um conflito de merge ainda não resolvido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "O arquivo está listado no .gitignore e por isso será ignorado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "O arquivo é novo e ainda não é rastreado pelo Git (untracked).",
+          "correct": true
+        }
+      ],
+      "explanation": "E está certa: no formato curto, ?? marca arquivo não rastreado, que o Git vê na pasta mas nunca recebeu em add. Arquivo preparado aparece com A ou M na coluna da esquerda; modificado sem preparo aparece com M na coluna da direita; conflito aparece como UU; e arquivo ignorado pelo .gitignore nem aparece no status comum.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q5",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Branches, merge, rebase e conflitos",
+      "statement": "Qual comando cria uma branch chamada relatorio e já passa a trabalhar nela?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "git branch relatorio",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "git merge relatorio",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "git switch -c relatorio",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "git branch -d relatorio",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "git tag relatorio",
+          "correct": false
+        }
+      ],
+      "explanation": "C está certa: git switch -c (equivalente a git checkout -b) cria a branch e muda para ela num passo só. git branch relatorio apenas cria, sem trocar; git merge integra uma branch existente na atual; git branch -d apaga a branch; e git tag cria uma marca fixa num commit, que não avança como uma branch.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q6",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Controle de versão e os conceitos básicos do Git",
+      "statement": "Para que serve o arquivo .gitignore em um repositório?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Indicar padrões de arquivos ainda não rastreados que o Git deve ignorar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Apagar do histórico os arquivos que já foram incluídos em commits anteriores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Impedir que outras pessoas clonem o repositório sem autorização do dono.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Registrar quais branches não devem ser enviadas ao repositório remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Guardar senhas de acesso de forma criptografada dentro do repositório.",
+          "correct": false
+        }
+      ],
+      "explanation": "A está certa: o .gitignore lista padrões (como *.log ou build/) de arquivos não rastreados que ficam fora do status e do git add. Ele não apaga nada do histórico, nem afeta arquivo já commitado; não controla quem pode clonar (isso é permissão da plataforma); não trata de branches; e não guarda senhas, pelo contrário, serve para evitar que arquivos de segredo entrem no repositório.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q7",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Desfazer mudanças, guardar trabalho e marcar versões",
+      "statement": "Um commit com erro já foi enviado ao repositório compartilhado e os colegas já o baixaram. Qual comando desfaz o efeito dele com segurança, sem reescrever o histórico?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "git reset --hard HEAD~1",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "git commit --amend",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "git rebase -i HEAD~2",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "git revert <hash>",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "git stash pop",
+          "correct": false
+        }
+      ],
+      "explanation": "D está certa: git revert cria um commit novo com o inverso das mudanças do commit indicado; o histórico só cresce e todos podem sincronizar normalmente. reset --hard, commit --amend e rebase -i reescrevem commits (mudam hashes) e causariam divergência com quem já baixou; git stash pop apenas reaplica trabalho guardado e nada tem a ver com desfazer commit.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q8",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Repositórios remotos, fluxos de trabalho e plataformas",
+      "statement": "Qual comando baixa os commits novos do repositório remoto e já os integra à branch atual?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "git fetch",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "git pull",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "git push",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "git remote -v",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "git log origin",
+          "correct": false
+        }
+      ],
+      "explanation": "B está certa: git pull equivale a git fetch seguido da integração (merge ou, com --rebase, rebase) na branch atual. git fetch só baixa e atualiza origin/main, sem tocar na sua branch; git push faz o caminho inverso, enviando; git remote -v lista os remotos configurados; git log origin apenas exibe commits já baixados.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q9",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "section": "Repositórios remotos, fluxos de trabalho e plataformas",
+      "statement": "Como se chama, no GitLab, o recurso equivalente ao pull request do GitHub?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Fork request",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Push request",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Commit request",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Issue",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Merge request",
+          "correct": true
+        }
+      ],
+      "explanation": "E está certa: no GitLab o pedido para integrar uma branch em outra, com revisão e discussão, chama-se merge request; no GitHub, pull request. Fork é a cópia de um repositório para a sua conta, não um tipo de pedido; push request e commit request não são recursos dessas plataformas; issue é um registro de tarefa ou defeito, sem código para integrar.",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q10",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Branches, merge, rebase e conflitos",
+      "statement": "A branch main está no commit C2. Dela se criou a branch nova, que recebeu os commits C3 e C4; main não recebeu nada depois disso. Estando em main, roda-se git merge nova. O que acontece?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Cria-se um commit de merge com dois pais, C2 e C4.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "O Git aponta conflito, pois as duas branches têm conteúdos diferentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "O ponteiro main avança até C4 (fast-forward), sem commit de merge.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Os commits C3 e C4 são recriados com novos hashes sobre C2.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "A branch nova é apagada automaticamente após a integração.",
+          "correct": false
+        }
+      ],
+      "explanation": "C está certa: como main não divergiu, C4 já descende de C2 e basta mover o ponteiro de main para C4; a saída mostra Fast-forward e nenhum commit novo nasce. O commit de merge com dois pais só aparece se as duas linhas tiverem commits próprios ou com --no-ff; não há conflito porque main nada alterou; recriar commits com hash novo é o que o rebase faz; e o merge nunca apaga a branch integrada.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q11",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Branches, merge, rebase e conflitos",
+      "statement": "Durante git merge tema, executado na branch main, o arquivo c.txt ficou assim:\n\n<<<<<<< HEAD\ncor: vermelho\n=======\ncor: verde\n>>>>>>> tema\n\nSobre essa situação, o que é correto afirmar?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "A linha cor: verde é a versão de main, a branch onde o merge foi iniciado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "O Git já escolheu a versão de HEAD, e os marcadores são apenas um aviso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Para concluir, basta rodar git merge --continue sem editar o arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "O conflito ocorreu porque as branches alteraram arquivos diferentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "O trecho acima de ======= é o da branch atual; o de baixo veio de tema.",
+          "correct": true
+        }
+      ],
+      "explanation": "E está certa: entre <<<<<<< HEAD e ======= fica a versão da branch atual (main, com vermelho), e entre ======= e >>>>>>> tema a versão que chega (verde). Por isso A inverte as versões; o Git não escolheu nada, cabe a você editar e apagar os marcadores; git merge --continue sem resolver falha com a mensagem de arquivos não integrados; e o conflito nasce de mudança no mesmo trecho do mesmo arquivo, não em arquivos diferentes.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q12",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Desfazer mudanças, guardar trabalho e marcar versões",
+      "statement": "Após git reset --soft HEAD~1, qual é a situação do último commit desfeito?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Sai da branch, mas suas mudanças continuam preparadas na área de staging.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Sai da branch, e suas mudanças voltam ao diretório de trabalho fora do staging.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Sai da branch, e suas mudanças são descartadas também dos arquivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Continua na branch, e o Git cria um novo commit que o desfaz.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Continua na branch, mas fica marcado para ser ignorado no próximo push.",
+          "correct": false
+        }
+      ],
+      "explanation": "A está certa: o --soft só move a branch para o commit pai; o staging e os arquivos ficam intactos, então as mudanças aparecem como preparadas, prontas para um novo commit. B descreve o --mixed, que é o padrão; C descreve o --hard; D descreve o git revert; e E inventa um efeito que não existe, pois nenhum reset marca commit para o push ignorar.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q13",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Desfazer mudanças, guardar trabalho e marcar versões",
+      "statement": "Com arquivos rastreados alterados e um arquivo novo que nunca passou por git add, o desenvolvedor roda git stash. O que acontece?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Tudo, inclusive o arquivo novo, é guardado, e a pasta fica idêntica ao último commit.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "As mudanças são gravadas num commit novo da branch atual, com a mensagem WIP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Guarda as alterações rastreadas; o arquivo novo fica, pois exigiria git stash -u.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Nada é guardado, pois o git stash só funciona quando não há arquivo novo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "As mudanças são enviadas ao remoto para que outra pessoa possa continuar.",
+          "correct": false
+        }
+      ],
+      "explanation": "C está certa: sem opções, o stash guarda só as mudanças de arquivos rastreados (preparadas ou não); o não rastreado continua na pasta, e para incluí-lo usa-se git stash -u. A ignora essa exceção; B erra porque nada entra na branch, o stash fica numa pilha à parte (git stash list); D erra porque o arquivo novo não impede o stash; e E confunde com push, já que o stash é local.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q14",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Repositórios remotos, fluxos de trabalho e plataformas",
+      "statement": "O git status informa Your branch is up to date with 'origin/main', mas um colega fez push em main há poucos minutos. Qual é a explicação?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "O push do colega falhou, pois o status sempre consulta o servidor antes de responder.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "O status compara com a cópia local de origin/main, que só muda no fetch ou no pull.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "O status só mostra diferenças de arquivos, nunca de commits entre branches.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "O colega não poderia alterar main, porque o Git só deixa o criador enviar a ela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "A mensagem indica que o repositório local já foi sincronizado automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "B está certa: origin/main é uma branch de rastreamento remoto guardada na sua máquina e só é atualizada quando você roda fetch ou pull; o status não acessa a rede. Depois de um git fetch, a mensagem passa a dizer que a branch está atrás de origin/main. A erra justamente ao supor consulta ao servidor; C erra porque o status informa se está à frente ou atrás; D inventa uma restrição que o Git não tem; e E erra porque não há sincronização automática.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q15",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Repositórios remotos, fluxos de trabalho e plataformas",
+      "statement": "No Git Flow, a partir de qual branch se cria uma branch hotfix para corrigir um defeito urgente em produção?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "develop",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "A feature mais recente",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "release",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "main (ou master)",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Qualquer branch de feature aberta",
+          "correct": false
+        }
+      ],
+      "explanation": "D está certa: o hotfix nasce da branch de produção (main ou master), porque precisa partir exatamente do que está rodando, e ao final volta para main (com tag de versão) e para develop, para a correção não se perder. develop é a origem das features; as branches de feature e de release não representam a produção, então partir delas levaria código ainda não lançado junto com a correção.",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q16",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Branches, merge, rebase e conflitos",
+      "statement": "Na branch topico, que tem dois commits próprios, roda-se git rebase main depois de main receber um commit novo. Qual é o efeito desse comando?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "O commit novo de main é copiado para dentro de topico, mantendo os hashes originais de topico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Cria-se em topico um commit de merge com dois pais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "A branch main passa a apontar para o último commit de topico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Os dois commits de topico são reaplicados sobre a ponta de main, ganhando hashes novos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Os commits de topico são apagados e apenas os de main permanecem.",
+          "correct": false
+        }
+      ],
+      "explanation": "D está certa: o rebase reaplica, um a um, os commits de topico sobre a ponta de main; como o pai deles muda, nascem commits novos com hashes novos e o histórico fica linear. A erra ao dizer que os hashes se mantêm; B descreve o merge de três vias; C erra porque main não se move no rebase (só depois, com um merge em fast-forward); e E erra porque as mudanças de topico são preservadas, só reescritas.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q17",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "section": "Desfazer mudanças, guardar trabalho e marcar versões",
+      "statement": "Qual afirmação sobre tags no Git está correta?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Tag é uma branch que avança sozinha a cada novo commit.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "A tag leve guarda autor, data e mensagem, e a anotada é só um ponteiro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Um git push comum envia todas as tags locais ao remoto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Só é possível criar tag no commit mais recente da branch.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "A tag anotada (git tag -a) é um objeto com autor, data e mensagem.",
+          "correct": true
+        }
+      ],
+      "explanation": "E está certa: git tag -a v1.1 -m 'Versao 1.1' cria um objeto de tag com quem marcou, quando e por quê, o tipo recomendado para lançamentos. A tag não avança como a branch, ela fica fixa; B inverte leve e anotada; C erra porque o push comum não leva tags, é preciso git push origin v1.1 ou --tags; D erra porque se pode marcar qualquer commit informando o hash.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q18",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Desfazer mudanças, guardar trabalho e marcar versões",
+      "statement": "Na branch main, os três últimos commits são r1, r2 e r3, sendo r3 o mais recente e o único que criou o arquivo r3.txt. Executa-se git reset HEAD~1, sem nenhuma opção. Qual é o resultado?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "main aponta para r2, e r3.txt continua na pasta como arquivo não rastreado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "main aponta para r2, e r3.txt fica preparado na área de staging.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "main aponta para r2, e r3.txt é apagado da pasta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "main continua em r3, e um commit novo é criado para desfazer a criação de r3.txt.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "O comando falha, pois git reset exige informar --soft, --mixed ou --hard.",
+          "correct": false
+        }
+      ],
+      "explanation": "A está certa: sem opção, o reset usa --mixed, que move main para r2 e limpa o staging, mas não toca nos arquivos; como r2 não conhece r3.txt, ele aparece como ?? no status. B seria o resultado do --soft; C, do --hard; D descreve o revert, que não move a branch para trás; e E erra porque a opção é dispensável, já que --mixed é o padrão.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q19",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Branches, merge, rebase e conflitos",
+      "statement": "Qual comando posiciona o HEAD diretamente no commit antigo a1b2c3d, em estado de HEAD destacado, para inspecioná-lo?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "git switch a1b2c3d",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "git branch --detach a1b2c3d",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "git switch --detach a1b2c3d",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "git reset --soft a1b2c3d",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "git restore a1b2c3d",
+          "correct": false
+        }
+      ],
+      "explanation": "C está certa: o switch só aceita ir para um commit solto com --detach (o git checkout a1b2c3d também faria isso). Sem a opção, git switch a1b2c3d recusa com a mensagem de que esperava uma branch; git branch não tem a opção --detach; git reset --soft move a própria branch para o commit antigo, alterando o histórico dela, sem destacar o HEAD; e git restore trata o argumento como nome de arquivo.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q20",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Repositórios remotos, fluxos de trabalho e plataformas",
+      "statement": "Ao rodar git push, aparece a mensagem ! [rejected] main -> main (fetch first). Qual é a causa e a conduta adequada?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "As credenciais estão erradas, e basta configurar user.name e user.email de novo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "O remoto tem commits que a cópia local não tem; deve-se integrá-los com git pull e repetir o push.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "A branch main está bloqueada para qualquer envio, e o único caminho é apagar o repositório remoto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "O commit local está vazio, e é preciso usar git commit --allow-empty antes de enviar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Há arquivos não rastreados na pasta, e basta incluí-los no .gitignore e repetir o envio.",
+          "correct": false
+        }
+      ],
+      "explanation": "B está certa: fetch first quer dizer que alguém enviou commits que você ainda não tem; aceitar o seu push apagaria esse trabalho, então o Git recusa. Integra-se com git pull (resolvendo conflitos, se houver) e se envia de novo. user.name e user.email são identidade do autor, não credencial; apagar o remoto é absurdo; um commit vazio não gera essa mensagem; e arquivos não rastreados nunca impedem o push.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q21",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Controle de versão e os conceitos básicos do Git",
+      "statement": "No último commit, a.txt continha apenas linha 1. O usuário acrescentou linha 2 e rodou git add a.txt; depois acrescentou linha 3, sem novo add. Qual comando mostra somente o acréscimo de linha 3?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "git diff a.txt",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "git diff --staged",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "git diff HEAD",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "git log -p -1",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "git status -s",
+          "correct": false
+        }
+      ],
+      "explanation": "A está certa: git diff compara o diretório de trabalho com o staging, e o staging já tem linha 2; sobra só +linha 3. git diff --staged compara staging com o último commit e mostra +linha 2; git diff HEAD compara a pasta com o commit e mostra linha 2 e linha 3; git log -p -1 exibe a diferença do último commit já gravado; e git status -s mostra apenas MM a.txt, sem o conteúdo.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q22",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Desfazer mudanças, guardar trabalho e marcar versões",
+      "statement": "Ao tentar git revert em um commit de merge, o Git responde que o commit é um merge e que nenhuma opção -m foi informada. Por que essa opção é exigida?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Porque commits de merge não podem ser desfeitos de forma alguma, e -m só registra a mensagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Porque -m força o Git a apagar o merge do histórico, como um reset.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Porque o revert de merge só funciona no remoto, e -m indica o nome dele.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Porque -m transforma o revert em rebase, refazendo os commits integrados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Porque o merge tem dois pais, e -m indica qual é a linha principal a preservar.",
+          "correct": true
+        }
+      ],
+      "explanation": "E está certa: um commit de merge tem dois pais, e o Git precisa saber em relação a qual deles calcular o inverso; git revert -m 1 <hash> mantém o primeiro pai (normalmente a branch que recebeu o merge) e desfaz o que veio do outro. Merge pode, sim, ser revertido; o revert continua criando commit novo, sem apagar nada; ele roda localmente; e não tem relação com rebase.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q23",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Repositórios remotos, fluxos de trabalho e plataformas",
+      "statement": "Qual prática caracteriza o desenvolvimento baseado em tronco (trunk-based development)?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Manter branches de funcionalidade abertas por meses e integrá-las só no fim do projeto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Usar obrigatoriamente as branches develop, release e hotfix, além da main.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Integrar mudanças pequenas no tronco com frequência, usando feature flags para o inacabado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Dispensar testes automatizados, pois a integração frequente torna a verificação inútil.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Exigir que cada pessoa trabalhe num fork permanente, sem nunca enviar mudanças à branch principal.",
+          "correct": false
+        }
+      ],
+      "explanation": "C está certa: no trunk-based todos integram pequenas mudanças na branch principal com alta frequência, ao menos diariamente, e o que ainda não está pronto fica desligado por feature flags. A descreve exatamente o que esse modelo evita, as branches longas; B descreve o Git Flow; D erra porque o modelo depende de testes automatizados e integração contínua; e E contraria a ideia central de integrar no tronco.",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q24",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Controle de versão e os conceitos básicos do Git",
+      "statement": "O arquivo config.ini já estava em commits anteriores. Depois, a linha config.ini foi incluída no .gitignore, mas o Git continua mostrando o arquivo como modificado. O que resolve, mantendo o arquivo na pasta local?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Rodar git add .gitignore, pois o Git só passa a ler o arquivo depois que ele entra no staging.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "Rodar git rm config.ini, que tira o arquivo do índice e o apaga do disco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Mover a linha para o início do .gitignore, pois o Git só respeita os padrões que aparecem na primeira linha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Rodar git rm --cached config.ini e fazer commit, deixando de rastreá-lo sem apagá-lo do disco.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Nada, pois na próxima vez que o computador for reiniciado o .gitignore passa a valer.",
+          "correct": false
+        }
+      ],
+      "explanation": "D está certa: o .gitignore só vale para arquivos não rastreados; git rm --cached tira config.ini do índice e, após o commit, ele deixa de ser rastreado e passa a ser ignorado, continuando no disco. O Git lê o .gitignore direto da pasta, sem precisar de add; git rm sem --cached apagaria o arquivo local, que se queria manter; a posição da linha não tem esse efeito; e reiniciar o computador não muda nada.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q25",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "section": "Repositórios remotos, fluxos de trabalho e plataformas",
+      "statement": "Uma equipe implanta um site várias vezes por dia e quer um fluxo simples: uma única branch permanente, branches curtas para cada mudança e revisão por pull request antes de integrar. Qual fluxo atende a essa descrição?",
+      "options": [
+        {
+          "key": "A",
+          "label": "A",
+          "id": "A",
+          "text": "Git Flow, com develop, release e hotfix permanentes",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "label": "B",
+          "id": "B",
+          "text": "GitHub Flow, com main sempre pronta para implantar",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "label": "C",
+          "id": "C",
+          "text": "Modelo centralizado, com travamento de arquivos no servidor",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "label": "D",
+          "id": "D",
+          "text": "Git Flow, com branches de release a cada sprint",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "E",
+          "id": "E",
+          "text": "Fluxo de cherry-pick, copiando commits entre forks",
+          "correct": false
+        }
+      ],
+      "explanation": "B está certa: o GitHub Flow tem só main como branch permanente e sempre implantável; cada mudança vai numa branch curta, passa por pull request com revisão e é integrada e implantada. O Git Flow, com ou sem release por sprint, mantém develop além de main e várias branches de apoio, o que é mais pesado; travar arquivos num servidor central é coisa de VCS centralizado; e copiar commits entre forks não é um fluxo de trabalho.",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q26",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Controle de versão e os conceitos básicos do Git",
+      "statement": "No Git, um commit registra uma fotografia (snapshot) do estado dos arquivos rastreados, com autor, data, mensagem e referência ao commit pai.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Git pensa em fotografias do projeto inteiro, reaproveitando o que não mudou, e cada commit carrega os metadados (autor, e-mail, data, mensagem) e o hash do pai, o que forma a corrente do histórico. O primeiro commit do repositório (root-commit) não tem pai, e um commit de merge tem dois.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q27",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Controle de versão e os conceitos básicos do Git",
+      "statement": "O comando git commit -a inclui automaticamente no commit os arquivos novos, que ainda não são rastreados pelo Git.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O -a prepara sozinho apenas os arquivos já rastreados que foram modificados ou apagados. Arquivo novo continua aparecendo como ?? depois do commit e só entra se for adicionado antes com git add.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q28",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Branches, merge, rebase e conflitos",
+      "statement": "Criar uma branch no Git é uma operação leve, pois a branch é apenas um ponteiro móvel para um commit.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Ao criar uma branch, o Git não copia arquivo nenhum: grava só uma referência com o hash do commit atual. A cada novo commit nessa branch, o ponteiro avança. É por isso que o Git incentiva criar uma branch para cada tarefa.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q29",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Repositórios remotos, fluxos de trabalho e plataformas",
+      "statement": "Git e GitHub são nomes diferentes para a mesma ferramenta, de modo que não é possível usar o Git sem uma conta no GitHub.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Git é o sistema de controle de versão instalado na máquina e funciona sozinho, inclusive sem internet. GitHub é uma plataforma de hospedagem de repositórios Git, assim como GitLab e Bitbucket; ninguém é obrigado a usá-la, e o remoto pode ser até uma pasta ou um servidor da empresa.",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q30",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Desfazer mudanças, guardar trabalho e marcar versões",
+      "statement": "O comando git stash pop aplica o último conjunto de mudanças guardado e o mantém na lista do stash, ao contrário de git stash apply, que o remove.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. É o inverso: pop aplica e retira da pilha (a saída mostra Dropped refs/stash@{0}), enquanto apply aplica e mantém o item, que depois pode ser removido com git stash drop. Guarde: pop tira, apply deixa.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q31",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "section": "Repositórios remotos, fluxos de trabalho e plataformas",
+      "statement": "O comando git clone copia um repositório existente com todo o seu histórico e já registra o endereço de origem como o remoto chamado origin.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O clone traz todos os commits e branches do repositório de origem (as branches remotas aparecem como origin/nome), configura o remoto origin e deixa a branch principal pronta para trabalhar. Por isso, logo depois do clone, git push e git pull já funcionam sem configurar nada.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q32",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Branches, merge, rebase e conflitos",
+      "statement": "Num merge com conflito, depois de editar os arquivos e retirar os marcadores, o usuário deve marcá-los como resolvidos com git add e concluir a integração com git commit.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A própria mensagem do Git orienta: corrigir os conflitos e então fazer o commit. O git add tira o arquivo de Unmerged paths e o git commit cria o commit de merge. Se preferir desistir, git merge --abort devolve o repositório ao estado anterior ao merge.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q33",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Repositórios remotos, fluxos de trabalho e plataformas",
+      "statement": "O comando git fetch baixa os commits novos do remoto e já atualiza a branch local atual e os arquivos do diretório de trabalho.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O fetch só baixa e atualiza as branches de rastreamento remoto, como origin/main; sua branch e seus arquivos ficam como estavam até você integrar com merge ou rebase. Quem baixa e integra de uma vez é o git pull.",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q34",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Desfazer mudanças, guardar trabalho e marcar versões",
+      "statement": "O comando git restore --staged arquivo.txt retira o arquivo da área de preparação, mas mantém no diretório de trabalho as alterações feitas nele.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Com --staged, o restore desfaz apenas o git add: no status, o arquivo passa de M na coluna da esquerda para M na da direita. Já git restore arquivo.txt, sem o --staged, descarta as alterações do próprio arquivo, e essas não podem ser recuperadas.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q35",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Branches, merge, rebase e conflitos",
+      "statement": "O comando git branch -d apaga qualquer branch local, mesmo que ela tenha commits ainda não integrados a outra branch, sem emitir nenhum aviso.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Com -d, o Git recusa apagar branch com commits não integrados e avisa que ela não está totalmente mesclada (not fully merged), sugerindo -D. Só git branch -D apaga à força, e mesmo assim os commits ainda podem ser achados pelo reflog por um tempo.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q36",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Controle de versão e os conceitos básicos do Git",
+      "statement": "Em um sistema de controle de versão centralizado, como o SVN, cada desenvolvedor mantém localmente o histórico completo do projeto e pode registrar revisões sem acesso ao servidor.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Essa é a descrição do modelo distribuído. No centralizado, o histórico fica no servidor e cada pessoa tem apenas uma cópia de trabalho; registrar uma revisão (commit) exige conexão com esse servidor, que vira ponto único de falha.",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q37",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Repositórios remotos, fluxos de trabalho e plataformas",
+      "statement": "No Git Flow, a branch develop reúne as funcionalidades concluídas, e as branches de feature são criadas a partir dela e integradas de volta a ela.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. develop é a branch de integração do Git Flow: cada feature sai dela e volta para ela, sem tocar em main. Quando há funcionalidades suficientes, abre-se uma release a partir de develop, que ao final vai para main e para develop; só hotfix sai de main.",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q38",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "section": "Controle de versão e os conceitos básicos do Git",
+      "statement": "No .gitignore, o padrão build/ ignora a pasta build e seu conteúdo, e uma linha iniciada por ! cria uma exceção que volta a considerar um arquivo ignorado por padrão anterior, como em *.log seguido de !keep.log.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A barra final restringe o padrão a diretórios, e o ponto de exclamação nega um padrão anterior. No teste, git check-ignore mostrou logs/a.log ignorado pela linha *.log e logs/keep.log liberado pela linha !keep.log, de modo que keep.log pôde ser adicionado normalmente.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q39",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Branches, merge, rebase e conflitos",
+      "statement": "Fazer rebase de commits já enviados ao remoto e baixados por colegas é prática recomendada, pois o rebase preserva os hashes originais e não afeta quem já tem esses commits.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O rebase cria commits novos, com hashes novos, e abandona os antigos. Quem já tinha os antigos passa a ter um histórico que não bate com o remoto, e o envio ainda exigiria push forçado. Por isso a regra de ouro é não fazer rebase de commits já compartilhados.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q40",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Desfazer mudanças, guardar trabalho e marcar versões",
+      "statement": "Mesmo depois de um git reset --hard, um commit que deixou de aparecer no git log ainda pode, em regra, ser localizado pelo git reflog e recuperado.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O reset --hard tira o commit da branch, mas o objeto continua no repositório e o reflog registra a posição anterior do HEAD (por exemplo, HEAD@{1}). Basta criar uma branch nele ou resetar de volta. O que se perde de verdade são as mudanças que nunca foram commitadas, e os objetos órfãos só somem na limpeza automática, depois de um tempo.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q41",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Branches, merge, rebase e conflitos",
+      "statement": "Quando a branch de destino não recebeu commits desde a criação da branch a integrar, o git merge --no-ff apenas avança o ponteiro, sem criar commit de merge.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Esse avanço de ponteiro é o fast-forward, que o merge comum faria nessa situação. O parâmetro --no-ff existe justamente para impedi-lo: ele sempre cria um commit de merge, com dois pais, deixando registrado no histórico que aqueles commits vieram de uma branch separada.",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q42",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Desfazer mudanças, guardar trabalho e marcar versões",
+      "statement": "Um git push comum não envia as tags criadas localmente; para publicá-las é preciso indicá-las, como em git push origin v1.0, ou usar a opção --tags.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No teste, após criar a tag v2.0 e rodar git push, git ls-remote --tags origin não listou nada; só depois de git push origin v2.0 a tag apareceu no remoto. Por padrão, o push envia branches, e as tags precisam ser enviadas de forma explícita.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q43",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Controle de versão e os conceitos básicos do Git",
+      "statement": "Na saída de git status -s, a linha AM relatorio.txt indica que o arquivo foi adicionado ao staging e que nenhuma alteração posterior foi feita nele no diretório de trabalho.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A coluna da esquerda (A) mostra que o arquivo novo foi preparado; a da direita (M) mostra que ele foi alterado de novo depois do add. Se nada tivesse mudado depois, a linha seria A seguido de espaço. Um commit agora levaria só a versão preparada, sem a última alteração.",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q44",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Repositórios remotos, fluxos de trabalho e plataformas",
+      "statement": "No GitHub, o pull request é um recurso da plataforma que permite discutir, revisar e acompanhar verificações automáticas antes de integrar as mudanças de uma branch em outra.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O pull request é uma página da plataforma, ligada a uma branch de origem e a uma de destino, onde revisores comentam linha a linha, aprovam ou pedem ajustes e veem o resultado dos testes automáticos. A branch principal pode até ser protegida para só aceitar mudanças por esse caminho; no GitLab, o equivalente é o merge request.",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "id": "q45",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "section": "Desfazer mudanças, guardar trabalho e marcar versões",
+      "statement": "O comando git commit --amend altera o último commit sem mudar o seu hash, motivo pelo qual pode ser usado livremente em commits já enviados e compartilhados.",
+      "options": [
+        {
+          "key": "C",
+          "label": "Certo",
+          "id": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "label": "Errado",
+          "id": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O --amend substitui o último commit por outro, com hash novo (no teste, 644c9b3 virou 0a8f326). Em commit já compartilhado, isso cria divergência com o remoto e exigiria push forçado; o uso seguro é em commit que ainda está só na sua máquina.",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    }
+  ],
+  "flashcards": [
+    {
+      "front": "Centralizado x distribuído: qual a diferença central?",
+      "back": "No centralizado (CVS, SVN) o histórico fica só no servidor e o commit exige conexão. No distribuído (Git, Mercurial) cada clone tem o histórico completo e o commit é local."
+    },
+    {
+      "front": "Quais são as três áreas do Git?",
+      "back": "Diretório de trabalho (onde se edita), staging area ou index (o que vai no próximo commit) e repositório .git (onde ficam os commits)."
+    },
+    {
+      "front": "O que faz git add?",
+      "back": "Coloca a versão atual do arquivo na staging area, preparando-a para o próximo commit."
+    },
+    {
+      "front": "O que significa ?? no git status -s?",
+      "back": "Arquivo não rastreado (untracked): está na pasta, mas nunca foi adicionado."
+    },
+    {
+      "front": "git diff, git diff --staged e git diff HEAD: o que cada um compara?",
+      "back": "git diff: pasta x staging. --staged (ou --cached): staging x último commit. HEAD: pasta x último commit."
+    },
+    {
+      "front": "O que é HEAD?",
+      "back": "A referência a onde você está: normalmente aponta para a branch atual, que aponta para o último commit dela. HEAD~1 é o commit pai."
+    },
+    {
+      "front": "O que é uma branch no Git?",
+      "back": "Um ponteiro móvel para um commit. Criar é instantâneo e avança a cada commit feito nela."
+    },
+    {
+      "front": "Como criar uma branch e já mudar para ela?",
+      "back": "git switch -c nome ou git checkout -b nome. Só git branch nome cria sem trocar."
+    },
+    {
+      "front": "Quando o merge é fast-forward?",
+      "back": "Quando a branch de destino não andou desde que a outra saiu dela: o ponteiro só avança, sem commit de merge. --no-ff força o commit de merge."
+    },
+    {
+      "front": "Como resolver um conflito de merge?",
+      "back": "Editar o arquivo, escolher o conteúdo, apagar <<<<<<<, ======= e >>>>>>>, rodar git add e git commit. Para desistir: git merge --abort."
+    },
+    {
+      "front": "O que o rebase faz com os hashes?",
+      "back": "Reaplica os commits sobre a nova base criando commits novos, com hashes novos. Não se faz rebase de commits já compartilhados."
+    },
+    {
+      "front": "reset --soft, --mixed e --hard: o que fica?",
+      "back": "Os três movem a branch. --soft: mudanças no staging. --mixed (padrão): mudanças só nos arquivos. --hard: tudo descartado."
+    },
+    {
+      "front": "reset x revert",
+      "back": "reset move a branch e reescreve o histórico (uso local). revert cria um commit novo que desfaz outro, seguro para histórico compartilhado."
+    },
+    {
+      "front": "git stash pop x git stash apply",
+      "back": "pop aplica e remove da pilha; apply aplica e mantém. Não rastreados só entram com git stash -u."
+    },
+    {
+      "front": "Tag leve x tag anotada",
+      "back": "Leve (git tag v1.0) é só um ponteiro com nome. Anotada (git tag -a v1.0 -m msg) é objeto com autor, data e mensagem. Tags não vão no push comum."
+    },
+    {
+      "front": "fetch x pull",
+      "back": "fetch baixa e atualiza origin/main sem tocar na sua branch. pull é fetch + merge (ou rebase com --rebase)."
+    },
+    {
+      "front": "Git Flow: de onde saem feature e hotfix?",
+      "back": "feature sai de develop e volta para develop. hotfix sai de main e volta para main e develop. release sai de develop e vai para main e develop."
+    },
+    {
+      "front": "GitHub Flow e trunk-based em uma frase cada",
+      "back": "GitHub Flow: main sempre implantável, branch curta e pull request para cada mudança. Trunk-based: mudanças pequenas integradas no tronco com muita frequência, com feature flags."
+    },
+    {
+      "front": "Pull request x merge request x fork",
+      "back": "Pull request (GitHub) e merge request (GitLab) são o mesmo pedido de integração com revisão. Fork é a cópia de um repositório na sua conta para contribuir."
+    }
+  ],
+  "tips": [
+    "Desenhe o caminho do arquivo: diretório de trabalho → git add → staging → git commit → repositório → git push → remoto. Quase toda questão básica se resolve nesse desenho.",
+    "Para desfazer, pergunte primeiro se o commit já foi compartilhado: se sim, revert; se não, reset ou --amend servem.",
+    "Decore o reset pela ordem de estrago: soft guarda no staging, mixed (o padrão) guarda nos arquivos, hard não guarda nada.",
+    "Em questão com saída de terminal, procure as palavras-chave: Fast-forward, CONFLICT, Untracked files, rejected e fetch first já indicam a resposta.",
+    "No Git Flow, lembre que só o hotfix nasce de main; tudo o que é desenvolvimento novo nasce de develop."
+  ],
+  "traps": [
+    "Dizer que no SVN ou em outro VCS centralizado cada pessoa tem o histórico completo: isso é do modelo distribuído.",
+    "Achar que git commit -a inclui arquivos novos: ele só prepara arquivos já rastreados.",
+    "Supor que o .gitignore passa a ignorar um arquivo que já está em commits: é preciso git rm --cached antes.",
+    "Trocar pop e apply do stash, ou fetch e pull: pop e pull fazem mais (removem da pilha, integram na branch).",
+    "Afirmar que o rebase ou o --amend preservam os hashes: os dois criam commits novos.",
+    "Dizer que o reset sem opção é --hard: o padrão é --mixed, que mantém as mudanças nos arquivos."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique por que no Git é possível fazer commit sem internet e no SVN não.",
+      "answer": "No Git, cada clone é um repositório completo com todo o histórico, e o commit é gravado localmente na pasta .git; a internet só é necessária para sincronizar com push e pull. No SVN, o histórico fica no servidor, e cada commit precisa ser registrado lá."
+    },
+    {
+      "question": "Um arquivo foi editado, adicionado e editado de novo. O que vai no próximo commit e como ver cada parte?",
+      "answer": "Vai a versão preparada no momento do add. git diff --staged mostra o que vai no commit; git diff mostra a edição feita depois do add, que ficaria de fora. O status curto mostra MM ou AM."
+    },
+    {
+      "question": "Qual a diferença entre um merge fast-forward e um merge de três vias?",
+      "answer": "No fast-forward a branch de destino não divergiu, então o ponteiro só avança e não nasce commit novo. No de três vias as duas branches têm commits próprios, e o Git cria um commit de merge com dois pais; se houver mudança no mesmo trecho, surge conflito."
+    },
+    {
+      "question": "Quando usar reset e quando usar revert?",
+      "answer": "reset move a branch para trás e reescreve o histórico, então serve para commits que ainda estão só na sua máquina. revert cria um commit novo que desfaz o efeito de outro, sem reescrever nada, então é o caminho para commits já enviados e compartilhados."
+    },
+    {
+      "question": "Descreva o caminho de uma correção urgente no Git Flow.",
+      "answer": "Cria-se uma branch hotfix a partir de main, faz-se a correção, integra-se a hotfix em main (marcando a nova versão com tag) e também em develop, para que a correção não se perca nas próximas versões."
+    },
+    {
+      "question": "Por que um push pode ser recusado com fetch first, e o que fazer?",
+      "answer": "Porque o remoto tem commits que o repositório local não tem; aceitar o push apagaria esse trabalho. A solução é integrar primeiro com git pull (ou fetch e merge/rebase), resolver conflitos se houver, e enviar de novo. Push forçado só em casos específicos e de preferência com --force-with-lease."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Modelos de controle de versão",
+      "summary": "Trocar as características dos modelos centralizado e distribuído ou entender errado o que é um commit (fotografia com autor, mensagem e pai)."
+    },
+    {
+      "key": "e2",
+      "title": "Três áreas, comandos básicos e .gitignore",
+      "summary": "Confundir diretório de trabalho, staging e repositório, os códigos do git status, os três tipos de git diff, o alcance do commit -a e do .gitignore."
+    },
+    {
+      "key": "e3",
+      "title": "Branches, merge, rebase e conflitos",
+      "summary": "Errar o que cria ou troca de branch, quando há fast-forward, o efeito de --no-ff, a leitura dos marcadores de conflito e o efeito do rebase nos hashes."
+    },
+    {
+      "key": "e4",
+      "title": "Desfazer, stash e tags",
+      "summary": "Confundir restore, reset (soft, mixed, hard), revert e --amend, trocar pop e apply do stash e errar o comportamento de tags leves, anotadas e do envio de tags."
+    },
+    {
+      "key": "e5",
+      "title": "Remotos: fetch, pull e push",
+      "summary": "Achar que fetch altera a branch local, que o status consulta o servidor, ou não saber por que um push é recusado e como resolver."
+    },
+    {
+      "key": "e6",
+      "title": "Fluxos de trabalho e plataformas",
+      "summary": "Misturar Git Flow, GitHub Flow e trunk-based, errar de onde saem as branches do Git Flow e confundir Git com GitHub, pull request com merge request e fork."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Pro Git (2ª edição)",
+      "kind": "OFICIAL",
+      "publisher": "Git / Scott Chacon e Ben Straub",
+      "reference": "Livro oficial do projeto Git: fundamentos, branches, remotos, reescrita de histórico e fluxos distribuídos",
+      "url": "https://git-scm.com/book/pt-br/v2",
+      "sourceUrl": "https://git-scm.com/book/pt-br/v2",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "title": "Git Reference",
+      "kind": "OFICIAL",
+      "publisher": "Git",
+      "reference": "Documentação de referência dos comandos (status, diff, merge, rebase, reset, revert, stash, tag, fetch, pull, push) e do gitignore",
+      "url": "https://git-scm.com/docs",
+      "sourceUrl": "https://git-scm.com/docs",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "title": "GitHub Docs: GitHub flow e pull requests",
+      "kind": "OFICIAL",
+      "publisher": "GitHub",
+      "reference": "Fluxo de trabalho do GitHub, pull requests, revisão e forks",
+      "url": "https://docs.github.com/en/get-started/using-github/github-flow",
+      "sourceUrl": "https://docs.github.com/en/get-started/using-github/github-flow",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "title": "GitLab Docs: merge requests",
+      "kind": "OFICIAL",
+      "publisher": "GitLab",
+      "reference": "Merge requests, revisão de código e proteção de branches",
+      "url": "https://docs.gitlab.com/user/project/merge_requests/",
+      "sourceUrl": "https://docs.gitlab.com/user/project/merge_requests/",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "title": "A successful Git branching model",
+      "kind": "COMPLEMENTAR",
+      "publisher": "Vincent Driessen",
+      "reference": "Artigo que propôs o Git Flow: main, develop, feature, release e hotfix",
+      "url": "https://nvie.com/posts/a-successful-git-branching-model/",
+      "sourceUrl": "https://nvie.com/posts/a-successful-git-branching-model/",
+      "accessedAt": "2026-10-08"
+    },
+    {
+      "title": "Trunk Based Development",
+      "kind": "COMPLEMENTAR",
+      "publisher": "trunkbaseddevelopment.com",
+      "reference": "Princípios do desenvolvimento baseado em tronco, branches curtas e feature flags",
+      "url": "https://trunkbaseddevelopment.com/",
+      "sourceUrl": "https://trunkbaseddevelopment.com/",
+      "accessedAt": "2026-10-08"
+    }
+  ]
+}

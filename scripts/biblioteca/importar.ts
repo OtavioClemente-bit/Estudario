@@ -93,6 +93,8 @@ for (const { path, value } of await jsonFiles("recortes")) {
 
 // Editais: cada texto do edital vira um apelido da matéria a que foi ligado.
 const missing: string[] = [];
+const materialAliases = new Set(aliasOwner.keys());
+const ambiguous = new Set<string>();
 for (const { path, value } of await jsonFiles("editais")) {
   const subjects = Array.isArray(value.disciplinas) ? value.disciplinas as Json[] : [];
   if (subjects.length === 0) problems.push(`${path}: sem disciplinas`);
@@ -116,8 +118,18 @@ for (const { path, value } of await jsonFiles("editais")) {
       // O banco guarda apelidos de até 400 caracteres; tópico de edital mais longo que isso é
       // atendido pela enciclopédia (rota tópico → matérias), não pelo apelido.
       if (alias.length > 400) continue;
+      // Texto genérico ("Provas.", "Competência.") que editais diferentes ligam a matérias
+      // diferentes não vira apelido: o apelido é global e não sabe de que edital veio. Se o
+      // texto for apelido próprio de uma matéria, continua dela.
+      if (ambiguous.has(alias)) continue;
       const owner = aliasOwner.get(alias);
-      if (owner && owner !== id) problems.push(`${path}: "${text}" aponta para ${id}, mas esse texto já é de ${owner}`);
+      if (owner && owner !== id) {
+        if (!materialAliases.has(alias)) {
+          aliasOwner.delete(alias);
+          ambiguous.add(alias);
+        }
+        continue;
+      }
       aliasOwner.set(alias, id);
     }
   }
@@ -168,6 +180,7 @@ for (const { path, value } of await jsonFiles("editais")) {
 }
 
 console.log(`Matérias: ${materials.size} · Recortes: ${notes.length} · Apelidos: ${aliasOwner.size} · Editais no catálogo: ${catalogRows.length}`);
+if (ambiguous.size > 0) console.log(`Textos de edital ligados a matérias diferentes (ficam sem apelido): ${ambiguous.size}`);
 if (missing.length > 0) {
   console.log(`\nTópicos de edital ainda sem matéria (${missing.length}):`);
   missing.forEach((line) => console.log(`  - ${line}`));
