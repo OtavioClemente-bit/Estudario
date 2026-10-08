@@ -21,19 +21,19 @@ formacao-suspensao-extincao, recursos, execucao · processo-penal: jurisdicao-co
 citacoes-sentenca-procedimentos, nulidades-recursos-habeas-corpus · informatica: javascript,
 typescript, python.
 
-## Onda 2 — núcleo comum
-- [ ] **direito-constitucional.defesa-estado-instituicoes** — Estado de defesa, estado de sítio, Forças Armadas (noção, sem repetir a matéria forcas-armadas), segurança pública na CF.
-- [ ] **direito-constitucional.ordem-economica-financeira** — Princípios da ordem econômica, atuação do Estado, política urbana e agrícola, sistema financeiro nacional na CF.
-- [ ] **direito-constitucional.tributacao-orcamento** — Sistema tributário na CF (visão geral, sem repetir competência/limitações), repartição das receitas tributárias, finanças públicas e orçamentos na CF.
-- [ ] **direito-civil.familia** — Casamento, regimes de bens, união estável, parentesco, filiação, poder familiar, alimentos, guarda, tutela e curatela.
-- [ ] **direito-civil.sucessoes** — Sucessão em geral, herança, vocação hereditária, ordem da sucessão legítima, herdeiros necessários, testamento, inventário e partilha (noções).
-- [ ] **direito-civil.responsabilidade-civil** — Atos ilícitos, abuso de direito, responsabilidade subjetiva e objetiva, nexo, dano material, moral e estético, excludentes, responsabilidade por fato de terceiro e da coisa.
-- [ ] **administracao-geral.funcoes-administrativas** — Teorias da administração (noções), planejamento, organização (estruturas), direção (liderança, motivação, comunicação), controle, tomada de decisão, cultura organizacional.
-- [ ] **gestao-pessoas.fundamentos-subsistemas** — Gestão de pessoas: recrutamento e seleção, treinamento e desenvolvimento, avaliação de desempenho, gestão por competências, clima e qualidade de vida, comportamento organizacional.
-- [ ] **administracao-geral.projetos-qualidade** — Gestão de projetos (ciclo de vida, PMBOK em noções, escopo, prazo, custo, riscos), gestão da qualidade (PDCA, ferramentas, 5S, qualidade no serviço público).
-- [ ] **administracao-publica.modelos-governanca** — Patrimonialismo, burocracia, administração gerencial, reformas do Estado, governança pública, accountability, gestão por resultados, excelência nos serviços públicos.
-- [ ] **informatica.linux** — Linux: conceitos, distribuições, estrutura de diretórios, permissões, usuários, comandos básicos do terminal, pacotes.
-- [ ] **informatica.internet-busca-redes-sociais** — Ferramentas de busca (operadores), redes sociais, grupos de discussão, fóruns, wikis, comunicação online, segurança e privacidade no uso.
+## Onda 2 — [x] publicada em 08/10/2026
+- [x] **direito-constitucional.defesa-estado-instituicoes** — Estado de defesa, estado de sítio, Forças Armadas (noção, sem repetir a matéria forcas-armadas), segurança pública na CF.
+- [x] **direito-constitucional.ordem-economica-financeira** — Princípios da ordem econômica, atuação do Estado, política urbana e agrícola, sistema financeiro nacional na CF.
+- [x] **direito-constitucional.tributacao-orcamento** — Sistema tributário na CF (visão geral, sem repetir competência/limitações), repartição das receitas tributárias, finanças públicas e orçamentos na CF.
+- [x] **direito-civil.familia** — Casamento, regimes de bens, união estável, parentesco, filiação, poder familiar, alimentos, guarda, tutela e curatela.
+- [x] **direito-civil.sucessoes** — Sucessão em geral, herança, vocação hereditária, ordem da sucessão legítima, herdeiros necessários, testamento, inventário e partilha (noções).
+- [x] **direito-civil.responsabilidade-civil** — Atos ilícitos, abuso de direito, responsabilidade subjetiva e objetiva, nexo, dano material, moral e estético, excludentes, responsabilidade por fato de terceiro e da coisa.
+- [x] **administracao-geral.funcoes-administrativas** — Teorias da administração (noções), planejamento, organização (estruturas), direção (liderança, motivação, comunicação), controle, tomada de decisão, cultura organizacional.
+- [x] **gestao-pessoas.fundamentos-subsistemas** — Gestão de pessoas: recrutamento e seleção, treinamento e desenvolvimento, avaliação de desempenho, gestão por competências, clima e qualidade de vida, comportamento organizacional.
+- [x] **administracao-geral.projetos-qualidade** — Gestão de projetos (ciclo de vida, PMBOK em noções, escopo, prazo, custo, riscos), gestão da qualidade (PDCA, ferramentas, 5S, qualidade no serviço público).
+- [x] **administracao-publica.modelos-governanca** — Patrimonialismo, burocracia, administração gerencial, reformas do Estado, governança pública, accountability, gestão por resultados, excelência nos serviços públicos.
+- [x] **informatica.linux** — Linux: conceitos, distribuições, estrutura de diretórios, permissões, usuários, comandos básicos do terminal, pacotes.
+- [x] **informatica.internet-busca-redes-sociais** — Ferramentas de busca (operadores), redes sociais, grupos de discussão, fóruns, wikis, comunicação online, segurança e privacidade no uso.
 
 ## Onda 3
 - [ ] **sustentabilidade.desenvolvimento-sustentavel** — Desenvolvimento sustentável, ODS, A3P, compras sustentáveis, resíduos sólidos (noções), mudanças climáticas (noções).
