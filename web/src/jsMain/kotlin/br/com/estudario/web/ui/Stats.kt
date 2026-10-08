@@ -323,7 +323,6 @@ private fun TopicColumn(title: String, icon: String, color: String, list: List<T
 @Composable
 fun SettingsScreen() {
     var goal by remember { mutableStateOf(Prefs.dailyGoal) }
-    var explain by remember { mutableStateOf(Prefs.explanationRightAway) }
     BackToProfile()
     PageHead("Ajustes", "Deixe o Estudário do seu jeito")
     Div({ classes("grid", "cols-2") }) {
@@ -336,13 +335,18 @@ fun SettingsScreen() {
             }
         }
         Card {
-            CardHead("Treino")
-            P({ classes("small", "muted") }) { Text("A meta diária de questões e a explicação logo após responder ficam em Treinar, onde você usa.") }
-            Btn("Abrir Treinar", { Router.go(Route.Train) }, style = "outline", icon = "quiz", small = true)
+            CardHead("Questões por dia")
+            Div({ classes("day-row") }) {
+                Div({ classes("grow") }) {
+                    Div({ classes("name") }) { Text("Meta diária de questões") }
+                    Div({ classes("hint") }) { Text("Ou uma tarefa do plano, ou uma revisão, também fecham o dia") }
+                }
+                Stepper(goal, { goal = it; Prefs.dailyGoal = it }, step = 5, min = 5, max = 100, label = "Meta diária de questões")
+            }
         }
         Card {
             CardHead("Sincronização")
-            P({ classes("small", "muted") }) { Text("Cada mudança feita aqui vai para a sua conta em segundos; o celular busca ao abrir e a cada poucos minutos. Se os dois lados mudarem antes de se falarem, vale a mudança mais recente, e as versões anteriores ficam guardadas na conta.") }
+            P({ classes("small", "muted") }) { Text("O que você faz aqui vai para a sua conta em segundos e aparece no celular logo depois. Se os dois mudarem ao mesmo tempo, o Estudário junta as duas mudanças sem perder nada.") }
             Div({ classes("row", "wrap"); attr("style", "margin-top:12px") }) {
                 Btn("Recarregar da conta", { Store.start() }, style = "outline", icon = "refresh", small = true)
                 A(href = "https://estudario.com.br/privacidade.html", { attr("target", "_blank"); classes("btn", "ghost", "small") }) { Text("Privacidade") }

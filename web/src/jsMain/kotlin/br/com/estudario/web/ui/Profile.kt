@@ -209,7 +209,7 @@ fun ProfileScreen() {
                 ProfileLink("history", "Histórico do foco", "Tempo por matéria e sessões", Route.FocusHistory)
                 ProfileLink("notifications_active", "Notificações", "Aviso quando o material ficar pronto", Route.Notifications)
                 ProfileLink("workspace_premium", "Planos e uso", "Limites de IA do seu plano", Route.PlanLimits)
-                ProfileLink("tune", "Ajustes", "Aparência, meta diária e questões", Route.Settings)
+                ProfileLink("tune", "Ajustes", "Aparência, questões por dia e sincronização", Route.Settings)
             }
             Card(extra = "pad-lg") {
                 Div({ classes("eyebrow") }) { Text("SUA CONTA") }

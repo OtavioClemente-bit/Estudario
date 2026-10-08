@@ -175,20 +175,12 @@ fun pickQuestions(data: Snapshot, scope: String, preview: Boolean = false): List
     return chosen.take(count)
 }
 
-/** Meta diária e explicação após responder: ficam aqui, onde a pessoa treina (antes estavam nos ajustes). */
+/** Explicação após responder fica aqui, onde a pessoa treina; a meta diária de questões fica nos Ajustes. */
 @Composable
 fun TrainPreferences() {
-    var goal by remember { mutableStateOf(Prefs.dailyGoal) }
     var explain by remember { mutableStateOf(Prefs.explanationRightAway) }
     Card {
         CardHead("Suas preferências de treino")
-        Div({ classes("day-row") }) {
-            Div({ classes("grow") }) {
-                Div({ classes("name") }) { Text("Meta diária de questões") }
-                Div({ classes("hint") }) { Text("Ou uma tarefa do plano, ou uma revisão, também fecham o dia") }
-            }
-            Stepper(goal, { goal = it; Prefs.dailyGoal = it }, step = 5, min = 5, max = 100, label = "Meta diária de questões")
-        }
         Div({ classes("setting") }) {
             Icon("visibility")
             Div({ classes("grow") }) { B { Text("Explicação logo após responder") }; Div({ classes("small", "muted") }) { Text("Desligue para ver a correção só no fim.") } }
