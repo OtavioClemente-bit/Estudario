@@ -37,6 +37,10 @@ Deno.test("expired paid plan falls back to free", () => {
 Deno.test("monthly periods use Sao Paulo calendar", () => {
   assertEquals(quotaPeriodStart("MONTHLY", NOW), "2026-09-01");
   assertEquals(quotaPeriodStart("LIFETIME", NOW), "1970-01-01");
+  // TESTE: o saldo é do ciclo aberto no último reset do administrador.
+  assertEquals(quotaPeriodStart("LIFETIME", NOW, "TESTE", "2026-10-08"), "2026-10-08");
+  assertEquals(quotaPeriodStart("LIFETIME", NOW, "TESTE", null), "1970-01-02");
+  assertEquals(quotaPeriodStart("MONTHLY", NOW, "TESTE", "2026-10-08"), "2026-09-01");
   assertEquals(nextMonthlyReset(NOW), "2026-10-01T03:00:00.000Z");
 });
 

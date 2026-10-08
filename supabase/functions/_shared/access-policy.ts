@@ -9,8 +9,10 @@ const FEATURE_FLAG_KEYS: Record<AiFeature, string> = {
   SIMULATION_GENERATION: "SIMULATION_AI_ENABLED",
 };
 
-export type PlanTier = "FREE" | "ESSENCIAL" | "PRO";
-export const PLAN_TIERS: readonly PlanTier[] = ["FREE", "ESSENCIAL", "PRO"];
+export type PlanTier = "FREE" | "ESSENCIAL" | "PRO" | "TESTE";
+export const PLAN_TIERS: readonly PlanTier[] = ["FREE", "ESSENCIAL", "PRO", "TESTE"];
+/** Planos que aparecem para as pessoas. TESTE é liberado só pelo servidor e nunca é listado. */
+export const VISIBLE_PLAN_TIERS: readonly PlanTier[] = ["FREE", "ESSENCIAL", "PRO"];
 export type PlanPeriodKind = "LIFETIME" | "MONTHLY" | "DAILY";
 
 export interface ProfileRecord {
@@ -18,6 +20,8 @@ export interface ProfileRecord {
   betaAccess: boolean;
   planTier?: PlanTier;
   planRenewsAt?: string | null;
+  /** Início do ciclo atual do plano TESTE (muda a cada reset feito pelo administrador). */
+  testCycleStart?: string | null;
 }
 
 export interface PlanLimitRecord {
@@ -86,7 +90,7 @@ export class SupabaseAccessDataSource implements AccessDataSource {
   async findProfile(userId: string): Promise<ProfileRecord | null> {
     this.assertOwner(userId);
     const rows = await this.select("profiles", {
-      select: "user_id,beta_access,plan_tier,plan_renews_at",
+      select: "user_id,beta_access,plan_tier,plan_renews_at,test_cycle_start",
       user_id: `eq.${this.environment.authenticatedUserId}`,
       limit: "1",
     });
@@ -97,6 +101,7 @@ export class SupabaseAccessDataSource implements AccessDataSource {
       betaAccess: booleanField(row, "beta_access"),
       planTier: planTierField(row, "plan_tier"),
       planRenewsAt: typeof row.plan_renews_at === "string" ? row.plan_renews_at : null,
+      testCycleStart: typeof row.test_cycle_start === "string" ? row.test_cycle_start : null,
     };
   }
 
@@ -271,7 +276,14 @@ function dateInSaoPaulo(now: Date): string {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
-export function quotaPeriodStart(periodKind: PlanPeriodKind | null, now: Date): string {
+export function quotaPeriodStart(
+  periodKind: PlanPeriodKind | null,
+  now: Date,
+  tier: PlanTier = "FREE",
+  testCycleStart: string | null = null,
+): string {
+  // Mesma regra de public.ai_quota_period: o saldo do TESTE é do ciclo aberto no último reset.
+  if (periodKind !== "MONTHLY" && tier === "TESTE") return testCycleStart ?? "1970-01-02";
   if (periodKind !== "MONTHLY") return "1970-01-01";
   const [year, month] = dateInSaoPaulo(now).split("-");
   return `${year}-${month}-01`;
@@ -352,7 +364,7 @@ export class ClosedBetaAiPolicy {
       SERVER_FEATURES.map(async (feature) => {
         const row = quotaLimitRow(limits, tier, feature);
         const periodKind = row?.periodKind ?? null;
-        const periodStart = quotaPeriodStart(periodKind, now);
+        const periodStart = quotaPeriodStart(periodKind, now, tier, profile?.testCycleStart ?? null);
         const record = await this.dataSource.findQuotaUsage(userId, feature, periodStart);
         const used = (record?.successfulCount ?? 0) + (record?.reservedCount ?? 0);
         const limit = row?.quotaLimit ?? 0;
@@ -371,7 +383,7 @@ export class ClosedBetaAiPolicy {
       planTier: tier,
       planRenewsAt: tier === "FREE" ? null : profile?.planRenewsAt ?? null,
       betaAccess: profile?.betaAccess === true,
-      plans: PLAN_TIERS.map((planTier) => ({
+      plans: VISIBLE_PLAN_TIERS.map((planTier) => ({
         planTier,
         limits: limits
           .filter((row) => row.planTier === planTier)
@@ -401,7 +413,7 @@ export class ClosedBetaAiPolicy {
     const tier = effectivePlanTier(profile, now);
     const limitRow = quotaLimitRow(await this.dataSource.listPlanLimits(tier), tier, feature);
     const periodKind = limitRow?.periodKind ?? null;
-    const periodStart = quotaPeriodStart(periodKind, now);
+    const periodStart = quotaPeriodStart(periodKind, now, tier, profile?.testCycleStart ?? null);
     // Sem configuração o recurso fica fechado, igual a public.ai_quota_limit.
     const limit = limitRow?.quotaLimit ?? 0;
     const usage = await this.dataSource.findQuotaUsage(userId, feature, periodStart);

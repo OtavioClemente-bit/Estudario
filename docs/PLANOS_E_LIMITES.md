@@ -28,6 +28,19 @@ set plan_tier = 'PRO', plan_renews_at = now() + interval '30 days'
 where user_id = '<uuid da conta>';
 ```
 
+### Plano TESTE (só pelo servidor)
+
+Mais que o Grátis, sem aparecer no app nem no site (lá a conta continua com a cara do Grátis).
+O saldo não renova por mês: vale até você zerar. Limites em `ai_plan_limits` com `plan_tier = 'TESTE'`:
+10 materiais, 1 edital, 1 simulado (até 30 questões), 1 plano e 5 lotes de questões extras.
+
+```sql
+select public.admin_grant_test_plan('email@da.conta');    -- liga o TESTE com o saldo cheio
+select * from public.admin_test_plan_usage('email@da.conta'); -- quanto já usou no ciclo
+select public.admin_reset_test_plan('email@da.conta');    -- zera o saldo (ciclo novo; o histórico fica)
+select public.admin_revoke_test_plan('email@da.conta');   -- volta para o Grátis
+```
+
 Mudar um limite:
 
 ```sql
