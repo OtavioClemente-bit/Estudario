@@ -24,7 +24,15 @@ o porquê, dê exemplo concreto em cada conceito, avise as pegadinhas.
 5. **Lei**: só cite número de lei, artigo, súmula, prazo ou tema se tiver certeza absoluta e for
    regra vigente. Na dúvida, explique o conteúdo sem o número. Nunca invente.
 6. **Programação**: todo código precisa estar correto e rodar; saída de exemplo exata.
-7. **Apelidos (aliases)**: procure em `conteudo/editais/*.json` tópicos com `"topico": null` que
+7. **Fórmulas, gráficos e figuras** (obrigatório em exatas, estatística, contabilidade, economia,
+   física, química e biologia quando houver conta, função, dado, processo ou forma). O app desenha o
+   formato abaixo; siga `conteudo/fila/FORMATO-VISUAL.md` à risca:
+   - toda fórmula em LaTeX entre cifrões DUPLOS; a principal em bloco (`$$` sozinho na linha antes e
+     depois) com a lista do que é cada letra; nunca cifrão simples nem `\(`; reais em texto ("R$ 50,00");
+   - de 1 a 3 blocos ```grafico por capítulo quando o assunto pede (função, dados, figura geométrica,
+     vetores, ciclo em tabela/fluxo); exemplos resolvidos numerados com cada conta em LaTeX e o
+     resultado em **negrito**; nas explicações de questões com conta, passo a passo em LaTeX.
+8. **Apelidos (aliases)**: procure em `conteudo/editais/*.json` tópicos com `"topico": null` que
    sejam exatamente do seu escopo e copie até 20 textos exatos (10+ caracteres, específicos, nada
    genérico como "Recursos." ou "Prazos."). Não use texto que já seja apelido de outra matéria.
 
