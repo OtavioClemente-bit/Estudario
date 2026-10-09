@@ -258,9 +258,25 @@ const hasFocusColumn = await fetch(`${url}/rest/v1/library_topic_aliases?select=
   headers: { apikey: key!, authorization: `Bearer ${key}` },
 }).then(async (r) => { await r.body?.cancel().catch(() => {}); return r.ok; }).catch(() => false);
 if (!hasFocusColumn && focusByAlias.size > 0) console.log("Aviso: o banco ainda não tem a coluna focus; apelidos enviados sem foco.");
-await rest("library_topic_aliases?alias_norm=not.is.null", "DELETE");
-await rest("library_topic_aliases", "POST", [...aliasOwner].map(([alias_norm, topic_id]) =>
-  hasFocusColumn ? { alias_norm, topic_id, focus: focusByAlias.get(alias_norm) ?? null } : { alias_norm, topic_id }));
+// Atualiza em lotes (upsert) e só depois apaga os que saíram: com dezenas de milhares de apelidos um
+// envio único estoura o tempo do banco, e apagar tudo antes deixaria a biblioteca sem apelidos.
+const aliasRows = [...aliasOwner].map(([alias_norm, topic_id]) =>
+  hasFocusColumn ? { alias_norm, topic_id, focus: focusByAlias.get(alias_norm) ?? null } : { alias_norm, topic_id });
+for (let i = 0; i < aliasRows.length; i += 1000) {
+  await rest("library_topic_aliases?on_conflict=alias_norm", "POST", aliasRows.slice(i, i + 1000), "resolution=merge-duplicates,return=minimal");
+}
+const stale: string[] = [];
+for (let from = 0; ; from += 1000) {
+  const page = await fetch(`${url}/rest/v1/library_topic_aliases?select=alias_norm&order=alias_norm`, {
+    headers: { apikey: key!, authorization: `Bearer ${key}`, range: `${from}-${from + 999}` },
+  }).then((r) => r.json()) as { alias_norm: string }[];
+  for (const r of page) if (!aliasOwner.has(r.alias_norm)) stale.push(r.alias_norm);
+  if (page.length < 1000) break;
+}
+for (let i = 0; i < stale.length; i += 50) {
+  const list = stale.slice(i, i + 50).map((a) => `"${a.replace(/"/g, '\\"')}"`).join(",");
+  await rest(`library_topic_aliases?alias_norm=in.(${encodeURIComponent(list)})`, "DELETE");
+}
 // Só os recortes escritos aqui (MANUAL) são refeitos; os automáticos ficam, salvo quando um
 // recorte revisado da mesma banca os substitui (upsert abaixo).
 await rest("library_board_notes?origin=eq.MANUAL", "DELETE");
