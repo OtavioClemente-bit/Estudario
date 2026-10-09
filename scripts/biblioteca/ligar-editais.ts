@@ -9,6 +9,8 @@ for (const area of Deno.readDirSync("conteudo/materias")) {
     for (const a of [m.title, ...(m.aliases ?? [])]) owner.set(normalizeAlias(a), m.id);
   }
 }
+// Textos que não podem ser ligados (lei estadual x federal, versão de software diferente).
+const bloqueados = new Set((JSON.parse(Deno.readTextFileSync("conteudo/pedidos/nao-ligar.json")).textos as string[]));
 let linked = 0;
 for (const e of Deno.readDirSync("conteudo/editais")) {
   if (!e.name.endsWith(".json")) continue;
@@ -16,7 +18,7 @@ for (const e of Deno.readDirSync("conteudo/editais")) {
   const ed = JSON.parse(Deno.readTextFileSync(path));
   let n = 0;
   for (const d of ed.disciplinas) for (const t of d.topicos) {
-    if (t.topico != null) continue;
+    if (t.topico != null || bloqueados.has(t.texto)) continue;
     const id = owner.get(normalizeAlias(t.texto));
     if (id) { t.topico = id; n++; }
   }

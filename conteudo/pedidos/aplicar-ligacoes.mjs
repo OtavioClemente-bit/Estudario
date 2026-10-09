@@ -3,6 +3,7 @@
 //   sem --gravar só mostra quantas mudariam. Por padrão aplica só as de confiança ALTA.
 // Só preenche tópicos que ainda estão com "topico": null e cujo texto bate com o da proposta.
 import fs from "node:fs";
+const bloqueados = new Set(JSON.parse(fs.readFileSync("conteudo/pedidos/nao-ligar.json", "utf8")).textos);
 const gravar = process.argv.includes("--gravar");
 const arquivos = ["conteudo/pedidos/ligacoes-alta.json"];
 if (process.argv.includes("--com-media")) arquivos.push("conteudo/pedidos/ligacoes-media.json");
@@ -17,7 +18,7 @@ for (const [ed, regs] of porEdital) {
   const j = JSON.parse(fs.readFileSync(p, "utf8")); let n = 0;
   for (const r of regs) {
     const t = j.disciplinas[r.disciplina]?.topicos[r.topico];
-    if (!t || t.topico !== null || t.texto !== r.texto) { mudou++; continue; }
+    if (!t || t.topico !== null || t.texto !== r.texto || bloqueados.has(r.texto)) { mudou++; continue; }
     if (!ids.has(r.materia)) { semMateria++; continue; } // matéria ainda em entrada/, não publicada
     t.topico = r.materia; n++;
   }
