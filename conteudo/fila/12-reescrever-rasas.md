@@ -49,31 +49,31 @@ Reescrever com Opus no padrão de Penas (v2): artigos e números do texto oficia
 | 41 | 100 | direito-penal.teoria-do-crime | v3 | capítulos curtos (1954); lei com só 0 citações; 16 distratores absolutos | [ ] |
 | 42 | 100 | direito-constitucional.nacionalidade | v3 | lei com só 5 citações; 4 frases vagas; 28 distratores absolutos | [x] 08/10 ChatGPT+Opus |
 | 43 | 99 | legislacao.lei-8112-1990-processo-disciplinar | v1 | 12 frases vagas; 21 distratores absolutos | [x] 08/10 ChatGPT+Opus |
-| 44 | 98 | matematica.probabilidade | v3 | capítulos curtos (1955) | [ ] |
-| 45 | 97 | administracao-publica.lei-acesso-informacao | v2 | 3 capítulos; 7 frases vagas; 18 distratores absolutos | [ ] |
-| 46 | 94 | direito-constitucional.advocacia-defensoria | v3 | lei com só 1 citações; 18 distratores absolutos | [ ] |
-| 47 | 91 | portugues.tipologia-textual | v1 | capítulos curtos (1977); 12 distratores absolutos | [ ] |
-| 48 | 88 | informatica.computacao-nuvem | v3 | capítulos curtos (1643); 15 distratores absolutos | [ ] |
-| 49 | 87 | direito-civil.pessoas-naturais | v2 | capítulos curtos (1697); 4 frases vagas; 19 distratores absolutos | [ ] |
+| 44 | 98 | matematica.probabilidade | v3 | capítulos curtos (1955) | [x] 08/10 ChatGPT+Opus |
+| 45 | 97 | administracao-publica.lei-acesso-informacao | v2 | 3 capítulos; 7 frases vagas; 18 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 46 | 94 | direito-constitucional.advocacia-defensoria | v3 | lei com só 1 citações; 18 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 47 | 91 | portugues.tipologia-textual | v1 | capítulos curtos (1977); 12 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 48 | 88 | informatica.computacao-nuvem | v3 | capítulos curtos (1643); 15 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 49 | 87 | direito-civil.pessoas-naturais | v2 | capítulos curtos (1697); 4 frases vagas; 19 distratores absolutos | [x] 08/10 ChatGPT+Opus |
 | 50 | 84 | direito-penal.crimes-incolumidade-fe-publica | v2 | capítulos curtos (1891); lei com só 0 citações; 21 distratores absolutos | [ ] |
-| 51 | 84 | direito-civil.negocio-juridico | v3 | capítulos curtos (1628); 4 frases vagas; 19 distratores absolutos | [ ] |
-| 52 | 81 | direito-constitucional.tributacao-orcamento | v1 | lei com só 0 citações; 5 frases vagas | [ ] |
-| 53 | 79 | direito-civil.obrigacoes | v1 | capítulos curtos (1716); 4 frases vagas; 16 distratores absolutos | [ ] |
-| 54 | 76 | informatica.correio-eletronico-outlook-2016-navegacao | v3 | capítulos curtos (1769); 15 distratores absolutos | [ ] |
-| 55 | 75 | direito-constitucional.defesa-estado-instituicoes | v1 | lei com só 0 citações; 15 distratores absolutos | [ ] |
-| 56 | 75 | lingua-inglesa.interpretacao-texto-ingles | v1 | capítulos curtos (1753) | [ ] |
+| 51 | 84 | direito-civil.negocio-juridico | v3 | capítulos curtos (1628); 4 frases vagas; 19 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 52 | 81 | direito-constitucional.tributacao-orcamento | v1 | lei com só 0 citações; 5 frases vagas | [x] 08/10 ChatGPT+Opus |
+| 53 | 79 | direito-civil.obrigacoes | v1 | capítulos curtos (1716); 4 frases vagas; 16 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 54 | 76 | informatica.correio-eletronico-outlook-2016-navegacao | v3 | capítulos curtos (1769); 15 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 55 | 75 | direito-constitucional.defesa-estado-instituicoes | v1 | lei com só 0 citações; 15 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 56 | 75 | lingua-inglesa.interpretacao-texto-ingles | v1 | capítulos curtos (1753) | [x] 08/10 ChatGPT+Opus |
 | 57 | 74 | processo-penal.prisoes-liberdade-provisoria | v3 | 3 capítulos; lei com só 0 citações; 13 frases vagas; 21 distratores absolutos | [ ] |
-| 58 | 73 | direito-civil.pessoas-juridicas | v1 | capítulos curtos (1698); 5 frases vagas; 15 distratores absolutos | [ ] |
-| 59 | 72 | direito-constitucional.ordem-social | v2 | capítulos curtos (1844); lei com só 0 citações; 26 distratores absolutos | [ ] |
+| 58 | 73 | direito-civil.pessoas-juridicas | v1 | capítulos curtos (1698); 5 frases vagas; 15 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 59 | 72 | direito-constitucional.ordem-social | v2 | capítulos curtos (1844); lei com só 0 citações; 26 distratores absolutos | [x] 08/10 ChatGPT+Opus |
 | 60 | 70 | direito-penal.imputabilidade-concurso-pessoas | v2 | capítulos curtos (1830); lei com só 0 citações; 7 frases vagas; 17 distratores absolutos | [ ] |
-| 61 | 70 | direito-administrativo.terceiro-setor | v2 | capítulos curtos (1983); 5 frases vagas; 20 distratores absolutos | [ ] |
-| 62 | 66 | processo-civil.atos-prazos-processuais | v1 | lei com só 0 citações; 4 frases vagas; 14 distratores absolutos | [ ] |
+| 61 | 70 | direito-administrativo.terceiro-setor | v2 | capítulos curtos (1983); 5 frases vagas; 20 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 62 | 66 | processo-civil.atos-prazos-processuais | v1 | lei com só 0 citações; 4 frases vagas; 14 distratores absolutos | [x] 08/10 ChatGPT+Opus |
 | 63 | 65 | processo-penal.inquerito-policial | v2 | 3 capítulos; lei com só 0 citações; 8 frases vagas; 31 distratores absolutos | [ ] |
-| 64 | 65 | direito-constitucional.ordem-economica-financeira | v1 | 6 frases vagas; 32 distratores absolutos | [ ] |
-| 65 | 64 | direito-civil.contratos | v2 | capítulos curtos (1737); 5 frases vagas; 13 distratores absolutos | [ ] |
+| 64 | 65 | direito-constitucional.ordem-economica-financeira | v1 | 6 frases vagas; 32 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 65 | 64 | direito-civil.contratos | v2 | capítulos curtos (1737); 5 frases vagas; 13 distratores absolutos | [x] 08/10 ChatGPT+Opus |
 | 66 | 63 | direito-penal.crimes-contra-pessoa | v2 | 3 capítulos; lei com só 0 citações; 7 frases vagas; 23 distratores absolutos | [ ] |
-| 67 | 63 | direito-tributario.conceito-especies-tributos | v2 | capítulos curtos (1054); lei com só 0 citações; 21 distratores absolutos | [ ] |
-| 68 | 63 | direito-civil.bens | v4 | 10 frases vagas; 41 distratores absolutos | [ ] |
+| 67 | 63 | direito-tributario.conceito-especies-tributos | v2 | capítulos curtos (1054); lei com só 0 citações; 21 distratores absolutos | [x] 08/10 ChatGPT+Opus |
+| 68 | 63 | direito-civil.bens | v4 | 10 frases vagas; 41 distratores absolutos | [x] 08/10 ChatGPT+Opus |
 | 69 | 63 | lingua-inglesa.gramatica-para-leitura | v2 | capítulos curtos (1542) | [ ] |
 | 70 | 63 | processo-civil.acao | v3 | 6 frases vagas; 32 distratores absolutos | [ ] |
 | 71 | 62 | direito-tributario.garantias-administracao-tributaria | v3 | capítulos curtos (1303); lei com só 0 citações; 5 frases vagas; 24 distratores absolutos | [ ] |
