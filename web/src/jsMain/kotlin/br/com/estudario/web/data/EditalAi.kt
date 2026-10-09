@@ -106,6 +106,14 @@ object EditalAi {
         })
     }
 
+    private const val BUCKET = "ai-syllabus-sources"
+
+    /** Cancela um pedido que não chegou a usar a IA: o servidor devolve a cota reservada. */
+    private suspend fun releaseQuota(jobId: String) {
+        val token = Auth.accessToken() ?: return
+        runCatching { httpRequest("POST", "${WebConfig.SUPABASE_URL}/functions/v1/ai-syllabus-cancel/$jobId", mapOf("Authorization" to "Bearer $token", "apikey" to WebConfig.SUPABASE_KEY)) }
+    }
+
     /** Gera a proposta de edital; devolve o JSON da proposta. */
     suspend fun generate(file: File, options: Options, onStep: (Step) -> Unit): JsonObject {
         if (file.size.toInt() > MAX_BYTES) throw AiJobException("SOURCE_TOO_LARGE", "O PDF é grande demais (máximo de 50 MB).")
@@ -137,8 +145,10 @@ object EditalAi {
         val createdJson = snapshotJson.parseToJsonElement(created.body).jsonObject
         val jobId = createdJson.str("jobId") ?: fail(created)
         val uploadPath = createdJson.str("uploadPath") ?: fail(created)
-        if ((createdJson["sourceBound"] as? JsonPrimitive)?.contentOrNull != "true") {
-            val target = createdJson.str("uploadUrl") ?: "${WebConfig.SUPABASE_URL}/storage/v1/object/$uploadPath"
+        // Se o PDF não chegar ao servidor, o pedido é cancelado: a cota reservada volta para a pessoa.
+        if ((createdJson["sourceBound"] as? JsonPrimitive)?.contentOrNull != "true") try {
+            // O caminho do arquivo vem sem o bucket; sem ele o Storage recusava todo envio.
+            val target = createdJson.str("uploadUrl") ?: "${WebConfig.SUPABASE_URL}/storage/v1/object/$BUCKET/${uploadPath.split('/').joinToString("/") { js("encodeURIComponent")(it) as String }}"
             val token = Auth.accessToken() ?: throw AiJobException("AUTH_REQUIRED", AiJobs.message("AUTH_REQUIRED"))
             val upload = window.fetch(
                 target,
@@ -151,6 +161,9 @@ object EditalAi {
             if (upload.status.toInt() !in 200..299) throw AiJobException("UPLOAD", "Não deu para enviar o PDF. Tente de novo.")
             val bound = httpRequest("POST", "${WebConfig.SUPABASE_URL}$PATH", headers(key), body(true, uploadPath))
             if (!bound.ok) fail(bound)
+        } catch (error: Throwable) {
+            releaseQuota(jobId)
+            throw error
         }
         onStep(Step.Processing)
         val token = Auth.accessToken() ?: throw AiJobException("AUTH_REQUIRED", AiJobs.message("AUTH_REQUIRED"))
