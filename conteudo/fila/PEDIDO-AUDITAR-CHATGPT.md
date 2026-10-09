@@ -9,6 +9,10 @@ Prioridades:
 1. Conferir cada lei, artigo, inciso, súmula, súmula vinculante e tema citado (abra Planalto/STF/STJ se
    conseguir). Atenção a redação desatualizada (ex.: Lei 8.429 após a Lei 14.230/2021; Lei 4.898
    revogada pela 13.869/2019). O que não confirmar, troque por explicação sem número.
+   **Lei, emenda ou tema de 2024–2026 que você não conhece: pesquise na web (WebSearch: "Lei nº X/2026",
+   site do Planalto, Câmara, Senado) ANTES de tirar.** O ChatGPT pesquisa e costuma acertar leis novas;
+   já foram removidas por engano leis reais (EC 139/2026, Lei 15.484/2026, LC 227/2026). Só retire se
+   a busca não achar a norma ou mostrar conteúdo diferente.
 2. Trocar distratores caricatos (eliminam-se sem saber a matéria) por erros típicos de quem estudou mal,
    ajustando a explicação. Até ~8 trocas, nas piores.
 3. Gabaritos, uma única certa, explicações coerentes com a alternativa, C/E começando com "Certo."/
