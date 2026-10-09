@@ -189,7 +189,7 @@ for (const { path, value } of await jsonFiles("editais")) {
     year,
     edital_ref: text("referencia"),
     source_url: text("url")?.startsWith("http") ? text("url") : null,
-    notice: text("observacao"),
+    notice: ((o) => (o && o.length > 400 ? o.slice(0, 397).trimEnd() + "…" : o))(text("observacao")),
     search_norm: searchNorm.slice(0, 2000),
     subjects,
     subject_count: subjects.length,
