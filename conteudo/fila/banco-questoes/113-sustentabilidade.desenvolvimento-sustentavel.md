@@ -2,9 +2,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Conceito de desenvolvimento sustentável (Relatório Brundtland), dimensões da sustentabilidade e tripé ambiental-social-econômico; marcos internacionais (Estocolmo 1972, Rio 92 e Agenda 21, Objetivos de Desenvolvimento do Milênio, Rio+20); Agenda 2030 e os 17 ODS; Agenda Ambiental na Administração Pública (A3P), seus eixos temáticos e a política dos 5 Rs; compras e contratações públicas sustentáveis; noções da Política Nacional de Resíduos Sólidos (hierarquia, logística reversa, responsabilidade compartilhada); noções de mudanças climáticas (efeito estufa, mitigação e adaptação, Kyoto, Acordo de Paris, Política Nacional sobre Mudança do Clima).

@@ -5,9 +5,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Conceitos de infração penal e crime; fato típico, tipicidade, conduta, resultado, nexo causal; dolo e culpa; consumação e tentativa; desistência voluntária, arrependimento eficaz e posterior; ilicitude e causas de justificação.
@@ -87,9 +87,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Predicados e sentenças abertas; universo de discurso e conjunto-verdade; quantificadores universal e existencial em notação simbólica; variáveis livres e ligadas; valor lógico de proposições quantificadas em universos finitos e numéricos; verdade por vacuidade; negação de proposições quantificadas, inclusive com condicional, conjunção e quantificadores encadeados; quantificadores múltiplos e a importância da ordem; tradução entre português e fórmulas (todo, algum, nenhum, somente, existe exatamente um); distribuição dos quantificadores sobre conjunção e disjunção; validade de argumentos com instanciação e generalização e construção de contraexemplos.
@@ -145,9 +145,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Lei nº 13.869/2019: conceito e finalidade específica; sujeitos ativos; divergência interpretativa; ação penal; efeitos da condenação; penas restritivas; independência de instâncias; tipos penais dos arts. 9º a 38, incluindo violência institucional do art. 15-A, e regras gerais de procedimento.
@@ -227,9 +227,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Conjuntos N, Z, Q, I e R; comparação e ordenação; equivalência, simplificação e operações com frações; decimais exatos e dízimas periódicas; fração geratriz; potências e raízes de racionais; expressões numéricas e problemas com frações de um todo.
@@ -309,9 +309,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Razões entre grandezas, taxas unitárias, razões equivalentes, proporções, propriedade fundamental, divisão proporcional e reconhecimento de proporcionalidade direta e inversa.
@@ -389,9 +389,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Leitura de textos curtos em inglês; ideia central, dados explícitos, inferência, predição, propósito, tom, vocabulário em contexto, falsos cognatos, tempos verbais, modais, condicionais, conectivos, coesão e relações intratextuais e intertextuais.
@@ -471,9 +471,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Negação, conjunção, disjunção, condicional, bicondicional e equivalências fundamentais, inclusive leis de De Morgan e contraposição.
@@ -540,9 +540,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Nacionalidade e cidadania; brasileiros natos e naturalizados; critérios constitucionais, registro e opção; naturalização; portugueses com igualdade de direitos em reciprocidade; igualdade e distinções constitucionais; perda e reaquisição; idioma oficial e símbolos da República e dos entes subnacionais.
@@ -618,9 +618,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Fatos, atos e negócios jurídicos; planos de existência, validade e eficácia; classificação, interpretação, representação, condição, termo e encargo; forma e prova; erro, dolo, coação, estado de perigo, lesão e fraude contra credores; simulação, nulidade, anulabilidade, atos ilícitos e abuso de direito.
@@ -700,9 +700,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Vigência, vacatio legis, revogação, aplicação da lei no tempo e no espaço, regras de direito internacional privado dos arts. 7º a 19 da LINDB, integração de lacunas e interpretação conforme os fins sociais e o bem comum.
@@ -782,9 +782,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Conceito de inteligência artificial e sua relação com aprendizado de máquina, aprendizado profundo e IA generativa; IA estreita, geral e superinteligência; IA simbólica (sistemas especialistas) e conexionista; teste de Turing e marcos históricos; subáreas (PLN, visão computacional, voz, recomendação); visão rápida dos tipos de aprendizado, incluindo autossupervisionado; neurônio artificial, pesos, viés e funções de ativação (degrau, sigmoide, tanh, ReLU, softmax); perceptron e XOR, MLP, retropropagação, gradiente descendente e taxa de aprendizado; CNN, RNN, LSTM e transformer com atenção; IA generativa: modelos discriminativos e generativos, LLM, tokens, embeddings, previsão do próximo token, pré-treinamento, ajuste fino, RLHF, janela de contexto, temperatura, data de corte, alucinação, RAG, GAN, difusão e multimodalidade; engenharia de prompt (zero-shot, few-shot, cadeia de raciocínio) e ferramentas de mercado; ética da IA (transparência, explicabilidade, justiça, privacidade, responsabilidade, supervisão humana, segurança, sustentabilidade); fontes de viés; riscos da IA generativa (vazamento, injeção de prompt, envenenamento, deepfakes, direitos autorais); LGPD e decisões automatizadas; regulação baseada em risco e normas de gestão de IA; uso de IA no setor público.
@@ -864,9 +864,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Ordem econômica constitucional, fundamentos e princípios do art. 170, livre iniciativa, capital estrangeiro, exploração empresarial estatal e regulação, concessões e permissões, recursos minerais e monopólios, transportes, pequenos negócios, turismo, política urbana e usucapião, política agrícola e fundiária, reforma agrária, terras públicas, usucapião rural e Sistema Financeiro Nacional (arts. 170 a 192).
@@ -946,9 +946,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Conceito de desenvolvimento sustentável (Relatório Brundtland), dimensões da sustentabilidade e tripé ambiental-social-econômico; marcos internacionais (Estocolmo 1972, Rio 92 e Agenda 21, Objetivos de Desenvolvimento do Milênio, Rio+20); Agenda 2030 e os 17 ODS; Agenda Ambiental na Administração Pública (A3P), seus eixos temáticos e a política dos 5 Rs; compras e contratações públicas sustentáveis; noções da Política Nacional de Resíduos Sólidos (hierarquia, logística reversa, responsabilidade compartilhada); noções de mudanças climáticas (efeito estufa, mitigação e adaptação, Kyoto, Acordo de Paris, Política Nacional sobre Mudança do Clima).
@@ -1028,9 +1028,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Conceito e evolução da gestão de pessoas (de recursos humanos a parceiros); processos ou subsistemas (agregar, aplicar, recompensar, desenvolver, manter e monitorar); recrutamento interno, externo e misto; técnicas de seleção, validade e fidedignidade; treinamento, desenvolvimento e educação, levantamento de necessidades e avaliação de resultados em quatro níveis; avaliação de desempenho (métodos, 360 graus, erros do avaliador); gestão por competências (CHA, mapeamento de lacunas); clima organizacional e sua diferença para cultura; qualidade de vida no trabalho; comportamento organizacional (níveis de análise, motivação, liderança em noções, grupos e conflitos).
@@ -1110,9 +1110,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Conceito e níveis do comportamento organizacional; motivação (intensidade, direção e persistência, intrínseca e extrínseca), teorias de conteúdo e de processo em profundidade: ERG de Alderfer, necessidades adquiridas de McClelland, expectativa de Vroom, equidade de Adams e justiça organizacional, fixação de objetivos de Locke, reforço de Skinner, modelo das características do trabalho, enriquecimento e ampliação de cargos; liderança: traços, estudos de Ohio e Michigan, grade gerencial, Fiedler, caminho-meta, situacional (comparação), LMX, transacional, transformacional, carismática, servidora e substitutos da liderança; grupos e equipes: tipos, estágios de Tuckman, equilíbrio pontuado, papéis, normas, coesão, folga social, pensamento grupal, polarização, grupo x equipe; conflito: visões, tipos, processo, estilos de Thomas e Kilmann, negociação distributiva e integrativa, MAANA; poder: dependência, bases de French e Raven, tipologia de Etzioni, táticas de influência, política organizacional e empowerment; mudança: forças, agentes, tipos, Lewin e campo de forças, oito etapas de Kotter, resistência e táticas de Kotter e Schlesinger, desenvolvimento organizacional, aprendizagem de circuito simples e duplo e organizações que aprendem.
@@ -1192,9 +1192,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Dever de licitar; inexigibilidade do art. 74; dispensa do art. 75 e limites monetários atualizados; licitação dispensada nas hipóteses de alienação do art. 76; instrução e publicidade do processo de contratação direta do art. 72.
@@ -1272,9 +1272,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Proporcionalidade direta e inversa; regra de três simples; regra de três composta com três ou mais grandezas; análise da relação entre cada grandeza e a incógnita; aplicações em compras, consumo, escalas de trabalho, produção, transporte, estoques e obras, com unidades compatíveis.
@@ -1347,9 +1347,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Criptografia simétrica e assimétrica, funções hash, assinatura digital, certificado digital e infraestrutura de chaves públicas, noções de ICP-Brasil, VPN, firewall e sistemas de detecção e prevenção de intrusão (IDS/IPS).
@@ -1429,9 +1429,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Direitos e vantagens previstos no Título III da Lei 8.112/1990: vencimento e remuneração; indenizações, gratificações e adicionais; férias; licenças; afastamentos; concessões; tempo de serviço; direito de petição.
@@ -1507,9 +1507,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Bens: conceito, regimes e classificações em si, reciprocamente considerados e públicos; fatos e negócios jurídicos, forma e prova, vícios, invalidade, ilícitos, prescrição e decadência; obrigações e formas de adimplemento e extinção; contratos em geral; responsabilidade civil e indenização.
@@ -1589,9 +1589,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Pilares da segurança da informação (confidencialidade, integridade, disponibilidade); família ISO/IEC 27000; sistema de gestão de segurança da informação (SGSI); estrutura da ISO/IEC 27001:2022 (cláusulas 4 a 10, avaliação e tratamento de riscos, Declaração de Aplicabilidade, auditoria interna, análise crítica, melhoria contínua e certificação); ISO/IEC 27002:2022 (93 controles em 4 temas, atributos, controles novos) e diferenças em relação à versão de 2013; gestão de incidentes de segurança (evento, incidente, resposta, lições aprendidas, evidências); gestão de continuidade de negócios (análise de impacto, RTO, RPO, plano de continuidade, prontidão de TIC).
@@ -1671,9 +1671,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Fases e inversão de fases do art. 17; anulação e revogação pelo art. 71; recursos e pedidos de reconsideração dos arts. 165 a 168 da Lei 14.133/2021.
@@ -1753,9 +1753,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Identificação e análise do sujeito e do predicado, objetos direto e indireto, complemento nominal, adjuntos adnominal e adverbial, predicativo, aposto e vocativo, com distinção entre termos ligados ao verbo, ao nome e à oração.
@@ -1830,9 +1830,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Infrações administrativas dos arts. 155 a 163 da Lei nº 14.133/2021; advertência, multa, impedimento de licitar e contratar, declaração de inidoneidade, processo sancionador, seus efeitos, prescrição, cadastros, mora e reabilitação; crimes dos arts. 337-E a 337-P do Código Penal.
@@ -1912,9 +1912,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Sistema constitucional de crises; Conselhos da República e de Defesa Nacional; estados de defesa e sítio (pressupostos, consulta, autorização, duração, restrições, controles e efeitos); noções institucionais das Forças Armadas; organização constitucional da segurança pública, atribuições, subordinação, guardas municipais e segurança viária.
@@ -1994,9 +1994,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Conceito, classificação e espécies de pessoas jurídicas, entes despersonalizados, constituição, registro, capacidade e administração, domicílio e responsabilidade, associações e fundações privadas, desconsideração da personalidade jurídica pelo art. 50 do Código Civil e extinção.
@@ -2076,9 +2076,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Princípios, função social, boa-fé e interpretação; classificação; formação e negócios com terceiros; contratos aleatórios e preliminares; vícios redibitórios; evicção; extinção e resolução por onerosidade excessiva.
@@ -2158,9 +2158,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Atos ilícitos, abuso de direito, excludentes de ilicitude, responsabilidade subjetiva e objetiva, nexo causal, dano material, moral e estético, quantificação da indenização, excludentes do nexo, responsabilidade por fato de terceiro, do animal e da coisa.
@@ -2240,9 +2240,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Noções sobre crimes de perigo comum, incêndio, explosão e outras condutas perigosas, falsificação de moeda, falsidade documental, uso de documento falso e proteção penal da fé pública.
@@ -2322,9 +2322,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Preâmbulo e arts. 1º a 30 da Declaração Universal dos Direitos Humanos: princípios, direitos civis e políticos, direitos econômicos, sociais e culturais, deveres e regras de interpretação.
@@ -2398,9 +2398,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Conceito, fundamento na dignidade humana, titularidade, características, princípios, dimensões didáticas, reconhecimento internacional e proteção constitucional brasileira dos direitos humanos.
@@ -2480,9 +2480,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Fiscalização contábil, financeira, orçamentária, operacional e patrimonial; relação entre Legislativo e tribunais de contas; competências, processos de contas e tomada de contas especial.
@@ -2562,9 +2562,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Natureza jurídica e elementos da ação; interesse e legitimidade; teorias, carência, pedidos e cumulação; jurisdição, competência e critérios gerais; conexão, continência; processo, procedimento e pressupostos; sujeitos, capacidades, representação; formação, suspensão e extinção processual.
@@ -2644,9 +2644,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Variação geográfica, social, situacional, histórica e de modalidade; adequação ao contexto; conceito de norma linguística; distinções entre norma-padrão, norma culta e usos efetivos; prestígio, preconceito e mudança linguística.
@@ -2717,9 +2717,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Sequências numéricas, alfabéticas e figurais descritas verbalmente; analogias e classificação; conceitos e discriminação de elementos; calendário, relógio, intervalos, direções, rotações, vistas e planificações; problemas cotidianos com dados suficientes e conclusões lógicas.
@@ -2799,9 +2799,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Classificação em bens de uso comum do povo, de uso especial e dominicais; afetação e desafetação; inalienabilidade relativa, impenhorabilidade e imprescritibilidade; autorização, permissão e concessão de uso.
@@ -2881,9 +2881,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Funções alocativa, distributiva e estabilizadora do governo; bens públicos e recursos comuns; externalidades e instrumentos corretivos; déficit e dívida pública; princípios e efeitos econômicos da tributação.
@@ -2963,9 +2963,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Conceito e funções do orçamento público; princípios orçamentários; orçamento-programa e seus objetivos; estrutura constitucional dos orçamentos; elaboração, discussão, emendas, votação e aprovação da proposta orçamentária.
@@ -3045,9 +3045,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Conceito de engenharia de software; atividades genéricas do processo; modelos de processo (cascata, incremental, prototipação, espiral, Processo Unificado/RUP); engenharia de requisitos (requisitos funcionais e não funcionais, elicitação, especificação, validação e gerenciamento, histórias de usuário); UML (diagramas estruturais e comportamentais, casos de uso com include e extend, classes, sequência, atividades e estados); testes de software (níveis, caixa-preta e caixa-branca, regressão, verificação e validação, TDD); Manifesto Ágil; Scrum segundo o Guia de 2020; Kanban; XP; noções de DevOps, integração e entrega contínuas.
@@ -3127,9 +3127,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Capital, juros, montante, taxa e prazo em regimes simples e compostos; conversão de taxa e período; cálculos diretos, determinação de variável e comparação entre regimes.
@@ -3209,9 +3209,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Modelagem de relações por tabelas, associação entre pessoas, funções, locais e objetos, ordenação linear e circular, posições, verdades e mentiras, proposições, conectivos, tabelas-verdade, negações, equivalências, contrapositiva, quantificadores, diagramas e validade de argumentos.
@@ -3291,9 +3291,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Habeas corpus, mandado de segurança individual e coletivo, habeas data, mandado de injunção, ação popular, ação civil pública, recursos cíveis em geral e meios extrajudiciais de solução de conflitos na Administração Pública.
@@ -3373,9 +3373,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Porcentagem, frações e decimais; variação percentual e pontos percentuais; fatores sucessivos; lucro e prejuízo com bases explícitas.
@@ -3443,9 +3443,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Modalidades de dar, fazer, não fazer, alternativas e facultativas; divisibilidade e solidariedade; cessão de crédito, assunção de dívida; pagamento e modos especiais de extinção; inadimplemento, mora, perdas e danos, juros legais e cláusula penal.
@@ -3525,9 +3525,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Competências materiais exclusivas da União (art. 21); competências legislativas privativas da União e delegação a Estados (art. 22); competências administrativas comuns (art. 23); competências legislativas concorrentes e regras de suplementação (art. 24); competências remanescentes dos Estados (art. 25); competências municipais de interesse local e suplementação (art. 30); competências do Distrito Federal (art. 32, § 1º); intervenção federal e estadual, hipóteses, iniciativa, decreto e controle (arts. 34 a 36).
@@ -3607,9 +3607,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Estatuto da Igualdade Racial (Lei nº 12.288/2010) e Lei nº 7.716/1989: igualdade de oportunidades, direitos étnicos, discriminação e preconceito por raça, cor, etnia, religião ou procedência nacional, crimes de preconceito, injúria racial e interpretação constitucional sobre homotransfobia.
@@ -3689,9 +3689,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Leitura e comparação de tabelas e gráficos; frequências e percentuais apresentados; séries estatísticas e temporais; leitura de mapas e plantas; escala numérica e gráfica; conversão entre medidas e cálculo de distâncias reais ou representadas.
@@ -3766,9 +3766,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Partes e procuradores (capacidade, deveres, litigância de má-fé, ato atentatório, despesas, honorários, gratuidade, procuração, sucessão); litisconsórcio; intervenção de terceiros (assistência, denunciação da lide, chamamento ao processo, desconsideração da personalidade jurídica, amicus curiae); juiz (poderes, deveres, responsabilidade, impedimento e suspeição); auxiliares da justiça; Ministério Público, Defensoria Pública e advocacia pública no processo civil.
@@ -3848,9 +3848,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Conceito de arquitetura de software, componentes, conectores e atributos de qualidade; estilos arquiteturais (cliente-servidor, ponto a ponto, duto e filtro, orientada a eventos, serverless em noções); arquitetura em camadas (apresentação, negócio e dados), camadas lógicas x físicas, camadas estritas x relaxadas, vantagens e desvantagens; MVC, fluxo entre Model, View e Controller, MVC na web e front controller, MVC x três camadas, MVP e MVVM; noções de arquitetura hexagonal e Clean Architecture; monólito, SOA e microsserviços (características, comunicação síncrona e assíncrona, banco por serviço, API gateway, service discovery, circuit breaker, saga, consistência eventual, strangler fig, lei de Conway); padrões de projeto GoF (propósito, escopo, os 23 padrões de criação, estruturais e comportamentais, com exemplos em Java) e noções de GRASP.
@@ -3930,9 +3930,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Estrutura da frase, artigos, classes e formação de palavras; concordância essencial; tempos e aspectos verbais; modais e condicionais; voz passiva; pronomes e referentes; conectores; comparativos e superlativos; preposições; inferências de leitura e falsos cognatos frequentes.

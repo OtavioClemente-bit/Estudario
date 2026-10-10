@@ -2,9 +2,9 @@ Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUE
 
 São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado. Como na prova, cerca de 20 dos 50 itens vêm em 4 grupos de 5 itens sobre um mesmo texto ou situação hipotética mais longa (8 a 15 linhas); repita esse texto completo no statement de cada item do grupo, para cada item funcionar sozinho.
-- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
-- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 2 (FGV, 40 questões):** 40 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 40 questões):** 40 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (CESGRANRIO, 40 questões):** 40 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Conceito e evolução da gestão de pessoas (de recursos humanos a parceiros); processos ou subsistemas (agregar, aplicar, recompensar, desenvolver, manter e monitorar); recrutamento interno, externo e misto; técnicas de seleção, validade e fidedignidade; treinamento, desenvolvimento e educação, levantamento de necessidades e avaliação de resultados em quatro níveis; avaliação de desempenho (métodos, 360 graus, erros do avaliador); gestão por competências (CHA, mapeamento de lacunas); clima organizacional e sua diferença para cultura; qualidade de vida no trabalho; comportamento organizacional (níveis de análise, motivação, liderança em noções, grupos e conflitos).
