@@ -22,7 +22,12 @@ Fica de fora (outras matérias tratam): Lógica de predicados com símbolos form
 - Diagramas lógicos, envolvendo as proposições categóricas.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, cálculo com todos os dados no enunciado, interpretação de tabela ou gráfico, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 

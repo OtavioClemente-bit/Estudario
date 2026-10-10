@@ -46,7 +46,12 @@ Fica de fora (outras matérias tratam): Imputabilidade e concurso de pessoas, pe
 - Causas de exclusão da ilicitude: estado de necessidade, legítima defesa, estrito cumprimento do dever legal e exercício regular de direito.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -98,7 +103,12 @@ Fica de fora (outras matérias tratam): Leitura básica de todo, algum e nenhum 
 - Quantificadores, afirmações e negações.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, cálculo com todos os dados no enunciado, interpretação de tabela ou gráfico, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -174,7 +184,12 @@ Fica de fora (outras matérias tratam): Exame autônomo dos crimes funcionais de
 - Penais especiais: Lei nº 13.869/19, Abuso de Autoridade.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -250,7 +265,12 @@ Fica de fora (outras matérias tratam): Equações e inequações avançadas, n�
 - Operações com irracionais e aproximações por racionais.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, cálculo com todos os dados no enunciado, interpretação de tabela ou gráfico, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -324,7 +344,12 @@ Fica de fora (outras matérias tratam): Regra de três como procedimento geral, 
 - Números e grandezas proporcionais: razões e proporções e divisão em partes proporcionais.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, cálculo com todos os dados no enunciado, interpretação de tabela ou gráfico, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -400,7 +425,12 @@ Fica de fora (outras matérias tratam): Tradução integral de textos longos, fo
 - Compreensão de textos variados.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -463,7 +493,12 @@ Fica de fora (outras matérias tratam): Dedução em sistemas formais, lógica d
 - Equivalências e leis de De Morgan.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, cálculo com todos os dados no enunciado, interpretação de tabela ou gráfico, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -535,7 +570,12 @@ Fica de fora (outras matérias tratam): Direitos políticos em geral, regime jur
 - Estatuto de igualdade.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -611,7 +651,12 @@ Fica de fora (outras matérias tratam): Prescrição e decadência como matéria
 - Termo.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -687,7 +732,12 @@ Fica de fora (outras matérias tratam): Personalidade, capacidade, pessoas jurí
 - Aplicação da lei no tempo.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -763,7 +813,12 @@ Fica de fora (outras matérias tratam): Data warehouse, OLAP, ETL, CRISP-DM, tar
 - Noções de processamento de linguagem natural.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -839,7 +894,12 @@ Fica de fora (outras matérias tratam): Sistema tributário e repartição de re
 - Reforma Agrária (Lei nº 8.629/93).
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -915,7 +975,12 @@ Fica de fora (outras matérias tratam): Direito ambiental em profundidade (licen
 - Sustentabilidade econômica, social e ambiental.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -991,7 +1056,12 @@ Fica de fora (outras matérias tratam): Regime jurídico dos servidores público
 - Gestão de pessoas: Gestão por competências.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -1067,7 +1137,12 @@ Fica de fora (outras matérias tratam): Teorias da administração, funções PO
 - Equipes de trabalho.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -1141,7 +1216,12 @@ Fica de fora (outras matérias tratam): Modalidades e princípios licitatórios,
 - Licitações: Contratação direta.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -1210,7 +1290,12 @@ Fica de fora (outras matérias tratam): Porcentagens sucessivas, juros, escalas 
 - Regra de três simples e composta, porcentagem, escalas e frações.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, cálculo com todos os dados no enunciado, interpretação de tabela ou gráfico, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -1286,7 +1371,12 @@ Fica de fora (outras matérias tratam): Tipos de malware, phishing, antivírus e
 - Esteganografia e criptoanálise.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -1358,7 +1448,12 @@ Fica de fora (outras matérias tratam): Provimento, vacância, deveres, proibiç
 - Férias, licenças, vantagens, jornada de trabalho, remuneração, auxílios, progressão e promoção dos servidores.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -1434,7 +1529,12 @@ Fica de fora (outras matérias tratam): Posse e direitos reais em espécie aprof
 - Bens e suas classes: bens corpóreos e incorpóreos, bens no comércio e fora dele.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -1510,7 +1610,12 @@ Fica de fora (outras matérias tratam): Tipos de malware e golpes (outra matéri
 - ABNT NBR 27035-3:2021;
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -1586,7 +1691,12 @@ Fica de fora (outras matérias tratam): Contratação direta, modalidades em pro
 - Artefatos de Planejamento das Contratações: estudo técnico preliminar (ETP), termo de referência e projeto básico.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -1657,7 +1767,12 @@ Fica de fora (outras matérias tratam): Período composto em profundidade, class
 - Textos da esfera jornalística/publicitária — Análise linguística: Analise a estruturação sintática de sentenças nos textos, observando como a ordem dos termos (sujeito, verbo, complemento) reflete o foco jornalístico (em manchetes, por exemplo).
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -1733,7 +1848,12 @@ Fica de fora (outras matérias tratam): Regras gerais de licitação, habilitaç
 - Infrações contratuais e sanções em contratos com a administração pública.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -1809,7 +1929,12 @@ Fica de fora (outras matérias tratam): Intervenção federal em profundidade; r
 - Defesa do Estado e das instituições democráticas; segurança pública; forças armadas.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -1885,7 +2010,12 @@ Fica de fora (outras matérias tratam): Pessoas naturais, modalidades de socieda
 - Domicílio da pessoa jurídica.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -1961,7 +2091,12 @@ Fica de fora (outras matérias tratam): Contratos típicos específicos, direito
 - Interpretação dos contratos.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -2037,7 +2172,12 @@ Fica de fora (outras matérias tratam): Responsabilidade civil do Estado, respon
 - Obrigações por atos ilícitos.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -2113,7 +2253,12 @@ Fica de fora (outras matérias tratam): Crimes contra a vida e o patrimônio em 
 - Crimes contra a incolumidade pública. Crimes contra a paz pública.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -2183,7 +2328,12 @@ Fica de fora (outras matérias tratam): Tratados posteriores, sistemas regionais
 - Fontes e instrumentos internacionais, Declaração Universal e Convenção Americana sobre Direitos Humanos.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -2259,7 +2409,12 @@ Fica de fora (outras matérias tratam): Estudo detalhado de tratados temáticos,
 - Teoria geral dos direitos humanos: conceitos, terminologia, estrutura normativa e fundamentação.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -2335,7 +2490,12 @@ Fica de fora (outras matérias tratam): Ritos internos específicos de cada cort
 - E controle externo da arrecadação tributária pelos Tribunais de Contas.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -2411,7 +2571,12 @@ Fica de fora (outras matérias tratam): Intervenção de terceiros, substituiç�
 - Ação: conceito, natureza, elementos, características, condições, classificação, conexão, continência, concurso e cumulação.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -2478,7 +2643,12 @@ Fica de fora (outras matérias tratam): Análise sintática detalhada, classific
 - Textos da esfera da vida cotidiana — Análise linguística: Analise usos da oralidade e inovações linguísticas expressivas (gírias, abreviações digitais, entre outros recursos lexicais) próprios da escrita espontânea interpessoal.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -2554,7 +2724,12 @@ Fica de fora (outras matérias tratam): Demonstrações formais avançadas, geom
 - Competências Gerais: Compreensão, análise e resolução de situações-problema concretas, abstratas ou hipotéticas, deduzindo novas informações a partir das informações e relações fornecidas.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, cálculo com todos os dados no enunciado, interpretação de tabela ou gráfico, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -2630,7 +2805,12 @@ Fica de fora (outras matérias tratam): Licitações e contratos em geral, desap
 - Bens públicos: classificação, regime jurídico, bens da União e legislação patrimonial.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -2706,7 +2886,12 @@ Fica de fora (outras matérias tratam): Regras jurídicas específicas, percentu
 - Políticas Públicas para as externalidades: Regulamentação.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, cálculo com todos os dados no enunciado, interpretação de tabela ou gráfico, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -2782,7 +2967,12 @@ Fica de fora (outras matérias tratam): Estudo detalhado do conteúdo, vigência
 - A prática brasileira do orçamento-programa.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -2858,7 +3048,12 @@ Fica de fora (outras matérias tratam): Gerenciamento de projetos pelo PMBOK, IT
 - Metodologias ágeis, lean manufacturing e Scrum.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -2934,7 +3129,12 @@ Fica de fora (outras matérias tratam): Descontos simples ou compostos, equival�
 - Juros simples: capitalização.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, cálculo com todos os dados no enunciado, interpretação de tabela ou gráfico, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -3010,7 +3210,12 @@ Fica de fora (outras matérias tratam): Cálculo de probabilidade, análise comb
 - Relações lógicas arbitrárias, dedução de informações e avaliação de condições.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, cálculo com todos os dados no enunciado, interpretação de tabela ou gráfico, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -3086,7 +3291,12 @@ Fica de fora (outras matérias tratam): Procedimentos penais específicos, recur
 - O processo civil e o controle judicial dos atos administrativos: mandado de segurança; Ação popular; Ação civil pública; Ação de improbidade administrativa.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -3150,7 +3360,12 @@ Fica de fora (outras matérias tratam): Juros, capitalização e demais matemát
 - Matemática financeira: percentagens.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, cálculo com todos os dados no enunciado, interpretação de tabela ou gráfico, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -3226,7 +3441,12 @@ Fica de fora (outras matérias tratam): Contratos em geral, responsabilidade civ
 - Obrigações: modalidades, transmissão, adimplemento, extinção, inadimplemento e atos unilaterais.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -3302,7 +3522,12 @@ Fica de fora (outras matérias tratam): Organização dos Poderes, processo legi
 - Atribuições, competências e relações entre esferas de governo no regime federativo na CF/88.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -3378,7 +3603,12 @@ Fica de fora (outras matérias tratam): Debates sociológicos sem conexão com a
 - Leis Federais n. 7.716/1989.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -3449,7 +3679,12 @@ Fica de fora (outras matérias tratam): Estatística inferencial, cartografia t�
 - Quadros, tabelas e gráficos: tipos e interpretação.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, cálculo com todos os dados no enunciado, interpretação de tabela ou gráfico, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -3525,7 +3760,12 @@ Fica de fora (outras matérias tratam): Jurisdição e competência, ação e su
 - Capacidade processual e postulatória.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -3601,7 +3841,12 @@ Fica de fora (outras matérias tratam): Fundamentos e pilares da orientação a 
 - Padrões: GRASP.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
@@ -3677,7 +3922,12 @@ Fica de fora (outras matérias tratam): Conversação, produção de textos exte
 - Aspectos gramaticais relevantes à compreensão de texto.
 
 ## Em todos os lotes
-- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Dificuldade: 25% fáceis, 35% médias, 40% difíceis ("difficulty": FACIL, MEDIA, DIFICIL), seguindo estas definições:
+  - **FACIL:** cobra a regra principal como está na lei ou no conceito; acerta quem leu a matéria uma vez.
+  - **MEDIA:** aplica a regra a um caso concreto ou cobra um detalhe (prazo, competência, exceção); exige estudo atento.
+  - **DIFICIL:** combina duas ou mais regras, cobra a exceção da exceção, jurisprudência que contraria a leitura literal, ou monta caso em que a resposta intuitiva está errada; erra quem estudou só o básico. Distratores das difíceis são quase certos (diferem num detalhe decisivo).
+  - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
+- Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
