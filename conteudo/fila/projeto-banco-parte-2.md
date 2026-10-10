@@ -58,6 +58,11 @@ Fica de fora (outras matérias tratam): Configuração de equipamentos de fabric
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -78,7 +83,7 @@ Fica de fora (outras matérias tratam): Configuração de equipamentos de fabric
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -145,6 +150,11 @@ Fica de fora (outras matérias tratam): Concessão, permissão, autorização co
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -165,7 +175,7 @@ Fica de fora (outras matérias tratam): Concessão, permissão, autorização co
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -232,6 +242,11 @@ Fica de fora (outras matérias tratam): Elementos, atributos e classificações 
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -252,7 +267,7 @@ Fica de fora (outras matérias tratam): Elementos, atributos e classificações 
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -319,6 +334,11 @@ Fica de fora (outras matérias tratam): Créditos adicionais em detalhe, Plano d
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -339,7 +359,7 @@ Fica de fora (outras matérias tratam): Créditos adicionais em detalhe, Plano d
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -406,6 +426,11 @@ Fica de fora (outras matérias tratam): Estágios detalhados da receita e despes
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -426,7 +451,7 @@ Fica de fora (outras matérias tratam): Estágios detalhados da receita e despes
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -492,6 +517,11 @@ Fica de fora (outras matérias tratam): Administração avançada de domínio, c
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -512,7 +542,7 @@ Fica de fora (outras matérias tratam): Administração avançada de domínio, c
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -579,6 +609,11 @@ Fica de fora (outras matérias tratam): Procedimento de sindicância, processo d
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -599,7 +634,7 @@ Fica de fora (outras matérias tratam): Procedimento de sindicância, processo d
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -665,6 +700,11 @@ Fica de fora (outras matérias tratam): Inferência estatística, estimação, t
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -685,7 +725,7 @@ Fica de fora (outras matérias tratam): Inferência estatística, estimação, t
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -752,6 +792,11 @@ Fica de fora (outras matérias tratam): Princípios e ciclo orçamentário em ge
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -772,7 +817,7 @@ Fica de fora (outras matérias tratam): Princípios e ciclo orçamentário em ge
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -839,6 +884,11 @@ Fica de fora (outras matérias tratam): Demais órgãos do Judiciário, organiza
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -859,7 +909,7 @@ Fica de fora (outras matérias tratam): Demais órgãos do Judiciário, organiza
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -926,6 +976,11 @@ Fica de fora (outras matérias tratam): Regras detalhadas de códigos profission
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -946,7 +1001,7 @@ Fica de fora (outras matérias tratam): Regras detalhadas de códigos profission
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -1013,6 +1068,11 @@ Fica de fora (outras matérias tratam): Organização detalhada do processo legi
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -1033,7 +1093,7 @@ Fica de fora (outras matérias tratam): Organização detalhada do processo legi
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -1100,6 +1160,11 @@ Fica de fora (outras matérias tratam): Estudo específico dos direitos fundamen
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -1120,7 +1185,7 @@ Fica de fora (outras matérias tratam): Estudo específico dos direitos fundamen
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -1187,6 +1252,11 @@ Fica de fora (outras matérias tratam): Organização infraconstitucional detalh
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -1207,7 +1277,7 @@ Fica de fora (outras matérias tratam): Organização infraconstitucional detalh
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -1274,6 +1344,11 @@ Fica de fora (outras matérias tratam): Organização detalhada de outras funç�
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -1294,7 +1369,7 @@ Fica de fora (outras matérias tratam): Organização detalhada de outras funç�
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -1361,6 +1436,11 @@ Fica de fora (outras matérias tratam): Licitações e contratos em geral; conce
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -1381,7 +1461,7 @@ Fica de fora (outras matérias tratam): Licitações e contratos em geral; conce
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -1447,6 +1527,11 @@ Fica de fora (outras matérias tratam): Métodos ágeis em detalhe (Scrum, Kanba
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -1467,7 +1552,7 @@ Fica de fora (outras matérias tratam): Métodos ágeis em detalhe (Scrum, Kanba
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -1534,6 +1619,11 @@ Fica de fora (outras matérias tratam): Organização e estatuto dos congressist
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -1554,7 +1644,7 @@ Fica de fora (outras matérias tratam): Organização e estatuto dos congressist
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -1620,6 +1710,11 @@ Fica de fora (outras matérias tratam): Variáveis aleatórias contínuas, distr
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -1640,7 +1735,7 @@ Fica de fora (outras matérias tratam): Variáveis aleatórias contínuas, distr
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -1706,6 +1801,11 @@ Fica de fora (outras matérias tratam): Administração de servidores de correio
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -1726,7 +1826,7 @@ Fica de fora (outras matérias tratam): Administração de servidores de correio
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -1793,6 +1893,11 @@ Fica de fora (outras matérias tratam): Procedimento eleitoral infraconstitucion
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -1813,7 +1918,7 @@ Fica de fora (outras matérias tratam): Procedimento eleitoral infraconstitucion
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -1879,6 +1984,11 @@ Fica de fora (outras matérias tratam): Probabilidade, análise assintótica e c
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -1899,7 +2009,7 @@ Fica de fora (outras matérias tratam): Probabilidade, análise assintótica e c
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -1965,6 +2075,11 @@ Fica de fora (outras matérias tratam): Administração avançada de produtos es
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -1985,7 +2100,7 @@ Fica de fora (outras matérias tratam): Administração avançada de produtos es
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -2051,6 +2166,11 @@ Fica de fora (outras matérias tratam): Princípios e regras detalhadas do Direi
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -2071,7 +2191,7 @@ Fica de fora (outras matérias tratam): Princípios e regras detalhadas do Direi
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -2138,6 +2258,11 @@ Fica de fora (outras matérias tratam): Descrição aprofundada de deveres, proi
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -2158,7 +2283,7 @@ Fica de fora (outras matérias tratam): Descrição aprofundada de deveres, proi
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -2225,6 +2350,11 @@ Fica de fora (outras matérias tratam): Regime disciplinar geral, procedimentos 
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -2245,7 +2375,7 @@ Fica de fora (outras matérias tratam): Regime disciplinar geral, procedimentos 
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -2312,6 +2442,11 @@ Fica de fora (outras matérias tratam): Regimes completos de saúde, educação 
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -2332,7 +2467,7 @@ Fica de fora (outras matérias tratam): Regimes completos de saúde, educação 
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -2399,6 +2534,11 @@ Fica de fora (outras matérias tratam): Demais crimes contra a Administração n
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -2419,7 +2559,7 @@ Fica de fora (outras matérias tratam): Demais crimes contra a Administração n
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -2485,6 +2625,11 @@ Fica de fora (outras matérias tratam): Configuração detalhada de navegadores,
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -2505,7 +2650,7 @@ Fica de fora (outras matérias tratam): Configuração detalhada de navegadores,
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -2572,6 +2717,11 @@ Fica de fora (outras matérias tratam): Consórcios públicos em detalhe, conces
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -2592,7 +2742,7 @@ Fica de fora (outras matérias tratam): Consórcios públicos em detalhe, conces
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -2658,6 +2808,11 @@ Fica de fora (outras matérias tratam): Teorias da administração, funções pl
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -2678,7 +2833,7 @@ Fica de fora (outras matérias tratam): Teorias da administração, funções pl
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -2744,6 +2899,11 @@ Fica de fora (outras matérias tratam): Classificação aprofundada de gêneros 
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -2764,7 +2924,7 @@ Fica de fora (outras matérias tratam): Classificação aprofundada de gêneros 
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -2830,6 +2990,11 @@ Fica de fora (outras matérias tratam): Administração de infraestrutura, desen
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -2850,7 +3015,7 @@ Fica de fora (outras matérias tratam): Administração de infraestrutura, desen
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -2917,6 +3082,11 @@ Fica de fora (outras matérias tratam): Detalhamento de PPA, LDO e LOA, estágio
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -2937,7 +3107,7 @@ Fica de fora (outras matérias tratam): Detalhamento de PPA, LDO e LOA, estágio
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -3004,6 +3174,11 @@ Fica de fora (outras matérias tratam): Competência tributária individualizada
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -3024,7 +3199,7 @@ Fica de fora (outras matérias tratam): Competência tributária individualizada
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -3091,6 +3266,11 @@ Fica de fora (outras matérias tratam): Lei Complementar n. 101/2000 em profundi
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -3111,7 +3291,7 @@ Fica de fora (outras matérias tratam): Lei Complementar n. 101/2000 em profundi
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -3178,6 +3358,11 @@ Fica de fora (outras matérias tratam): Controle de constitucionalidade estadual
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -3198,7 +3383,7 @@ Fica de fora (outras matérias tratam): Controle de constitucionalidade estadual
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -3265,6 +3450,11 @@ Fica de fora (outras matérias tratam): Vencimentos e remuneração em geral, va
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -3285,7 +3475,7 @@ Fica de fora (outras matérias tratam): Vencimentos e remuneração em geral, va
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -3351,6 +3541,11 @@ Fica de fora (outras matérias tratam): Funções administrativas, planejamento 
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -3371,7 +3566,7 @@ Fica de fora (outras matérias tratam): Funções administrativas, planejamento 
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -3437,6 +3632,11 @@ Fica de fora (outras matérias tratam): Visão geral do ciclo de análise, big d
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -3457,7 +3657,7 @@ Fica de fora (outras matérias tratam): Visão geral do ciclo de análise, big d
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -3524,6 +3724,11 @@ Fica de fora (outras matérias tratam): Teoria geral completa de serviços públ
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -3544,7 +3749,7 @@ Fica de fora (outras matérias tratam): Teoria geral completa de serviços públ
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -3610,6 +3815,11 @@ Fica de fora (outras matérias tratam): Direitos e garantias individuais do art.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -3630,7 +3840,7 @@ Fica de fora (outras matérias tratam): Direitos e garantias individuais do art.
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -3696,6 +3906,11 @@ Fica de fora (outras matérias tratam): Paradigmas completos de flexão nominal 
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -3716,7 +3931,7 @@ Fica de fora (outras matérias tratam): Paradigmas completos de flexão nominal 
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -3761,6 +3976,11 @@ Fica de fora (outras matérias tratam): Lógica de predicados com símbolos form
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -3781,7 +4001,7 @@ Fica de fora (outras matérias tratam): Lógica de predicados com símbolos form
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -3847,6 +4067,11 @@ Fica de fora (outras matérias tratam): Gestão de pessoas (recrutamento, treina
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -3867,7 +4092,7 @@ Fica de fora (outras matérias tratam): Gestão de pessoas (recrutamento, treina
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -3934,6 +4159,11 @@ Fica de fora (outras matérias tratam): Pessoas jurídicas, capacidade processua
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -3954,7 +4184,7 @@ Fica de fora (outras matérias tratam): Pessoas jurídicas, capacidade processua
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -4020,6 +4250,11 @@ Fica de fora (outras matérias tratam): Programação detalhada de modelos, demo
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -4040,7 +4275,7 @@ Fica de fora (outras matérias tratam): Programação detalhada de modelos, demo
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -4106,6 +4341,11 @@ Fica de fora (outras matérias tratam): Morfologia e sintaxe detalhadas, redaç�
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -4126,7 +4366,7 @@ Fica de fora (outras matérias tratam): Morfologia e sintaxe detalhadas, redaç�
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -4193,6 +4433,11 @@ Fica de fora (outras matérias tratam): Cálculos previdenciários, exame integr
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -4213,7 +4458,7 @@ Fica de fora (outras matérias tratam): Cálculos previdenciários, exame integr
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
@@ -4280,6 +4525,11 @@ Fica de fora (outras matérias tratam): Teoria geral do crime, espécies de pena
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
 - Cerca de 1 em cada 5 questões cobra jurisprudência consolidada (súmula, súmula vinculante, tese de repercussão geral ou recurso repetitivo) relacionada ao tópico, sempre conferida em fonte oficial; se não tiver certeza do número, descreva o entendimento sem o número.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: o dispositivo (artigo, inciso, súmula ou tese) que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -4300,7 +4550,7 @@ Fica de fora (outras matérias tratam): Teoria geral do crime, espécies de pena
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```

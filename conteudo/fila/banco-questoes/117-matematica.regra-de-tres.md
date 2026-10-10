@@ -48,6 +48,11 @@ Fica de fora (outras matérias tratam): Porcentagens sucessivas, juros, escalas 
 - Textos e casos dos grupos: escreva como texto CORRIDO e narrado (uma história com personagens, órgão ou empresa, fatos encadeados e datas/números quando couber), nunca como lista de frases soltas uma por linha. Cada item do grupo explora um ponto diferente do mesmo caso.
 - Itens que só copiam o texto da lei: no máximo 1 em cada 5 questões. Mesmo nas fáceis, prefira aplicar a regra a um caso curto.
 - Varie o começo dos enunciados; não repita a mesma frase de abertura (ex.: "À luz do art. X, julgue o item") em todas as questões.
+- Nível de cursinho de ponta:
+  - Em Certo/Errado, quebre as "regrinhas de chute": inclua itens CERTOS com "sempre", "nunca", "somente" e itens ERRADOS com "pode", "em regra", "geralmente" — o aluno precisa saber o conteúdo, não adivinhar pela palavra.
+  - Priorize o que mais cai: os pontos clássicos de prova do tópico e as novidades legislativas e jurisprudenciais dos últimos anos (conferidas na web).
+  - Toda explicação aponta o fundamento: a regra ou o conceito exato que resolve a questão, e termina com uma frase prática de como reconhecer esse tipo de questão na prova.
+  - Cada questão traz o campo "pegadinha": UMA frase dizendo qual é a armadilha da questão (o que faz o candidato errar).
 - Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
@@ -68,7 +73,7 @@ Fica de fora (outras matérias tratam): Porcentagens sucessivas, juros, escalas 
   "questions": [
     { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
-      "explanation": "..." }
+      "explanation": "...", "pegadinha": "a armadilha em uma frase" }
   ]
 }
 ```
