@@ -1,6 +1,10 @@
 Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUESTÕES de **Sustentabilidade: Desenvolvimento sustentável, ODS e A3P** para o aplicativo Estudário, no nível das provas de tribunais, polícias, agências e fisco. Pesquise na web e use fontes oficiais.
 
-São 2 lotes de 50 questões, um por resposta. Quando eu pedir "lote 1", entregue o lote 1; quando eu pedir "lote 2", entregue o lote 2, sem repetir casos do lote 1.
+São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
+- **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado.
+- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (VUNESP, 30 questões):** 30 de múltipla escolha A a E no estilo Vunesp e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Conceito de desenvolvimento sustentável (Relatório Brundtland), dimensões da sustentabilidade e tripé ambiental-social-econômico; marcos internacionais (Estocolmo 1972, Rio 92 e Agenda 21, Objetivos de Desenvolvimento do Milênio, Rio+20); Agenda 2030 e os 17 ODS; Agenda Ambiental na Administração Pública (A3P), seus eixos temáticos e a política dos 5 Rs; compras e contratações públicas sustentáveis; noções da Política Nacional de Resíduos Sólidos (hierarquia, logística reversa, responsabilidade compartilhada); noções de mudanças climáticas (efeito estufa, mitigação e adaptação, Kyoto, Acordo de Paris, Política Nacional sobre Mudança do Clima).
@@ -38,10 +42,10 @@ Fica de fora (outras matérias tratam): Direito ambiental em profundidade (licen
 - Economia ambiental e desenvolvimento sustentável.
 - Sustentabilidade econômica, social e ambiental.
 
-## Cada lote de 50
-- 38 de múltipla escolha A a E (5 alternativas) e 12 de Certo/Errado. (O app transforma A–E em A–D tirando uma errada, por isso cada alternativa tem comentário próprio.)
-- Dificuldade: 15 fáceis, 20 médias, 15 difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
-- Varie o tipo: caso concreto, comparação entre conceitos parecidos. Use casos DIFERENTES entre si; nada de repetir o mesmo caso com outras palavras.
+## Em todos os lotes
+- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Varie o tipo: caso concreto, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
+- Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
 ## Regras de qualidade
 1. Regra precisa, com exemplos concretos; nunca invente regra ou dado.
@@ -57,8 +61,9 @@ Fica de fora (outras matérias tratam): Direito ambiental em profundidade (licen
 {
   "materia": "sustentabilidade.desenvolvimento-sustentavel",
   "lote": 1,
+  "estilo": "CEBRASPE",
   "questions": [
-    { "topico": "<texto exato de um tópico da lista>", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+    { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
       "explanation": "..." }
   ]

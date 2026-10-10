@@ -1,6 +1,10 @@
 Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUESTÕES de **Administração Geral: Comportamento organizacional: motivação, liderança, grupos, conflito, poder e mudança** para o aplicativo Estudário, no nível das provas de tribunais, polícias, agências e fisco. Pesquise na web e use fontes oficiais.
 
-São 2 lotes de 50 questões, um por resposta. Quando eu pedir "lote 1", entregue o lote 1; quando eu pedir "lote 2", entregue o lote 2, sem repetir casos do lote 1.
+São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lote, sem repetir casos dos lotes anteriores:
+- **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado.
+- **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
+- **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
+- **Lote 4 (VUNESP, 30 questões):** 30 de múltipla escolha A a E no estilo Vunesp e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Conceito e níveis do comportamento organizacional; motivação (intensidade, direção e persistência, intrínseca e extrínseca), teorias de conteúdo e de processo em profundidade: ERG de Alderfer, necessidades adquiridas de McClelland, expectativa de Vroom, equidade de Adams e justiça organizacional, fixação de objetivos de Locke, reforço de Skinner, modelo das características do trabalho, enriquecimento e ampliação de cargos; liderança: traços, estudos de Ohio e Michigan, grade gerencial, Fiedler, caminho-meta, situacional (comparação), LMX, transacional, transformacional, carismática, servidora e substitutos da liderança; grupos e equipes: tipos, estágios de Tuckman, equilíbrio pontuado, papéis, normas, coesão, folga social, pensamento grupal, polarização, grupo x equipe; conflito: visões, tipos, processo, estilos de Thomas e Kilmann, negociação distributiva e integrativa, MAANA; poder: dependência, bases de French e Raven, tipologia de Etzioni, táticas de influência, política organizacional e empowerment; mudança: forças, agentes, tipos, Lewin e campo de forças, oito etapas de Kotter, resistência e táticas de Kotter e Schlesinger, desenvolvimento organizacional, aprendizagem de circuito simples e duplo e organizações que aprendem.
@@ -38,10 +42,10 @@ Fica de fora (outras matérias tratam): Teorias da administração, funções PO
 - O indivíduo e o contexto organizacional: variáveis individuais, grupais e organizacionais: Competência interpessoal.
 - Equipes de trabalho.
 
-## Cada lote de 50
-- 38 de múltipla escolha A a E (5 alternativas) e 12 de Certo/Errado. (O app transforma A–E em A–D tirando uma errada, por isso cada alternativa tem comentário próprio.)
-- Dificuldade: 15 fáceis, 20 médias, 15 difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
-- Varie o tipo: caso concreto, comparação entre conceitos parecidos. Use casos DIFERENTES entre si; nada de repetir o mesmo caso com outras palavras.
+## Em todos os lotes
+- Dificuldade: 30% fáceis, 40% médias, 30% difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Varie o tipo: caso concreto, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
+- Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
 
 ## Regras de qualidade
 1. Regra precisa, com exemplos concretos; nunca invente regra ou dado.
@@ -57,8 +61,9 @@ Fica de fora (outras matérias tratam): Teorias da administração, funções PO
 {
   "materia": "administracao-geral.comportamento-organizacional",
   "lote": 1,
+  "estilo": "CEBRASPE",
   "questions": [
-    { "topico": "<texto exato de um tópico da lista>", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+    { "topico": "<texto exato de um tópico da lista>", "estilo": "CEBRASPE", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
       "options": [ { "key": "A", "text": "...", "correct": false, "comentario": "erro específico desta alternativa" }, { "key": "B", "text": "...", "correct": true, "comentario": "por que está certa" } ],
       "explanation": "..." }
   ]
