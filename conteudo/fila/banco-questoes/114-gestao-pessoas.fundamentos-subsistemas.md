@@ -4,7 +4,7 @@ São 4 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lot
 - **Lote 1 (CEBRASPE, 50 questões):** 50 itens de Certo/Errado no estilo Cebraspe: afirmação curta e técnica, com o detalhe trocado (prazo, competência, exceção, conceito vizinho); explanation começa com Certo. ou Errado.
 - **Lote 2 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
 - **Lote 3 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 4 (VUNESP, 30 questões):** 30 de múltipla escolha A a E no estilo Vunesp e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 4 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Conceito e evolução da gestão de pessoas (de recursos humanos a parceiros); processos ou subsistemas (agregar, aplicar, recompensar, desenvolver, manter e monitorar); recrutamento interno, externo e misto; técnicas de seleção, validade e fidedignidade; treinamento, desenvolvimento e educação, levantamento de necessidades e avaliação de resultados em quatro níveis; avaliação de desempenho (métodos, 360 graus, erros do avaliador); gestão por competências (CHA, mapeamento de lacunas); clima organizacional e sua diferença para cultura; qualidade de vida no trabalho; comportamento organizacional (níveis de análise, motivação, liderança em noções, grupos e conflitos).
@@ -50,7 +50,8 @@ Fica de fora (outras matérias tratam): Regime jurídico dos servidores público
   - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
 - Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
-- Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
+- Nos lotes de múltipla escolha (FGV, FCC, CESGRANRIO), varie o comando como nas provas: cerca de 65% "assinale a correta"; cerca de 20% "assinale a INCORRETA" (o comando deixa isso explícito em maiúsculas e só uma alternativa é falsa); cerca de 15% de assertivas — o enunciado traz itens I, II, III e IV (às vezes V) e as alternativas são combinações ("Apenas I e II.", "Apenas II, III e IV." etc.), com uma única combinação certa; nas assertivas, o comentário de cada alternativa diz quais itens são verdadeiros ou falsos e por quê.
+- Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
 1. Regra precisa, com exemplos concretos; nunca invente regra ou dado.

@@ -5,7 +5,7 @@ São 5 lotes, um por resposta. Quando eu pedir 'lote N', entregue só aquele lot
 - **Lote 2 (CEBRASPE, 50 questões):** mais 50 itens de Certo/Errado no estilo Cebraspe, cobrindo outros pontos e casos que o lote 1.
 - **Lote 3 (FGV, 30 questões):** 30 de múltipla escolha A a E no estilo FGV: caso concreto mais longo, aplicação e interpretação; as erradas são aplicações plausíveis mas equivocadas.
 - **Lote 4 (FCC, 30 questões):** 30 de múltipla escolha A a E no estilo FCC: mais literal, cobra o texto da norma/regra com o detalhe de prazo, número, competência ou exceção.
-- **Lote 5 (VUNESP, 30 questões):** 30 de múltipla escolha A a E no estilo Vunesp e bancas de nível médio: enunciado curto e direto, uma regra por questão.
+- **Lote 5 (CESGRANRIO, 30 questões):** 30 de múltipla escolha A a E no estilo Cesgranrio, FUMARC, IDECAN, IBFC e bancas de nível médio: enunciado curto e direto, uma regra por questão.
 
 ## Escopo
 Panorama da estrutura da Lei 8.112/1990, conceitos centrais de seus títulos, institutos e pontos recorrentes, com remissão aos estudos detalhados de cada tópico.
@@ -51,7 +51,8 @@ Fica de fora (outras matérias tratam): Análise aprofundada de provimento, dire
   - A dificuldade vem do raciocínio exigido, NUNCA do tamanho do texto: questão difícil pode ser curta, e enunciado longo não torna a questão difícil.
 - Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
 - Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Casos DIFERENTES entre si e entre lotes; nada de repetir o mesmo caso com outras palavras.
-- Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, VUNESP).
+- Nos lotes de múltipla escolha (FGV, FCC, CESGRANRIO), varie o comando como nas provas: cerca de 65% "assinale a correta"; cerca de 20% "assinale a INCORRETA" (o comando deixa isso explícito em maiúsculas e só uma alternativa é falsa); cerca de 15% de assertivas — o enunciado traz itens I, II, III e IV (às vezes V) e as alternativas são combinações ("Apenas I e II.", "Apenas II, III e IV." etc.), com uma única combinação certa; nas assertivas, o comentário de cada alternativa diz quais itens são verdadeiros ou falsos e por quê.
+- Cada questão leva "estilo" com o nome do estilo do lote (CEBRASPE, FGV, FCC, CESGRANRIO).
 
 ## Regras de qualidade
 1. Cite artigo, lei, súmula e prazo com o número, conferidos no texto oficial vigente (planalto.gov.br, STF, STJ). Se não tiver certeza de um número, explique sem ele — nunca invente.
