@@ -1,0 +1,67 @@
+Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUESTÕES de **Sustentabilidade: Desenvolvimento sustentável, ODS e A3P** para o aplicativo Estudário, no nível das provas de tribunais, polícias, agências e fisco. Pesquise na web e use fontes oficiais.
+
+São 2 lotes de 50 questões, um por resposta. Quando eu pedir "lote 1", entregue o lote 1; quando eu pedir "lote 2", entregue o lote 2, sem repetir casos do lote 1.
+
+## Escopo
+Conceito de desenvolvimento sustentável (Relatório Brundtland), dimensões da sustentabilidade e tripé ambiental-social-econômico; marcos internacionais (Estocolmo 1972, Rio 92 e Agenda 21, Objetivos de Desenvolvimento do Milênio, Rio+20); Agenda 2030 e os 17 ODS; Agenda Ambiental na Administração Pública (A3P), seus eixos temáticos e a política dos 5 Rs; compras e contratações públicas sustentáveis; noções da Política Nacional de Resíduos Sólidos (hierarquia, logística reversa, responsabilidade compartilhada); noções de mudanças climáticas (efeito estufa, mitigação e adaptação, Kyoto, Acordo de Paris, Política Nacional sobre Mudança do Clima).
+Fica de fora (outras matérias tratam): Direito ambiental em profundidade (licenciamento, crimes e infrações ambientais, SNUC), biomas e geografia física, normas internas de tribunais específicos sobre sustentabilidade e o regime completo de licitações.
+
+## Tópicos dos editais (distribua as questões entre eles; pelo menos 2 por tópico, mais nos primeiros, que são os mais cobrados; se algum item for claramente de outra matéria, ignore-o)
+- Agenda 2030 da ONU.
+- Agenda Ambiental da Administração Pública (A3P), do Ministério do Meio Ambiente e Mudança do Clima (antigo Ministério do Meio Ambiente).
+- Sustentabilidade pública e acessibilidade.
+- Desenvolvimento sustentável.
+- Agenda Ambiental da Administração Pública (A3P).
+- Conceito de Desenvolvimento Sustentável (Relatório Brundtland).
+- Resolução CNJ n° 400/2021 (Dispõe sobre a política de sustentabilidade no âmbito do Poder Judiciário).
+- Resolução CNJ nº 400/2021 (Dispõe sobre a política de sustentabilidade no âmbito do Poder Judiciário).
+- Sustentabilidade das contratações.
+- Política de Sustentabilidade no Superior Tribunal de Justiça (IN/GDG n.º 4/2024) e do Poder Judiciário (Resolução CNJ n.º 400/2021).
+- Resolução do CNJ nº 400/2021 (Política Nacional de Sustentabilidade no Âmbito do Poder Judiciário).
+- Competências das unidades socioambientais no Poder Judiciário e Plano de Logística Sustentável (Resolução CNJ nº 400/2021).
+- Meio ambiente e desenvolvimento sustentável.
+- Do Meio Ambiente (Constituição Federal de 1988, Art. 225): Conceito de Desenvolvimento Sustentável (Relatório Brundtland).
+- Sustentabilidade pública.
+- Política Nacional de Mudanças no Clima (Lei 12.187/2009).
+- Política Nacional de Resíduos Sólidos (Lei 12.305/2010).
+- Desenvolvimento sustentável, Agenda Ambiental da Administração Pública e meio ambiente na Constituição Federal.
+- Agenda 2030 e os 17 Objetivos de Desenvolvimento Sustentável.
+- Desenvolvimento sustentável conforme o Relatório Brundtland.
+- Objetivos do desenvolvimento sustentável.
+- Desenvolvimento sustentável, Pacto Global e Objetivos de Desenvolvimento Sustentável.
+- Desenvolvimento sustentável (Pacto global e Objetivos de Desenvolvimento Sustentável - ODS).
+- Princípios de sustentabilidade em licitações e contratações públicas.
+- Unidades socioambientais do Poder Judiciário e Plano de Logística Sustentável, Resolução CNJ nº 400/2021.
+- Agenda 2030 do Desenvolvimento Sustentável.
+- Sustentabilidade organizacional.
+- Desenvolvimento sustentável, meio ambiente e mudança climática.
+- Economia ambiental e desenvolvimento sustentável.
+- Sustentabilidade econômica, social e ambiental.
+
+## Cada lote de 50
+- 25 de múltipla escolha A a E (5 alternativas), 13 de múltipla escolha A a D (4 alternativas), 12 de Certo/Errado.
+- Dificuldade: 15 fáceis, 20 médias, 15 difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Varie o tipo: caso concreto, comparação entre conceitos parecidos. Use casos DIFERENTES entre si; nada de repetir o mesmo caso com outras palavras.
+
+## Regras de qualidade
+1. Regra precisa, com exemplos concretos; nunca invente regra ou dado.
+2. **Todo número, nome ou dado usado nas alternativas e na explicação precisa estar no enunciado** (ou ser resultado de conta com os dados do enunciado).
+3. Distratores = erro de quem estudou MAL (conceito vizinho, número ou prazo trocado, exceção esquecida, conta com base errada). Proibido distrator absurdo, de outro assunto, "todas/nenhuma das anteriores" ou absolutos só para marcar o errado.
+4. Alternativas com tamanho parecido; a certa não pode ser a mais longa em mais de 1/3 das questões.
+5. Explicação (mínimo 120 caracteres): por que a certa está certa e por que CADA errada erra, com o conceito específico. Em Certo/Errado começa com "Certo." ou "Errado.". Escreva cada explicação de forma própria: proibido frase-molde repetida entre questões.
+6. Texto neutro: não escreva nome de banca, órgão ou cargo, nem a palavra "banca" (use "a prova").
+7. Antes de entregar, resolva cada questão como candidato: uma única alternativa defensável e gabarito certo.
+
+## Formato de entrega (um bloco JSON válido; se puder, como arquivo sustentabilidade.desenvolvimento-sustentavel.banco-N.json, onde N é o lote)
+```json
+{
+  "materia": "sustentabilidade.desenvolvimento-sustentavel",
+  "lote": 1,
+  "questions": [
+    { "topico": "<texto exato de um tópico da lista>", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [ { "key": "A", "text": "...", "correct": false }, { "key": "B", "text": "...", "correct": true } ],
+      "explanation": "..." }
+  ]
+}
+```
+- format: "MULTIPLE_CHOICE" (A–E com 5 opções ou A–D com 4 opções) ou "TRUE_FALSE" (opções { "key":"C","text":"Certo" } e { "key":"E","text":"Errado" }). difficulty: "FACIL", "MEDIA" ou "DIFICIL".

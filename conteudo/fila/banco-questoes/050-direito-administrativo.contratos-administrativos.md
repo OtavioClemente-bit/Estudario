@@ -1,0 +1,67 @@
+Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUESTÕES de **Direito Administrativo: Contratos administrativos na Lei 14.133/2021** para o aplicativo Estudário, no nível das provas de tribunais, polícias, agências e fisco. Pesquise na web e use fontes oficiais.
+
+São 2 lotes de 50 questões, um por resposta. Quando eu pedir "lote 1", entregue o lote 1; quando eu pedir "lote 2", entregue o lote 2, sem repetir casos do lote 1.
+
+## Escopo
+Regime dos contratos da Administração na Lei 14.133/2021: cláusulas exorbitantes, formalização e garantias, duração e prorrogação, alterações unilaterais e consensuais, reajustamento, repactuação e revisão para preservar o equilíbrio econômico-financeiro, execução e fiscalização, extinção e contratos privados da Administração.
+Fica de fora (outras matérias tratam): Procedimentos de licitação e contratação direta em si, convênios e parcerias, concessões regidas por leis próprias, sanções e crimes como matéria autônoma, e regras específicas de contratos de estatais regidos pela Lei 13.303/2016.
+
+## Tópicos dos editais (distribua as questões entre eles; pelo menos 2 por tópico, mais nos primeiros, que são os mais cobrados; se algum item for claramente de outra matéria, ignore-o)
+- Contratos administrativos.
+- Elaboração e fiscalização de contratos.
+- Elaboração e fiscalização de contratos: Cláusulas e indicadores de nível de serviço.
+- Elaboração e fiscalização de contratos: Papel do fiscalizador do contrato.
+- Elaboração e fiscalização de contratos: Papel do preposto da contratada.
+- Elaboração e fiscalização de contratos: Acompanhamento da execução contratual.
+- Elaboração e fiscalização de contratos: Registro e notificação de irregularidades.
+- Lei nº 14.133/2021: licitações e contratos administrativos.
+- Reajustamento.
+- Formalização, execução e inexecução.
+- Duração, prorrogação, renovação e extinção.
+- Revisão e rescisão.
+- Contratos administrativos: conceito, peculiaridades e interpretação.
+- Contrato administrativo.
+- Contratos administrativos: Legislação pertinente.
+- Contratos administrativos: Disposições doutrinárias.
+- Disposições doutrinárias: Características.
+- Disposições doutrinárias: Vigência.
+- Disposições doutrinárias: Alterações contratuais.
+- Disposições doutrinárias: Execução, inexecução e rescisão.
+- Gestão de contratos.
+- Contratos administrativos: formalização, execução, inexecução, revisão e rescisão.
+- Conceito, principais características e espécies.
+- Contrato administrativo: conceito, principais características e espécies.
+- Contratos administrativos: Conceitos e características.
+- Licitações e contratos administrativos: Lei nº 14.133/2021.
+- Papel do fiscalizador do contrato e papel do preposto da contratada.
+- Noções de Licitações e Contratos (Lei nº 14.133/2021 e suas alterações): contratos administrativos.
+- Noções de Licitações e Contratos (Lei nº 14.133/2021 e suas alterações): características do contrato administrativo.
+- Noções de Licitações e Contratos (Lei nº 14.133/2021 e suas alterações): formalização, gestão e fiscalização do contrato.
+
+## Cada lote de 50
+- 25 de múltipla escolha A a E (5 alternativas), 13 de múltipla escolha A a D (4 alternativas), 12 de Certo/Errado.
+- Dificuldade: 15 fáceis, 20 médias, 15 difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Varie o tipo: caso concreto, literalidade da lei com o detalhe que a prova troca, jurisprudência e súmulas, comparação entre conceitos parecidos. Use casos DIFERENTES entre si; nada de repetir o mesmo caso com outras palavras.
+
+## Regras de qualidade
+1. Cite artigo, lei, súmula e prazo com o número, conferidos no texto oficial vigente (planalto.gov.br, STF, STJ). Se não tiver certeza de um número, explique sem ele — nunca invente.
+2. **Todo número, nome ou dado usado nas alternativas e na explicação precisa estar no enunciado** (ou ser resultado de conta com os dados do enunciado).
+3. Distratores = erro de quem estudou MAL (conceito vizinho, número ou prazo trocado, exceção esquecida, conta com base errada). Proibido distrator absurdo, de outro assunto, "todas/nenhuma das anteriores" ou absolutos só para marcar o errado.
+4. Alternativas com tamanho parecido; a certa não pode ser a mais longa em mais de 1/3 das questões.
+5. Explicação (mínimo 120 caracteres): por que a certa está certa e por que CADA errada erra, com o conceito específico. Em Certo/Errado começa com "Certo." ou "Errado.". Escreva cada explicação de forma própria: proibido frase-molde repetida entre questões.
+6. Texto neutro: não escreva nome de banca, órgão ou cargo, nem a palavra "banca" (use "a prova").
+7. Antes de entregar, resolva cada questão como candidato: uma única alternativa defensável e gabarito certo.
+
+## Formato de entrega (um bloco JSON válido; se puder, como arquivo direito-administrativo.contratos-administrativos.banco-N.json, onde N é o lote)
+```json
+{
+  "materia": "direito-administrativo.contratos-administrativos",
+  "lote": 1,
+  "questions": [
+    { "topico": "<texto exato de um tópico da lista>", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [ { "key": "A", "text": "...", "correct": false }, { "key": "B", "text": "...", "correct": true } ],
+      "explanation": "..." }
+  ]
+}
+```
+- format: "MULTIPLE_CHOICE" (A–E com 5 opções ou A–D com 4 opções) ou "TRUE_FALSE" (opções { "key":"C","text":"Certo" } e { "key":"E","text":"Errado" }). difficulty: "FACIL", "MEDIA" ou "DIFICIL".

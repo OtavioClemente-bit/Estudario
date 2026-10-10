@@ -1,0 +1,67 @@
+Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUESTÕES de **Informática: Internet: busca, redes sociais, grupos de discussão e wikis** para o aplicativo Estudário, no nível das provas de tribunais, polícias, agências e fisco. Pesquise na web e use fontes oficiais.
+
+São 2 lotes de 50 questões, um por resposta. Quando eu pedir "lote 1", entregue o lote 1; quando eu pedir "lote 2", entregue o lote 2, sem repetir casos do lote 1.
+
+## Escopo
+Como funcionam os mecanismos de busca (rastreamento, indexação e ranqueamento); operadores de pesquisa (aspas, sinal de menos, OR, site:, filetype:, intitle:, inurl:, curinga *); redes sociais e suas finalidades; grupos de discussão, listas de e-mail, fóruns e wikis; comunicação síncrona e assíncrona; segurança e privacidade no uso: engenharia social, phishing em redes sociais, configurações de privacidade, autenticação em dois fatores, notícias falsas e checagem de informação.
+Fica de fora (outras matérias tratam): Configuração detalhada de navegadores, correio eletrônico (clientes e protocolos), computação em nuvem, protocolos de rede em profundidade e criptografia, que têm matérias próprias; responsabilidade civil de provedores e direito digital em detalhe.
+
+## Tópicos dos editais (distribua as questões entre eles; pelo menos 2 por tópico, mais nos primeiros, que são os mais cobrados; se algum item for claramente de outra matéria, ignore-o)
+- Sítios de busca e pesquisa na Internet.
+- Grupos de discussão.
+- Redes sociais.
+- Redes de computadores: sítios de busca e pesquisa na Internet.
+- Redes de computadores: redes sociais.
+- Sítios de busca e pesquisa na internet: Utilização de mecanismos de busca como Google, Bing.
+- Redes de computadores: Mídias sociais.
+- Redes de computadores: grupos de discussão.
+- Ferramentas e aplicativos de navegação, de correio eletrônico, de grupos de discussão, de busca e pesquisa.
+- Ferramentas e aplicativos comerciais de navegação, de correio eletrônico, de grupos de discussão, de busca, de pesquisa e de redes sociais.
+- Utilização de mecanismos de busca (Google, Bing); pesquisas e filtros.
+- Internet e Intranet, pesquisa na web e mecanismos de busca.
+- Ferramentas de busca.
+- Sítios de busca, grupos de discussão e computação em nuvem.
+- Busca na Internet, grupos de discussão e computação em nuvem.
+- Correio eletrônico, grupos de discussão, fóruns e wikis.
+- Ferramentas e aplicativos comerciais de navegação, de correio eletrônico, de grupos de discussão, de busca, de pesquisa, de redes sociais e ferramentas colaborativas.
+- Conceitos básicos, ferramentas, aplicativos e procedimentos de Internet e intranet, grupos de discussão, redes sociais, computação na nuvem, programas de navegação, deep web, dark web.
+- Redes de computadores: Navegadores, sítios de busca e pesquisa na Internet.
+- Pesquisa na internet, redes sociais e computação em nuvem.
+- Internet e Intranet, busca e pesquisa na web e mecanismos de busca.
+- Conceitos e modos de utilização de ferramentas e aplicativos de grupos de discussão.
+- Conceitos e modos de utilização de ferramentas e aplicativos de busca e pesquisa.
+- Correio eletrônico, pesquisa na internet, grupos de discussão e redes sociais.
+- Redes, internet, intranet, navegadores, correio eletrônico, busca, grupos e redes sociais.
+- Redes sociais: Twitter, Facebook, LinkedIn, WhatsApp, YouTube, Instagram e Telegram.
+- Grupos de discussão, fóruns e wikis.
+- Redes Sociais: X (ex -Twitter), Facebook, Linkedin, WhatsApp, YouTube, Instagram e Telegram.
+- Ferramentas e aplicativos comerciais de navegação, correio eletrônico, grupos de discussão, busca, pesquisa e redes sociais.
+- Navegadores Internet Explorer e Mozilla Firefox; Outlook Express; busca e pesquisa na Internet e grupos de discussão.
+
+## Cada lote de 50
+- 25 de múltipla escolha A a E (5 alternativas), 13 de múltipla escolha A a D (4 alternativas), 12 de Certo/Errado.
+- Dificuldade: 15 fáceis, 20 médias, 15 difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Varie o tipo: caso concreto, comparação entre conceitos parecidos. Use casos DIFERENTES entre si; nada de repetir o mesmo caso com outras palavras.
+
+## Regras de qualidade
+1. Regra precisa, com exemplos concretos; nunca invente regra ou dado.
+2. **Todo número, nome ou dado usado nas alternativas e na explicação precisa estar no enunciado** (ou ser resultado de conta com os dados do enunciado).
+3. Distratores = erro de quem estudou MAL (conceito vizinho, número ou prazo trocado, exceção esquecida, conta com base errada). Proibido distrator absurdo, de outro assunto, "todas/nenhuma das anteriores" ou absolutos só para marcar o errado.
+4. Alternativas com tamanho parecido; a certa não pode ser a mais longa em mais de 1/3 das questões.
+5. Explicação (mínimo 120 caracteres): por que a certa está certa e por que CADA errada erra, com o conceito específico. Em Certo/Errado começa com "Certo." ou "Errado.". Escreva cada explicação de forma própria: proibido frase-molde repetida entre questões.
+6. Texto neutro: não escreva nome de banca, órgão ou cargo, nem a palavra "banca" (use "a prova").
+7. Antes de entregar, resolva cada questão como candidato: uma única alternativa defensável e gabarito certo.
+
+## Formato de entrega (um bloco JSON válido; se puder, como arquivo informatica.internet-busca-redes-sociais.banco-N.json, onde N é o lote)
+```json
+{
+  "materia": "informatica.internet-busca-redes-sociais",
+  "lote": 1,
+  "questions": [
+    { "topico": "<texto exato de um tópico da lista>", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [ { "key": "A", "text": "...", "correct": false }, { "key": "B", "text": "...", "correct": true } ],
+      "explanation": "..." }
+  ]
+}
+```
+- format: "MULTIPLE_CHOICE" (A–E com 5 opções ou A–D com 4 opções) ou "TRUE_FALSE" (opções { "key":"C","text":"Certo" } e { "key":"E","text":"Errado" }). difficulty: "FACIL", "MEDIA" ou "DIFICIL".

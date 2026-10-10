@@ -1,0 +1,67 @@
+Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUESTÕES de **Administração Pública: Gestão de processos (BPM): mapeamento, análise e melhoria** para o aplicativo Estudário, no nível das provas de tribunais, polícias, agências e fisco. Pesquise na web e use fontes oficiais.
+
+São 2 lotes de 50 questões, um por resposta. Quando eu pedir "lote 1", entregue o lote 1; quando eu pedir "lote 2", entregue o lote 2, sem repetir casos do lote 1.
+
+## Escopo
+Conceito e elementos de processo; hierarquia (macroprocesso, processo, subprocesso, atividade, tarefa); processos finalísticos, de suporte e gerenciais; cadeia de valor; visão funcional x visão por processos; gestão de processos x gestão por processos; estruturas funcional, matricial e por processos; BPM como disciplina gerencial; papéis (dono do processo, escritório de processos, patrocinador, analistas e executores); ciclo de vida de BPM segundo o Guia BPM CBOK; mapeamento e modelagem (AS-IS e TO-BE, técnicas de levantamento, diagrama, mapa e modelo); SIPOC, fluxograma e noções de BPMN (eventos, atividades, gateways, piscinas, raias, fluxos e artefatos); análise de valor agregado, gargalo, lead time, eficiência do ciclo e indicadores de processo; abordagens de melhoria (kaizen, redesenho, reengenharia, lean, Seis Sigma e DMAIC, benchmarking, padronização); automação com BPMS, workflow e RPA; gestão da mudança na melhoria de processos.
+Fica de fora (outras matérias tratam): Funções administrativas, planejamento estratégico e a visão geral de gestão por projetos do processo organizacional (matéria própria); ciclo PDCA e ferramentas da qualidade em detalhe, como Pareto, histograma e carta de controle (gestão da qualidade); gerenciamento de projetos e PMBOK; BPMN avançado para desenvolvimento de software; certificação ISO; normas e resoluções específicas de órgãos.
+
+## Tópicos dos editais (distribua as questões entre eles; pelo menos 2 por tópico, mais nos primeiros, que são os mais cobrados; se algum item for claramente de outra matéria, ignore-o)
+- Gestão de processos.
+- Técnicas de mapeamento, análise e melhoria de processos.
+- Gestão de processos: conceitos da abordagem por processos.
+- Conceitos da abordagem por processos.
+- BPM.
+- Conceitos de gestão de processos e modelagem de processos de negócio usando BPMN.
+- Gestão de processos: conceitos, fundamentos, técnicas de mapeamento, análise e melhoria de processos.
+- Gestão de processos: Técnicas de mapeamento, análise e melhoria de processos.
+- Gestão por processos.
+- Construção e mensuração de indicadores de processos.
+- Gestão de processos: mapeamento, análise e melhoria.
+- Gestão por processos: Ferramentas clássicas para o gerenciamento de processos.
+- Identificação e delimitação de processos de negócio.
+- Ciclo PDCA e macroprocessos finalísticos, gerenciais e de suporte.
+- Gestão de processos e modelagem de processos de negócio com BPMN.
+- Modelagem de processos de negócio.
+- Gestão de processos: BPM.
+- Gestão por processos e gestão funcional.
+- Notação BPMN.
+- Gerenciamento de processos de negócio (BPM CBOK v.4.0).
+- Conceitos, modelagem de processos, análise de processos, desenho de processos, gerenciamento de desempenho de processos, transformação de processos, tecnologias de BPM.
+- Hierarquia do processo: macroprocesso, processo, subprocesso, atividades e tarefa.
+- Ferramentas e tecnologias de gerenciamento de processos.
+- Técnicas de mapeamento de processos (modelos as-is).
+- Técnicas de análise e simulação de processos.
+- Técnicas de modelagem de processos (modelos to-be).
+- Modelagem de processos de negócio: conceitos básicos.
+- Gerenciamento de processos de negócio (BPM).
+- Gestão de processos: Construção e mensuração de indicadores de processos.
+- Gestão de processos: conceitos, diferença entre gestão de processos e por processos, mapeamento e modelagem.
+
+## Cada lote de 50
+- 25 de múltipla escolha A a E (5 alternativas), 13 de múltipla escolha A a D (4 alternativas), 12 de Certo/Errado.
+- Dificuldade: 15 fáceis, 20 médias, 15 difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Varie o tipo: caso concreto, comparação entre conceitos parecidos. Use casos DIFERENTES entre si; nada de repetir o mesmo caso com outras palavras.
+
+## Regras de qualidade
+1. Regra precisa, com exemplos concretos; nunca invente regra ou dado.
+2. **Todo número, nome ou dado usado nas alternativas e na explicação precisa estar no enunciado** (ou ser resultado de conta com os dados do enunciado).
+3. Distratores = erro de quem estudou MAL (conceito vizinho, número ou prazo trocado, exceção esquecida, conta com base errada). Proibido distrator absurdo, de outro assunto, "todas/nenhuma das anteriores" ou absolutos só para marcar o errado.
+4. Alternativas com tamanho parecido; a certa não pode ser a mais longa em mais de 1/3 das questões.
+5. Explicação (mínimo 120 caracteres): por que a certa está certa e por que CADA errada erra, com o conceito específico. Em Certo/Errado começa com "Certo." ou "Errado.". Escreva cada explicação de forma própria: proibido frase-molde repetida entre questões.
+6. Texto neutro: não escreva nome de banca, órgão ou cargo, nem a palavra "banca" (use "a prova").
+7. Antes de entregar, resolva cada questão como candidato: uma única alternativa defensável e gabarito certo.
+
+## Formato de entrega (um bloco JSON válido; se puder, como arquivo administracao-publica.gestao-processos.banco-N.json, onde N é o lote)
+```json
+{
+  "materia": "administracao-publica.gestao-processos",
+  "lote": 1,
+  "questions": [
+    { "topico": "<texto exato de um tópico da lista>", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [ { "key": "A", "text": "...", "correct": false }, { "key": "B", "text": "...", "correct": true } ],
+      "explanation": "..." }
+  ]
+}
+```
+- format: "MULTIPLE_CHOICE" (A–E com 5 opções ou A–D com 4 opções) ou "TRUE_FALSE" (opções { "key":"C","text":"Certo" } e { "key":"E","text":"Errado" }). difficulty: "FACIL", "MEDIA" ou "DIFICIL".

@@ -1,0 +1,55 @@
+Você é autor de questões de concurso público no Brasil. Crie um BANCO DE QUESTÕES de **Língua Portuguesa: Subordinação entre orações e entre termos** para o aplicativo Estudário, no nível das provas de tribunais, polícias, agências e fisco. Pesquise na web e use fontes oficiais.
+
+São 2 lotes de 50 questões, um por resposta. Quando eu pedir "lote 1", entregue o lote 1; quando eu pedir "lote 2", entregue o lote 2, sem repetir casos do lote 1.
+
+## Escopo
+Termos essenciais, integrantes e acessórios; orações subordinadas substantivas, adjetivas e adverbiais; formas reduzidas e desenvolvidas; distinção entre que conjunção integrante e pronome relativo e entre se integrante e condicional.
+Fica de fora (outras matérias tratam): Coordenação entre orações e termos, salvo quando necessária para comparar estruturas ou reconhecer uma oração subordinada.
+
+## Tópicos dos editais (distribua as questões entre eles; pelo menos 2 por tópico, mais nos primeiros, que são os mais cobrados; se algum item for claramente de outra matéria, ignore-o)
+- Domínio da estrutura morfossintática do período: Relações de subordinação entre orações e entre termos da oração.
+- Relações de subordinação entre orações e entre termos da oração.
+- Coordenação e subordinação.
+- Sintaxe: processos de coordenação e subordinação.
+- Coordenação e subordinação entre orações e termos da oração.
+- Coordenação e subordinação: conjunções, locuções conjuntivas e pronomes relativos.
+- Coordenação e subordinação: emprego de conjunções, locuções conjuntivas e pronomes relativos.
+- Sintaxe: relações sintático-semânticas estabelecidas entre orações, períodos ou parágrafos (período simples e período composto por coordenação e subordinação).
+- Relações de coordenação e subordinação entre orações e termos da oração.
+- Estrutura morfossintática do período e relações de coordenação e subordinação.
+- Relações de subordinação entre orações e termos da oração.
+- relações de subordinação entre orações e entre termos da oração;
+- Orações subordinadas substantivas, adjetivas e adverbiais.
+- Período composto por coordenação e subordinação.
+- Análise de período composto por subordinação (orações substantivas, adjetivas e adverbiais).
+- Subordinação entre orações e entre termos da oração.
+- Período simples e composto, coordenação, subordinação e sentidos.
+- Estrutura morfossintática, coordenação, subordinação e classes de palavras.
+
+## Cada lote de 50
+- 25 de múltipla escolha A a E (5 alternativas), 13 de múltipla escolha A a D (4 alternativas), 12 de Certo/Errado.
+- Dificuldade: 15 fáceis, 20 médias, 15 difíceis. Gabarito espalhado entre as letras; Certo/Errado com metade de cada.
+- Varie o tipo: caso concreto, comparação entre conceitos parecidos. Use casos DIFERENTES entre si; nada de repetir o mesmo caso com outras palavras.
+
+## Regras de qualidade
+1. Regra precisa, com exemplos concretos; nunca invente regra ou dado.
+2. **Todo número, nome ou dado usado nas alternativas e na explicação precisa estar no enunciado** (ou ser resultado de conta com os dados do enunciado).
+3. Distratores = erro de quem estudou MAL (conceito vizinho, número ou prazo trocado, exceção esquecida, conta com base errada). Proibido distrator absurdo, de outro assunto, "todas/nenhuma das anteriores" ou absolutos só para marcar o errado.
+4. Alternativas com tamanho parecido; a certa não pode ser a mais longa em mais de 1/3 das questões.
+5. Explicação (mínimo 120 caracteres): por que a certa está certa e por que CADA errada erra, com o conceito específico. Em Certo/Errado começa com "Certo." ou "Errado.". Escreva cada explicação de forma própria: proibido frase-molde repetida entre questões.
+6. Texto neutro: não escreva nome de banca, órgão ou cargo, nem a palavra "banca" (use "a prova").
+7. Antes de entregar, resolva cada questão como candidato: uma única alternativa defensável e gabarito certo.
+
+## Formato de entrega (um bloco JSON válido; se puder, como arquivo portugues.subordinacao.banco-N.json, onde N é o lote)
+```json
+{
+  "materia": "portugues.subordinacao",
+  "lote": 1,
+  "questions": [
+    { "topico": "<texto exato de um tópico da lista>", "statement": "...", "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [ { "key": "A", "text": "...", "correct": false }, { "key": "B", "text": "...", "correct": true } ],
+      "explanation": "..." }
+  ]
+}
+```
+- format: "MULTIPLE_CHOICE" (A–E com 5 opções ou A–D com 4 opções) ou "TRUE_FALSE" (opções { "key":"C","text":"Certo" } e { "key":"E","text":"Errado" }). difficulty: "FACIL", "MEDIA" ou "DIFICIL".
