@@ -41,6 +41,9 @@ const BOARD_NAMES: Record<string, string> = {
   "instituto consulplan": "consulplan",
 };
 
+/** Recorte "Padrão das provas" (board "GERAL"): vale quando o concurso não tem banca ou a banca não tem recorte. */
+export const GENERAL_BOARD_NORM = "geral";
+
 /** Nome da banca no formato da chave: "CESPE/UnB" e "Cebraspe" viram a mesma banca. */
 export function normalizeBoard(value: string | null | undefined): string {
   const name = normalizeAlias(value);
@@ -304,7 +307,11 @@ export function validateLibraryMaterial(material: Json): Json {
     if (q.format !== "TRUE_FALSE") return;
     const statement = String(q.statement ?? "");
     if ([...optionTexts].some((text) => statement.includes(text))) mirrored++;
-    if (/\b(alternativas?|op[çc](ão|ões))\b/i.test(String(q.explanation ?? ""))) {
+    // Só a referência a alternativas de questão ("alternativa B", "a opção correta", "as demais
+    // alternativas"); termos técnicos como "obrigação alternativa" e "opção de compra" passam.
+    const explanation = String(q.explanation ?? "");
+    if (/\b[Aa]lternativas?\s+\(?[A-E]\b|\b[Oo]p[çc](ão|ões)\s+\(?[A-E]\b/.test(explanation) ||
+      /\b(alternativas?|op[çc](ão|ões))\s+(corret|incorret|cert[ao]|errad)|\b(demais|outras|todas as|nenhuma das)\s+(alternativas|op[çc]ões)\b/i.test(explanation)) {
       c.fail(`questions[${index}]: item Certo/Errado com explicação que fala de alternativas/opções; explique o próprio item`);
     }
   });
@@ -541,12 +548,13 @@ export function assembleFromLibrary(
   // pareciam matéria embaralhada. O foco vale para as questões.
   const chapters = wants("THEORY") ? structuredClone(allChapters) : [];
   const board = typeof note?.board === "string" ? note.board : input.board;
+  const who = normalizeBoard(board) === GENERAL_BOARD_NORM ? "prova" : board;
   const howItFalls = typeof note?.howItFalls === "string" ? note.howItFalls : null;
   let summary = wants("SUMMARY") ? String(material.summary) : "";
   if (howItFalls && wants("THEORY") && chapters.length < 6) {
-    chapters.push({ title: `Como a ${board} cobra este tópico`, markdown: howItFalls });
+    chapters.push({ title: `Como a ${who} cobra este tópico`, markdown: howItFalls });
   } else if (howItFalls && wants("SUMMARY")) {
-    summary = `**Como a ${board} cobra:** ${howItFalls}\n\n${summary}`;
+    summary = `**Como a ${who} cobra:** ${howItFalls}\n\n${summary}`;
   }
   const merged = (field: "tips" | "traps") =>
     wants("TIPS_TRAPS") ? [...new Set([...((note?.[field] as string[]) ?? []), ...(material[field] as string[])])].slice(0, 8) : [];

@@ -144,6 +144,36 @@ Deno.test("recorte da banca entra como capítulo, dicas e questões primeiro", (
   assertEquals((content.questions as Json[])[0].statement, "Questão no estilo VUNESP sobre tarifa de táxi como função afim.");
 });
 
+Deno.test("recorte padrão das provas (GERAL) não aparece como nome de banca", () => {
+  const m = material();
+  const note = validateBoardNote({
+    topic: m.id,
+    board: "GERAL",
+    role: null,
+    version: 1,
+    incidence: "MEDIA",
+    howItFalls: long("As provas cobram a leitura do gráfico e o cálculo do coeficiente angular", 400),
+    tips: ["Dica geral sobre gráficos"],
+    traps: [],
+    questions: [],
+  }, m);
+  const content = assembleFromLibrary(m, note, { board: null, options: ALL, avoidStatements: [] }, "s")!;
+  assertEquals((content.chapters as Json[]).at(-1)!.title, "Como a prova cobra este tópico");
+});
+
+Deno.test("explicação de Certo/Errado só é recusada quando fala de alternativa de questão", () => {
+  const withExplanation = (explanation: string) => {
+    const m = material();
+    const tf = (m.questions as Json[]).find((q) => q.format === "TRUE_FALSE")!;
+    tf.explanation = explanation;
+    return m;
+  };
+  const base = long("Certo. Explicação do item com o raciocínio completo", 130);
+  validateLibraryMaterial(withExplanation(`${base} A obrigação alternativa e a opção de compra são termos técnicos.`));
+  assertThrows(() => validateLibraryMaterial(withExplanation(`${base} A alternativa B erra o prazo.`)), LibraryValidationError);
+  assertThrows(() => validateLibraryMaterial(withExplanation(`${base} As demais alternativas trocam o conceito.`)), LibraryValidationError);
+});
+
 Deno.test("dificuldade pedida sem questões suficientes completa com o nível mais próximo", () => {
   const m = material();
   const five = (m.questions as Json[]).filter((q) => (q.options as Json[]).length === 5);

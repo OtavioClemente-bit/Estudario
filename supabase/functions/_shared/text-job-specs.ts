@@ -25,7 +25,7 @@ import { type ExpectedVersions, validateStudyPlan, validateTopicContent } from "
 import { applyReview, type ContentReview, runContentReview } from "./content-review.ts";
 import { resolveOpenAiModel } from "./openai-provider.ts";
 import { CACHE_MAX_AGE_DAYS, contentCacheKey } from "./content-cache.ts";
-import { assembleFromLibrary, composeMaterials, lookupAliases, normalizeAlias, normalizeBoard } from "./library.ts";
+import { assembleFromLibrary, composeMaterials, GENERAL_BOARD_NORM, lookupAliases, normalizeAlias, normalizeBoard } from "./library.ts";
 import { routeTopic } from "./topic-router.ts";
 import type { LibraryHit } from "../ai-syllabus-worker/index.ts";
 import { ensureBoardNote } from "./board-notes.ts";
@@ -149,6 +149,10 @@ async function libraryContent(
       material: primary.material,
       onFinished: (kind, response) => meterCost(dependencies, job, kind, response),
     });
+  }
+  // Sem recorte desta banca (ou concurso sem banca): o "Padrão das provas" da matéria, se houver.
+  if (!found.note) {
+    found.note = await store.libraryBoardNote?.(primary.topicId, GENERAL_BOARD_NORM, "").catch(() => null) ?? null;
   }
   const fresh = input.avoidStatements.length === 0;
   const servedKey = `lib:${found.topicId}@${found.version}:${await contentCacheKey(input)}`;
