@@ -1,0 +1,1807 @@
+{
+  "id": "informatica.nosql-big-data",
+  "subject": "Informática",
+  "title": "Bancos NoSQL e Big Data",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Bancos NoSQL e Big Data"
+  ],
+  "scope": {
+    "covers": "Modelos e fundamentos NoSQL, distribuição e consistência, bancos em memória e SQLite como contraponto arquitetural, Big Data, armazenamento e serviços gerenciados em nuvem, Hadoop, Spark, fluxo de engenharia de dados, Kafka, pipelines, data lake, data warehouse e lakehouse.",
+    "excludes": "Estudo aprofundado de SQL, normalização, índices e isolamento relacional; modelagem dimensional e cubos em detalhe; mineração e aprendizado de máquina; operação avançada ou ajuste fino de produtos e serviços comerciais."
+  },
+  "theoryTitle": "Bancos NoSQL e Big Data: modelos, consistência, processamento distribuído e arquiteturas de dados",
+  "chapters": [
+    {
+      "title": "1. Fundamentos NoSQL, modelos de dados e bancos em memória",
+      "markdown": "## Por que existem bancos NoSQL\nNoSQL designa uma família de soluções de armazenamento que não restringem sua representação ao modelo relacional tradicional. Não significa ausência absoluta de consultas estruturadas nem incapacidade de realizar transações. O problema que motivou muitas dessas soluções foi combinar grandes volumes, distribuição entre máquinas, mudanças de formato dos registros e padrões específicos de acesso. **Escalar verticalmente** é ampliar CPU, RAM ou disco de um servidor; **escalar horizontalmente** é acrescentar servidores e distribuir carga ou dados. Verticalização é simples até o limite da máquina; horizontalização impõe desafios de roteamento, coordenação, consistência e falhas.\n\n## Modelos e consultas típicas\n| Modelo | Organização | Exemplo de uso | Tecnologia ilustrativa |\n|---|---|---|---|\n| Chave-valor | Uma chave localiza um valor ou estrutura | Sessão e cache | Redis |\n| Documentos | Registros com campos e objetos aninhados | Catálogo com atributos variáveis | MongoDB |\n| Colunas largas | Linhas por chave de partição, colunas/famílias | Eventos por dispositivo e tempo | Cassandra, HBase |\n| Grafos | Nós e relacionamentos com propriedades | Detecção de vínculos e trajetos | Neo4j |\n\nNo Redis, `SET sessao:42 ativo EX 60` grava um valor com expiração em 60 segundos; `GET sessao:42` lê a string, quando existente. No MongoDB, `db.pedidos.find({status: 'aberto'})` seleciona documentos com tal campo e valor. No Cypher, `MATCH (a:Pessoa)-[:CONHECE]->(b:Pessoa) RETURN b` percorre um tipo de relação. Em Cassandra, uma consulta CQL como `SELECT * FROM eventos WHERE sensor_id = 7` costuma ser planejada para aproveitar a chave de partição correspondente; consultar filtros arbitrários sem modelagem prévia pode exigir mecanismo adicional ou ser rejeitado. Em HBase, a chave de linha e as famílias de colunas orientam acesso; não confundir o modelo de colunas largas com simples armazenamento analítico por colunas.\n\n## Esquema e desenho segundo a consulta\n**Esquema flexível** permite que documentos de uma coleção tenham campos diferentes. Essa flexibilidade não dispensa validação, documentação e evolução de versões: duas estruturas incompatíveis podem comprometer a aplicação. Em MongoDB é possível configurar validação de esquema. Em NoSQL, modelar frequentemente começa pelas perguntas: quais consultas são mais frequentes, como os dados serão particionados e quais leituras precisam ser rápidas? Embutir itens dentro de um pedido pode reduzir leituras múltiplas, mas documentos ilimitadamente crescentes ou atualização simultânea excessiva introduzem custos. Não existe regra de que todos os relacionamentos devam ser embutidos.\n\n## Memória, persistência e banco embarcado\nRedis é uma base de estruturas de dados primordialmente em memória, com opções de persistência **RDB** (instantâneos) e **AOF** (registro de operações de escrita); desligar a persistência pode ser apropriado a caches reconstruíveis, não a dados que não podem ser perdidos. Memcached é voltado a cache distribuído em memória, sem a mesma proposta de persistência durável integrada. SAP HANA exemplifica um sistema de banco de dados com processamento em memória e mecanismos de durabilidade, mostrando que **em memória** não equivale a **não relacional** ou **volátil por definição**. Cache reduz latência, mas expiração, substituição e invalidação devem fazer parte do projeto.\n\nSQLite é contraponto importante: banco **relacional e embarcado**, tipicamente armazenado em arquivo local, sem exigir processo servidor separado. É adequado a aplicativos móveis, configurações locais e protótipos; não se torna banco NoSQL por ser leve. Para muitos clientes realizando escritas remotas simultâneas em grande escala, um servidor de banco ou outra arquitetura pode ser mais apropriado.\n\n## Comparação com arquitetura analítica\nO modelo relacional organiza linhas e colunas com integridade e consultas declarativas; o multidimensional representa medidas e dimensões para análise agregada; NoSQL reúne modelos orientados a acessos específicos, podendo servir tanto cargas operacionais quanto analíticas conforme o produto. Um cubo de vendas por tempo, região e produto é conceitualmente diferente de uma coleção documental de pedidos; não se deve interpretar a palavra **coluna** em HBase como sinônimo de cubo analítico. A prova costuma trocar flexibilidade de representação por ausência de regras e comparar tecnologias apenas por rótulos."
+    },
+    {
+      "title": "2. Distribuição, CAP, replicação e garantias de consistência",
+      "markdown": "## Fragmentar não é replicar\n**Sharding** distribui subconjuntos de dados entre nós para ampliar capacidade e distribuir operações. **Replicação** mantém cópias dos mesmos dados, favorecendo disponibilidade, recuperação e, em determinadas configurações, leitura distribuída. Uma base pode usar ambos. A chave de fragmentação determina o destino dos registros; escolher um campo de baixa cardinalidade ou de crescimento estritamente sequencial pode concentrar carga em poucos fragmentos. Particionamento por faixa facilita consultas por intervalo, mas pode criar pontos quentes; partição por hash tende a espalhar melhor chaves, podendo prejudicar leituras ordenadas. **Hashing consistente** atribui posições a nós e chaves em um anel lógico e reduz a fração remapeada após mudanças de nós em comparação com módulo simples; isso não garante distribuição perfeita em qualquer implementação.\n\nNo MongoDB, a chave de sharding de uma coleção é um ou mais campos; a escolha afeta distribuição e direcionamento das consultas. Roteadores `mongos` usam metadados para localizar fragmentos. Consultas com a chave podem direcionar a parte do cluster; pesquisas sem chave podem demandar consulta a vários fragmentos. A regra geral não é espalhar cada documento integralmente por todos os servidores.\n\n## CAP na presença de partição\nNo teorema CAP, **C** é consistência forte no sentido de uma única visão coerente das operações, **A** é disponibilidade das requisições dirigidas a nós não falhos com resposta, e **P** é tolerância a partições da rede. **Quando a rede se particiona**, um sistema distribuído não consegue assegurar simultaneamente a consistência forte definida no teorema e a disponibilidade plena para operações em ambos os lados. Não significa escolher quaisquer duas propriedades de forma permanente nem que, sem falhas, consistência e disponibilidade sejam mutuamente excludentes. Um sistema que recusa escritas em uma parte isolada privilegia consistência; um que aceita escritas dos dois lados pode precisar reconciliar conflitos.\n\n**PACELC** acrescenta a decisão em operação normal: se ocorre partição (**P**), há tensão entre disponibilidade (**A**) e consistência (**C**); senão (**E**), pode haver compromisso entre latência (**L**) e consistência (**C**). A sigla não diz que todo banco escolhe o mesmo lado em todas as operações: políticas configuráveis importam.\n\n## ACID, BASE e consistência eventual\n**ACID** significa atomicidade, consistência das regras, isolamento e durabilidade de transações. **BASE** é uma caracterização de sistemas que valorizam disponibilidade básica, estado que pode mudar mesmo sem operação observável do cliente e convergência eventual. Não são classificações exclusivas por tecnologia: bancos NoSQL podem oferecer transações ACID, inclusive em níveis e escopos específicos; bancos relacionais também adotam replicação assíncrona. **Consistência eventual** afirma que, cessando atualizações e dadas as condições de entrega e reconciliação, réplicas convergem; não oferece prazo universal de convergência nem garante que qualquer leitura imediata verá a última escrita.\n\n## Liderança, quórum e limites da fórmula\nEm replicação primário-secundário, um nó primário coordena normalmente alterações e secundários recebem cópias, de modo síncrono ou assíncrono. Na abordagem sem líder, operações podem chegar a diversas réplicas e exigir regras de reconciliação. Seja **N** o fator de replicação, **R** o número de réplicas que respondem à leitura e **W** o necessário para reconhecer escrita. A condição **R + W > N** garante interseção de conjuntos em um modelo simplificado com conjuntos de réplicas do mesmo universo. Exemplo: N = 3, R = 2 e W = 2; soma 4 > 3. Entretanto, interseção **não garante isoladamente linearizabilidade**: leituras concorrentes, falhas, réplicas atrasadas, réplicas transitórias e reconciliação influenciam o comportamento concreto. Em Cassandra, níveis `ONE`, `QUORUM` e outros permitem ajustar compromissos por operação; nos casos adequados, a sobreposição ajuda a assegurar visibilidade de escritas concluídas.\n\nUma rede com duas regiões desconectadas ilustra a diferença: preservar toda operação de escrita em ambas as regiões pode produzir versões conflitantes; interromper escritas em uma região pode manter ordem única às custas de respostas negativas. A pergunta correta é **qual garantia, sob qual falha e com qual política de leitura/escrita?**"
+    },
+    {
+      "title": "3. Big Data, armazenamento distribuído e serviços em nuvem",
+      "markdown": "## Conceito e Vs\nBig Data descreve desafios de obter, armazenar, processar e aproveitar conjuntos de dados cuja escala, velocidade e heterogeneidade pressionam abordagens tradicionais. Os Vs mais usuais são **volume** (quantidade), **velocidade** (produção/chegada e processamento), **variedade** (formatos), **veracidade** (confiabilidade) e **valor** (benefício de uso). Há extensões como variabilidade e visualização; elas não substituem automaticamente os cinco anteriores. Um fluxo de sensores transmitindo milhares de eventos por segundo exemplifica velocidade; arquivos históricos de vários petabytes exemplificam volume. O critério não é um tamanho numérico universal: a dificuldade é relativa à capacidade do ambiente.\n\n## Tipos de dados\n| Forma | Característica | Exemplo |\n|---|---|---|\n| Estruturados | Esquema tabular bem definido | Linhas de cadastro com campos regulares |\n| Semiestruturados | Marcadores e campos variáveis | JSON de eventos, XML de mensagens |\n| Não estruturados | Sem modelo tabular intrínseco | Vídeos, imagens, gravações de áudio |\n\nUm JSON não vira desestruturado apenas por ter campos opcionais. Metadados sobre uma fotografia podem ser tabulares, mesmo que o conteúdo de pixels permaneça não estruturado. Para prever ingestão e armazenamento, identifique formato, taxa de chegada, atualização e finalidade; não confunda heterogeneidade com desorganização de governança.\n\n## Armazenamento de arquivos, objetos e serviços gerenciados\n**HDFS** distribui blocos de arquivos e mantém metadados no NameNode; DataNodes armazenam blocos. **Armazenamento de objetos** organiza objetos e metadados em espaços lógicos como *buckets*, usualmente acessados por APIs; o nome lógico do objeto não equivale necessariamente a caminho de um sistema POSIX. Uma plataforma de data lake pode usar armazenamento de objetos para reunir arquivos em formatos variados. Arquivos distribuídos e objetos oferecem interfaces e semânticas distintas: atualizar pequenos trechos e renomear diretórios não funcionam obrigatoriamente da mesma maneira. Replicação, durabilidade e consistência precisam ser examinadas no serviço concreto.\n\nA nuvem fornece armazenamento elástico e serviços gerenciados de NoSQL, processamento e catálogos. **Gerenciado** significa que parte das tarefas operacionais — provisionamento, atualização, backups ou monitoramento, conforme o contrato — é transferida ao provedor; não implica ausência de planejamento de modelo, permissões, custos ou qualidade. Um serviço documental gerenciado em nuvem continua documental; um data warehouse gerenciado continua focado em consultas analíticas. O uso da nuvem, isoladamente, não transforma uma pequena tabela em Big Data. Há custos por armazenamento, transferência, leitura, computação e retenção, dependentes do serviço e da arquitetura.\n\n## Lake, warehouse e lakehouse\n| Arquitetura | Proposta central | Atenção |\n|---|---|---|\n| Data lake | Guardar dados de muitos tipos, inclusive brutos | Metadados, governança e qualidade evitam pântano de dados |\n| Data warehouse | Expor dados organizados para análise consistente | Não é sinônimo de repositório bruto de vídeos |\n| Lakehouse | Combinar armazenamento de lake com organização e recursos de tabelas analíticas | Depende de formatos, catálogo e mecanismos concretos |\n\nLakehouse não significa que o armazenamento de objetos virou literalmente um banco relacional convencional; camadas de metadados, tabelas e mecanismos de consulta fornecem capacidades analíticas e, em determinados formatos, transacionais. A escolha considera latência de acesso, semiestrutura, governança e atualização dos dados.\n\n## Caminho da informação\nUma arquitetura básica recebe eventos de aplicativos e arquivos diários (**ingestão**), guarda versão original na zona bruta, transforma e verifica duplicidades (**tratamento**), e fornece visões para painéis e consumidores (**disponibilização**). A divisão bronze/prata/ouro expressa, respectivamente, dados brutos, validados e prontos ao consumo. Esse desenho é um padrão de organização, não uma obrigação de toda instalação. Governança deve acompanhar as etapas: catálogo de origem, controles de acesso, retenção, observabilidade de falhas e linhagem que permita rastrear uma métrica final até suas fontes."
+    },
+    {
+      "title": "4. Hadoop e Spark: processamento massivo e paralelo",
+      "markdown": "## Componentes do ecossistema Hadoop\n**HDFS** é o sistema de arquivos distribuído tradicional do ecossistema: o NameNode gerencia metadados do espaço de nomes e localização de blocos; os DataNodes guardam os blocos, atendem operações e participam da replicação. O cliente consulta metadados ao NameNode, mas transfere dados aos DataNodes. Dizer que o NameNode armazena normalmente o conteúdo integral dos arquivos inverte os papéis. Redundância protege contra falhas de máquinas, embora recuperação e disponibilidade dependam do desenho e do estado do cluster.\n\n**MapReduce** é modelo de cálculo distribuído: `map` processa entradas e emite pares intermediários; o embaralhamento/agregação e a ordenação reúnem chaves; `reduce` combina valores por chave. Contar palavras ilustra: mapas geram `(palavra, 1)`; agrupamento aproxima ocorrências da mesma palavra; a redução soma contagens. O `shuffle` pode gerar tráfego e gravação intermediária, por isso nem toda tarefa é apenas CPU local. **YARN** gerencia recursos e execução com papéis como ResourceManager e NodeManager; não é sinônimo de sistema de arquivos. **Hive** facilita consultar grandes dados usando linguagem baseada em SQL, usualmente para análise, sem converter Hadoop inteiro em banco transacional. **HBase** oferece armazenamento NoSQL de colunas largas, com operações por chave de linha, diferente de Hive.\n\n| Necessidade | Componente associado | Papel decisivo |\n|---|---|---|\n| Armazenar arquivos distribuídos | HDFS | Blocos e metadados |\n| Alocar recursos a aplicações | YARN | Gerência de execução |\n| Executar operações map/reduce | MapReduce | Processamento distribuído por etapas |\n| Consultar grandes conjuntos com sintaxe SQL | Hive | Camada de consulta e metadados |\n| Acesso NoSQL por linhas e famílias | HBase | Armazenamento operacional de colunas largas |\n\n## Organização da aplicação Spark\nApache Spark é mecanismo de processamento distribuído que pode ler dados de HDFS, objetos e outras fontes. O **driver** organiza a aplicação e coordena sua execução; **executores** executam tarefas e mantêm dados ou resultados em nós de trabalho. Driver não significa servidor que armazena todo o dataset, e executor não equivale necessariamente a um único computador exclusivo.\n\n**RDD** é uma coleção distribuída, particionada e resiliente. Transformações como `map` e `filter` produzem novos RDDs e são normalmente **preguiçosas** (*lazy*): descrevem a computação até que uma **ação** como `count`, `collect` ou `reduce` requeira execução. No exemplo `rdd.filter(lambda x: x > 10).count()`, a filtragem é transformação, a contagem é ação. A chamada `cache()` marca dados para reutilização eficiente, mas não quer dizer que todo processamento Spark será exclusivamente em RAM nem que todos os dados caibam nela.\n\n## Dependências e custo\nUma **dependência estreita** permite que cada partição filha dependa de uma quantidade pequena e definida de partições do pai, como no `map` comum; uma **dependência larga** reorganiza dados de muitas partições, como no agrupamento por chave, e costuma causar *shuffle*. Operações com shuffle demandam rede, serialização e possível uso de disco. Por isso aumentar paralelismo indiscriminadamente não garante ganho.\n\n**DataFrame** organiza dados distribuídos com colunas nomeadas e informação de esquema, oferecendo otimizações do mecanismo de consulta; **Spark SQL** permite expressar operações estruturadas por SQL ou APIs de DataFrames. DataFrame não é a mesma coisa que a tabela relacional armazenada permanentemente: pode representar uma computação sobre arquivos e fontes diversas. Spark permite cargas em lote e processamento estruturado de fluxos. Tarefas podem falhar e ser refeitas usando linhagem de dependências; os dados consumidos, a política de checkpoints e efeitos externos ainda requerem atenção para evitar contagens ou entregas duplicadas.\n\nEm uma tarefa que cruza logs de muitos arquivos, separar filtros antecipados de operações que redistribuem registros é essencial: filtrar localmente antes de agrupar pode reduzir o volume transferido. O erro recorrente é chamar toda operação de uma transformação imediata ou supor que o Spark substitui por si só a camada de armazenamento, a orquestração e a governança."
+    },
+    {
+      "title": "5. Engenharia de dados, streaming, pipelines e arquiteturas de consumo",
+      "markdown": "## Ingestão, transformação e serviço\nUm **pipeline de engenharia de dados** liga fontes, ingestão, validação, armazenamento, transformação e disponibilização, sob observabilidade e políticas de recuperação. Ingestão **em lote** agrupa registros periodicamente, como arquivo diário; ingestão **contínua** recebe eventos à medida que chegam, com latência variável e eventual uso de micro-lotes. Tempo real é uma exigência de atraso mensurável, não sinônimo automático de execução em fluxo. Um relatório consolidado diário tende a tolerar lote; alertas de fraude podem exigir processamento rápido de eventos.\n\n**ETL** transforma antes de carregar no destino analítico; **ELT** carrega e transforma depois, aproveitando poder de cálculo da plataforma. Nem uma sequência nem a outra determina, por si, confiabilidade, qualidade ou tecnologia proprietária. **Sqoop**, historicamente empregado para troca em lote entre sistemas relacionais e Hadoop, é projeto legado/descontinuado; **NiFi** organiza fluxos e roteamento de dados; **Kafka Connect** integra fontes e destinos de eventos via conectores. São propósitos diferentes: conector movimenta registros; mecanismo de processamento computa resultados; orquestrador define quando e em qual sequência executar tarefas.\n\n**Airflow** descreve dependências, horários, reexecuções e monitoramento de tarefas em DAGs; **Oozie** é um orquestrador tradicional associado a fluxos Hadoop. Um DAG não substitui automaticamente Kafka como transporte contínuo nem precisa realizar diretamente a computação de cada etapa. Uma boa política usa checkpoints, chaves de deduplicação, contratos de esquema, retentativas com limites e trilhas de erro. Se reprocessar o mesmo arquivo produzir cobrança dupla, falta idempotência na operação de destino.\n\n## Eventos, Kafka e semânticas\nApache Kafka organiza eventos em **tópicos particionados**. Produtores escrevem eventos; consumidores leem, administrando offsets. A ordem é preservada **dentro de uma partição**, não garantida globalmente entre partições. Grupos de consumidores distribuem partições entre membros; aumentar consumidores além do número de partições não multiplica indefinidamente o paralelismo de um mesmo grupo. Eventos podem ser retidos após consumo conforme configuração de retenção. Um tópico não é necessariamente uma fila que elimina a mensagem no primeiro consumo.\n\nEntregas **ao menos uma vez** podem repetir um evento após falha e reprocessamento; **no máximo uma vez** admite perda sob determinadas falhas; **exatamente uma vez** depende de mecanismos e escopo de ponta a ponta, não decorre do nome Kafka. Deduplicação por identificador de evento ajuda a tornar uma operação idempotente. Para análise por janela, a chegada tardia e o tempo do evento são diferentes do tempo de processamento.\n\n## Lambda, Kappa e camadas\n**Lambda** combina via de lote sobre histórico e via rápida sobre eventos, com camada de atendimento para consultas; oferece resultado histórico e resposta imediata, ao custo de manter duas lógicas. **Kappa** prioriza uma arquitetura de fluxo, podendo reprocessar histórico a partir de log retido quando necessário; não elimina requisitos de armazenamento e retenção. Um data lake recebe informações na **camada bruta**, passa por camada **tratada** com verificação de qualidade e oferece camadas **servidas** e produtos analíticos. Essa passagem precisa de catálogo, segurança e controle de versão de esquema. Uma falha na camada tratada não deve apagar o original necessário à auditoria.\n\n## Exemplo completo\nSensores emitem JSON para um tópico; Kafka Connect ou aplicação recebe eventos; um motor de streaming calcula indicadores e entrega resultados a um serviço; objetos brutos ficam preservados para reprocessamento; um processamento noturno reconcilia valores; a camada tratada corrige tipos e remove duplicatas; visões finais abastecem análise. O projeto pode combinar armazenamento NoSQL operacional com lakehouse analítico sem pressupor que um substitui o outro. Nuvem gerenciada ajuda a operar a infraestrutura, mas **chaves, acesso, custos, qualidade e semântica de entrega** continuam decisões de arquitetura.\n\n### Como o tema costuma ser cobrado\nA prova apresenta um requisito concreto e troca componentes vizinhos: HDFS por YARN, evento Kafka por tarefa de Airflow, transformação preguiçosa por ação do Spark, replicação por sharding, Redis persistente por cache necessariamente volátil, fluxo por tempo real estrito, lake por warehouse e ETL por ELT. Para resolver, identifique **onde o dado nasce, como se move, onde fica, quem calcula, quem coordena e qual garantia a leitura oferece**; essa sequência revela a alternativa compatível com o cenário."
+    }
+  ],
+  "summary": "## Síntese para revisão\n**NoSQL** reúne modelos chave-valor (Redis), documento (MongoDB), colunas largas (Cassandra e HBase) e grafo (Neo4j). Escalabilidade vertical amplia uma máquina; horizontal adiciona nós. Esquema flexível não significa ausência de validação. Bancos em memória podem ser duráveis, como Redis com RDB/AOF; Memcached prioriza cache. SQLite é banco relacional embarcado, não NoSQL.\n\n**Distribuição:** sharding divide dados e replicação mantém cópias. Chave de partição mal escolhida produz pontos quentes. CAP descreve compromisso entre consistência forte e disponibilidade durante partição; PACELC acrescenta a disputa entre latência e consistência sem partição. ACID e BASE são modelos de garantia, não etiquetas mutuamente exclusivas por tecnologia. Consistência eventual prevê convergência sem prometer leitura imediata atualizada. R + W > N indica sobreposição de quóruns sob hipóteses específicas, não linearizabilidade automática.\n\n**Big Data:** cinco Vs principais: volume, velocidade, variedade, veracidade e valor. Dados podem ser estruturados, semiestruturados ou não estruturados. HDFS é um sistema de arquivos com NameNode e DataNodes; object stores guardam objetos em buckets por API. Data lake guarda diversos formatos e originais; warehouse organiza consumo analítico; lakehouse combina armazenamento tipo lake e gerenciamento analítico por tabelas. Serviços gerenciados em nuvem não dispensam arquitetura, segurança e controle de custos.\n\n**Hadoop:** HDFS armazena; YARN gerencia recursos; MapReduce distribui cálculo; Hive fornece consulta analítica; HBase é NoSQL de colunas largas. **Spark:** driver coordena e executores processam; RDDs são distribuídos; transformações são preguiçosas e ações disparam a execução; dependências largas geram shuffle; DataFrame e Spark SQL oferecem operações estruturadas.\n\n**Engenharia de dados:** lote consolida períodos; streaming lida com eventos contínuos, não necessariamente latência zero. ETL transforma antes da carga; ELT depois. NiFi e Kafka Connect lidam com fluxos/conectores; Airflow e Oozie coordenam tarefas. Kafka mantém eventos em tópicos particionados, com ordem por partição e retenção independente do consumo. Lambda combina caminhos batch e streaming; Kappa prioriza fluxo com capacidade de reprodução. Zonas bruta, tratada e servida sustentam rastreabilidade. Retentativas pedem idempotência e observabilidade.",
+  "flashcards": [
+    {
+      "front": "Escala vertical ou horizontal?",
+      "back": "Vertical aumenta recursos de um nó. Horizontal amplia a quantidade de nós e distribui carga ou dados."
+    },
+    {
+      "front": "Quais os quatro grandes modelos NoSQL?",
+      "back": "Chave-valor, documento, colunas largas e grafos. Exemplos: Redis, MongoDB, Cassandra/HBase e Neo4j."
+    },
+    {
+      "front": "Como ler uma chave string no Redis?",
+      "back": "Com GET chave. SET chave valor registra o conteúdo; SET também permite opção EX para expiração em segundos."
+    },
+    {
+      "front": "O que distingue banco documental?",
+      "back": "Armazena documentos com campos possivelmente variados e aninhados. MongoDB permite consultas por atributos desses documentos."
+    },
+    {
+      "front": "Para que serve Cypher MATCH?",
+      "back": "Para encontrar padrões de nós e relacionamentos em um grafo, como pessoas conectadas por uma relação."
+    },
+    {
+      "front": "SQLite é NoSQL?",
+      "back": "Não. É relacional, embarcado e frequentemente baseado em arquivo, sem servidor separado para atender às consultas locais."
+    },
+    {
+      "front": "Banco em memória é necessariamente volátil?",
+      "back": "Não. Redis oferece persistência RDB e AOF; o comportamento depende da configuração de armazenamento."
+    },
+    {
+      "front": "Sharding e replicação são iguais?",
+      "back": "Não. Sharding divide conjuntos de dados; replicação mantém cópias para redundância e disponibilidade."
+    },
+    {
+      "front": "Quando CAP impõe a escolha C/A?",
+      "back": "Durante partição da rede, se o sistema precisa decidir entre servir certas operações e preservar consistência forte."
+    },
+    {
+      "front": "O que acrescenta PACELC?",
+      "back": "Sem partição, há frequentemente compromisso entre latência e consistência; com partição, disponibilidade versus consistência."
+    },
+    {
+      "front": "R + W > N significa o quê?",
+      "back": "No modelo simplificado, leitura e escrita utilizam conjuntos de réplicas que se intersectam. Sozinha, a desigualdade não assegura linearizabilidade."
+    },
+    {
+      "front": "Quais são os cinco Vs de Big Data?",
+      "back": "Volume, velocidade, variedade, veracidade e valor."
+    },
+    {
+      "front": "JSON é qual classe de dado?",
+      "back": "Tipicamente semiestruturado, pois contém campos e estrutura, mas permite variações entre registros."
+    },
+    {
+      "front": "HDFS: NameNode e DataNode?",
+      "back": "NameNode administra metadados do sistema de arquivos; DataNodes mantêm blocos de arquivos."
+    },
+    {
+      "front": "Qual a função do YARN?",
+      "back": "Gerenciar recursos e execução de aplicações no ecossistema Hadoop; não é o armazenamento de blocos."
+    },
+    {
+      "front": "Hive e HBase são sinônimos?",
+      "back": "Não. Hive foca consultas analíticas sobre grandes dados; HBase fornece acesso NoSQL por chaves e famílias de colunas."
+    },
+    {
+      "front": "Transformação Spark dispara execução?",
+      "back": "Em regra, não. Transformações montam a computação preguiçosa; ações como count disparam avaliação."
+    },
+    {
+      "front": "O que produz shuffle no Spark?",
+      "back": "Dependências largas que redistribuem dados entre partições, comuns em agrupamentos e determinadas junções."
+    },
+    {
+      "front": "Kafka preserva ordem global do tópico?",
+      "back": "Não. A garantia usual de ordem se aplica aos registros dentro de cada partição."
+    },
+    {
+      "front": "ETL versus ELT?",
+      "back": "ETL transforma antes de carregar; ELT carrega antes de transformar na plataforma de destino."
+    },
+    {
+      "front": "O que faz o Airflow?",
+      "back": "Orquestra tarefas, dependências e execuções por DAGs; não substitui por si só um broker de eventos."
+    },
+    {
+      "front": "Lambda versus Kappa?",
+      "back": "Lambda combina caminhos de lote e velocidade. Kappa privilegia um pipeline de fluxo, com reprocessamento possível a partir de log retido."
+    }
+  ],
+  "tips": [
+    "Ao comparar tecnologias, escreva mentalmente o par modelo/uso: Redis-cache; MongoDB-documento; Cassandra-coluna larga; Neo4j-grafo. Evite escolher pela palavra SQL ou pela presença de RAM.",
+    "Para responder itens sobre distribuição, pergunte primeiro se os servidores guardam partes diferentes (sharding) ou cópias do mesmo dado (replicação).",
+    "Nas contas de quórum, calcule R + W e compare com N, mas lembre que sobreposição matemática não substitui todas as demais garantias do protocolo.",
+    "Faça um mapa do ecossistema Hadoop: HDFS guarda, YARN aloca, MapReduce computa, Hive consulta, HBase fornece NoSQL.",
+    "No Spark, sublinhe os verbos: map/filter transformam e count/collect acionam; groupByKey pode exigir redistribuição.",
+    "Em pipelines, separe conectores de ingestão, motores de processamento e orquestradores; identifique o ponto em que duplicações podem ocorrer.",
+    "Associe bronze a original, prata a dados limpos e ouro a dados de consumo, mantendo controle de acesso e linhagem em todas as etapas."
+  ],
+  "traps": [
+    "A prova afirma: 'NoSQL dispensa esquema e integridade'. Erro: o esquema pode ser flexível, mas validação e regras permanecem necessárias; sistemas NoSQL podem oferecer transações.",
+    "A prova escreve: 'Redis perde dados ao reiniciar porque opera em memória'. Erro: as opções RDB e AOF permitem recuperar dados persistidos, conforme a configuração.",
+    "A prova troca: 'Replicação divide o conjunto entre servidores'. Erro: isso descreve sharding; replicação cria cópias do mesmo conjunto ou fragmento.",
+    "A prova conclui: 'CAP obriga escolher só duas letras em qualquer situação'. Erro: a tensão entre C e A decorre de partição efetiva e das definições do teorema.",
+    "A prova diz: 'No Spark, filter executa imediatamente e count monta o plano'. Erro: filter é transformação lazy e count é ação.",
+    "A prova sustenta: 'A primeira leitura apaga o evento Kafka do tópico'. Erro: retenção do log e posição de leitura do consumidor são mecanismos distintos.",
+    "A prova iguala 'lakehouse' a 'depósito sem regras'. Erro: lakehouse busca conciliar diversidade de armazenamento com organização e recursos analíticos."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a diferença de escala vertical e horizontal com um exemplo de cada.",
+      "answer": "Vertical: aumentar RAM de um servidor. Horizontal: acrescentar servidores e distribuir leituras, escritas ou fragmentos."
+    },
+    {
+      "question": "Quando uma aplicação escolheria grafo em vez de documento?",
+      "answer": "Quando suas consultas centrais navegam relações e caminhos entre entidades; documentos são úteis para agregados com campos variáveis e aninhados."
+    },
+    {
+      "question": "Qual a distinção entre consistência eventual e leitura linearizável?",
+      "answer": "Eventual admite leituras temporariamente defasadas até convergência. Linearizabilidade requer aparência de ordem única compatível com operações concluídas no tempo real."
+    },
+    {
+      "question": "Com N=5, R=3, W=3, os conjuntos necessariamente se intersectam?",
+      "answer": "Sim, no modelo de conjuntos de cinco réplicas: 3+3=6>5. Essa interseção não prova, sozinha, todas as garantias de leitura."
+    },
+    {
+      "question": "Por que JSON e vídeo recebem classificações diferentes?",
+      "answer": "JSON possui marcações/campos e costuma ser semiestruturado; conteúdo audiovisual não tem esquema tabular intrínseco e costuma ser não estruturado."
+    },
+    {
+      "question": "Quem armazena blocos no HDFS e quem aloca recursos de aplicação?",
+      "answer": "DataNodes armazenam blocos, com NameNode gerindo metadados. YARN coordena recursos, com ResourceManager e NodeManagers."
+    },
+    {
+      "question": "Por que um groupByKey tende a custar mais rede que um map no Spark?",
+      "answer": "O agrupamento exige redistribuição entre partições, gerando shuffle; map usual preserva uma dependência estreita."
+    },
+    {
+      "question": "Como projetar reprocessamento de eventos sem pagamentos duplicados?",
+      "answer": "Manter identificadores estáveis, deduplicação ou gravações idempotentes, checkpoints e trilha de falhas, pois retentativas podem entregar eventos repetidos."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre modelo e implantação",
+      "summary": "NoSQL não é sinônimo de banco em memória nem de nuvem; SQLite não se torna NoSQL por ser embarcado, e um produto em memória pode ser relacional e durável."
+    },
+    {
+      "key": "e2",
+      "title": "Consistência e distribuição confundidas",
+      "summary": "Sharding particiona, replicação copia. CAP depende de partição; quórum de interseção é uma condição útil, porém insuficiente para afirmar linearizabilidade universal."
+    },
+    {
+      "key": "e3",
+      "title": "Camadas de Big Data misturadas",
+      "summary": "HDFS, objetos, data lake, warehouse e lakehouse ocupam papéis arquiteturais diferentes. Serviços gerenciados transferem tarefas operacionais, não responsabilidade sobre dados."
+    },
+    {
+      "key": "e4",
+      "title": "Papéis trocados em Hadoop e Spark",
+      "summary": "NameNode guarda metadados, DataNode blocos, YARN recursos. No Spark, driver coordena, executores processam; transformação lazy não é ação."
+    },
+    {
+      "key": "e5",
+      "title": "Transporte, processamento e orquestração",
+      "summary": "Kafka transporta e retém eventos, Spark processa e Airflow orquestra tarefas. ETL e ELT definem a ordem de transformação e carga; lote e fluxo descrevem ritmos."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma aplicação de registros de sensores precisa distribuir dados entre máquinas e acomodar campos opcionais. Qual interpretação sobre a adoção de NoSQL é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode usar documentos flexíveis e ampliar capacidade adicionando nós ao cluster.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Exige migrar toda a aplicação para banco exclusivamente em memória volátil, sem disco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Depende de converter cada evento em uma dimensão de cubo analítico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Implica retirar validação de atributos para liberar mudanças no formato.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Corresponde necessariamente a aumentar a RAM de um único servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O modelo documental pode admitir atributos variáveis e o escalonamento horizontal adiciona nós. B confunde NoSQL com cache volátil; C traz cubo multidimensional, que não define NoSQL; D confunde flexibilidade com ausência de validação; E descreve escalabilidade vertical.",
+      "section": "1. Fundamentos NoSQL, modelos de dados e bancos em memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleção MongoDB guarda pedidos com o campo status. Qual operação identifica os documentos cujo status é aberto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "GET pedidos:status aberto, como uma leitura direta de string no Redis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "db.pedidos.find({status: 'aberto'}), filtrando documentos por campo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "MATCH (p:Pedido)-[:STATUS]->(aberto), buscando uma aresta de grafo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SELECT * FROM pedidos WHERE PRIMARY KEY = 'aberto' em sintaxe CQL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SCAN pedidos FILTER status=aberto, varrendo as chaves de HBase.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O auxiliar find do MongoDB aceita documento de filtro com igualdade de campos. A usa modelo chave-valor sem esse comando; C descreve padrão de grafo Cypher; D usa SQL/CQL e ainda supõe que status seja chave primária; E não corresponde à API de consulta documental indicada.",
+      "section": "1. Fundamentos NoSQL, modelos de dados e bancos em memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço mantém sessões por um minuto no Redis e deseja expirar cada chave automaticamente. Qual operação de string atende ao cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "GET sessao:9 EX 60, lendo e criando o tempo de vida da chave.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SET sessao:9 ativa PX 60, conservando o valor por sessenta segundos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SET sessao:9 ativa EX 60, definindo o vencimento em sessenta segundos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "SET sessao:9 ativa EXAT 60, usando sessenta segundos relativos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "GET sessao:9 PX 60000, alterando a expiração durante a leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. SET com EX recebe duração relativa em segundos. A e E atribuem opção de expiração ao GET de strings; B usa PX, cuja unidade é milissegundos, portanto sessenta milissegundos; D usa EXAT, que espera instante absoluto em segundos Unix, e não duração relativa.",
+      "section": "1. Fundamentos NoSQL, modelos de dados e bancos em memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema precisa descobrir pessoas conectadas por relacionamentos tipados, inclusive percorrendo múltiplos vínculos. Qual solução é mais diretamente voltada a esse padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Redis com GET em uma única chave por pessoa, sem modelar as arestas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SQLite em arquivo local, apenas por não exigir servidor dedicado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "HDFS pela distribuição dos blocos de dados entre vários DataNodes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Neo4j com nós e relações pesquisados por padrões da linguagem Cypher.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Hive com agregação histórica por data, sem travessia de relacionamentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Em um banco de grafos, relacionamentos são elementos explícitos e padrões Cypher como MATCH expressam travessias. A oferece acesso por chave, não a navegação descrita; B é uma característica de implantação; C trata arquivos distribuídos; E descreve análise agregada, não a exploração de caminhos.",
+      "section": "1. Fundamentos NoSQL, modelos de dados e bancos em memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação móvel precisa manter dados locais em um arquivo, realizando consultas relacionais sem instalar serviço de banco separado. Qual tecnologia se ajusta melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cassandra, pois exige chave de partição e nós replicados no cluster.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MongoDB, pois armazena documentos em coleções com campos opcionais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Redis, pois prioriza estruturas de dados carregadas em memória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "HBase, pois emprega famílias de colunas e chaves de linha distribuídas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SQLite, pois é relacional e embarcado, normalmente gravado em arquivo.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. SQLite é um banco relacional incorporado à aplicação e adequado ao uso local. A e D descrevem bancos de colunas largas distribuídos; B é banco documental; C é frequentemente usado como armazenamento em memória ou cache. Nenhum deles é o contraponto relacional embarcado pedido.",
+      "section": "1. Fundamentos NoSQL, modelos de dados e bancos em memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe utiliza Redis para dados importantes e quer recuperação após reinício. Qual opção corresponde às modalidades de persistência da tecnologia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar instantâneos RDB e/ou registro de escritas AOF, conforme a política escolhida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Escolher somente RAM, porque qualquer gravação em disco elimina a função de cache.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Utilizar o HDFS como NameNode do Redis, que passa a gerenciar seus registros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ativar o modo Memcached, responsável pela recuperação automática do arquivo local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Migrar todos os valores para um cubo dimensional antes de permitir persistência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Redis pode persistir com snapshots RDB, AOF ou a combinação de ambos. B ignora persistência configurável; C inventa dependência entre Redis e HDFS; D atribui ao Memcached a função de mecanismo de recuperação do Redis; E confunde durabilidade operacional com modelagem analítica multidimensional.",
+      "section": "1. Fundamentos NoSQL, modelos de dados e bancos em memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleção cresce além da capacidade de armazenamento de um nó e deseja-se dividir seus documentos entre servidores. Que mecanismo resolve diretamente a divisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Replicação integral, pois cada servidor mantém a cópia de todos os documentos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sharding, pois a chave de fragmentação direciona subconjuntos dos documentos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Backup incremental, pois registra só mudanças desde o último procedimento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Persistência por AOF, pois registra em disco as operações realizadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Processamento MapReduce, pois divide cálculos por mapas e reduções.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Sharding reparte dados entre fragmentos com base na chave escolhida. A mantém cópias e visa redundância, sem dividir o universo de registros; C é estratégia de cópia de segurança; D diz respeito à persistência do Redis; E distribui trabalho computacional, não é o mecanismo pedido para a coleção.",
+      "section": "2. Distribuição, CAP, replicação e garantias de consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas partes de um cluster deixam de se comunicar e recebem solicitações de escrita. De acordo com CAP, qual é o dilema central durante essa falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher entre velocidade de CPU e capacidade de disco do servidor central.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escolher entre o modelo documental e o modelo orientado a grafos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conciliar disponibilidade das operações e consistência forte na partição.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Conciliar normalização e armazenamento em memória no mesmo nó.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conciliar formato de arquivo e capacidade de compactação de colunas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O dilema CAP surge sob partição: disponibilizar operações dos dois lados pode conflitar com manter uma visão fortemente consistente. A trata recursos físicos; B contrapõe modelos de dados; D não traduz propriedades CAP; E se refere a organização física de arquivos, não às garantias distribuídas.",
+      "section": "2. Distribuição, CAP, replicação e garantias de consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma atualização, uma réplica ainda devolve o valor antigo, mas todas convergem após cessarem escritas e completarem a propagação. Qual garantia foi descrita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Isolamento serializável em todas as operações lidas de qualquer réplica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Linearizabilidade imediata das consultas feitas a qualquer réplica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Durabilidade local obtida apenas pela gravação sequencial em memória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Consistência eventual, com possível defasagem temporária e convergência.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Atomicidade global das transações durante a indisponibilidade da rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A consistência eventual permite leituras temporariamente defasadas e exige convergência quando as condições se estabilizam. A e B demandam garantias mais fortes; C confunde memória com persistência durável; E descreve propriedade transacional não inferível apenas pela convergência entre réplicas.",
+      "section": "2. Distribuição, CAP, replicação e garantias de consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura distribuída avalia latência das leituras mesmo sem partições de rede. Qual formulação amplia CAP para incorporar explicitamente esse compromisso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "BASE, pois compara latência e consistência somente nas partições ativas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ACID, pois substitui a noção de disponibilidade por custo de comunicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MapReduce, pois transfere leituras para a fase de redução do cluster.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Hashing consistente, pois define garantias transacionais sem falhas de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PACELC, pois sem partição explicita o compromisso entre latência e consistência.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. PACELC explicita P: disponibilidade versus consistência; E: latência versus consistência. A trata um estilo de propriedades e não formaliza essa bifurcação; B reúne propriedades de transação; C é paradigma de processamento; D é técnica de distribuição de chaves e não a extensão teórica requerida.",
+      "section": "2. Distribuição, CAP, replicação e garantias de consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um modelo simplificado com N=5 réplicas fixas, quais valores de leitura R e escrita W garantem interseção de conjuntos, sem por isso provar linearizabilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "R=3 e W=3, pois a soma 6 excede o fator de replicação 5.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "R=2 e W=3, pois a soma 5 já excede o fator de replicação 5.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "R=1 e W=4, pois o menor conjunto toca todas as cópias escritas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "R=2 e W=2, pois qualquer par de réplicas intercepta outro par.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "R=1 e W=3, pois maioria de escrita supre a interseção de leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Com cinco réplicas, 3+3=6>5 força ao menos uma réplica comum a qualquer conjunto de tamanho três. B e C somam cinco, permitindo conjuntos disjuntos; D soma quatro e também admite disjunção; E soma quatro. A interseção não resolve, sozinha, todas as situações de concorrência e falha.",
+      "section": "2. Distribuição, CAP, replicação e garantias de consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto recebe terabytes históricos, eventos em alta frequência e formatos diferentes, mas enfrenta fontes pouco confiáveis. Qual associação dos Vs está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Velocidade mede o tamanho histórico; volume mede a taxa de eventos recebidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Volume é quantidade, velocidade é taxa de chegada e veracidade é confiabilidade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Variedade é precisão da fonte, enquanto veracidade representa formato de registro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Valor define a frequência de ingestão, enquanto volume representa qualidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Veracidade significa formato do dado e velocidade indica seu benefício analítico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Volume descreve escala quantitativa, velocidade a cadência e veracidade a qualidade/confiabilidade. A inverte quantidade e taxa; C troca variedade por veracidade; D associa valor à frequência e volume à qualidade; E desloca veracidade e velocidade para sentidos pertencentes a outros Vs.",
+      "section": "3. Big Data, armazenamento distribuído e serviços em nuvem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um coletor recebe JSON com campos opcionais, fotografias e linhas cadastrais rigidamente definidas. Como classificar, respectivamente, os três tipos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Estruturados, semiestruturados e não estruturados, nessa ordem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não estruturados, estruturados e semiestruturados, nessa ordem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Semiestruturados, não estruturados e estruturados, nessa ordem.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Semiestruturados, estruturados e não estruturados, nessa ordem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não estruturados, semiestruturados e estruturados, nessa ordem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O JSON com atributos variáveis carrega estrutura explícita e é semiestruturado; a imagem não tem campos tabulares intrínsecos e é não estruturada; cadastro fixo é estruturado. A, B, D e E posicionam pelo menos uma dessas três categorias em tipo incompatível com o exemplo.",
+      "section": "3. Big Data, armazenamento distribuído e serviços em nuvem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer guardar vídeos e arquivos JSON na nuvem, cada um com identificador e metadados, acessíveis por API em buckets. Que tipo de armazenamento foi descrito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sistema HDFS exposto diretamente como tabela de dimensões de negócios.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cubo multidimensional que divide medidas em blocos replicados por chave.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Banco de grafos com atributos de arestas representando arquivos binários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenamento de objetos, organizado por buckets, objetos e metadados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Memória cache de sessões, cuja API representa cada registro como uma linha.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Buckets e objetos com metadados e acesso por API caracterizam object storage. A mistura HDFS com dimensão analítica, o que não decorre da descrição; B se refere a modelagem analítica; C supõe grafos; E confunde armazenamento durável de conteúdos heterogêneos com cache de sessões.",
+      "section": "3. Big Data, armazenamento distribuído e serviços em nuvem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de banco documental gerenciado em nuvem executa atualizações de infraestrutura e backups contratados. Qual responsabilidade permanece com a equipe usuária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir a coleção documental por cubos analíticos para validar os usuários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter fisicamente todos os discos e trocar a CPU de cada host do provedor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar manualmente toda correção do sistema operacional de cada nó.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar políticas de acesso, já que a nuvem assume todo controle dos dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir modelagem, permissões, governança e monitorar custo e qualidade dos dados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. O provedor gerencia tarefas de infraestrutura conforme o serviço, enquanto cliente decide permissões, qualidade, estrutura e custo. B e C devolvem ao cliente atividades assumidas no cenário; D ignora a responsabilidade sobre acesso; A confunde a finalidade de cubos e de um banco documental.",
+      "section": "3. Big Data, armazenamento distribuído e serviços em nuvem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma plataforma preserva arquivos brutos, cria tabelas governadas para análise e aplica regras transacionais a essas tabelas. Qual interpretação arquitetural é a mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trata-se de proposta lakehouse, que combina repositório flexível e recursos analíticos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É apenas cache distribuído, pois a durabilidade depende de páginas em RAM.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É somente banco de grafos, pois a consulta analítica exige vínculos tipados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É exclusivamente um cubo de medidas, sem armazenamento de dados originais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É um HDFS isolado, que por si oferece catálogo e transações de tabelas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Lakehouse articula flexibilidade de armazenamento com camadas de gestão e consulta analíticas, podendo oferecer transações em formatos de tabela. B remete a cache; C requer relações em grafo não descritas; D contradiz a retenção bruta; E atribui ao HDFS isolado recursos que pertencem a camadas adicionais.",
+      "section": "3. Big Data, armazenamento distribuído e serviços em nuvem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cluster HDFS, o cliente precisa localizar blocos de um arquivo e depois transferir seu conteúdo. Qual sequência corresponde à arquitetura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O YARN localiza blocos e o Hive armazena fisicamente os bytes do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O NameNode informa metadados e os DataNodes atendem à transferência de blocos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Os DataNodes determinam o catálogo de blocos e o NameNode transmite os bytes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Spark SQL define a localização e o MapReduce conserva cada bloco original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O ResourceManager recebe os dados e os executores do Spark armazenam o arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O NameNode mantém metadados e DataNodes armazenam e servem blocos. A atribui arquivos a YARN/Hive; C inverte os papéis fundamentais do HDFS; D confunde ferramentas de processamento com serviço de arquivos; E confunde escalonamento e execução do Spark com armazenamento primário.",
+      "section": "4. Hadoop e Spark: processamento massivo e paralelo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cálculo MapReduce conta ocorrências de termos em arquivos enormes. Como ocorre o processamento lógico das contagens por palavra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A redução lê arquivos originais e mapas apenas ordenam contagens finais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os mapas geram agregações globais e a redução localiza nomes de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mapas emitem pares palavra-contagem, shuffle agrupa chaves e redução soma valores.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Os DataNodes realizam todo o agrupamento e o NameNode soma os resultados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O YARN realiza a soma para cada palavra e o Hive distribui os pares de entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O map emite pares intermediários, a fase de shuffle/sort reúne valores por chave e o reduce os combina. A inverte etapas; B troca seus resultados; D trata NameNode como executor da computação; E confunde a gestão de recursos do YARN e a camada de consulta do Hive com o algoritmo de contagem.",
+      "section": "4. Hadoop e Spark: processamento massivo e paralelo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura Hadoop precisa coordenar recursos de aplicações, consultar arquivos por SQL analítico e manter uma base NoSQL com famílias de colunas. Qual mapeamento atende às três funções?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "YARN para SQL, Hive para recursos e HBase para armazenamento NoSQL.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "HDFS para recursos, HBase para SQL e Hive para armazenamento NoSQL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MapReduce para recursos, HDFS para SQL e YARN para armazenamento NoSQL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "YARN para recursos, Hive para consultas analíticas e HBase para NoSQL.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Hive para recursos, YARN para consultas e MapReduce para NoSQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. YARN aloca recursos, Hive fornece consulta analítica e HBase mantém colunas largas. A inverte YARN/Hive; B atribui papel do gerenciador a HDFS e troca Hive/HBase; C usa mecanismos de arquivos e processamento nas posições erradas; E faz Hive e YARN trocarem funções e confunde MapReduce com banco.",
+      "section": "4. Hadoop e Spark: processamento massivo e paralelo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Spark cria r2 = rdd.filter(predicado) e depois chama r2.count(). Sem cache prévio, qual é o comportamento normal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A filtragem já materializa todas as partições, e count apenas consulta metadados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambas as chamadas são transformações e aguardam um comando de persistência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Count roda apenas no driver, que recebe integralmente os dados sem executores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Filter grava arquivos HDFS automaticamente e count os converte em DataFrames.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Filter descreve transformação preguiçosa; count dispara tarefas que a avaliam.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Spark retém a transformação lazy e executa o plano ao alcançar a ação count. A presume execução e materialização antecipadas; B classifica count incorretamente; C esquece o cálculo nos executores; D inventa gravação HDFS e conversão em DataFrame como efeitos obrigatórios de filter/count.",
+      "section": "4. Hadoop e Spark: processamento massivo e paralelo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processamento Spark usa map para padronizar eventos e depois groupByKey para agregar por identificador. Qual expectativa de dependências é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Map tende a dependência estreita; groupByKey tende a dependência larga com shuffle.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Map gera shuffle obrigatório; groupByKey apenas transforma dados locais ao driver.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambos produzem dependências largas, já que Spark processa dados distribuídos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ambos são ações, e o plano deixa de ser preguiçoso na etapa de map.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "GroupByKey tende a dependência estreita; map exige reunião de todas as chaves.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Map usualmente preserva afinidade de partições, enquanto groupByKey redistribui elementos por chave e gera dependência larga. B e E invertem custos; C assume que distribuição implica shuffle em qualquer transformação; D confunde transformações com ações e a execução preguiçosa.",
+      "section": "4. Hadoop e Spark: processamento massivo e paralelo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma plataforma carrega eventos brutos no lake e aplica limpeza dentro da infraestrutura analítica; outro fluxo transforma dados antes da carga. Como classificar, respectivamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ETL no primeiro e ELT no segundo, porque destino determina a nomenclatura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ELT no primeiro e ETL no segundo, conforme a ordem entre carga e transformação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Lambda no primeiro e Kappa no segundo, por haver dois estilos de limpeza.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sharding no primeiro e replicação no segundo, pois a carga reparte registros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MapReduce no primeiro e SQL analítico no segundo, independentemente das etapas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. ELT carrega primeiro e transforma no destino; ETL transforma antes de carregar. A inverte essa ordem; C trata arquiteturas de caminhos batch/stream; D trata distribuição de dados entre nós; E descreve possíveis mecanismos de computação, não a posição da transformação relativamente à carga.",
+      "section": "5. Engenharia de dados, streaming, pipelines e arquiteturas de consumo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um tópico Kafka possui quatro partições e um grupo com seis consumidores ativos, sem atribuições extras. O que se pode inferir sobre paralelismo e ordem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Seis consumidores leem simultaneamente cada partição com ordem global garantida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada mensagem é apagada após leitura; seis consumidores garantem seis partições.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Até quatro membros recebem partições; a ordem usual é assegurada por partição.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Dois membros extras passam a controlar offsets das quatro partições do tópico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ordem é garantida entre partições, mas não dentro de cada partição individual.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Em um grupo, uma partição tem um consumidor ativo por vez, de modo que quatro partições limitam o paralelismo a quatro membros; a ordem é por partição. A e E postulam ordem global; B confunde retenção e consumo; D atribui aos membros ociosos uma função especial que não decorre da atribuição.",
+      "section": "5. Engenharia de dados, streaming, pipelines e arquiteturas de consumo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa agendar extrações diárias com dependências e retentativas, enviar eventos continuamente a um log e integrar um banco ao log. Qual combinação reflete os papéis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Airflow para log, Kafka para DAGs e HDFS para conectores do banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "NiFi para gerência de DAGs, Hive para log e YARN para conectores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Kafka Connect para DAGs, Airflow para tópicos e Spark para armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Airflow para orquestração, Kafka para eventos e Kafka Connect para integração.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Oozie para log, HBase para DAGs e MapReduce para conector de origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Airflow gerencia dependências e agendas, Kafka é log distribuído de eventos e Kafka Connect integra fontes/destinos. A e C trocam os papéis de Airflow e Kafka; B atribui log a Hive e conector a YARN; E confunde orquestração Oozie, banco HBase e processamento MapReduce com transporte e integração.",
+      "section": "5. Engenharia de dados, streaming, pipelines e arquiteturas de consumo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema quer unificar o processamento em um fluxo de eventos retido, permitindo reexecutar o histórico pelo próprio pipeline sem manter código separado para lotes. Qual arquitetura é mais compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Lambda com duas vias independentes, uma batch e outra de velocidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Warehouse puro, no qual o processamento de eventos dispensa log retido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Replicação primário-secundário, que unifica processamento e análise em lote.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cubos dimensionais, que garantem reprocessamento dos eventos ainda em trânsito.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Kappa, com fluxo central e possibilidade de replay a partir do log preservado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Kappa prioriza processamento de eventos e permite replay quando os eventos necessários permanecem retidos. A descreve Lambda, com duas vias; B confunde camada analítica e log; C é mecanismo de redundância de banco; D refere-se a representação analítica, não a estratégia de reprocessamento de eventos.",
+      "section": "5. Engenharia de dados, streaming, pipelines e arquiteturas de consumo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao montar cache de autenticação, uma aplicação usa Redis como base chave-valor e recupera strings pelo identificador associado à sessão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Redis fornece acesso por chave a tipos como strings; um GET retorna o valor da chave quando ela existe. O uso como cache de sessão é coerente com expiração e baixas latências, sem exigir consultas por relacionamentos ou cubos multidimensionais.",
+      "section": "1. Fundamentos NoSQL, modelos de dados e bancos em memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao escolher SQLite para persistir informações locais de um aplicativo, a equipe estará utilizando banco NoSQL por não precisar instalar servidor de banco separado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. SQLite é um sistema relacional embarcado, com armazenamento frequentemente concentrado em arquivo. A inexistência de processo servidor para uso local descreve sua implantação, não altera o modelo de dados para documento, grafo, chave-valor ou colunas largas.",
+      "section": "1. Fundamentos NoSQL, modelos de dados e bancos em memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao armazenar registros de clientes com conjuntos distintos de campos em uma coleção MongoDB, pode-se aproveitar esquema flexível e ainda aplicar regras de validação aos documentos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Documentos de uma mesma coleção podem ter campos diferentes, mas o MongoDB admite validação de esquema quando necessária. A flexibilidade serve à evolução do dado, não autoriza automaticamente tipos incompatíveis ou a ausência de contratos da aplicação.",
+      "section": "1. Fundamentos NoSQL, modelos de dados e bancos em memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por operar com dados em RAM, uma instância Redis com AOF habilitado não tem qualquer meio de reconstruir dados após o reinício e se comporta como cache Memcached sem persistência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. AOF registra operações de escrita para recuperação após reinício, conforme a configuração e as garantias de sincronização. Redis pode combinar AOF e RDB, ao passo que Memcached é tipicamente cache volátil; não é correto equiparar as duas soluções quanto à persistência.",
+      "section": "1. Fundamentos NoSQL, modelos de dados e bancos em memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema com três réplicas do mesmo registro, a redundância resulta de replicação; dividir registros de clientes por uma chave entre nós é outra operação, denominada sharding.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Replicação cria cópias de um dado ou fragmento, enquanto sharding particiona o universo de dados em subconjuntos. Um mesmo cluster pode usar fragmentos replicados, combinando capacidade horizontal com redundância.",
+      "section": "2. Distribuição, CAP, replicação e garantias de consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante leitura de um arquivo no HDFS, os bytes são servidos normalmente pelo NameNode, enquanto os DataNodes mantêm apenas o índice de nomes e endereços dos blocos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O NameNode administra metadados, enquanto DataNodes armazenam e transferem os blocos de conteúdo. O cliente obtém informações de localização e acessa os DataNodes para a leitura, sem transformar o NameNode em repositório central dos bytes.",
+      "section": "4. Hadoop e Spark: processamento massivo e paralelo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cluster que privilegia aceitar requisições nos dois lados de uma partição de rede, podem existir escritas conflitantes que precisem ser conciliadas após a comunicação voltar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Durante partições, privilegiar disponibilidade de escritas pode gerar versões divergentes. A convergência posterior depende de propagação e resolução de conflitos; CAP não promete consistência forte simultânea a essa disponibilidade sob partição.",
+      "section": "2. Distribuição, CAP, replicação e garantias de consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em cinco réplicas, exigir duas respostas de leitura e três de escrita assegura interseção obrigatória, pois R + W = N já satisfaz a desigualdade de quórum.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O critério de interseção no modelo simplificado é R + W > N, não maior ou igual. Com R=2, W=3 e N=5, é possível escolher conjuntos inteiramente disjuntos; seriam necessários valores que totalizassem ao menos seis.",
+      "section": "2. Distribuição, CAP, replicação e garantias de consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para guardar vídeos brutos em um data lake, uma arquitetura pode utilizar objetos com metadados em buckets, sem exigir o sistema de arquivos HDFS como camada física.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Data lakes podem usar armazenamento de objetos na nuvem, com arquivos em formatos variados e metadados de catálogo. HDFS é alternativa de armazenamento distribuído, mas não requisito universal para a arquitetura de lake.",
+      "section": "3. Big Data, armazenamento distribuído e serviços em nuvem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando um repositório passa da camada bruta para a camada tratada, todos os dados de origem devem ser apagados, pois o padrão lakehouse não admite reprocessamento histórico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A arquitetura em camadas preserva dados originais quando necessário à recuperação, à linhagem e ao reprocessamento. A zona tratada contém versões limpas e validadas, mas sua existência não impõe exclusão dos originais nem impede replay.",
+      "section": "3. Big Data, armazenamento distribuído e serviços em nuvem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Contratar uma base documental gerenciada reduz tarefas de manutenção de infraestrutura, mas não dispensa o projeto da chave de fragmentação, controles de acesso e orçamento de uso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O serviço gerenciado assume atividades especificadas de operação, enquanto desenho de consultas, chaves, identidade, qualidade e custos permanecem responsabilidades do usuário. Chave mal escolhida ainda pode criar concentração de carga.",
+      "section": "3. Big Data, armazenamento distribuído e serviços em nuvem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No estudo de Big Data, a equipe que caracteriza centenas de formatos distintos está medindo velocidade, enquanto a taxa de milhões de eventos por segundo define variedade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Formatos distintos correspondem à variedade, e a taxa de chegada ou processamento de eventos descreve velocidade. Volume expressa quantidade; veracidade, confiabilidade; e valor, potencial de utilidade. O enunciado trocou os dois Vs.",
+      "section": "3. Big Data, armazenamento distribuído e serviços em nuvem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um DataFrame Spark representa dados distribuídos com esquema e colunas nomeadas, podendo ser produzido a partir de fontes externas sem constituir, necessariamente, tabela física permanente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. DataFrames são abstrações estruturadas de dados distribuídos e podem representar computações e leituras de fontes distintas. Sua utilização pelo Spark SQL não obriga a materialização de uma tabela relacional persistida.",
+      "section": "4. Hadoop e Spark: processamento massivo e paralelo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um RDD não armazenado em cache, a chamada count() apenas registra transformação preguiçosa, e a execução só começa quando map() for chamado depois.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Count é ação e dispara a computação necessária ao resultado; map é transformação normalmente lazy. A ausência de cache pode fazer com que avaliações futuras recalculem etapas, mas não inverte a classificação dessas operações.",
+      "section": "4. Hadoop e Spark: processamento massivo e paralelo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois eventos com a mesma chave, enviados a uma mesma partição Kafka, podem ser consumidos em sua ordem de registro naquela partição, sem pressupor ordem global entre partições.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Kafka mantém log ordenado por partição; atribuição consistente de chave normalmente direciona eventos da mesma chave à mesma partição, sob configuração estável. Essa garantia local não cria ordem total entre registros de partições diferentes.",
+      "section": "5. Engenharia de dados, streaming, pipelines e arquiteturas de consumo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para evitar releitura, Kafka apaga obrigatoriamente cada evento assim que um membro do primeiro grupo consumidor confirma seu offset, impedindo grupos independentes de consumi-lo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Offsets registram posição de consumo, e a retenção do log segue políticas próprias. Grupos independentes podem consumir eventos retidos em seus ritmos; confirmar offset não representa exclusão obrigatória da mensagem para todos os consumidores.",
+      "section": "5. Engenharia de dados, streaming, pipelines e arquiteturas de consumo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fluxo de tarefas que executa uma ingestão diária, espera validação e só então publica dados pode ser modelado como DAG no Airflow, com dependências e retentativas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Airflow modela tarefas e relações de precedência em DAGs e oferece agendamento, rastreamento de estado e reexecuções configuráveis. Ele orquestra o fluxo, não é por definição o meio de retenção e distribuição contínua de eventos Kafka.",
+      "section": "5. Engenharia de dados, streaming, pipelines e arquiteturas de consumo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura ELT, os dados são obrigatoriamente depurados na origem antes do carregamento, enquanto em ETL ficam brutos até entrar no repositório analítico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O enunciado inverte os conceitos: ETL realiza transformação antes de carregar, enquanto ELT carrega e depois transforma no ambiente de destino. Controles de qualidade podem existir em ambos, mas não alteram a ordem que dá nome ao fluxo.",
+      "section": "5. Engenharia de dados, streaming, pipelines e arquiteturas de consumo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura Kappa pode reaplicar o mesmo processamento de fluxo a eventos antigos, desde que o log conserve o histórico necessário e o sistema controle efeitos de reexecução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Kappa prioriza uma via de processamento de fluxo e pode reconstruir resultados mediante replay de log retido. Isso requer política de retenção, controle de offsets e idempotência quando o destino não tolera efeitos duplicados.",
+      "section": "5. Engenharia de dados, streaming, pipelines e arquiteturas de consumo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Migrar um pipeline para serviços gerenciados e usar Kafka elimina a possibilidade de entrega duplicada em pagamentos, dispensando chaves idempotentes ou reconciliação após falhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Retentativas e semânticas de entrega podem repetir eventos, sobretudo diante de falhas entre processamento e confirmação. Gestão em nuvem não assegura exatamente uma vez de ponta a ponta; idempotência e reconciliação continuam necessárias em operações como pagamentos.",
+      "section": "5. Engenharia de dados, streaming, pipelines e arquiteturas de consumo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "MongoDB Manual — Shard Keys",
+      "publisher": "MongoDB",
+      "reference": "Chaves de fragmentação, escolha e distribuição de coleções",
+      "url": "https://www.mongodb.com/docs/manual/core/sharding-shard-key/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Redis Docs — SET",
+      "publisher": "Redis",
+      "reference": "Comandos SET e GET, EX, PX e expiração de chaves",
+      "url": "https://redis.io/docs/latest/commands/set/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Redis Docs — Persistence",
+      "publisher": "Redis",
+      "reference": "Persistência por RDB e AOF",
+      "url": "https://redis.io/docs/latest/management/persistence/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Cypher Manual — MATCH",
+      "publisher": "Neo4j",
+      "reference": "Padrões de nós e relacionamentos",
+      "url": "https://neo4j.com/docs/cypher-manual/current/clauses/match/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Cassandra — Dynamo architecture",
+      "publisher": "Apache Cassandra",
+      "reference": "Consistência configurável, replicação e quóruns",
+      "url": "https://cassandra.apache.org/doc/stable/cassandra/architecture/dynamo",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Appropriate Uses for SQLite",
+      "publisher": "SQLite",
+      "reference": "Banco embarcado e aplicações locais",
+      "url": "https://www.sqlite.org/whentouse.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Hadoop — HDFS Architecture",
+      "publisher": "Apache Hadoop",
+      "reference": "NameNode, DataNodes, blocos e armazenamento distribuído",
+      "url": "https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Hadoop — YARN",
+      "publisher": "Apache Hadoop",
+      "reference": "Organização do gerenciador de recursos",
+      "url": "https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/YARN.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Hive — Introduction",
+      "publisher": "Apache Hive",
+      "reference": "Consultas analíticas sobre armazenamento distribuído",
+      "url": "https://hive.apache.org/docs/latest/introduction-to-apache-hive/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache HBase Reference Guide",
+      "publisher": "Apache HBase",
+      "reference": "Modelo de chave de linha e famílias de colunas",
+      "url": "https://hbase.apache.org/book.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Spark — RDD Programming Guide",
+      "publisher": "Apache Spark",
+      "reference": "RDD, transformações, ações e execução lazy",
+      "url": "https://spark.apache.org/docs/latest/rdd-programming-guide",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Kafka — Documentation",
+      "publisher": "Apache Kafka",
+      "reference": "Tópicos, partições, consumidores e retenção",
+      "url": "https://kafka.apache.org/documentation/",
+      "accessedAt": "2026-10-10"
+    }
+  ]
+}

@@ -1,0 +1,1808 @@
+{
+  "id": "informatica.php-ajax-xml-jquery",
+  "subject": "Informática",
+  "title": "PHP, Ajax e jQuery",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "PHP, Ajax e jQuery"
+  ],
+  "scope": {
+    "covers": "Fundamentos de PHP, variáveis, tipos, operadores, funções, formulários, sessões, segurança e PDO; Ajax via XMLHttpRequest e Fetch; jQuery, seletores, DOM, eventos e chamadas Ajax; XML, DTD, XSD, namespaces, XPath e XSLT.",
+    "excludes": "Frameworks PHP completos, administração detalhada de servidores, APIs SOAP avançadas e implementação integral de bancos de dados."
+  },
+  "theoryTitle": "PHP, Ajax, XML, XSLT e jQuery: fundamentos, comunicação e transformação",
+  "chapters": [
+    {
+      "title": "1. PHP: sintaxe, tipos, operadores e estruturas de programação",
+      "markdown": "## Execução e sintaxe\n**PHP** é linguagem executada principalmente no servidor. Um script pode gerar HTML, JSON, XML e outros tipos de resposta HTTP. O navegador recebe a resposta, e não o código-fonte PHP interpretado no servidor. O bloco `<?php echo 'Olá'; ?>` emite a string na saída. Instruções são normalmente terminadas por `;`. Comentários são admitidos com `//`, `#` e `/* ... */`. Variáveis são escritas com `$`, como `$nome = 'Ana';`, e seus nomes distinguem maiúsculas de minúsculas: `$nome` e `$Nome` podem conter valores diferentes. O nome começa por letra ou sublinhado e não por algarismo. `echo` emite expressões; `print` também produz saída, mas recebe uma expressão e retorna 1.\n\n### Tipos e comparações\nTipos fundamentais incluem `bool`, `int`, `float`, `string`, `array`, `object` e `null`. PHP admite conversões implícitas conforme operação. **`==` compara igualdade com regras de coerção; `===` compara valor e tipo.** Portanto `5 == '5'` é verdadeiro, mas `5 === '5'` é falso; `!==` verifica desigualdade estrita. As regras de comparação com strings não numéricas mudaram no PHP 8, portanto exemplos históricos devem ser contextualizados pela versão. Para concatenar strings, usa-se o **ponto**: `'A' . 'B'` produz `AB`; `+` representa soma, diferentemente de seu uso informal em outras linguagens. Aspas duplas permitem interpolar variável, como `\"Olá $nome\"`; aspas simples mantêm `$nome` literal. Os operadores `=`, `+=` e `.=` representam atribuição, acúmulo numérico e concatenação com atribuição, respectivamente.\n\n### Condições, laços e coleções\n`if`, `elseif`, `else` e `switch` realizam desvios. `match`, disponível a partir do PHP 8, é expressão com comparação estrita e não possui queda entre ramos como um `switch` sem `break`. `for`, `while`, `do ... while` e `foreach` permitem iteração. O array de PHP é mapa ordenado que associa chaves inteiras ou strings a valores. `$pessoa = ['nome' => 'Lia', 'idade' => 25];` permite `$pessoa['nome']`; `$cores = ['azul', 'verde'];` permite `$cores[0]`. `foreach ($pessoa as $chave => $valor)` obtém chave e valor; sem `=>`, percorre somente valores. Chaves não precisam permanecer sequenciais após exclusões.\n\n| Expressão | Resultado | Razão |\n|---|---|---|\n| `5 == '5'` | verdadeiro | igualdade não estrita |\n| `5 === '5'` | falso | tipos diferentes |\n| `'a' . 'b'` | `ab` | concatenação |\n| `isset($x)` com `$x = null` | falso | nulo não conta como definido |\n| `empty('0')` | verdadeiro | string `'0'` é vazia segundo PHP |\n| `$x ?? 9` com `$x = 0` | `0` | coalescência testa nulo/ausência |\n\n`isset()` é falso para variável inexistente ou nula. Já `empty()` considera falsos, zeros, strings vazias, `'0'`, arrays vazios e valores ausentes. Assim, `$x = 0;` resulta `isset($x)` verdadeiro e `empty($x)` verdadeiro. O operador `??` usa alternativa apenas quando operando anterior é nulo ou não definido; não substitui `0`. `count()` conta elementos de coleção contável e `array_key_exists()` testa existência de chave, inclusive cujo valor é `null`, diferindo de `isset()`.\n\n### Funções, arquivos e escopo\n`function somar(int $a, int $b): int { return $a + $b; }` declara parâmetros e retorno tipados; violações podem provocar `TypeError`, conforme regras de coerção e configuração. Variáveis locais não são automaticamente a mesma variável global. Funções anônimas podem capturar valores com `use`; *arrow functions* capturam variáveis externas por valor. `include` incorpora arquivo e normalmente gera aviso se não o encontrar; `require` é mais restritivo e falha de maneira fatal para o fluxo se arquivo obrigatório estiver ausente. `include_once` e `require_once` evitam inclusões repetidas. Use esses instrumentos para composição, sem transformar dados recebidos da rede em nomes arbitrários de arquivo.\n\n> **Como reconhecer:** antes de calcular uma expressão, identifique delimitador de string, tipo efetivo, operador, escopo da variável e versão do PHP. Um único sinal adicional em `===` altera o critério de comparação."
+    },
+    {
+      "title": "2. PHP para aplicações web: requisições, sessões, persistência e segurança",
+      "markdown": "## Dados HTTP e formulários\nUma requisição web chega ao servidor com método, URL, cabeçalhos e eventualmente corpo. PHP expõe entradas de formulário GET via `$_GET` e POST com codificação apropriada via `$_POST`. `$_SERVER` fornece dados de ambiente e requisição, `$_COOKIE` lê cookies enviados e `$_FILES` oferece metadados de uploads. `$_REQUEST` combina fontes conforme configuração, não sendo alternativa segura quando importa identificar de onde veio cada dado. Para `<form method='post' action='salvar.php'><input name='nome'></form>`, a expressão `$_POST['nome'] ?? ''` obtém valor enviado ou padrão quando ausente. Tratar GET como automaticamente seguro por estar na URL, ou POST como secreto por estar no corpo, é erro: ambos transportam informação não confiável. O servidor deve validar tipo, limites e autorização.\n\nUma requisição cujo corpo é **JSON** com `Content-Type: application/json` não se transforma por padrão em variáveis de formulário `$_POST`. Pode-se ler `file_get_contents('php://input')`, depois `json_decode($corpo, true)` e validar a estrutura. O segundo argumento `true` instrui a produção de arrays associativos para objetos JSON decodificados. `json_encode($valor)` realiza serialização inversa, e erros devem ser tratados. Para responder JSON, `header('Content-Type: application/json; charset=utf-8');` deve ser emitido antes do corpo, e `echo json_encode($dados);` escreve a resposta. `header()` não é meio de gerar conteúdo: prepara cabeçalho HTTP; saída prévia pode impedir sua alteração, dependendo do buffer.\n\n### Sessão, cookie e autenticação\n`session_start()` inicia ou retoma sessão, expondo `$_SESSION` para armazenar informações no lado servidor conforme configuração. O navegador normalmente mantém identificador em cookie. Dados de sessão não são sinônimo de valores diretamente guardados no cookie; o cookie pode carregar apenas a identificação. `setcookie()` envia instrução para o cliente armazenar cookie, com atributos de validade, caminho, domínio, `Secure`, `HttpOnly` e `SameSite` quando aplicáveis. Renovar identificador de sessão após autenticar pode reduzir fixação de sessão; controlar expiração e encerrar sessão também é importante. Sessão autenticada não autoriza operação sobre recurso de outro usuário sem checagem de permissão.\n\n### SQL, escape e proteção de dados\n**PDO** oferece interface para vários bancos mediante driver. `$stmt = $pdo->prepare('SELECT nome FROM clientes WHERE id = :id'); $stmt->execute(['id' => $id]);` separa dados da estrutura do SQL mediante parâmetros vinculados, mitigando injeção de comandos. Marcadores são destinados a **valores de dados**; não substituem nomes arbitrários de tabela ou coluna. Se a ordenação deve variar, o nome de coluna deve vir de lista permitida. Não concatenar texto controlado por terceiro na consulta. Prepared statements não fazem validação de regras de negócio nem substituem permissões.\n\nPara mostrar entrada textual em HTML, `htmlspecialchars($texto, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')` codifica caracteres especiais como `<`, `>`, `&` e aspas conforme flags. Isso combate interpretação de marcação em contexto HTML textual, mas **não equivale a parametrizar SQL** nem garante segurança automática de interpolação em JavaScript ou em URLs. A saída de HTML exige escape no contexto certo. Os campos de formulário podem ter validação do lado cliente por conveniência, porém ela não substitui verificação do servidor. Para senhas, empregue funções próprias de hash e verificação em vez de armazenamento aberto.\n\n| Situação | Técnica indicada | Distinção |\n|---|---|---|\n| Parâmetro GET | `$_GET` e validação | Fonte é a URL |\n| Formulário POST | `$_POST` | Não abrange automaticamente JSON bruto |\n| Requisição JSON | Leitura do corpo + `json_decode` | Exige validar formato e dados |\n| Resposta JSON | `header` + `json_encode` | Tipo HTTP e serialização separados |\n| Consulta SQL | PDO `prepare` + `execute` | Parâmetros representam valores |\n| Texto em HTML | `htmlspecialchars` | Evita interpretar dados como tags |\n| Estado entre requisições | Sessão e cookie de identificação | Cliente não armazena necessariamente a sessão inteira |\n\n### Exemplo integrado\nUm formulário de busca envia identificador a `/consulta.php`. O PHP valida que o identificador é inteiro positivo, verifica autorização, consulta usando `PDO::prepare`, devolve status HTTP coerente e conteúdo JSON. O navegador lê a resposta por Ajax e atualiza um nó textual com o nome encontrado. O controle de erros distingue falta de autorização, registro não encontrado e falha interna. **Ponto central:** PHP processa no servidor; JavaScript manipula a página no navegador. A resposta HTTP faz a ponte e pode ser reutilizada independentemente de jQuery, embora a biblioteca simplifique sua solicitação."
+    },
+    {
+      "title": "3. Ajax e jQuery: comunicação assíncrona, DOM e eventos",
+      "markdown": "## Técnica Ajax e requisições\n**Ajax** significa *Asynchronous JavaScript and XML*, mas é uma técnica de comunicação assíncrona sem obrigação de trafegar XML. JSON é formato muito comum. `XMLHttpRequest` (XHR) oferece interface histórica com estados `readyState`: 0 UNSENT, 1 OPENED, 2 HEADERS_RECEIVED, 3 LOADING e 4 DONE. `readyState === 4` indica conclusão da operação, mas **não garante sucesso HTTP**; verifique `status` (por exemplo, 200, 404 ou 500). `fetch()` retorna uma Promise de `Response`; respostas HTTP com códigos 404 e 500 normalmente **resolvem** a Promise e precisam de inspeção de `response.ok` ou `.status`. Falha de rede é situação distinta, que pode rejeitar a Promise. Para analisar JSON com Fetch, `await response.json()` realiza leitura e parse assíncronos.\n\nA política de **mesma origem** compara esquema, domínio e porta. **CORS** permite ao servidor autorizar determinadas leituras cross-origin; não substitui autenticação. Certas requisições cross-origin requerem preflight com método OPTIONS para verificar autorização prévia do servidor. Enviar header no cliente não autoriza por si só acesso ao recurso. Requisições precisam lidar com latência, falhas e estados de carregamento; como a resposta chega depois, atribuir o resultado a uma variável e tentar utilizá-la imediatamente fora do callback pode produzir estado antigo ou indefinido.\n\n### Seletores e métodos jQuery\n**jQuery** é biblioteca de JavaScript que simplifica manipulação de DOM, eventos, animações e Ajax. `$` é alias frequente de `jQuery`. `$('#nome')` seleciona pelo **ID**, `$('.item')` pela **classe**, e `$('li.ativo')` seleciona elementos `li` com classe `ativo`. O método `.find('span')` procura **descendentes** dos elementos selecionados, não antepassados. Métodos frequentemente retornam objeto jQuery, permitindo encadeamento como `$('#aviso').addClass('ok').text('Salvo')`. `.text()` lê ou define texto literal; `.html()` lê ou define marcação HTML interpretada; `.val()` obtém ou define valor de entrada em formulários. Ao controlar a propriedade dinâmica `checked` de checkbox, `.prop('checked')` é mais adequado que inferir seu estado corrente por atributo inicial de HTML.\n\n| Expressão | Finalidade | Cuidado |\n|---|---|---|\n| `$('#alvo')` | Elemento por ID | Usa cerquilha `#` |\n| `$('.alvo')` | Elementos por classe | Usa ponto `.` |\n| `.text(valor)` | Texto interpretado literalmente | Adequado a dados não confiáveis em nó textual |\n| `.html(valor)` | Markup interpretado | Requer cuidado com XSS |\n| `.val()` | Valor de campo | Não é conteúdo textual de qualquer elemento |\n| `.find('a')` | Links descendentes | Não abrange automaticamente o elemento ancestral |\n| `.on('click', fn)` | Associa manipulador | Sem seletor de delegação, vincula a alvos existentes |\n\n### Eventos delegados e elementos dinâmicos\n`$('.apagar').on('click', function () { ... })` associa o handler aos botões selecionados no momento. Se outro botão `.apagar` for adicionado após a chamada, esse novo elemento não herda automaticamente o handler direto. A forma `$('#lista').on('click', '.apagar', function () { ... })` registra tratador delegado no ancestral `#lista`, reagindo a eventos originados de descendentes que combinem com `.apagar`. O funcionamento depende do evento e da propagação compatível; delegação não é sinônimo de registrar handler sobre cada filho. `.off()` remove handlers conforme os argumentos e permite desfazer inscrições.\n\n### jQuery Ajax\n`$.ajax({ url: '/api/dados.php', method: 'GET', dataType: 'json' })` retorna objeto **jqXHR**, que oferece métodos `.done()`, `.fail()` e `.always()` de Deferred para sucesso, erro e conclusão em qualquer desfecho. `.done(function(data) { ... })` opera depois da resposta interpretada como sucesso. `dataType` declara o **tipo esperado da resposta**; `contentType` diz respeito ao conteúdo **enviado no corpo da requisição**. Em particular, `dataType: 'json'` não instrui envio automático de JSON, mas orienta o tratamento da resposta. Em resposta inválida para JSON esperado, jQuery pode sinalizar erro de parsing. Métodos abreviados como `$.get()` e `$.post()` facilitam chamadas comuns, mantendo regras HTTP subjacentes.\n\n### Segurança e controle da interface\nSuponha resposta `{ nome: '<img src=x onerror=...>' }`. Ao inserir `dados.nome` com `.text()`, os caracteres serão tratados como texto, reduzindo risco de interpretação como HTML executável; inseri-los com `.html()` permitiria processamento de marcação, tornando necessária sanitização adequada. Para pesquisas enquanto se digita, use atraso (*debounce*) e descarte de resultados antigos quando chegarem fora de ordem. Ajax não autoriza burlar políticas CORS nem valida dados no lugar do servidor. **Como reconhecer:** `on('click')` registra evento, `on('click', '.item', fn)` delega; `.find()` navega na árvore; `$.ajax` faz rede; `$.ajax().done()` lida com conclusão assíncrona."
+    },
+    {
+      "title": "4. XML: estrutura, validade, namespaces, XPath e PHP",
+      "markdown": "## Formação de um documento XML\n**XML** é linguagem de marcação extensível para dados estruturados. A especificação **XML 1.0, quinta edição**, exige documento bem formado com **um único elemento raiz**, fechamento compatível e aninhamento correto. Em `<catalogo><livro id='1'>PHP</livro></catalogo>`, catalogo é raiz e livro é elemento filho. Já `<catalogo><livro></catalogo></livro>` falha por fechamento em ordem incorreta. XML distingue maiúsculas e minúsculas: `<Item></item>` não forma par de abertura e fechamento válido. Valores de atributos devem estar entre aspas simples ou duplas; `codigo=2` sem aspas não é permitido. Uma declaração `<?xml version='1.0' encoding='UTF-8'?>` pode identificar versão e codificação; caso presente, deve estar posicionada como prólogo inicial segundo a especificação.\n\nEm texto XML, `&` e `<` não podem ser introduzidos sem escape de maneira indevida. Entidades predefinidas incluem `&amp;`, `&lt;`, `&gt;`, `&quot;` e `&apos;`. CDATA (`<![CDATA[texto <tag> & caracteres]]>`) permite conteúdo literal com sinais especiais, mas não pode conter sequência de término `]]>`. Comentários usam `<!-- comentário -->`; a sequência `--` no interior não é admitida pela gramática. A presença de múltiplos elementos filhos da raiz é permitida; a presença de **duas raízes separadas** não é.\n\n### Bem formado e válido não são sinônimos\nDocumento **bem formado** obedece à sintaxe XML. Documento **válido** obedece às regras de uma gramática aplicável, como DTD (*Document Type Definition*) ou XSD (*XML Schema Definition*). Um arquivo `<pedido><valor>texto</valor></pedido>` é bem formado, mas pode ser inválido se XSD exigir `valor` como `xs:decimal`. DTD dispõe de declarações próprias de conteúdo, atributos e entidades; XSD, escrito em XML, possui ampla variedade de tipos e restrições. Não é obrigatório haver XSD para produzir XML bem formado. XML é estrutura de dados, não especificação completa de aparência visual.\n\n### Namespaces e nomes expandidos\nNamespace XML identifica vocabulário por URI. `xmlns:p='urn:produtos'` associa o prefixo `p`; `<p:item>` pertence ao namespace `urn:produtos`. Prefixo é rótulo local: trocar `p` por `q`, mantendo o mesmo URI, não altera a identidade expandida do elemento. Uma declaração `xmlns='urn:loja'` cria namespace **padrão para elementos não prefixados**, mas **não atribui automaticamente esse namespace aos atributos sem prefixo**. Em `<item xmlns='urn:loja' codigo='1'/>`, o elemento item é qualificado e o atributo codigo continua não qualificado. Usar XPath que ignora a qualificação do elemento pode retornar resultado vazio.\n\n| Pergunta técnica | Ferramenta/conceito | Erro típico |\n|---|---|---|\n| A sintaxe permite parse? | Bem formação | Atributo sem aspas |\n| Segue contrato de tipos? | DTD ou XSD | Confundir formato sintático com validação |\n| Qual vocabulário identifica item? | URI de namespace | Comparar apenas prefixos |\n| Qual elemento selecionar? | XPath | Usar índice baseado em zero |\n| Como manipular nós? | DOM ou SimpleXML | Tratar estrutura como texto simples |\n\n### XPath e leitura com PHP\n**XPath** define expressões de seleção e navegação de nós. Em `<loja><produto preco='10'/><produto preco='20'/></loja>`, `/loja/produto` seleciona dois elementos, `/loja/produto[1]` seleciona o primeiro e `/loja/produto[@preco='20']` localiza o segundo pelo atributo. Os índices posicionais XPath são **baseados em 1**, diferentemente dos índices típicos de arrays PHP e JavaScript. `//produto` procura descendentes apropriados conforme o contexto; `@preco` indica nó atributo. Caminhos iniciados por `/` são absolutos a partir do nó de documento; caminhos relativos dependem do contexto atual.\n\nEm PHP, `simplexml_load_string()` produz representação simplificada de XML; `DOMDocument` representa documento como árvore manipulável; `DOMXPath` oferece consulta XPath sobre DOM. Uma transformação por XSLT pode usar `XSLTProcessor` se a extensão pertinente estiver instalada. Ao processar XML de terceiro, não permita resolução irrestrita de entidades externas; configurações do parser e opções como `LIBXML_NONET` nos casos aplicáveis ajudam a restringir rede, mas tamanho, consumo de memória e expansão de entidades também exigem políticas. **Como resolver:** confirme bem formação antes de questionar validade; depois observe namespace e contexto XPath. Um seletor correto para XML sem namespaces pode falhar em XML qualificado."
+    },
+    {
+      "title": "5. XSLT: regras de transformação e integração entre tecnologias",
+      "markdown": "## XSLT e XPath\n**XSLT** (*Extensible Stylesheet Language Transformations*) é linguagem declarativa para transformar XML em outras estruturas, incluindo XML, HTML e texto. **XPath** expressa seleção de nós e cálculos usados pela transformação; **CSS** modifica apresentação e não possui a mesma finalidade de reconstrução de árvore. A recomendação W3C de **XSLT 1.0** data de **16 de novembro de 1999**; **XSLT 3.0** foi recomendado em **8 de junho de 2017** e tem recursos mais avançados, cuja disponibilidade depende do processador. Não se deve pressupor que o motor do navegador ou uma extensão PHP implemente recursos da versão 3.0 por apenas reconhecer XSLT 1.0.\n\nUma folha XSLT é XML bem formado e pode começar com `<xsl:stylesheet version='1.0' xmlns:xsl='http://www.w3.org/1999/XSL/Transform'>`. O URI do namespace deve ser o apropriado, pois determina que `xsl:template`, `xsl:for-each` e outras tags são instruções XSLT. `xsl:template match='/'` define regra para o **nó de documento**, enquanto `match='livro'` corresponde a elementos livro no contexto de processamento. Uma folha possui regras que casam padrões da árvore fonte e produzem **árvore resultado**; essa árvore não precisa preservar a estrutura original.\n\n### Processamento por templates\n`xsl:apply-templates select='catalogo/livro'` encaminha nós selecionados a regras de template adequadas; `xsl:call-template name='titulo'` invoca um template nomeado. Não confundir aplicação de regras com simples impressão de conteúdo. `xsl:value-of select='titulo'` extrai valor textual de um elemento filho em contexto de um livro; `xsl:copy-of select='titulo'` pode copiar estrutura de nó em vez de apenas texto. Para repetir blocos, `xsl:for-each select='/catalogo/livro'` percorre os nós e constrói partes de saída; `xsl:sort` especifica ordenação de itens processados, sem alterar necessariamente o documento de origem. `xsl:if test='preco > 10'` em contexto de item condiciona conteúdo. Para escolha de múltiplos caminhos, `xsl:choose`, `xsl:when` e `xsl:otherwise` oferecem alternativas; `xsl:if` não possui um `xsl:else` autônomo.\n\n### Caminhos absolutos, relativos e posições\nConsidere `<catalogo><livro id='a'><titulo>Redes</titulo></livro><livro id='b'><titulo>PHP</titulo></livro></catalogo>`. `/catalogo/livro[2]/titulo` aponta ao título `PHP`; `/catalogo/livro[1]/@id` aponta ao valor do atributo `id` do primeiro livro. XPath utiliza posições começando por **1**. No template `match='livro'`, o caminho `titulo` seleciona filho do livro corrente, enquanto caminho absoluto começando com `/` se refere à árvore de origem a partir de sua raiz documental. Para atributos, o prefixo `@` tem significado de eixo de atributos, não é marcador jQuery de classe nem símbolo PHP de supressão de erro.\n\n| Instrução | Função | Diferença crítica |\n|---|---|---|\n| `xsl:template` | Define regra ou template nomeado | `match` determina padrão da fonte |\n| `xsl:apply-templates` | Aplica regras a nós selecionados | Não equivale a imprimir texto |\n| `xsl:value-of` | Insere valor textual | Não copia subárvore como `copy-of` |\n| `xsl:for-each` | Itera sobre nós | Depende de XPath e contexto |\n| `xsl:sort` | Ordena processamento | Não reordena o arquivo-fonte |\n| `xsl:choose` | Seleção condicional | Opera com when/otherwise |\n| `xsl:output` | Configura serialização | HTML de saída não significa aplicação CSS |\n\n`xsl:output method='html'` orienta serialização de resultado em HTML; os métodos clássicos incluem também `xml` e `text`. Uma transformação pode construir uma tabela HTML a partir de registros XML, inclusive alterar nomes de elementos e rearranjar estrutura. Transformação não implica validade XSD: XML pode ser bem formado e não respeitar um esquema. Um processador capaz de ler a folha XSLT não garante que regras de segurança, permissões e limites de recursos estejam satisfeitos. Ao receber XSLT ou XML não confiável, controle leitura de arquivos, rede, funções de extensão e uso de recursos.\n\n### Fluxo integrado com PHP, Ajax e jQuery\nUm serviço PHP pode buscar produtos e produzir XML; um processador XSLT o transforma em HTML; o navegador recebe resultado que pode ser inserido em elemento da página. Em outro desenho, PHP serializa JSON, `$.ajax` requisita dados, e jQuery monta interface com `.text()` para campos recebidos. Esses caminhos não são sinônimos: PHP processa servidor, XML representa dados, XPath seleciona nós, XSLT transforma, Ajax transfere assincronamente e jQuery ajuda a manipular DOM. Escolher `.html()` para conteúdo não confiável introduz risco de XSS; `.text()` evita interpretação de tags naquele ponto. O servidor permanece responsável pela autenticação e autorização, mesmo se a interface for transformada e filtrada no cliente.\n\n### Como o tema costuma ser cobrado\nA prova mistura o número de elementos selecionados por XPath com índices de arrays, atribui a `xsl:value-of` cópia estrutural, troca `match='/'` por correspondência com elemento raiz, ou presume que Ajax exige XML. Também apresenta `dataType` do jQuery como tipo enviado na requisição e `header()` do PHP como impressão do corpo. Para resolver, separe as etapas: **origem PHP**, **formato XML/JSON**, **seleção XPath**, **regra XSLT**, **requisição Ajax** e **manipulação DOM por jQuery**."
+    }
+  ],
+  "summary": "## Síntese técnica\n**PHP:** execução principal no servidor. Variáveis começam por `$` e são sensíveis à caixa. Concatenação usa `.`. `==` admite coerção; `===` exige mesmo tipo. Aspas duplas interpolam variáveis e simples não. Arrays são mapas ordenados; `foreach` percorre elementos. `isset` é falso para nulo ou ausente; `empty` também considera zero, falso e string `'0'`; `??` substitui ausente/nulo, não zero. `include` e `require` diferem no tratamento da ausência de arquivo.\n\n**HTTP/PHP:** `$_GET` consulta parâmetros da URL, `$_POST` contém campos de formulário apropriados, `$_FILES` trata upload e `$_SESSION` mantém dados de sessão após `session_start`. JSON bruto exige leitura de corpo e decodificação; `json_encode` serializa resposta. `header` deve preceder saída do corpo. PDO `prepare` e `execute` vinculam valores, não identificadores SQL. `htmlspecialchars` protege inserção de texto no contexto HTML, mas não substitui prepared statements.\n\n**Ajax:** comunicação assíncrona sem reload completo; JSON pode substituir XML. XHR readyState 4 significa concluído, não sucesso HTTP. `fetch` resolve Promise para Response mesmo em erro HTTP típico 404/500; testar `ok`. CORS depende de permissões comunicadas pelo servidor e não é autenticação.\n\n**jQuery:** `#id` para ID, `.classe` para classe. `.text()` produz texto literal; `.html()` interpreta marcação; `.val()` acessa valores de formulário; `.find()` busca descendentes. `.on('click', fn)` liga elementos selecionados; `.on('click', '.alvo', fn)` em ancestral estável delega para descendentes inseridos depois. `$.ajax` retorna jqXHR com `.done`, `.fail` e `.always`. `dataType` define tipo esperado de resposta; `contentType` refere-se ao corpo enviado.\n\n**XML:** um elemento raiz, aninhamento correto, fechamento e atributos entre aspas. Entidades como `&amp;` e `&lt;`; CDATA não admite o delimitador `]]>` dentro. Bem formado é diferente de válido (DTD/XSD). Namespace é identificado pelo URI; namespace padrão de elemento não qualifica automaticamente atributos sem prefixo. XPath usa posição inicial 1, `@` para atributo, `/` para caminho absoluto.\n\n**XSLT:** transforma árvore XML em XML, HTML ou texto. `xsl:template` define regra; `xsl:apply-templates` despacha nós a regras; `xsl:value-of` emite valor textual; `xsl:copy-of` pode copiar nós; `xsl:for-each` itera e `xsl:sort` ordena processamento. XSLT 1.0 e 3.0 não têm disponibilidade universal idêntica. XSLT não realiza automaticamente validação por esquema.",
+  "flashcards": [
+    {
+      "front": "Onde PHP é normalmente executado?",
+      "back": "No servidor; o navegador recebe o corpo da resposta HTTP produzido."
+    },
+    {
+      "front": "PHP: diferença entre == e ===?",
+      "back": "== admite coerção de valores, enquanto === exige valor e tipo iguais."
+    },
+    {
+      "front": "Qual operador concatena strings em PHP?",
+      "back": "O ponto (`.`), como em `'ab' . 'cd'`."
+    },
+    {
+      "front": "Como se comportam aspas simples em PHP?",
+      "back": "Não interpolam variáveis como as aspas duplas."
+    },
+    {
+      "front": "isset e empty diferem quando variável vale zero?",
+      "back": "Sim: isset(0) é verdadeiro para variável definida; empty(0) é verdadeiro por considerar zero vazio."
+    },
+    {
+      "front": "O que faz o operador ?? em PHP?",
+      "back": "Escolhe alternativa apenas se valor anterior está ausente ou é null; preserva zero."
+    },
+    {
+      "front": "Por que usar prepared statements?",
+      "back": "Para vincular valores como dados e reduzir risco de injeção SQL."
+    },
+    {
+      "front": "htmlspecialchars substitui PDO::prepare?",
+      "back": "Não; trata caracteres especiais em contexto HTML, e não a estrutura de SQL."
+    },
+    {
+      "front": "Como ler JSON bruto recebido em PHP?",
+      "back": "Ler php://input, decodificar com json_decode e validar o resultado."
+    },
+    {
+      "front": "Qual a relação entre sessão e cookie?",
+      "back": "O cookie pode carregar identificador; dados da sessão normalmente permanecem no servidor."
+    },
+    {
+      "front": "XHR readyState 4 garante status 200?",
+      "back": "Não; significa operação finalizada. É necessário conferir status."
+    },
+    {
+      "front": "fetch rejeita Promise em resposta 404?",
+      "back": "Em geral não; é preciso verificar response.ok ou status."
+    },
+    {
+      "front": "O que $.ajax retorna?",
+      "back": "Um objeto jqXHR com métodos como done, fail e always."
+    },
+    {
+      "front": "dataType e contentType são iguais em $.ajax?",
+      "back": "Não; dataType indica formato esperado da resposta e contentType indica formato enviado."
+    },
+    {
+      "front": "Como selecionar um ID por jQuery?",
+      "back": "Usar `$('#identificador')`."
+    },
+    {
+      "front": "Como delegar clique em botões criados depois?",
+      "back": "Usar `.on('click', '.botao', fn)` em ancestral estável."
+    },
+    {
+      "front": "text e html no jQuery diferem em quê?",
+      "back": "text trata string como texto; html interpreta marcação HTML."
+    },
+    {
+      "front": "Qual requisito central de XML bem formado?",
+      "back": "Uma raiz única, fechamento e aninhamento corretos, atributos entre aspas."
+    },
+    {
+      "front": "Bem formado implica válido por XSD?",
+      "back": "Não. Validade exige conformidade ao esquema correspondente."
+    },
+    {
+      "front": "Namespace padrão XML inclui atributos sem prefixo?",
+      "back": "Não; a qualificação padrão se aplica aos elementos não prefixados."
+    },
+    {
+      "front": "Como XPath indexa elementos?",
+      "back": "As posições começam em 1; `[1]` identifica o primeiro."
+    },
+    {
+      "front": "Qual a função de xsl:value-of?",
+      "back": "Inserir o valor textual obtido de uma expressão XPath na árvore de resultado."
+    }
+  ],
+  "tips": [
+    "Em PHP, identifique tipo antes de comparar: `5 == '5'` e `5 === '5'` não têm o mesmo resultado.",
+    "Em formulários, separe entrada URL, entrada POST de formulário e JSON bruto; não suponha preenchimento de `$_POST` para JSON.",
+    "Associe SQL a prepared statements e saída HTML textual a htmlspecialchars; são controles de contextos diferentes.",
+    "Verifique `status` em XHR concluído e `response.ok` em Fetch; término e sucesso são conceitos distintos.",
+    "Use um ancestral estável com `.on(evento, seletor, fn)` se o elemento de destino será criado depois.",
+    "Para XML, resolva primeiro sintaxe, depois validade e namespace; XPath só vem após entender a árvore.",
+    "Em XSLT, `value-of` emite texto e `copy-of` preserva estrutura de nós; confira o contexto XPath."
+  ],
+  "traps": [
+    "A prova afirma que o operador + concatena strings PHP como em JavaScript. Errado: a concatenação de PHP usa ponto.",
+    "A prova conclui que variável zero é indefinida porque empty retorna verdadeiro. Errado: isset distingue definição de conceito de vazio.",
+    "A prova diz que prepared statement protege automaticamente a escolha dinâmica do nome de uma tabela. Errado: placeholders vinculam valores, não identificadores.",
+    "A prova declara que HTTP 404 rejeita automaticamente Fetch. Errado: a Promise pode resolver com Response cujo ok é falso.",
+    "A prova afirma que $.ajax com dataType json envia JSON no corpo. Errado: dataType descreve resposta esperada, diferente de contentType.",
+    "A prova afirma que handler direto do jQuery é herdado por elemento criado no futuro. Errado: é necessária nova inscrição ou delegação no ancestral.",
+    "A prova considera duas raízes um XML bem formado ou trata XML bem formado como necessariamente válido por XSD. Ambas as inferências estão erradas.",
+    "A prova seleciona primeiro elemento com XPath `[0]`. Errado: a posição em XPath começa em `[1]`."
+  ],
+  "activeRecall": [
+    {
+      "question": "Que resultado produzem `5 == '5'` e `5 === '5'` em PHP?",
+      "answer": "A primeira comparação é verdadeira; a segunda é falsa pela diferença de tipos."
+    },
+    {
+      "question": "Que diferença há entre `isset` e `empty` para zero?",
+      "answer": "Variável definida com 0 satisfaz isset e ao mesmo tempo é considerada vazia por empty."
+    },
+    {
+      "question": "Como PHP deve consumir JSON bruto e preparar resposta JSON?",
+      "answer": "Ler php://input, aplicar json_decode e validar; responder com content-type apropriado e json_encode."
+    },
+    {
+      "question": "Por que htmlspecialchars não impede SQL injection?",
+      "answer": "Ele trata escape HTML; contra injeção SQL use prepared statements com parâmetros de dados."
+    },
+    {
+      "question": "Como detectar sucesso com XMLHttpRequest e Fetch?",
+      "answer": "XHR exige readyState concluído e status adequado; Fetch exige verificar response.ok ou status após a Promise resolver."
+    },
+    {
+      "question": "Qual diferença entre inscrição direta e delegada de eventos jQuery?",
+      "answer": "Direta registra nos nós presentes; delegada usa ancestral estável para eventos de descendentes que correspondam ao seletor."
+    },
+    {
+      "question": "Quando XML é bem formado e quando é válido?",
+      "answer": "Bem formado obedece sintaxe; válido obedece a gramática DTD/XSD escolhida."
+    },
+    {
+      "question": "Como se diferenciam XPath, XSLT e XML?",
+      "answer": "XML representa a estrutura, XPath seleciona nós e XSLT transforma a árvore com regras e instruções."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Comparações e estado em PHP",
+      "summary": "Comparação estrita preserva tipos; zero difere de ausência; concatenação usa ponto e os escopos importam."
+    },
+    {
+      "key": "e2",
+      "title": "Entrada, saída e segurança PHP",
+      "summary": "JSON bruto não preenche automaticamente $_POST; PDO parametriza valores; escape HTML e validação SQL não são intercambiáveis."
+    },
+    {
+      "key": "e3",
+      "title": "Ajax: conclusão, status e formatos",
+      "summary": "Requisição assíncrona conclui independentemente de sucesso; HTTP 404 pode resolver fetch; dataType jQuery representa resposta."
+    },
+    {
+      "key": "e4",
+      "title": "jQuery: seleção, eventos e conteúdo",
+      "summary": "Seletores usam # e ponto; eventos diretos não cobrem automaticamente futuros nós; text difere de html e val."
+    },
+    {
+      "key": "e5",
+      "title": "XML, XPath e transformação XSLT",
+      "summary": "XML bem formado pode ser inválido; namespace depende do URI; XPath começa em 1; XSLT transforma sem validar automaticamente."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um arquivo PHP declara `$preco = 8;` e depois executa `echo $preco;`. Onde ocorre a interpretação da instrução PHP numa aplicação web tradicional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "No servidor, que devolve ao navegador o conteúdo já processado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "No navegador, após baixar o código PHP como parte do documento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "No mecanismo CSS, que converte a variável PHP em estilo visual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Na biblioteca jQuery, que executa o código antes de iniciar Ajax.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "No parser XML, que transforma a declaração em uma árvore DOM.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. PHP é interpretado no servidor e produz a resposta enviada. B confunde PHP com JavaScript do cliente; C atribui execução à linguagem de estilos; D usa jQuery como interpretador PHP; E mistura parser XML com processamento de código servidor.",
+      "section": "1. PHP: sintaxe, tipos, operadores e estruturas de programação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script PHP compara o número inteiro 7 com a string numérica '7', primeiro com `==` e depois com `===`. Qual sequência de resultados está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Falso e verdadeiro, pois === converte os tipos antes de comparar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verdadeiro e falso, pela coerção na primeira e diferença de tipo na segunda.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Verdadeiro e verdadeiro, pois ambas as operações usam apenas igualdade de valor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Falso e falso, porque PHP não compara strings com números.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Erro de execução nas duas, porque tipos distintos são incompatíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Em PHP, `7 == '7'` é verdadeiro e `7 === '7'` é falso, já que o segundo exige mesmo tipo. A inverte os critérios; C ignora tipo na comparação estrita; D nega coerção permitida; E transforma comparação legítima em erro.",
+      "section": "1. PHP: sintaxe, tipos, operadores e estruturas de programação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma página HTML envia `<form method='post'>` com um campo `name='email'`. Qual superglobal PHP recebe esse valor em uma submissão usual codificada como formulário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`$_GET['email']`, que recebe todo campo com atributo name.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`$_SERVER['email']`, que guarda todos os campos do corpo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`$_POST['email']`, que lê o campo submetido por POST de formulário.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`$_COOKIE['email']`, que recebe automaticamente cada entrada HTML do formulário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`$_SESSION['email']`, que sincroniza diretamente o formulário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Campos de formulário POST com codificação suportada ficam acessíveis por `$_POST`. A corresponde a parâmetros GET; B descreve incorretamente informações de servidor; D se refere a cookies enviados; E conserva dados de sessão e não recebe campos automaticamente.",
+      "section": "2. PHP para aplicações web: requisições, sessões, persistência e segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor usa `$('#mensagem').text('Pronto')` em página com jQuery. O que identifica a expressão inicial `#mensagem`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma classe CSS chamada mensagem, compartilhada por diversos nós.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um elemento de tag mensagem, independentemente dos atributos HTML.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todos os elementos filhos de uma seção de classe mensagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um seletor por atributo ID cujo valor é mensagem.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma variável PHP denominada mensagem no lado servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Em sintaxe de seletor CSS usada no jQuery, `#mensagem` identifica o ID mensagem. A exigiria `.mensagem`; B empregaria apenas `mensagem`; C precisaria de seletor descendente; E confunde seleção de DOM do navegador com variável `$mensagem` de PHP.",
+      "section": "3. Ajax e jQuery: comunicação assíncrona, DOM e eventos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um documento XML contém um elemento `raiz` que abre, mas é fechado com `</outro>`. Qual avaliação é correta à luz da especificação XML?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É bem formado, porque XML tolera nomes diferentes no fechamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É válido por DTD, desde que ambos os elementos tenham conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É bem formado, mas dependerá de XSD para decidir se é válido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É aceito por XPath, pois seleção independe do fechamento de tags.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não é bem formado, pois a tag final não corresponde à abertura.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. XML exige que cada elemento seja fechado com o mesmo nome e aninhamento correto. A dispensa regra central; B introduz DTD antes da sintaxe; C presume bem formação inexistente; D trata XPath como parser que repararia documento malformado.",
+      "section": "4. XML: estrutura, validade, namespaces, XPath e PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transformação XSLT deve copiar para a saída o valor textual do elemento `titulo` selecionado por XPath. Qual instrução corresponde a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`xsl:value-of`, com atributo select para indicar o nó procurado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`xsl:sort`, com select para emitir texto já ordenado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`xsl:output`, com match para encontrar o título de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`xsl:template`, com method para imprimir apenas caracteres.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`xsl:apply-templates`, que transforma toda seleção diretamente em string.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. `xsl:value-of select='titulo'` insere o valor textual selecionado no resultado. B ordena nós ou itens; C configura saída, sem buscar valor; D define regra e não a impressão textual por si; E despacha nós para templates, não equivale a emitir só seu texto.",
+      "section": "5. XSLT: regras de transformação e integração entre tecnologias",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina JavaScript recebe resposta HTTP 404 ao executar fetch, embora a conexão tenha funcionado. Como o código deve determinar que não houve êxito HTTP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aguardar rejeição obrigatória da Promise por qualquer resposta 4xx.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Inspecionar `response.ok` ou `response.status` no objeto Response.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Verificar `readyState` igual a 1 na Promise retornada por Fetch.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Assumir código 200, pois o navegador adapta respostas 404.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar `json_encode` para converter o status de rede em erro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Fetch normalmente resolve com `Response` mesmo em HTTP 404; verificar `ok` e `status` detecta a condição. A confunde falha HTTP com rejeição de rede; C importa estado de XHR; D inventa conversão de status; E atribui a PHP uma verificação cliente inadequada.",
+      "section": "3. Ajax e jQuery: comunicação assíncrona, DOM e eventos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo PHP precisa consultar usuário por identificador informado em formulário. Qual abordagem reduz risco de injeção SQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concatenar o identificador à consulta, depois codificá-lo como HTML.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter a consulta completa com json_encode antes de enviá-la.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Preparar SQL por PDO e vincular o identificador como valor de parâmetro.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executar SQL dentro de callback de jQuery para ocultar a consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Colocar o identificador em cookie sem validar a autorização.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. PDO::prepare e execute com parâmetros separam valores da sintaxe SQL. A aplica escape HTML ao contexto errado; B serializa sem proteger consulta; D moveria SQL indevidamente ao navegador; E mantém dado controlado pelo cliente e não evita injeção nem acesso indevido.",
+      "section": "2. PHP para aplicações web: requisições, sessões, persistência e segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma folha XSLT seleciona os elementos `<livro>` de um catálogo por `/catalogo/livro[1]`. Qual é o elemento escolhido em XPath?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O segundo livro, porque os índices XML começam em zero.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O último livro, porque colchetes representam reversão de ordem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todos os livros, pois o predicado não limita o conjunto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O primeiro livro, porque a posição XPath começa em um.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Nenhum livro, pois o índice inicial de XPath é zero.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Em XPath, os predicados posicionais iniciam em 1; `/catalogo/livro[1]` busca o primeiro. A confunde com arrays PHP/JavaScript; B não é semântica de posição; C ignora filtro; E aplica incorretamente índice zero à linguagem XPath.",
+      "section": "5. XSLT: regras de transformação e integração entre tecnologias",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O código PHP define `$quantidade = 0;` e executa `echo $quantidade ?? 10;`. O que será exibido, considerando a regra da coalescência nula?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dez, porque o PHP considera qualquer zero um valor nulo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dez, porque o operador usa o resultado de empty em toda expressão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma string vazia, porque o valor zero é descartado durante a saída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma exceção, porque operadores de coalescência exigem strings.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Zero, pois `??` preserva valores definidos que não sejam nulos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A coalescência nula recorre ao padrão em valor indefinido ou null, mas `$quantidade` está definida com 0. A e B confundem null com falsy/empty; C supõe descarte de saída; D inventa restrição de tipos que o operador não possui.",
+      "section": "1. PHP: sintaxe, tipos, operadores e estruturas de programação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa PHP recebe `Content-Type: application/json` com corpo `{ 'nome': 'Bia' }` após ajuste para sintaxe JSON válida. Qual estratégia deve empregar para obter os campos, sem pressupor envio de formulário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ler `php://input` e aplicar `json_decode`, verificando sucesso e tipos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ler `$_POST`, que o PHP sempre preenche com todo conteúdo JSON.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ler `$_COOKIE`, cujo conteúdo replica o corpo de requisições HTTP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ler `$_FILES`, porque qualquer JSON é tratado como arquivo enviado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ler `$_SESSION`, que transforma automaticamente o JSON recebido em array.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Corpo JSON bruto deve ser obtido por entrada da requisição, como `php://input`, e convertido por `json_decode` com validação. B aplica regra de formulário a JSON; C confunde cookies; D confunde upload multipart; E transfere indevidamente dados de requisição à sessão.",
+      "section": "2. PHP para aplicações web: requisições, sessões, persistência e segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em `$.ajax({ url: '/itens', method: 'GET', dataType: 'json' })`, o desenvolvedor deseja compreender o significado de `dataType`. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Define que todo GET deve enviar um objeto JSON no corpo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Indica o formato esperado da resposta e sua interpretação pela biblioteca.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Converte o método GET em POST quando a resposta é JSON.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Configura o tipo de banco de dados utilizado no servidor remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Determina o cabeçalho da requisição com corpo enviado pelo cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. `dataType` em jQuery.ajax orienta a interpretação esperada da resposta, distinta de `contentType`, que descreve o tipo de conteúdo enviado. A e E trocam entrada e saída; C altera indevidamente semântica do método; D confunde dados de rede com tecnologia de armazenamento.",
+      "section": "3. Ajax e jQuery: comunicação assíncrona, DOM e eventos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lista jQuery recebe novos botões `.remover` depois de a página carregar. Qual inscrição permite responder aos cliques nesses elementos futuros sem vincular novamente cada botão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`$('.remover').on('click', fn)` executado apenas na inicialização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`$('.remover').off('click')` executado depois da inserção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`$('#lista').on('click', '.remover', fn)` em ancestral estável.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`$('#lista').find('.remover').click(fn)` apenas na inicialização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`$('.remover').val(fn)` chamado antes de criar os botões.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Eventos delegados com `.on(evento, seletor, handler)` em ancestral estável alcançam descendentes criados futuramente. A e D prendem handlers aos elementos existentes; B remove handlers; E confunde valor de campo com registro de eventos.",
+      "section": "3. Ajax e jQuery: comunicação assíncrona, DOM e eventos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O XML `<pedido><valor>abc</valor></pedido>` possui raiz única e tags corretas, mas um XSD exige `valor` do tipo decimal. Qual conclusão descreve a situação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O XML é malformado, porque XML não pode representar texto entre tags.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O XML é válido, porque XSD examina apenas a presença de fechamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O XML é malformado, mas automaticamente corrigido antes da validação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O XML é bem formado, porém inválido frente ao XSD descrito.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O XML é válido se XPath conseguir selecionar o elemento valor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A sintaxe é bem formada, mas o texto abc não satisfaz restrição decimal do XSD, logo falha na validação. A confunde conteúdo textual com erro de sintaxe; B ignora tipagem; C supõe correção automática; E transforma seleção XPath em prova de validade por esquema.",
+      "section": "4. XML: estrutura, validade, namespaces, XPath e PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo XML usa `<item xmlns='urn:loja' codigo='4'/>`. Como a regra de namespace padrão se aplica aos dois nomes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O elemento e o atributo recebem automaticamente o mesmo namespace padrão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Nem o elemento nem o atributo recebem namespace sem prefixo explícito.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O atributo recebe o namespace, mas o elemento permanece sem qualificação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O atributo herda o namespace de XSD, independentemente da declaração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O elemento está no namespace padrão; o atributo sem prefixo permanece fora.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A recomendação Namespaces in XML estabelece que namespace padrão alcança elementos sem prefixo, não atributos sem prefixo. A estende escopo indevidamente; B ignora declaração default; C inverte qualificação; D atribui a XSD mecanismo não presente no exemplo.",
+      "section": "4. XML: estrutura, validade, namespaces, XPath e PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transformação XSLT dispõe de um template específico para o elemento `produto`. Qual instrução costuma selecionar filhos e permitir que regras apropriadas sejam acionadas para cada um?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`xsl:apply-templates`, com seleção dos nós que receberão regras de template.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`xsl:output`, para trocar a seleção pela serialização dos elementos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`xsl:sort`, que chama templates sem depender de contexto ou seleção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`xsl:value-of`, que aplica templates individuais a cada nó de origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`xsl:param`, que percorre automaticamente todos os elementos filhos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. `xsl:apply-templates` aplica regras de template aos nós selecionados por XPath. B define o formato de saída; C ordena seleção existente; D emite valor textual sem despachar templates; E declara parâmetro, não implementa iteração nem acionamento de regras.",
+      "section": "5. XSLT: regras de transformação e integração entre tecnologias",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script PHP imprime o nome fornecido em formulário dentro de um parágrafo HTML. Qual procedimento atende especificamente ao risco de interpretar esse nome como marcação executável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar `PDO::prepare` sobre o nome antes de inserir no elemento HTML.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar `htmlspecialchars` com codificação e flags apropriadas ao contexto.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aplicar `json_decode` ao nome, ainda que ele seja texto puro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar `session_start` antes de concatenar o conteúdo no parágrafo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar `array_key_exists` para converter sinais especiais em entidades.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. `htmlspecialchars` transforma caracteres especiais em entidades apropriadas ao conteúdo HTML textual. A é proteção voltada a SQL; C faz parsing de JSON; D inicia sessão; E testa presença de chaves de array e não escapa HTML.",
+      "section": "2. PHP para aplicações web: requisições, sessões, persistência e segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PHP, `$x = null; $y = 0;`. Uma rotina verifica `isset($x)`, `isset($y)`, `empty($y)` e `$y ?? 9`. Qual sequência está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verdadeiro, verdadeiro, falso e nove, porque null é valor declarado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Falso, falso, verdadeiro e nove, porque zero equivale a variável ausente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Falso, verdadeiro, verdadeiro e zero, pela distinção entre null e vazio.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Verdadeiro, falso, verdadeiro e zero, pois isset reconhece apenas null.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Falso, verdadeiro, falso e nove, porque coalescência usa empty.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. `isset($x)` é falso por null; `isset($y)` é verdadeiro porque 0 está definido; `empty($y)` é verdadeiro; `$y ?? 9` conserva 0. A aceita null e nega vazio de zero; B trata zero como ausente; D inverte isset; E aplica incorretamente o critério de empty ao operador ?? .",
+      "section": "1. PHP: sintaxe, tipos, operadores e estruturas de programação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema PHP monta consulta `ORDER BY` com nome de coluna fornecido pelo usuário. A equipe pretende colocar esse nome no marcador `:coluna` de PDO::prepare. Qual correção é necessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O marcador aceita nome de coluna e valores sem diferença de semântica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O escape HTML torna qualquer identificador de coluna confiável para SQL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A função json_encode transforma identificador de coluna em parâmetro SQL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Selecionar nome de coluna por lista permitida; parâmetros PDO vinculam valores.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substituir a cláusula ORDER BY por uma variável de sessão sem validação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Marcadores de prepared statement são para valores, não para palavras-chave e identificadores SQL; escolha nomes permitidos e construa o identificador controladamente. A confunde sintaxe e dados; B é escape HTML; C só serializa JSON; E transfere fonte, mas não elimina escolha de identificador não confiável.",
+      "section": "2. PHP para aplicações web: requisições, sessões, persistência e segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em jQuery, `$.ajax({ url:'/api', dataType:'json' }).done(fn).fail(err)`. O servidor devolve HTTP 200 com texto que não é JSON válido. Qual cenário é compatível com a API?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A função done recebe texto bruto, porque status 200 dispensa interpretação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O campo dataType força o servidor a corrigir o JSON antes de responder.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O erro de parsing altera a requisição original para método POST.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O objeto jqXHR dispara always, mas impede fail em status de sucesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A biblioteca pode acionar fail com parsererror, embora o HTTP seja 200.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. dataType json exige conversão válida; um corpo inválido pode causar falha de parsing (`parsererror`) e rejeitar o Deferred. A ignora parser; B inventa correção no servidor; C troca método sem causa; D presume que status HTTP basta mesmo diante de erro de interpretação.",
+      "section": "3. Ajax e jQuery: comunicação assíncrona, DOM e eventos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script jQuery recebe de terceiros a string `<img src=x onerror=...>` e precisa exibi-la literalmente como informação textual em um parágrafo. Qual escolha evita que a string seja interpretada como HTML naquele ponto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`$('#saida').text(valor)`, pois insere texto em vez de interpretar marcação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`$('#saida').html(valor)`, pois executa escape automático das tags recebidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`$('#saida').append(valor)`, pois toda string anexada vira texto literal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`$('#saida').load(valor)`, pois transforma a string em conteúdo inofensivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`$('#saida').prop('innerHTML', valor)`, pois propriedades não interpretam HTML.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. `.text(valor)` define conteúdo textual sem interpretação como tags. B usa `.html()` que interpreta marcação; C ao anexar string HTML pode criar nós; D é API de carregamento remoto de HTML; E manipula diretamente a propriedade HTML interpretável.",
+      "section": "3. Ajax e jQuery: comunicação assíncrona, DOM e eventos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O XML possui `<p:item xmlns:p='urn:loja'/>` e outro documento possui `<q:item xmlns:q='urn:loja'/>`. Para fins de nomes expandidos, como esses elementos se relacionam?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "São diferentes, pois o prefixo escrito faz parte permanente do URI.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pertencem ao mesmo namespace e têm o mesmo nome local item.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "São diferentes, pois cada prefixo define um tipo XSD distinto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ambos ficam sem namespace, pois apenas xmlns padrão qualifica elementos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "São equivalentes apenas se o atributo de cada item for idêntico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. A identidade expandida usa URI de namespace e nome local; prefixos p e q são apelidos diferentes para urn:loja. A toma prefixo como identificador definitivo; C confunde prefixo e tipos XSD; D nega namespace prefixado; E introduz atributos que não definem identidade do nome.",
+      "section": "4. XML: estrutura, validade, namespaces, XPath e PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um XSLT 1.0, o contexto atual é um elemento `<livro>` contendo `<titulo>Algoritmos</titulo>`. Qual diferença entre `xsl:value-of select='titulo'` e `xsl:copy-of select='titulo'` é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos retornam cópias completas de `<titulo>` e dos respectivos atributos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "value-of cria nova tag titulo, e copy-of emite somente seus caracteres.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "value-of emite valor textual; copy-of pode preservar o nó e sua estrutura.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "value-of ordena o título; copy-of chama outro template selecionado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ambos são métodos de XPath para modificar diretamente a árvore original.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Em XSLT, value-of produz valor textual e copy-of copia nós selecionados para a árvore de resultado. A considera ambos cópias estruturais; B inverte papéis; D atribui sorting e despacho de templates; E confunde instruções XSLT com métodos de alteração da fonte.",
+      "section": "5. XSLT: regras de transformação e integração entre tecnologias",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação realiza pesquisa no navegador para servidor de origem diferente; a requisição requer preflight CORS e o servidor não fornece autorização de origem adequada. Qual é o comportamento esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O navegador aceita a resposta porque GET e POST dispensam CORS em qualquer caso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O cabeçalho enviado pelo cliente substitui a decisão do servidor remoto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O PHP deve definir um cookie local para desabilitar a proteção de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O navegador pode bloquear a requisição efetiva ou o acesso à resposta conforme CORS.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O jQuery transforma a chamada em consulta de origem local automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Na política CORS, autorização pertinente é informada pelo servidor; preflight malsucedido impede prosseguimento da requisição que o exige. A ignora condições de preflight; B dá ao cliente poder que não possui; C confunde cookies e política de origem; E atribui à biblioteca alteração inexistente de origem.",
+      "section": "3. Ajax e jQuery: comunicação assíncrona, DOM e eventos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma folha XSLT 1.0 define template `match='/'` e outra regra `match='livro'`. O primeiro corresponde a qual nó quando a transformação começa sobre documento XML completo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ao primeiro elemento livro, independentemente da árvore documental.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ao elemento raiz XML em si, sem considerar o nó de documento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A todos os atributos de todos os elementos disponíveis na fonte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente aos nós de texto diretamente filhos dos elementos livro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ao nó de documento, a partir do qual podem ser processados elementos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Em XSLT 1.0, o padrão `/` casa com o nó raiz/documento do modelo XPath; o elemento raiz é seu filho. A corresponde a padrão/seleção diferente; B confunde documento com elemento; C aborda atributos; D restringe indevidamente a textos de livro.",
+      "section": "5. XSLT: regras de transformação e integração entre tecnologias",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script PHP contém `$cor = 'azul';` e `$Cor = 'verde';`. Ao executar `echo $cor;`, a saída será azul, pois os nomes das variáveis diferem pela caixa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação PHP afirma que nomes de variáveis distinguem maiúsculas e minúsculas. `$cor` e `$Cor` identificam variáveis diferentes no exemplo, portanto o echo da primeira não lê o valor atribuído à segunda.",
+      "section": "1. PHP: sintaxe, tipos, operadores e estruturas de programação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PHP, a expressão `'Ana' + 'Silva'` é a forma prevista para concatenar os dois textos e produzir diretamente `AnaSilva`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O PHP emprega ponto (`.`) para concatenar strings, como `'Ana' . 'Silva'`. O operador `+` pertence a operações numéricas, e strings não numéricas podem gerar erro nas versões atuais, não concatenação de nomes.",
+      "section": "1. PHP: sintaxe, tipos, operadores e estruturas de programação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma requisição enviada por formulário HTML com method GET pode disponibilizar o valor de um campo `busca` na superglobal PHP `$_GET['busca']`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `$_GET` reúne parâmetros da string de consulta da URL, como os produzidos por formulário de método GET. Ainda assim, o valor é controlável por quem realiza a requisição e deve ser validado antes de consultar dados ou compor saída.",
+      "section": "2. PHP para aplicações web: requisições, sessões, persistência e segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando um objeto XMLHttpRequest alcança readyState 4, o protocolo garante que o servidor devolveu HTTP 200 e conteúdo válido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. ReadyState 4 indica que a operação XHR chegou ao estado DONE, não que o status HTTP seja de sucesso ou que o corpo corresponda ao formato esperado. É necessário examinar status e validar conteúdo recebido.",
+      "section": "3. Ajax e jQuery: comunicação assíncrona, DOM e eventos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A expressão jQuery `$('.ativo')` seleciona elementos identificados pela classe CSS `ativo`, enquanto `$('#ativo')` utiliza o atributo ID.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Seletores CSS interpretados pelo jQuery utilizam ponto para classe e cerquilha para ID. A distinção é importante em páginas que possuem muitos itens da mesma classe e um campo com identificador único.",
+      "section": "3. Ajax e jQuery: comunicação assíncrona, DOM e eventos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um documento XML com dois elementos superiores independentes, `<a></a><b></b>`, está bem formado porque cada tag foi individualmente fechada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. XML exige que o documento tenha exatamente um elemento raiz. Os dois elementos independentes produzem dois candidatos a raiz; fechar corretamente cada um não supre a exigência de um único elemento principal.",
+      "section": "4. XML: estrutura, validade, namespaces, XPath e PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável PHP definida com zero pode fazer `isset($valor)` e `empty($valor)` retornarem ambos verdadeiro, pois cada construção testa uma propriedade diferente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `isset` detecta definição com valor diferente de null, enquanto `empty` classifica zero como vazio. A variável `$valor = 0` satisfaz ambos os testes, o que impede usar empty como sinônimo de ausência de campo obrigatório.",
+      "section": "1. PHP: sintaxe, tipos, operadores e estruturas de programação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao receber um corpo JSON com Content-Type application/json, o PHP converte automaticamente seus campos em `$_POST`, da mesma maneira que um formulário URL-encoded.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O PHP normalmente preenche `$_POST` para codificações de formulário suportadas, não para corpo JSON arbitrário. Para JSON bruto, o processamento costuma ler `php://input`, executar `json_decode` e validar a estrutura resultante.",
+      "section": "2. PHP para aplicações web: requisições, sessões, persistência e segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A instrução `$.ajax({url:'/dados', dataType:'json'})` informa à biblioteca o tipo esperado de dados na resposta e não implica, por si só, envio de corpo JSON.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Na documentação jQuery.ajax, `dataType` orienta como a resposta é interpretada, enquanto `contentType` refere-se ao corpo enviado. Uma requisição GET pode esperar JSON sem remeter documento JSON no corpo.",
+      "section": "3. Ajax e jQuery: comunicação assíncrona, DOM e eventos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um evento de clique registrado com `$('.botao').on('click', fn)` na carga inicial da página é automaticamente associado a todos os novos botões `.botao` adicionados depois, sem qualquer delegação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Registro direto pelo `.on()` associa handlers aos elementos selecionados naquele momento. Para nós adicionados posteriormente, pode-se registrar novamente ou usar delegação a partir de ancestral estável com seletor de descendentes.",
+      "section": "3. Ajax e jQuery: comunicação assíncrona, DOM e eventos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No XPath 1.0, `/loja/produto[1]` identifica o primeiro elemento produto filho de loja no contexto apropriado, pois a posição é contada a partir de 1.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Predicados posicionais de XPath começam em 1, ao contrário dos índices iniciais típicos de arrays JavaScript e PHP. O caminho indicado seleciona o primeiro produto filho no contexto de loja, não o segundo ou uma coleção completa.",
+      "section": "4. XML: estrutura, validade, namespaces, XPath e PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um XML bem formado que contém `<valor>abc</valor>` é necessariamente válido perante qualquer XSD, desde que tags e atributos estejam sintaticamente corretos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A boa formação trata de requisitos sintáticos; a validade XSD trata de elementos, ordem, tipos e restrições específicos. Se o esquema declara valor como decimal, o conteúdo abc viola o esquema mesmo com a estrutura XML sintaticamente correta.",
+      "section": "4. XML: estrutura, validade, namespaces, XPath e PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma transformação XSLT, a instrução `xsl:for-each` pode percorrer nós selecionados por uma expressão XPath e produzir conteúdo de saída para cada item.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `xsl:for-each` avalia uma seleção e executa seu conteúdo no contexto dos nós selecionados, podendo construir fragmentos repetidos. `xsl:sort` é utilizado para ordenar quando pertinente, sem reescrever necessariamente o arquivo XML original.",
+      "section": "5. XSLT: regras de transformação e integração entre tecnologias",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um prepared statement PDO com marcador `:ordem` pode vincular de forma segura qualquer nome de coluna indicado pela pessoa usuária para substituir diretamente um identificador em ORDER BY.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os marcadores de PDO destinam-se à vinculação de valores, e não ao fornecimento de identificadores SQL ou palavras-chave. Um nome de coluna usado em ORDER BY deve ser escolhido de uma lista permitida antes de compor a estrutura da consulta.",
+      "section": "2. PHP para aplicações web: requisições, sessões, persistência e segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta HTTP 200 com corpo incompatível com JSON pode levar o jqXHR de `$.ajax({dataType:'json'})` ao caminho de falha devido a erro de parsing.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. jQuery tenta interpretar o corpo de acordo com dataType; JSON inválido pode produzir parsererror e acionar handler `.fail()`. O status 200 informa êxito de transporte HTTP, mas não garante que o conteúdo atenda ao formato esperado pelo cliente.",
+      "section": "3. Ajax e jQuery: comunicação assíncrona, DOM e eventos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em XML com namespace padrão declarado por `xmlns='urn:itens'`, tanto os elementos não prefixados quanto os atributos não prefixados pertencem automaticamente ao namespace urn:itens.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A recomendação Namespaces in XML define que o namespace padrão qualifica nomes de elementos sem prefixo, mas não nomes de atributos sem prefixo. Atributos não prefixados permanecem sem namespace, salvo regras de contexto que não alteram esse fato.",
+      "section": "4. XML: estrutura, validade, namespaces, XPath e PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas etiquetas XML com prefixos diferentes, mas associadas ao mesmo URI de namespace e com o mesmo nome local, possuem o mesmo nome expandido, apesar da grafia distinta dos prefixos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O nome expandido XML resulta da associação entre URI de namespace e nome local. Prefixos como p e q são apelidos textuais locais, não a identidade definitiva do vocabulário; assim ambos podem designar o mesmo elemento qualificado.",
+      "section": "4. XML: estrutura, validade, namespaces, XPath e PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando XSLT executa `xsl:value-of select='titulo'`, o elemento titulo e todos os seus atributos são copiados integralmente para a árvore de resultado, da mesma forma que `xsl:copy-of`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `xsl:value-of` insere valor textual calculado a partir de XPath; não preserva por si o elemento original e seus atributos. `xsl:copy-of` pode copiar nós selecionados, sendo instrução distinta em estrutura e efeitos da transformação.",
+      "section": "5. XSLT: regras de transformação e integração entre tecnologias",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma folha XSLT 1.0 aplicada a documento XML completo, o padrão `match='/'` corresponde ao nó de documento, enquanto uma regra como `match='livro'` corresponde a elementos livro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A semântica XPath usada por XSLT diferencia nó de documento e elemento raiz: `/` casa o nó documental, e `livro` casa elementos desse nome quando selecionados. A distinção determina qual regra inicial monta a estrutura da saída.",
+      "section": "5. XSLT: regras de transformação e integração entre tecnologias",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um servidor remoto exige preflight CORS, um script jQuery pode contornar autorização negativa do servidor enviando no cliente seu próprio cabeçalho Access-Control-Allow-Origin.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. CORS é política aplicada pelo navegador conforme cabeçalhos de resposta do servidor de destino. Um cabeçalho inventado pelo cliente não concede autorização; preflight sem aprovação impede a requisição efetiva quando exigido pela política de origem.",
+      "section": "3. Ajax e jQuery: comunicação assíncrona, DOM e eventos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "PHP Manual — Basics: variables",
+      "publisher": "PHP Documentation Group",
+      "reference": "Variáveis, sensibilidade a maiúsculas e escopo",
+      "url": "https://www.php.net/manual/en/language.variables.basics.php",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PHP Manual — Comparison Operators",
+      "publisher": "PHP Documentation Group",
+      "reference": "Operadores ==, === e regras de tipos",
+      "url": "https://www.php.net/manual/en/language.operators.comparison.php",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PHP Manual — Arrays",
+      "publisher": "PHP Documentation Group",
+      "reference": "Arrays indexados e associativos",
+      "url": "https://www.php.net/manual/en/language.types.array.php",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PHP Manual — Strings",
+      "publisher": "PHP Documentation Group",
+      "reference": "Aspas, interpolação e concatenação",
+      "url": "https://www.php.net/manual/en/language.types.string.php",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PHP Manual — PDO::prepare",
+      "publisher": "PHP Documentation Group",
+      "reference": "Comandos preparados, parâmetros e restrições de identificadores",
+      "url": "https://www.php.net/manual/en/pdo.prepare.php",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PHP Manual — htmlspecialchars",
+      "publisher": "PHP Documentation Group",
+      "reference": "Escape de caracteres especiais em conteúdo HTML",
+      "url": "https://www.php.net/manual/en/function.htmlspecialchars.php",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PHP Manual — json_encode",
+      "publisher": "PHP Documentation Group",
+      "reference": "Serialização de valores PHP em JSON",
+      "url": "https://www.php.net/manual/en/function.json-encode.php",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PHP Manual — Basic SimpleXML usage",
+      "publisher": "PHP Documentation Group",
+      "reference": "Interpretação e acesso a XML em PHP",
+      "url": "https://www.php.net/manual/en/simplexml.examples-basic.php",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "jQuery API — jQuery.ajax()",
+      "publisher": "jQuery Foundation",
+      "reference": "jqXHR, dataType, métodos done, fail, always",
+      "url": "https://api.jquery.com/jquery.ajax/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "jQuery API — .on()",
+      "publisher": "jQuery Foundation",
+      "reference": "Eventos diretos e delegados",
+      "url": "https://api.jquery.com/on/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "jQuery API — .text()",
+      "publisher": "jQuery Foundation",
+      "reference": "Texto e distinção em relação a HTML",
+      "url": "https://api.jquery.com/text/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "jQuery API — .val()",
+      "publisher": "jQuery Foundation",
+      "reference": "Valores de controles de formulário",
+      "url": "https://api.jquery.com/val/",
+      "accessedAt": "2026-10-09"
+    }
+  ]
+}

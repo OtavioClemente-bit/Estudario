@@ -1,0 +1,1809 @@
+{
+  "id": "informatica.gerencia-monitoramento-redes",
+  "subject": "Informática",
+  "title": "Gerência e monitoramento de redes e logs",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Gerência e monitoramento de redes e logs"
+  ],
+  "scope": {
+    "covers": "SNMP, MIB, OID e RMON; QoS e tráfego; captura, fluxos e métricas; syslog, SIEM e correlação; Zabbix, Prometheus, Grafana, Elasticsearch, Logstash, Kibana e Fluentd.",
+    "excludes": "Configuração completa de equipamentos proprietários, perícia forense judicial e implantação integral de plataformas de segurança específicas."
+  },
+  "theoryTitle": "Gerência e monitoramento de redes: SNMP, RMON, QoS, SIEM, logs e ferramentas",
+  "chapters": [
+    {
+      "title": "1. Fundamentos de gerência e SNMP",
+      "markdown": "## Objetivos e dados da gerência\n\nGerir redes envolve conhecer inventário, configuração, falhas, desempenho e segurança dos componentes. Um enlace que responde a ping pode estar congestionado; portanto, disponibilidade e desempenho são coisas distintas. **Disponibilidade** indica possibilidade de acessar o serviço; **latência** mede demora; **jitter** mede variação do atraso; **perda** representa dados não entregues; **vazão** mede volume útil transmitido por tempo. A observabilidade combina medidas, contexto operacional e capacidade de explicar comportamentos, em vez de se limitar a coletar números. Um alerta de CPU elevada, por exemplo, precisa ser analisado ao lado de tráfego, tempo de resposta, eventos de aplicação e demanda habitual.\n\n### Arquitetura do SNMP\n\nO **Simple Network Management Protocol**, em sua arquitetura de gerenciamento da **RFC 3411**, utiliza aplicações gerenciadoras e entidades gerenciadas. Um **manager** consulta ou recebe notificações; um **agent** disponibiliza objetos sobre o equipamento. A **MIB (Management Information Base)** é estrutura lógica de objetos gerenciados, identificados por **OID**, e não uma base de arquivos syslog. Os OIDs compõem árvore hierárquica. A **RFC 3418** define objetos de sistema como `sysDescr`, `sysName` e `sysUpTime`. A instância escalar `1.3.6.1.2.1.1.3.0` corresponde a `sysUpTime.0`, expresso em **TimeTicks**, centésimos de segundo transcorridos desde a reinicialização da porção de gerenciamento; não é a hora civil atual. O sufixo `.0` identifica a instância de um objeto escalar, diferente das entradas indexadas em tabela de interfaces.\n\n### Operações e transporte\n\n**GetRequest** lê valores; **GetNextRequest** alcança o próximo OID na sequência lexicográfica; **GetBulkRequest** otimiza recuperação em lote em SNMPv2 e posteriores; **SetRequest** solicita alteração quando objeto e autorização permitem; **Response** fornece resposta. **Trap** transmite notificação não confirmada; **InformRequest** recebe confirmação por resposta, sem assegurar que toda infraestrutura esteja imune a falhas. A **RFC 3417, seção 3.2**, recomenda na implementação clássica de SNMP/UDP as portas **161** para aplicações que respondem a comandos e **162** para receptoras de notificações. Um firewall pode permitir consultas UDP 161 e bloquear recebimento de traps na UDP 162: o sucesso de uma função não assegura a outra.\n\n| Elemento | Função | Diferenciação importante |\n| --- | --- | --- |\n| Gerenciador | Consulta e recebe notificações | Não é o agente que expõe objetos |\n| Agente | Disponibiliza MIB e responde | Não é um SIEM por si |\n| GetNext | Próximo objeto lexicográfico | Não significa leitura de lote como GetBulk |\n| Set | Alteração autorizada de objeto | Muitos objetos são somente leitura |\n| Trap | Notificação sem confirmação SNMP | Diferente de Inform, que recebe resposta |\n\n### Segurança e versões\n\n**SNMPv1 e SNMPv2c** empregam comunidades (community strings), que não oferecem, por si, autenticação criptográfica forte nem sigilo de conteúdo. **SNMPv3** incorpora arquitetura de segurança e controle de acesso; o **USM** está descrito na **RFC 3414**. Há três níveis usuais: `noAuthNoPriv`, `authNoPriv` e `authPriv`. Apenas o último prevê autenticação e privacidade criptográfica juntas quando devidamente configuradas; é falso afirmar que todo tráfego SNMPv3 é criptografado em qualquer nível. A configuração deve restringir credenciais, origens permitidas, objetos acessíveis e operações de escrita. Controle de acesso à MIB e segurança da rede onde os pacotes trafegam são camadas complementares.\n\n### Contadores e medição de taxas\n\nInterfaces podem expor contadores de octetos, pacotes, erros e descartes. Se o contador de entrada cresce de **30.000.000** para **36.000.000 octetos** durante **60 segundos**, o tráfego médio observado corresponde a **6.000.000 × 8 ÷ 60 = 800.000 bit/s**, ou **0,8 Mbit/s**. O cálculo supõe que o contador não reiniciou nem sofreu wrap-around não corrigido. Contadores de 32 bits podem dar a volta rapidamente em enlaces velozes; contadores de 64 bits da IF-MIB ajudam a medir grandes volumes. `sysUpTime` também auxilia a identificar reinicialização de gerência, evitando inferir tráfego negativo a partir de contadores resetados. Polling de cinco em cinco minutos oferece média do intervalo, mas pode ocultar rajadas de poucos segundos. Combinar **polling**, traps e indicadores de saúde do coletor eleva a capacidade de detecção."
+    },
+    {
+      "title": "2. RMON, tráfego e qualidade de serviço",
+      "markdown": "## RMON como observação remota\n\n**RMON (Remote Network Monitoring)** define objetos de gerenciamento para observar segmentos e comportamentos de tráfego por sondas e dispositivos habilitados. A **RFC 2819** descreve grupos como **statistics**, que apresenta contadores e características do tráfego; **history**, que mantém amostras periódicas; **alarm**, que compara dados amostrados com limiares e pode gerar eventos; e **event**, que registra ou notifica ocorrências conforme configuração. Um alarme por cruzamento de limiar de erros pode ativar um evento, enquanto o grupo de histórico permite avaliar se os erros cresciam antes do problema. É incorreto dizer que history é a tabela dos incidentes de segurança de um SIEM; são amostras de variáveis de monitoramento. A sonda pode produzir informações em intervalos sem exigir que o gerenciador capture todos os pacotes continuamente.\n\nRMON complementa SNMP por ser modelo de informações acessível pelos mecanismos de gerenciamento; não é protocolo concorrente que elimina MIB ou OID. O RMON clássico relaciona observação de segmentos de rede, enquanto extensões RMON2 alcançam análises associadas a protocolos superiores. Para reconhecer questões, pergunte se o enunciado trata de **amostragem histórica**, **limiar**, **estatísticas** ou **tratamento de evento**. Essas quatro funções são distintas, embora possam compor uma mesma cadeia de monitoramento.\n\n### Tráfego, fluxos e captura\n\nA visão de rede pode vir de **SNMP**, que expõe contadores por interface; **captura de pacotes** por TAP ou espelhamento de porta (SPAN), que permite inspecionar quadros observados; ou **registros de fluxo** como NetFlow e **IPFIX**, cujo protocolo de exportação é padronizado pela **RFC 7011**. Registros de fluxo contêm metadados e contagens sobre conversações, mas não são cópia integral do payload de todos os pacotes. **sFlow** pode combinar amostragem de pacotes e contadores, de acordo com o agente e a configuração. Quando há congestionamento no destino SPAN, a captura pode perder pacotes; portanto, nem um arquivo de captura nem uma amostra de fluxo prova, sem contexto, ausência absoluta de tráfego. A posição do coletor, os filtros e o tempo de observação determinam a interpretação possível.\n\n| Fonte | O que revela | Limite típico |\n| --- | --- | --- |\n| Contador SNMP | Taxa, octetos e erros por interface | Não identifica sozinho quais aplicações usam a banda |\n| RMON history | Amostras e evolução de variáveis | Intervalo pode ocultar eventos curtos |\n| IPFIX | Metadados de fluxos e volumes | Não representa todos os bytes do payload |\n| SPAN ou TAP | Pacotes visíveis no ponto de captura | Visibilidade e perdas dependem da instalação |\n\n### Cálculo de capacidade e métricas\n\nSe um enlace de capacidade nominal **100 Mbit/s** transmite em média **80 Mbit/s**, a utilização média é **80%**. Isso não significa que 20% de capacidade estejam disponíveis a qualquer instante, pois rajadas e overhead influenciam filas. A **latência** de um pacote indica tempo de percurso; **jitter** é variação entre atrasos, importante para voz e vídeo; **perda** pode decorrer de congestionamento, erros físicos e políticas de descarte. **Throughput** representa vazão efetivamente observada, diferente da capacidade nominal. Uma amostra de utilização alta e perda de pacotes pode sinalizar saturação; latência alta com baixo uso pode apontar problema diverso, como rota longa ou equipamento sobrecarregado. Não se conclui causa a partir de métrica única.\n\n### QoS, DiffServ, DSCP e PHB\n\n**QoS (Quality of Service)** aplica classificação, marcação, enfileiramento, agendamento, controle de tráfego e descarte para administrar congestionamento. A **RFC 2474** define a arquitetura **DiffServ** e o campo **DSCP de 6 bits** no campo DS de IP; os **2 bits restantes** são usados pelo ECN. DSCP designa tratamento diferenciado por salto (**PHB**), não largura de banda garantida automaticamente. O **EF (Expedited Forwarding)**, na **RFC 3246**, é comportamento recomendado para tráfego que necessita serviço de baixo atraso sob dimensionamento adequado. O **AF (Assured Forwarding)**, na **RFC 2597**, define classes e precedências de descarte. A marcação só produz efeito quando equipamentos da rede a interpretam e aplicam políticas compatíveis; bordas podem reclassificar marcas recebidas de origem não confiável.\n\n### Policing, shaping e filas\n\n**Shaping** controla emissão normalmente atrasando pacotes em fila para suavizar rajadas e adequar ritmo; **policing** verifica perfil de conformidade e pode descartar ou remarcar tráfego que o excede. Um mecanismo **token bucket** modela taxa média permitida e volume limitado de rajada: crédito acumulado não permite sustentar indefinidamente taxa acima do limite. **Priorização** de filas pode reduzir demora de pacotes sensíveis, mas requer controles para não penalizar permanentemente outras classes. **IntServ** trabalha historicamente com estado e reserva por fluxo, como RSVP; **DiffServ** favorece diferenciação agregada por classes. Monitorar jitter identifica sintoma, não instala QoS por si. A prova testa especialmente a diferença entre **medir**, **marcar** e **reservar/tratar** tráfego."
+    },
+    {
+      "title": "3. Logs, syslog, correlação e SIEM",
+      "markdown": "## Registro, evento e alerta\n\n**Log** é registro de atividade produzido por rede, sistema ou aplicação. **Evento** é ocorrência que pode adquirir significado operacional ou de segurança; **alerta** sinaliza condição definida como relevante. Um único login malsucedido é registro; numerosas falhas em dois minutos seguidas de acesso bem-sucedido de local incomum podem produzir evento correlacionado e alerta. Não há equivalência automática entre volume de logs e número de incidentes. O **NIST SP 800-92** recomenda gerenciar coleta, análise e retenção como processo; o **NIST SP 800-137** enquadra o monitoramento contínuo no acompanhamento do risco. A interpretação deve levar em conta origem, relógio, integridade e cobertura de coleta.\n\n### Syslog e prioridade codificada\n\nA **RFC 5424** define mensagem com `PRI VERSION TIMESTAMP HOSTNAME APP-NAME PROCID MSGID STRUCTURED-DATA [MSG]`. **PRI** codifica duas informações: **facility**, categoria convencional da origem, de 0 a 23; e **severity**, gravidade técnica de 0 a 7. A conta é **PRI = facility × 8 + severity**. Por exemplo, facility **4** (segurança/autorização) com severity **3** (erro) gera **PRI = 4 × 8 + 3 = 35**, prefixo `<35>`. Severity 0 corresponde a emergência, 3 a erro, 4 a aviso, 6 a informação e 7 a depuração; um número maior não indica necessariamente ocorrência mais crítica. Facility e severity não substituem a avaliação de risco de um SIEM, pois um registro marcado informational pode ser relevante quando relacionado a outros eventos.\n\n| Campo syslog | Propósito | Problema típico |\n| --- | --- | --- |\n| PRI | Codifica facility e severity | Confundir prioridade com quantidade de eventos |\n| TIMESTAMP | Registra instante do produtor | Relógio incorreto prejudica sequência |\n| HOSTNAME e APP-NAME | Identificam origem e aplicação | Nomes duplicados dificultam correlação |\n| STRUCTURED-DATA | Parâmetros estruturados | Parsing incorreto elimina contexto |\n| MSG | Conteúdo do evento | Dados sensíveis podem exigir proteção |\n\nA **RFC 5426** padroniza syslog sobre **UDP** e discute riscos de perda e segurança do transporte; a **RFC 5425** trata de transporte por **TLS**. A porta **UDP 514** é convencional em configurações syslog, mas não representa garantia de entrega ou autenticidade. É tecnicamente falso afirmar que toda mensagem syslog usa obrigatoriamente UDP ou que o protocolo de formato, sozinho, provê criptografia. A preservação depende de transporte, controles de acesso, proteção em repouso e política de retenção. A sincronização temporal por fontes confiáveis é essencial para análise entre hosts, especialmente quando os relógios se encontram em fusos diferentes.\n\n### Etapas de gestão de logs\n\nUm pipeline coleta registros por agentes, APIs e syslog; transporta-os com buffers; executa **parsing** de linhas; **normaliza** nomes e formatos de campos; **enriquece** com inventário, identidade ou criticidade; armazena e disponibiliza busca. É útil manter hora original e hora de ingestão para detectar atraso; o identificador do dispositivo e a origem IP ajudam a evitar mistura de fontes com nomes iguais. **Deduplicação** reduz repetição de logs retransmitidos, mas deve distinguir duplicata técnica de duas ocorrências legítimas idênticas. Se uma fonte deixa de enviar logs por indisponibilidade, a falta de registros não significa ausência de ataques; a saúde do coletor também precisa ser monitorada. Definir retenção exige considerar necessidade operacional, exigências jurídicas, proteção de dados e custo, sem supor prazo único para qualquer tipo de registro.\n\n### O que faz um SIEM\n\n**SIEM (Security Information and Event Management)** integra ingestão, normalização, pesquisa, correlação e geração de alertas de segurança. Um caso de detecção pode identificar **cinco falhas da mesma conta em dois minutos**, seguidas de login bem-sucedido em até cinco minutos, desde que os eventos mantenham usuário, origem e sequência temporal. A janela evita correlacionar falhas de meses diferentes como se fossem uma tentativa contínua. Contexto importa: endereço IP sob NAT pode ser compartilhado e uma conta pode aparecer com formas diferentes de nome. **Falso positivo** é alerta sem incidente correspondente; **falso negativo** é incidente não detectado pela regra. A sensibilidade da detecção aumenta ou diminui conforme limiares, cobertura, enriquecimento e qualidade de dados.\n\nO SIEM não comprova automaticamente um ataque: regras geram hipóteses que exigem validação. Há mecanismos por **limiar**, **assinatura**, **anomalia** e **correlação contextual/temporal**. Um painel que simplesmente conta falhas por minuto é visualização; passar a identificar mesma conta, sequência suspeita, risco de ativo e resultado de autenticação acrescenta capacidade de correlação. **SIEM não é sinônimo de Elasticsearch, Grafana ou syslog** isoladamente. Ferramentas podem compor a arquitetura, mas casos de uso, regras, governança e resposta completam a operação de segurança.\n\n### Qualidade da evidência\n\nEventos precisam de dados suficientes para associar origem e atividade: `source.ip`, `host.name`, `user.id`, `event.action`, timestamp e identificadores de sessão podem ser úteis quando disponíveis. A padronização evita que `login_fail`, `failed_logon` e `authentication denied` sejam tratados como três categorias inconciliáveis. O analista também deve evitar converter ausência de campo em dado de valor zero; **ausência**, **valor desconhecido** e **negação expressa** são estados diferentes. A trilha de auditoria precisa preservar informações relevantes, controlar quem consulta e altera registros e acompanhar falhas de parsing e perdas de ingestão. A prova costuma trocar **evento observado** por **conclusão causal confirmada**, uma inferência que não decorre automaticamente do registro."
+    },
+    {
+      "title": "4. Zabbix, Prometheus e Grafana na operação",
+      "markdown": "## Zabbix: elementos e modos de coleta\n\n**Zabbix** é plataforma de monitoramento de infraestrutura e serviços. O **host** representa recurso monitorado; **item** descreve o valor coletado, por exemplo uso de CPU, disponibilidade ou octetos de interface; **trigger** expressa condição de problema derivada dos dados; **template** agrupa itens, triggers e outras configurações reutilizáveis. Se dez servidores precisam de limiar equivalente de armazenamento, um template oferece padronização sem que cada configuração seja criada manualmente. **Proxy Zabbix** permite coleta distribuída para segmentos remotos; isso não significa que proxy seja o banco histórico central. O Zabbix pode coletar por SNMP, agentes, checagens web e outros métodos conforme instalação, e uma trigger pode avaliar ausência de valor ou múltiplas condições.\n\nA documentação oficial distingue **verificações passivas e ativas do agente**. Na **passiva**, o **servidor ou proxy inicia conexão e consulta o agente**, que responde. Na **ativa**, o **agente consulta configuração de verificações no servidor/proxy e envia valores coletados**, normalmente iniciando as conexões necessárias. Uma máquina protegida contra conexões de entrada pode facilitar modo ativo sob regras apropriadas. Não confunda essa terminologia com as operações SNMP `Get` ou `Trap`: agente Zabbix ativo não é sinônimo de trap SNMP. **Item** não é um alerta em si; a trigger interpreta valores e pode acionar ações. Se a CPU chegou a 95% por um segundo e a regra exige média acima de 90% por cinco minutos, não é correto presumir que a trigger dispara imediatamente.\n\n### Prometheus: scraping e séries temporais\n\n**Prometheus** armazena **séries temporais rotuladas**. Na operação típica, o servidor consulta periodicamente endpoints de métricas — prática chamada **scraping** ou modelo **pull** —, que podem ser disponibilizados pela aplicação ou por **exporters**. O endpoint `/metrics` é convenção comum, mas caminhos podem ser configurados. O modelo principal não impede casos especiais de push, como os apoiados por Pushgateway. A série é identificada pelo nome da métrica e conjunto de **labels**. `http_requests_total{job=\"api\",method=\"GET\"}` e a mesma métrica com `method=\"POST\"` são séries diferentes. Acrescentar rótulo único por requisição cria **cardinalidade excessiva**, ampliando recursos de armazenamento e processamento. Labels devem representar dimensões úteis e controladas.\n\nOs tipos tradicionais são **counter** (contador não decrescente salvo reset), **gauge** (valor que pode subir e descer), **histogram** (acúmulo em buckets e contagem de observações) e **summary** (estatísticas e quantis calculados pelo cliente em condições específicas). Para counter `http_requests_total`, `rate(http_requests_total[5m])` estima taxa média **por segundo** em cinco minutos, com tratamento de resets; `increase(http_requests_total[5m])` estima aumento no período. Uma métrica `temperature_celsius` é gauge: usá-la como counter só porque o valor subiu em determinada amostra seria erro conceitual. A métrica **`up`**, produzida pelo scrape, vale tipicamente **1** quando a coleta teve sucesso e **0** se fracassou; isso não garante que todos os serviços de negócio funcionem, apenas que o scrape ocorreu.\n\n| Ferramenta ou recurso | Função correta | Erro comum |\n| --- | --- | --- |\n| Zabbix item | Coletar valor de host | Confundi-lo com trigger |\n| Zabbix trigger | Avaliar condição de problema | Considerá-la origem de todo dado |\n| Exporter Prometheus | Expor métricas para scrape | Tratá-lo como banco de logs |\n| PromQL `rate` | Calcular taxa por segundo de counter | Interpretar como soma de eventos |\n| Alertmanager | Agrupar, rotear, inibir e silenciar alertas | Supor que coleta métricas diretamente |\n| Grafana | Consultar e visualizar fontes | Tratar como armazenamento obrigatório de métricas |\n\n### PromQL e alertas\n\nAs expressões **PromQL** filtram e agregam séries temporais. `up{job=\"api\"} == 0` aponta alvos cujo scrape falhou. `rate(http_requests_total[5m]) > 100` indica taxa acima de 100 requisições por segundo, não total de 100 requisições em cinco minutos. Uma regra de alerta Prometheus pode ter `for: 10m`, indicando permanência da condição durante esse período antes de passar a firing; ausência da condição nesse período pode impedir disparo. O **Alertmanager** recebe alertas avaliados pelo Prometheus e organiza o envio aos destinatários, com roteamento, agrupamento e silenciamento. Ele não substitui as regras de coleta. A frequência de scraping e a duração de avaliação interferem na visibilidade e na velocidade de detecção; amostragem a cada 30 segundos pode não representar adequadamente um pico de um milissegundo.\n\n### Grafana e arquitetura conjunta\n\n**Grafana** conecta-se a diferentes fontes, como Prometheus e Elasticsearch, e disponibiliza painéis e recursos de alerta. Uma configuração de Grafana Alerting pode avaliar sua própria regra usando Prometheus como fonte; isso difere de apenas exibir regra gerenciada diretamente no Prometheus. Os papéis variam com a versão e a configuração, e não existe exigência técnica de instalar Grafana para que Prometheus faça scrape. Um dashboard pode apresentar latência p95 de aplicação ao lado do uso da interface medido por SNMP em Zabbix, mas números lado a lado não provam causalidade. Se a consulta não recebe amostras, registrar como **sem dados** é diferente de medir **zero**. Um alerta bem projetado distingue erro de coleta, ausência da série e valor legítimo da métrica.\n\n**Exemplo:** uma trigger Zabbix identifica link inoperante; Prometheus mede requisições por segundo e tempo de resposta da aplicação; Grafana reúne painéis. Esse conjunto melhora observabilidade, mas não produz automaticamente correlação de segurança entre logins, firewall e contas como faria um caso de uso de SIEM."
+    },
+    {
+      "title": "5. Elastic Stack, Fluentd e arquitetura de monitoramento",
+      "markdown": "## Logstash, Elasticsearch e Kibana\n\n**Logstash** processa eventos por pipeline descrito oficialmente como **input → filter → output**. `input` recebe registros por arquivo, syslog, Beats ou outros plugins; `filter` permite parsing, enriquecimento e normalização; `output` remete dados a destinos como Elasticsearch. Um pipeline mínimo pode conter apenas entrada e saída: filtro é comum, mas não obrigatório. Por exemplo, um log de acesso textual pode entrar pelo plugin `file`, ter campos extraídos pelo filtro `grok` e ser encaminhado ao Elasticsearch. Um erro de parsing deve ser observado por métricas e campos de falha; descartar silenciosamente linhas incompatíveis prejudica visibilidade. É possível usar múltiplas saídas e controles de buffer e persistência conforme configuração.\n\n**Elasticsearch** é mecanismo distribuído de **indexação, pesquisa e agregações** sobre documentos. Um **índice** organiza documentos e pode dividir armazenamento em **shards**; **mappings** especificam tipos de campos, como data, inteiro, texto e IP. Campo mapeado como `ip` comporta consultas próprias desse tipo; tratar endereço IP exclusivamente como texto analisado pode dificultar filtros pretendidos. **Ingest pipelines** do Elasticsearch realizam transformações por processadores antes de indexar, sem depender necessariamente de Logstash. Não se deve afirmar que todo documento armazenado passou por Logstash, pois integrações podem enviar dados diretamente ao Elasticsearch.\n\n**Kibana** oferece exploração de dados, filtros, buscas, gráficos e dashboards associados ao Elasticsearch. Se os registros trazem `event.action`, `user.name` e `source.ip`, um analista pode pesquisar falhas de login por conta e período. Kibana não equivale a banco independente onde os logs necessariamente são armazenados; essa função pertence ao Elasticsearch ou outra arquitetura conectada. A existência de interface de visualização não garante a qualidade do parsing: dados com carimbo de data incorreto ou campo numérico indexado como texto podem produzir resultados enganadores.\n\n| Componente | Função | Distinção crítica |\n| --- | --- | --- |\n| Logstash | Receber, transformar e enviar eventos | Não é mecanismo primário de busca distribuída |\n| Elasticsearch | Indexar e pesquisar documentos | Não é painel de visualização por definição |\n| Kibana | Explorar e visualizar dados indexados | Não substitui armazenamento subjacente |\n| Fluentd | Coletar, filtrar e encaminhar eventos | Não é um servidor de gráficos obrigatório |\n| Grafana | Dashboards e alertas sobre fontes | Não é equivalente a mecanismo de correlação SIEM |\n\n### Fluentd e tratamento de arquivos\n\n**Fluentd** recebe, transforma e encaminha eventos a partir de fontes configuradas; etiquetas (**tags**) orientam roteamento conforme regras e plugins. O plugin **`in_tail`**, descrito na documentação, acompanha acréscimos a arquivo como `tail -F`. O parâmetro **`pos_file`** registra posição de leitura para retomada após reinício e gerenciamento de rotação. Ele não contém o conjunto integral dos logs coletados, nem constitui garantia automática de entrega exatamente uma vez ao destino. A entrega depende de filas, configuração de buffer, reenvio, disponibilidade e comportamento do plugin de saída. Com backend temporariamente indisponível, buffer persistente pode reduzir perda, mas limite de espaço e política de repetição definem risco de descarte ou atraso.\n\n### SIEM versus ferramenta de pipeline\n\nUma arquitetura integrada pode receber **SNMP** e **RMON** de roteadores, **IPFIX** de coletores de fluxo, **syslog** de firewalls, **métricas Prometheus** de aplicações e **eventos Fluentd** de servidores. O Logstash normaliza registros, Elasticsearch os indexa, Kibana os consulta, Grafana apresenta indicadores e um mecanismo **SIEM** implementa regras de correlação: por exemplo, tentativas de autenticação sucessivas seguidas de mudança de privilégios para mesma identidade. Ter Elasticsearch e Kibana instalados não prova que existam regras de SIEM ou resposta a incidentes. A correlação depende de horários comparáveis, identificadores confiáveis, contexto do ativo e janela temporal adequada.\n\n### Retenção, custos e segurança da observabilidade\n\nPolíticas de **retenção de logs** precisam considerar finalidade, criticidade e obrigações aplicáveis; não existe um prazo operacional universal derivado do simples uso de syslog. Registros podem conter IP, dados de contas, tokens e informações pessoais: limite coleta indevida, proteja transporte e acesso, configure mascaramento ou descarte de segredos quando necessário. Na camada Prometheus, labels como identificador único de sessão criam alta cardinalidade; na camada Elasticsearch, mapeamento de campos inadequado e quantidade excessiva de shards prejudicam recursos. Métricas de saúde dos próprios coletores — atraso de ingestão, erro de parsing, fila, espaço disponível, volume por origem — são fundamentais para avaliar se ausência de evento significa operação normal ou falha de monitoramento. Sistemas sem sincronização de tempo podem correlacionar ações na ordem errada; sistemas sem buffer podem perder acontecimentos justamente durante uma indisponibilidade.\n\n### Exemplo completo\n\nUm firewall registra via syslog acessos bloqueados; um roteador apresenta alto descarte de pacotes por contadores SNMP; o Prometheus mede elevação da latência de API; logs de autenticação são enviados por Fluentd. Uma regra de SIEM pode reunir tentativas malsucedidas, autenticação posterior e acesso administrativo a partir de origem correlata, mas **não basta** observar pico de tráfego para concluir invasão. Ao mesmo tempo, QoS pode ser configurada para privilegiar aplicação sensível, sem que Grafana ou Kibana executem o policiamento de pacotes. A solução de arquitetura separa aquisição, armazenamento, análise, alerta e atuação operacional.\n\n## Como o tema costuma ser cobrado\n\nA prova inverte gerente e agente SNMP; confunde UDP 161/162, Trap/Inform, GetNext/GetBulk e MIB/log; troca RMON history por alarm; calcula octetos sem converter a bits; trata DSCP como garantia de banda; afirma que shaping e policing descartam do mesmo modo; confunde severity syslog com prioridade de atendimento; atribui correlação automática a dashboards; inverte agente Zabbix ativo/passivo; considera `rate` soma de requisições; e troca Logstash, Elasticsearch, Kibana, Grafana e Fluentd entre coleta, análise e apresentação. A resposta correta identifica a **etapa do fluxo, tipo de dado, protocolo, ferramenta e limitação** antes de interpretar sintomas."
+    }
+  ],
+  "summary": "## Fundamentos\n**SNMP (RFC 3411):** gerenciador consulta, agente expõe objetos MIB com OID. **RFC 3417:** UDP **161** para comandos e **162** para notificações na forma clássica. **Get** lê; **GetNext** navega ao OID seguinte; **GetBulk** consulta em lote; **Set** altera onde permitido; **Trap** não é confirmada; **Inform** recebe resposta. **SNMPv1/v2c** usam comunidades; **SNMPv3** suporta `noAuthNoPriv`, `authNoPriv` e `authPriv` via USM (RFC 3414). `sysUpTime.0` usa TimeTicks em centésimos de segundo.\n\n## RMON e QoS\n**RFC 2819:** statistics = contadores; history = amostras históricas; alarm = limiares; event = registro/notificação. Fluxos **IPFIX (RFC 7011)** resumem comunicações; captura SPAN/TAP observa pacotes visíveis; SNMP fornece contadores. Vazão: delta de octetos × 8 ÷ intervalo em segundos; utilização = vazão/capacidade × 100%. **DiffServ (RFC 2474):** DSCP tem **6 bits**, ECN usa 2; **EF (RFC 3246)** e **AF (RFC 2597)** indicam PHBs. **Shaping** retarda em fila; **policing** verifica taxa e pode descartar/remarcar. Marcação não garante reserva automática.\n\n## Syslog e SIEM\n**RFC 5424:** `PRI = facility × 8 + severity`; facility 0–23, severity 0–7, **menor severity = maior gravidade**. Ex.: 4 × 8 + 3 = **35**. RFC 5426 descreve transporte UDP e suas limitações; RFC 5425, transporte TLS. SIEM reúne coleta, normalização, correlação e alertas; não equivale a um painel isolado. Janela temporal, chaves de identidade, sincronia de relógios e qualidade de parsing são essenciais. Falso positivo = alerta sem incidente; falso negativo = incidente não detectado.\n\n## Ferramentas\n**Zabbix:** host = recurso; item = métrica; trigger = regra; template = configuração reutilizável; proxy = coleta distribuída. Agente **passivo** responde a pedido do servidor/proxy; **ativo** busca configuração e envia dados. **Prometheus:** scrape predominantemente pull, exporters e métricas rotuladas; counter, gauge, histogram, summary; `rate(contador[5m])` = taxa por segundo. **Alertmanager:** agrupa e roteia alertas. **Grafana:** consulta e apresenta fontes e pode ter alertas.\n\n## Logs e indexação\n**Logstash:** input → filter → output. **Elasticsearch:** indexação, busca e agregação de documentos. **Kibana:** exploração e dashboards. **Fluentd:** agente de coleta, roteamento por tags; `in_tail` lê arquivos e `pos_file` conserva posição de leitura. Retenção, sincronização de tempo, buffering, segregação de acesso e observação da própria coleta são indispensáveis. Visualização e indexação não são, sozinhas, um SIEM completo.",
+  "flashcards": [
+    {
+      "front": "Qual o papel do manager SNMP?",
+      "back": "Consultar objetos de gerenciamento e receber notificações dos agentes monitorados."
+    },
+    {
+      "front": "O que é MIB?",
+      "back": "Estrutura lógica hierárquica dos objetos gerenciáveis, identificados por OIDs; não é repositório universal de logs."
+    },
+    {
+      "front": "Portas SNMP mais usuais?",
+      "back": "UDP 161 para comandos ao agente e UDP 162 para notificações ao receptor, conforme RFC 3417."
+    },
+    {
+      "front": "Trap versus Inform?",
+      "back": "Trap é notificação SNMP sem confirmação; Inform requer resposta do destinatário."
+    },
+    {
+      "front": "GetNext e GetBulk são iguais?",
+      "back": "Não. GetNext caminha ao próximo OID; GetBulk permite obter grupos de objetos mais eficientemente."
+    },
+    {
+      "front": "Qual SNMPv3 fornece sigilo e autenticação?",
+      "back": "O nível `authPriv`, quando devidamente configurado. `noAuthNoPriv` e `authNoPriv` oferecem proteções diferentes."
+    },
+    {
+      "front": "O que mede sysUpTime?",
+      "back": "Centésimos de segundo desde a reinicialização da porção de gerenciamento do dispositivo, não o horário atual."
+    },
+    {
+      "front": "Qual função do RMON history?",
+      "back": "Armazenar amostras periódicas de variáveis para observar a evolução do tráfego."
+    },
+    {
+      "front": "Qual função do RMON alarm?",
+      "back": "Acompanhar variáveis amostradas e verificar cruzamento de limiares, podendo gerar eventos."
+    },
+    {
+      "front": "IPFIX guarda payload integral?",
+      "back": "Não. Exporta registros e metadados de fluxos; não substitui captura integral de pacotes."
+    },
+    {
+      "front": "Como calcular taxa a partir de octetos?",
+      "back": "Subtraia contadores, multiplique por 8 e divida pelos segundos do intervalo, tratando resets e wrap-around."
+    },
+    {
+      "front": "Quantos bits tem DSCP?",
+      "back": "Seis bits no campo DS; os outros dois bits são usados pelo ECN."
+    },
+    {
+      "front": "Shaping versus policing?",
+      "back": "Shaping normalmente retarda e enfileira excesso; policing verifica conformidade e pode descartar ou remarcar."
+    },
+    {
+      "front": "Qual é a fórmula PRI do syslog?",
+      "back": "PRI = facility × 8 + severity, nos termos da RFC 5424."
+    },
+    {
+      "front": "Severity 0 ou 7 é mais grave?",
+      "back": "Severity 0 indica emergency, mais grave que severity 7, debug."
+    },
+    {
+      "front": "O que SIEM correlaciona?",
+      "back": "Eventos de diversas fontes, reunindo contexto e janelas temporais para detectar possíveis incidentes."
+    },
+    {
+      "front": "Zabbix item é uma trigger?",
+      "back": "Não. Item recolhe valor; trigger avalia expressão que indica condição de problema."
+    },
+    {
+      "front": "Quem inicia verificação Zabbix passiva?",
+      "back": "O servidor ou proxy consulta o agente; na ativa, o agente solicita configuração e remete valores."
+    },
+    {
+      "front": "O que `rate` faz no Prometheus?",
+      "back": "Estima taxa média por segundo de contador em uma janela, considerando resets."
+    },
+    {
+      "front": "Prometheus e Grafana têm a mesma função?",
+      "back": "Não. Prometheus coleta e armazena séries; Grafana consulta fontes e apresenta dashboards e alertas."
+    },
+    {
+      "front": "Qual pipeline típico do Logstash?",
+      "back": "Input → filter → output; o filtro pode ser omitido em pipeline mínimo."
+    },
+    {
+      "front": "Qual o papel do `pos_file` Fluentd?",
+      "back": "Guardar posição do `in_tail` para continuidade de leitura, sem garantir entrega fim a fim exatamente uma vez."
+    }
+  ],
+  "tips": [
+    "Para SNMP, escreva 161 = comandos e 162 = notificações; não troque Trap por Inform.",
+    "Associe RMON statistics a contadores, history a tempo, alarm a limiares e event a notificações.",
+    "Em taxa de interface, converta octetos para bits e observe o intervalo; um contador sozinho não é velocidade.",
+    "Para QoS, separe marcação DSCP de política de filas e de garantia de capacidade; shaping e policing têm ações diferentes.",
+    "Syslog: PRI é facility × 8 + severity. O menor número de severity indica maior criticidade técnica.",
+    "Em SIEM, identifique a chave de correlação e a janela temporal; uma soma de logs não confirma ataque.",
+    "No Zabbix, passivo significa pedido do servidor; no Prometheus, a operação padrão é scrape pull.",
+    "Ferramentas: Fluentd/Logstash coletam e transformam, Elasticsearch armazena/pesquisa, Kibana/Grafana visualizam."
+  ],
+  "traps": [
+    "A prova afirma: 'SNMPv3 cifra obrigatoriamente toda comunicação'. Errado: existem níveis noAuthNoPriv, authNoPriv e authPriv.",
+    "A prova afirma: 'Trap possui confirmação equivalente ao Inform'. Errado: Inform possui resposta, Trap não exige essa confirmação.",
+    "A prova afirma: 'RMON history dispara alertas ao ultrapassar limiar'. Errado: alarm acompanha limiares; history mantém amostras.",
+    "A prova afirma: 'Fluxos IPFIX armazenam todos os bytes de cada pacote'. Errado: são registros de fluxo, não captura integral.",
+    "A prova afirma: 'DSCP marcado com EF garante banda fim a fim'. Errado: o efeito depende de tratamento e dimensionamento da rede.",
+    "A prova afirma: 'Syslog severity 7 é mais crítico que severity 0'. Errado: 0 é emergência; 7 é debug.",
+    "A prova afirma: 'Agente Zabbix ativo é consultado pelo servidor como no modo passivo'. Errado: no ativo, o agente inicia envio após obter configurações.",
+    "A prova afirma: 'Kibana armazena logs e Logstash os apresenta em dashboards'. Errado: Elasticsearch indexa, Logstash processa, Kibana visualiza."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva os papéis do manager, agent, MIB, OID e das portas 161 e 162.",
+      "answer": "Manager consulta, agent disponibiliza MIB composta por objetos OID; UDP 161 recebe comandos, UDP 162 recebe notificações."
+    },
+    {
+      "question": "Qual diferença entre GetNext, GetBulk, Trap e Inform?",
+      "answer": "GetNext navega ao próximo objeto; GetBulk recupera lote; Trap notifica sem confirmação; Inform notifica com resposta."
+    },
+    {
+      "question": "O que distinguem os quatro grupos RMON statistics, history, alarm e event?",
+      "answer": "Contadores, séries de amostras, verificação de limiares e registro/notificação de eventos, respectivamente."
+    },
+    {
+      "question": "Uma interface transmitiu 15 milhões de octetos em 30 segundos. Qual a taxa em Mbit/s?",
+      "answer": "15.000.000 × 8 ÷ 30 = 4.000.000 bit/s = 4 Mbit/s, em unidades decimais."
+    },
+    {
+      "question": "Como DSCP, shaping e policing interferem no tráfego?",
+      "answer": "DSCP marca classe; shaping suaviza enviando posteriormente; policing controla perfil podendo descartar ou remarcar excesso."
+    },
+    {
+      "question": "Calcule PRI para facility 16 e severity 4 e explique o significado.",
+      "answer": "16 × 8 + 4 = 132; combina facility local0 com severidade warning, não uma contagem de 132 eventos."
+    },
+    {
+      "question": "Qual a diferença entre SIEM, Prometheus e Grafana?",
+      "answer": "SIEM correlaciona eventos de segurança; Prometheus coleta/avalia séries temporais; Grafana consulta fontes e as visualiza."
+    },
+    {
+      "question": "Monte um pipeline de logs com Fluentd, Logstash, Elasticsearch e Kibana.",
+      "answer": "Fluentd pode coletar/enviar; Logstash parsear e normalizar; Elasticsearch indexar; Kibana pesquisar e exibir os registros."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "SNMP, MIB e notificações confundidos",
+      "summary": "Manager consulta agentes por objetos MIB/OID; UDP 161 recebe comandos, UDP 162 notificações; Trap não exige resposta e Inform é confirmável; SNMPv3 somente tem privacidade quando configurada."
+    },
+    {
+      "key": "e2",
+      "title": "RMON, fluxo, contadores e QoS trocados",
+      "summary": "RMON history mantém amostras e alarm testa limiares; IPFIX resume fluxos; taxas exigem delta por tempo e conversão de octetos; DSCP marca PHB, não reserva capacidade automaticamente."
+    },
+    {
+      "key": "e3",
+      "title": "Logs e SIEM interpretados sem correlação",
+      "summary": "PRI syslog = facility × 8 + severity; SIEM combina eventos com contexto e janela temporal, sem provar automaticamente ataque; confiabilidade exige tempo, normalização e cobertura."
+    },
+    {
+      "key": "e4",
+      "title": "Agentes, métricas e alertas operacionais",
+      "summary": "Zabbix item coleta e trigger avalia; passivo é iniciado pelo servidor/proxy, ativo pelo agente; Prometheus coleta séries por scrape e rate calcula taxa de counter; Grafana visualiza fontes."
+    },
+    {
+      "key": "e5",
+      "title": "Ferramentas de pipeline e armazenamento confundidas",
+      "summary": "Logstash e Fluentd processam eventos, Elasticsearch indexa, Kibana explora, Grafana cria dashboards; pos_file acompanha leitura mas não certifica entrega nem substitui índice pesquisável."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um administrador precisa consultar remotamente o contador de octetos de uma interface de roteador. No modelo SNMP, qual componente responde à consulta sobre objetos da MIB?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O agente SNMP instalado no dispositivo, que expõe valores dos objetos gerenciáveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O gerenciador SNMP instalado no roteador, que substitui a MIB do dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O coletor syslog do servidor, que converte mensagens em respostas GetRequest.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O RMON history do roteador, responsável pela autenticação de toda consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O dashboard do sistema, que implementa diretamente cada objeto OID de hardware.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O agente disponibiliza informações da MIB ao gerenciador, de acordo com a arquitetura SNMP da RFC 3411. B inverte os papéis e diz que o manager substitui a MIB; C mistura syslog com requisição SNMP; D confunde grupo histórico RMON com autenticação; E atribui à visualização a implementação de objetos de dispositivo.",
+      "section": "1. Fundamentos de gerência e SNMP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe abre regras de firewall para consultas SNMP tradicionais ao agente e para notificações enviadas ao gerente. Qual associação de portas é a usual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "UDP 162 para consultas ao agente e UDP 161 para notificações do dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "UDP 161 para comandos ao agente e UDP 162 para recebimento de notificações.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "UDP 514 para comandos ao agente e UDP 162 para notificações por syslog.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "TCP 443 para objetos MIB e UDP 161 para todos os eventos RMON locais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "UDP 161 para comandos e UDP 514 para respostas SNMP das consultas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. A RFC 3417, seção 3.2, recomenda UDP 161 para respostas a comandos e UDP 162 para receptores de notificações SNMP. A inverte as portas; C atribui a 514, usual de syslog, função SNMP; D importa HTTPS e desvia eventos RMON; E troca resposta SNMP pela porta convencional de logs.",
+      "section": "1. Fundamentos de gerência e SNMP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um switch envia notícia de falha de enlace ao gerenciador. O administrador deseja distinguir uma Trap de uma mensagem Inform. Qual descrição está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trap recupera lote de OIDs; Inform apenas muda um objeto por operação Set.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trap exige confirmação; Inform é enviada sem possibilidade de resposta ao emissor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trap é notificação sem confirmação SNMP; Inform é notificação confirmável por resposta.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Trap pertence ao formato syslog; Inform é o nome do contador de erros da interface.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trap funciona unicamente em SNMPv3; Inform é exclusivo da primeira versão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Trap é PDU não confirmada e InformRequest pressupõe resposta no SNMP, observadas versões que suportam as operações. A confunde notificação com GetBulk e Set; B inverte confirmação; D troca família de protocolos; E inverte a cronologia e a disponibilidade de Inform em versões modernas.",
+      "section": "1. Fundamentos de gerência e SNMP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sonda de monitoramento deve guardar amostras periódicas de tráfego para comparar a utilização da rede nas últimas horas. Qual grupo clássico do RMON atende à finalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alarm, porque armazena somente dados de interface sem verificar condições de limiar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Event, porque realiza exclusivamente coleta periódica de contadores históricos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Statistics, porque conserva todas as amostras temporais em séries de revisão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "History, porque registra amostragens periódicas para análise da evolução de variáveis.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "SNMP Set, porque trata cada amostra temporal como configuração de escrita.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A RFC 2819 descreve o grupo history como amostragem estatística ao longo do tempo. A confunde alarm, responsável por limiares; B atribui histórico ao grupo event; C confunde estatísticas correntes com série de history; E usa uma operação de alteração SNMP que não define grupo RMON.",
+      "section": "2. RMON, tráfego e qualidade de serviço",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface de 100 Mbit/s transmite média de 80 Mbit/s na janela de monitoramento. Qual é a utilização média estimada pela relação vazão/capacidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "20%, porque representa a parcela que não foi utilizada durante o período.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "40%, porque o enlace divide o fluxo em transmissão e recepção simultâneas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "64%, porque a taxa deve ser elevada ao quadrado por causa da codificação física.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "100%, porque qualquer vazão acima da metade da capacidade indica saturação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "80%, porque 80 dividido por 100 equivale a 0,8 da capacidade nominal.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A utilização média é 80/100 × 100 = 80%. A apresenta capacidade remanescente, não uso; B divide indevidamente em duas direções; C inventa operação quadrática; D supõe saturação total acima de 50%, sem definição. O valor é média e não descreve sozinho rajadas instantâneas.",
+      "section": "2. RMON, tráfego e qualidade de serviço",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um coletor syslog recebe evento com facility 4 e severity 3. Conforme a RFC 5424, qual valor decimal compõe o campo PRI?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "35, obtido pela multiplicação de facility por oito e soma da severity.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "12, obtido pela multiplicação de facility por severity sem deslocamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "43, obtido pela concatenação decimal dos códigos de facility e severity.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "7, obtido pela soma direta das duas categorias de classificação syslog.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "32, obtido da multiplicação por oito sem a parcela da severity.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. A RFC 5424 define PRI = facility × 8 + severity: 4 × 8 + 3 = 35. B multiplica os campos entre si; C concatena dígitos; D apenas soma; E esquece a severity. A prioridade codificada não indica número de eventos e sua severity é uma escala invertida de gravidade.",
+      "section": "3. Logs, syslog, correlação e SIEM",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em servidor monitorado por Zabbix, configura-se a coleta do uso de disco e uma expressão que alerta se a utilização ultrapassar o limite. Que componentes correspondem a essas funções?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trigger para a coleta numérica e item para configurar o disparo da condição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Item para coletar o valor e trigger para avaliar a condição de problema.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Template para armazenar a medição e proxy para decidir necessariamente o limiar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Host para calcular alerta e item para executar o roteamento final das notificações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Agente passivo para calcular a expressão e dashboard para produzir o valor bruto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. A documentação do Zabbix identifica item como definição de dado coletado e trigger como expressão de estado de problema. A inverte os papéis; C toma template e proxy por armazenamento e limiar; D confunde host com regra e item com ação; E atribui ao painel a produção da medição.",
+      "section": "4. Zabbix, Prometheus e Grafana na operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Prometheus registra uma métrica `http_requests_total` instrumentalizada como contador. Qual função de PromQL estima sua taxa média por segundo nos últimos cinco minutos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`sum(http_requests_total)`, que converte automaticamente o acumulado em taxa temporal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`up(http_requests_total[5m])`, que calcula vazão de requisições usando o scrape.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`rate(http_requests_total[5m])`, que estima taxa por segundo de um contador.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`increase(http_requests_total)`, sem janela, que representa a taxa instantânea de sucesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`avg(http_requests_total[5m])`, que aplica média simples ao contador sem função de tempo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. A documentação PromQL define `rate(counter[intervalo])` para calcular taxa média por segundo e lidar com resets. A agrega valor acumulado; B trata up como função de consulta; D omite intervalo e interpreta increase como taxa; E usa agregação inadequada para deduzir incremento do contador.",
+      "section": "4. Zabbix, Prometheus e Grafana na operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe instala Logstash, Elasticsearch e Kibana para analisar logs de aplicação. Qual é a atribuição típica do Elasticsearch nesse conjunto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exibir obrigatoriamente todos os gráficos, substituindo o mecanismo de busca por dashboard.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ler continuamente arquivos locais com `pos_file`, assumindo o papel de agente Fluentd.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conduzir as etapas input, filter e output de arquivos de configuração Logstash.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Indexar documentos e oferecer recursos de pesquisa e agregação dos registros recebidos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Atuar como receptor SNMP na UDP 162, sem armazenar documentos pesquisáveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Elasticsearch oferece índice distribuído, busca e agregação de documentos; Logstash transforma e encaminha, Kibana explora os dados. A lhe atribui papel da interface; B confunde com Fluentd; C reproduz estágios do Logstash; E importa tarefa SNMP e nega o armazenamento pesquisável.",
+      "section": "5. Elastic Stack, Fluentd e arquitetura de monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um equipamento trabalha com SNMPv3 e deve proteger a origem e a confidencialidade dos valores enviados. Qual nível de segurança usual atende às duas necessidades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`noAuthNoPriv`, que oferece cifra com credencial de comunidade tradicional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`authNoPriv`, que habilita criptografia de conteúdo sem autenticar mensagens.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SNMPv2c, cuja comunidade equivale à cifra fim a fim das informações sensíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RMON alarm, que autentica os agentes quando variáveis ultrapassam limiares.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`authPriv`, combinando autenticação e privacidade no modelo USM configurado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. O nível authPriv reúne autenticação e privacidade no USM da RFC 3414. A dispensa as duas proteções; B oferece autenticação sem privacidade, e não o contrário; C utiliza comunidades sem esse modelo criptográfico; D relaciona alarme RMON a controle de segurança do SNMP.",
+      "section": "1. Fundamentos de gerência e SNMP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um contador SNMP cresce de 1.000.000 para 4.000.000 de octetos em 30 segundos, sem reset. Qual taxa média em bit/s corresponde ao intervalo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "800.000 bit/s, porque três milhões de octetos equivalem a 24 milhões de bits.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "100.000 bit/s, porque os octetos devem ser divididos diretamente pelos trinta segundos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "24.000.000 bit/s, porque a diferença de contadores dispensa divisão pelo intervalo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "266.667 bit/s, porque conversão de octetos usa divisor oito em vez de multiplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "133.333 bit/s, porque a taxa se calcula sobre o contador final dividido pelo tempo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O delta é 3.000.000 de octetos; multiplicando por oito e dividindo por 30 obtém-se 800.000 bit/s. B esquece converter octetos; C calcula volume, não taxa; D transforma a conversão em divisão indevida; E utiliza contador absoluto final em vez da variação.",
+      "section": "1. Fundamentos de gerência e SNMP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sonda RMON recebe configuração para verificar quando a quantidade de erros ultrapassa determinado limiar e informar a ocorrência. Qual par de grupos cumpre a lógica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "History avalia limiares e statistics é o mecanismo específico de emissão de eventos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alarm detecta cruzamento de limiar e event define registro ou notificação pertinente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Statistics preserva todo o histórico de alarmes e history autentica notificações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "GetBulk identifica condições anormais e Set envia os avisos ao gerente central.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RMON2 substitui os grupos alarm e event por um único contador de segurança.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. A RFC 2819 associa alarm à amostragem e limiares e event ao tratamento e notificação do evento. A troca história por alerta; C confunde estatísticas e autenticação; D toma PDUs SNMP por grupos RMON; E descreve substituição inexistente dos grupos clássicos pela extensão RMON2.",
+      "section": "2. RMON, tráfego e qualidade de serviço",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um operador pretende limitar rajadas de tráfego sem descartá-las imediatamente, utilizando fila de saída para retardar pacotes excedentes. Qual mecanismo QoS foi descrito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Policing, que necessariamente armazena pacotes excedentes em fila antes de transmiti-los.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Marcação DSCP, que retém pacotes até que haja banda disponível no enlace.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Shaping, que suaviza a taxa ao enfileirar e retardar tráfego dentro do perfil configurado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "IPFIX, que aplica escalonamento de saída à medida que exporta registros de fluxo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RMON history, que oferece fila de transmissão para amostras de tráfego remotas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Shaping suaviza rajadas retendo pacotes em fila e transmitindo conforme o perfil; policing pode descartar ou remarcar excessos. A troca os comportamentos; B atribui fila ao rótulo DSCP; D transforma observação de fluxo em escalonamento; E atribui atuação sobre pacotes à história estatística RMON.",
+      "section": "2. RMON, tráfego e qualidade de serviço",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em pipeline de syslog, o administrador verifica que logs com severity 0 representam eventos mais graves que logs severity 7. Qual interpretação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Severity 7 corresponde a emergency, enquanto zero equivale ao nível informativo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Severity serve apenas para escolher facility e não descreve gravidade técnica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Severity aumenta à medida que o evento se aproxima de condição emergencial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Severity 0 representa emergency e severity 7 debug, segundo a tabela syslog.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Severity é contador cumulativo de falhas de rede com faixa de zero a sete.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A tabela de severidades da RFC 5424 associa 0 a emergency e 7 a debug. A inverte a classificação; B nega o conteúdo técnico da severidade; C supõe escala crescente de urgência; E confunde classe de mensagem com contagem de erros. O impacto de negócio ainda deve ser avaliado separadamente.",
+      "section": "3. Logs, syslog, correlação e SIEM",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe configura regra para correlacionar falhas seguidas de login bem-sucedido, usando mesma conta e janela de cinco minutos. Qual mecanismo melhor representa a capacidade descrita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RMON history, porque qualquer evento de aplicação vira amostra do segmento Ethernet.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DSCP EF, porque priorização de pacotes associa automaticamente contas a eventos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SNMP Set, porque uma operação de escrita sobre MIB cruza logins de vários servidores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Prometheus gauge, porque medição pontual de valores comprova autenticação maliciosa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Correlação de SIEM, pois vincula eventos por identidade, sequência e janela temporal.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. SIEM correlaciona eventos de várias fontes com chaves e janelas para gerar hipóteses de incidente. A usa RMON de observação de tráfego para eventos de identidade; B confunde QoS e segurança; C atribui a Set uma análise que ele não executa; D toma métrica simples por reconstrução de sequência de logs.",
+      "section": "3. Logs, syslog, correlação e SIEM",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede não permite novas conexões de entrada em servidores monitorados. O administrador pretende configurar verificações do agente Zabbix que iniciem comunicação de saída. Qual modo é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificações ativas: o agente obtém configurações e envia os valores ao servidor/proxy.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Verificações passivas: o agente inicia todas as consultas e publica dados por iniciativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Modo RMON history: substitui completamente as funções próprias do agente Zabbix.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Modo PromQL rate: abre a conexão do agente Zabbix e dispensa sua configuração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Modo trap SNMP: converte por padrão todo item do agente em notificação RMON.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Na verificação ativa Zabbix, o agente busca a lista de checagens e remete valores, permitindo fluxo iniciado pelo host segundo regras de rede. B inverte o modo passivo; C troca tecnologia de coleta; D usa função de outra ferramenta; E confunde eventos SNMP e itens do agente, que não se convertem automaticamente.",
+      "section": "4. Zabbix, Prometheus e Grafana na operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num servidor de logs, a configuração Logstash recebe registros de arquivo, extrai campos por padrão e envia documentos para pesquisa. Qual sequência descreve o pipeline?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Output recebe arquivos, input indexa documentos e filter faz visualização em Kibana.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Input recebe, filter transforma e output encaminha os eventos ao destino configurado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Filter obrigatoriamente coleta todos os logs e input determina o período de retenção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Elasticsearch faz parsing nativo e Logstash apenas desenha dashboards de exploração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Kibana fornece input ao roteador e Fluentd executa obrigatoriamente a função de filter.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O fluxo padrão Logstash é input → filter → output, como explica a documentação. A inverte etapas; C torna filter obrigatório quando pipeline mínimo pode ter apenas entrada e saída; D atribui painel ao Logstash e ignora seu processamento; E coloca Kibana e Fluentd como dependências não necessárias.",
+      "section": "5. Elastic Stack, Fluentd e arquitetura de monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante marcação de tráfego IP, um engenheiro precisa separar bits de classificação DiffServ e bits do ECN no campo DS de oito bits. Qual partição corresponde à arquitetura atual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quatro bits de DSCP e quatro de ECN, conforme divisão simétrica do campo de serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Oito bits de DSCP e nenhum de ECN, pois congestionamento é informado apenas via RMON.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Seis bits mais significativos para DSCP e dois bits restantes para indicação ECN.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Três bits de DSCP e cinco de ECN, preservando os rótulos de precedência legados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Seis bits para ECN e dois para DSCP, porque ECN define as classes de descarte AF.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O campo DS definido pela RFC 2474 usa DSCP de seis bits; o ECN utiliza os dois restantes na codificação contemporânea. A inventa divisão simétrica; B reserva o byte integral à classe; D preserva erroneamente parte de codificação antiga; E inverte as larguras e confunde ECN com classes Assured Forwarding.",
+      "section": "2. RMON, tráfego e qualidade de serviço",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao calcular velocidade por contador de octetos de 32 bits, uma equipe observa que a amostra mais recente é menor que a anterior. O equipamento permaneceu em operação. Que diagnóstico é prudente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O enlace necessariamente transmitiu bytes negativos, devendo o resultado ser exibido como taxa negativa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A redução comprova perda de 100% dos pacotes, independentemente de tempo e capacidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A diferença direta continua válida porque contadores de 32 bits não sofrem reinicialização nem volta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pode haver wrap-around ou reset; verificar contexto e preferir contadores de 64 bits em alto tráfego.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A amostra menor indica apenas mudança de DSCP, sem relação com representação de contadores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Contadores SNMP de 32 bits podem sofrer wrap-around, e reinicializações também alteram os valores; taxas devem tratar esses casos e usar contadores de alta capacidade quando cabível. A aceita taxa impossível; B deduz perda sem contagem de pacotes; C nega limitações conhecidas; E confunde QoS e medição.",
+      "section": "1. Fundamentos de gerência e SNMP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem syslog tem facility 16 (local0) e severity 4 (warning). O analista deve registrar corretamente seu prefixo de prioridade no formato RFC 5424. Qual valor é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "20, resultado da soma direta dos números da facilidade e da severidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "64, produto de 16 por 4, sem a ponderação definida pelo syslog.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "128, resultado de 16 por oito, descartando o código da severidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "164, por concatenação dos campos como valores decimais em sequência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "132, resultante de 16 multiplicado por oito mais quatro de severity.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A RFC 5424 usa PRI = 8 × facility + severity; 8 × 16 + 4 = 132. A só soma; B multiplica facility e severity; C omite o acréscimo de quatro; D concatena números, operação incompatível com a codificação. Severity warning não se converte em número de eventos.",
+      "section": "3. Logs, syslog, correlação e SIEM",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um SIEM correlaciona logs de dois servidores. Um deles está cinco minutos adiantado e outro registra UTC corretamente; a regra exige sequência de eventos dentro de dois minutos. Qual providência melhora a qualidade da correlação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Normalizar carimbos de tempo e fusos, preservar horário de origem e acompanhar atraso de ingestão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir toda referência temporal pelo nível de severity, que indica a ordem cronológica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Agregar todos os eventos pelo IP de NAT, sem considerar conta, sessão ou origem dos relógios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Descartar eventos mais antigos na chegada, porque ordem de ingestão coincide com ordem de ocorrência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar a janela temporal e considerar qualquer par de logins como sequência causal confirmada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Correlação temporal exige tempos comparáveis e atenção à diferença entre timestamp do evento e ingestão; manter o original facilita auditoria. B confunde severidade e tempo; C ignora ambiguidades de IP compartilhado; D assume chegada ordenada; E elimina o contexto temporal e amplia associações falsas.",
+      "section": "3. Logs, syslog, correlação e SIEM",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Prometheus, uma métrica counter sobe 3.000 unidades no período de cinco minutos, sem resets. Qual interpretação compara corretamente `rate` e `increase` sobre a mesma janela?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`rate` retorna 3.000 por segundo e `increase` retorna 10 no período.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`rate` estima 10 unidades por segundo e `increase` estima 3.000 no período.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`rate` representa a soma de 3.000 e `increase` soma 10 valores de gauge.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`rate` e `increase` retornam obrigatoriamente ambos 3.000, pois compartilham a janela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`rate` calcula 600 unidades por segundo e `increase` calcula 50 no período.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Cinco minutos têm 300 segundos; aumento de 3.000 resulta em taxa média 3.000/300 = 10 por segundo, enquanto increase estima o aumento no período. A inverte as grandezas; C as confunde com gauge; D nega diferença de unidade; E utiliza divisor inadequado. Resultados reais podem variar com amostras e extrapolação.",
+      "section": "4. Zabbix, Prometheus e Grafana na operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A aplicação envia logs diretamente para um ingest pipeline do Elasticsearch, sem processo Logstash. Qual avaliação da arquitetura está de acordo com a documentação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A transformação é inviável, pois o Elasticsearch não admite processadores antes de indexar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Kibana precisa atuar como Logstash para cada documento enviado ao pipeline interno.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Elasticsearch pode transformar documentos via ingest pipeline, sem passagem obrigatória pelo Logstash.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O pipeline de ingest existe somente em Fluentd e é executado após a visualização do índice.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O uso de ingest pipeline dispensa mapping e torna toda consulta automaticamente estruturada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. A documentação Elastic prevê processadores de ingestão no Elasticsearch que alteram documentos antes da indexação. A nega recurso oficial; B torna Kibana coletor indispensável; D desloca pipeline ao Fluentd; E confunde transformação com planejamento de mapping e qualidade de consulta.",
+      "section": "5. Elastic Stack, Fluentd e arquitetura de monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Fluentd acompanha arquivo de log por `in_tail` e salva `pos_file`. Depois de reiniciar o agente, qual expectativa sobre esse recurso é tecnicamente correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O `pos_file` substitui o arquivo de log e arquiva integralmente seu conteúdo já enviado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O `pos_file` garante que o destino indexe cada evento exatamente uma vez em toda falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O parâmetro efetua correlação de segurança entre arquivos, eliminando a necessidade de SIEM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O arquivo de posição auxilia a retomar leitura após reinício, sem garantir entrega final exatamente uma vez.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O arquivo de posição configura DSCP dos pacotes transmitidos pelo agente ao coletor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A documentação Fluentd apresenta `pos_file` como registro de posição de leitura em in_tail para continuidade. A confunde posição e conteúdo; B extrapola para garantia fim a fim dependente de buffers, reenvios e saída; C lhe atribui correlação de SIEM; E importa classificação QoS que não é função do recurso.",
+      "section": "5. Elastic Stack, Fluentd e arquitetura de monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe reúne syslog de firewall, fluxos IPFIX, métricas Prometheus e gráficos Grafana e conclui que já possui um SIEM de detecção completo sem novas configurações. Qual avaliação é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, porque a coexistência de fontes de dados cria correlações de identidade automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim, desde que o DSCP EF esteja marcado nos pacotes de coleta de cada ferramenta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim, porque o Prometheus guarda eventos textuais em índice distribuído igual ao Elasticsearch.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não, pois SIEM exige exclusivamente captura integral de pacotes sem uso de eventos de host.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não basta reunir fontes: são necessárias normalização, correlação, regras e fluxo de investigação.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. SIEM envolve casos de uso, análise e correlação de segurança sobre dados normalizados, com alertas e investigação. A presume correlação por coexistência; B confunde QoS e detecção; C atribui armazenamento documental ao Prometheus; D impõe captura integral como única fonte, desconsiderando eventos de host e identidade.",
+      "section": "3. Logs, syslog, correlação e SIEM",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em gerenciamento SNMP, a MIB organiza objetos que podem ser identificados hierarquicamente por OIDs, permitindo ao gerenciador consultar valores expostos por agentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A RFC 3418 descreve objetos acessíveis pela MIB, identificados por OIDs na arquitetura SNMP. Um gerenciador pode solicitar valores ao agente, respeitando permissões; a MIB não equivale a repositório de logs nem a uma lista de serviços HTTP.",
+      "section": "1. Fundamentos de gerência e SNMP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A porta UDP 162 é a convencional para requisições GetRequest ao agente SNMP, enquanto a UDP 161 é usada exclusivamente para receber traps no gerente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A RFC 3417, seção 3.2, sugere UDP 161 para entidades que respondem a comandos e UDP 162 para receptoras de notificações. O enunciado inverte as funções; a direção da comunicação é elemento clássico da arquitetura de monitoramento SNMP.",
+      "section": "1. Fundamentos de gerência e SNMP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na RFC 2819, o grupo RMON history registra amostras periódicas de variáveis, permitindo ao administrador comparar a evolução do comportamento da rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O grupo de histórico da RMON MIB coleta amostras em períodos definidos para avaliação temporal. A funcionalidade difere do grupo alarm, que acompanha cruzamento de limiares, e do event, que registra ou emite notificações por eventos.",
+      "section": "2. RMON, tráfego e qualidade de serviço",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um registro de fluxo IPFIX é uma cópia obrigatoriamente integral do conteúdo de todos os pacotes de uma comunicação, dispensando captura de tráfego quando se deseja payload.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. IPFIX exporta registros de fluxo com campos e estatísticas sobre comunicações, conforme a RFC 7011, não reproduzindo obrigatoriamente o conteúdo integral dos pacotes. Uma captura em TAP ou SPAN pode oferecer dados de pacote, dentro de sua visibilidade.",
+      "section": "2. RMON, tráfego e qualidade de serviço",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em syslog RFC 5424, facility igual a 3 e severity igual a 4 produzem PRI 28, pois o cálculo é oito vezes a facility somado à severity.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Pela RFC 5424, o valor PRI é 3 × 8 + 4 = 28. Facility classifica a origem da mensagem e severity representa sua gravidade técnica; ambos são codificados no mesmo campo sem constituir contador de alertas.",
+      "section": "3. Logs, syslog, correlação e SIEM",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma configuração Logstash válida precisa obrigatoriamente de estágios input, filter e output, mesmo quando não há nenhuma transformação de conteúdo necessária.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A documentação do Logstash descreve pipeline comum de input, filter e output, mas a configuração mínima precisa de entrada e saída; filtros podem ser omitidos. Exigir filtro em toda instalação confunde uma possibilidade frequente com requisito absoluto.",
+      "section": "5. Elastic Stack, Fluentd e arquitetura de monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O nível `authPriv` do SNMPv3, quando corretamente configurado, combina autenticação e proteção de privacidade, ao contrário do `authNoPriv`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A RFC 3414 descreve mecanismos do modelo USM para integridade/autenticação e privacidade. `authNoPriv` protege autenticação sem criptografar o conteúdo, enquanto `authPriv` adiciona sigilo; o uso real requer algoritmos e credenciais adequados.",
+      "section": "1. Fundamentos de gerência e SNMP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O recebimento de uma Trap SNMP garante, por definição, que houve resposta de confirmação do gerente para o agente emissor da notificação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Trap é notificação SNMP não confirmada, diferentemente de InformRequest, que recebe resposta. A ausência de confirmação faz a coleta depender de outros controles de confiabilidade, como polling e monitoramento do destino das notificações.",
+      "section": "1. Fundamentos de gerência e SNMP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um dispositivo monitorado com RMON pode utilizar grupo alarm para detectar cruzamento de limiar de erros e grupo event para registrar ou notificar a condição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A RFC 2819 distingue a avaliação de amostras e limiares pelo grupo alarm da gestão de eventos por event. O grupo statistics fornece estatísticas, e history guarda amostras históricas; essas funções podem cooperar sem se confundirem.",
+      "section": "2. RMON, tráfego e qualidade de serviço",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Marcar pacotes com um DSCP correspondente a EF obriga qualquer roteador da Internet a reservar banda fim a fim, mesmo sem políticas de QoS configuradas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. As RFCs 2474 e 3246 descrevem marcação e comportamento por salto em domínios que implementam políticas correspondentes. O campo DSCP não cria reserva automática por toda a Internet; dimensionamento, classificação e tratamento dos equipamentos determinam o resultado.",
+      "section": "2. RMON, tráfego e qualidade de serviço",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma configuração Zabbix de verificação passiva, o servidor ou proxy inicia a requisição ao agente, que devolve o valor do item monitorado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação Zabbix de verificações de agentes define a modalidade passiva como requisição iniciada pelo servidor ou proxy ao agente. No modo ativo a iniciativa de conexão e envio parte do agente, depois de obter suas verificações.",
+      "section": "4. Zabbix, Prometheus e Grafana na operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A expressão `rate(http_requests_total[5m])` calcula diretamente o número total de requisições dos últimos cinco minutos, expresso em requisições acumuladas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Em PromQL, rate estima taxa média por segundo de um counter no intervalo, levando em consideração reinicializações de contadores. Para estimar aumento total no período usa-se a função increase, cuja unidade é diferente da taxa de rate.",
+      "section": "4. Zabbix, Prometheus e Grafana na operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Fluentd, o `pos_file` do plugin `in_tail` pode registrar a posição de leitura para permitir retomada após reinício do coletor, observadas a rotação e a configuração dos arquivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação oficial do plugin in_tail indica que a posição de leitura é mantida em pos_file para continuidade operacional. Esse arquivo não equivale ao conteúdo completo dos logs nem fornece, por si, garantia de entrega exatamente uma vez.",
+      "section": "5. Elastic Stack, Fluentd e arquitetura de monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O shaping trata tráfego excedente descartando-o de imediato, enquanto o policing o coloca em fila para emissão mais lenta conforme o perfil configurado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O enunciado inverte os mecanismos de QoS. Shaping normalmente suaviza rajadas por atraso em fila; policing compara tráfego com o perfil e pode descartar ou remarcar o excedente, sem necessariamente armazená-lo para envio posterior.",
+      "section": "2. RMON, tráfego e qualidade de serviço",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem syslog conforme RFC 5424 pode ser transportada por mecanismos diferentes, sendo possível usar UDP ou um transporte protegido, conforme a arquitetura implantada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A RFC 5424 separa formato da mensagem e transporte; a RFC 5426 define mapeamento por UDP e a RFC 5425 trata TLS. Envio por UDP não garante entrega e não dá, por si só, sigilo ou autenticidade ao registro.",
+      "section": "3. Logs, syslog, correlação e SIEM",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma regra SIEM detecta vinte falhas de login de uma origem IP compartilhada por NAT, ela comprovou qual pessoa realizou todas as tentativas, sem necessidade de outras informações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. NAT pode agregar vários usuários num mesmo endereço de origem; correlação deve considerar identidade, dispositivo, sessão, portas, horários e demais dados confiáveis. A regra pode sinalizar evento suspeito, mas não fornece prova individual definitiva apenas pelo IP.",
+      "section": "3. Logs, syslog, correlação e SIEM",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Prometheus, atribuir um label exclusivo para cada requisição HTTP pode elevar drasticamente a cardinalidade, pois a combinação de nome de métrica e labels identifica séries distintas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O modelo de séries temporais Prometheus usa nome da métrica e conjunto de labels como chave lógica de série. Identificador único por requisição cria novas combinações e pode elevar memória, armazenamento e custos de consulta sem melhorar a análise agregada.",
+      "section": "4. Zabbix, Prometheus e Grafana na operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência de Elasticsearch e Kibana instalados, com painéis de eventos, comprova automaticamente a presença de correlação de segurança, casos de detecção e resposta operacional de um SIEM completo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Elasticsearch indexa e pesquisa; Kibana explora e visualiza registros. Um SIEM operacional requer regras de correlação, normalização, interpretação de identidade, critérios de alerta e processo de investigação, não apenas a infraestrutura de armazenamento e painéis.",
+      "section": "5. Elastic Stack, Fluentd e arquitetura de monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando um alerta Prometheus usa `for: 10m`, a condição normalmente precisa permanecer ativa por esse tempo de espera para tornar o alerta firing.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação de alerting rules descreve a cláusula for como duração em que a expressão deve produzir condição ativa antes de firing. Esse parâmetro não altera a unidade da métrica nem força a coleta de cada alvo a ocorrer de dez em dez minutos.",
+      "section": "4. Zabbix, Prometheus e Grafana na operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A aplicação de `GetBulkRequest` em SNMPv1 oferece recuperação em lote idêntica à do SNMPv2, porque a operação foi padronizada na primeira versão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. GetBulkRequest foi introduzida na família SNMPv2 para recuperação mais eficiente de objetos; o SNMPv1 trabalha com Get e GetNext, entre outras PDUs próprias. Confundir versões leva a exigir de equipamento antigo comando que ele não suporta.",
+      "section": "1. Fundamentos de gerência e SNMP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 3411 — An Architecture for Describing SNMP Management Frameworks",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Arquitetura de gerência SNMP, entidades, aplicações e segurança",
+      "url": "https://www.rfc-editor.org/rfc/rfc3411.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 3414 — User-based Security Model for SNMPv3",
+      "publisher": "IETF / RFC Editor",
+      "reference": "USM, autenticação, integridade e privacidade",
+      "url": "https://www.rfc-editor.org/rfc/rfc3414.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 3417 — Transport Mappings for SNMP",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Seção 3.2, portas UDP 161 e 162",
+      "url": "https://www.rfc-editor.org/rfc/rfc3417.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 3418 — Management Information Base for SNMP",
+      "publisher": "IETF / RFC Editor",
+      "reference": "MIB, OIDs e sysUpTime",
+      "url": "https://www.rfc-editor.org/rfc/rfc3418.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 2819 — Remote Network Monitoring MIB",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Grupos statistics, history, alarm e event",
+      "url": "https://www.rfc-editor.org/rfc/rfc2819.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 7011 — Specification of the IP Flow Information Export Protocol",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Exportação de informações sobre fluxos IP",
+      "url": "https://www.rfc-editor.org/rfc/rfc7011.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 2474 — Definition of the Differentiated Services Field",
+      "publisher": "IETF / RFC Editor",
+      "reference": "DiffServ, DSCP e PHB",
+      "url": "https://www.rfc-editor.org/rfc/rfc2474.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 3246 — Expedited Forwarding PHB",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Comportamento EF em QoS",
+      "url": "https://www.rfc-editor.org/rfc/rfc3246.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 2597 — Assured Forwarding PHB Group",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Classes AF e precedências de descarte",
+      "url": "https://www.rfc-editor.org/rfc/rfc2597.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 5424 — The Syslog Protocol",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Formato RFC 5424 e cálculo PRI",
+      "url": "https://www.rfc-editor.org/rfc/rfc5424.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 5426 — Transmission of Syslog Messages over UDP",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Transporte UDP e limitações de entrega",
+      "url": "https://www.rfc-editor.org/rfc/rfc5426.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NIST SP 800-92 — Guide to Computer Security Log Management",
+      "publisher": "NIST",
+      "reference": "Coleta, análise, proteção e retenção de logs",
+      "url": "https://csrc.nist.gov/pubs/sp/800/92/final",
+      "accessedAt": "2026-10-09"
+    }
+  ]
+}

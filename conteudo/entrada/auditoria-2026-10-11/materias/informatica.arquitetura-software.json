@@ -1,0 +1,1805 @@
+{
+  "id": "informatica.arquitetura-software",
+  "subject": "Informática",
+  "title": "Arquitetura de software: camadas, MVC, microsserviços e padrões de projeto",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Arquitetura de software: camadas, MVC, microsserviços e padrões de projeto"
+  ],
+  "scope": {
+    "covers": "Conceito, decisões e qualidade arquitetural; estilos cliente-servidor, P2P, pipes-and-filters, eventos e serverless; camadas lógicas e físicas, aplicação web e interoperabilidade conceitual; MVC, front controller, MVP, MVVM, hexagonal e Clean Architecture; monólitos, SOA, microsserviços, gateway, descoberta, resiliência, saga, consistência eventual, strangler fig e lei de Conway; 23 padrões GoF e atribuição de responsabilidades GRASP.",
+    "excludes": "Fundamentos e pilares de orientação a objetos e os cinco princípios SOLID; UML e métodos ágeis; detalhamento dos métodos e códigos HTTP, SOAP, WSDL, UDDI, Docker, Kubernetes e frameworks específicos; DDD aprofundado."
+  },
+  "theoryTitle": "Arquitetura de software: estilos, camadas, interfaces, sistemas distribuídos e padrões de projeto",
+  "chapters": [
+    {
+      "title": "1. Fundamentos de arquitetura, estilos e atributos de qualidade",
+      "markdown": "## Arquitetura e escolhas estruturais\nA **arquitetura de software** descreve os elementos fundamentais de um sistema, suas relações e decisões que orientam sua evolução. Um **componente** é uma unidade com responsabilidade identificável, como módulo de catálogo, serviço de cobrança ou motor de busca. Um **conector** define a interação entre componentes: chamada de função, conexão de rede, evento, fila ou troca de dados. Uma simples lista de classes não revela necessariamente decisões arquiteturais; é preciso conhecer dependências, fronteiras, mecanismos de comunicação e implantação.\n\nUm sistema de reservas pode conter interface web, módulo de disponibilidade, serviço de pagamento e armazenamento. A decisão de comunicar pagamento por fila, em vez de manter a requisição aberta até o fim de todas as etapas, afeta latência percebida, tolerância a falhas e consistência dos dados. Os **atributos de qualidade** incluem desempenho, disponibilidade, segurança, confiabilidade, modificabilidade, interoperabilidade, escalabilidade, observabilidade e testabilidade. São frequentemente conflitantes: adicionar criptografia e auditoria fortalece segurança, mas pode aumentar custo e latência; espalhar serviços facilita escalá-los independentemente, mas exige controle de falhas de rede. Arquitetura exige explicitar *trade-offs*, não escolher uma tecnologia tida como superior em qualquer cenário.\n\n### Estilos e restrições\n| Estilo | Organização típica | Atenção para a prova |\n| --- | --- | --- |\n| Cliente-servidor | Clientes solicitam recursos a servidores | A função lógica não pressupõe uma máquina por papel |\n| Ponto a ponto (P2P) | Participantes podem fornecer e consumir recursos | Coordenação central auxiliar não elimina necessariamente a troca entre pares |\n| Dutos e filtros | Etapas independentes transformam fluxo de dados | Saída de uma etapa alimenta a próxima; útil em processamento sequencial |\n| Orientado a eventos | Produtores emitem ocorrências para consumidores | Desacopla temporalmente, mas requer lidar com duplicação e ordem |\n| Serverless | Código ou serviços executam sob infraestrutura gerenciada | Não significa inexistência de servidores; a gestão é abstraída |\n\nEm **cliente-servidor**, navegador e serviço backend podem executar em máquinas diferentes, mas também podem coexistir no mesmo ambiente para desenvolvimento. Em **P2P**, cada par pode atuar como consumidor e fornecedor, contrastando com um servidor central obrigatório para cada recurso. Em **pipes-and-filters**, o processamento de arquivo passa por extração, normalização e indexação; cada filtro transforma dados e os encaminha, permitindo reuso, mas uma etapa que exige conhecer todos os estágios prejudica o desacoplamento. Em **event-driven**, uma compra confirmada pode publicar evento consumido por faturamento e notificação; produtores não precisam conhecer cada consumidor, embora seja necessário administrar contratos de eventos e tentativas. Em **serverless**, a aplicação paga ou provisiona conforme modelo de execução do provedor, sujeita a limites, inicialização e dependências operacionais.\n\n### Arquitetura e desenho da solução\nDecisões podem ser representadas por **visões** que respondem perguntas diferentes: contexto de usuários e sistemas externos, decomposição em componentes, relações entre serviços e implantação física. O modelo **C4** populariza as perspectivas de contexto, contêiner, componente e código; essas visões não são quatro camadas obrigatórias da aplicação. Um **ADR (Architecture Decision Record)** registra contexto, alternativas, decisão, motivos e consequências. Por exemplo: preferir monólito modular no lançamento, pois transações locais e menor custo operacional têm prioridade; registrar que a extração de serviços será reavaliada quando a frequência de implantação exigir. Isso é mais verificável do que escrever apenas que a solução será moderna.\n\n### Qualidades e cenários mensuráveis\nAtributo de qualidade precisa de situação observável. Desempenho pode exigir resposta de leitura em até determinado intervalo sob carga definida; disponibilidade demanda meta e janela de medição; recuperação requer tempo e ponto de restauração; modificabilidade considera impacto de uma alteração em módulos. Um requisito genérico como sistema rápido não permite comparar alternativas. Para aumentar confiabilidade, uma fila pode amortecer picos, mas introduz processamento posterior; para reduzir latência, cache acelera leituras, mas pode devolver dado defasado. **Interoperabilidade técnica** é conseguir conectar sistemas; **sintática** é entender formato e esquema; **semântica** é compartilhar o significado do dado. Dois serviços que trocam JSON válido podem discordar sobre unidade de medida ou fuso horário: a conectividade e a sintaxe funcionam, a interpretação falha.\n\n> Como reconhecer: quando a situação descreve estrutura e consequências sistêmicas, discute arquitetura; quando descreve um algoritmo local, discute implementação. A solução correta relaciona requisito, escolha e custo associado."
+    },
+    {
+      "title": "2. Arquitetura em camadas, aplicações web e interoperabilidade",
+      "markdown": "## Divisão por responsabilidades\nA arquitetura **em camadas** agrupa capacidades com responsabilidades afins. Em organização clássica, **apresentação** trata entrada e exibição, **negócio** aplica regras e casos de uso e **acesso a dados** abstrai operações persistentes. Exemplo: ao reservar um livro, a interface recebe o pedido, a camada de negócio verifica limite e disponibilidade, e a camada de dados consulta ou registra o empréstimo. Se a tela decide o limite de livros, a regra fica dependente da interface e dificulta outras formas de acesso, como aplicativo móvel ou integração externa.\n\n**Camada lógica** é separação de código ou responsabilidade; **tier físico** é fronteira de implantação ou execução. Uma aplicação com três camadas lógicas pode ser publicada num único processo. Já uma arquitetura com navegador, servidor de aplicação e servidor de dados pode ter três tiers físicos. Os termos não são sinônimos: instalar cada pacote em pasta diferente também não cria, por si só, implantação separada.\n\n| Organização | Regra de dependência | Consequência usual |\n| --- | --- | --- |\n| Camadas estritas (*closed*) | Chamada passa pela camada imediatamente inferior | Mantém mediações, mas pode produzir encaminhamentos adicionais |\n| Camadas relaxadas (*open*) | Camada pode acessar outra inferior sem passar pelas intermediárias | Permite atalhos, com risco maior de acoplamento |\n| Camadas lógicas | Separam funções no desenho e no código | Podem coexistir no mesmo processo |\n| Tiers físicos | Separam ambientes ou unidades implantadas | Introduzem comunicação e falhas de rede quando distribuídos |\n\n**Vantagens**: separação de interesses, substituição de partes, testes e controle de dependências. **Desvantagens**: propagação de alterações entre camadas, abstrações artificiais, passos extras e gargalos se todas as operações cruzam interfaces genéricas. Uma camada de negócio que depende de dados por interface pode ser testada com repositório simulado; uma camada de apresentação que consulta diretamente tabelas rompe a organização estrita. Uma arquitetura pode deliberadamente abrir exceção para leitura otimizada, mas a decisão deve ser documentada, não confundida com disciplina rígida.\n\n### Aplicação web e unidades de execução\nNo fluxo web usual, o **navegador** envia solicitação ao serviço de borda; o **servidor web** pode servir arquivos estáticos, estabelecer proxy e encaminhar chamadas; um **servidor de aplicações** executa lógica da aplicação, coordena serviços e acesso a persistência. Em projetos reais as capacidades podem coexistir no mesmo processo: não existe exigência universal de duas máquinas ou dois produtos. O **frontend** apresenta interações; o **backend** concentra regras e serviços de dados, embora parte da validação e lógica de interface também possa rodar no cliente. O servidor web pode repassar a solicitação ao processo de aplicação e este responder após executar a regra de negócio. Balanceamento distribui solicitações entre instâncias e favorece capacidade e disponibilidade, mas não resolve sozinho sessões dependentes de memória local.\n\nEstado de sessão pode ser mantido em armazenamento compartilhado, token adequado ou estratégia de afinidade conforme requisitos e riscos. Se duas instâncias armazenam estado apenas em suas próprias memórias e requisições são distribuídas livremente, um usuário pode perder continuidade. O detalhe do protocolo de rede não é necessário para identificar o problema arquitetural: há estado compartilhado não coordenado. Servidores de aplicações costumam oferecer gestão do ciclo de vida de componentes, recursos transacionais ou pools de conexão; um servidor web pode desempenhar proxy, cache e entrega de recursos estáticos. As fronteiras dependem da plataforma.\n\n### Integração e serviços\n**Interoperabilidade** envolve contrato estável, formato compreensível, semântica consistente, segurança e tratamento de falhas. APIs de serviços podem trocar **JSON** ou **XML**, conforme necessidade e contrato; ambos são formatos de dados, não garantias de mesma interpretação. Um serviço de consulta que retorna preco em centavos e outro que presume reais cria falha semântica mesmo com JSON bem formado. **SOA** organiza capacidades como serviços com contratos e governança; *web service* é uma forma de exposição remota de funcionalidades. Em noções, SOAP está associado a mensagens estruturadas em XML e descrições contratuais como WSDL; UDDI refere-se a publicação/descoberta de serviços. REST é estilo arquitetural aplicado a recursos e interações, não outro formato de mensagem, podendo empregar JSON ou XML. O aprofundamento de verbos e envelopes pertence a estudo próprio.\n\nUma mensagem em fila desacopla produtor de consumidor no tempo; uma chamada síncrona costuma esperar resposta. Para integrar consulta de saldo, resposta imediata pode ser necessária; para envio de notificação, processamento assíncrono é muitas vezes suficiente. Ao projetar mensageria, identifique **idempotência** para absorver reentregas, correlação para rastrear fluxos e estratégias de falha. Nenhum formato ou ferramenta transforma automaticamente os dados em consistentes, tampouco garante disponibilidade de todo o sistema."
+    },
+    {
+      "title": "3. MVC, padrões de apresentação e arquitetura centrada no domínio",
+      "markdown": "## O MVC separa três responsabilidades\nNo padrão **Model-View-Controller (MVC)**, o **Model** representa estado e regras relacionadas ao domínio; a **View** apresenta informação; e o **Controller** interpreta interação ou requisição e coordena a execução apropriada. Em uma aplicação de empréstimos, o controller recebe solicitação de reserva, aciona operação do modelo ou serviço de aplicação e escolhe representação de resposta; a view renderiza resultado. Um controller que calcula multa, acessa banco diretamente, monta HTML e envia notificações acumula funções e prejudica testes. As implementações variam: no MVC clássico orientado a interface pode haver notificação de mudanças do modelo; no MVC web é comum que a solicitação seja roteada a uma ação que obtém dados e seleciona uma view.\n\n**Front Controller** é padrão de entrada centralizada para requisições, frequentemente empregado na implementação web de MVC. Um componente comum resolve rotas, autenticação transversal e encaminhamento para controladores específicos. Ele não deve ser confundido com o Controller individual do MVC: o primeiro concentra o ingresso e despacho; o segundo lida com ações de uma área funcional. A View não deve decidir regras de autorização sensíveis; sua ocultação de botão não substitui verificação no servidor.\n\n### MVC não é arquitetura de três camadas\n| Conceito | Divisão principal | Pergunta decisiva |\n| --- | --- | --- |\n| MVC | Model, View, Controller | Quem cuida de entrada, representação e estado/regras? |\n| Três camadas | Apresentação, negócio, dados | Como distribuir responsabilidades de negócio e persistência? |\n| MVP | Model, View, Presenter | Quem coordena estado e ações da View por interface? |\n| MVVM | Model, View, ViewModel | Como expor estado e comandos preparados para ligação com a View? |\n| Hexagonal | Núcleo, portas e adaptadores | Como isolar regra de negócio da tecnologia externa? |\n\nMVC atua frequentemente dentro da **camada de apresentação** de um sistema maior, embora o Model possa abranger regras de domínio conforme a implementação; as três partes MVC não correspondem automaticamente às camadas apresentação, negócio e dados. Na apresentação **MVP**, o Presenter coordena interação entre Model e uma View normalmente exposta por interface, tornando viável testá-lo sem interface gráfica concreta. Em **MVVM**, o ViewModel disponibiliza estado e operações de apresentação, com suporte frequente a *data binding* que sincroniza valores entre View e ViewModel. MVC, MVP e MVVM não são categorias de implantação física e não impõem um banco de dados específico.\n\n### Hexagonal e Clean Architecture\nA **arquitetura hexagonal (ports and adapters)** enfatiza o núcleo de aplicação e suas portas abstratas de entrada e saída. Adaptadores traduzem interações externas: interface web, execução em lote, fila, banco de dados e serviços terceiros. No exemplo de um empréstimo, uma porta `EmprestimoRepository` expressa capacidade necessária ao caso de uso; `RepositorioSql` pode implementá-la como adaptador externo. Um teste utiliza outra implementação em memória, sem mudar a regra de empréstimo. O desenho hexagonal é simbólico: não obriga exatamente seis portas. Adaptador de entrada chama um caso de uso; adaptador de saída implementa serviço requerido pelo núcleo.\n\nNa **Clean Architecture**, a dependência de código aponta para dentro, em direção às regras centrais; casos de uso e entidades não devem precisar conhecer detalhes de interface gráfica, banco de dados ou transporte. Se um módulo central importa diretamente o cliente concreto do banco, a fronteira está invertida. O fluxo em execução pode sair do núcleo para salvar algo, mas a dependência de código é invertida por interfaces definidas em camada interna e implementadas externamente. A arquitetura hexagonal e a Clean Architecture compartilham preocupação com fronteiras e independência, sem exigir nomes idênticos para suas partes.\n\n### Código ilustrativo, Java\nUma interface como `interface EstoquePorta { boolean temItem(long id); }` expressa operação que a aplicação necessita. Uma classe `ConsultaEstoque` recebe um `EstoquePorta` pelo construtor e decide se pode reservar. Uma classe externa `EstoqueSqlAdapter implements EstoquePorta` executa a consulta física. Não é necessário abrir uma conexão para testar a regra com uma implementação simulada. Essa solução se diferencia de simplesmente organizar tudo em pastas chamadas controllers, services e repositories, mantendo dependência direta do núcleo sobre tecnologia concreta.\n\n> A prova costuma trocar *Controller* com regra de negócio ou View com persistência, e confundir camadas lógicas de uma aplicação com Model, View e Controller. Identifique a responsabilidade, e não apenas o nome de uma classe."
+    },
+    {
+      "title": "4. Monólitos, SOA, microsserviços e consistência distribuída",
+      "markdown": "## Fronteira de implantação e tamanho de serviço\nUm **monólito** reúne funcionalidades numa unidade principal de implantação, o que não impede organização interna em módulos bem delimitados. A vantagem pode ser menor complexidade operacional, chamadas locais e transações no mesmo banco; riscos incluem dificuldade de evolução de partes muito acopladas e necessidade de implantar conjunto para mudanças. **SOA (Service-Oriented Architecture)** organiza capacidades de negócio acessíveis por contratos de serviço, com foco em reuso e integração entre aplicações heterogêneas; é possível usar intermediação ou barramento, mas nenhum produto é requisito conceitual universal. **Microsserviços** procuram serviços com capacidades de negócio coesas, implantação independente e responsabilidade explícita pelos próprios dados. A divisão por classes pequenas, por si só, não produz microsserviços: importa a fronteira de implantação, contrato, autonomia e governança.\n\n| Aspecto | Monólito modular | SOA | Microsserviços |\n| --- | --- | --- | --- |\n| Unidade comum | Aplicação implantada em conjunto | Serviços interoperáveis de negócio | Serviço com implantação independente |\n| Integração | Chamadas internas predominantes | Contratos de serviços, mediação opcional | APIs e eventos entre capacidades |\n| Dados | Transação local frequentemente mais simples | Variável conforme integração | Propriedade de dados delimitada por serviço |\n| Risco | Mudanças propagam-se no artefato comum | Governança e dependência de contratos | Falhas remotas e consistência distribuída |\n\nNo padrão **database per service**, cada serviço controla seu esquema e acesso à persistência; isto não implica uma máquina de banco exclusiva por serviço. Compartilhar diretamente tabelas entre serviços cria acoplamento de implantação e evolução. Para consultas que combinam diferentes serviços podem ser necessárias composição por API, eventos e projeções de leitura. Serviços podem chamar outros sincronamente quando precisam de resposta imediata ou publicar eventos para execução assíncrona, ganhando desacoplamento temporal mas aceitando eventual defasagem.\n\n### Infraestrutura arquitetural\nUm **API gateway** oferece entrada de clientes e pode realizar roteamento, autenticação transversal, limitação de chamadas e composição; não deve se transformar em repositório central de todas as regras de negócio. **Service discovery** resolve localização atual das instâncias, relevante quando são criadas e removidas dinamicamente; isso difere de gateway, que apresenta fachada de acesso. **Circuit breaker** interrompe temporariamente chamadas a dependência que falha repetidamente: estado *closed* admite chamadas; *open* rejeita sem consultar a dependência; *half-open* admite tentativas controladas de recuperação. Retries com espera podem tratar falhas transitórias, mas, em dependência persistentemente indisponível, tentativas irrestritas amplificam sobrecarga. Timeout limita espera; bulkhead isola recursos; observabilidade distribui logs, métricas e rastreamento entre serviços.\n\n### Consistência, sagas e eventos\nEm uma venda, pedido, estoque e pagamento podem registrar alterações em bancos distintos. Uma **saga** coordena transações locais e ações de compensação quando alguma etapa falha; não é uma transação ACID única envolvendo automaticamente todos os bancos. Na **orquestração**, coordenador define a próxima ação; na **coreografia**, participantes reagem aos eventos. Se o pagamento falha após reserva, ação compensatória libera estoque. Compensação é operação de negócio, podendo ser diferente de reverter literalmente cada comando. **Consistência eventual** permite divergência temporária de cópias/projeções, que devem convergir sob condições apropriadas; não equivale a aceitar perda definitiva de integridade. Idempotência ajuda a tolerar mensagens duplicadas; a **outbox transacional** registra evento para publicação junto à mudança local, reduzindo risco de persistir operação sem publicar comunicação correspondente.\n\n### Modernização e organização\nO padrão **strangler fig** substitui gradativamente funcionalidades de monólito, encaminhando demandas novas para partes extraídas, em vez de reescrever tudo em uma única mudança. A **lei de Conway** indica que estruturas dos sistemas tendem a refletir padrões de comunicação das organizações que os projetam. Equipes com responsabilidade por capacidades completas favorecem fronteiras de serviços mais coerentes; equipes separadas apenas por interface, lógica e banco podem criar dependências de coordenação entre serviços. Entretanto, dividir um sistema prematuramente aumenta custo de infraestrutura, testes distribuídos, versionamento de contratos, segurança e diagnóstico. Escolha por necessidades de mudança, escala, domínio e maturidade operacional, não pela quantidade de endpoints."
+    },
+    {
+      "title": "5. Padrões GoF, atribuição de responsabilidades GRASP e leitura de casos",
+      "markdown": "## Padrão de projeto não é estilo arquitetural\nOs **23 padrões de projeto GoF** resolvem problemas recorrentes de organização de objetos e responsabilidades. Agrupam-se em cinco **criacionais**, sete **estruturais** e onze **comportamentais**. O propósito e a estrutura são mais importantes que identificar nome de biblioteca; o mesmo sistema pode usar vários padrões em seus componentes. Os exemplos em Java são ilustrativos e não exigem um framework específico.\n\n### Criacionais — cinco\n| Padrão | Intenção e exemplo em Java |\n| --- | --- |\n| Abstract Factory | Cria famílias compatíveis; `FabricaUI` fornece `Botao` e `Campo` do mesmo tema |\n| Builder | Monta objeto complexo passo a passo; `RelatorioBuilder` configura seções opcionais |\n| Factory Method | Subclasse decide produto por método de criação; `Gerador.criarDocumento()` |\n| Prototype | Cria novo objeto pela cópia de protótipo; `modelo.copiar()` |\n| Singleton | Controla existência de uma instância por contexto e acesso a ela; `Configuracao.instancia()` |\n\nO Factory Method não precisa produzir famílias inteiras; o Abstract Factory coordena vários produtos relacionados. Builder não é uma fábrica que escolhe subclasse: organiza etapas de construção. Singleton não garante segurança concorrente automaticamente; sua implementação exige atenção à inicialização e isolamento em testes.\n\n### Estruturais — sete\n| Padrão | Intenção e exemplo em Java |\n| --- | --- |\n| Adapter | Traduz interface incompatível; `AdaptadorLegado implements Pagamento` |\n| Bridge | Separa abstração de implementação, variáveis independentemente; `Notificacao` e `Canal` |\n| Composite | Representa árvore uniforme parte-todo; `Pasta` e `Arquivo` implementam `No` |\n| Decorator | Acrescenta responsabilidades em tempo de execução; `StreamComCompressao` envolve stream |\n| Facade | Oferece interface simplificada a subsistema; `FacadeCheckout.finalizar()` |\n| Flyweight | Compartilha estado intrínseco de inúmeros objetos; `TipoCaractere` reutilizado |\n| Proxy | Substituto controla acesso ao objeto real; `ImagemProxy` carrega arquivo sob demanda |\n\n**Adapter** compatibiliza contratos já divergentes, **Facade** simplifica várias operações de subsistema; **Decorator** preserva interface enquanto acrescenta comportamento e **Proxy** preserva interface para controlar acesso ou criação. **Bridge** evita multiplicação de subclasses combinatórias separando eixos de variação; **Composite** opera folhas e agrupamentos uniformemente; **Flyweight** economiza memória compartilhando parte imutável do estado.\n\n### Comportamentais — onze\n| Padrão | Intenção e exemplo em Java |\n| --- | --- |\n| Chain of Responsibility | Encaminha pedido por cadeia de tratadores; `Filtro.validar()` e próximo filtro |\n| Command | Encapsula pedido como objeto executável; `ComandoSalvar.executar()` |\n| Interpreter | Define representação e avaliação de gramática restrita; `Expressao.avaliar()` |\n| Iterator | Percorre coleção sem expor implementação interna; `Iterator<Item>` |\n| Mediator | Centraliza coordenação entre colaboradores; `MediadorTela` recebe eventos |\n| Memento | Captura estado para restauração sem violar encapsulamento; `Editor.salvarEstado()` |\n| Observer | Notifica inscritos após mudança; `Assunto.inscrever(observador)` |\n| State | Varia comportamento conforme objeto de estado; `PedidoEstado` decide transições |\n| Strategy | Seleciona algoritmo intercambiável; `Preco(PoliticaDesconto)` |\n| Template Method | Define esqueleto e delega passos variáveis a subclasses; `Processador.executar()` |\n| Visitor | Acrescenta operação sobre estrutura de tipos via visita; `No.aceitar(visitante)` |\n\n**Strategy x State**: ambos usam composição e podem delegar a objeto, porém Strategy enfatiza seleção de algoritmo, enquanto State modela comportamento conforme estado e transições. **Observer x Mediator**: Observer distribui notificações entre publicador e inscritos; Mediator coordena interações entre colegas, reduzindo comunicação direta. **Command x Memento**: Command representa uma solicitação executável, útil a filas ou histórico; Memento preserva instantâneo de estado para restauração. **Template Method x Strategy**: no primeiro, a estrutura algorítmica é fixada por herança com passos ajustáveis; no segundo, uma política costuma ser injetada por composição.\n\n### Noções de GRASP\n**GRASP** aborda atribuição de responsabilidades a objetos: *Information Expert* atribui comportamento a quem possui informações necessárias; *Creator* orienta quem cria objetos associados; *Controller* recebe eventos do sistema e delega atividades; *Low Coupling* reduz dependência entre classes; *High Cohesion* reúne responsabilidades relacionadas; *Polymorphism* trata variações por contratos; *Pure Fabrication* cria classe de serviço não correspondente a conceito do domínio quando isso melhora desenho; *Indirection* introduz mediador para desacoplar; *Protected Variations* protege pontos suscetíveis a mudança. Exemplo: o total de um pedido pertence ao objeto que conhece seus itens; uma classe `RepositorioPedido` pode cuidar de persistência como fabricação pura, sem deslocar regra de preços da entidade.\n\n### Seleção sem decorar palavras-chave isoladas\nNum caso de integração com interface antiga, **Adapter** ajusta contrato; se a necessidade é simplificar muitas chamadas a um subsistema, **Facade**. Quando uma política de cálculo muda sem alterar o cliente, **Strategy**; para notificar inscritos sem conhecimento de cada destinatário, **Observer**. Quando uma árvore de grupos e itens deve responder à mesma operação, **Composite**. Se um objeto é caro de construir e deve existir apenas quando acessado, **Proxy** pode adiar a criação. Os padrões são alternativas com custos: múltiplas classes, complexidade de navegação, testes adicionais e possibilidade de abstração prematura.\n\n## Como o tema costuma ser cobrado\nA prova apresenta código ou caso concreto e troca estruturas parecidas. Compare propósito, fronteira de responsabilidade e eixo de variação: camadas x tiers, MVC x três camadas, API gateway x service discovery, saga x transação única, Strategy x State, Adapter x Facade, Proxy x Decorator. Uma resposta defensável identifica *o problema resolvido* e também o custo da escolha; nomes e siglas isolados são insuficientes."
+    }
+  ],
+  "summary": "## Mapa de revisão\nArquitetura de software é organização de componentes, conectores e decisões que afetam atributos como desempenho, disponibilidade, segurança, interoperabilidade, modificabilidade e testabilidade. Cliente-servidor concentra ofertas de serviços; P2P permite pares fornecedores/consumidores; pipes-and-filters transforma fluxos em etapas; eventos desacoplam produtores de consumidores; serverless abstrai gestão dos servidores.\n\n**Camadas lógicas** separam apresentação, negócio e dados; **tiers físicos** representam implantação. Camadas estritas passam pela camada adjacente, relaxadas admitem saltos. Servidor web trata borda, recursos estáticos e encaminhamento; servidor de aplicações executa componentes e serviços, embora funções possam coexistir. XML e JSON são representações; intercâmbio semântico exige significado consistente. SOAP costuma empregar XML e contratos WSDL, REST é estilo de interação com recursos; UDDI relaciona-se à descoberta de serviços.\n\n**MVC:** Model mantém estado/regras; View representa; Controller recebe interação e coordena. Front Controller concentra entrada e despacho. MVP usa Presenter intermediando a View; MVVM usa ViewModel e frequentemente data binding. Três camadas não correspondem diretamente às três partes MVC. Hexagonal define portas e adaptadores; Clean Architecture orienta dependências do código para o núcleo.\n\n**Monólito** tem unidade principal de implantação e pode ser modular. SOA enfatiza contratos de serviços e integração. Microsserviços favorecem autonomia por capacidade, banco controlado por serviço e implantação independente, mas ampliam riscos de rede e consistência. Gateway roteia entrada, discovery encontra instâncias, circuit breaker interrompe tentativas repetidamente falhas, saga coordena transações locais e compensações, strangler fig migra funcionalidades gradualmente. Lei de Conway relaciona arquitetura e comunicação organizacional.\n\n**GoF — 23:** criacionais (Factory Method, Abstract Factory, Builder, Prototype, Singleton); estruturais (Adapter, Bridge, Composite, Decorator, Facade, Flyweight, Proxy); comportamentais (Chain of Responsibility, Command, Interpreter, Iterator, Mediator, Memento, Observer, State, Strategy, Template Method, Visitor). GRASP orienta escolha de responsáveis: Information Expert, Creator, Controller, Low Coupling, High Cohesion, Polymorphism, Pure Fabrication, Indirection e Protected Variations.",
+  "flashcards": [
+    {
+      "front": "O que compõe arquitetura de software?",
+      "back": "Componentes, conectores, fronteiras e decisões que influenciam qualidades e evolução do sistema."
+    },
+    {
+      "front": "Qual diferença entre camadas e tiers?",
+      "back": "Camadas são separações lógicas; tiers são unidades físicas ou de implantação. Várias camadas podem ocupar um tier."
+    },
+    {
+      "front": "O que distingue camadas estritas?",
+      "back": "Uma camada acessa a adjacente inferior, em vez de saltar diretamente para qualquer camada mais abaixo."
+    },
+    {
+      "front": "Função principal da camada de negócio?",
+      "back": "Executar regras e casos de uso sem delegar decisões fundamentais à interface."
+    },
+    {
+      "front": "P2P difere de cliente-servidor como?",
+      "back": "Em P2P participantes podem ofertar e consumir recursos; cliente-servidor organiza papéis de solicitante e fornecedor."
+    },
+    {
+      "front": "O que são pipes-and-filters?",
+      "back": "Estilo em que etapas transformam dados e encaminham saídas às etapas seguintes."
+    },
+    {
+      "front": "Serverless dispensa servidores?",
+      "back": "Não. A infraestrutura de execução existe, mas sua gestão é abstraída para o desenvolvedor."
+    },
+    {
+      "front": "O que representa MVC?",
+      "back": "Model mantém estado/regras; View exibe; Controller trata interação e coordena ações."
+    },
+    {
+      "front": "Para que serve Front Controller?",
+      "back": "Centralizar entrada e despacho de requisições aos controladores adequados, inclusive preocupações transversais."
+    },
+    {
+      "front": "MVP versus MVVM?",
+      "back": "MVP tem Presenter mediando a View; MVVM expõe estado e ações via ViewModel, frequentemente com data binding."
+    },
+    {
+      "front": "O que são portas na arquitetura hexagonal?",
+      "back": "Contratos de interação do núcleo, implementados ou utilizados por adaptadores tecnológicos externos."
+    },
+    {
+      "front": "Regra central da Clean Architecture?",
+      "back": "Dependências de código apontam para dentro, mantendo regras centrais independentes da infraestrutura."
+    },
+    {
+      "front": "O que caracteriza microsserviços?",
+      "back": "Serviços centrados em capacidades de negócio, contratos definidos, autonomia de implantação e controle sobre seus dados."
+    },
+    {
+      "front": "Qual diferença entre gateway e discovery?",
+      "back": "Gateway concentra entrada e roteamento externo; discovery encontra endereços das instâncias disponíveis."
+    },
+    {
+      "front": "O que faz circuit breaker?",
+      "back": "Interrompe temporariamente chamadas a uma dependência que falha repetidamente, permitindo testes controlados de recuperação."
+    },
+    {
+      "front": "O que é saga?",
+      "back": "Coordenação de transações locais com ações de compensação, por orquestração ou coreografia."
+    },
+    {
+      "front": "O que significa consistência eventual?",
+      "back": "Dados podem divergir temporariamente, com convergência esperada sob condições definidas."
+    },
+    {
+      "front": "O que faz strangler fig?",
+      "back": "Migra funções de um sistema legado gradualmente para novos componentes, reduzindo risco de substituição total."
+    },
+    {
+      "front": "Diferença entre Adapter e Facade?",
+      "back": "Adapter adapta interface incompatível; Facade oferece interface simplificada a subsistema."
+    },
+    {
+      "front": "Diferença entre Strategy e State?",
+      "back": "Strategy troca algoritmo ou política; State altera comportamento em função do estado corrente."
+    },
+    {
+      "front": "O que é Observer?",
+      "back": "Relação de publicação e assinatura em que observadores são notificados de mudanças."
+    },
+    {
+      "front": "Quais são os totais GoF?",
+      "back": "23 padrões: cinco criacionais, sete estruturais e onze comportamentais."
+    }
+  ],
+  "tips": [
+    "Pergunte se a mudança é lógica ou de implantação: três camadas não obrigam três servidores.",
+    "Distinga MVC (responsabilidades de apresentação/interação) de apresentação-negócio-dados (divisão arquitetural em camadas).",
+    "Identifique o problema antes do padrão: adaptar interface pede Adapter; simplificar um subsistema pede Facade.",
+    "Em microsserviços, avalie autonomia de dados e implantação antes de contar endpoints ou pastas.",
+    "Ao ver falhas remotas repetidas, associe circuit breaker a interrupção temporária, e retry a repetição controlada.",
+    "Saga envolve transações locais e compensações; não pressupõe transação ACID global.",
+    "Para memorizar GoF, organize primeiro por propósito: criar, estruturar e coordenar comportamento.",
+    "No diagnóstico arquitetural, cite explicitamente benefício e custo da decisão, como disponibilidade versus consistência."
+  ],
+  "traps": [
+    "A prova afirma que três camadas lógicas exigem três computadores. Errado: camadas são responsabilidades e podem compartilhar processo; tiers são fronteiras de implantação.",
+    "A prova trata Controller como lugar ideal de todas as regras do domínio. Errado: Controller coordena entrada e interação; regras centrais pertencem ao Model e a serviços apropriados.",
+    "A prova diz que serverless significa execução sem servidores. Errado: o provedor administra a infraestrutura de execução.",
+    "A prova chama uma aplicação de microsserviços apenas por ter muitos controladores. Errado: autonomia, contratos e implantação importam mais que número de classes.",
+    "A prova equipara saga a transação única com rollback de bancos distintos. Errado: sagas usam transações locais e compensações de negócio.",
+    "A prova confunde Gateway com Service Discovery. Errado: o primeiro é entrada/roteamento; o segundo resolve instâncias disponíveis.",
+    "A prova usa Adapter e Facade como sinônimos. Errado: Adapter compatibiliza contratos; Facade simplifica acesso ao subsistema.",
+    "A prova confunde State com Strategy por ambos utilizarem composição. Errado: State acompanha mudanças de estado; Strategy seleciona algoritmo."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como distinguir arquitetura e implementação local?",
+      "answer": "Arquitetura decide estrutura, fronteiras, comunicação e qualidades sistêmicas; implementação local realiza comportamentos dentro dessas escolhas."
+    },
+    {
+      "question": "Quando a arquitetura em camadas é dita relaxada?",
+      "answer": "Quando uma camada pode chamar camada não adjacente inferior, sem atravessar obrigatoriamente cada intermediação."
+    },
+    {
+      "question": "Qual é o fluxo típico de MVC web?",
+      "answer": "A requisição chega ao roteamento/controller, que aciona modelo ou casos de uso e seleciona representação de saída para a view."
+    },
+    {
+      "question": "Por que MVC não equivale a três camadas?",
+      "answer": "Porque Model, View e Controller descrevem responsabilidades de interação e apresentação; apresentação, negócio e dados descrevem divisões de aplicação."
+    },
+    {
+      "question": "Como a arquitetura hexagonal isola o banco?",
+      "answer": "O núcleo depende de porta abstrata; adaptador externo implementa a persistência, permitindo teste com substituto em memória."
+    },
+    {
+      "question": "Que riscos aparecem ao decompor monólito em microsserviços?",
+      "answer": "Falhas de rede, rastreamento distribuído, contratos evolutivos, coordenação de implantação e consistência entre dados."
+    },
+    {
+      "question": "Quando escolher saga coreografada ou orquestrada?",
+      "answer": "Coreografia coordena por eventos entre participantes; orquestração usa coordenador explícito para definir passos e compensações."
+    },
+    {
+      "question": "Como distinguir os 23 padrões GoF por finalidade?",
+      "answer": "Cinco organizam criação, sete compõem estruturas e onze organizam responsabilidades e interação comportamental."
+    },
+    {
+      "question": "Que responsabilidades GRASP orienta colocar no objeto?",
+      "answer": "As relacionadas às informações que ele possui (Information Expert), preservando alta coesão e baixo acoplamento."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Camadas lógicas confundidas com implantação",
+      "summary": "Apresentação, negócio e dados são responsabilidades; tiers representam distribuição de execução. Estrita versus relaxada descreve permissão de saltar camadas."
+    },
+    {
+      "key": "e2",
+      "title": "MVC e padrões de apresentação confundidos",
+      "summary": "Model, View e Controller não são iguais a apresentação, negócio e persistência. Front Controller centraliza entrada; MVP usa Presenter e MVVM usa ViewModel."
+    },
+    {
+      "key": "e3",
+      "title": "Autonomia de microsserviços superestimada",
+      "summary": "Quantidade de endpoints e processos não assegura microsserviços. Contratos, independência de implantação, propriedade dos dados e custos operacionais são centrais."
+    },
+    {
+      "key": "e4",
+      "title": "Integração e resiliência mal interpretadas",
+      "summary": "Gateway roteia clientes; discovery resolve instâncias; circuit breaker bloqueia falhas repetidas; saga usa transações locais e compensações; consistência eventual admite defasagem."
+    },
+    {
+      "key": "e5",
+      "title": "Padrões de projeto vizinhos trocados",
+      "summary": "Adapter traduz interface; Facade simplifica; Proxy controla acesso; Decorator acrescenta comportamento; Strategy escolhe algoritmo; State expressa comportamento por estado."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um sistema tem módulos de interface, regras de reservas e acesso ao armazenamento; todos são executados no mesmo processo. Qual classificação é compatível com esse desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Três camadas lógicas distribuídas em uma unidade de implantação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Três tiers físicos necessariamente separados por conexões de rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Três microsserviços autônomos com implantação necessariamente isolada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma rede P2P em que cada camada atua como participante equivalente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma arquitetura de eventos sem fluxo de chamadas entre módulos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Apresentação, negócio e acesso a dados podem ser camadas de uma aplicação implantada como uma unidade. B inventa três fronteiras físicas; C confunde módulos com serviços autônomos; D exige característica de pares que não aparece; E substitui divisões funcionais por estilo de eventos sem evidência.",
+      "section": "2. Arquitetura em camadas, aplicações web e interoperabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina de processamento recebe registros, normaliza campos e encaminha o resultado para indexação, com cada etapa reutilizável e entrada e saída explícitas. Qual estilo descreve melhor o fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cliente-servidor com requisições de usuários a um processo central.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ponto a ponto com compartilhamento equivalente entre participantes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dutos e filtros, com transformações ligadas em sequência.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "MVC, com apresentação de páginas e controladores de interface.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SOA, com catálogo de serviços e contratos de integração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Pipes-and-filters organiza transformações de fluxo em filtros conectados. A representa papéis de cliente e fornecedor, não etapas; B pressupõe pares; D divide responsabilidades de interação e tela; E organiza serviços por contrato, algo distinto do pipeline descrito.",
+      "section": "1. Fundamentos de arquitetura, estilos e atributos de qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação web adota MVC. Ao receber pedido de reserva, qual componente deve tratar a interação inicial, acionar o comportamento pertinente e escolher a resposta apresentada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "View, pois sua responsabilidade central é decidir as regras de empréstimo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Model, porque deve interpretar diretamente a rota recebida pelo navegador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Banco de dados, que deve escolher a página conforme a sessão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Adapter de saída, pois coordena automaticamente todas as telas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Controller, que recebe a entrada e coordena modelo e apresentação.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Controller recebe interações e coordena a resposta do MVC web. A atribui regras à View; B confunde modelo do domínio com roteamento; C desloca apresentação ao banco; D pressupõe arquitetura hexagonal e dá ao adaptador de saída uma função de interface que não lhe pertence.",
+      "section": "3. MVC, padrões de apresentação e arquitetura centrada no domínio",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema publica um evento quando uma compra é confirmada; faturamento e notificações o processam sem que o emissor chame cada consumidor diretamente. Qual estilo predomina?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Camadas estritas com todos os consumidores na mesma interface.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Arquitetura orientada a eventos, com produtores e assinantes desacoplados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Padrão Factory Method, pois consumidores são instanciados após a compra.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Estilo P2P, pois toda notificação pressupõe equivalência entre os pares.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Padrão MVC, pois cada mensagem deve obrigatoriamente produzir uma View.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. A comunicação por publicação e assinatura caracteriza eventos. A não explica assinantes independentes; C é padrão de criação de objetos; D confunde eventos com troca de recursos entre pares; E é organização de apresentação, não entrega de ocorrências distribuídas.",
+      "section": "1. Fundamentos de arquitetura, estilos e atributos de qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No projeto de aplicação em camadas, uma requisição chega ao frontend e uma regra deve verificar o limite de reservas antes de persistir a operação. Onde a verificação deve residir preferencialmente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "No mecanismo de renderização da tela, para assegurar reutilização visual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "No servidor web estático, por estar na primeira fronteira da requisição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Na camada de dados, como parte exclusiva da serialização dos registros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Na camada de negócio, responsável pela aplicação das regras do domínio.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "No balanceador, antes da escolha da instância de aplicação disponível.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. O limite é regra de negócio e deve ser respeitado por diferentes clientes. A torna a regra dependente de UI; B e E atribuem lógica de domínio a componentes de borda; C confunde decisão de reserva com mecanismo de armazenamento, que apenas executa persistência.",
+      "section": "2. Arquitetura em camadas, aplicações web e interoperabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe quer permitir que um serviço seja acessado por diferentes aplicações mediante contrato estável, sem expor sua implementação interna. Qual enfoque é coerente com SOA?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Compartilhar diretamente as classes internas e o esquema de tabelas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Expor capacidades como serviços com contratos explícitos e interoperáveis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir todos os serviços por apresentações MVC em processo único.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dispensar definição semântica, bastando transmitir JSON sintaticamente válido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Organizar cada funcionalidade como filtro de um pipeline sequencial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. SOA destaca contratos e integração entre capacidades. A rompe encapsulamento e acopla consumidores; C troca orientação a serviços por padrão de interface; D ignora interoperabilidade semântica; E descreve dutos e filtros, que não substitui contratos de serviços.",
+      "section": "2. Arquitetura em camadas, aplicações web e interoperabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação executa funcionalidades em um artefato de implantação único, mas possui módulos bem delimitados e testes individuais. Como classificá-la sem confundir modularidade com distribuição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Microsserviços, pela simples existência de mais de um módulo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "P2P, porque cada módulo pode chamar funções de outro módulo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Serverless, devido ao isolamento das unidades lógicas do código.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Monólito modular, com organização interna e implantação conjunta.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Arquitetura de eventos, pela presença de testes de componentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Monólitos podem ter fronteiras internas disciplinadas e permanecer uma unidade de implantação. A presume autonomia ausente; B usa critério inadequado para P2P; C confunde modularidade com gestão de execução; E infere eventos de testes sem comunicação assíncrona descrita.",
+      "section": "4. Monólitos, SOA, microsserviços e consistência distribuída",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cálculo de desconto precisa alternar entre políticas promocionais sem alterar a classe que calcula o valor final. Qual padrão GoF se adequa ao problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Strategy, para encapsular algoritmos intercambiáveis de cálculo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Singleton, para controlar a quantidade de objetos de configuração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Composite, para organizar componentes recursivos de uma árvore.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Observer, para divulgar mudanças a assinantes de um objeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Memento, para guardar estados anteriores e permitir restauração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Strategy encapsula algoritmos/políticas substituíveis. B limita instância e acesso; C uniformiza folhas e composições; D comunica mudanças; E captura estado. Nenhum desses quatro descreve diretamente troca de algoritmo de preço.",
+      "section": "5. Padrões GoF, atribuição de responsabilidades GRASP e leitura de casos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um componente mantém uma lista de interessados e os avisa quando um pedido muda de situação, sem conhecer detalhadamente cada reação. Qual padrão representa o mecanismo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Builder, ao construir objetos complexos em várias etapas de criação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Adapter, ao traduzir interfaces preexistentes incompatíveis entre si.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Proxy, ao controlar acesso e inicialização de um objeto remoto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mediator, ao coordenar interações específicas entre colegas de interface.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Observer, ao distribuir notificações para inscritos em mudanças de estado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Observer liga sujeito e observadores por inscrição/notificação. A cria objetos; B converte contratos; C controla acesso; D coordena interações por mediador, podendo parecer próximo, mas o cenário enfatiza publicação a interessados inscritos.",
+      "section": "5. Padrões GoF, atribuição de responsabilidades GRASP e leitura de casos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma camada de apresentação acessa diretamente o repositório de dados, saltando uma camada de serviços intermediária. Que característica da organização em camadas foi empregada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Camadas estritas, que exigem interação pela camada imediatamente inferior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tiers físicos, definidos pelo salto de chamadas entre pacotes lógicos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Camadas relaxadas, que permitem ultrapassar intermediárias inferiores.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Padrão Command, que encapsula a solicitação de acesso ao banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SOA, cuja regra estabelece acesso direto de interfaces a tabelas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Em camadas relaxadas, admite-se chamar camadas inferiores não adjacentes. A descreveria mediação obrigatória; B confunde lógica com implantação física; D descreve encapsulamento de comandos e não camadas; E não determina ultrapassar serviços para chegar aos dados.",
+      "section": "2. Arquitetura em camadas, aplicações web e interoperabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas aplicações conseguem trocar mensagens JSON válidas, mas uma interpreta preço em centavos e a outra em reais. Qual dimensão da interoperabilidade falhou?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Técnica, pois os sistemas nem sequer estabeleceram conexão de rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sintática, porque JSON válido não pode representar números monetários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Física, pois cada serviço precisa compartilhar o mesmo processo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Semântica, devido à divergência sobre o significado de um campo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Temporal, por exigência de confirmação antes de qualquer transmissão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A unidade monetária interpretada diferentemente é quebra de semântica apesar de conexão e formato válidos. A contradiz a troca bem-sucedida; B confunde valor e sintaxe; C impõe distribuição inexistente; E trata sincronização sem relação com unidade do campo.",
+      "section": "1. Fundamentos de arquitetura, estilos e atributos de qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema web possui várias ações de controladores, mas concentra o primeiro recebimento, roteamento e aplicação de políticas transversais de entrada em um único componente. Qual padrão está presente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Front Controller, responsável por centralizar entrada e despacho.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "State, encarregado de guardar estados de negócios de cada sessão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Composite, destinado a representar a hierarquia das rotas como objetos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Abstract Factory, dedicado a instanciar famílias de controladores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Data Mapper, encarregado de representar as telas do navegador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Front Controller centraliza a chegada de solicitações e seu encaminhamento. B varia comportamento por estado e não é roteador; C modela árvore parte-todo; D cria famílias de produtos; E relaciona objetos à persistência e não é mecanismo de entrada web.",
+      "section": "3. MVC, padrões de apresentação e arquitetura centrada no domínio",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa executar a mesma regra de aprovação por navegador, rotina agendada e teste, trocando apenas o modo de entrada e a persistência. Qual desenho contraria o princípio de independência do núcleo na arquitetura hexagonal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Oferecer entrada de navegador por adaptador que aciona o caso de uso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir portas no núcleo e usar adaptadores externos para as tecnologias.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir que o núcleo dependa diretamente das classes concretas de banco.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Conectar a execução agendada por adaptador de entrada independente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Testar regras utilizando implementação em memória das portas de saída.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. A dependência do núcleo em relação a classes concretas do banco viola sua independência tecnológica. A oferece entrada por adaptador, B define contratos internos, D conecta outra forma de entrada e E testa com adaptador substituto; todas essas opções preservam a separação característica da arquitetura hexagonal.",
+      "section": "3. MVC, padrões de apresentação e arquitetura centrada no domínio",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um conjunto de serviços, há necessidade de uma entrada unificada para clientes externos e de localizar dinamicamente instâncias internas que mudam de endereço. Qual associação atende aos dois problemas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gateway para descobrir serviços; Observer para concentrar chamadas externas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "API gateway para entrada; service discovery para resolver instâncias.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Circuit breaker para entrada; MVC para localizar serviços distribuídos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Service discovery para entrada; saga para mapear endereços de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Proxy GoF para governança; Builder para administrar nomes de serviços.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O gateway expõe a entrada e roteia clientes; discovery determina onde estão instâncias em execução. A inverte funções e usa Observer de modo inadequado; C associa circuit breaker a entrada; D usa saga para descoberta; E troca infraestrutura de serviços por padrões de objetos.",
+      "section": "4. Monólitos, SOA, microsserviços e consistência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Chamadas a um serviço de terceiros falham repetidamente e continuam consumindo threads enquanto aguardam resposta. Que mecanismo pode suspender tentativas por um período e testar recuperação controlada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retry sem intervalo, para aumentar a frequência de acesso à dependência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Service discovery, para localizar instâncias independentemente de falhas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "API gateway, para substituir cada operação de domínio do serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Saga coreografada, para transformar toda chamada em compensação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Circuit breaker, alternando bloqueio e tentativas de recuperação.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. O circuit breaker abre circuito após falhas e depois permite testes limitados. A agrava sobrecarga; B resolve localização, não interrompe falhas; C centraliza acesso sem oferecer necessariamente esse comportamento; D coordena transações distribuídas e compensações.",
+      "section": "4. Monólitos, SOA, microsserviços e consistência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Pedido, cobrança e estoque possuem persistência independente. Um coordenador explícito manda reservar, cobrar e, diante de falha, liberar a reserva. Qual técnica foi adotada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Transação ACID única que bloqueia necessariamente todos os bancos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Saga por coreografia, sem participante que estabeleça a sequência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Saga por orquestração, com transações locais e compensação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Padrão Singleton, mantendo transação global em instância única.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Consistência forte automática, sem necessidade de ações corretivas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Um coordenador que determina passos e compensações caracteriza saga orquestrada. A impõe transação global ausente; B descreve coreografia orientada a eventos; D confunde criação de objeto com transação; E presume garantia de consistência imediata não prevista.",
+      "section": "4. Monólitos, SOA, microsserviços e consistência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa disponibilizar a mesma interface de leitura de dados e adicionar compressão e criptografia por composição, sem alterar o objeto básico. Qual padrão GoF se destaca?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adapter, para converter assinatura incompatível de biblioteca externa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Proxy, para impedir ou retardar acesso ao objeto encapsulado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Facade, para esconder a complexidade de vários subsistemas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Bridge, para separar duas hierarquias que evoluem independentemente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Decorator, para acrescentar comportamentos a objeto envolvido.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Decorator envolve componente de mesma interface e acrescenta funções como compressão. A adapta contratos distintos; B controla acesso e não tem acréscimo de comportamento como finalidade principal; C simplifica subsistemas; D divide abstração e implementação em eixos independentes.",
+      "section": "5. Padrões GoF, atribuição de responsabilidades GRASP e leitura de casos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em interface reativa, propriedades da tela são sincronizadas com um objeto que expõe estado e comandos de apresentação, sem implementar diretamente a interface gráfica. Qual padrão descreve a solução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "MVC, pois o Model é necessariamente uma cópia do estado visual da tela.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MVVM, com ViewModel e mecanismos de ligação de dados à View.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "MVP, pois o Presenter obriga data binding bidirecional automático.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Front Controller, pois expõe propriedades visuais aos componentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Camadas físicas, que eliminam a necessidade de estado de apresentação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. MVVM expõe estado de apresentação no ViewModel, frequentemente associado a data binding. A reduz indevidamente o Model MVC a cópia visual; C impõe característica não obrigatória a MVP; D cuida de entrada e roteamento; E confunde implantação com interação da tela.",
+      "section": "3. MVC, padrões de apresentação e arquitetura centrada no domínio",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe decidiu aplicar database per service em quatro microsserviços. Qual desenho preserva a autonomia mesmo que duas persistências usem o mesmo servidor físico de banco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir a qualquer serviço alterar tabelas dos outros quando necessário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Centralizar todo o esquema sob um serviço que recebe chamadas internas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fazer todos os serviços compartilharem uma única transação local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir propriedade de esquemas e impedir acesso direto cruzado aos dados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Deslocar todas as regras de consistência para o API gateway externo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A propriedade do dado é fronteira lógica de controle, mesmo com infraestrutura física compartilhada. A gera acoplamento por tabela; B cria centralização indevida; C pressupõe atomicidade local comum; E atribui regras e consistência internas ao gateway de borda.",
+      "section": "4. Monólitos, SOA, microsserviços e consistência distribuída",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, uma classe abstrata define a ordem de validar, executar e registrar, permitindo que subclasses redefinam apenas a etapa de execução. Qual padrão é o mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Template Method, com esqueleto da operação e pontos variáveis por herança.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Strategy, com seleção obrigatória de algoritmo por composição externa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Visitor, com nova operação aplicada a tipos diferentes de elementos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Chain of Responsibility, com passagem da solicitação entre tratadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Factory Method, que delega às subclasses a criação de novos produtos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Template Method fixa o roteiro do algoritmo na superclasse e permite ajustar passos. B é alternativa típica por composição; C acrescenta operação a estrutura de tipos; D encaminha pedidos entre tratadores; E cria objetos e não fixa sequência de execução.",
+      "section": "5. Padrões GoF, atribuição de responsabilidades GRASP e leitura de casos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório pode ser exibido por tela, impresso ou enviado como arquivo; cada modo pode combinar-se com diferentes tipos de relatório, evitando subclassificar todas as combinações. Qual padrão separa os dois eixos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adapter, traduzindo contrato legado para somente uma nova interface.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Flyweight, compartilhando dados imutáveis de milhares de objetos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Prototype, copiando relatórios para evitar criar novas instâncias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Facade, reunindo acessos de diferentes serviços numa entrada simples.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Bridge, separando abstração e implementação em variações independentes.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Bridge divide abstração e implementação para evitar explosão combinatória de subclasses. A compatibiliza interfaces existentes; B partilha estado; C cria objetos por cópia; D reduz complexidade de acesso a subsistemas, não trata dois eixos de variação.",
+      "section": "5. Padrões GoF, atribuição de responsabilidades GRASP e leitura de casos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No catálogo GoF, qual relação apresenta corretamente as quantidades e a classificação dos padrões, considerando inclusive Interpreter e Visitor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cinco criacionais, oito estruturais e dez comportamentais; total 23.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cinco criacionais, sete estruturais e onze comportamentais; total 23.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Seis criacionais, seis estruturais e onze comportamentais; total 23.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quatro criacionais, sete estruturais e doze comportamentais; total 23.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cinco criacionais, seis estruturais e doze comportamentais; total 23.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O catálogo contém 5 padrões de criação, 7 de estrutura e 11 de comportamento. A transfere um comportamental para estrutural; C move estrutural para criação; D reduz criacionais e aumenta comportamentais; E move estrutural para comportamental.",
+      "section": "5. Padrões GoF, atribuição de responsabilidades GRASP e leitura de casos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois serviços precisam manter estoque e pedidos consistentes por eventos. Não há coordenador central; cada participante executa uma transação local ao receber o evento pertinente. Qual classificação é a mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Orquestração central de saga por serviço de coordenação implícito.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Transação ACID global com isolamento automático entre os bancos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Padrão Proxy aplicado a cada repositório e a todos os eventos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Coreografia de saga baseada em eventos e transações locais.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Arquitetura em camadas estritas com consistência imediata implícita.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Na coreografia, serviços reagem a eventos sem orquestrador, mantendo transações locais e compensações quando preciso. A pressupõe coordenador; B presume transação distribuída global; C trata acesso a objetos; E confunde dependências em camadas com consistência entre bancos.",
+      "section": "4. Monólitos, SOA, microsserviços e consistência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um legado monolítico será modernizado por partes. As novas solicitações para módulos migrados passam a serviços novos, enquanto as demais permanecem no sistema antigo. A organização das equipes também influencia as fronteiras adotadas. Qual análise reúne os dois conceitos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Strangler fig descreve migração progressiva; lei de Conway relaciona comunicação e estrutura.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Saga descreve migração progressiva; lei de Conway determina um banco único.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Observer descreve migração progressiva; Template Method define as equipes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Service discovery migra o domínio; circuit breaker estabelece estrutura organizacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Factory Method organiza equipes; strangler fig proíbe coexistência de versões.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Strangler fig substitui funcionalidades gradualmente e a lei de Conway observa correspondência com estruturas de comunicação. B confunde saga com migração; C aplica padrões locais; D trata localização/resiliência; E atribui papel organizacional a criação de objetos e nega a coexistência temporária típica.",
+      "section": "4. Monólitos, SOA, microsserviços e consistência distribuída",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A classe Pedido conhece seus itens e respectivos preços; uma equipe propõe calcular o total em um controlador web, enquanto outra propõe manter a operação no objeto que possui as informações necessárias. Qual orientação GRASP favorece a segunda escolha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pure Fabrication, que força toda regra do domínio para serviços artificiais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Indirection, que exige uma nova classe entre cada método e atributo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Information Expert, atribuindo responsabilidade a quem conhece os dados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Controller, que transfere cálculos do domínio para a interface visual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Creator, que define qual classe calcula todos os totais de objetos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Information Expert orienta atribuir a responsabilidade de cálculo ao objeto que conhece itens e preços. A é fabricação de classe auxiliar quando adequado, não imposição; B introduz mediação para desacoplar; D recebe eventos e delega; E orienta criação de objetos.",
+      "section": "5. Padrões GoF, atribuição de responsabilidades GRASP e leitura de casos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema cliente-servidor pode executar cliente e servidor no mesmo computador durante testes, porque os papéis arquiteturais não exigem máquinas fisicamente distintas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cliente e servidor expressam papéis na prestação e consumo de funcionalidades. Sua implantação pode ser concentrada em ambiente de desenvolvimento ou distribuída em rede; o estilo descreve principalmente responsabilidades e interações, não quantidade obrigatória de equipamentos.",
+      "section": "1. Fundamentos de arquitetura, estilos e atributos de qualidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação possui camadas de apresentação, negócio e dados; portanto, sua implantação deve necessariamente empregar três servidores físicos separados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O número de camadas lógicas não determina o número de tiers de implantação. As três responsabilidades podem ser executadas no mesmo processo, em máquinas distintas ou em arranjo híbrido; a separação física constitui decisão própria de arquitetura.",
+      "section": "2. Arquitetura em camadas, aplicações web e interoperabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No MVC de aplicação web, a View é responsável pela representação de informações, e o Controller normalmente recebe interações e coordena a resposta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. MVC separa apresentação, entrada/controle e modelo. A View renderiza informação; o Controller processa interação e encaminha ações ao modelo ou casos de uso. Regras de negócio centrais não devem ser deslocadas para a camada visual.",
+      "section": "3. MVC, padrões de apresentação e arquitetura centrada no domínio",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A arquitetura serverless recebeu esse nome porque suas funções executam sem qualquer servidor ou infraestrutura física de processamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Serverless abstrai a administração de parte da infraestrutura para quem desenvolve, mas o código continua sendo executado em recursos computacionais. O estilo envolve modelos de execução e gerenciamento, não eliminação material de servidores.",
+      "section": "1. Fundamentos de arquitetura, estilos e atributos de qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação monolítica que mantém módulos de catálogo, circulação e relatórios bem organizados deixa de ser monólito pelo fato de os módulos possuírem interfaces internas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Monólito é caracterizado principalmente por unidade de implantação compartilhada, não por ausência de divisão interna. Um monólito modular pode ter limites claros entre componentes e ainda ser atualizado e implantado como artefato único.",
+      "section": "4. Monólitos, SOA, microsserviços e consistência distribuída",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um editor, uma classe pode usar o padrão Command para representar a solicitação de salvar como objeto executável, separando a invocação da execução da operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Command encapsula operação e parâmetros em objeto, permitindo filas, históricos ou desacoplamento entre quem pede e quem executa. Não se confunde com Memento, cujo foco é capturar estado para eventual restauração.",
+      "section": "5. Padrões GoF, atribuição de responsabilidades GRASP e leitura de casos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma camada de apresentação que chama diretamente um componente de persistência, saltando a camada intermediária, utiliza uma forma relaxada de acesso entre camadas, ainda que tal decisão possa aumentar acoplamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em camadas abertas ou relaxadas, o acesso a camadas inferiores não precisa passar por cada adjacente. O atalho pode reduzir passos, mas também enfraquece intermediações e aumenta dependência da interface em relação à persistência.",
+      "section": "2. Arquitetura em camadas, aplicações web e interoperabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas aplicações que trocam XML válido garantem interoperabilidade semântica, ainda que uma interprete um campo de temperatura em Celsius e a outra em Fahrenheit.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Sintaxe válida não assegura compartilhamento de significado. No caso, divergência de escala de temperatura compromete interpretação semântica, embora a estrutura XML tenha sido lida corretamente pelos dois sistemas.",
+      "section": "2. Arquitetura em camadas, aplicações web e interoperabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao instalar um API gateway, uma equipe elimina a necessidade de service discovery em qualquer cenário com instâncias de serviços criadas e substituídas dinamicamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Gateway centraliza entrada e pode encaminhar solicitações, mas a descoberta de instâncias continua sendo necessidade de resolução de localização quando endereços mudam. O gateway pode integrar discovery sem torná-lo conceitualmente desnecessário.",
+      "section": "4. Monólitos, SOA, microsserviços e consistência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na arquitetura hexagonal, a camada de aplicação pode depender de interface abstrata de persistência implementada externamente, o que permite testar o núcleo sem o banco real.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A porta expressa a capacidade requerida pelo núcleo e o adaptador externo realiza acesso ao banco. Uma implementação em memória pode ocupar essa porta durante testes, mantendo regras de negócio independentes da tecnologia concreta.",
+      "section": "3. MVC, padrões de apresentação e arquitetura centrada no domínio",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um circuito em estado open deve continuar enviando normalmente todas as chamadas à dependência defeituosa, pois o bloqueio só começa quando o circuito volta ao estado closed.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Em circuit breaker, closed é o estado comum em que chamadas passam; open rejeita chamadas durante a proteção; half-open permite sondagens controladas. A afirmação inverte justamente a função do estado aberto.",
+      "section": "4. Monólitos, SOA, microsserviços e consistência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No padrão GoF Abstract Factory, uma família de objetos relacionados pode ser criada por uma interface de fábrica, enquanto Factory Method permite que subclasses decidam o tipo concreto produzido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Abstract Factory coordena produtos de uma família compatível; Factory Method concentra uma operação de criação cujo produto é determinado por subclasses. Os dois são criacionais, mas não possuem exatamente o mesmo propósito.",
+      "section": "5. Padrões GoF, atribuição de responsabilidades GRASP e leitura de casos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em MVC, Model, View e Controller são necessariamente distribuídos entre três servidores físicos, assim como ocorre na arquitetura de três tiers.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. MVC define responsabilidades de interação, representação e modelo, sem impor servidores físicos separados. Uma aplicação MVC pode operar em um único processo e ser parte da camada de apresentação de uma arquitetura distribuída mais ampla.",
+      "section": "3. MVC, padrões de apresentação e arquitetura centrada no domínio",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma saga pode manter a consistência de um processo que cruza serviços por meio de transações locais e operações compensatórias, sem exigir uma transação ACID única que envolva todos os bancos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Sagas coordenam resultados de transações locais e ações para compensar etapas já confirmadas quando ocorre falha. A compensação é operação de negócio e pode não reproduzir um rollback físico perfeito de cada etapa.",
+      "section": "4. Monólitos, SOA, microsserviços e consistência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A lei de Conway descreve a tendência de a estrutura dos sistemas refletir padrões de comunicação das equipes, o que ajuda a analisar se as fronteiras de microsserviços combinam com a organização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A lei de Conway relaciona arquitetura e comunicação organizacional. Sua observação pode orientar fronteiras de responsabilidade, mas não determina automaticamente número de serviços nem substitui análise do domínio e da operação.",
+      "section": "4. Monólitos, SOA, microsserviços e consistência distribuída",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num cenário de múltiplas filiais produzindo eventos, consistência eventual significa que divergências de dados precisam permanecer indefinidamente, ainda que as mensagens sejam entregues e processadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Consistência eventual admite divergência transitória, com expectativa de convergência quando cessam atualizações e o sistema opera sob hipóteses apropriadas. Defasagem temporária não equivale a inconsistência permanente deliberada.",
+      "section": "4. Monólitos, SOA, microsserviços e consistência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para diminuir memória em uma aplicação com milhões de representações idênticas de caracteres, o padrão Flyweight pode compartilhar estado intrínseco comum e receber externamente informações específicas de cada ocorrência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Flyweight reduz duplicações ao compartilhar estado intrínseco, mantendo o que varia por ocorrência como estado extrínseco. É padrão estrutural e não equivale a Singleton, que busca controlar o número de instâncias de determinada classe.",
+      "section": "5. Padrões GoF, atribuição de responsabilidades GRASP e leitura de casos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em aplicações que usam State, a escolha do comportamento ocorre por algoritmo de desconto selecionado externamente; por isso esse padrão é tecnicamente idêntico a Strategy quanto à intenção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Strategy enfatiza algoritmos intercambiáveis, como políticas de preço; State expressa variações dependentes do estado corrente e de transições. Embora a implementação possa utilizar composição e interfaces semelhantes, a intenção dos padrões difere.",
+      "section": "5. Padrões GoF, atribuição de responsabilidades GRASP e leitura de casos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na aplicação de GRASP, Information Expert sugere que uma classe que conhece os itens e preços de um pedido seja candidata a calcular seu total, em vez de delegar esse cálculo à camada de apresentação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O princípio Information Expert atribui responsabilidade a quem possui as informações necessárias. A escolha também tende a favorecer coesão e evita espalhar regras do domínio por controladores e visões cujo papel é coordenar e apresentar.",
+      "section": "5. Padrões GoF, atribuição de responsabilidades GRASP e leitura de casos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação de microsserviços consegue manter autonomia plena mesmo quando todos os serviços modificam diretamente as tabelas uns dos outros, pois cada serviço possui código e endpoint próprios.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Acesso cruzado a tabelas cria acoplamento pelo esquema e compromete independência de mudança e implantação. O padrão database per service estabelece propriedade de dados por serviço; ter endpoints diferentes não evita dependências ocultas.",
+      "section": "4. Monólitos, SOA, microsserviços e consistência distribuída",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Architecture styles",
+      "publisher": "Microsoft Learn — Azure Architecture Center",
+      "reference": "Architecture styles, N-tier, microservices and event-driven",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/guide/architecture-styles/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Microservices architecture style",
+      "publisher": "Microsoft Learn — Azure Architecture Center",
+      "reference": "Boundaries, deployment autonomy, gateway, data ownership",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/guide/architecture-styles/microservices",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Overview of ASP.NET Core MVC",
+      "publisher": "Microsoft Learn",
+      "reference": "Model, View and Controller responsibilities",
+      "url": "https://learn.microsoft.com/en-us/aspnet/core/mvc/overview?view=aspnetcore-10.0",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Circuit breaker pattern",
+      "publisher": "AWS Prescriptive Guidance",
+      "reference": "Protection against repeated remote failures",
+      "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/circuit-breaker.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Saga patterns",
+      "publisher": "AWS Prescriptive Guidance",
+      "reference": "Choreography, orchestration, local transactions and compensation",
+      "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-patterns.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Strangler fig pattern",
+      "publisher": "AWS Prescriptive Guidance",
+      "reference": "Incremental migration of monolithic systems",
+      "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/strangler-fig.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "Hexagonal architecture — Original article",
+      "publisher": "Alistair Cockburn",
+      "reference": "Ports and adapters, 2005",
+      "url": "https://alistair.cockburn.us/hexagonal-architecture",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "Presentation Model",
+      "publisher": "Martin Fowler",
+      "reference": "Presentation Model and MVVM comparison",
+      "url": "https://www.martinfowler.com/eaaDev/PresentationModel.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "Design Patterns in Java",
+      "publisher": "Refactoring.Guru",
+      "reference": "GoF catalog with Java examples",
+      "url": "https://refactoring.guru/design-patterns/java",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "General Responsibility Assignment Software Patterns",
+      "publisher": "Principles Wiki",
+      "reference": "GRASP responsibility patterns, Craig Larman",
+      "url": "https://principles-wiki.net/collections:grasp",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Maintain an architecture decision record (ADR)",
+      "publisher": "Microsoft Learn",
+      "reference": "Documenting context, alternatives and consequences of architecture decisions",
+      "url": "https://learn.microsoft.com/is-is/azure/well-architected/architect-role/architecture-decision-record",
+      "accessedAt": "2026-10-10"
+    }
+  ]
+}

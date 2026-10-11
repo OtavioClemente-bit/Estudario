@@ -1,0 +1,1774 @@
+{
+  "id": "informatica.sistemas-operacionais-conceitos",
+  "subject": "Informática",
+  "title": "Sistemas operacionais: conceitos (processos, threads, memória e arquivos)",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Sistemas operacionais: conceitos (processos, threads, memória e arquivos)"
+  ],
+  "scope": {
+    "covers": "Funções e arquiteturas de sistemas operacionais; modos de execução e E/S; processos, threads e escalonamento; sincronização, IPC e deadlocks; gerência de memória e algoritmos de substituição; organização, alocação e proteção de arquivos e sistemas de arquivos.",
+    "excludes": "Uso prático e administração de Windows e Linux, hardware em detalhe, sistemas distribuídos, virtualização e nuvem, sistemas móveis específicos, programação concorrente em uma linguagem, LVM, RAID e redes de armazenamento."
+  },
+  "theoryTitle": "Sistemas operacionais: arquitetura, processos, concorrência, memória virtual e arquivos",
+  "chapters": [
+    {
+      "title": "1. Fundamentos, arquiteturas e entrada e saída",
+      "markdown": "## Funções e abstrações\nO **sistema operacional (SO)** tem duas faces complementares. Como **gerenciador de recursos**, distribui tempo de CPU, memória, dispositivos e armazenamento, protege usuários e arbitra conflitos. Como **máquina estendida**, oferece abstrações estáveis — arquivo, processo, endereço virtual e operação de leitura — para ocultar detalhes dos periféricos. Quando um editor grava um documento, o SO verifica permissões e organiza a escrita; o editor não precisa controlar diretamente o dispositivo. Um sistema operacional não se define pela presença de interface gráfica.\n\n**Kernel (núcleo)** implementa mecanismos essenciais, incluindo execução privilegiada, escalonamento e gerência de memória. **Shell** é interface textual ou camada de interação, não o kernel. **Driver** adapta uma operação geral às características do dispositivo. Uma biblioteca pode oferecer funções convenientes que, quando necessário, acionam chamadas de sistema.\n\n### Proteção, interrupções e exceções\n**Modo usuário** restringe instruções privilegiadas e acesso à memória protegida; **modo núcleo** permite operações centrais. Uma **chamada de sistema** atravessa essa fronteira por uma entrada controlada e retorna à aplicação após o atendimento. Nem toda função de biblioteca provoca uma chamada de sistema. O uso de núcleo para operações privilegiadas não significa que todos os drivers necessariamente executem nesse modo: existem drivers em espaço de usuário.\n\n**Interrupção** normalmente provém de evento assíncrono, como aviso de dispositivo ou temporizador. **Exceção** é vinculada à instrução corrente, como divisão inválida e falta de página. A armadilha voluntária de uma chamada de sistema é transferência síncrona. Atender uma interrupção não obriga o escalonador a trocar de processo, embora o temporizador possa desencadear preempção.\n\n|Elemento|Função típica|Confusão frequente|\n|---|---|---|\n|Kernel|Serviços centrais e privilégios|Não é sinônimo de shell|\n|Shell|Interface para solicitar tarefas|Não é núcleo|\n|Driver|Interação com dispositivo|Não exige sempre modo núcleo|\n|Syscall|Solicitação protegida|Não é chamada de função comum|\n|Interrupção|Notificação assíncrona usual|Não equivale a toda exceção|\n\n### Estruturas de sistema\nUm núcleo **monolítico** concentra serviços principais em espaço privilegiado e pode carregar módulos; não significa código imutável ou indivisível. Um **micronúcleo** deixa o conjunto privilegiado menor e transfere serviços para processos separados, privilegiando isolamento e comunicação por mensagens, com possível custo de IPC. Núcleo **híbrido** combina escolhas arquiteturais; organização **em camadas** define níveis de serviços. Essas categorias não determinam automaticamente qual sistema é mais seguro ou mais veloz.\n\n**Multiprogramação** mantém várias tarefas capazes de avançar, ocupando CPU enquanto outras esperam E/S. **Tempo compartilhado** favorece interatividade com alternâncias de CPU. **Multiprocessamento** oferece mais de uma unidade de processamento e possibilita execução simultânea real. **Tempo real** significa respeito a restrições de prazo: no modelo rígido, violar prazo é falha inaceitável; no flexível, reduz a qualidade. Não é sinônimo de velocidade máxima.\n\n### Entrada e saída\nNa **E/S programada com polling**, o processador consulta repetidamente estado e pode transportar dados por instruções. Na **E/S por interrupção**, o dispositivo sinaliza um evento e evita sondagem contínua, embora haja serviço de CPU. Com **DMA**, controlador especializado transfere blocos diretamente entre periférico e memória, após configuração da CPU; término e erro ainda podem ser anunciados por interrupção. DMA e interrupções não se excluem. **Buffer** acomoda diferença de ritmos; **cache** mantém cópias para reutilização; **spooling** coloca trabalhos em fila, como documentos aguardando impressora. O buffer não é necessariamente armazenamento permanente e spooling não é swapping.\n\n|Mecanismo|O que faz|Exemplo|\n|---|---|---|\n|Polling|Consulta estado repetidamente|Periférico simples|\n|Interrupção|Avisa quando ocorre evento|Conclusão de leitura|\n|DMA|Transfere bloco com menos participação da CPU|Cópia de bloco para memória|\n\n> Reconheça a função exata: temporizador serve à preempção, DMA reduz trabalho de transferência da CPU, buffer compensa ritmos e spooling administra uma fila de trabalhos."
+    },
+    {
+      "title": "2. Processos, threads e escalonamento",
+      "markdown": "## Programa, processo e ciclo de vida\n**Programa** é código armazenado; **processo** é uma instância em execução, com espaço de endereços, estado e recursos. O **PCB** contém identificador, estado, contexto de registradores, dados de escalonamento e referências a recursos, conforme a implementação. **Troca de contexto** salva e restaura estado para mudar a execução e tem custo sem produzir trabalho útil da aplicação.\n\nO modelo didático usa **novo, pronto, executando, bloqueado e terminado**. De pronto, o processo entra em execução quando obtém CPU; de executando pode passar a bloqueado ao esperar E/S e volta a pronto quando o evento se conclui. Preempção de executando costuma levar a pronto, não a bloqueado. **Pronto espera processador; bloqueado espera evento.** Sistemas reais acrescentam estados de suspensão ou outras distinções.\n\nNo modelo Unix, **fork** cria um filho com contexto derivado, frequentemente aproveitando *copy-on-write*; **exec** substitui a imagem do programa no mesmo processo; **wait** recolhe o estado de encerramento de filho. O filho terminado e ainda não recolhido é **zumbi**. O processo cujo pai termina antes dele torna-se **órfão**, adotado por entidade apropriada. Ser órfão não significa já ter terminado, e exec não cria necessariamente processo.\n\n### Threads e recursos\nThreads de um mesmo processo compartilham tipicamente código, dados globais, espaço de endereços e descritores abertos, mas cada uma possui **pilha, registradores e contador de instruções próprios**. Compartilhar memória facilita comunicação e exige sincronização. Threads **de usuário** podem ser geridas por biblioteca; no modelo muitos-para-um, uma chamada bloqueante pode comprometer todo o conjunto e o paralelismo é limitado. Threads **de núcleo** são agendadas individualmente pelo sistema; modelos muitos-para-muitos também existem. Não confunda 'múltiplas threads' com garantia de uso de múltiplos núcleos.\n\n### Políticas e métricas\nEscalonamento **preemptivo** pode retirar CPU de tarefa ainda apta a continuar. No **não preemptivo**, ela permanece até terminar, bloquear ou ceder execução no modelo simples. **Retorno** = conclusão − chegada; **resposta** = primeira execução − chegada; **espera** = retorno − tempo de serviço CPU, em exercícios sem outras esperas contabilizadas. Vazão mede tarefas concluídas por unidade de tempo; tempo de resposta não é sinônimo de retorno.\n\n|Método|Regra de escolha|Armadilha|\n|---|---|---|\n|FCFS|Primeira chegada atendida primeiro|Efeito comboio|\n|SJF|Menor próxima rajada, sem preempção no modelo usual|Longas esperam|\n|SRTF|Menor tempo restante, preemptivo|Nova tarefa curta interrompe|\n|Prioridade|Escolha por grau de prioridade|Pode causar inanição|\n|Round robin|Fila circular e quantum|Quantum excessivamente curto aumenta overhead|\n|Filas multinível|Classes separadas com políticas próprias|Prioridade entre filas importa|\n|Feedback multinível|Tarefas mudam entre filas|Política de promoção importa|\n\n### Exemplo 1: FCFS contra SJF\nP1 precisa de 5 unidades de CPU; P2 de 3; P3 de 2. Todos chegam em t=0 e a ordem original é P1, P2, P3. Em **FCFS**: P1 de 0 a 5, P2 de 5 a 8, P3 de 8 a 10. Esperas 0, 5, 8; média **13/3**. Retornos 5, 8, 10; média **23/3**. Em **SJF**: P3 de 0 a 2, P2 de 2 a 5 e P1 de 5 a 10. Esperas 0, 2, 5 na ordem P3, P2, P1; média **7/3**. A diferença decorre da ordem de seleção, não de aumento da CPU.\n\n### Exemplo 2: SRTF\nP1 chega em 0 e precisa de 8 unidades; P2 chega em 2 e precisa de 3. Em t=2, P1 ainda tem 6; o SRTF preempta para executar P2 de 2 a 5. P1 retoma e conclui em 11. Se o algoritmo fosse SJF **não preemptivo**, P1 terminaria em 8, antes de P2. Para cálculos, não ignore instantes de chegada.\n\n### Exemplo 3: round robin\nCom P1=5 e P2=3, ambos chegando em 0, quantum=2 e ordem inicial P1, P2, a CPU executa P1 0–2, P2 2–4, P1 4–6, P2 6–7 e P1 7–8. Conclusões: P1=8 e P2=7; esperas: 8−5=3 e 7−3=4. O quantum limita cada fatia, não a duração total do processo. O exercício supõe tempo de troca de contexto zero.\n\n> Um escalonador real pode usar políticas mais sofisticadas que esses algoritmos didáticos. Nos problemas de prova, verifique se há preempção, chegadas desiguais, custos de troca e regras de desempate antes de calcular."
+    },
+    {
+      "title": "3. Concorrência, sincronização e deadlocks",
+      "markdown": "## Corrida e região crítica\nUma **condição de corrida** ocorre quando o resultado depende de interlevação não controlada de operações concorrentes. Se contador=10 e duas threads leem 10, somam 1 e gravam 11, perde-se incremento: ler–somar–gravar não é atomicamente uma única operação. A **região crítica** contém acesso incompatível a dados compartilhados. A **exclusão mútua** impede que dois executores entrem simultaneamente nessa região; **progresso** e **espera limitada** são propriedades adicionais que evitam adiamento desnecessário ou indefinido. Exclusão mútua, isoladamente, não garante ausência de deadlock.\n\n**Espera ocupada** verifica repetidamente uma condição e consome ciclos de CPU; pode servir a esperas muito breves, mas não é sinônimo de bloqueio. **Mutex** oferece posse exclusiva, usualmente liberada por quem o adquiriu. **Semáforo contador** regula quantidade de permissões, com operações atômicas de esperar/decrementar e sinalizar/incrementar. **Semáforo binário** admite contagem restrita, mas não equivale necessariamente a mutex por não impor a mesma propriedade de dono. **Monitor** combina dados, procedimentos e exclusão controlada; variáveis de condição permitem aguardar mudança de estado. **Spinlock** envolve espera ocupada e pode ser inadequado para trecho longo.\n\n|Primitiva|Foco|Erro frequente|\n|---|---|---|\n|Mutex|Propriedade do recurso exclusivo|Confundir com semáforo contador|\n|Semáforo|Permissões disponíveis|Supor proprietário obrigatório|\n|Monitor|Estado e métodos sincronizados|Desconsiderar condição de espera|\n|Spinlock|Espera ativa curta|Tratá-lo como bloqueio que não gasta CPU|\n\n### Comunicação entre processos\n**IPC** inclui pipes, filas de mensagens, sockets e memória compartilhada. Na memória compartilhada, dados podem ser acessados por processos distintos, mas devem ser protegidos contra corridas. Filas podem desacoplar emissor e receptor; sincronismo depende da API. No problema **produtor-consumidor**, controla-se vagas, itens disponíveis e acesso ao buffer; no problema **leitores-escritores**, permite-se leitura paralela quando nenhuma escrita conflitante atua. Políticas de preferência podem criar inanição. Em **filósofos jantando**, a aquisição desordenada de dois recursos ilustra impasse.\n\n### Deadlock e condições de Coffman\nUm **impasse** bloqueia um conjunto de tarefas que aguardam recursos ou eventos dependentes umas das outras. São quatro **condições necessárias**, tomadas conjuntamente: **exclusão mútua**, **posse e espera**, **não preempção de recurso** e **espera circular**. Não confunda condição necessária para possibilidade de deadlock com prova automática de impasse em qualquer configuração. Exemplo: A detém R1 e pede R2; B detém R2 e pede R1; sem retirada ou liberação, ambos aguardam indefinidamente.\n\nA **prevenção** impede alguma condição necessária: uma ordem global R1 antes de R2 quebra a espera circular. A **evitação**, exemplificada pelo **algoritmo do banqueiro**, só atende pedidos que mantenham estado **seguro**, isto é, com alguma sequência viável de término das tarefas, consideradas demandas máximas e liberações. **Estado inseguro não equivale a impasse instalado**; significa não ser possível garantir sequência segura com os dados. A **detecção** admite alocação e procura depois dependências de impasse; **recuperação** pode abortar, reiniciar ou retirar recursos quando seguro. Em grafo com uma instância por tipo, ciclo de espera implica deadlock; com múltiplas instâncias, apenas identificar ciclo pode não ser suficiente.\n\n### Inanição e inversão de prioridade\n**Starvation** é preterição indefinida de uma tarefa enquanto outras continuam a progredir. No deadlock, o grupo envolvido não progride por dependência circular ou equivalente. **Aging (envelhecimento)** aumenta prioridade de quem espera muito para reduzir inanição. **Inversão de prioridade** ocorre quando uma tarefa urgente aguarda mutex de tarefa menos prioritária que pode ser adiada por intermediárias; **herança de prioridade** eleva temporariamente a prioridade de quem detém o recurso e ajuda a limitar o problema.\n\n> Para classificar: prevenção remove condição de Coffman; evitação testa segurança antes da concessão; detecção identifica impasse posterior; recuperação busca restabelecer progresso."
+    },
+    {
+      "title": "4. Gerenciamento de memória e substituição de páginas",
+      "markdown": "## Endereçamento e fragmentação\nA hierarquia combina registradores e caches rápidos com RAM e armazenamento persistente mais lento. **Endereço virtual** é usado pelo processo; **endereço físico** identifica memória principal. A **MMU** traduz endereços e apoia proteção. Processos diferentes podem possuir espaços virtuais distintos; mapeamento compartilhado autorizado pode apontar para o mesmo quadro físico. O endereço virtual não é cópia do endereço físico.\n\nNa alocação **contígua**, o processo usa faixa contínua. **Fragmentação interna** é sobra dentro da unidade alocada, por exemplo um bloco de 8 KiB com 6 KiB úteis desperdiça 2 KiB. **Fragmentação externa** é dispersão de lacunas: 4 KiB e 8 KiB livres somam 12 KiB, mas pedido contíguo de 10 KiB não cabe. Compactação pode reduzir fragmentação externa com suporte à movimentação. Critérios de escolha: **first fit** encontra a primeira lacuna suficiente na ordem de inspeção; **best fit**, a menor suficiente; **worst fit**, a maior. Para lacunas ordenadas 25, 18 e 10 KiB e pedido de 17 KiB, first fit escolhe 25, best fit 18, worst fit 25. Nenhum critério elimina, por definição, todo desperdício. **Swapping** movimenta conteúdo entre RAM e armazenamento secundário, conforme o modelo, e não significa o mesmo que escolher página vítima.\n\n### Paginação e MMU\n**Páginas** virtuais e **quadros** físicos têm tamanho igual, e a tabela de páginas mapeia página em quadro. Com páginas de **4.096 bytes**, endereço virtual **12.500** corresponde à página 3, deslocamento 212, pois 3 × 4.096 = 12.288. Se a página 3 está no quadro 7, o físico é **7 × 4.096 + 212 = 28.884**. O deslocamento não muda durante a tradução. Paginação de tamanho fixo elimina fragmentação externa de quadros no modelo convencional, mas pode desperdiçar o final da última página, gerando fragmentação interna. Páginas consecutivas não precisam estar fisicamente contíguas.\n\n**TLB** é cache de traduções; **TLB miss** é busca da tradução em outras estruturas, mesmo se página estiver residente. **Page fault** exige atendimento do SO por página ausente, invalidez da tradução ou violação conforme a arquitetura e situação. Em falta por página não residente, busca-se conteúdo e pode ser necessário substituir outra página. Bits de presença, referência, modificação e permissões auxiliam a gestão. Uma cache de traduções não é armazenamento de todas as páginas de dados.\n\nA **segmentação** usa partes lógicas variáveis (segmento e deslocamento), permitindo proteção específica e podendo causar fragmentação externa. **Segmentação paginada** organiza segmentos logicamente e usa páginas e quadros para o mapeamento físico. **Memória virtual** fornece abstração ampla e isolamento, não RAM ilimitada nem rapidez garantida.\n\n### Políticas de substituição\n**Ótimo (OPT)** descarta a página cujo próximo uso está mais distante no futuro, sendo referência teórica. **FIFO** descarta a página há mais tempo carregada. **LRU** descarta a menos recentemente utilizada. **Relógio** percorre quadros circularmente e dá segunda chance quando bit de referência sinaliza uso. Para sequência 1, 2, 3, 1, 4, com três quadros vazios: FIFO tem faltas em 1, 2, 3 e 4, substituindo 1 ao chegar 4; LRU mantém 1 e substituiria 2. A ordem de carga é distinta da recência de uso.\n\n**Anomalia de Belady** consiste em aumento do número de faltas após aumento do número de quadros em certas sequências e políticas, como FIFO. LRU e OPT, algoritmos de pilha no modelo clássico, não apresentam essa anomalia. **Thrashing** é paginação tão intensa que reduz drasticamente trabalho produtivo; admitir mais processos pode piorar o problema. Conjunto de trabalho, redução de concorrência de memória ou ampliação de recursos ajudam a controlá-lo.\n\n|Conceito|Critério decisivo|Não confundir com|\n|---|---|---|\n|Fragmentação interna|Sobra dentro do bloco|Lacunas dispersas externas|\n|TLB miss|Tradução não está na cache|Página ausente da RAM|\n|FIFO|Antiguidade da entrada|Último acesso|\n|LRU|Recência de acesso|Futuro conhecido pelo OPT|\n|Thrashing|Trocas dominam execução|Uma falta de página isolada|\n\n> Em exercícios, calcule quociente e resto pelo tamanho de página; não altere o deslocamento. Para FIFO, registre entradas; para LRU, registre acessos efetivos, inclusive acertos."
+    },
+    {
+      "title": "5. Organização de arquivos e sistemas de arquivos",
+      "markdown": "## Objetos, diretórios e acesso\nO **arquivo** é coleção lógica de dados, com atributos como tamanho, tipo, proprietário, permissões e marcas de tempo. **Diretório** vincula nomes a objetos ou seus identificadores. O nome pode ser uma entrada separada dos metadados internos, como no modelo de inode. **Acesso sequencial** percorre dados em ordem; **acesso direto** posiciona a leitura ou escrita em ponto especificado; **acesso indexado** usa índice para localizar registros. Registros podem ser de tamanho fixo ou variável, alterando o custo de localização. Estruturas de diretórios incluem nível único, dois níveis e hierarquia em árvore, além de compartilhamento por links.\n\nA **alocação contígua** coloca blocos em sequência, simplifica localização e favorece acesso direto, mas pode sofrer fragmentação externa e crescimento difícil. **Alocação encadeada** conecta blocos por ponteiros, facilitando ocupação dispersa, mas exige percorrer a cadeia para acesso a posições distantes. **FAT** mantém, em tabela, os vínculos entre clusters de cada cadeia; isso não transforma os arquivos em regiões contíguas. **Alocação indexada** usa blocos de índice para apontar blocos de dados e ajuda acesso direto, ao custo de metadados. **Extents** descrevem faixas contíguas e podem compactar referências.\n\n|Estratégia|Vantagem|Custo|\n|---|---|---|\n|Contígua|Localização direta simples|Fragmentação externa e crescimento|\n|Encadeada|Blocos dispersos|Percurso de ponteiros|\n|FAT|Cadeia referenciada em tabela|Gestão da tabela e fragmentação|\n|Indexada|Consulta por índice|Blocos auxiliares de metadados|\n|Extents|Representação de intervalos|Gerência de faixas variáveis|\n\n### Inodes, links, permissões e journal\nEm sistemas no estilo Unix, **inode** contém metadados e referências ao conteúdo; o nome é resolvido pelo diretório. **Hard link** associa outro nome ao mesmo inode, em geral dentro do mesmo sistema de arquivos. Remover um nome não apaga dados se outro hard link ou referência aberta ainda mantém o objeto acessível. **Link simbólico** é objeto próprio que armazena um caminho; pode atravessar sistemas de arquivos e ficar pendente se o alvo desaparecer. Não trate ambos como cópias de conteúdo.\n\nPermissões básicas de leitura, escrita e execução podem ser agrupadas para proprietário, grupo e demais usuários; em diretório, execução se relaciona à travessia e escrita à alteração de entradas, observadas regras adicionais. **ACLs** detalham direitos além das classes básicas. Extensão do nome não equivale a autorização de acesso.\n\n**Journaling** registra mudanças selecionadas, em geral metadados, facilitando restauração de consistência estrutural após interrupção. O ext4 costuma registrar metadados no journal; modos específicos permitem diferenças na proteção de dados. Um journal não substitui **backup**, pois não garante recuperar versões apagadas nem os últimos dados de aplicação não persistidos.\n\n### Comparação de sistemas\n|Formato|Aspecto característico|Cuidado em questões|\n|---|---|---|\n|FAT12/16/32 e VFAT|Tabela de alocação; VFAT dá suporte a nomes longos|FAT32 limita arquivo a menos de 4 GiB|\n|exFAT|Sucessor da família FAT, adequado a arquivos maiores|Não oferece o conjunto de ACLs/journal do NTFS|\n|NTFS|MFT, ACLs, links e recursos avançados|Não é FAT acrescido de tamanho|\n|ext2|Formato tradicional sem journal no modelo original|Diferente de ext3|\n|ext3|Evolução do ext2 com journaling|Journal não é backup|\n|ext4|Extents, alocação diferida e journal|Dados recentes podem faltar após pane|\n|XFS|Escalabilidade, extents e journal de metadados|Não é variante de FAT|\n|ReiserFS|Sistema histórico de estruturas baseadas em árvores|Não confundir com ext4|\n|ReFS|Resiliência e integridade com capacidades específicas|Não reproduz todas as funções do NTFS|\n\nUm arquivo de **5 GiB** pode esbarrar no limite individual do **FAT32**, mesmo com espaço livre de 20 GiB; a inferência não se aplica a exFAT e NTFS apenas pelo tamanho. A família **FAT** utiliza clusters; **VFAT** está ligado à extensão de nomes longos. **NTFS** possui permissões baseadas em ACL e journal de metadados. **XFS** é conhecido pela escalabilidade em arquivos grandes. **ReFS** enfatiza resistência a corrupção, mas sua compatibilidade com usos, opções e inicialização difere de NTFS. Sistemas de arquivos lidam também com arquivos de dispositivo, diretórios e links; fluxos multimídia podem demandar buffers, leitura antecipada e acesso sequencial eficiente, sem exigir um formato de arquivo exclusivo.\n\n## Como o tema costuma ser cobrado\nA prova costuma trocar **inode por nome**, **hard link por symlink**, **journal por backup**, **FAT32 por exFAT** e **alocação contígua por indexada**. Busque a característica técnica decisiva: limite por arquivo, persistência após queda, localização de blocos, expansão do arquivo, autorização de acesso e mecanismo de referência ao conteúdo. Cenários bem construídos exigem aplicar a distinção, e não memorizar apenas um nome de formato."
+    }
+  ],
+  "summary": "## Síntese estruturada\n- **SO** arbitra recursos e oferece abstrações. Kernel controla mecanismos protegidos, shell é interface e driver adapta operações aos dispositivos. Syscall ingressa no núcleo; interrupção é usualmente assíncrona e exceção se liga à instrução.\n- **E/S**: polling consulta repetidamente; interrupções notificam; DMA transfere dados com menor participação da CPU. Buffer amortiza ritmos, cache reutiliza dados e spooling enfileira trabalhos.\n- **Arquitetura**: monolítico concentra serviços; micronúcleo desloca serviços para processos separados; híbrido combina escolhas; camadas impõem níveis. Multiprogramação mantém tarefas aptas, tempo compartilhado procura interatividade, multiprocessamento possibilita paralelismo e tempo real envolve prazos.\n- **Processos**: PCB conserva contexto; pronto espera CPU, bloqueado espera evento. Fork cria, exec substitui imagem e wait recolhe filho; zumbi terminou sem recolhimento e órfão perdeu pai. Threads compartilham memória e descritores, mas têm pilhas e registradores próprios.\n- **Escalonamento**: retorno = conclusão − chegada; espera = retorno − CPU, nas condições usuais; resposta = primeira execução − chegada. FCFS segue ordem; SJF menor rajada; SRTF menor restante; RR usa quantum. Prioridade pode causar inanição.\n- **Concorrência**: mutex protege propriedade exclusiva; semáforo controla permissões; monitor encapsula estado e sincronização. Corrida nasce de acesso intercalado sem proteção. Deadlock requer exclusão mútua, posse e espera, não preempção e espera circular; estado inseguro no banqueiro não é necessariamente deadlock. Aging reduz inanição.\n- **Memória**: MMU traduz endereço virtual em físico; paginação mapeia página em quadro e preserva deslocamento. Fragmentação interna é sobra dentro de bloco; externa é dispersão de lacunas. TLB miss não necessariamente significa page fault. FIFO considera entrada, LRU último acesso; FIFO pode exibir anomalia de Belady. Thrashing é paginação excessiva.\n- **Arquivos**: contiguidade facilita acesso mas dificulta expansão; FAT guarda cadeias em tabela; indexação usa blocos auxiliares. Inode contém metadados, hard link acrescenta nome ao mesmo objeto, symlink guarda caminho. Journaling ajuda consistência e não substitui backup. FAT32 limita arquivos a menos de 4 GiB; exFAT, NTFS, ext3/ext4, XFS e ReFS têm mecanismos distintos.",
+  "flashcards": [
+    {
+      "front": "Quais são as duas funções conceituais do SO?",
+      "back": "Gerenciar recursos e oferecer uma máquina estendida com abstrações como arquivos e processos."
+    },
+    {
+      "front": "Kernel é o mesmo que shell?",
+      "back": "Não. Kernel implementa serviços centrais e shell é interface de interação."
+    },
+    {
+      "front": "O que é syscall?",
+      "back": "Transferência controlada de uma solicitação de serviço ao núcleo, a partir do código de usuário."
+    },
+    {
+      "front": "DMA proíbe interrupções?",
+      "back": "Não. A transferência pode terminar com notificação por interrupção."
+    },
+    {
+      "front": "Para que serve spooling?",
+      "back": "Para colocar trabalhos de um recurso compartilhado em fila, como tarefas de impressão."
+    },
+    {
+      "front": "O que caracteriza tempo real?",
+      "back": "Respeito a restrições temporais; não apenas alta velocidade."
+    },
+    {
+      "front": "Qual é a utilidade do PCB?",
+      "back": "Guardar informações de estado, contexto de CPU e referências a recursos de um processo."
+    },
+    {
+      "front": "Diferença entre pronto e bloqueado?",
+      "back": "Pronto aguarda CPU; bloqueado aguarda evento, como conclusão de E/S."
+    },
+    {
+      "front": "O que fazem fork, exec e wait?",
+      "back": "Fork cria filho, exec substitui a imagem de execução e wait recolhe o término do filho."
+    },
+    {
+      "front": "O que é processo zumbi?",
+      "back": "Processo filho encerrado cujo estado ainda não foi recolhido."
+    },
+    {
+      "front": "O que não é compartilhado entre threads?",
+      "back": "Cada thread possui seus próprios registradores, contador de instruções e pilha."
+    },
+    {
+      "front": "Como se calcula o tempo de retorno?",
+      "back": "Conclusão menos chegada do processo."
+    },
+    {
+      "front": "Qual diferença entre SJF e SRTF?",
+      "back": "SJF não preemptivo escolhe menor rajada; SRTF pode interromper em favor do menor tempo restante."
+    },
+    {
+      "front": "O que é condição de corrida?",
+      "back": "Dependência incorreta da ordem de operações concorrentes sem sincronização suficiente."
+    },
+    {
+      "front": "Quais são as condições de Coffman?",
+      "back": "Exclusão mútua, posse e espera, ausência de preempção e espera circular."
+    },
+    {
+      "front": "Estado inseguro no banqueiro é deadlock?",
+      "back": "Não necessariamente. Não há garantia de sequência segura, mas ainda pode existir progresso."
+    },
+    {
+      "front": "O que é aging?",
+      "back": "Aumento gradual de prioridade de tarefa que espera para reduzir inanição."
+    },
+    {
+      "front": "TLB miss é sempre page fault?",
+      "back": "Não. A página pode estar na RAM e apenas faltar a tradução na TLB."
+    },
+    {
+      "front": "FIFO versus LRU?",
+      "back": "FIFO descarta a página carregada primeiro; LRU a menos recentemente acessada."
+    },
+    {
+      "front": "Que algoritmo admite anomalia de Belady?",
+      "back": "FIFO pode apresentá-la; LRU não a apresenta no modelo clássico."
+    },
+    {
+      "front": "Hard link e symlink diferem como?",
+      "back": "Hard link é outro nome para o mesmo inode; symlink é objeto que armazena caminho."
+    },
+    {
+      "front": "Journaling substitui backup?",
+      "back": "Não. Journal apoia consistência estrutural, não recupera necessariamente cópias e versões de dados."
+    }
+  ],
+  "tips": [
+    "Anote chegada e rajada de cada processo; faça a linha do tempo antes de calcular espera, retorno e resposta.",
+    "Pronto significa que só falta CPU; bloqueado significa que falta evento externo, como término de E/S.",
+    "Escolha a primitiva pela semântica: propriedade no mutex, contagem no semáforo, estado encapsulado no monitor.",
+    "Para impasse, desenhe quem retém e quem aguarda cada recurso; observe o número de instâncias.",
+    "Em paginação, encontre quociente e resto do endereço pelo tamanho da página; preserve o deslocamento.",
+    "Para FIFO, registre ordem de carga; para LRU, registre o último uso, inclusive nos acertos.",
+    "Compare sistemas de arquivos por limite de arquivo, permissões, journaling e forma de alocação, não pelo nome.",
+    "Separe buffer, cache, spooling e swapping: resolvem problemas distintos."
+  ],
+  "traps": [
+    "A prova escreve: 'Shell implementa as operações privilegiadas do SO'. Erro: shell é interface; quem controla o privilégio é o núcleo.",
+    "A prova escreve: 'DMA torna interrupções desnecessárias por definição'. Erro: DMA transfere blocos e frequentemente sinaliza conclusão por interrupção.",
+    "A prova escreve: 'Threads de um processo têm pilhas compartilhadas'. Erro: compartilham espaço virtual e recursos, mas mantêm pilhas próprias.",
+    "A prova escreve: 'Estado inseguro confirmado pelo banqueiro significa deadlock'. Erro: insegurança significa ausência de garantia de sequência segura.",
+    "A prova escreve: 'Falha na TLB prova que a página não está na RAM'. Erro: a tradução pode faltar da cache e existir na tabela de páginas.",
+    "A prova escreve: 'Adicionar quadros reduz sempre as faltas em FIFO'. Erro: existe anomalia de Belady com certas sequências.",
+    "A prova escreve: 'Symlink guarda outra cópia do arquivo'. Erro: armazena caminho que pode ficar pendente se o alvo sumir.",
+    "A prova escreve: 'Journal do ext4 guarda backup integral dos arquivos'. Erro: busca consistência e, no modo usual, registra metadados."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como tempo compartilhado dá interatividade com uma CPU?",
+      "answer": "Por alternar rapidamente o uso da CPU entre tarefas; paralelismo físico não é requisito."
+    },
+    {
+      "question": "No FCFS com rajadas 4, 2 e 3 e chegadas em zero, qual é a espera média?",
+      "answer": "Tempos 0, 4 e 6; média 10/3 unidades."
+    },
+    {
+      "question": "Qual a sequência de efeitos de fork, exec e wait?",
+      "answer": "Criar filho, trocar sua imagem executável e recolher estado do término, respectivamente."
+    },
+    {
+      "question": "Quais são as condições necessárias de deadlock?",
+      "answer": "Exclusão mútua, posse e espera, não preempção e espera circular."
+    },
+    {
+      "question": "Lacunas de 20, 12 e 30 KiB, pedido de 11 KiB: qual é o best fit?",
+      "answer": "A lacuna de 12 KiB, que é a menor suficiente."
+    },
+    {
+      "question": "Endereço 9.000 com páginas de 4.096 bytes: página e deslocamento?",
+      "answer": "Página 2 e deslocamento 808, pois 9.000 − 8.192 = 808."
+    },
+    {
+      "question": "FIFO descarta A ou B se A entrou primeiro, mas foi usado recentemente?",
+      "answer": "A, porque FIFO considera a entrada e não o último acesso."
+    },
+    {
+      "question": "Por que um arquivo de 5 GiB falha em FAT32 apesar de existir espaço livre?",
+      "answer": "Porque o limite individual de arquivo do FAT32 é inferior a 4 GiB."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Núcleo, interface e mecanismos de E/S",
+      "summary": "Kernel controla recursos privilegiados; shell oferece interface. Interrupção, exceção, polling e DMA têm finalidades distintas."
+    },
+    {
+      "key": "e2",
+      "title": "Estados e métricas de execução",
+      "summary": "Pronto espera CPU, bloqueado espera evento, zumbi terminou. Threads compartilham memória, não pilha; retorno, resposta e espera são diferentes."
+    },
+    {
+      "key": "e3",
+      "title": "Sincronização, impasse e inanição",
+      "summary": "Mutex tem propriedade, semáforo representa permissões. Insegurança no banqueiro não prova deadlock; inanição não exige espera circular."
+    },
+    {
+      "key": "e4",
+      "title": "Endereços, paginação e fragmentação",
+      "summary": "MMU traduz página para quadro e preserva deslocamento; TLB miss pode ocorrer sem page fault; fragmentação interna difere da externa."
+    },
+    {
+      "key": "e5",
+      "title": "Políticas de substituição",
+      "summary": "FIFO considera entrada, LRU considera último acesso e OPT conhece futuro. FIFO pode exibir anomalia de Belady."
+    },
+    {
+      "key": "e6",
+      "title": "Arquivos, links e persistência",
+      "summary": "Hard link aponta ao mesmo inode; symlink armazena caminho. FAT32, NTFS, ext4 e ReFS têm limitações distintas; journaling não é backup."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma aplicação solicita ao sistema gravar um texto sem manipular diretamente os registradores da unidade de armazenamento. Qual função conceitual do sistema operacional é exemplificada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Oferecer uma máquina estendida por meio da abstração de arquivo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Realizar multiprocessamento físico por meio de núcleos simultâneos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar algoritmo de substituição de páginas a cada escrita.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir o escalonador pelo interpretador de comandos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter todo pedido de armazenamento em espera circular.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. A abstração de arquivo oculta detalhes do dispositivo. B descreve paralelismo de CPU, desnecessário ao exemplo; C trata de memória virtual, não da abstração de arquivo; D confunde shell e escalonador; E relaciona indevidamente escrita com deadlock.",
+      "section": "1. Fundamentos, arquiteturas e entrada e saída",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo tenta executar diretamente uma instrução privilegiada de configuração de memória. Em um sistema com proteção por modos, qual explicação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O shell autoriza a instrução por ser o gerenciador dos privilégios.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O modo usuário restringe a instrução e exige mecanismo protegido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma thread comum possui privilégios iguais aos do núcleo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A TLB concede permissão administrativa à aplicação em execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A chamada de função local aumenta automaticamente o privilégio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O modo usuário impede operação privilegiada direta; serviços autorizados usam passagem controlada ao núcleo. A confunde interface com controle de acesso; C ignora a separação de modos; D atribui à TLB função de autorização administrativa; E confunde função ordinária com syscall.",
+      "section": "1. Fundamentos, arquiteturas e entrada e saída",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo em modo usuário solicita a leitura de um arquivo, exigindo intervenção controlada do núcleo. O mecanismo de entrada nesse serviço é denominado:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Troca de contexto obrigatória entre dois processos distintos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remoção da página mais antiga da memória principal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Chamada de sistema com transição controlada de execução.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Alocação contígua de arquivos na unidade de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Envelhecimento de prioridades na fila de tarefas prontas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Uma chamada de sistema é a porta controlada para serviços do núcleo. A pode acontecer em outras circunstâncias, mas não define a entrada; B é substituição de página; D é política de alocação de arquivo; E é mecanismo contra inanição no escalonamento.",
+      "section": "1. Fundamentos, arquiteturas e entrada e saída",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma controladora transfere um bloco entre dispositivo e memória principal com pouca participação da CPU na movimentação de cada palavra. Trata-se de:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Polling com consulta da CPU para cada palavra transmitida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Spooling com retenção de trabalhos em fila de execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cache com replicação permanente dos blocos do periférico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DMA, com transferência feita pelo próprio controlador.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Swapping com substituição integral da memória virtual.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. DMA transfere blocos sem exigir cópia de cada palavra por instruções da CPU. A descreve sondagem; B enfileira trabalhos; C descreve reutilização de dados e ainda atribui permanência indevida; E refere-se à movimentação de memória para armazenamento secundário.",
+      "section": "1. Fundamentos, arquiteturas e entrada e saída",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um computador de uma única CPU, um sistema alterna rapidamente aplicações para que usuários percebam interatividade. Qual característica é central nesse cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Multiprocessamento que pressupõe execução física em várias CPUs.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tempo real rígido que impede quaisquer atrasos de interação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Segmentação que divide dados em áreas lógicas de memória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alocação contígua que mantém cada programa junto no disco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tempo compartilhado que reparte o uso da CPU entre tarefas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. O tempo compartilhado alterna o processador para atender várias tarefas interativamente. A exige múltiplas unidades físicas não presentes; B trata de garantias de prazo; C é técnica de memória; D é alocação de armazenamento e não explica a alternância da CPU.",
+      "section": "1. Fundamentos, arquiteturas e entrada e saída",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após ser retirado da CPU, um processo precisará retomar a execução com registradores e estado adequados. Qual estrutura guarda informações essenciais para essa retomada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma tabela FAT que encadeia clusters do armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O PCB que reúne contexto e dados de controle do processo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma TLB que substitui integralmente os registradores salvos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O journal que armazena cada instrução já executada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um buffer de E/S usado como imagem permanente do processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O PCB mantém elementos de controle e contexto recuperáveis na troca. A rastreia arquivos em FAT; C contém traduções de endereço, não todo o contexto; D auxilia persistência de alterações de arquivo; E amortiza dados de E/S e não substitui a estrutura de controle.",
+      "section": "2. Processos, threads e escalonamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo filho concluiu sua execução, mas o pai ainda não recolheu seu estado final. Qual classificação descreve a situação no modelo Unix?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Órfão, porque nenhum processo mantém vínculo com seu início.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pronto, porque pode receber CPU para continuar executando.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Zumbi, pois terminou e ainda aguarda recolhimento pelo pai.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Bloqueado, porque permanece aguardando conclusão de uma E/S.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Suspenso, porque foi retirado temporariamente da memória.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Um filho encerrado sem wait permanece zumbi até recolhimento apropriado. A se refere a perda do pai; B não corresponde a processo terminado; D exige espera por evento antes de concluir; E indica outra condição operacional, não a retenção do estado de término.",
+      "section": "2. Processos, threads e escalonamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas threads de um mesmo processo atualizam dados globais e executam rotinas diferentes. Qual característica costuma diferenciá-las individualmente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada thread mantém sua própria cópia integral dos dados globais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada thread possui sistema de arquivos distinto do processo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada thread recebe espaço virtual necessariamente independente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cada thread tem sua pilha e registradores de execução próprios.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Cada thread substitui os descritores compartilhados por inodes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Threads compartilham espaço virtual e diversos recursos, mas possuem pilha, registradores e contador de instruções próprios. A nega compartilhamento dos globais; B e C inventam isolamento típico de processos; E confunde descritores de arquivo com estruturas internas do sistema de arquivos.",
+      "section": "2. Processos, threads e escalonamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quatro processos prontos recebem a CPU em ordem circular, cada um limitado a um quantum antes de ceder a vez se ainda tiver trabalho. Qual algoritmo foi descrito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SJF, que privilegia a menor rajada integral sem interrupção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "FCFS, que mantém a ordem até terminar cada rajada completa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SRTF, que escolhe o menor tempo restante a cada chegada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Prioridade fixa, que seleciona a maior classe antes das demais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Round robin, que alterna tarefas por fatias de tempo limitadas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Round robin percorre fila circular e preempta ao esgotar o quantum quando cabível. A e C escolhem por duração prevista, com políticas distintas; B deixa tarefa prosseguir até bloquear ou concluir; D escolhe por prioridade em vez de rodízio temporal equitativo.",
+      "section": "2. Processos, threads e escalonamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Três processos chegam juntos, com rajadas de 4, 2 e 3 unidades, nessa ordem. Em FCFS não preemptivo, qual é o tempo médio de espera?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "10/3 unidades, considerando esperas individuais de 0, 4 e 6.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "7/3 unidades, considerando as rajadas em ordem crescente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "9/3 unidades, considerando apenas as durações de serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "12/3 unidades, considerando troca de contexto a cada unidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "15/3 unidades, considerando retorno como se fosse espera.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. No FCFS as execuções são 0–4, 4–6 e 6–9, portanto esperas 0, 4 e 6. B usaria outra ordenação; C confunde espera com rajada; D introduz trocas não previstas; E mistura retorno, que inclui CPU, com tempo exclusivamente aguardado.",
+      "section": "2. Processos, threads e escalonamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa chega em t=2, executa 6 unidades de CPU no total e termina em t=13, sem outras esperas externas. Qual alternativa indica corretamente retorno e espera?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retorno 13 e espera 7, pois o instante final é o retorno.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Retorno 11 e espera 6, pois a espera equivale à rajada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retorno 11 e espera 5, descontando chegada e uso de CPU.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Retorno 9 e espera 3, subtraindo a chegada duas vezes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retorno 7 e espera 5, descartando o tempo anterior à CPU.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Retorno = 13−2 = 11 e espera = 11−6 = 5. A esquece de subtrair a chegada; B iguala espera à rajada; D desconta a chegada novamente no retorno; E retira a duração de CPU antes de definir corretamente retorno.",
+      "section": "2. Processos, threads e escalonamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "P1 chega em t=0 com 8 unidades de CPU. P2 chega em t=2 com 3 unidades. Sob SRTF, sem custo de troca, em qual instante P2 termina?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Em t=3, porque o menor processo termina após sua chegada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Em t=8, porque P1 não pode sofrer preempção nesse método.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Em t=11, porque deve aguardar o retorno final de P1.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Em t=5, pois preempta P1 e executa três unidades seguidas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Em t=6, porque herda quatro unidades restantes de P1.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Em t=2 restam seis unidades para P1; as três de P2 são menores, logo P2 executa de 2 a 5. A ignora as três unidades necessárias; B trata SRTF como não preemptivo; C prolonga indevidamente a espera; E mistura as rajadas de processos diferentes.",
+      "section": "2. Processos, threads e escalonamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas tarefas ficam travadas: A detém R1 e aguarda R2; B detém R2 e aguarda R1, sem liberação ou retirada forçada. Qual condição necessária está ilustrada diretamente pela dependência formada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Envelhecimento de prioridade durante a permanência na fila.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Bufferização de dados com alternância entre produtor e consumidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Compartilhamento simultâneo irrestrito dos dois recursos alocados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituição ótima de páginas conforme os acessos futuros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Espera circular, porque cada tarefa aguarda recurso retido pela outra.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. O ciclo A→R2→B→R1→A materializa espera circular, uma das condições de Coffman. A trata de starvation; B é problema distinto de sincronização; C seria oposto à exclusão de recursos; D é política de memória sem ligação com o ciclo descrito.",
+      "section": "3. Concorrência, sincronização e deadlocks",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um conjunto de tarefas precisa controlar o acesso simultâneo a três conexões intercambiáveis. Que primitiva modela diretamente a quantidade disponível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Semáforo contador inicializado com três permissões disponíveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Mutex simples adquirido por três donos ao mesmo tempo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "TLB com três entradas exclusivas para aquelas conexões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Journal com três transações pendentes de confirmação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Round robin com quantum correspondente a três conexões.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O semáforo contador permite limitar a três as aquisições simultâneas. B contradiz posse exclusiva do mutex; C é cache de traduções; D registra alterações de arquivo; E mede tempo de CPU, não quantidade de recursos disponíveis.",
+      "section": "3. Concorrência, sincronização e deadlocks",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um módulo encapsula dados compartilhados, operações que os acessam com exclusão e condições para suspender threads até ocorrer evento. Qual abstração melhor corresponde ao conjunto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pipe unidirecional que transmite bytes entre processos sem estado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Monitor que combina estado protegido e variáveis de condição.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Tabela de páginas que armazena permissões de endereçamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Algoritmo FCFS que ordena trabalhos por momento de chegada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Semáforo binário que, por si, contém métodos e dados globais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Monitor integra operações exclusivas, estado encapsulado e condições de espera. A oferece comunicação por fluxo sem essa encapsulação; C gerencia memória; D escalona CPU; E pode apoiar exclusão, mas não incorpora automaticamente os dados e os procedimentos descritos.",
+      "section": "3. Concorrência, sincronização e deadlocks",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na ordem de inspeção, as lacunas de memória livre têm 25 KiB, 18 KiB e 10 KiB. Uma solicitação de 17 KiB usa best fit. Que lacuna é selecionada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "25 KiB, por ser a primeira região livre que comporta o pedido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "10 KiB, por deixar o menor espaço desperdiçado na memória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "25 KiB, por ser a maior lacuna disponível no sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "18 KiB, por ser a menor lacuna suficiente para o pedido.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "10 KiB, desde que outra região complete os sete KiB faltantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Best fit escolhe 18 KiB e deixa 1 KiB de sobra. A descreve first fit para essa ordem; B e E escolhem espaço incapaz de atender alocação contígua; C corresponde a worst fit, que escolhe a maior lacuna disponível.",
+      "section": "4. Gerenciamento de memória e substituição de páginas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo acessa a página virtual 3 de tamanho 4.096 bytes, deslocamento 212, mapeada no quadro físico 7. Qual endereço físico é calculado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "12.500, porque o endereço virtual é conservado integralmente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "28.672, porque a tradução ignora o deslocamento informado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "16.596, porque se soma quadro lógico ao deslocamento original.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "28.460, porque o deslocamento é subtraído da base física.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "28.884, com o deslocamento somado à base do quadro 7.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A base física é 7×4.096=28.672, e somando 212 resulta 28.884. A mantém endereço virtual sem tradução; B omite deslocamento; C troca incorretamente número de página por quadro; D subtrai, quando deveria somar, o deslocamento à base física.",
+      "section": "4. Gerenciamento de memória e substituição de páginas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma referência à memória não encontra tradução na TLB, mas a tabela de páginas indica página residente e acessível. O que se conclui?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Houve TLB miss, mas não é necessário ocorrer falta de página.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Houve falta de página, pois TLB e RAM armazenam o mesmo dado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Deve ocorrer swapping integral do processo antes da leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A TLB substitui a tabela, impedindo recuperação da tradução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A referência fica bloqueada até o próximo acesso ao arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Um TLB miss pode ser resolvido consultando estrutura de tradução quando a página está na RAM. B identifica incorretamente as duas faltas; C inventa movimentação de processo; D nega a consulta à tabela de páginas; E associa tradução de memória à espera por arquivo sem fundamento.",
+      "section": "4. Gerenciamento de memória e substituição de páginas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Três páginas estão na memória: A chegou primeiro, depois B e C; após essas entradas, A foi acessada e B não. Uma falta exige vítima segundo LRU. Qual escolha é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A, por continuar sendo a página mais antiga desde a carga.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "B, por ter o acesso mais distante no histórico recente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "C, por ter sido a página carregada por último na RAM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A, porque um acesso recente não altera a decisão de LRU.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "C, porque LRU segue a ordem inversa de ingresso das páginas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Sob a sequência explicitada, A foi reusada, C foi usada na entrada mais recente e B ficou menos recentemente utilizada. A e D confundem LRU com FIFO; C confunde última carga com menor recência; E supõe uma política LIFO que LRU não implementa.",
+      "section": "4. Gerenciamento de memória e substituição de páginas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma simulação de substituição, aumentar a quantidade de quadros disponíveis provoca mais faltas sob FIFO para certa sequência de referências. O fenômeno é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fragmentação interna causada pelo fim incompleto de páginas fixas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Thrashing definido por trocas contínuas de processos inteiros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Anomalia de Belady, possível no FIFO clássico em certas sequências.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Acerto de TLB cuja tradução evita nova consulta de tabela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ótimo de futuro conhecido, que seleciona a página menos antiga.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. A anomalia de Belady é exatamente o aumento de faltas com mais quadros em políticas como FIFO. A refere-se a desperdício de alocação; B a paginação excessiva, não a comparação especificada; D a cache de traduções; E descreve de forma inadequada OPT, que prevê uso futuro.",
+      "section": "4. Gerenciamento de memória e substituição de páginas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo acessa página virtual válida, porém ausente da RAM; o sistema seleciona um quadro, recupera seu conteúdo do armazenamento e atualiza a tabela. Qual interpretação é tecnicamente correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ocorreu TLB hit, porque a página não estava disponível fisicamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ocorreu apenas fragmentação interna, sem intervenção do núcleo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ocorreu substituição de inode, porque a página era um arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ocorreu interrupção periódica, sem relação com memória virtual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ocorreu falta de página atendida pela gerência de memória virtual.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A ausência de página válida na RAM exige tratamento de page fault e possível recuperação do conteúdo. A confunde acerto na cache de tradução com ausência em RAM; B fala de desperdício de bloco; C troca páginas por inodes; D associa evento a temporizador, não à referência de memória.",
+      "section": "4. Gerenciamento de memória e substituição de páginas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo de grande porte cresce repetidamente, mas novos blocos livres surgem dispersos. A equipe compara alocação contígua clássica e indexada. Qual análise corresponde às duas políticas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A contígua dificulta extensão sem região adjacente; a indexada localiza blocos dispersos pelo índice.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A contígua resolve crescimento por encadeamento; a indexada exige todos os blocos adjacentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambas exigem blocos contíguos, mas a indexada dispensa metadados de localização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A contígua troca endereços por inode; a indexada substitui os blocos por uma tabela TLB.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A indexada elimina qualquer bloco auxiliar; a contígua organiza acesso por uma cadeia FAT.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Alocação contígua depende de faixas disponíveis e alocação indexada usa referências para blocos dispersos. B inverte características; C nega o índice e a dispersão; D mistura alocação com TLB; E atribui FAT à contiguidade e apaga o custo de metadados da indexação.",
+      "section": "5. Organização de arquivos e sistemas de arquivos",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema de arquivos com inodes, dois nomes são hard links para o mesmo arquivo. Um nome é removido, permanecendo o outro. Qual consequência é compatível com essa estrutura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O segundo nome converte-se automaticamente em link simbólico pendente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O conteúdo permanece acessível pelo outro nome que referencia o mesmo inode.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O conteúdo precisa ser duplicado porque cada nome tem dados próprios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O inode é invalidado imediatamente ao apagar qualquer nome associado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O nome remanescente passa a apontar para um sistema de arquivos externo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Hard links designam o mesmo objeto; remover uma entrada não elimina o objeto enquanto houver vínculo relevante. A confunde hard link com symlink; C supõe cópia de dados; D ignora contagem de referências; E inventa travessia entre sistemas de arquivos, usualmente vedada a hard links.",
+      "section": "5. Organização de arquivos e sistemas de arquivos",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo único de 5 GiB precisa ser gravado em mídia com 20 GiB livres. Uma cópia falha em FAT32 pelo limite individual. Qual comparação justifica escolher outro formato?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "VFAT remove o limite de tamanho do FAT32 apenas com nomes longos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ext2 impõe, por definição, limite individual menor que o FAT32.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "exFAT suporta arquivos maiores que o limite individual clássico do FAT32.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "NTFS elimina a necessidade de espaço físico para dados de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ReFS transforma a escrita em cache RAM sem persistência necessária.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O limite FAT32 é inferior a 4 GiB por arquivo; exFAT foi concebido para suportar arquivos maiores. A confunde VFAT com mudança de limite; B faz afirmação incorreta sobre ext2; D ignora necessidade de espaço de armazenamento; E descreve indevidamente persistência do ReFS.",
+      "section": "5. Organização de arquivos e sistemas de arquivos",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após queda de energia durante gravação em ext4 configurado no modo usual de journaling, a recuperação restaura metadados coerentes, mas parte dos dados recentes falta. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Há prova de que o volume estava formatado em ext2 sem journal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O journal garante recuperação integral de qualquer versão apagada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A perda implica que todas as transações de metadados falharam.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O journal usual protege consistência estrutural, não substituindo backup de dados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O journal é mecanismo de escalonamento que ignora persistência em disco.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. O ext4 no modo usual registra principalmente metadados e não garante persistência integral de dados recentes; backup continua indispensável. A ignora o journal do ext4; B exagera as garantias; C confunde metadados com conteúdo de aplicação; E atribui função de escalonamento ao journal.",
+      "section": "5. Organização de arquivos e sistemas de arquivos",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação solicita a gravação de um documento ao SO; o núcleo coordena acesso ao dispositivo e oferece ao programa a abstração de arquivo, dispensando controle direto dos registradores do periférico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O SO atua como gerenciador de recursos e como máquina estendida: a operação sobre arquivo encobre detalhes do dispositivo, enquanto o núcleo organiza serviços protegidos, por exemplo autorização e envio da requisição ao driver.",
+      "section": "1. Fundamentos, arquiteturas e entrada e saída",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um periférico executa transferência por DMA; nessa modalidade, o controlador deixa de poder emitir interrupção ao concluir a transferência, pois os métodos são mutuamente excludentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. DMA especifica o modo de movimentar dados entre memória e periférico com reduzida intervenção da CPU. A conclusão pode ser anunciada por interrupção; portanto, a existência de DMA não exclui comunicação assíncrona com o processador.",
+      "section": "1. Fundamentos, arquiteturas e entrada e saída",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo apto a executar aguarda receber CPU, enquanto outro espera a conclusão de uma leitura de disco; no modelo clássico, o primeiro está pronto e o segundo, bloqueado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O estado pronto representa tarefa que pode executar quando escalonada; o bloqueado depende de evento, como E/S. Ao terminar a leitura, o segundo pode voltar a pronto e ainda precisar esperar antes de ocupar a CPU.",
+      "section": "2. Processos, threads e escalonamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas threads pertencentes ao mesmo processo executam simultaneamente; por serem threads diferentes, cada uma dispõe necessariamente de espaço de endereços virtual independente da outra.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A definição usual de threads de um mesmo processo envolve compartilhamento do espaço virtual e de dados globais. O que cada uma mantém é contexto de execução próprio, com pilha, registradores e contador de instruções particulares.",
+      "section": "2. Processos, threads e escalonamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo possui dois hard links no mesmo sistema de arquivos; a remoção de um nome não torna necessariamente os dados inacessíveis pelo outro nome.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Hard links são entradas diferentes que fazem referência ao mesmo objeto, normalmente identificado pelo mesmo inode. A exclusão de um nome reduz uma referência, mas o outro pode continuar válido e permitir acesso ao conteúdo.",
+      "section": "5. Organização de arquivos e sistemas de arquivos",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema preemptivo, se uma tarefa que estava executando perde a CPU pelo término de seu quantum e permanece apta a continuar, a transição clássica é de executando para bloqueado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O término do quantum, sem espera por evento, recoloca a tarefa na condição de pronta. Bloqueado exige dependência de evento, como conclusão de E/S, e não decorre somente de a CPU ter sido atribuída a outra tarefa.",
+      "section": "2. Processos, threads e escalonamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um programa, duas threads executam a sequência ler-contador, somar um e gravar-contador sem proteção; ambas podem gravar 11 partindo do valor 10, caracterizando condição de corrida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O cálculo individual não torna atômica a sequência de leitura, incremento e escrita. Interlevação entre as duas threads pode perder uma atualização; região crítica e sincronização são necessárias para preservar o resultado pretendido.",
+      "section": "3. Concorrência, sincronização e deadlocks",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O algoritmo do banqueiro encontra um estado inseguro após examinar uma solicitação de recursos; isso comprova que as tarefas já se encontram em deadlock naquele instante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A análise de segurança procura sequência viável de término com recursos disponíveis e possíveis liberações. Estado inseguro significa ausência dessa garantia, embora as tarefas possam avançar e até concluir dependendo das requisições futuras.",
+      "section": "3. Concorrência, sincronização e deadlocks",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com páginas de 4.096 bytes, o endereço lógico 9.000 está na página 2, com deslocamento de 808 bytes; o deslocamento é preservado na tradução para quadro físico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Como 2×4.096=8.192, sobra 808 no endereço 9.000. A MMU troca a referência à página pela base do quadro mapeado, preservando os 808 bytes dentro da unidade, independentemente do número do quadro.",
+      "section": "4. Gerenciamento de memória e substituição de páginas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A consulta a uma página residente na RAM pode sofrer falha na TLB, mas uma falha na TLB significa obrigatoriamente que o sistema deverá carregar essa página do armazenamento secundário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O início da frase descreve precisamente uma tradução ausente da cache e ainda válida na memória principal. A conclusão é falsa: basta consultar a tabela de páginas e preencher a TLB quando o dado já está residente.",
+      "section": "4. Gerenciamento de memória e substituição de páginas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema adota ordem global R1 antes de R2 para todas as tarefas que precisam de ambos os recursos; a regra visa prevenir deadlock ao impedir ciclos de espera por aquisições em ordens inversas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Impor uma ordem total de aquisição retira a condição necessária de espera circular quando todos respeitam a política. Essa é uma técnica de prevenção, distinta de evitação por teste de estado seguro ou detecção posterior de impasse.",
+      "section": "3. Concorrência, sincronização e deadlocks",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um grafo de alocação com vários exemplares disponíveis de determinado recurso, a simples existência de um ciclo prova deadlock em todos os casos, sem exame das instâncias e das possibilidades de liberação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O ciclo é decisivo em modelos adequados de instância única, mas, com múltiplas instâncias, pode existir processo que conclua e libere recursos, quebrando a dependência. É necessário verificar alocações, pedidos e capacidades antes de diagnosticar impasse.",
+      "section": "3. Concorrência, sincronização e deadlocks",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em round robin com quantum de 2 e processos P1=5, P2=3, ambos chegados em zero e inicialmente nessa ordem, sem custo de troca, a conclusão ocorre em t=8 para P1 e t=7 para P2.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As fatias são P1: 0–2, P2: 2–4, P1: 4–6, P2: 6–7 e P1: 7–8. A ordem respeita quantum máximo de duas unidades e os serviços totais de cinco e três, produzindo conclusões 8 e 7.",
+      "section": "2. Processos, threads e escalonamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um SJF não preemptivo e um SRTF produzirão necessariamente a mesma sequência de execução quando um processo curto chegar depois do início de uma tarefa longa, porque ambos escolhem a menor rajada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. SJF não interrompe a tarefa longa que já recebeu CPU, enquanto SRTF compara o tempo restante e pode preemptá-la ao chegar tarefa mais curta. Por isso o instante de chegada pode alterar a sequência e os tempos de conclusão.",
+      "section": "2. Processos, threads e escalonamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na segmentação paginada, o programa pode manter segmentos lógicos distintos, cada um dividido em páginas que podem ser mapeadas em quadros físicos não contíguos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A técnica combina segmentação lógica com paginação física: segmentos oferecem organização e proteção enquanto quadros recebem páginas sem exigir adjacência na RAM. Isso a distingue de segmentação puramente contígua com unidades variáveis.",
+      "section": "4. Gerenciamento de memória e substituição de páginas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Três quadros contêm páginas carregadas na ordem 1, 2, 3; a página 1 é acessada novamente e chega a página 4. O FIFO deve retirar 2, pois considera o acesso mais recente à página 1.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. FIFO considera a ordem de entrada nos quadros, que continua 1, 2, 3 mesmo após novo acesso à página 1. Ao chegar a página 4, a vítima FIFO é 1; quem tenderia a retirar 2 nesse histórico seria o LRU.",
+      "section": "4. Gerenciamento de memória e substituição de páginas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um link simbólico que armazena caminho para arquivo de outro sistema de arquivos pode continuar existindo após a remoção do destino, embora a tentativa de abrir o alvo pelo link possa falhar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O symlink é objeto independente que contém referência por caminho e pode tornar-se pendente sem deixar de existir. Hard link, diversamente, é outro nome para o mesmo inode e em operações comuns não atravessa sistemas de arquivos.",
+      "section": "5. Organização de arquivos e sistemas de arquivos",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo de 5 GiB não cabe como arquivo único no FAT32, mas basta ativar a extensão de nomes longos VFAT nesse mesmo volume para afastar o limite de tamanho individual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. VFAT estende a representação de nomes, e não o campo ou o mecanismo que determina o limite por arquivo do FAT32, inferior a 4 GiB. Para arquivo de 5 GiB, um formato como exFAT ou NTFS pode resolver essa limitação.",
+      "section": "5. Organização de arquivos e sistemas de arquivos",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação com muitas faltas de página gasta mais tempo trocando conteúdo com armazenamento do que avançando em instruções úteis; o cenário é compatível com thrashing e pode piorar se a multiprogramação crescer.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Thrashing surge quando a demanda ativa por páginas supera a capacidade efetiva disponível e a movimentação domina a execução. Admitir processos adicionais aumenta pressão sobre quadros e pode reduzir a produção útil da CPU.",
+      "section": "4. Gerenciamento de memória e substituição de páginas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um volume formatado com ReFS, a presença de mecanismos de resiliência permite afirmar que todas as funcionalidades do NTFS são reproduzidas de modo idêntico, inclusive em quaisquer cenários de inicialização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. ReFS enfatiza integridade, resiliência e escalabilidade, mas não apresenta equivalência completa de recursos e usos com NTFS. A documentação da plataforma diferencia capacidades, como suporte a inicialização e algumas operações administrativas.",
+      "section": "5. Organização de arquivos e sistemas de arquivos",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Modo de usuário e modo kernel",
+      "publisher": "Microsoft Learn",
+      "reference": "Windows drivers: separação entre execução privilegiada e de usuário",
+      "url": "https://learn.microsoft.com/pt-br/windows-hardware/drivers/gettingstarted/user-mode-and-kernel-mode",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Memory Management",
+      "publisher": "Linux Kernel Documentation",
+      "reference": "Gerência de endereços e memória virtual",
+      "url": "https://www.kernel.org/doc/html/latest/admin-guide/mm/index.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Journal (jbd2)",
+      "publisher": "Linux Kernel Documentation",
+      "reference": "ext4: journal e consistência de metadados",
+      "url": "https://www.kernel.org/doc/html/latest/filesystems/ext4/journal.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Comparação de funcionalidades do sistema de arquivos",
+      "publisher": "Microsoft Learn",
+      "reference": "FAT32, exFAT e NTFS: limites e proteção",
+      "url": "https://learn.microsoft.com/pt-br/windows/win32/fileio/filesystem-functionality-comparison",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Resilient File System (ReFS) overview",
+      "publisher": "Microsoft Learn",
+      "reference": "ReFS e NTFS: capacidades e diferenças",
+      "url": "https://learn.microsoft.com/en-us/windows-server/storage/refs/refs-overview",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Using Direct I/O",
+      "publisher": "Microsoft Learn",
+      "reference": "E/S programada e acesso direto por DMA",
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-direct-i-o",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "Operating Systems: Three Easy Pieces",
+      "publisher": "University of Wisconsin–Madison",
+      "reference": "Arpaci-Dusseau: processos, escalonamento, concorrência, memória e arquivos, versão 1.10",
+      "url": "https://pages.cs.wisc.edu/~remzi/OSTEP/",
+      "accessedAt": "2026-10-10"
+    }
+  ]
+}

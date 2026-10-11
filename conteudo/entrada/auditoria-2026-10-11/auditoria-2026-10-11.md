@@ -1,0 +1,598 @@
+# Auditoria Estudário — 11/10/2026
+
+Recebido: 730 matérias, 644 lotes de banco, 604 recortes. Todos os JSON abrem.
+
+## 1. Bancos com gabarito ausente (GRAVE)
+Nestes lotes nenhuma questão tem `"correct": true`: o gabarito só aparece na explicação ("Certo."/"Errado."). Como está, o app não sabe a resposta.
+
+- `direito-administrativo.contratos-administrativos — lote 2`
+- `economia.economia-setor-publico — lote 1`
+- `portugues.retextualizacao — lote 2`
+- `portugues.tipologia-textual — lote 1`
+
+## 2. Outros problemas nos bancos
+
+- `administracao-publica.gestao-processos — lote 2`: a certa é a mais curta em 19 de 40
+- `administracao-publica.gestao-processos — lote 4`: a certa é a mais curta em 18 de 40
+- `administracao-publica.lei-acesso-informacao — lote 3`: a certa é a mais curta em 29 de 40
+- `administracao-publica.lei-acesso-informacao — lote 4`: a certa é a mais curta em 19 de 40
+- `afo.orcamento-publico-principios — lote 2`: a certa é a mais curta em 26 de 40
+- `afo.orcamento-publico-principios — lote 3`: a certa é a mais longa em 18 de 40
+- `afo.ppa-ldo-loa-ciclo — lote 2`: a certa é a mais curta em 20 de 40
+- `afo.receita-despesa-publica — lote 3`: a certa é a mais longa em 18 de 40
+- `controle-externo.tribunais-contas — lote 4`: a certa é a mais longa em 17 de 40
+- `direito-administrativo.bens-publicos — lote 2`: a certa é a mais curta em 24 de 40
+- `direito-administrativo.bens-publicos — lote 3`: a certa é a mais curta em 20 de 40
+- `direito-administrativo.concessao-permissao — lote 2`: a certa é a mais curta em 18 de 40
+- `direito-administrativo.concessao-permissao — lote 3`: a certa é a mais curta em 17 de 40
+- `direito-administrativo.contratacao-direta — lote 4`: a certa é a mais curta em 23 de 40
+- `direito-administrativo.contratos-administrativos — lote 3`: a certa é a mais curta em 18 de 40
+- `direito-administrativo.controle-administracao — lote 4`: a certa é a mais curta em 17 de 40
+- `direito-administrativo.crimes-administracao-publica — lote 2`: a certa é a mais curta em 19 de 40
+- `direito-administrativo.licitacao-principios-modalidades — lote 3`: a certa é a mais curta em 19 de 40
+- `direito-administrativo.licitacao-principios-modalidades — lote 4`: a certa é a mais curta em 20 de 40
+- `direito-administrativo.poderes-administrativos — lote 3`: a certa é a mais curta em 17 de 40
+- `direito-administrativo.principios-administracao — lote 5`: a certa é a mais curta em 22 de 40
+- `direito-administrativo.procedimento-licitatorio — lote 4`: a certa é a mais curta em 24 de 40
+- `direito-administrativo.regime-juridico-fontes — lote 5`: a certa é a mais longa em 28 de 40
+- `direito-administrativo.responsabilidade-civil-estado — lote 3`: a certa é a mais curta em 17 de 40
+- `direito-administrativo.sancoes-crimes-licitacoes — lote 2`: a certa é a mais curta em 20 de 40
+- `direito-administrativo.servico-publico — lote 2`: a certa é a mais curta em 18 de 40
+- `direito-administrativo.servico-publico — lote 3`: a certa é a mais curta em 18 de 40
+- `direito-civil.bens — lote 2`: a certa é a mais curta em 20 de 40
+- `direito-civil.bens — lote 3`: a certa é a mais curta em 21 de 40
+- `direito-civil.lei-vigencia-aplicacao-integracao-interpretacao — lote 2`: a certa é a mais curta em 20 de 40
+- `direito-civil.lei-vigencia-aplicacao-integracao-interpretacao — lote 3`: a certa é a mais curta em 25 de 40
+- `direito-civil.negocio-juridico — lote 2`: a certa é a mais curta em 17 de 40
+- `direito-civil.negocio-juridico — lote 3`: a certa é a mais curta em 21 de 40
+- `direito-civil.obrigacoes — lote 2`: a certa é a mais curta em 21 de 40
+- `direito-civil.obrigacoes — lote 3`: a certa é a mais curta em 25 de 40
+- `direito-civil.pessoas-juridicas — lote 2`: a certa é a mais curta em 20 de 40
+- `direito-civil.pessoas-juridicas — lote 3`: a certa é a mais curta em 17 de 40
+- `direito-civil.pessoas-naturais — lote 3`: a certa é a mais curta em 22 de 40
+- `direito-civil.pessoas-naturais — lote 4`: a certa é a mais curta em 17 de 40
+- `direito-constitucional.advocacia-defensoria — lote 3`: a certa é a mais curta em 17 de 40
+- `direito-constitucional.advocacia-defensoria — lote 4`: a certa é a mais curta em 21 de 40
+- `direito-constitucional.competencias-intervencao — lote 2`: a certa é a mais curta em 20 de 40
+- `direito-constitucional.competencias-intervencao — lote 3`: a certa é a mais curta em 21 de 40
+- `direito-constitucional.conceito-classificacao-constituicao — lote 2`: a certa é a mais curta em 20 de 40
+- `direito-constitucional.conceito-classificacao-constituicao — lote 3`: a certa é a mais curta em 21 de 40
+- `direito-constitucional.defesa-estado-instituicoes — lote 2`: a certa é a mais curta em 18 de 40
+- `direito-constitucional.direitos-individuais-coletivos — lote 4`: a certa é a mais longa em 20 de 40
+- `direito-constitucional.direitos-politicos — lote 2`: a certa é a mais curta em 19 de 40
+- `direito-constitucional.direitos-sociais — lote 2`: a certa é a mais longa em 28 de 40
+- `direito-constitucional.direitos-sociais — lote 4`: a certa é a mais curta em 18 de 40
+- `direito-constitucional.ordem-economica-financeira — lote 2`: a certa é a mais curta em 17 de 40
+- `direito-constitucional.ordem-economica-financeira — lote 3`: a certa é a mais curta em 18 de 40
+- `direito-constitucional.ordem-social — lote 3`: a certa é a mais curta em 22 de 40
+- `direito-constitucional.organizacao-politico-administrativa — lote 5`: a certa é a mais curta em 25 de 40
+- `direito-constitucional.poder-executivo — lote 3`: a certa é a mais longa em 18 de 40
+- `direito-constitucional.poder-executivo — lote 5`: a certa é a mais curta em 18 de 40
+- `direito-constitucional.poder-judiciario-disposicoes-gerais — lote 3`: a certa é a mais curta em 25 de 40
+- `direito-constitucional.poder-judiciario-disposicoes-gerais — lote 5`: a certa é a mais longa em 21 de 40
+- `direito-constitucional.poder-legislativo — lote 3`: a certa é a mais curta em 20 de 40
+- `direito-constitucional.poder-legislativo — lote 4`: a certa é a mais longa em 20 de 40
+- `direito-constitucional.principios-fundamentais — lote 3`: a certa é a mais curta em 18 de 40
+- `direito-constitucional.tributacao-orcamento — lote 3`: a certa é a mais curta em 19 de 40
+- `direito-penal.aplicacao-lei-penal — lote 3`: a certa é a mais curta em 19 de 40
+- `direito-penal.crimes-incolumidade-fe-publica — lote 4`: a certa é a mais curta em 19 de 40
+- `direito.declaracao-universal-direitos-humanos — lote 2`: a certa é a mais curta em 17 de 40
+- `direito.definicao-conceito-direitos-humanos — lote 2`: a certa é a mais curta em 22 de 40
+- `direito.definicao-conceito-direitos-humanos — lote 3`: a certa é a mais curta em 19 de 40
+- `gestao-pessoas.fundamentos-subsistemas — lote 2`: a certa é a mais longa em 18 de 40
+- `informatica.bi-mineracao-dados — lote 3`: a certa é a mais curta em 21 de 40
+- `informatica.correio-eletronico-outlook-2016-navegacao — lote 4`: a certa é a mais curta em 18 de 40
+- `informatica.engenharia-software-ageis — lote 3`: a certa é a mais longa em 21 de 40
+- `informatica.internet-navegadores — lote 3`: a certa é a mais curta em 20 de 40
+- `informatica.internet-navegadores — lote 4`: a certa é a mais curta em 21 de 40
+- `informatica.seguranca — lote 5`: a certa é a mais longa em 18 de 40
+- `informatica.seguranca-normas-iso27001 — lote 2`: a certa é a mais curta em 18 de 40
+- `informatica.seguranca-normas-iso27001 — lote 4`: a certa é a mais curta em 19 de 40
+- `legislacao.lei-13146-2015-inclusao — lote 2`: a certa é a mais curta em 18 de 40
+- `legislacao.lei-13146-2015-inclusao — lote 3`: a certa é a mais curta em 21 de 40
+- `legislacao.lei-13709-2018-lgpd — lote 3`: a certa é a mais curta em 19 de 40
+- `legislacao.lei-8112-1990-direitos-vantagens — lote 4`: a certa é a mais curta em 17 de 40
+- `legislacao.lei-8112-1990-processo-disciplinar — lote 2`: a certa é a mais longa em 21 de 40
+- `legislacao.lei-8112-1990-processo-disciplinar — lote 4`: a certa é a mais curta em 21 de 40
+- `legislacao.lei-8112-1990-provimento — lote 2`: a certa é a mais curta em 27 de 40
+- `legislacao.lei-8112-1990-provimento — lote 4`: a certa é a mais curta em 18 de 40
+- `legislacao.lei-8112-1990-regime-disciplinar — lote 4`: a certa é a mais curta em 18 de 40
+- `legislacao.lei-8112-1990-visao-geral — lote 4`: a certa é a mais curta em 20 de 40
+- `legislacao.lei-8429-1992-improbidade — lote 5`: a certa é a mais curta em 19 de 40
+- `orcamento-publico.320-1964 — lote 3`: a certa é a mais curta em 17 de 40
+- `orcamento-publico.320-1964 — lote 4`: a certa é a mais curta em 18 de 40
+- `orcamento-publico.conceitos — lote 2`: a certa é a mais curta em 18 de 40
+- `portugues.classes-de-palavras — lote 3`: a certa é a mais curta em 19 de 40
+- `portugues.colocacao-pronominal — lote 5`: #9: explicação curta (116); #13: explicação curta (118)
+- `portugues.concordancia — lote 3`: #37: alternativas repetidas
+- `portugues.interpretacao-textual — lote 3`: só 30 questões (pedido 40)
+- `portugues.interpretacao-textual — lote 4`: só 30 questões (pedido 40)
+- `portugues.ortografia — lote 3`: #28: alternativas repetidas
+- `portugues.ortografia — lote 4`: #31: alternativas repetidas
+- `portugues.pontuacao — lote 4`: a certa é a mais curta em 17 de 40
+- `portugues.redacao-oficial — lote 3`: a certa é a mais curta em 18 de 40
+- `portugues.redacao-oficial — lote 5`: a certa é a mais curta em 19 de 40
+- `portugues.retextualizacao — lote 3`: a certa é a mais longa em 27 de 40
+- `processo-civil.acao — lote 3`: a certa é a mais curta em 18 de 40
+- `processo-civil.acao — lote 4`: a certa é a mais curta em 17 de 40
+- `processo-civil.remedios-constitucionais-mandado-seguranca-habeas — lote 3`: a certa é a mais curta em 17 de 40
+- `processo-civil.remedios-constitucionais-mandado-seguranca-habeas — lote 4`: a certa é a mais longa em 18 de 40
+- `raciocinio-logico.problemas-aritmeticos — lote 3`: #16: explicação curta (119); #36: explicação curta (100); #39: explicação curta (111)
+- `sustentabilidade.desenvolvimento-sustentavel — lote 2`: a certa é a mais curta em 26 de 40
+
+## 3. Matérias com problema de conteúdo/forma
+(O conferidor oficial recusaria. Itens só cosméticos estão na seção 4.)
+
+- `administracao-geral.estrategia-competitiva`: questions: a alternativa certa é a mais curta em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `administracao-publica.governo-digital`: questions: a alternativa certa é a mais longa em 19 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `administracao-publica.lei-acesso-informacao`: questions: a alternativa certa é a mais longa em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `alagoas.conhecimentos-estaduais`: questions: a alternativa certa é a mais longa em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `arquitetura.estruturas-fundacoes-materiais`: questions: a alternativa certa é a mais longa em 14 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `arquivologia.diplomatica-legislacao-arquivistica`: questions: a alternativa certa é a mais longa em 14 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `atualidades.seguranca-justica-sistema-prisional`: questions: a alternativa certa é a mais longa em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `auditoria.efd-nfe-icms`: questions: a alternativa certa é a mais longa em 14 de 25 (máximo 40%); equilibre o tamanho das alternativas; questions: 5 alternativas terminam em ", para os dois modelos fiscais"; tire o rabicho de molde e iguale o tamanho com conteúdo
+- `biologia.citologia-genetica`: questions: 5 alternativas terminam em ", nas três funções apresentadas"; tire o rabicho de molde e iguale o tamanho com conteúdo
+- `biologia.seres-vivos-classificacao`: questions[15]: alternativa com trecho colado depois do ponto final; reescreva a frase inteira
+- `ciencias-sociais.antropologia-teoria-social`: questions: a alternativa certa é a mais longa em 14 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `ciencias.quimica-organica-funcoes-nomenclatura`: questions: a alternativa certa é a mais curta em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `ciencias.tabela-periodica`: questions: a alternativa certa é a mais longa em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas; questions: 5 alternativas terminam em ", nessa ordem de contribuições"; tire o rabicho de molde e iguale o tamanho com conteúdo
+- `conhecimentos-bancarios.garantias-fgc-pix`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `conhecimentos-bancarios.prevencao-lavagem-dinheiro`: questions: a alternativa certa é a mais longa em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `conhecimentos-bancarios.sistema-financeiro-nacional`: questions[22]: alternativa com trecho colado depois do ponto final; reescreva a frase inteira
+- `contabilidade.intangivel-impairment-provisoes`: questions: a alternativa certa é a mais curta em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `contabilidade.passivo-patrimonio-liquido`: questions: 5 alternativas terminam em ", ambos por r$ 24.000"; tire o rabicho de molde e iguale o tamanho com conteúdo; questions: 5 alternativas terminam em ", no valor de r$ 50.000"; tire o rabicho de molde e iguale o tamanho com conteúdo
+- `controle-externo.tce-ro-lei-organica-regimento`: questions: a alternativa certa é a mais longa em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `criminalistica.identificacao-balistica-fotografia`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-administrativo.agentes-publicos`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-administrativo.ato-administrativo`: questions: a alternativa certa é a mais longa em 16 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-administrativo.crimes-administracao-publica`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-administrativo.prescricao-decadencia-administrativa`: questions: a alternativa certa é a mais curta em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-ambiental.tutela-processual-ambiental`: questions: a alternativa certa é a mais curta em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-civil.sucessoes`: questions: a alternativa certa é a mais curta em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-constitucional.aplicabilidade-normas-constitucionais`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-constitucional.forcas-armadas`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-constitucional.militares-estados-art-42`: questions: a alternativa certa é a mais longa em 17 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-constitucional.ordem-social`: questions: a alternativa certa é a mais longa em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-constitucional.processo-legislativo`: questions: a alternativa certa é a mais longa em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-digital.regulacao-internet-plataformas-novas-tecnologias`: questions: 5 alternativas terminam em ", após a emenda constitucional nº 115/2022"; tire o rabicho de molde e iguale o tamanho com conteúdo
+- `direito-empresarial.empresario-estabelecimento`: questions[11]: alternativa com trecho colado depois do ponto final; reescreva a frase inteira
+- `direito-internacional.publico-fundamentos`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-penal.crimes-familia-religiao-paz-publica`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-trabalho.principios-fontes`: questions: a alternativa certa é a mais longa em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-trabalho.temas-contemporaneos-fiscalizacao`: questions: a alternativa certa é a mais longa em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-trabalho.trabalho-menor`: questions: a alternativa certa é a mais longa em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-tributario.convenios-beneficios-fiscais`: questions: a alternativa certa é a mais longa em 14 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-tributario.garantias-administracao-tributaria`: questions: a alternativa certa é a mais longa em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-tributario.icms-impostos-estaduais`: questions: a alternativa certa é a mais longa em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-tributario.legislacao-aduaneira`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito-tributario.processo-judicial-execucao-fiscal`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito.constituicao-federal-1988-direitos-fundamentais`: questions: a alternativa certa é a mais longa em 15 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito.convencoes-anticorrupcao-crime-organizado-terrorismo`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito.declaracao-universal-direitos-humanos`: questions: 5 alternativas terminam em ", nessa mesma ordem"; tire o rabicho de molde e iguale o tamanho com conteúdo
+- `direito.definicao-conceito-direitos-humanos`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito.grupos-vulneraveis-antidiscriminacao`: questions: a alternativa certa é a mais longa em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito.pacto-internacional-direitos-economicos-sociais`: questions: a alternativa certa é a mais longa em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito.papel-conselho-direitos-humanos-onu`: questions: a alternativa certa é a mais longa em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito.tecnica-legislativa-redacao-normativa`: questions: a alternativa certa é a mais longa em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito.teoria-geral-direito-fontes-normas`: questions: a alternativa certa é a mais longa em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `direito.tratados-direitos-humanos-ordenamento-brasileiro`: questions: a alternativa certa é a mais longa em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `economia.federalismo-fiscal-tributacao`: questions: a alternativa certa é a mais curta em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `economia.metodos-quantitativos-otimizacao`: questions: 5 alternativas terminam em ", com a despesa total de 100"; tire o rabicho de molde e iguale o tamanho com conteúdo
+- `fisica.leis-newton-atrito`: questions: 5 alternativas terminam em ", orientados para a direita"; tire o rabicho de molde e iguale o tamanho com conteúdo; questions: 5 alternativas terminam em ", dirigidos verticalmente para baixo"; tire o rabicho de molde e iguale o tamanho com conteúdo; questions: 5 alternativas terminam em ", exercidos perpendicularmente para cima"; tire o rabicho de molde e iguale o tamanho com conteúdo; questions: 5 alternativas terminam em ", calculados com o coeficiente informado"; tire o rabicho de molde e iguale o tamanho com conteúdo; questions: 5 alternativas terminam em ", na direção paralela ao plano inclinado"; tire o rabicho de molde e iguale o tamanho com conteúdo; questions: 5 alternativas terminam em ", dirigida para a direita"; tire o rabicho de molde e iguale o tamanho com conteúdo; questions: 5 alternativas terminam em ", no sentido descendente da rampa"; tire o rabicho de molde e iguale o tamanho com conteúdo
+- `fisica.termologia`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `geografia.transportes-economia-brasil`: questions: a alternativa certa é a mais longa em 14 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `historia.capitalismo-ideologias-regimes-politicos`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `informatica.autenticacao-controle-acesso-sso`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `informatica.banco-dados-sql`: questions: a alternativa certa é a mais curta em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `informatica.blockchain-criptoativos`: questions: a alternativa certa é a mais longa em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `informatica.cabeamento-fibras-opticas`: questions: a alternativa certa é a mais longa em 14 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `informatica.cloud-devops-containers`: questions: a alternativa certa é a mais longa em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `informatica.edicao-imagem-video-design-grafico`: questions: 5 alternativas terminam em ", mantendo os 1.800 pixels disponíveis"; tire o rabicho de molde e iguale o tamanho com conteúdo
+- `informatica.html-css-web`: questions[5].explanation: tem texto de rascunho/genérico
+- `informatica.ia-generativa-etica`: questions: a alternativa certa é a mais longa em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `informatica.interacao-humano-computador-usabilidade`: questions: a alternativa certa é a mais longa em 14 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `informatica.microsservicos-api-gateway-mensageria`: questions[7]: alternativas repetidas
+- `informatica.php-ajax-xml-jquery`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `informatica.servidores-web-aplicacao`: questions: a alternativa certa é a mais longa em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `informatica.sistemas-operacionais-conceitos`: questions: a alternativa certa é a mais longa em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `legislacao-penal-especial.crimes-ambientais`: questions: a alternativa certa é a mais longa em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `legislacao-penal-especial.crimes-ordem-tributaria`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas; questions: 5 alternativas terminam em ", com a redução prevista no parágrafo único"; tire o rabicho de molde e iguale o tamanho com conteúdo; questions: 5 alternativas terminam em ", conforme a gravidade"; tire o rabicho de molde e iguale o tamanho com conteúdo
+- `legislacao-penal-especial.crimes-responsabilidade-fiscal`: questions: a alternativa certa é a mais longa em 18 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `legislacao-penal-especial.crimes-transito`: questions: a alternativa certa é a mais longa em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `legislacao-transito.ctb-infracoes-penalidades`: questions: 5 alternativas terminam em ", ressalvadas as exceções legais"; tire o rabicho de molde e iguale o tamanho com conteúdo
+- `legislacao-transito.ctb-sistema-normas-circulacao`: questions: a alternativa certa é a mais longa em 16 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `legislacao.atividades-espaciais-brasil`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `legislacao.bombeiros-pm-df`: questions: a alternativa certa é a mais longa em 15 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `legislacao.carreira-tecnico-administrativos-educacao`: questions: a alternativa certa é a mais longa em 14 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `legislacao.eca-direitos-fundamentais`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `legislacao.lei-6858-1980`: questions: a alternativa certa é a mais longa em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `legislacao.lei-organica-nacional-pm-bm`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `legislacao.policia-civil-df`: questions: a alternativa certa é a mais longa em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `lingua-inglesa.interpretacao-texto-ingles`: traps: precisa ter de 3 a 8 itens (tem 9)
+- `literatura.romantismo`: questions: a alternativa certa é a mais longa em 15 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `matematica.exponencial-logaritmos`: questions: a alternativa certa é a mais curta em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `matematica.funcao-exponencial-logaritmica`: questions: a alternativa certa é a mais curta em 15 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `matematica.regra-de-tres`: questions: a alternativa certa é a mais longa em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `medicina.saude-trabalhador-agravos-ocupacionais`: questions: a alternativa certa é a mais longa em 15 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `mercado-capitais.cvm-regulacao-ofertas-fundos`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `minas-gerais.barragens`: questions: a alternativa certa é a mais longa em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `minas-gerais.controle-cheias`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `odontologia.saude-coletiva-biosseguranca-diagnostico`: questions: a alternativa certa é a mais longa em 15 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `orcamento-publico.conceitos`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `portugues.argumentacao-adequacao-textual`: questions: a alternativa certa é a mais longa em 14 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `portugues.frase-oracao-periodo`: questions: 5 alternativas terminam em ", os estudantes saíram"; tire o rabicho de molde e iguale o tamanho com conteúdo
+- `portugues.oracoes-reduzidas`: questions: 5 alternativas terminam em ", procure outra explicação"; tire o rabicho de molde e iguale o tamanho com conteúdo
+- `portugues.ortografia`: questions: 5 alternativas terminam em ", segundo os sentidos apresentados"; tire o rabicho de molde e iguale o tamanho com conteúdo
+- `portugues.vocabulario-dicionarios-abreviacoes`: questions[18]: alternativa com trecho colado depois do ponto final; reescreva a frase inteira
+- `processo-civil.atos-prazos-processuais`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `processo-civil.remedios-constitucionais-mandado-seguranca-habeas`: questions: a alternativa certa é a mais longa em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `processo-civil.sujeitos-processo`: questions: a alternativa certa é a mais longa em 14 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `processo-penal.prisoes-liberdade-provisoria`: questions: a alternativa certa é a mais longa em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `processo-trabalho.jurisprudencia-tst-instrucoes-normativas`: questions: a alternativa certa é a mais longa em 12 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `processo-trabalho.organizacao-competencia`: questions: a alternativa certa é a mais longa em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `processo-trabalho.regimento-interno-codigo-etica-trt`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `processo-trabalho.servicos-auxiliares-peritos`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `raciocinio-logico.conjuntos`: questions: a alternativa certa é a mais curta em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `raciocinio-logico.raciocinio-critico-planos-acao`: questions: a alternativa certa é a mais longa em 13 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `relacoes-internacionais.historia-guerras-guerra-fria`: questions: a alternativa certa é a mais longa em 15 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `rondonia.geografia-historia`: questions: 5 alternativas terminam em ", sem incluir a fronteira boliviana"; tire o rabicho de molde e iguale o tamanho com conteúdo
+- `saude.controle-infeccao-esterilizacao`: questions: a alternativa certa é a mais longa em 17 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `seguranca-publica.criminologia`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+- `servico-social.saude-mental-drogas-saude-trabalhador`: questions: a alternativa certa é a mais longa em 11 de 25 (máximo 40%); equilibre o tamanho das alternativas
+
+## 4. Matérias só com pendência cosmética (corrigível sem mexer no conteúdo)
+
+- `administracao-geral.comportamento-organizacional`: explicação de C/E usa a palavra "alternativa/opção"
+- `administracao-geral.estrategia-competitiva`: explicação de C/E usa a palavra "alternativa/opção"
+- `administracao-geral.funcoes-administrativas`: explicação de C/E usa a palavra "alternativa/opção"
+- `administracao-publica.gestao-processos`: explicação de C/E usa a palavra "alternativa/opção"
+- `administracao-publica.governo-digital`: mais de 12 fontes
+- `administracao-publica.planejamento-estrategico`: explicação de C/E usa a palavra "alternativa/opção"
+- `administracao-publica.politicas-publicas`: explicação de C/E usa a palavra "alternativa/opção"
+- `administracao-publica.processo-organizacional`: explicação de C/E usa a palavra "alternativa/opção"
+- `administracao-publica.regulacao-economica`: explicação de C/E usa a palavra "alternativa/opção"
+- `administracao-publica.transparencia-administracao-publica`: explicação de C/E usa a palavra "alternativa/opção"
+- `afo.classificacoes-programas-emendas`: mais de 12 fontes
+- `afo.lei-responsabilidade-fiscal`: explicação de C/E usa a palavra "alternativa/opção"
+- `afo.siafi-siop-siconfi`: mais de 12 fontes
+- `arquitetura.projeto-conforto-instalacoes`: mais de 12 fontes
+- `atualidades.politica-economia-relacoes-internacionais`: mais de 12 fontes
+- `atualidades.politica-externa-brasileira`: mais de 12 fontes
+- `atualidades.seguranca-justica-sistema-prisional`: explicação de C/E usa a palavra "alternativa/opção"
+- `atualidades.sociedade-cultura-meio-ambiente`: mais de 12 fontes
+- `auditoria.auditoria-balanco-contas`: explicação de C/E usa a palavra "alternativa/opção"
+- `aviacao.navegacao-planejamento-voo`: explicação de C/E usa a palavra "alternativa/opção"
+- `biblioteconomia.automacao-bibliotecas-digitais-preservacao`: mais de 12 fontes
+- `biologia.evolucao-fisiologia-plantas-animais`: mais de 12 fontes
+- `biologia.seres-vivos-classificacao`: mais de 12 fontes
+- `ciencias.gases`: apelido curto (<10 letras)
+- `ciencias.leis-basicas-eletricidade`: mais de 12 fontes
+- `ciencias.solucoes`: apelido curto (<10 letras)
+- `comunicacao.comunicacao-digital-midias`: explicação de C/E usa a palavra "alternativa/opção"
+- `comunicacao.comunicacao-publica-institucional`: explicação de C/E usa a palavra "alternativa/opção"
+- `conhecimentos-bancarios.compliance-integridade-governanca`: mais de 12 fontes
+- `conhecimentos-bancarios.etica-vendas-atendimento`: explicação de C/E usa a palavra "alternativa/opção"
+- `conhecimentos-bancarios.garantias-fgc-pix`: mais de 12 fontes
+- `conhecimentos-bancarios.mercado-capitais`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `conhecimentos-bancarios.operacoes-credito-financiamento`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `conhecimentos-bancarios.prevencao-lavagem-dinheiro`: mais de 12 fontes
+- `conhecimentos-bancarios.produtos-servicos-bancarios`: mais de 12 fontes
+- `conhecimentos-bancarios.programas-sociais-pis-fgts-seguro`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `conhecimentos-bancarios.riscos-bancarios-var-basileia`: explicação de C/E usa a palavra "alternativa/opção"
+- `conhecimentos-bancarios.sistema-financeiro-nacional`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `contabilidade-tributaria.sped-documentos-fiscais-eletronicos`: mais de 12 fontes
+- `contabilidade-tributaria.tributos-retencoes-fonte`: mais de 12 fontes
+- `contabilidade.arrendamento-subvencoes-cpc-especificos`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `contabilidade.instituicoes-financeiras-cosif`: explicação de C/E usa a palavra "alternativa/opção"
+- `contabilidade.intangivel-impairment-provisoes`: explicação de C/E usa a palavra "alternativa/opção"
+- `contabilidade.sustentabilidade-ifrs-s1-s2-relato-integrado`: explicação de C/E usa a palavra "alternativa/opção"
+- `controle-externo.cgu-controle-interno-federal`: mais de 12 fontes
+- `controle-externo.intosai-issai`: mais de 12 fontes
+- `controle-externo.tribunais-contas`: mais de 12 fontes
+- `criminalistica.identificacao-balistica-fotografia`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `direito-administrativo.autarquias-agencias-reguladoras-executivas`: mais de 12 fontes
+- `direito-administrativo.bens-publicos`: mais de 12 fontes
+- `direito-administrativo.concessao-permissao`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-administrativo.direito-agrario-terras-publicas`: mais de 12 fontes
+- `direito-administrativo.lindb-administracao-publica`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-administrativo.procedimento-licitatorio`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-administrativo.regime-juridico-fontes`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-administrativo.regulamentos-federais-contratacao-irs`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-administrativo.servico-publico`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-ambiental.fauna-fogo-legislacao-especial`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-ambiental.licenciamento-responsabilidade`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `direito-ambiental.mudanca-clima-servicos-ambientais`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-ambiental.saneamento-residuos-poluicao`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `direito-ambiental.tutela-processual-ambiental`: mais de 12 fontes
+- `direito-civil.bens`: apelido curto (<10 letras)
+- `direito-civil.contratos`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-civil.garantias-alienacao-fiduciaria-condominio-sfh`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-civil.obrigacoes`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-civil.sucessoes`: apelido curto (<10 letras)
+- `direito-constitucional.direitos-individuais-coletivos`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-constitucional.direitos-sociais`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-constitucional.forcas-armadas`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-constitucional.nacionalidade`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-constitucional.poder-legislativo`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-digital.regulacao-internet-plataformas-novas-tecnologias`: mais de 12 fontes
+- `direito-economico.fundamentos-intervencao-ordem-economica`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `direito-eleitoral.justica-eleitoral-alistamento`: mais de 12 fontes
+- `direito-empresarial.falencia-recuperacao`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-empresarial.titulos-credito`: mais de 12 fontes
+- `direito-internacional.estado-tratados-responsabilidade`: mais de 12 fontes
+- `direito-internacional.publico-fundamentos`: mais de 12 fontes
+- `direito-minerario.legislacao-mineral-anm`: mais de 12 fontes
+- `direito-notarial-registral.atos-notariais-registros-publicos`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `direito-penal.crimes-contra-patrimonio`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-penal.crimes-dignidade-sexual`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-penal.crimes-propriedade-imaterial-organizacao-trabalho`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-penal.extincao-punibilidade-prescricao`: mais de 12 fontes
+- `direito-previdenciario.pensoes-especiais-beneficios-assistenciais`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `direito-trabalho.acidente-trabalho`: mais de 12 fontes
+- `direito-trabalho.calculos-trabalhistas`: mais de 12 fontes
+- `direito-trabalho.conciliacao-previa-renuncia-transacao-arbitragem`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-trabalho.contrato-individual-trabalho`: mais de 12 fontes
+- `direito-trabalho.equiparacao-salarial`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-trabalho.ferias`: apelido curto (<10 letras)
+- `direito-trabalho.fgts`: apelido curto (<10 letras); mais de 12 fontes
+- `direito-trabalho.jornada-horas-extras`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-trabalho.rescisao-contrato`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-trabalho.seguranca-medicina-trabalho`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `direito-trabalho.temas-contemporaneos-fiscalizacao`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-trabalho.trabalho-mulher-gestante`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-tributario.competencia-tributaria`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-tributario.garantias-administracao-tributaria`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-tributario.ibs-cbs-regimes-especificos-administracao`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-tributario.icms-impostos-estaduais`: mais de 12 fontes
+- `direito-tributario.processo-administrativo-fiscal`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-tributario.processo-judicial-execucao-fiscal`: mais de 12 fontes
+- `direito-tributario.responsabilidade-tributaria`: mais de 12 fontes
+- `direito-tributario.suspensao-extincao-exclusao`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito-tributario.tributacao-estadual-sao-paulo`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `direito.assedio-discriminacao-genero-judiciario`: mais de 12 fontes
+- `direito.convencoes-onu-direitos-humanos`: mais de 12 fontes
+- `direito.definicao-conceito-direitos-humanos`: mais de 12 fontes
+- `direito.filosofia-sociologia-juridica`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `direito.grupos-vulneraveis-antidiscriminacao`: mais de 12 fontes
+- `direito.historia-direitos-humanos`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `direito.organizacao-judiciaria-regimentos-tribunais`: mais de 12 fontes
+- `direito.pacto-internacional-direitos-economicos-sociais`: apelido curto (<10 letras)
+- `direito.pragmatismo-analise-economica-direito`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito.regras-minimas-tratamento-presos`: explicação de C/E usa a palavra "alternativa/opção"
+- `direito.sistema-nacoes-unidas-direitos-humanos`: mais de 12 fontes
+- `direito.tratados-direitos-humanos-ordenamento-brasileiro`: explicação de C/E usa a palavra "alternativa/opção"
+- `economia.economia-ambiental-recursos-hidricos`: explicação de C/E usa a palavra "alternativa/opção"
+- `economia.economia-brasileira`: mais de 12 fontes
+- `economia.equilibrio-geral-bem-estar`: explicação de C/E usa a palavra "alternativa/opção"
+- `economia.financas-publicas`: explicação de C/E usa a palavra "alternativa/opção"
+- `economia.formacao-economica-brasil-ate-1980`: mais de 12 fontes
+- `economia.incerteza-informacao-teoria-jogos`: explicação de C/E usa a palavra "alternativa/opção"
+- `economia.microeconomia-estruturas-mercado`: explicação de C/E usa a palavra "alternativa/opção"
+- `economia.sistema-financeiro-internacional`: mais de 12 fontes
+- `educacao.diversidade-inclusao-temas-transversais`: mais de 12 fontes
+- `educacao.ead-tecnologias-andragogia`: explicação de C/E usa a palavra "alternativa/opção"
+- `educacao.ldb-bncc-didatica`: mais de 12 fontes
+- `enfermagem.legislacao-etica-gestao`: mais de 12 fontes
+- `enfermagem.saude-ciclos-vida`: mais de 12 fontes
+- `enfermagem.urgencia-emergencia-trauma`: mais de 12 fontes
+- `engenharia-ambiental.poluicao-qualidade-agua-ecotoxicologia`: mais de 12 fontes
+- `engenharia-mecanica.elementos-maquinas-transmissoes`: mais de 12 fontes
+- `engenharia.obras-orcamento-fiscalizacao`: explicação de C/E usa a palavra "alternativa/opção"
+- `estatistica.analise-multivariada-categorica`: explicação de C/E usa a palavra "alternativa/opção"
+- `estatistica.inferencia-testes-hipoteses`: explicação de C/E usa a palavra "alternativa/opção"
+- `farmacia.assistencia-farmaceutica-sus`: mais de 12 fontes
+- `financas.carteiras-capm-derivativos`: explicação de C/E usa a palavra "alternativa/opção"
+- `geografia.biomas-gestao-ambiental-brasil`: mais de 12 fontes
+- `geografia.transportes-economia-brasil`: explicação de C/E usa a palavra "alternativa/opção"
+- `geoprocessamento.geodesia-sensoriamento-sig`: mais de 12 fontes
+- `gestao-pessoas.competencias-comportamentais-digitais`: explicação de C/E usa a palavra "alternativa/opção"
+- `gestao.vendas-marketing-experiencia-cliente`: explicação de C/E usa a palavra "alternativa/opção"
+- `historia.brasil-republica`: mais de 12 fontes
+- `historia.colonialismo-descolonizacao-americas`: mais de 12 fontes
+- `historia.historia-geral`: mais de 12 fontes
+- `informatica.armazenamento-san-nas-raid-backup`: explicação de C/E usa a palavra "alternativa/opção"
+- `informatica.arquivos-digitais-backup`: explicação de C/E usa a palavra "alternativa/opção"
+- `informatica.ataques-vulnerabilidades-frameworks`: explicação de C/E usa a palavra "alternativa/opção"
+- `informatica.auditoria-sistemas-ti`: explicação de C/E usa a palavra "alternativa/opção"
+- `informatica.banco-dados-sql`: explicação de C/E usa a palavra "alternativa/opção"
+- `informatica.blockchain-criptoativos`: mais de 12 fontes
+- `informatica.cloud-devops-containers`: mais de 12 fontes
+- `informatica.correio-eletronico-outlook-2016-navegacao`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `informatica.criptografia-certificacao`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `informatica.desenvolvimento-mobile-frontend-js`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `informatica.desenvolvimento-seguro-owasp-devsecops`: mais de 12 fontes
+- `informatica.ferramentas-colaborativas`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `informatica.gerencia-monitoramento-redes`: mais de 12 fontes
+- `informatica.gestao-riscos-continuidade-ciberseguranca`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `informatica.git-versionamento`: explicação de C/E usa a palavra "alternativa/opção"
+- `informatica.governanca-qualidade-dados`: explicação de C/E usa a palavra "alternativa/opção"
+- `informatica.html-css-web`: mais de 12 fontes
+- `informatica.integracao-servicos-web-soap-xml`: mais de 12 fontes
+- `informatica.interacao-humano-computador-usabilidade`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `informatica.internet-navegadores`: explicação de C/E usa a palavra "alternativa/opção"
+- `informatica.java-ee-spring`: mais de 12 fontes
+- `informatica.java-fundamentos`: explicação de C/E usa a palavra "alternativa/opção"
+- `informatica.libreoffice`: explicação de C/E usa a palavra "alternativa/opção"
+- `informatica.linux`: explicação de C/E usa a palavra "alternativa/opção"
+- `informatica.linux-kernel-drivers`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `informatica.manutencao-microcomputadores`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `informatica.microsoft-excel-2016`: mais de 12 fontes
+- `informatica.microsoft-powerpoint-2016`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `informatica.microsservicos-api-gateway-mensageria`: mais de 12 fontes
+- `informatica.nosql-big-data`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `informatica.observabilidade-sre-resiliencia`: mais de 12 fontes
+- `informatica.persistencia-jpa-hibernate-bancos`: mais de 12 fontes
+- `informatica.php-ajax-xml-jquery`: mais de 12 fontes
+- `informatica.pln-deep-learning-visao-computacional`: mais de 12 fontes
+- `informatica.power-bi-visualizacao`: mais de 12 fontes
+- `informatica.programacao-sistemas-embarcados`: explicação de C/E usa a palavra "alternativa/opção"
+- `informatica.redes-computadores`: mais de 12 fontes
+- `informatica.redes-protocolos`: mais de 12 fontes
+- `informatica.seguranca`: apelido curto (<10 letras)
+- `informatica.servidores-web-aplicacao`: explicação de C/E usa a palavra "alternativa/opção"
+- `informatica.sistema-operacional-windows`: explicação de C/E usa a palavra "alternativa/opção"
+- `informatica.sistemas-informacao`: explicação de C/E usa a palavra "alternativa/opção"
+- `informatica.sql-avancado`: mais de 12 fontes
+- `informatica.switching-roteamento-wan`: mais de 12 fontes
+- `informatica.transformacao-digital`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `informatica.virtualizacao-vmware`: mais de 12 fontes
+- `informatica.windows-10-11`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `informatica.windows-server-active-directory`: mais de 12 fontes
+- `legislacao-penal-especial.contravencoes-leis-penais-diversas`: mais de 12 fontes
+- `legislacao-penal-especial.crimes-responsabilidade-fiscal`: explicação de C/E usa a palavra "alternativa/opção"
+- `legislacao-penal-especial.crimes-responsabilidade-prefeitos-agentes`: mais de 12 fontes
+- `legislacao-penal-especial.organizacoes-criminosas`: explicação de C/E usa a palavra "alternativa/opção"
+- `legislacao-penal-especial.politicas-sistema-prisional`: mais de 12 fontes
+- `legislacao-transito.ctb-habilitacao-veiculos`: explicação de C/E usa a palavra "alternativa/opção"
+- `legislacao-transito.ctb-infracoes-penalidades`: explicação de C/E usa a palavra "alternativa/opção"
+- `legislacao.carreira-tecnico-administrativos-educacao`: apelido curto (<10 letras); explicação de C/E usa a palavra "alternativa/opção"
+- `legislacao.eca-politica-atendimento-justica-infancia`: mais de 12 fontes
+- `legislacao.estatuto-pessoa-idosa`: explicação de C/E usa a palavra "alternativa/opção"
+- `legislacao.lei-13146-2015-inclusao`: explicação de C/E usa a palavra "alternativa/opção"
+- `legislacao.lei-8112-1990-direitos-vantagens`: explicação de C/E usa a palavra "alternativa/opção"
+- `legislacao.lei-8112-1990-processo-disciplinar`: explicação de C/E usa a palavra "alternativa/opção"
+- `legislacao.lei-8112-1990-regime-disciplinar`: explicação de C/E usa a palavra "alternativa/opção"
+- `legislacao.marco-civil-internet`: explicação de C/E usa a palavra "alternativa/opção"
+- `legislacao.normativos-cnj-pdpj-transformacao-digital`: mais de 12 fontes
+- `legislacao.pessoa-com-deficiencia-acessibilidade-leis-esparsas`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `legislacao.servico-publico-federal-normas`: explicação de C/E usa a palavra "alternativa/opção"
+- `legislacao.servidores-judiciario-uniao`: explicação de C/E usa a palavra "alternativa/opção"
+- `legislacao.setor-eletrico-energias-renovaveis`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `lingua-inglesa.interpretacao-texto-ingles`: explicação de C/E usa a palavra "alternativa/opção"
+- `literatura.pre-modernismo-vanguardas`: mais de 12 fontes
+- `matematica-financeira.analise-investimentos`: explicação de C/E usa a palavra "alternativa/opção"
+- `matematica.analise-combinatoria`: explicação de C/E usa a palavra "alternativa/opção"
+- `matematica.argumentacao-logica`: explicação de C/E usa a palavra "alternativa/opção"
+- `matematica.equacoes-1-2-grau`: explicação de C/E usa a palavra "alternativa/opção"
+- `matematica.equivalencias-negacoes-logicas`: explicação de C/E usa a palavra "alternativa/opção"
+- `matematica.progressoes-pa-pg`: apelido curto (<10 letras)
+- `medicina-legal.traumatologia-tanatologia`: mais de 12 fontes
+- `medicina.urgencias-emergencias`: explicação de C/E usa a palavra "alternativa/opção"
+- `mercado-capitais.cvm-regulacao-ofertas-fundos`: mais de 12 fontes
+- `mercado-capitais.governanca-esg-financas-sustentaveis`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `minas-gerais.barragens`: apelido curto (<10 letras); explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `odontologia.odontopediatria`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `orcamento-publico.conceitos`: apelido curto (<10 letras)
+- `portugues.argumentacao-adequacao-textual`: explicação de C/E usa a palavra "alternativa/opção"
+- `portugues.classes-de-palavras`: explicação de C/E usa a palavra "alternativa/opção"
+- `portugues.ortografia`: explicação de C/E usa a palavra "alternativa/opção"
+- `portugues.pontuacao`: apelido curto (<10 letras)
+- `processo-civil.acao`: apelido curto (<10 letras)
+- `processo-civil.execucao`: explicação de C/E usa a palavra "alternativa/opção"
+- `processo-civil.fazenda-publica-em-juizo-precatorios`: mais de 12 fontes
+- `processo-civil.peticao-inicial`: explicação de C/E usa a palavra "alternativa/opção"
+- `processo-civil.prova`: apelido curto (<10 letras)
+- `processo-civil.remedios-constitucionais-mandado-seguranca-habeas`: mais de 12 fontes
+- `processo-penal.atos-processuais-prazos`: explicação de C/E usa a palavra "alternativa/opção"
+- `processo-penal.busca-pessoal-abordagem`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `processo-penal.cooperacao-juridica-internacional-penal`: mais de 12 fontes
+- `processo-penal.jurisdicao-competencia-sujeitos`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `processo-penal.principios-sistemas-fundamentos`: explicação de C/E usa a palavra "alternativa/opção"
+- `processo-penal.tecnologia-inteligencia-artificial-provas-digitais`: mais de 12 fontes
+- `processo-trabalho.dissidio-individual`: explicação de C/E usa a palavra "alternativa/opção"
+- `processo-trabalho.homologacao-acordo-extrajudicial`: explicação de C/E usa a palavra "alternativa/opção"
+- `processo-trabalho.jurisprudencia-tst-instrucoes-normativas`: mais de 12 fontes
+- `processo-trabalho.organizacao-competencia`: explicação de C/E usa a palavra "alternativa/opção"
+- `processo-trabalho.prescricao-intercorrente`: explicação de C/E usa a palavra "alternativa/opção"
+- `processo-trabalho.procedimentos`: explicação de C/E usa a palavra "alternativa/opção"
+- `processo-trabalho.processo-judicial-eletronico`: explicação de C/E usa a palavra "alternativa/opção"
+- `psicologia.psicologia-da-saude`: explicação de C/E usa a palavra "alternativa/opção"
+- `psicologia.psicologia-judiciaria`: explicação de C/E usa a palavra "alternativa/opção"
+- `psicologia.trabalho-saude-mental-assedio`: explicação de C/E usa a palavra "alternativa/opção"
+- `raciocinio-logico.conjuntos`: explicação de C/E usa a palavra "alternativa/opção"
+- `raciocinio-logico.raciocinio-critico-planos-acao`: explicação de C/E usa a palavra "alternativa/opção"
+- `regulacao-sanitaria.pesquisa-clinica-avaliacao-medicamentos`: explicação de C/E usa a palavra "alternativa/opção"
+- `regulacao.avaliacao-impacto-regulatorio-governanca`: explicação de C/E usa a palavra "alternativa/opção"
+- `relacoes-internacionais.historia-guerras-guerra-fria`: mais de 12 fontes
+- `relacoes-internacionais.politica-externa-brasileira-agenda-global`: mais de 12 fontes
+- `relacoes-internacionais.teoria-cooperacao-internacional`: mais de 12 fontes
+- `rondonia.geografia-historia`: mais de 12 fontes
+- `saude-publica.analise-gerenciamento-risco-sanitario`: explicação de C/E usa a palavra "alternativa/opção"
+- `saude-publica.epidemiologia-clinica-evidencias-ats`: explicação de C/E usa a palavra "alternativa/opção"
+- `saude-publica.epidemiologia-vigilancia`: explicação de C/E usa a palavra "alternativa/opção"
+- `saude-publica.politicas-saude-ciencia-tecnologia`: explicação de C/E usa a palavra "alternativa/opção"
+- `saude-publica.vigilancia-sanitaria-regulacao`: explicação de C/E usa a palavra "alternativa/opção"; mais de 12 fontes
+- `seguranca-institucional.seguranca-judiciaria-dignitarios`: explicação de C/E usa a palavra "alternativa/opção"
+- `seguranca-trabalho.gestao-sst-investigacao-acidentes-controle-perdas`: mais de 12 fontes
+- `servico-social.pericia-estudo-social-sociojuridico`: mais de 12 fontes
+- `servico-social.saude-mental-drogas-saude-trabalhador`: mais de 12 fontes
+- `sustentabilidade.desenvolvimento-sustentavel`: mais de 12 fontes
+- `transportes.concessoes-trafego-planejamento`: mais de 12 fontes
+
+## 5. Recortes
+
+- `acre.historia-geografia-economia`: pegadinha começa com letra/número
+- `administracao-publica.modelos-governanca`: version: inteiro a partir de 1
+- `auditoria.fraudes-escrita-contabil`: pegadinha começa com letra/número
+- `contabilidade-tributaria.tributos-retencoes-fonte`: version: inteiro a partir de 1
+- `contabilidade.conversao-reestruturacao-politicas-contabeis`: pegadinha começa com letra/número
+- `criminalistica.identificacao-balistica-fotografia`: afirma prova real: "já explorou"
+- `direito-administrativo.crimes-administracao-publica`: version: inteiro a partir de 1
+- `direito-administrativo.intervencao-estado-propriedade`: afirma prova real: "já apresentou"
+- `direito-administrativo.regime-juridico-fontes`: afirma prova real: "já apresentou"
+- `direito-ambiental.biodiversidade-patrimonio-genetico`: pegadinha começa com letra/número
+- `direito-ambiental.direito-ambiental-internacional`: afirma prova real: "Há prova da banca"
+- `direito-ambiental.tutela-processual-ambiental`: version: inteiro a partir de 1
+- `direito-constitucional.militares-estados-art-42`: afirma prova real: "Há questão da banca"
+- `direito-constitucional.ordem-social`: version: inteiro a partir de 1
+- `direito-digital.regulacao-internet-plataformas-novas-tecnologias`: afirma prova real: "já explorou"; afirma prova real: "já pediu"
+- `direito-empresarial.empresario-estabelecimento`: afirma prova real: "já cobrou"
+- `direito-penal.aplicacao-lei-penal`: version: inteiro a partir de 1
+- `direito-trabalho.direito-coletivo`: version: inteiro a partir de 1
+- `direito-trabalho.seguranca-medicina-trabalho`: version: inteiro a partir de 1
+- `direito-tributario.convenios-beneficios-fiscais`: afirma prova real: "já explorou"
+- `direito-tributario.processo-administrativo-fiscal`: afirma prova real: "já explorou"
+- `direito.declaracao-universal-direitos-humanos`: version: inteiro a partir de 1
+- `direito.organizacao-judiciaria-regimentos-tribunais`: afirma prova real: "já explorou"
+- `direito.tratados-direitos-humanos-ordenamento-brasileiro`: version: inteiro a partir de 1
+- `economia.economia-brasileira`: afirma prova real: "Há prova da banca"; afirma prova real: "já explorou"; afirma prova real: "já reuniu"
+- `engenharia-aeronautica.aerodinamica-voo-propulsao`: afirma prova real: "Há prova da banca"
+- `estatistica.econometria-series-painel-avaliacao-impacto`: afirma prova real: "já explorou"
+- `farmacia.boas-praticas-fabricacao-validacao`: afirma prova real: "Há questão da banca"; afirma prova real: "já explorou"
+- `gestao-pessoas.competencias-comportamentais-digitais`: pegadinha começa com letra/número
+- `informatica.administracao-sgbd`: pegadinha começa com letra/número
+- `informatica.autenticacao-controle-acesso-sso`: afirma prova real: "já explorou"
+- `informatica.computacao-nuvem`: afirma prova real: "já apresentou"
+- `informatica.interacao-humano-computador-usabilidade`: afirma prova real: "já explorou"
+- `informatica.observabilidade-sre-resiliencia`: afirma prova real: "já explorou"
+- `informatica.php-ajax-xml-jquery`: afirma prova real: "já apresentou"; afirma prova real: "já explorou"
+- `informatica.servidores-web-aplicacao`: afirma prova real: "já explorou"
+- `legislacao-penal-especial.crimes-previdenciarios`: afirma prova real: "já explorou"
+- `legislacao-penal-especial.crimes-sistema-financeiro-economia-popular`: afirma prova real: "já explorou"
+- `legislacao-penal-especial.lei-drogas`: afirma prova real: "Há prova da banca"
+- `legislacao.igualdade-racial-crimes-preconceito`: afirma prova real: "já apresentou"
+- `legislacao.lei-8112-1990-regime-disciplinar`: afirma prova real: "já explorou"
+- `legislacao.marco-civil-internet`: pegadinha começa com letra/número
+- `legislacao.setor-eletrico-energias-renovaveis`: afirma prova real: "já explorou"
+- `matematica.estatistica-descritiva`: version: inteiro a partir de 1
+- `portugues.oracoes-reduzidas`: version: inteiro a partir de 1
+- `portugues.termos-da-oracao`: version: inteiro a partir de 1
+- `processo-civil.formacao-suspensao-extincao`: version: inteiro a partir de 1
+- `processo-trabalho.liquidacao-sentenca`: afirma prova real: "2024; já em prova"
+- `psicologia.trabalho-saude-mental-assedio`: afirma prova real: "já explorou"
+- `quimica.seguranca-laboratorio-volumetria`: afirma prova real: "já explorou"
+- `regulacao-sanitaria.pesquisa-clinica-avaliacao-medicamentos`: afirma prova real: "já explorou"
+- `regulacao.avaliacao-impacto-regulatorio-governanca`: version: inteiro a partir de 1
+- `relacoes-internacionais.historia-guerras-guerra-fria`: afirma prova real: "1945, a prova"
+- `rondonia.geografia-historia`: afirma prova real: "já explorou"
+- `servico-social.saude-mental-drogas-saude-trabalhador`: afirma prova real: "2026, sua aprova"
+
+## 6. Arquivos duplicados com conteúdo diferente — versão escolhida
+
+- matéria legislacao-penal-especial.juizados-especiais-criminais: usei legislacao-penal-especial.juizados-especiais-criminais.json (0 problema(s)) em vez de legislacao-penal-especial.juizados-especiais-criminais(1).json (0)
+- matéria legislacao.lei-9784-1999-processo-administrativo: usei legislacao.lei-9784-1999-processo-administrativo(1).json (0 problema(s)) em vez de legislacao.lei-9784-1999-processo-administrativo.json (1)
+- matéria matematica.graficos-tabelas-mapas-escalas: usei matematica.graficos-tabelas-mapas-escalas.json (0 problema(s)) em vez de matematica.graficos-tabelas-mapas-escalas-auditado.json (0)
+- matéria mercado-capitais.cvm-regulacao-ofertas-fundos: usei mercado-capitais.cvm-regulacao-ofertas-fundos.json (2 problema(s)) em vez de mercado-capitais.cvm-regulacao-ofertas-fundos(1).json (2)
+- matéria processo-trabalho.embargos-execucao: usei processo-trabalho.embargos-execucao.json (0 problema(s)) em vez de processo-trabalho.embargos-execucao(1).json (0)
+- banco administracao-publica.planejamento-estrategico#2: usei administracao-publica.planejamento-estrategico.banco-2.json (0) em vez de administracao-publica.planejamento-estrategico.banco-2(1).json (1)
+- banco direito-administrativo.contratos-administrativos#3: usei direito-administrativo.contratos-administrativos.banco-3.json (1) em vez de direito-administrativo.contratos-administrativos.banco-3(1).json (1)
+- banco direito-constitucional.direitos-sociais#3: usei direito-constitucional.direitos-sociais.banco-3.json (0) em vez de direito-constitucional.direitos-sociais.banco-3(1).json (0)
+- banco direito-penal.aplicacao-lei-penal#1: usei direito-penal.aplicacao-lei-penal.banco-1.json (0) em vez de direito-penal.aplicacao-lei-penal.banco-1(1).json (0)
+- banco direito-penal.aplicacao-lei-penal#2: usei direito-penal.aplicacao-lei-penal.banco-2.json (0) em vez de direito-penal.aplicacao-lei-penal.banco-2(1).json (0)
+- banco informatica.banco-dados-sql#3: usei informatica.banco-dados-sql.banco-3.json (0) em vez de informatica.banco-dados-sql.banco-3(1).json (0)
+- banco matematica.regra-de-tres#3: usei matematica.regra-de-tres.banco-3.json (0) em vez de matematica.regra-de-tres.banco-3(1).json (0)
+- banco portugues.funcoes-linguagem-teoria#3: usei portugues.funcoes-linguagem-teoria.banco-3.json (0) em vez de portugues.funcoes-linguagem-teoria.banco-3(1).json (1)
+- banco portugues.interpretacao-textual#1: usei portugues.interpretacao-textual.banco-1.json (0) em vez de portugues.interpretacao-textual.banco-1(1).json (0)
+- banco portugues.interpretacao-textual#2: usei portugues.interpretacao-textual.banco-2.json (0) em vez de portugues.interpretacao-textual.banco-2(1).json (0)
+- recorte processo-trabalho.processo-judicial-eletronico: usei recorte-214.json (0) em vez de recorte-214(1).json (0)
+- recorte processo-penal.questoes-incidentes-medidas-assecuratorias: usei recorte-272.json (0) em vez de recorte-272(1).json (0)

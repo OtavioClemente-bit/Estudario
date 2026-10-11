@@ -1,0 +1,1815 @@
+{
+  "id": "informatica.integracao-servicos-web-soap-xml",
+  "subject": "Informática",
+  "title": "Integração de sistemas: XML, SOAP e serviços web",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Integração de sistemas: XML, SOAP e serviços web"
+  ],
+  "scope": {
+    "covers": "Sintaxe e processamento de XML, namespaces, XML Schema, XSLT; SOAP, WSDL, UDDI; serviços REST, JSON, OpenAPI e Swagger; Apache CXF, integração síncrona e assíncrona, mensageria, RabbitMQ, eventos negociais, webhooks, APIs reversas e arquitetura e-PING.",
+    "excludes": "Implementação aprofundada de microsserviços e bancos de dados, administração de servidores e protocolos de segurança em detalhes criptográficos; esses temas são mencionados apenas para contextualizar contratos e integração."
+  },
+  "theoryTitle": "Integração de sistemas: XML, SOAP, serviços web e interoperabilidade",
+  "chapters": [
+    {
+      "title": "1. XML: documentos, elementos, atributos e namespaces",
+      "markdown": "## XML como linguagem de marcação\nXML (Extensible Markup Language) é uma linguagem textual para representar dados estruturados por meio de **elementos** e **atributos**. É extensível porque aplicações definem nomes próprios de elementos, sem estarem limitadas a um vocabulário predefinido. Um intercâmbio pode transportar dados de uma requisição, de um cadastro ou de uma resposta sem depender de uma linguagem de programação. XML 1.0 (quinta edição) define a gramática e as condições de boa formação, não o significado de negócio de cada etiqueta.\n\n### Declaração e elementos\nUm documento pode começar com `<?xml version='1.0' encoding='UTF-8'?>`. A declaração informa versão e, quando indicada, codificação; não funciona como elemento raiz. Um exemplo é `<pedido codigo='P17'><valor>120</valor></pedido>`. Nele `pedido` é a raiz; `codigo` é atributo e `valor` é elemento filho com conteúdo textual. O elemento vazio pode ser escrito como `<observacao/>`. Nomes diferenciam maiúsculas de minúsculas: `<Item>` e `</item>` não se correspondem. Em um documento completo há exatamente um elemento raiz, embora possam existir comentários e instruções de processamento fora dele nos locais permitidos.\n\n### Boa formação não é validade\nUm XML **bem formado** respeita as regras sintáticas: aninhamento correto, fechamento de etiquetas, nomes adequados, valores de atributos entre aspas simples ou duplas e caracteres especiais representados corretamente. Em `<a><b></a></b>`, a ordem de fechamento está errada. Em texto, o caractere `&` isolado é inválido: representa-se como `&amp;`. O sinal `<` literal deve ser escapado como `&lt;`; entidades predefinidas também incluem `&gt;`, `&quot;` e `&apos;`. O exemplo `<idade>abc</idade>` pode ser bem formado, mas inválido se um esquema exigir número inteiro. **Validade** significa conformidade com regras adicionais declaradas por DTD ou XML Schema: estrutura, sequência, tipos, cardinalidade e restrições. Portanto, análise sintática não substitui validação de negócio.\n\n### Atributos e conteúdo\nAtributos são pares nome–valor na etiqueta inicial, como `status='aprovado'`. Seus valores são textuais no documento e podem receber tipagem mediante validação. Um mesmo nome de atributo não pode ocorrer duas vezes no mesmo elemento. Filhos repetidos são possíveis quando o modelo permitir: `<itens><item>A</item><item>B</item></itens>`. Atributos servem bem a identificadores ou metadados pequenos; elementos facilitam estrutura hierárquica e repetição. A escolha não é regra universal de significado, mas decisão de modelagem sujeita ao contrato de integração.\n\n### Namespaces evitam colisões\nDois sistemas podem usar a etiqueta `codigo` com sentidos diferentes. `xmlns:fin='urn:exemplo:financeiro'` associa um prefixo a um **nome de namespace**, usualmente uma URI. Assim, `<fin:codigo>` identifica um nome expandido pela combinação namespace + nome local. O prefixo é apenas um apelido: `fin` e `f` podem referir-se ao mesmo namespace. Declaração `xmlns='urn:exemplo:padrao'` define namespace padrão para elementos não prefixados, mas **não** aplica automaticamente esse namespace a atributos sem prefixo. A URI de namespace identifica, não precisa ser um endereço consultável na rede.\n\n| Termo | O que verifica ou representa | Exemplo de prova |\n| --- | --- | --- |\n| Boa formação | Correção gramatical do XML | Etiquetas devidamente encaixadas |\n| Validade | Conformidade com esquema | `idade` deve ser inteiro |\n| Elemento | Unidade hierárquica | `<cliente>...</cliente>` |\n| Atributo | Informação na etiqueta inicial | `id='7'` |\n| Namespace | Identidade de nomes | Dois `codigo` de domínios diferentes |\n\n> Pegadinha: a presença da declaração XML não torna o documento válido, e um arquivo sem declaração pode ser perfeitamente bem formado. A existência de um namespace não comprova que o serviço ou a URI estejam disponíveis."
+    },
+    {
+      "title": "2. XML Schema, XPath e XSLT: validação e transformação",
+      "markdown": "## XML Schema e contrato de dados\nO XML Schema Definition Language, normalmente chamado XSD, descreve formalmente o conteúdo permitido em instâncias XML. Emprega vocabulário XML no namespace `http://www.w3.org/2001/XMLSchema`. Um elemento pode ter tipo simples, como `xs:string`, `xs:integer`, `xs:decimal`, `xs:boolean` e `xs:date`, ou tipo complexo que contenha elementos filhos e atributos. A validação compara a **instância** de dados com as regras do esquema; não significa que o sistema conferiu fatos reais, autorizações ou saldo bancário.\n\n### Estrutura, ordem e ocorrência\nUm esquema que declara `xs:sequence` exige os elementos na ordem prevista; `xs:choice` representa alternativas possíveis; `xs:all`, sujeito às restrições da versão usada, descreve um grupo em que a ordem não é relevante. Para um item opcional, `minOccurs='0'`; para até cinco ocorrências, `maxOccurs='5'`; para repetição não limitada pelo esquema, `maxOccurs='unbounded'`. O padrão, quando esses atributos são omitidos nas declarações pertinentes, é uma ocorrência. Esses controles não são substituíveis por `nillable='true'`: ausência do elemento e elemento presente com valor nulo (`xsi:nil='true'`, quando autorizado pelo esquema) são situações diferentes.\n\n### Restrições sobre valores\nTipos simples podem receber facetas: `xs:enumeration` restringe a lista de valores; `xs:pattern` especifica padrão lexical; `xs:minInclusive` e `xs:maxInclusive` limitam intervalos; `xs:minLength` e `xs:maxLength` controlam comprimentos em tipos apropriados. Se o serviço aceita status `ABERTO` ou `FECHADO`, a enumeração impede um terceiro texto na validação. O arquivo pode estar sintaticamente perfeito e ser recusado pelo XSD porque aparece `PENDENTE`. Um campo `xs:integer` não aceita `12,5` como inteiro; a vírgula também não é separador decimal lexical esperado para `xs:decimal`.\n\n### XPath seleciona nós\nXPath é linguagem de expressões para selecionar e calcular sobre árvores XML. Em um documento com raiz `pedidos`, `/pedidos/pedido` escolhe filhos `pedido`; `//pedido[@situacao='aberto']` busca elementos `pedido` que tenham o atributo com aquele valor, onde aplicável ao contexto. `@id` indica atributo; `text()` indica nó de texto. Uma expressão XPath não transforma automaticamente o documento inteiro; ela pode ser usada por uma linguagem de transformação, por validação ou por aplicações.\n\n### XSLT transforma documentos\nXSLT é linguagem declarativa baseada em templates, principalmente usada para converter uma árvore XML em outra representação — XML, HTML ou texto, de acordo com a transformação e o método de serialização. `xsl:template` define regra que casa nós; `match` identifica padrão de seleção; `xsl:value-of` extrai valor e `xsl:apply-templates` aplica regras aos nós selecionados. Em uma integração, uma aplicação envia `<preco>10</preco>`, enquanto outra precisa de `<valor>10</valor>`: XSLT pode remapear o elemento sem alterar o dado de origem. Também se pode renderizar uma lista de XML em HTML. **XSLT não é XSD**: transformação produz saída; esquema verifica conformidade. Um resultado de XSLT deve ser validado separadamente quando houver contrato de destino.\n\n### Teste de integração em duas etapas\nImagine `<produto><quantidade>dois</quantidade></produto>`. O parser verifica se há raiz e fechamento correto. O validador XSD verifica se `quantidade` é inteira e reprova `dois`. Uma transformação XSLT que renomeia `produto` para `mercadoria` não corrige, por si só, o tipo inadequado. É comum aplicar transformação e depois validação, mas a ordem depende do fluxo.\n\n| Tecnologia | Pergunta que responde | Resultado típico |\n| --- | --- | --- |\n| Parser XML | O texto é bem formado? | Árvore de nós ou erro sintático |\n| XML Schema | A árvore obedece ao contrato? | Aprovação ou violações de tipo/estrutura |\n| XPath | Quais nós correspondem à expressão? | Nós ou valores selecionados |\n| XSLT | Como produzir outra estrutura? | Nova árvore e sua serialização |\n\n> Não confunda esquema com transformação. O XSD pode exigir uma ordem, quantidade ou tipo, enquanto o XSLT pode mudar nomes, filtrar registros ou compor um documento de saída."
+    },
+    {
+      "title": "3. SOAP, WSDL e UDDI: serviços orientados a contratos",
+      "markdown": "## SOAP: protocolo de mensagens estruturadas\nSOAP 1.2 define um arcabouço de mensagens XML independente de linguagem e não reduzido a HTTP. Uma mensagem contém um elemento **Envelope** obrigatório, um **Body** obrigatório e, opcionalmente, um **Header**. O namespace do Envelope SOAP 1.2 é `http://www.w3.org/2003/05/soap-envelope`; o da versão 1.1 é diferente. O Header transporta blocos de metadados de processamento, como informações de encaminhamento e segurança quando definidas por extensões. O Body contém a carga útil; erros SOAP são representados por **Fault** no Body segundo a versão aplicável.\n\n### Transporte e processamento\nSOAP pode ser vinculado a protocolos subjacentes, entre eles HTTP, por meio de bindings definidos. Logo, é falsa a afirmação de que SOAP significa obrigatoriamente HTTP ou que toda mensagem HTTP com XML seja SOAP. No uso de SOAP 1.2 via HTTP, o tipo de mídia usual é `application/soap+xml`, diferente do uso tradicional de SOAP 1.1 com `text/xml`. Atributos do modelo SOAP como `mustUnderstand` expressam obrigatoriedade de processamento do bloco de Header endereçado ao nó apropriado: não significam que todos os intermediários leiam todos os cabeçalhos.\n\n### WSDL: descrição do serviço\nWeb Services Description Language descreve interface, operações, mensagens, vínculos e pontos de acesso. Em WSDL 1.1, vocabulário frequente nas integrações legadas, aparecem `types`, `message`, `portType`, `binding`, `service` e `port`: `portType` descreve operações abstratas; `binding` associa protocolo/formato; `service` agrega portas de acesso. Em WSDL 2.0, o modelo utiliza **interface**, **binding**, **service** e **endpoint**. Numa prova, é importante reconhecer a versão: não transpor literalmente `portType` do WSDL 1.1 para WSDL 2.0. O WSDL descreve como invocar um serviço, não executa operações ou fornece, sozinho, a autenticação.\n\n### UDDI: publicação e descoberta\nUniversal Description, Discovery and Integration é um padrão de **registro e descoberta de serviços**, cujo foco é publicar descrições de provedores, serviços e interfaces técnicas. Suas estruturas centrais incluem `businessEntity`, `businessService`, `bindingTemplate` e `tModel`. Um serviço pode ser descrito em WSDL e descoberto por um registro UDDI, mas tal registro **não é requisito obrigatório** para SOAP ou WSDL. Um endereço conhecido e configuração prévia bastam para um consumidor descobrir o serviço sem UDDI. Também não se deve confundir o registro de metadados com armazenamento de todas as mensagens trafegadas.\n\n### Contratos e interoperabilidade\nConsidere um sistema de pagamentos que expõe `consultarPagamento`. O XSD define os elementos e tipos; o WSDL declara a operação e seu endpoint; o envelope SOAP carrega a consulta e a resposta; eventualmente um catálogo UDDI permite localizar o serviço. Uma incompatibilidade no XML de entrada pode ser detectada antes da regra de negócio. Entretanto, a validação do esquema não garante permissão para consultar aquele pagamento. Para segurança, confiabilidade e identidade, integram-se mecanismos adicionais, inclusive padrões de extensão quando necessários.\n\n| Padrão | Finalidade central | O que ele não é |\n| --- | --- | --- |\n| XML | Representar dados estruturados | Contrato completo de serviço |\n| XSD | Definir regras da instância XML | Diretório de endpoints |\n| SOAP | Estruturar mensagens e processamento | Linguagem de documentação de API |\n| WSDL | Descrever interfaces e bindings | Barramento de mensagens |\n| UDDI | Registrar e descobrir serviços | Transporte de requisições |\n\n> É possível ter WSDL para um serviço sem existir UDDI e é possível trafegar SOAP sem WSDL gerado. A presença de um contrato descritivo facilita a integração, mas não torna registro nem geração automática de cliente obrigatórios."
+    },
+    {
+      "title": "4. REST, JSON, OpenAPI/Swagger e Apache CXF",
+      "markdown": "## REST não é sinônimo de JSON\nREST é estilo arquitetural de sistemas distribuídos baseado, entre outros princípios, na identificação de recursos, em uma interface uniforme e na comunicação sem estado de sessão armazenado pelo servidor para cada requisição. HTTP costuma ser usado em APIs REST. Uma URI como `/clientes/42` identifica um recurso; `GET` recupera sua representação; `PUT` costuma substituir o estado da representação-alvo; `PATCH` aplica modificações parciais; `POST` submete uma representação para processamento segundo a semântica do recurso; `DELETE` solicita exclusão de associação/estado. O uso de métodos HTTP não prova, isoladamente, que toda a arquitetura respeita REST.\n\n### Semântica e códigos\n`GET` é definido como método seguro quanto à intenção de alterar o estado do recurso; `PUT` e `DELETE` são idempotentes pela semântica HTTP, isto é, repetir uma solicitação com o mesmo efeito pretendido não altera o resultado pretendido após a primeira aplicação. **Idempotência não obriga respostas HTTP idênticas**. `POST` não é idempotente por definição, mas uma aplicação pode construir proteção específica contra duplicidade usando chave de idempotência. Códigos `200` (sucesso com representação), `201` (criação), `204` (sucesso sem corpo), `400` (requisição inadequada), `401` (não autenticada), `403` (proibida) e `404` (não encontrada) aparecem em casos de integração; o código deve ser interpretado no contrato e no contexto.\n\n### JSON e XML: representações\nJSON, padronizado pela RFC 8259, suporta objeto, array, string, number, boolean e null. Exemplo: `{'id':7,'ativo':true}` ilustra visualmente uma estrutura, mas **não é JSON válido**, pois JSON exige aspas **duplas** nos nomes e strings: a forma válida é `{\"id\":7,\"ativo\":true}`. JSON não possui elemento XML, atributo XML nem namespace XML; objetos e arrays não são a mesma coisa que a árvore XML. Tanto XML quanto JSON podem transportar representações em aplicações web; REST não determina que JSON seja exclusivo ou obrigatório.\n\n### OpenAPI e Swagger\nOpenAPI Specification (OAS) descreve de forma independente da linguagem uma superfície de **API HTTP**: caminhos, operações, parâmetros, corpos, respostas, esquemas e requisitos de segurança. Descrição pode ser escrita em YAML ou JSON. Uma operação `GET /clientes/{id}` pode declarar parâmetro de caminho obrigatório e respostas `200` e `404`. **Swagger** designa ferramentas do ecossistema, como Swagger UI e Swagger Editor, além de ser um nome historicamente associado à especificação anterior; OpenAPI é o nome da especificação. Swagger UI pode apresentar documentação interativa a partir da descrição, mas documentação não implementa automaticamente a regra do servidor. OpenAPI não é diretório UDDI, não é protocolo SOAP e não impõe que o corpo de toda resposta seja JSON.\n\n### Apache CXF em Java\nApache CXF é framework de integração e implementação de serviços web no ecossistema Java. Suporta serviços de estilo SOAP com **JAX-WS** e serviços de estilo REST com **JAX-RS**. Pode atuar tanto no lado cliente quanto no servidor; permite bindings, interceptadores, configuração de endpoints e geração/utilização de artefatos relativos a WSDL, conforme o cenário. Uma classe de recursos com mapeamentos JAX-RS representa caminhos e operações HTTP. Um endpoint JAX-WS é apropriado ao contrato SOAP especificado. CXF não se confunde com broker RabbitMQ, repositório UDDI ou editor Swagger; essas tecnologias solucionam problemas diferentes.\n\n| Situação | Solução provável | Justificativa |\n| --- | --- | --- |\n| Descrever operações de API HTTP | OpenAPI | Contrato de endpoints e respostas |\n| Exibir documentação interativa | Swagger UI | Renderiza contrato para exploração |\n| Implementar SOAP em Java | Apache CXF/JAX-WS | Framework para serviço e cliente |\n| Implementar REST em Java | Apache CXF/JAX-RS | Recursos e métodos de API |\n| Serializar objeto ou array | JSON | Formato de dados independente do estilo |\n\n> Uma API pode ser REST e retornar XML. O fato de usar JSON ou de exibir Swagger UI, isoladamente, não comprova conformidade REST nem desempenho, segurança ou governança."
+    },
+    {
+      "title": "5. Soluções de integração, mensageria e e-PING",
+      "markdown": "## Integração síncrona e assíncrona\nUma chamada síncrona normalmente mantém o consumidor aguardando uma resposta correlacionada à solicitação. Em integração assíncrona, o produtor publica uma mensagem ou inicia tarefa e o resultado pode chegar depois; as aplicações ficam menos dependentes de disponibilidade simultânea. Assincronia **não significa** ausência de resposta ou processamento imediato. Considere um pedido criado no portal: a API responde que a solicitação foi recebida e publica evento `PedidoCriado`; serviços de estoque e faturamento podem reagir separadamente. A mensagem representa ocorrência do negócio, diferente de comando explícito que pede uma ação específica.\n\n### Message broker, filas e RabbitMQ\nUm **message broker** recebe, roteia e encaminha mensagens. Em RabbitMQ com AMQP 0-9-1, o produtor publica em um **exchange**; regras de **binding** encaminham a uma ou mais **queues**; consumidores recebem mensagens das filas. `direct` usa correspondência de chave de roteamento, `fanout` copia para todas as filas ligadas e `topic` usa padrões de chaves; o exchange padrão de nome vazio é do tipo direct e tem vínculo especial com o nome das filas. Publicar uma mensagem não equivale a entregá-la diretamente ao consumidor. Confirmação de recebimento pelo broker (publisher confirm) não é o mesmo que **acknowledgement do consumidor** após processamento; cada mecanismo protege etapa diferente.\n\n### Entrega, duplicidade e resiliência\nEm filas com confirmações manuais, uma mensagem não confirmada pode ser reenviada após falha do consumidor; logo, o processamento deve prever **idempotência** e chaves de deduplicação. A persistência envolve configuração de filas e mensagens adequadas e não deve ser presumida só porque existe broker. Tentativas com atraso, fila de mensagens mortas e observabilidade ajudam a tratar falhas. A semântica chamada `at-least-once` admite repetições; `at-most-once` pode perder mensagens; 'exatamente uma vez' como efeito de negócio exige garantias adicionais e fronteiras de transação bem definidas. Mensageria não elimina consistência eventual nem custos de monitoramento.\n\n### Webhooks e APIs reversas\nUm **webhook** é notificação disparada pelo provedor para URL do consumidor quando ocorre evento, muitas vezes por HTTP POST; em vez de consultar repetidamente a API, o receptor oferece endpoint para receber eventos. Deve validar assinatura ou autenticação, tolerar repetição e prever retentativas. Um webhook pode ser entregue mais de uma vez e não deve ser tratado como comando confiável sem verificação. O termo **API reversa** aparece em integrações para enfatizar a inversão da direção usual: em vez do consumidor solicitar continuamente, o sistema provedor chama um endpoint exposto pelo parceiro. Não é padronização técnica única, nem é sinônimo necessário de reverse proxy, que é componente de infraestrutura situado à frente de servidores.\n\n### e-PING: interoperabilidade pública\nA **e-PING**, arquitetura brasileira de Padrões de Interoperabilidade de Governo Eletrônico, fixa premissas, políticas e especificações técnicas para facilitar comunicação entre soluções, padronização e troca de informações. Seu propósito é reduzir incompatibilidades tecnológicas e promover interoperabilidade em contextos governamentais. O documento de referência reúne áreas e diretrizes para interoperabilidade, não constitui linguagem de programação, serviço de mensageria nem substitui contratos de API. Sua observância nos contextos definidos não dispensa controles de segurança, governança de dados, proteção de informações e pactuação dos formatos entre participantes.\n\n### Escolha arquitetural fundamentada\nUm contrato SOAP/WSDL pode ser adequado à integração legada formal; uma API HTTP descrita em OpenAPI ajuda consumidores a integrar recursos; um broker é útil para processamento desacoplado; um webhook favorece notificação ativa de eventos. Nenhuma alternativa garante segurança por si. Antes de adotar solução, documentam-se produtor e consumidor, contrato, versão, autenticação, rastreamento, política de erros, retentativas, idempotência, observabilidade e compatibilidade. Se o consumidor precisa de consulta imediata, a simples publicação de evento talvez não satisfaça a experiência desejada.\n\n| Necessidade | Instrumento | Cuidado principal |\n| --- | --- | --- |\n| Resposta imediata a consulta | API síncrona | Timeout e indisponibilidade |\n| Distribuir evento de negócio | Exchange e filas | Entrega duplicada e ordenação |\n| Informar terceiro sobre ocorrência | Webhook | Autenticidade e retentativas |\n| Padronizar integração pública | e-PING | Compatibilidade técnica e governança |\n| Traduzir modelos de dados | XSLT ou adaptador | Validação e perda semântica |\n\n### Como o tema costuma ser cobrado\nA prova descreve uma integração e troca o **papel** do padrão: chama UDDI de protocolo, WSDL de mensageria ou XSD de transformador. Também muda pequenas condições: considera obrigatório o Header SOAP, diz que JSON exige aspas simples, supõe que REST depende de JSON ou que fila garante processamento único. Em caso concreto, identifique primeiro **o problema** (representar, validar, transformar, descrever, descobrir, transportar, publicar, notificar ou padronizar), depois selecione o mecanismo e a propriedade que ele realmente oferece."
+    }
+  ],
+  "summary": "## Quadro de revisão\nXML representa informação por elementos e atributos; documento **bem formado** obedece à gramática, enquanto documento **válido** cumpre DTD ou XSD. Namespace distingue identidades de nomes sem depender de prefixo específico. **XSD** estabelece tipos, `sequence`, `choice`, cardinalidades e restrições; **XPath** seleciona nós e **XSLT** transforma estruturas. **SOAP** transporta mensagens XML em um Envelope com Body obrigatório e Header opcional. **WSDL** descreve operações, bindings e endpoints; **UDDI** cataloga serviços para descoberta. **REST** é estilo arquitetural e não impõe JSON; **JSON** é sintaxe de dados (RFC 8259). **OpenAPI** documenta APIs HTTP; **Swagger UI** apresenta essa documentação. **Apache CXF** oferece serviços Java SOAP/JAX-WS e REST/JAX-RS. **RabbitMQ** roteia mensagens por exchanges, bindings e filas; consumer ack não equivale a publisher confirm. **Webhook** notifica o receptor mediante chamada a URL exposta. **e-PING** reúne políticas e especificações de interoperabilidade pública. Em qualquer integração, documente contrato, autenticação, versões, tratamento de erros, idempotência e retentativas.",
+  "flashcards": [
+    {
+      "front": "O que é XML bem formado?",
+      "back": "Documento que respeita a gramática do XML: raiz única, etiquetas corretamente aninhadas e caracteres escapados quando necessário."
+    },
+    {
+      "front": "XML válido depende de quê?",
+      "back": "De conformidade com um modelo declarado, como DTD ou XSD, além da boa formação."
+    },
+    {
+      "front": "A declaração XML é obrigatória?",
+      "back": "Não. É possível ter documento XML 1.0 bem formado sem a declaração."
+    },
+    {
+      "front": "Qual a diferença entre atributo e elemento?",
+      "back": "Atributo aparece na etiqueta inicial; elemento é um nó hierárquico que pode conter dados ou filhos."
+    },
+    {
+      "front": "Prefixos de namespace são identidades?",
+      "back": "Não. A identidade decorre do nome do namespace combinado ao nome local, não da grafia do prefixo."
+    },
+    {
+      "front": "Namespace padrão atinge atributo sem prefixo?",
+      "back": "Não. Um atributo sem prefixo não herda automaticamente o namespace padrão do elemento."
+    },
+    {
+      "front": "Para que serve XML Schema?",
+      "back": "Para descrever tipos de dados, estrutura, cardinalidades, ordem e restrições de documentos XML."
+    },
+    {
+      "front": "O que faz xs:sequence?",
+      "back": "Exige que os elementos de um conteúdo complexo apareçam na sequência declarada."
+    },
+    {
+      "front": "Para que serve minOccurs='0'?",
+      "back": "Permite que determinada partícula de elemento não apareça na instância validada."
+    },
+    {
+      "front": "XPath e XSLT são iguais?",
+      "back": "Não. XPath seleciona ou calcula sobre nós; XSLT aplica regras para produzir outra estrutura."
+    },
+    {
+      "front": "Qual é a raiz de mensagem SOAP?",
+      "back": "Envelope. Body é obrigatório e Header é opcional."
+    },
+    {
+      "front": "O que é SOAP Fault?",
+      "back": "Estrutura de erro definida pelo modelo SOAP, representada no Body conforme a versão."
+    },
+    {
+      "front": "Qual é o papel de WSDL?",
+      "back": "Descrever interfaces, operações, mensagens, bindings e endpoints de um serviço web."
+    },
+    {
+      "front": "Para que serve UDDI?",
+      "back": "Para publicação, catalogação e descoberta de serviços e de seus dados técnicos."
+    },
+    {
+      "front": "SOAP exige UDDI?",
+      "back": "Não. É possível integrar serviços SOAP com endpoint conhecido sem diretório UDDI."
+    },
+    {
+      "front": "REST exige JSON?",
+      "back": "Não. REST é estilo arquitetural, enquanto JSON é formato de representação de dados."
+    },
+    {
+      "front": "Qual a exigência de aspas no JSON?",
+      "back": "Nomes de propriedades e strings JSON usam aspas duplas, não simples."
+    },
+    {
+      "front": "OpenAPI e Swagger UI fazem a mesma coisa?",
+      "back": "Não. OpenAPI é uma especificação de descrição de APIs HTTP; Swagger UI é uma ferramenta que exibe descrições."
+    },
+    {
+      "front": "Qual a relação do CXF com JAX-WS e JAX-RS?",
+      "back": "O CXF implementa serviços de estilo SOAP com JAX-WS e APIs REST com JAX-RS."
+    },
+    {
+      "front": "Como RabbitMQ roteia mensagens AMQP?",
+      "back": "O produtor publica em exchange, bindings roteiam para filas e consumidores recebem das filas."
+    },
+    {
+      "front": "O que diferencia webhook de polling?",
+      "back": "Webhook é disparado pelo provedor para um endpoint do consumidor; polling implica consultas repetidas do cliente."
+    },
+    {
+      "front": "Para que serve a e-PING?",
+      "back": "Para estabelecer políticas e especificações de interoperabilidade para soluções de tecnologia no contexto governamental."
+    }
+  ],
+  "tips": [
+    "Pergunte se o problema é sintaxe, validação ou transformação: parser XML, XSD e XSLT respondem a perguntas distintas.",
+    "Decore Envelope → Header opcional → Body obrigatório. Essa distinção é mais importante que memorizar um envelope específico.",
+    "Associe WSDL a descrição, UDDI a descoberta e SOAP a mensagem. A ordem ajuda a identificar confusões.",
+    "Em REST, analise recursos, métodos HTTP, interface uniforme e ausência de estado de sessão; o formato JSON não define REST.",
+    "Diferencie OpenAPI, contrato técnico, de Swagger UI, ferramenta de apresentação de contrato.",
+    "No RabbitMQ, acompanhe produtor → exchange → binding → fila → consumidor; confira as confirmações em cada ponta.",
+    "Em callbacks, webhooks e integrações assíncronas, valide identidade, deduplique eventos e defina tentativas de reenvio."
+  ],
+  "traps": [
+    "A prova diz: 'XML bem formado é necessariamente válido'. Errado: pode respeitar a sintaxe e violar um tipo ou uma sequência exigida no XSD.",
+    "A prova escreve: 'O namespace padrão é herdado por atributos sem prefixo'. Errado: a regra se aplica a elementos sem prefixo, não automaticamente a atributos.",
+    "A prova troca 'XSLT valida o tipo de campo conforme um esquema'. Errado: XSLT transforma; XSD declara restrições de validação.",
+    "A prova coloca 'Header é obrigatório em SOAP 1.2'. Errado: Envelope e Body são obrigatórios; Header é opcional.",
+    "A prova afirma: 'UDDI transporta a mensagem e WSDL hospeda o serviço'. Errado: UDDI cataloga e WSDL descreve; execução ocorre no endpoint.",
+    "A prova diz: 'API REST deve usar JSON e Swagger'. Errado: nenhum dos dois é requisito que define o estilo REST.",
+    "A prova equipara confirmação de publicação à execução bem-sucedida do consumidor. Errado: publisher confirm e consumer ack verificam etapas diferentes da mensageria."
+  ],
+  "activeRecall": [
+    {
+      "question": "Um XML tem etiquetas corretas, mas idade textual onde o XSD exige inteiro. Que duas classificações se aplicam?",
+      "answer": "É bem formado e inválido perante esse esquema; sintaxe e conformidade são testes separados."
+    },
+    {
+      "question": "Quando duas tags com o mesmo nome local pertencem a domínios distintos, qual recurso resolve a colisão?",
+      "answer": "Namespaces: o nome expandido é o par namespace + nome local."
+    },
+    {
+      "question": "Qual é a função de xs:choice em um contrato de dados?",
+      "answer": "Definir alternativas admitidas em uma posição da estrutura XML."
+    },
+    {
+      "question": "Uma integração precisa converter XML de pedidos em HTML. Qual padrão foi feito para isso?",
+      "answer": "XSLT, usando regras de transformação e expressões XPath quando necessário."
+    },
+    {
+      "question": "Quem descreve, quem descobre e quem transporta no trio WSDL, UDDI e SOAP?",
+      "answer": "WSDL descreve, UDDI disponibiliza descoberta, SOAP estabelece a estrutura das mensagens."
+    },
+    {
+      "question": "O que há de estruturalmente obrigatório num envelope SOAP 1.2?",
+      "answer": "Envelope contendo Body; Header é opcional."
+    },
+    {
+      "question": "Por que apresentar JSON e método GET não basta para demonstrar REST?",
+      "answer": "Porque REST envolve restrições arquiteturais, como interface uniforme e comunicação sem estado de sessão."
+    },
+    {
+      "question": "Como separar a função de OpenAPI e Swagger UI?",
+      "answer": "OpenAPI especifica a descrição da API; Swagger UI a renderiza de modo explorável."
+    },
+    {
+      "question": "Quem recebe primeiro uma publicação comum em RabbitMQ AMQP 0-9-1: fila ou exchange?",
+      "answer": "O exchange recebe a publicação e a roteia para filas de acordo com bindings."
+    },
+    {
+      "question": "Qual controle protege um webhook contra reenvio do mesmo evento?",
+      "answer": "Processamento idempotente e deduplicação por identificador de evento, aliados à validação de autenticidade."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Boa formação confundida com validade",
+      "summary": "Boa formação é requisito sintático de XML; validade pressupõe aderência a DTD ou XSD, incluindo tipos, ordem e ocorrência."
+    },
+    {
+      "key": "e2",
+      "title": "XML Schema confundido com XSLT ou XPath",
+      "summary": "XSD define um modelo de validação; XPath consulta nós; XSLT transforma a representação, e um resultado transformado pode precisar de validação adicional."
+    },
+    {
+      "key": "e3",
+      "title": "SOAP, WSDL e UDDI tratados como sinônimos",
+      "summary": "SOAP estrutura mensagens, WSDL descreve interface e endpoints, UDDI é registro de descoberta; nenhum substitui automaticamente os demais."
+    },
+    {
+      "key": "e4",
+      "title": "REST, JSON e Swagger interpretados como um protocolo só",
+      "summary": "REST é estilo arquitetural, JSON é formato de dados, OpenAPI é descrição de API HTTP e Swagger UI é ferramenta de documentação."
+    },
+    {
+      "key": "e5",
+      "title": "Fila, evento, webhook e interoperabilidade confundidos",
+      "summary": "Broker recebe e roteia mensagens; evento é ocorrência de negócio; webhook comunica por callback; e-PING especifica princípios e padrões para interoperabilidade pública."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um sistema recebe o documento `<nota><valor>50</valor></nota>`, mas não possui esquema associado. Qual avaliação é tecnicamente defensável apenas pela leitura do trecho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O trecho é bem formado; sua validade perante um esquema ainda não foi estabelecida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O trecho é válido porque o elemento valor contém apenas algarismos decimais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O trecho é inválido porque não apresenta declaração de versão na primeira linha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O trecho é malformado porque a raiz precisa declarar namespace explicitamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O trecho é válido porque a existência de uma única raiz dispensa um esquema.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. As etiquetas estão aninhadas corretamente, portanto o fragmento apresentado é bem formado. B inventa validação a partir de conteúdo numérico; C torna obrigatória declaração opcional; D torna namespace requisito de sintaxe; E confunde raiz única com conformidade a XSD ou DTD, que não foi informada.",
+      "section": "1. XML: documentos, elementos, atributos e namespaces",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação produz `<usuario ativo='sim'><nome>Ana</nome></usuario>`. Na modelagem apresentada, qual alternativa identifica corretamente atributo e elemento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`ativo` é elemento filho e `nome` é um atributo associado ao usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`ativo` é atributo da raiz e `nome` é um elemento filho de usuário.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`usuario` é atributo e `ativo` é o elemento raiz do documento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`nome` e `ativo` são atributos porque armazenam valores textuais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`nome` e `usuario` são atributos e `ativo` contém o nó de texto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O par `ativo='sim'` aparece na etiqueta inicial e caracteriza atributo; `<nome>` é elemento aninhado. A inverte papéis; C chama a raiz de atributo; D infere estrutura pelo tipo de valor, não pela sintaxe; E atribui incorretamente a `nome` e `usuario` a natureza de atributos.",
+      "section": "1. XML: documentos, elementos, atributos e namespaces",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a importação de cadastro, um campo de descrição deve registrar literalmente `A & B`. Qual representação conserva o texto em XML sem quebrar sua boa formação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `<descricao>A & B</descricao>` porque o caractere fica no conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `<descricao>A %26 B</descricao>` como escape XML nativo de texto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `<descricao>A &amp; B</descricao>` para escapar o e comercial.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar `<descricao>A &lt; B</descricao>` porque `&lt;` codifica o símbolo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `<descricao>A &quot; B</descricao>` porque `&quot;` substitui o sinal.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. `&amp;` representa o caractere `&` em conteúdo XML. A mantém uma sequência de entidade malformada; B usa codificação percentual típica de URI, não a entidade XML; D representa o sinal menor que; E representa aspas duplas. A prova avalia a entidade correspondente ao caractere, não apenas qualquer escape.",
+      "section": "1. XML: documentos, elementos, atributos e namespaces",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois sistemas usam a etiqueta `codigo` para identificar entidades distintas. Qual recurso de XML permite distinguir esses nomes sem renomear o elemento local?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A declaração de encoding, que atribui uma identidade semântica aos elementos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O atributo `version`, que separa vocabulários pela edição do documento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma instrução de processamento, que substitui nomes locais conflitantes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os namespaces, que compõem nomes expandidos com a URI e o nome local.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A indicação de CDATA, que torna cada etiqueta de um domínio exclusivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Namespaces distinguem elementos por nome de namespace mais nome local, ainda que ambos sejam chamados `codigo`. A refere-se à codificação; B não cria vocabulários isolados; C não substitui o mecanismo formal de nomes; E apenas delimita conteúdo textual especial e não muda a identidade dos elementos.",
+      "section": "1. XML: documentos, elementos, atributos e namespaces",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O consumidor recebe `<Item>1</item>` em um arquivo XML. Por que o processamento de boa formação deve rejeitar esse elemento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque um elemento não pode ter dígitos como conteúdo textual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque o conteúdo precisa estar em um atributo e não entre etiquetas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque nomes de elementos precisam ser declarados previamente em XSD.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque um documento sem namespace não admite etiquetas com maiúsculas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque XML distingue maiúsculas e minúsculas, exigindo nomes correspondentes.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A abertura `Item` e o fechamento `item` são nomes diferentes em XML, violando o pareamento de etiquetas. A permite texto numérico; B inventa obrigatoriedade de atributo; C confunde validade com boa formação; D associa erroneamente maiúsculas a namespace. A falha ocorre mesmo sem XSD.",
+      "section": "1. XML: documentos, elementos, atributos e namespaces",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um contrato XML precisa restringir o campo `situacao` aos valores `NOVO`, `EM_ANALISE` e `CONCLUIDO`. Qual recurso é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma restrição XSD com `xs:enumeration` para os três valores admitidos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma expressão XPath que renomeie automaticamente valores desconhecidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um template XSLT que determine se a instância é bem formada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um namespace distinto para cada valor textual armazenado no campo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um atributo SOAP que defina o conjunto de valores no Envelope.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. A faceta `xs:enumeration` em um tipo simples limita os valores válidos de um campo. B atribui transformação a XPath; C confunde transformação com parser; D usa namespace para categorizar valores, e não para resolver nomes; E transfere ao protocolo SOAP uma restrição de tipo que cabe ao esquema.",
+      "section": "2. XML Schema, XPath e XSLT: validação e transformação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um documento XML exige que o campo `complemento` possa ser omitido, sem obrigar a presença de valor nulo. Como expressar essa possibilidade na declaração XSD?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir `maxOccurs='0'` para indicar campo facultativo de valor ausente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir `minOccurs='0'` na declaração aplicável ao elemento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Definir `nillable='true'` como substituto direto da ausência do elemento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir `minOccurs='1'` porque elemento opcional precisa ocorrer uma vez.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir `xs:sequence` para dispensar a presença de todos os elementos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. `minOccurs='0'` permite zero ocorrência da partícula no modelo XSD. A proibiria ocorrência; C permite, quando aplicável, valor nulo em elemento presente, situação diferente de omissão; D exige pelo menos uma ocorrência; E controla sequência de elementos, não transforma todo o conteúdo em opcional.",
+      "section": "2. XML Schema, XPath e XSLT: validação e transformação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa transformar `<preco>90</preco>` em `<valor>90</valor>`, conservando o valor e alterando a representação de saída. Qual tecnologia é mais específica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "XML Schema, para publicar os serviços que realizam a mudança de nomes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "UDDI, para alterar diretamente os nós presentes na instância recebida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "XSLT, para produzir a estrutura de saída por regras de transformação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "WSDL, para validar valores e renomear automaticamente os elementos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SOAP, para converter tipos XML por regras de transformação de árvore.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. XSLT expressa transformações por templates e pode renomear elementos preservando seus valores. A descreve o esquema, não catálogo nem conversão; B é descoberta de serviços; D documenta interfaces e não realiza esse remapeamento; E estrutura mensagens, mas não é linguagem de transformação de documentos.",
+      "section": "2. XML Schema, XPath e XSLT: validação e transformação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao selecionar todos os elementos `pedido` com atributo `situacao` igual a `aberto`, qual recurso de processamento XML atende diretamente ao filtro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma restrição UDDI de publicação aplicada aos registros de serviços.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um binding WSDL que endereça a URI do documento armazenado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um tipo XSD que transforma todos os nós correspondentes ao predicado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma expressão XPath como `//pedido[@situacao='aberto']`.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um cabeçalho SOAP que filtra atributos na árvore local do arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. XPath usa caminhos, predicados e `@` para selecionar atributos, permitindo o filtro apresentado. A pesquisa metadados de serviços UDDI; B descreve vínculo de comunicação; C não transforma ou consulta instâncias; E é metadado de processamento de mensagens e não substitui XPath.",
+      "section": "2. XML Schema, XPath e XSLT: validação e transformação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um XSD declara `xs:sequence` com `nome` seguido de `idade`. O XML recebido contém os mesmos campos, mas na ordem `idade`, `nome`. Qual é a conclusão correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O arquivo é malformado porque todo XML ordena filhos alfabeticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O arquivo será válido se os dois campos possuírem nomes não repetidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O arquivo será válido porque `sequence` apenas descreve tipos primitivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O arquivo é inválido porque `choice` determina a ordem dos campos recebidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O arquivo pode ser bem formado, mas é inválido diante da sequência declarada.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Em XSD, `xs:sequence` exige os elementos na ordem definida, embora a ordem contrária possa ser XML bem formado. A inventa ordenação alfabética; B ignora a restrição de ordem; C confunde compositor com tipo; D atribui a `choice` função de ordenação que pertence a `sequence`.",
+      "section": "2. XML Schema, XPath e XSLT: validação e transformação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa identificar o componente obrigatoriamente presente em uma mensagem SOAP 1.2 com estrutura correta. Qual é a descrição adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um `Envelope` que contém `Body`; o `Header` pode não estar presente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um `Header` contendo a operação; o `Body` só aparece quando há falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um `Fault` externo ao `Envelope` para identificar toda mensagem válida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um `WSDL` embutido no `Body` com assinatura da operação executada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um `UDDI` embutido no `Header` para resolver o endpoint em cada pedido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. SOAP 1.2 exige Envelope e Body, ao passo que Header é opcional. B torna Header obrigatório e Body excepcional; C trata Fault como estrutura externa e permanente, sendo erro no Body; D supõe WSDL embutido compulsoriamente; E confunde descoberta de serviços com bloco obrigatório de cabeçalho.",
+      "section": "3. SOAP, WSDL e UDDI: serviços orientados a contratos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um consumidor já conhece o endpoint de um serviço SOAP e recebe seu contrato WSDL, mas não tem acesso a nenhum registro UDDI. Qual afirmação procede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O consumidor precisa hospedar UDDI antes de processar qualquer Envelope.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A integração é possível; UDDI não é requisito para invocar SOAP conhecido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O WSDL substitui todas as mensagens SOAP para operações de consulta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O serviço deve abandonar WSDL e alterar seu formato para JSON obrigatório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O consumidor precisa transformar o WSDL em registro de mensagens RabbitMQ.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. UDDI é mecanismo opcional de publicação e descoberta; endpoint e contrato conhecidos permitem a invocação SOAP. A transforma catálogo em pré-requisito; C trata contrato como mensagem; D confunde SOAP com JSON e REST; E mistura registro de serviços com tecnologia de filas não exigida nesse fluxo.",
+      "section": "3. SOAP, WSDL e UDDI: serviços orientados a contratos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na documentação de um serviço legado, aparecem `types`, `message`, `portType`, `binding`, `service` e `port`. A qual versão e papel essa nomenclatura se associa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ao WSDL 2.0, no qual `portType` é o novo nome do endpoint físico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ao SOAP 1.2, cuja descrição é dividida em `service` e `port`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ao WSDL 1.1, no qual `portType` descreve operações abstratas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ao UDDI 3.0, no qual `message` hospeda mensagens de negócio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ao XSD 1.1, que usa `portType` para restringir nomes de elementos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O vocabulário listado é característico de WSDL 1.1 e `portType` reúne operações abstratas. A atribui esse termo ao modelo WSDL 2.0, que usa `interface`; B mistura descrição com protocolo de mensagens; D confunde catálogo UDDI com WSDL; E traz para o esquema de dados conceitos próprios de contrato de serviço.",
+      "section": "3. SOAP, WSDL e UDDI: serviços orientados a contratos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura publica descrições de provedores, serviços disponíveis e interfaces técnicas por meio das estruturas `businessEntity`, `businessService`, `bindingTemplate` e `tModel`. A qual padrão isso corresponde?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "WSDL, pois suas estruturas centrais são registros de empresas e modelos técnicos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SOAP, pois o Envelope armazena serviços anunciados em um diretório público.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "XSLT, pois templates registram organizações e interfaces invocáveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "UDDI, pois organiza metadados para publicação e descoberta de serviços.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "OpenAPI, pois seu objeto `paths` substitui as quatro entidades listadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. As quatro estruturas são centrais no modelo de dados UDDI. A remete a WSDL, que documenta interface, bindings e endpoints; B trata mensagens SOAP como registros; C atribui descoberta a linguagem de transformação; E ignora que `paths` descreve operações HTTP em OpenAPI, sem reproduzir o modelo UDDI.",
+      "section": "3. SOAP, WSDL e UDDI: serviços orientados a contratos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao migrar uma integração SOAP 1.1 para SOAP 1.2 sobre HTTP, uma equipe quer identificar uma mudança relevante da mensagem. Qual alternativa caracteriza corretamente o novo modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SOAP 1.2 elimina o Envelope e conserva somente o corpo como conteúdo JSON.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SOAP 1.2 obriga o transporte por HTTP/2 e deixa de reconhecer bindings.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SOAP 1.2 substitui Fault por códigos de erro definidos em arquivo XSLT.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SOAP 1.2 utiliza o namespace do Envelope da versão 1.1 sem mudanças.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SOAP 1.2 tem namespace próprio de Envelope e pode usar `application/soap+xml`.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. SOAP 1.2 possui namespace `http://www.w3.org/2003/05/soap-envelope` e, no binding HTTP, utiliza `application/soap+xml`. A elimina estrutura obrigatória; B inventa restrição a HTTP/2; C substitui indevidamente Fault; D apaga distinção de namespaces entre versões. A versão da mensagem importa para processamento.",
+      "section": "3. SOAP, WSDL e UDDI: serviços orientados a contratos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor escreve `{'nome':'Lia','ativo':true}` e afirma tratar-se de documento JSON válido. Qual correção técnica resolve seu principal erro sintático?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir as aspas simples por duplas nos nomes e nos valores string.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converter o booleano para `True`, como ocorre em algumas linguagens.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Acrescentar ponto e vírgula ao fim, para finalizar um objeto JSON.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Envolver todas as chaves entre etiquetas de raiz, formando documento XML.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar as chaves externas por parênteses, como sintaxe JSON de objetos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. RFC 8259 exige aspas duplas em nomes de propriedades e strings; a forma válida é `{\"nome\":\"Lia\",\"ativo\":true}`. B muda incorretamente o literal booleano `true`; C importa pontuação de programação; D produz outra linguagem; E troca os delimitadores de objeto, que são chaves em JSON.",
+      "section": "4. REST, JSON, OpenAPI/Swagger e Apache CXF",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe documentou `GET /produtos/{id}`, seus parâmetros e respostas por uma descrição OpenAPI. Agora pretende oferecer uma interface web explorável sem reimplementar a API. Que recurso atende diretamente a essa etapa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "WSDL, para apresentar automaticamente cada recurso como porta SOAP obrigatória.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Swagger UI, para renderizar e explorar a descrição OpenAPI existente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "UDDI, para converter documentos YAML em interfaces visuais HTTP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "XSD, para executar as operações da API em uma interface de navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RabbitMQ, para produzir documentação interativa de rotas e respostas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Swagger UI renderiza uma descrição OpenAPI, permitindo navegar pelas operações. A descreve serviços web de outro ecossistema, não é interface visual requerida; C é registro de descoberta; D valida XML e não opera endpoints; E roteia mensagens e não documenta contratos HTTP interativamente.",
+      "section": "4. REST, JSON, OpenAPI/Swagger e Apache CXF",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente repete um `DELETE` depois de perder a resposta HTTP da primeira tentativa. A segunda tentativa recebe `404`. Qual análise da idempotência do método é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não é idempotente, pois respostas sucessivas têm códigos HTTP diferentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Passa a ser idempotente apenas se ambas as respostas retornarem código `204`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pode continuar idempotente: o efeito pretendido é o mesmo, ainda com `404`.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A idempotência depende de o cliente usar JSON como corpo de `DELETE`.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Idempotência só se aplica a `GET`; exclusão depende de chave de sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Idempotência diz respeito ao efeito pretendido de requisições idênticas, não à identidade dos códigos de resposta. A e B tomam respostas diferentes como violação da propriedade; D vincula indevidamente a semântica ao formato do corpo; E ignora que `PUT` e `DELETE` também são idempotentes por definição HTTP.",
+      "section": "4. REST, JSON, OpenAPI/Swagger e Apache CXF",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API opera por recursos identificados por URIs, métodos HTTP, interface uniforme e ausência de estado de sessão por requisição, mas retorna XML. Como essa característica afeta sua classificação arquitetural?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descaracteriza REST porque a arquitetura exige conteúdo `application/json`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converte a API em SOAP por usar etiquetas para representar recursos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Obriga a substituir HTTP por um transporte próprio de serviços XML.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não impede REST, pois a representação XML não viola o estilo por si só.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Torna o uso de OpenAPI inválido para documentar métodos e respostas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. O estilo REST não impõe JSON; uma representação XML pode ser entregue por uma API que respeite as restrições arquiteturais. A confunde estilo e formato; B considera todo XML SOAP, embora SOAP exija Envelope e processamento específicos; C inventa substituição de transporte; E restringe indevidamente a descrição OpenAPI de APIs HTTP.",
+      "section": "4. REST, JSON, OpenAPI/Swagger e Apache CXF",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um projeto Java, há um contrato SOAP baseado em WSDL e uma API de recursos HTTP. Pretende-se usar Apache CXF para os dois estilos. Qual mapeamento é tecnicamente apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar JAX-RS para SOAP e JAX-WS para a API de recursos HTTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar JAX-WS para ambos, pois JAX-RS descreve apenas filas AMQP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar JAX-RS para ambos, pois JAX-WS é registro UDDI de endpoints.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar XSLT como framework Java e CXF como linguagem de validação XSD.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar JAX-WS para SOAP e JAX-RS para recursos REST disponibilizados no CXF.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Apache CXF contempla serviços JAX-WS de estilo SOAP e JAX-RS para APIs REST. A inverte as tecnologias; B descreve JAX-RS como mensageria AMQP, o que não é; C confunde JAX-WS com catálogo UDDI; D troca papéis de framework de serviços, transformação XSLT e validação XSD.",
+      "section": "4. REST, JSON, OpenAPI/Swagger e Apache CXF",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem sobre `PedidoCriado` é publicada em RabbitMQ pelo protocolo AMQP 0-9-1. A aplicação usa exchanges e bindings configurados. Qual percurso corresponde ao modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Produtor publica no exchange; bindings direcionam para filas consumidas depois.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Produtor publica no consumidor; o exchange valida XML após o recebimento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Produtor publica no binding; ele armazena a mensagem até a leitura da fila.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Produtor publica no XSD; a fila descreve o endpoint a ser descoberto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Produtor publica no UDDI; o registro determina os consumidores inscritos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. No modelo AMQP 0-9-1, exchanges recebem mensagens e as encaminham às filas segundo bindings. B pressupõe entrega direta ao consumidor e validação XML no exchange; C trata a regra de roteamento como armazenamento; D confunde esquema de dados com broker; E transfere roteamento para um registro de serviços UDDI.",
+      "section": "5. Soluções de integração, mensageria e e-PING",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma plataforma deseja que o mesmo evento publicado seja copiado para todas as filas conectadas ao exchange, sem considerar a chave de roteamento. Qual tipo de exchange RabbitMQ atende ao cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`direct`, que ignora a chave e entrega uma cópia a todas as filas ligadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`fanout`, que distribui cópias a todas as filas vinculadas ao exchange.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`topic`, que ignora padrões e encaminha toda publicação por difusão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`headers`, que roteia sem examinar qualquer cabeçalho ou binding.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`default`, que envia cada publicação simultaneamente a todas as filas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O exchange `fanout` distribui a publicação a todas as filas ligadas, ignorando a chave de roteamento. A descreve `direct` incorretamente, pois este compara chaves; C apaga o uso de padrões do `topic`; D ignora critérios por cabeçalhos; E supõe difusão no exchange padrão, que encaminha pelo nome da fila.",
+      "section": "5. Soluções de integração, mensageria e e-PING",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O produtor recebeu confirmação de publicação do RabbitMQ. Logo depois, o consumidor falhou antes de confirmar o processamento. Qual interpretação evita confundir duas garantias diferentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A confirmação do produtor comprova que a regra de negócio terminou.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O consumer ack verifica que o exchange gravou a mensagem no registro UDDI.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Publisher confirm e consumer ack abrangem etapas distintas de entrega e consumo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A confirmação inicial elimina a possibilidade de repetição após uma falha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O produtor deve aguardar XSLT para tornar cada mensagem exatamente única.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Publisher confirm refere-se à aceitação pelo broker nas condições correspondentes; consumer ack acompanha o processamento/recebimento pelo consumidor. A antecipa a regra de negócio; B mistura confirmação com UDDI; D ignora reentrega sem ack; E atribui garantia de unicidade de processamento a uma tecnologia de transformação XML.",
+      "section": "5. Soluções de integração, mensageria e e-PING",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço externo precisa informar alterações de situação assim que ocorram e propõe chamar uma URL que o sistema consumidor disponibilizará. Qual análise diferencia corretamente esse desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É polling, porque o provedor chama repetidamente a URL do consumidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É registro UDDI, pois o serviço envia mensagens ao catálogo de interfaces.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É reverse proxy, pois a comunicação contém uma chamada HTTP externa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É webhook/callback, sujeito a autenticação, retentativas e duplicações.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "É transformação XSLT, porque o evento é recebido por endpoint web.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Um webhook é callback do provedor para um endpoint do consumidor, sendo importante validar autenticidade e processar reenvios com idempotência. A inverte o conceito de polling, feito por consultas do cliente; B confunde notificação com catálogo UDDI; C chama qualquer conexão HTTP de reverse proxy; E atribui notificação ao XSLT.",
+      "section": "5. Soluções de integração, mensageria e e-PING",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto de integração governamental deve adotar diretrizes comuns de interoperabilidade e também definir contratos e mecanismos de transporte adequados. Qual afirmação sobre e-PING é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É um protocolo de transporte que substitui diretamente SOAP, REST e AMQP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É um framework Java dedicado à geração de clientes WSDL e endpoints.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É uma linguagem de marcação equivalente a XML com vocabulário obrigatório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É um registro único para descoberta de todos os serviços web públicos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É arquitetura de políticas e especificações para orientar interoperabilidade.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A e-PING define premissas, políticas e especificações para interoperabilidade, sem substituir a escolha técnica de contratos e transportes. A a transforma em protocolo; B descreve papel próximo ao Apache CXF; C a confunde com sintaxe XML; D a equipara indevidamente a um catálogo único como UDDI.",
+      "section": "5. Soluções de integração, mensageria e e-PING",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um XML cujo elemento raiz contém dois elementos filhos pode ser bem formado mesmo que não declare XSD nem DTD.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A boa formação depende da gramática XML, incluindo raiz única, etiquetas correspondentes e aninhamento correto. XML Schema e DTD são modelos que permitem exigir validade adicional; a ausência desses modelos não impede que o documento seja sintaticamente bem formado.",
+      "section": "1. XML: documentos, elementos, atributos e namespaces",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em XML, a declaração `xmlns='urn:compras'` insere automaticamente os atributos sem prefixo no namespace padrão declarado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O namespace padrão se aplica a elementos sem prefixo, porém não é herdado automaticamente por atributos sem prefixo. O examinador explora a diferença entre o nome expandido do elemento e o de seu atributo; para qualificar atributo com namespace, usa-se prefixo apropriado.",
+      "section": "1. XML: documentos, elementos, atributos e namespaces",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um documento XML, `<pessoa idade='18'/>` é representação sintaticamente possível de um elemento vazio com atributo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A sintaxe de elemento vazio utiliza `/>` e pode incluir atributos, com valores entre aspas. O exemplo é bem formado como elemento autossuficiente. Não é possível concluir apenas da sintaxe que a idade cumpre algum tipo de dados exigido por esquema não informado.",
+      "section": "1. XML: documentos, elementos, atributos e namespaces",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A codificação de caracteres indicada na declaração XML determina qual é o nome lógico de um elemento, dispensando namespaces para diferenciar vocabulários.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A indicação de encoding orienta interpretação dos bytes, não estabelece a identidade semântica dos nomes. Namespaces distinguem vocabulários por URI de namespace e nome local; documentos com codificações iguais podem empregar namespaces completamente diferentes.",
+      "section": "1. XML: documentos, elementos, atributos e namespaces",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O recurso `xs:maxOccurs='unbounded'` pode permitir repetição sem limite máximo especificado no próprio compositor de um XSD.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A cardinalidade máxima com valor `unbounded` não estabelece teto numérico no XSD. Isso não significa armazenamento infinito na prática: tamanho de arquivo, memória, regras de negócio e limites operacionais continuam podendo restringir o processamento.",
+      "section": "2. XML Schema, XPath e XSLT: validação e transformação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma folha XSLT substitui o parser XML e garante, por si, que todos os tipos exigidos pelo XSD de destino sejam respeitados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. XSLT é mecanismo de transformação baseado em regras, ao passo que o parser XML verifica a boa formação e o validador XSD verifica o contrato. A saída transformada pode violar ordem, tipo, cardinalidade ou enumeração e exigir validação própria antes de ser aceita.",
+      "section": "2. XML Schema, XPath e XSLT: validação e transformação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma expressão XPath que utiliza `@codigo` seleciona atributos chamados `codigo` no contexto pertinente da avaliação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O eixo abreviado por `@` em XPath seleciona atributos, diferentemente de nomes de elementos filhos sem essa marcação. Portanto, `pedido[@codigo='7']` testa valor de atributo, enquanto `pedido[codigo='7']` pode testar um elemento filho `codigo`, sob as semânticas correspondentes.",
+      "section": "2. XML Schema, XPath e XSLT: validação e transformação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um elemento que aceita `xsi:nil='true'` pode ser omitido do XML mesmo que a declaração correspondente exija `minOccurs='1'`, pois nulo e ausente são equivalentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `nillable` trata de elemento presente com conteúdo marcado como nulo, quando aceito pelo esquema; `minOccurs='1'` exige ao menos uma ocorrência. Omissão viola cardinalidade mesmo que a ocorrência pudesse estar nula. A confusão é entre existência do elemento e valor de seu conteúdo.",
+      "section": "2. XML Schema, XPath e XSLT: validação e transformação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SOAP 1.2, a representação de uma falha SOAP utiliza uma estrutura Fault no Body da mensagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O modelo SOAP 1.2 prevê Fault para comunicar erro de processamento de mensagem e o coloca no Body do Envelope. O Header pode carregar outros blocos de processamento, mas não substitui automaticamente o Body nem abriga o Fault obrigatório por definição.",
+      "section": "3. SOAP, WSDL e UDDI: serviços orientados a contratos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A operação abstrata descrita por um WSDL executa diretamente o código de negócio do servidor, de modo que o endpoint do serviço é desnecessário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. WSDL é descrição de interface, mensagens, operações e mecanismos de acesso. A execução ocorre em implementação disponibilizada por um endpoint; possuir o contrato pode orientar clientes e ferramentas, mas não cria por si só serviço executável ou substitui infraestrutura de hospedagem.",
+      "section": "3. SOAP, WSDL e UDDI: serviços orientados a contratos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "UDDI pode registrar informações técnicas de serviços para localização, sem que isso o transforme em mecanismo de transporte de todas as mensagens SOAP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. UDDI tem função de publicação e descoberta, enquanto a troca de mensagens é realizada entre as partes com uso do protocolo e binding escolhidos. Registrar metadata de endpoint não equivale a trafegar Envelope ou armazenar indiscriminadamente solicitações de negócio.",
+      "section": "3. SOAP, WSDL e UDDI: serviços orientados a contratos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na versão 2.0 de WSDL, a definição abstrata é identificada pelo termo `portType`, exatamente como no modelo WSDL 1.1.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `portType` é termo característico de WSDL 1.1. Em WSDL 2.0, a terminologia do componente abstrato passa a `interface`, acompanhada dos componentes `binding`, `service` e `endpoint`. A prova explora semelhanças entre versões sem respeitar suas estruturas formais.",
+      "section": "3. SOAP, WSDL e UDDI: serviços orientados a contratos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um contrato OpenAPI pode descrever parâmetros e respostas de operações HTTP sem obrigar que a implementação correspondente tenha sido escrita em uma linguagem específica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. OpenAPI foi concebida como descrição independente de linguagem, permitindo documentação e ferramentas para APIs HTTP implementadas em tecnologias diversas. Ela define estrutura do contrato de interface e não exige adoção de um framework ou ambiente de execução único.",
+      "section": "4. REST, JSON, OpenAPI/Swagger e Apache CXF",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor usa JSON nas respostas e permite consultas por HTTP GET. Esses dois fatores, isoladamente, asseguram que sua arquitetura obedeça a todas as restrições REST.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Formato de representação e método HTTP não provam, sozinhos, interface uniforme, ausência de estado de sessão no servidor por requisição e demais restrições de REST. Uma API pode usar JSON e GET de modo meramente procedural, com contratos e comportamento contrários ao estilo.",
+      "section": "4. REST, JSON, OpenAPI/Swagger e Apache CXF",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação HTTP PUT pode manter sua propriedade de idempotência mesmo quando respostas sucessivas apresentam códigos diferentes em decorrência do estado atual do recurso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A idempotência relaciona-se ao efeito pretendido da repetição de requisições idênticas, e não à necessidade de resposta textual ou código invariável. A primeira operação pode criar ou atualizar o recurso e uma posterior confirmar seu estado sem alterar novamente o efeito final pretendido.",
+      "section": "4. REST, JSON, OpenAPI/Swagger e Apache CXF",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Apache CXF disponibiliza apenas serviços SOAP com JAX-WS, pois implementar recursos REST por JAX-RS é função exclusiva de registros UDDI.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. CXF suporta JAX-WS e JAX-RS, permitindo serviços SOAP e APIs REST em Java. UDDI registra metadados para descoberta e não é biblioteca Java exclusiva de implementação REST. A assertiva confunde framework, especificações de APIs e catálogo de serviços.",
+      "section": "4. REST, JSON, OpenAPI/Swagger e Apache CXF",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No RabbitMQ com exchange fanout, uma mensagem publicada pode ser encaminhada a várias filas conectadas, ainda que sua routing key não corresponda a um nome específico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Fanout entrega cópias às filas vinculadas ao exchange, desconsiderando a chave de roteamento. Isso contrasta com direct, que usa comparação de chaves, e topic, que usa padrões. Diferentes consumidores podem ter filas próprias e receber o mesmo evento.",
+      "section": "5. Soluções de integração, mensageria e e-PING",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A confirmação de publicação emitida pelo broker constitui prova suficiente de que o consumidor executou a operação de negócio e registrou o resultado final.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Publisher confirm trata de recebimento ou aceitação de publicação pelo broker, ao passo que processamento pelo consumidor envolve outra etapa e eventual acknowledgement. Confundir essas garantias pode provocar perda de rastreabilidade, duplicações ou falsa confirmação ao usuário final.",
+      "section": "5. Soluções de integração, mensageria e e-PING",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um webhook recebido duas vezes com mesmo identificador de evento deve ser processado considerando proteção contra duplicidade, pois notificações podem ser retransmitidas após falhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Retentativas de entrega e falhas entre recebimento e confirmação podem repetir webhooks. A aplicação deve verificar assinatura/autenticidade quando previsto, manter rastreio dos eventos e adotar idempotência ou deduplicação para que uma mesma ocorrência não gere duas ações de negócio.",
+      "section": "5. Soluções de integração, mensageria e e-PING",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A adoção da arquitetura e-PING torna dispensáveis contratos explícitos de API, autenticação, testes de interoperabilidade e mecanismos de tratamento de falhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A e-PING define premissas, políticas e especificações de interoperabilidade, não substitui projetos concretos de integração. Contratos de dados e serviços, segurança, validação, observabilidade, erros e retentativas continuam necessários para que o intercâmbio seja confiável e adequado ao contexto.",
+      "section": "5. Soluções de integração, mensageria e e-PING",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Extensible Markup Language (XML) 1.0 (Fifth Edition)",
+      "publisher": "W3C",
+      "reference": "W3C Recommendation, 26 nov. 2008",
+      "url": "https://www.w3.org/TR/xml/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Namespaces in XML 1.0 (Third Edition)",
+      "publisher": "W3C",
+      "reference": "W3C Recommendation, Namespaces in XML 1.0",
+      "url": "https://www.w3.org/TR/xml-names/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "W3C XML Schema Definition Language (XSD) 1.1 Part 1: Structures",
+      "publisher": "W3C",
+      "reference": "W3C Recommendation, XSD 1.1",
+      "url": "https://www.w3.org/TR/xmlschema11-1/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "XSL Transformations (XSLT) Version 3.0",
+      "publisher": "W3C",
+      "reference": "W3C Recommendation, 8 jun. 2017",
+      "url": "https://www.w3.org/TR/xslt-30/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SOAP Version 1.2 Part 1: Messaging Framework (Second Edition)",
+      "publisher": "W3C",
+      "reference": "W3C Recommendation, 27 abr. 2007",
+      "url": "https://www.w3.org/TR/soap12-part1/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Web Services Description Language (WSDL) Version 2.0 Part 1: Core Language",
+      "publisher": "W3C",
+      "reference": "WSDL 2.0 Part 1",
+      "url": "https://www.w3.org/TR/wsdl20/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Universal Description, Discovery and Integration (UDDI) v3.0.2",
+      "publisher": "OASIS",
+      "reference": "OASIS Standard, fev. 2005",
+      "url": "https://www.oasis-open.org/standard/uddi/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The JavaScript Object Notation (JSON) Data Interchange Format",
+      "publisher": "IETF / RFC Editor",
+      "reference": "RFC 8259, dez. 2017",
+      "url": "https://www.rfc-editor.org/rfc/rfc8259",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenAPI Specification v3.1.1",
+      "publisher": "OpenAPI Initiative",
+      "reference": "OAS 3.1.1, 24 out. 2024",
+      "url": "https://spec.openapis.org/oas/v3.1.1.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache CXF — JAX-RS",
+      "publisher": "Apache Software Foundation",
+      "reference": "Documentação do Apache CXF, implementação JAX-RS",
+      "url": "https://cxf.apache.org/docs/jax-rs.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache CXF — JAX-WS Configuration",
+      "publisher": "Apache Software Foundation",
+      "reference": "Documentação do Apache CXF, endpoints JAX-WS",
+      "url": "https://cxf.apache.org/docs/jax-ws-configuration.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "AMQP 0-9-1 Model Explained",
+      "publisher": "RabbitMQ",
+      "reference": "Documentação de exchanges, queues, bindings e acknowledgements",
+      "url": "https://www.rabbitmq.com/tutorials/amqp-concepts",
+      "accessedAt": "2026-10-09"
+    }
+  ]
+}

@@ -1,0 +1,1800 @@
+{
+  "id": "informatica.administracao-sgbd",
+  "subject": "Informática",
+  "title": "Administração de SGBD: manutenção, segurança e bancos distribuídos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Administração de SGBD: manutenção, segurança e bancos distribuídos"
+  ],
+  "scope": {
+    "covers": "Administração de dados e de SGBD; armazenamento, memória, transações, SQL e PL/SQL; Oracle 21c, PostgreSQL, SQL Server 2019, MySQL e ADABAS; planos de manutenção, backup, restauração, recuperação, desempenho, erros, segurança, bancos distribuídos, replicação, Flyway e Pentaho.",
+    "excludes": "Modelagem conceitual aprofundada, normalização detalhada, desenvolvimento completo de aplicações, consultas analíticas avançadas e administração de sistemas operacionais fora de sua relação direta com bancos de dados."
+  },
+  "theoryTitle": "Administração de sistemas gerenciadores de bancos de dados: arquitetura, continuidade, desempenho, segurança e distribuição",
+  "chapters": [
+    {
+      "title": "1. Fundamentos da administração e arquitetura dos SGBDs",
+      "markdown": "## Administração de dados e administração de bancos\nA **administração de dados** trata dos dados como patrimônio informacional: define políticas de qualidade, dicionário, metadados, classificação, proprietários, retenção e padrões de nomenclatura. A **administração de banco de dados** implementa e opera a infraestrutura que materializa essas políticas: usuários, instâncias, capacidade, arquivos, índices, disponibilidade, backups, atualização e monitoramento. Uma organização pode estabelecer que documentos financeiros sejam retidos por determinado período; a implementação da política em partições, permissões e rotinas de descarte é tarefa operacional. As funções cooperam e não se confundem: quem define o prazo de retenção não precisa ser quem executa o expurgo.\n\n## Camadas e armazenamento\nUm **SGBD** gerencia persistência, integridade, concorrência, consultas, recuperação e autorização. A instância costuma reunir processos e memória; o banco reúne arquivos e estruturas persistentes. Convém separar **esquema lógico** (tabelas, visões, relações e restrições), **organização física** (páginas, segmentos, arquivos e dispositivos) e **visões externas** (recortes acessíveis às aplicações). A independência lógica busca reduzir o impacto de modificações no esquema conceitual sobre visões; a física busca permitir reorganizar armazenamento sem alterar consultas lógicas. A decisão de colocar arquivos em outro volume não deveria obrigar a aplicação a renomear tabelas.\n\nEm armazenamento por **páginas ou blocos**, o SGBD recupera unidades de E/S e mantém páginas quentes no **buffer pool**. Um acerto de cache reduz leitura física, mas não substitui registros de transação nem cópias de segurança. **WAL ou log de transações** registra informações necessárias à recuperação; a escrita antecipada do log sustenta refazer operações confirmadas e desfazer operações incompletas, conforme o mecanismo empregado. **Checkpoint** diminui trabalho potencial de recuperação ao coordenar a persistência de páginas; não é cópia de segurança. Discos locais, rede, armazenamento em blocos e objetos têm latência, custo, redundância e semântica distintos. Uma política exige projeção de crescimento, isolamento de arquivos críticos, alarmes de capacidade e verificação de restauração.\n\n| Conceito | Função central | Erro comum |\n| --- | --- | --- |\n| Buffer cache | Reduz acessos físicos frequentes | Confundir com backup |\n| Log/WAL | Sustenta recuperação e replicação por registros | Confundir com trilha de auditoria funcional |\n| Índice | Acelera acessos selecionados com custo de manutenção | Supor benefício para toda consulta |\n| Tablespace/filegroup | Agrupa ou organiza armazenamento físico | Tratar como sinônimo de tabela |\n| Visão | Expõe consulta definida e pode apoiar controle de acesso | Presumir materialização obrigatória |\n\n## Transações e mecanismos\nAs propriedades **ACID** significam atomicidade, consistência, isolamento e durabilidade. Atomicidade evita transação parcialmente confirmada; consistência respeita invariantes definidas; isolamento delimita efeitos concorrentes; durabilidade exige preservar confirmações conforme as garantias da configuração. Um sistema com leituras simultâneas pode empregar bloqueios ou controle de concorrência multiversão (**MVCC**). Níveis de isolamento reduzem anomalias em graus diferentes; uma consulta consistente não implica bloqueio integral da tabela. O otimizador escolhe estratégias com estatísticas, índices, cardinalidade e custo estimado. Dados desatualizados podem produzir plano ruim mesmo com índices corretos.\n\n## Produtos e particularidades\nNo **Oracle Database 21c**, destacam-se instância, tablespaces, datafiles, redo, undo e ferramentas como RMAN e PL/SQL. No **PostgreSQL**, aparecem cluster de bancos, WAL, autovacuum, MVCC, pg_dump e replicação por WAL. No **SQL Server 2019**, o administrador lida com arquivos de dados e log, filegroups, planos de execução, SQL Server Agent e modelos de recuperação. No **MySQL**, são importantes o mecanismo InnoDB, redo/undo, binary log e configuração de replicação. **ADABAS** tem organização própria: Data Storage para registros, Associator para estruturas de acesso, listas invertidas por descritor e o identificador interno ISN; não se deve aplicar mecanicamente a ele a estrutura física de um SGBD relacional.\n\nEm **bancos em memória**, os dados operacionais podem residir predominantemente em RAM, reduzindo latência; durabilidade, quando exigida, continua dependente de mecanismos como logging, checkpoints ou persistência complementar. 'Em memória' não significa 'sem disco' nem 'sem falhas'. Um cache volátil e um banco transacional em memória têm garantias distintas.\n\n> **Reconhecimento na prova:** se a pergunta descreve políticas e significado do dado, pense em administração de dados; se descreve backup, usuários, desempenho e capacidade, pense em administração do SGBD. Em arquitetura, descubra se o objeto é lógico, físico, temporário ou persistente."
+    },
+    {
+      "title": "2. Backup, restauração e continuidade operacional",
+      "markdown": "## Objetivos de recuperação\nA continuidade começa com a pergunta: quanto dado se admite perder e quanto tempo de parada se suporta? **RPO** é o limite tolerado de perda temporal de dados; **RTO** é a meta de tempo de restabelecimento. Se o RPO for 15 minutos, uma política de backup integral uma vez por semana, desacompanhada de logs ou outra proteção, não o atende. Se o RTO for uma hora, não basta criar cópias: é preciso medir o tempo de transferência, recuperação, aplicação dos logs, validação e liberação de acesso. Backup oferece meios de restaurar um estado; replicação oferece cópias acessíveis, mas pode replicar exclusões acidentais e corrupção lógica.\n\nUma política robusta documenta escopo, frequência, retenção, cifragem, segregação de credenciais, cópia isolada, monitoramento, integridade e **testes de restauração**. Cópia considerada concluída pelo agendador pode estar ilegível, sem chave ou com WAL faltante. Estratégias **full**, **diferencial** e **incremental** diferem: full cobre a base definida; diferencial geralmente guarda mudanças desde o full-base; incremental guarda mudanças desde um ponto anterior da cadeia, com implementação dependente do produto. Restaurar exige conhecer a dependência de cada cópia. Cópia offline consistente, snapshot coordenado e dump lógico são técnicas distintas; um snapshot de arquivos sem coerência transacional pode ser inadequado.\n\n| Mecanismo | Recupera o quê? | Limite característico |\n| --- | --- | --- |\n| Dump lógico | Objetos e dados exportados | Restauração pode ser mais lenta e não reproduzir toda a infraestrutura |\n| Backup físico | Arquivos e estado físico compatíveis | Tem exigências de versão, configuração e logs |\n| Log contínuo | Mudanças após a base restaurada | Precisa de cadeia íntegra e ponto recuperável |\n| Réplica | Operação em nó secundário | Propaga erros lógicos e não substitui histórico isolado |\n\n## PostgreSQL\nO **pg_dump** produz exportação lógica de um banco e permite restaurar objetos e dados conforme formato/ferramenta; o **pg_dumpall** cobre adicionalmente itens globais e bancos em nível de cluster. Para recuperação a ponto no tempo (**PITR**), uma **base backup** compatível se combina com uma sequência íntegra de **WAL arquivado**; não basta guardar o diretório atual pg_wal, pois segmentos necessários podem ter sido reciclados. O fluxo de WAL também fundamenta recuperação após falhas e replicação física. A restauração deve observar compatibilidade, configuração de recuperação e alvo temporal. Executar pg_dump não cria automaticamente um conjunto PITR de arquivos físicos.\n\n## Oracle Database 21c\nO **Recovery Manager (RMAN)** realiza e cataloga operações de backup, validação e recuperação. Uma estratégia pode proteger arquivos de dados, control files, archived redo logs e informações necessárias à recuperação. No modo **ARCHIVELOG**, archived redo logs permitem estratégias de recuperação mais flexíveis; no modo **NOARCHIVELOG**, há limitações importantes para backups online e recuperação além da última cópia consistente. **Flashback** pode facilitar retorno lógico a estados anteriores em situações suportadas, mas não elimina necessidade de backups independentes contra perda física ou corrupção ampla. A escolha entre RESTORE e RECOVER é conceitual: o primeiro recoloca os arquivos de cópia; o segundo aplica alterações necessárias para chegar ao estado desejado.\n\n## SQL Server 2019\nO **modelo de recuperação simples** reutiliza trechos inativos do log e **não admite backup do log de transações**, portanto não serve para restauração arbitrária a ponto no tempo. O **full** requer estratégia de backups de log e pode permitir PITR se a cadeia necessária estiver íntegra; não garante perda zero em qualquer desastre. O **bulk-logged** favorece determinadas operações em massa com registro mínimo, mas backups que as incluam têm restrições de restauração a pontos internos. Um backup diferencial depende do full-base adequado; backups de log dependem da cadeia de log. A equipe que ativa full sem programar backups do log corre risco de crescimento excessivo do arquivo.\n\n## MySQL e cenários práticos\nEm **MySQL/InnoDB**, backup consistente, binary logs e ferramenta de recuperação podem formar sequência para **point-in-time recovery**. Binary log registra eventos de alteração usados em replicação e recuperação incremental; não é, por si só, cópia integral. Verifique se os eventos cobrem o período requerido e se a posição ou instante de corte está correto. Se uma tabela foi apagada às 14h05, deve-se restaurar a base e reproduzir eventos anteriores à exclusão, em ambiente controlado, sem reaplicar o erro.\n\n> **Decisão segura:** primeiro isole o incidente, preserve evidências e avalie réplicas; em seguida confirme base, sequência de logs, destino e ponto de recuperação. Nunca declare continuidade adequada apenas porque um arquivo de backup existe."
+    },
+    {
+      "title": "3. Manutenção, desempenho e tratamento de erros",
+      "markdown": "## Plano de manutenção verificável\nUm **plano de manutenção** é um conjunto documentado de rotinas com responsável, frequência, janela, métrica, limite, evidência e procedimento de reversão. Inclui inspeção de jobs, integridade, capacidade, crescimento de tabelas e índices, verificação de backups, testes de recuperação, estatísticas, atualização de segurança e acompanhamento de alertas. Não existe uma frequência universal para reconstruir índices ou executar determinadas tarefas: a necessidade depende de carga, concorrência, fragmentação efetivamente relevante, produto e versão. Mudar o parâmetro de uma instância sem registrar valor anterior e plano de reversão torna o incidente mais difícil de diagnosticar.\n\n## Medir antes de ajustar\n**Tuning** começa por estabelecer linha de base: latência percentil, throughput, CPU, E/S, memória, bloqueios, sessões ativas, filas e taxa de acerto de cache. Consultas demoradas podem resultar de leitura excessiva, cardinalidade mal estimada, ordenação cara, conversões implícitas, falta de índice seletivo ou contenção. O **plano de execução** informa a estratégia escolhida, mas é essencial comparar estimativas com linhas efetivamente processadas. Criar índice indiscriminadamente acelera algumas leituras e pode piorar INSERT, UPDATE, DELETE, memória e armazenamento. Uma consulta que retorna quase todas as linhas pode preferir varredura sequencial.\n\n| Sintoma | Investigação apropriada | Ação plausível |\n| --- | --- | --- |\n| CPU alta e muitas leituras | Planos, seletividade e consultas dominantes | Reescrever consulta ou criar índice justificado |\n| Bloqueios persistentes | Transações longas e ordem de atualização | Reduzir tempo transacional e padronizar acesso |\n| E/S de disco saturada | Leituras físicas, checkpoints e distribuição | Ajustar consultas e arquitetura de armazenamento |\n| Estimativa distante do real | Estatísticas e filtros correlacionados | Atualizar estatísticas e reavaliar plano |\n| Crescimento de log | Retenção, transações abertas e backups | Eliminar causa e revisar política de log |\n\n## Manutenção por produto\nNo **PostgreSQL**, o MVCC deixa versões antigas de linhas que precisam ser tratadas; **VACUUM** libera espaço para reutilização e ajuda a evitar problemas de wraparound de IDs de transação. **ANALYZE** coleta estatísticas para o planejador. O **autovacuum** automatiza operações conforme limiares; desativá-lo indiscriminadamente prejudica saúde da base. **VACUUM FULL** reescreve a relação, requer bloqueio mais intrusivo e não é equivalente ao VACUUM comum. Em tabelas particionadas, estatísticas da tabela pai podem exigir ANALYZE manual em circunstâncias descritas na documentação. No **Oracle**, estatísticas do otimizador, AWR quando licenciado, planos, sessões e esperas ajudam a diagnosticar gargalos. No **SQL Server**, Query Store, planos, DMVs, manutenção de índices e estatísticas dão evidências. No **MySQL**, EXPLAIN, indicadores do InnoDB e logs de consultas lentas ajudam a localizar o custo.\n\n## Erros: disponibilidade, integridade e aplicação\nProblemas devem ser classificados antes da correção: **erro sintático SQL**, restrição de integridade, deadlock, timeout de bloqueio, indisponibilidade de rede, falta de espaço, falha de autenticação, corrupção ou ausência de log. **Deadlock** é espera circular entre transações; o sistema pode escolher uma vítima para desfazer. **Timeout** significa esgotamento de um limite de espera, sem provar ciclo de dependência. Uma falha transitória pode permitir nova tentativa controlada, mas retry cego de transações não idempotentes pode duplicar cobranças. Retentativas precisam considerar confirmação incerta, chave de idempotência e limites exponenciais.\n\nEm **PL/SQL**, um bloco pode tratar exceções como NO_DATA_FOUND ou TOO_MANY_ROWS com seção EXCEPTION. Capturar WHEN OTHERS e suprimir erro sem registrar nem relançar costuma ocultar defeitos e comprometer consistência. Em SQL transacional, o **ROLLBACK** reverte operações da transação ainda não confirmadas conforme semântica do produto; não desfaz automaticamente alterações já confirmadas. Em migrações de esquema, alguns comandos DDL provocam commits implícitos conforme o SGBD, portanto transações de migração e recuperação devem ser testadas para o produto real.\n\n## Procedimento de incidente\nA sequência prática é: registrar horário e impacto, preservar logs e métricas, identificar a causa provável, conter danos, recuperar com mudança mínima, testar integridade e elaborar causa-raiz. Se uma falha de espaço impedir gravações, apagar arquivos de log sem verificar necessidade de recuperação pode transformar indisponibilidade temporária em perda definitiva de dados. Trate erros por código e contexto do produto, não por mensagem genérica. Alertas úteis têm limiares que detectam tendência antes da pane, com escalonamento e verificação posterior.\n\n> **Ponto de prova:** estatísticas afetam escolha de plano; índices afetam caminhos de acesso; backups afetam restaurabilidade; replicação afeta disponibilidade. Uma medida não substitui a outra."
+    },
+    {
+      "title": "4. Segurança, auditoria e governança operacional",
+      "markdown": "## Defesa em camadas\nA segurança de SGBD protege **confidencialidade, integridade e disponibilidade**, além de rastreabilidade. O controle começa pela identidade: autenticar o usuário ou serviço, autorizar somente as operações necessárias e registrar atos relevantes. **Menor privilégio** significa conceder permissões específicas a funções e contas, em vez de acesso administrativo permanente. Uma conta de aplicação que consulta pedidos não precisa de poder para criar usuários ou remover o esquema. A separação de funções recomenda que desenvolvimento, operação, aprovação de mudanças e auditoria não dependam de uma única identidade onipotente.\n\n**RBAC** organiza permissões por papéis; políticas mais finas podem limitar linha, coluna e contexto. No PostgreSQL, roles e GRANT/REVOKE permitem atribuição e retirada de privilégios, e Row-Level Security pode restringir quais linhas são visíveis conforme a política. No SQL Server existem logins, usuários e papéis, sendo relevante distinguir autenticação na instância de permissões em bancos. No Oracle existem usuários, privilégios de sistema e de objeto e roles; em MySQL, privilégios também devem ser delimitados a objetos e operações. Revogar um privilégio exige avaliar permissões herdadas por outros papéis: negar ou retirar de um vínculo pode não retirar toda a capacidade efetiva.\n\n## Proteção dos dados\n**Criptografia em trânsito** por canais seguros, como TLS, protege a comunicação entre cliente e servidor; **criptografia em repouso** protege arquivos, volumes ou dados gravados conforme implementação. Uma não substitui a outra. O recurso **TDE** do Oracle cifra dados armazenados de forma transparente à aplicação; não impede que uma identidade legitimamente autorizada leia informações pelo SGBD. Chaves e keystores devem ter gestão e cópias seguras, separadas de backups cifrados quando a recuperação assim exigir. Hash de senha apropriado não equivale a criptografia reversível; armazenamento de segredos de conexão demanda cofre e rotação.\n\n| Risco | Mitigação | Limitação que permanece |\n| --- | --- | --- |\n| Interceptação na rede | TLS validado | Não evita leitura autorizada indevida |\n| Furto de mídia | Criptografia em repouso | Chaves expostas comprometem proteção |\n| SQL injection | Consultas parametrizadas e permissões mínimas | Requer validação de identidade e lógica |\n| Credencial excessiva | Roles com privilégios restritos | É preciso revisar concessões herdadas |\n| Exclusão maliciosa | Backups isolados, trilhas e controle de mudanças | Réplicas podem propagar a exclusão |\n\n## SQL injection e integridade\n**SQL injection** ocorre quando entrada não confiável altera a estrutura do comando. A principal defesa é a separação entre instrução e valores mediante **parâmetros vinculados/prepared statements**; escapar strings manualmente é frágil e dependente do contexto. Identificadores dinâmicos como nomes de coluna normalmente precisam de lista de permissões explícita, pois não são simples valores parametrizáveis. A conta da aplicação deve continuar limitada mesmo após corrigir a consulta. Restrições UNIQUE, CHECK, FOREIGN KEY e transações complementam validação de aplicação, protegendo regras de dados no próprio SGBD.\n\n## Auditoria, monitoramento e resposta\nRegistre logins, alterações de privilégios, DDL crítico, falhas e acessos sensíveis conforme necessidade. Logs de auditoria destinados a investigações precisam de integridade, relógios sincronizados, retenção e proteção contra alteração pela identidade monitorada. **Log de transações** serve à recuperação e consistência; não substitui trilha de auditoria com contexto de quem acessou o quê. O excesso de coleta pode gerar alto custo e exposição de dados pessoais, de modo que o planejamento deve distinguir eventos necessários de conteúdo excessivo.\n\n## Ciclo de mudanças e backups protegidos\nUma mudança segura passa por solicitação, revisão de impacto, teste, janela, aprovação, monitoramento e reversão. Scripts de migração assinados ou versionados, execução automatizada e contas separadas reduzem desvio entre ambientes. O backup deve ter controle de acesso independente: se o invasor obtiver credenciais para apagar banco e cópias, uma rotina de backups frequentes não garante recuperação. A política de retenção deve ponderar obrigação de preservar, necessidade de eliminar e disponibilidade de chaves de restauração. Um teste de recuperação com credenciais e chaves diferentes das de produção revela vulnerabilidades invisíveis em verificações puramente documentais.\n\n> **Como reconhecer:** perguntas sobre acesso e privilégios tratam autorização; TLS trata trânsito; TDE trata repouso; prepared statements tratam estrutura da consulta; logs de auditoria tratam rastreabilidade, e não substituem backup."
+    },
+    {
+      "title": "5. Bancos distribuídos, replicação e ferramentas de evolução de dados",
+      "markdown": "## Distribuição e trade-offs\nEm banco **distribuído**, dados e processamento podem estar em múltiplos nós conectados. A **fragmentação horizontal** separa conjuntos de linhas; a **vertical** separa conjuntos de colunas com identificador para recomposição; a **replicação** mantém cópias dos dados em nós distintos. Uma tabela particionada dentro de uma única instância não se torna automaticamente um banco distribuído; **sharding** usualmente espalha partições entre nós ou unidades de armazenamento independentes. Um bom projeto explicita localização, roteamento, chave de distribuição, movimentação de dados, consistência e recuperação.\n\nSistemas distribuídos enfrentam atrasos de rede, indisponibilidade parcial e divergência entre réplicas. Consistência forte procura fazer operações observarem contratos rigorosos de visibilidade; **consistência eventual** permite convergência após propagação, sujeita a regras de resolução de conflitos. No cenário da propriedade CAP, diante de uma **partição de rede**, não se garante simultaneamente disponibilidade irrestrita e consistência forte para todas as operações. Isso não quer dizer que todo sistema precise escolher apenas duas letras em todas as condições. Uma transferência bancária que exige confirmação global tem restrições distintas de uma consulta de catálogo que pode tolerar alguns segundos de atraso.\n\n## Replicação, failover e cópias\nA replicação **assíncrona** permite que o primário confirme antes de a réplica receber todas as alterações: melhora latência de gravação, mas admite perda de transações recentes se houver promoção prematura. A modalidade **síncrona** pode fazer a confirmação esperar por garantias do secundário, segundo a configuração, elevando custo de latência. O PostgreSQL transmite registros **WAL** em streaming, que é assíncrono por padrão e pode ser configurado com réplicas síncronas. No SQL Server, **Always On Availability Groups** oferecem grupos de bancos em réplicas e modos de disponibilidade definidos. O Oracle **Data Guard** mantém bancos standby para continuidade. O MySQL usa replicação baseada em eventos de log ou outros mecanismos suportados pela sua versão e configuração. Nem todo secundário permite leitura, gravação ou promoção do mesmo modo.\n\n**Failover** é a mudança de atendimento para outro nó; **switchover** geralmente designa troca planejada de funções. **Split-brain** ocorre quando instâncias concorrentes se consideram primárias, potencialmente causando divergência. Mecanismos de quorum, fencing e eleição de líder reduzem o risco. Uma réplica atualizada não protege contra um DELETE executado por engano que foi reproduzido em todos os nós. Por isso, continuidade exige replicação **e** backups isolados, quando a proteção contra erro lógico integra os requisitos.\n\n## Transações distribuídas\nO protocolo de **duas fases (2PC)** costuma envolver **prepare** e **commit/abort** coordenados para buscar atomicidade entre participantes. Em determinadas falhas, participantes preparados podem ficar bloqueados à espera do coordenador; 2PC não é sinônimo de disponibilidade elevada. Padrões de **saga** usam uma sequência de transações locais e ações compensatórias, úteis em operações desacopladas, mas não representam rollback ACID global idêntico. Em sistemas de vários nós, investigue garantias de ordenação, idempotência e resolução de conflitos antes de afirmar que uma operação distribuída é segura.\n\n| Solução | Propósito principal | Cuidado técnico |\n| --- | --- | --- |\n| Replicação | Redundância e leitura/failover | Pode propagar erros e ter atraso |\n| Sharding | Distribuir volume e carga | Consultas entre shards ficam mais complexas |\n| 2PC | Coordenar confirmação atômica | Pode bloquear sob determinadas falhas |\n| Saga | Orquestrar transações locais | Compensação não apaga efeitos já observados |\n| ETL | Integrar e transformar dados | Não é mecanismo de consenso ou replicação transacional |\n\n## SQL, PL/SQL, Flyway e Pentaho\n**SQL** é a linguagem declarativa de definição, consulta e manipulação de dados; seus dialetos e funções variam por SGBD. **PL/SQL** é extensão procedural do Oracle, com blocos, variáveis, cursores e tratamento de exceções. Isso não o torna linguagem nativa de todos os bancos: o SQL Server utiliza T-SQL e o PostgreSQL dispõe, entre outras opções, de PL/pgSQL.\n\n**Flyway** gerencia mudanças incrementais de esquema por migrações versionadas e repetíveis, com **schema history table**. `migrate` aplica migrações pendentes; `validate` verifica divergências entre histórico e arquivos, como checksum alterado; `baseline` marca um estado inicial existente. `repair` ajusta metadados de histórico em condições documentadas, mas não desfaz dados modificados por um script problemático. Uma migração aplicada não deve ser silenciosamente editada como se nunca tivesse existido.\n\n**Pentaho Data Integration (PDI)** executa fluxos ETL: **transformations** processam linhas em etapas conectadas; **jobs** coordenam atividades e dependências, incluindo execução de transformações. ETL pode carregar um data warehouse, mas não substitui recuperação de transações nem protocolo distribuído. Em um fluxo que extrai arquivos, valida registros e grava lotes, trate rejeições, reprocessamento, checkpoints funcionais e idempotência para não duplicar linhas.\n\n## Como o tema costuma ser cobrado\nA prova combina tecnologia, requisito e mecanismo: exige perceber por que uma réplica assíncrona pode ficar defasada, por que backup é distinto de disponibilidade, por que uma migração falhada não se corrige apenas com `repair`, ou por que consultar linhas no Pentaho é diferente de coordenar o job. Frequentemente o enunciado muda apenas a palavra **síncrono**, **físico**, **lógico**, **PITR**, **permissão** ou **confirmação** para tornar a conclusão errada."
+    }
+  ],
+  "summary": "## Síntese de revisão\n**Administração de dados** governa conceitos, qualidade e políticas; **administração do SGBD** executa operação, acesso, capacidade e recuperação. Separe esquema lógico, armazenamento físico, cache, logs e índices.\n\n**Continuidade:** RPO é perda máxima tolerada de dados; RTO é duração-alvo de indisponibilidade. Backup não é réplica. PostgreSQL: pg_dump é lógico; PITR usa base backup e WAL arquivado. Oracle 21c: RMAN, archived redo logs, restore/recover. SQL Server 2019: SIMPLE não permite backup de log; FULL permite cadeia de log com PITR se íntegra; BULK_LOGGED tem restrições durante operações minimamente registradas. MySQL: backup e binary log podem permitir retorno a um instante.\n\n**Manutenção:** o diagnóstico começa por métricas e plano de execução. PostgreSQL VACUUM trata versões antigas e reutilização de espaço; ANALYZE coleta estatísticas; autovacuum automatiza parte da rotina. Índice tem custo de escrita. Deadlock difere de timeout. Log operacional ou auditoria não substitui log transacional.\n\n**Segurança:** menor privilégio, roles, GRANT/REVOKE, segregação de funções, TLS em trânsito, cifragem em repouso, controle de chaves, parâmetros vinculados contra SQL injection e trilhas protegidas. TDE não impede consulta feita por usuário legitimamente autorizado.\n\n**Distribuição:** replicação fornece cópias; sharding distribui dados; 2PC coordena confirmação e pode bloquear; saga trabalha com compensações. Réplicas assíncronas podem perder alterações na promoção. Flyway gerencia migrações por histórico; Pentaho realiza ETL com transformations e jobs. ADABAS usa Data Storage, Associator, listas invertidas e ISN, arquitetura distinta dos modelos físicos relacionais.",
+  "flashcards": [
+    {
+      "front": "Quem define políticas de qualidade dos dados?",
+      "back": "A administração de dados define padrões, propriedade, qualidade e retenção; a administração do SGBD implementa controles operacionais."
+    },
+    {
+      "front": "O que distingue instância de banco?",
+      "back": "Instância compreende processos e memória em execução; banco contém estruturas e dados persistentes, conforme o produto."
+    },
+    {
+      "front": "Para que serve o WAL?",
+      "back": "Registra mudanças necessárias à recuperação e pode alimentar replicação; não é uma cópia integral dos dados."
+    },
+    {
+      "front": "O que é RPO?",
+      "back": "A quantidade máxima de perda temporal de dados tolerada no desastre."
+    },
+    {
+      "front": "O que é RTO?",
+      "back": "O objetivo de tempo para restabelecer o serviço após a interrupção."
+    },
+    {
+      "front": "pg_dump fornece PITR por si só?",
+      "back": "Não. É exportação lógica; PITR requer uma estratégia de base backup e WAL arquivado compatível."
+    },
+    {
+      "front": "Qual a função do RMAN?",
+      "back": "Gerenciar backup, validação, restauração e recuperação em Oracle Database."
+    },
+    {
+      "front": "SIMPLE permite backup de log no SQL Server?",
+      "back": "Não. Esse modelo não suporta backups de log de transações nem restauração arbitrária a ponto no tempo."
+    },
+    {
+      "front": "Para que serve o binary log do MySQL?",
+      "back": "Registra eventos que podem ser utilizados na replicação e recuperação a ponto no tempo, combinados com backup apropriado."
+    },
+    {
+      "front": "Por que executar VACUUM?",
+      "back": "Para tratar versões antigas de linhas e permitir reutilização de espaço, além de contribuir à prevenção de wraparound."
+    },
+    {
+      "front": "Qual a função do ANALYZE?",
+      "back": "Coletar estatísticas de distribuição para orientar o otimizador de consultas."
+    },
+    {
+      "front": "Deadlock e timeout são idênticos?",
+      "back": "Não. Deadlock envolve dependência circular; timeout é expiração de um período de espera, que pode ter outras causas."
+    },
+    {
+      "front": "O que o índice custa?",
+      "back": "Espaço e manutenção em operações de escrita, embora possa acelerar certos padrões de consulta."
+    },
+    {
+      "front": "O que é menor privilégio?",
+      "back": "Conceder apenas os acessos indispensáveis à tarefa, de preferência por papéis revisáveis."
+    },
+    {
+      "front": "TLS protege o quê?",
+      "back": "A comunicação em trânsito quando corretamente configurado e validado; não protege sozinho os arquivos em repouso."
+    },
+    {
+      "front": "TDE impede leitura autorizada?",
+      "back": "Não. Ele protege dados armazenados; acessos autorizados pelo SGBD podem obter dados decifrados."
+    },
+    {
+      "front": "Como prevenir SQL injection?",
+      "back": "Separar código e valores com consultas parametrizadas e restringir privilégios da conta de execução."
+    },
+    {
+      "front": "Replicação assíncrona pode perder commits?",
+      "back": "Pode: o primário confirma antes que alterações estejam garantidas no secundário."
+    },
+    {
+      "front": "O que representa 2PC?",
+      "back": "Protocolo distribuído com preparação e decisão de commit ou abort; pode bloquear participantes em certas falhas."
+    },
+    {
+      "front": "Flyway validate altera o banco?",
+      "back": "Sua finalidade é validar o histórico em relação aos arquivos de migração; migrate é o comando que aplica pendências."
+    },
+    {
+      "front": "Pentaho transformation versus job?",
+      "back": "Transformation processa fluxos de linhas; job organiza execução e dependências entre tarefas."
+    },
+    {
+      "front": "O que é um ISN no ADABAS?",
+      "back": "Identificador interno de registro usado na organização e localização dos dados, inclusive nas listas invertidas."
+    }
+  ],
+  "tips": [
+    "Ao ler 'perder no máximo 10 minutos de dados', classifique o requisito como RPO; 'voltar a funcionar em 40 minutos' descreve RTO.",
+    "Antes de marcar que um backup possibilita PITR, procure base íntegra, arquivos de log necessários e modelo de recuperação compatível.",
+    "Na análise de lentidão, procure evidência no plano de execução e nas estatísticas antes de sugerir novo índice.",
+    "Diferencie o comando VACUUM do ANALYZE: um trata versões/espaço, o outro atualiza estatísticas usadas pelo planejador.",
+    "Se a questão compara réplica e backup, pergunte se o problema foi indisponibilidade de máquina ou exclusão lógica propagada.",
+    "Em segurança, associe TLS ao trânsito, TDE ao repouso e parâmetros vinculados à prevenção de injeção SQL.",
+    "No Flyway, identifique migrate como aplicação, validate como comparação de histórico e baseline como ponto de partida.",
+    "Para ADABAS, memorize Associator, Data Storage, descritores/listas invertidas e ISN antes de comparar com arquivos de outros bancos."
+  ],
+  "traps": [
+    "A prova escreve: 'a réplica atualizada dispensa backup'. Está errado porque a réplica pode reproduzir exclusão ou alteração indevida. O correto é usar cópias históricas isoladas quando necessário.",
+    "A prova escreve: 'PostgreSQL pg_dump é um backup físico apto a PITR'. Está errado: pg_dump é lógico; PITR combina base física apropriada e WAL preservado.",
+    "A prova escreve: 'SQL Server SIMPLE permite restaurar cada minuto usando backups de log'. Está errado: SIMPLE não dá suporte a backup do log transacional.",
+    "A prova escreve: 'VACUUM e ANALYZE executam a mesma tarefa'. Está errado: VACUUM trata versões antigas e espaço; ANALYZE obtém estatísticas.",
+    "A prova escreve: 'a cifra TDE impede a consulta por quem tem SELECT'. Está errado: a cifra em repouso não revoga autorização para leitura via SGBD.",
+    "A prova escreve: 'Flyway repair restaura automaticamente os dados antes de uma migração'. Está errado: ele ajusta registros do histórico; recuperação real exige plano adequado.",
+    "A prova escreve: '2PC resolve disponibilidade durante qualquer particionamento'. Está errado: participantes preparados podem bloquear em certas falhas; 2PC atende atomicidade coordenada."
+  ],
+  "activeRecall": [
+    {
+      "question": "Uma operação aceita perda de até 20 minutos e indisponibilidade de até 2 horas. Quais métricas?",
+      "answer": "RPO de 20 minutos e RTO de 2 horas; devem ser testados com procedimento de recuperação completo."
+    },
+    {
+      "question": "Por que um pg_dump diário não viabiliza recuperação às 16h37 de forma isolada?",
+      "answer": "É uma exportação lógica pontual. Para PITR é preciso uma estratégia compatível de base backup e WAL cobrindo o intervalo."
+    },
+    {
+      "question": "Como distinguir deadlock de uma sessão simplesmente bloqueada?",
+      "answer": "Deadlock envolve ciclo de esperas entre transações; bloqueio comum pode cessar após a liberação de uma delas, sem ciclo."
+    },
+    {
+      "question": "O que verificar ao identificar plano de consulta ruim após crescimento da tabela?",
+      "answer": "Compare cardinalidades estimadas e reais, estatísticas, seletividade, filtros, planos e custo de índices antes de alterar a infraestrutura."
+    },
+    {
+      "question": "Quais riscos permanecem depois de habilitar criptografia de arquivos?",
+      "answer": "Uso de credenciais válidas, SQL injection, permissões excessivas e exposição da chave; proteção em repouso não resolve tudo."
+    },
+    {
+      "question": "Quando replicação assíncrona atende pior à exigência de zero perda?",
+      "answer": "Quando o primário confirma commits antes de enviá-los/garanti-los no secundário e uma falha promove réplica atrasada."
+    },
+    {
+      "question": "O que diferencia 2PC de saga?",
+      "answer": "2PC coordena prepare e decisão global; saga encadeia transações locais e compensações, sem rollback ACID global equivalente."
+    },
+    {
+      "question": "Qual é a distinção entre Pentaho e Flyway?",
+      "answer": "Pentaho organiza fluxos ETL de dados; Flyway versiona e controla a aplicação de alterações de esquema."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Misturar governança, operação e armazenamento",
+      "summary": "Política e significado pertencem à administração de dados; execução e infraestrutura pertencem à administração do SGBD. Cache, log e backup resolvem necessidades diferentes."
+    },
+    {
+      "key": "e2",
+      "title": "Confundir cópia, réplica e recuperação a ponto",
+      "summary": "Backup guarda estado restaurável; réplica replica mudanças, inclusive erros; PITR exige base e logs íntegros com ponto de corte."
+    },
+    {
+      "key": "e3",
+      "title": "Trocar sintomas de desempenho e mecanismos de manutenção",
+      "summary": "ANALYZE atualiza estatísticas; VACUUM trata versões antigas. Índices têm custo; deadlock exige ciclo, enquanto timeout não."
+    },
+    {
+      "key": "e4",
+      "title": "Achar que criptografia resolve autorização",
+      "summary": "TLS protege trânsito, TDE protege dados armazenados, privilégios limitam acesso e parâmetros vinculados evitam que entradas alterem comandos SQL."
+    },
+    {
+      "key": "e5",
+      "title": "Equiparar replicação, consenso e migração",
+      "summary": "Replicação assíncrona admite atraso; 2PC coordena confirmação e pode bloquear. Flyway governa migrações e Pentaho realiza integração ETL."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma organização precisa estabelecer quem é responsável pela qualidade do cadastro e, separadamente, quem configura seus backups. Qual divisão está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambas as atribuições são exclusivas da administração física de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A política de qualidade é de administração de dados; backups são operação do SGBD.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A política de qualidade pertence ao otimizador; backups são de modelagem lógica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A manutenção de backups é governança sem relação com a operação do banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A definição de qualidade depende de arquivos de redo, e o backup de metadados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Administração de dados define significado, propriedade e padrões; a operação do SGBD executa backups. A desloca ambas à camada física; C atribui governança ao otimizador; D separa indevidamente backup da operação; E confunde redo e metadados com responsabilidades administrativas.",
+      "section": "1. Fundamentos da administração e arquitetura dos SGBDs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor reutiliza páginas de dados muito acessadas para reduzir leituras no dispositivo de armazenamento. Qual componente exerce principalmente essa função?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O log de auditoria, que preserva todas as páginas consultadas em cada sessão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O catálogo de esquemas, que mantém cópias físicas de todas as consultas feitas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O backup diferencial, que armazena as páginas quentes durante a operação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O buffer cache, que conserva páginas para evitar parte dos acessos físicos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A tabela de migrações, que registra páginas para reutilização pela aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. O buffer cache permite reaproveitar páginas em memória. A confunde rastreabilidade com cache; B confunde metadados com conteúdo de páginas; C descreve backup e não acesso corrente; E atribui ao histórico de migrações o gerenciamento de buffer.",
+      "section": "1. Fundamentos da administração e arquitetura dos SGBDs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao examinar um banco ADABAS, a equipe encontra valores de descritores associados a identificadores de registros. Que estrutura explica essa consulta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Listas invertidas no Associator, com referência a registros identificados por ISN.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Heap pages do SQL Server, com referência a registros por RowID do Oracle.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Arquivos WAL do PostgreSQL, contendo índices exclusivos do catálogo ADABAS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Binary logs do MySQL, empregados como índice primário de descritores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Planos de execução do Oracle, usados para mapear os ISNs permanentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. No ADABAS, o Associator mantém listas invertidas por descritor, e o ISN identifica registros. B mistura estruturas de produtos diferentes; C trata WAL como índice de consulta; D converte log de replicação em índice; E confunde planos de execução com identificadores físicos próprios do ADABAS.",
+      "section": "1. Fundamentos da administração e arquitetura dos SGBDs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação adotará banco transacional em memória e exige persistência após reinício inesperado. Qual consideração técnica é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A permanência em RAM torna dispensáveis logs e qualquer mecanismo de recuperação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O produto em memória mantém durabilidade apenas enquanto houver energia disponível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A aplicação deve usar cache externo em lugar de qualquer persistência local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Toda gravação exige exportação lógica integral antes da confirmação do usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A durabilidade exige mecanismo persistente apropriado, como log ou checkpoint.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Reduzir latência com RAM não elimina durabilidade, que depende de persistência definida. A descarta indevidamente recuperação; B descreve volatilidade, não persistência; C transforma cache em substituto obrigatório; D confunde confirmação transacional com exportação lógica integral.",
+      "section": "1. Fundamentos da administração e arquitetura dos SGBDs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O responsável modifica a localização física dos arquivos de uma tabela, sem alterar seu nome lógico ou as consultas da aplicação. O caso exemplifica:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dependência lógica, porque o esquema precisa mudar após alteração de dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Replicação lógica, porque as consultas são copiadas para uma segunda instância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Independência física, porque o armazenamento muda sem afetar o acesso lógico.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Fragmentação vertical, porque toda coluna é separada em outro arquivo de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Serialização, porque o otimizador executa operações em sequência obrigatória.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Independência física separa organização de arquivos de estrutura lógica consultada. A inverte o princípio; B exige cópia lógica em outra instância; D envolve repartição de colunas, não mera mudança de localização; E relaciona-se a concorrência, não a armazenamento.",
+      "section": "1. Fundamentos da administração e arquitetura dos SGBDs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia gerada por pg_dump será usada para reconstruir tabelas e seus dados em outro ambiente PostgreSQL. Qual descrição está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trata-se de exportação lógica, restaurável por ferramentas compatíveis com seu formato.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Trata-se de backup físico contínuo, com todos os segmentos WAL arquivados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trata-se de réplica síncrona, preparada automaticamente para receber failover.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trata-se de snapshot de memória, sem reprodução de instruções ou objetos SQL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trata-se de cópia de filegroups, com restauração conforme modelo do SQL Server.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. pg_dump produz exportação lógica do PostgreSQL. B lhe atribui base física e WAL; C confunde dump com réplica; D o trata como imagem de RAM e exclui objetos; E transfere ao PostgreSQL uma organização característica de outro produto.",
+      "section": "2. Backup, restauração e continuidade operacional",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma base PostgreSQL deve voltar exatamente ao instante anterior a uma exclusão indevida. Que conjunto sustenta a estratégia de PITR?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um índice íntegro e a configuração de isolamento de leitura da transação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um pg_dump isolado e a estatística mais recente coletada pelo ANALYZE.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um base backup compatível e os registros WAL necessários até o alvo escolhido.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma réplica lógica sem histórico e o último comando VACUUM da tabela afetada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma lista de sessões ativas e as permissões do esquema no momento da exclusão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. PITR requer base física apropriada e continuidade dos WAL até o instante de corte. A aborda isolamento e índices; B usa dump pontual sem cadeia de mudanças; D depende de réplica já contaminada e VACUUM não recupera exclusão; E contém metadados insuficientes.",
+      "section": "2. Backup, restauração e continuidade operacional",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ambiente Oracle 21c precisa automatizar backups físicos e recuperar arquivos de dados após falha. A ferramenta diretamente indicada é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Flyway migrate, que restaura datafiles usando histórico de alterações DDL.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pentaho transformation, que refaz arquivos de controle a partir de ETL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "pg_dumpall, que protege os arquivos físicos do Oracle e seus archived redo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SQL Server Agent, que gerencia o catálogo de cópias nativas do Oracle.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Recovery Manager (RMAN), que administra backup e recuperação nesse produto.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. RMAN é mecanismo nativo de backup e recuperação Oracle. A reduz recuperação física a migrações; B confunde integração de dados com restore; C usa ferramenta de outro SGBD; D desloca a automação de SQL Server para backups Oracle.",
+      "section": "2. Backup, restauração e continuidade operacional",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em SQL Server 2019, um banco está no modelo SIMPLE e a equipe pretende restaurar às 10h43 utilizando backups de log. Qual conclusão procede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A restauração é viável se a base tiver um índice clustered disponível.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O modelo SIMPLE não suporta backup do log nem esse PITR com cadeia de logs.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O PITR depende apenas de ativar compressão no último backup diferencial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O modo SIMPLE preserva a cadeia de log após qualquer backup completo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O procedimento requer migrar os dados para tabela temporária antes do restore.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. SIMPLE não oferece backups de log transacional nem PITR arbitrário. A associa indevidamente índice ao log; C confunde compressão e granularidade temporal; D pressupõe cadeia não suportada; E inventa dependência de tabela temporária no procedimento.",
+      "section": "2. Backup, restauração e continuidade operacional",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após um backup completo consistente do MySQL, um incidente exige refazer somente mudanças anteriores à operação indevida. Qual recurso auxilia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O buffer pool, que conserva o histórico completo de alterações por vários dias.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O autovacuum, que permite selecionar o instante de corte da restauração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O schema history do Flyway, que registra todas as linhas alteradas por usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O binary log, se configurado e preservado para reproduzir os eventos pertinentes.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A lista invertida por ISN, que ordena atualizações transacionais do InnoDB.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Binary logs podem aplicar eventos posteriores ao backup até ponto selecionado. A descreve cache, não histórico persistente; B importa ferramenta do PostgreSQL; C reduz transações a alterações de esquema; E desloca estrutura do ADABAS para InnoDB.",
+      "section": "2. Backup, restauração e continuidade operacional",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço admite perder no máximo 10 minutos de dados, mas pode ficar inoperante por 90 minutos. Como classificar esses limites?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RTO de 10 minutos e RPO de 90 minutos, porque ambos medem recuperação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RPO e RTO de 90 minutos, pois o limite maior define todo o plano.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RPO de 90 minutos e latência de backup de 10 minutos, sem meta de retorno.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RPO de 10 minutos e RTO de 90 minutos, distinguindo perda e indisponibilidade.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "RTO de 90 minutos e checkpoint obrigatório a cada 10 minutos, como equivalentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. RPO mede a janela de perda aceitável e RTO mede tempo de retorno. A troca as métricas; B ignora limites diferentes; C confunde duração de perda com prazo de retorno; E acerta RTO mas presume que checkpoint periódico equivale à estratégia de RPO.",
+      "section": "2. Backup, restauração e continuidade operacional",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após grande volume de UPDATE e DELETE no PostgreSQL, a equipe quer tratar versões antigas das linhas e espaço reutilizável. Qual operação é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "ANALYZE, cuja função principal é remover versões antigas do armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "VACUUM, que processa versões obsoletas e contribui para reutilização de espaço.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "pg_dump, que reorganiza páginas durante leitura e elimina tuplas obsoletas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Flyway validate, que elimina versões antigas por comparação de checksums.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "TDE, que compacta versões históricas para liberar blocos de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O VACUUM cuida de versões de linhas que perderam utilidade no MVCC. A foca estatísticas do planejador; C exporta dados; D compara scripts e histórico de migrações; E é criptografia, sem finalidade de recuperação de espaço de tuplas.",
+      "section": "3. Manutenção, desempenho e tratamento de erros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um plano de execução estima 30 linhas onde existem aproximadamente 300 mil, produzindo junção ineficiente. Qual medida inicial é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir apenas backup completo, pois as estatísticas são extraídas dele.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o tempo máximo de bloqueio, pois cardinalidade é problema de espera.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar TLS por conexão simples, para melhorar a estimativa de cardinalidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o número de réplicas, para recalcular estatísticas no nó principal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Examinar e atualizar estatísticas usadas pelo otimizador, comparando o plano.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Uma diferença grande entre cardinalidade estimada e real justifica investigar estatísticas e seletividade. A supõe que backup alimenta diretamente o otimizador; B confunde custo estimado com timeout; C afeta segurança de rede; D não corrige a estimativa local.",
+      "section": "3. Manutenção, desempenho e tratamento de erros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas transações alteram registros em ordem inversa e cada uma espera um bloqueio detido pela outra. O diagnóstico é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma falha exclusiva de cache, resolvida pela remoção do buffer pool.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um erro de sintaxe, resolvido por reescrita das palavras reservadas SQL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um deadlock, que envolve espera circular e pode exigir desfazer uma vítima.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma indisponibilidade de rede, identificada pela falta de checkpoints.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma atualização de estatísticas, identificada pelo aumento do índice único.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Há dependência circular entre transações, caracterizando deadlock. A confunde concorrência com memória; B não explica bloqueios de linhas; D presume rede sem evidência; E remete a manutenção do otimizador, não a espera recíproca de locks.",
+      "section": "3. Manutenção, desempenho e tratamento de erros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina PL/SQL consulta um único cliente, mas a consulta retorna mais de um registro para SELECT INTO não agregado. Qual exceção é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "TOO_MANY_ROWS, associada à consulta que devolve mais de uma linha.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "NO_DATA_FOUND, que indica ausência de qualquer registro na consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DUP_VAL_ON_INDEX, que identifica falha em uma instrução SELECT simples.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "INVALID_CURSOR, que indica automaticamente duplicação de chave lógica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ZERO_DIVIDE, que se aplica quando a consulta recebe várias linhas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. SELECT INTO escalar em PL/SQL exige uma linha e gera TOO_MANY_ROWS quando recebe várias. B representa nenhuma linha; C diz respeito à violação de índice único em outros contextos; D se refere a operações inválidas sobre cursores; E envolve divisão por zero.",
+      "section": "3. Manutenção, desempenho e tratamento de erros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um banco PostgreSQL apresenta muitas linhas mortas e estatísticas defasadas após cargas de dados. Qual estratégia combina corretamente as rotinas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar apenas ANALYZE, que recolhe versões mortas e reconstruirá todos os índices.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar apenas pg_dump, que substitui a manutenção e renova as estatísticas locais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar VACUUM para versões antigas e ANALYZE para estatísticas do planejador.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar WAL archiving para apagar tuplas e VACUUM FULL para obter estatísticas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar replicação síncrona para retirar versões antigas e tornar ANALYZE dispensável.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. VACUUM e ANALYZE têm papéis complementares, também coordenados por autovacuum em circunstâncias apropriadas. A sobrecarrega ANALYZE; B confunde dump com manutenção; D dá a WAL função de limpeza e restringe estatísticas ao VACUUM FULL; E transfere manutenção à replicação.",
+      "section": "3. Manutenção, desempenho e tratamento de erros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta da aplicação somente consulta pedidos, mas recebeu permissão para criar usuários e excluir tabelas. Qual ajuste segue menor privilégio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar função de auditoria sem alterar os privilégios concedidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Habilitar log de transações e manter operações de administração habilitadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criptografar a conexão, mantendo a capacidade de apagar tabelas e usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Retirar permissões administrativas e conceder apenas leitura dos objetos necessários.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Trocar a senha da conta, preservando sua função de administração do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A conta precisa das permissões mínimas para SELECT nos objetos pertinentes, sem DDL administrativo. A e B acrescentam monitoramento e log, mas não reduzem poder; C protege transporte, não autorização; E muda autenticação e preserva privilégios excessivos.",
+      "section": "4. Segurança, auditoria e governança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma base Oracle usa TDE e uma conta autorizada ainda consulta dados por SELECT. Por que isso pode ocorrer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "TDE protege o armazenamento e o SGBD decifra para leituras autorizadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "TDE equivale a revogação automática de privilégios em cada sessão SQL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "TDE restringe somente conexões em rede e não cifra dados em arquivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "TDE exige que cada consulta seja restaurada previamente de um backup.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "TDE substitui roles por listas invertidas de descritores vinculados à senha.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Transparent Data Encryption protege dados gravados, não substitui controle de autorização; o banco pode decifrar para usuários habilitados. B confunde cifragem e permissões; C descreve incorretamente proteção de trânsito; D mistura leitura e restore; E incorpora estrutura ADABAS sem relação com TDE.",
+      "section": "4. Segurança, auditoria e governança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um formulário concatena texto recebido do usuário ao comando SQL, permitindo alterar a cláusula WHERE. Qual mitigação é central?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Coletar mais estatísticas da tabela antes de concatenar a entrada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar parâmetros vinculados, mantendo dados separados da estrutura do comando.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aumentar a memória compartilhada para absorver valores malformados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir apenas conexões TLS, deixando a concatenação de SQL inalterada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fazer backup diferencial após cada execução do formulário vulnerável.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Prepared statements com bind parameters separam valores da sintaxe SQL. A e C tratam desempenho; D protege trânsito sem impedir injeção; E trata recuperação e sequer evita execução de comandos maliciosos. Privilégios restritos complementam o controle.",
+      "section": "4. Segurança, auditoria e governança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O primário confirma uma escrita e falha antes de enviá-la à réplica assíncrona, que é promovida. Qual efeito é possível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A réplica recupera obrigatoriamente o commit via estatísticas do otimizador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O commit permanece em todas as cópias porque foi confirmado ao cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O failover executa automaticamente rollback da transação original no cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O novo primário registra o commit por meio de migrações versionadas do Flyway.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A transação confirmada pode faltar na réplica promovida por atraso de envio.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Na replicação assíncrona a confirmação local pode anteceder o recebimento pelo secundário, criando janela de perda. A inventa recuperação por estatísticas; B supõe confirmação distribuída; C descreve rollback inexistente no cliente; D confunde log transacional com evolução de esquema.",
+      "section": "5. Bancos distribuídos, replicação e ferramentas de evolução de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma atualização deve alterar registros em dois nós com decisão coordenada de confirmação. Qual característica pertence ao protocolo 2PC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada nó confirma definitivamente antes do prepare e ignora o coordenador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A segunda fase realiza apenas cópia de segurança de tabelas distribuídas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os participantes executam prepare e aguardam a decisão de commit ou abort.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O protocolo substitui a transação por uma sequência ETL sem bloqueios possíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O coordenador funciona como índice de dados e elimina a falha parcial da rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. 2PC separa preparação de decisão global, permitindo atomicidade coordenada e risco de bloqueio em falhas. A rompe o controle da decisão; B reduz commit a backup; D confunde 2PC e ETL; E atribui ao coordenador papel de índice e resistência absoluta a falhas.",
+      "section": "5. Bancos distribuídos, replicação e ferramentas de evolução de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script de migração Flyway já aplicado foi editado, alterando seu checksum em relação ao histórico. Qual comando detecta a divergência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "baseline, porque recompõe os registros das transações de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "migrate, porque apaga os checksums antigos antes de iniciar toda execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "repair, porque restaura as tabelas ao estado anterior ao script editado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "validate, porque compara as migrações disponíveis com o histórico aplicado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Pentaho job, porque compara scripts SQL e desfaz as mudanças já confirmadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Flyway validate compara arquivos e histórico e identifica checksums divergentes. A marca ponto inicial em banco existente; B aplica pendências, não descarta automaticamente histórico; C altera metadados e não restaura os dados; E é orquestração de ETL, sem função de validação Flyway.",
+      "section": "5. Bancos distribuídos, replicação e ferramentas de evolução de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Pentaho Data Integration, um fluxo lê linhas, filtra registros e carrega uma tabela; outro encadeia extração, validação e envio de relatório. Qual correspondência é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos são exclusivamente históricos do Flyway, sem processamento de linhas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O primeiro é transformation; o segundo pode ser job de coordenação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O primeiro é transação 2PC; o segundo é checkpoint de log do banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O primeiro é esquema de segurança; o segundo é armazenamento de descritores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O primeiro é banco em memória; o segundo é réplica síncrona de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Transformations processam linhas com steps; jobs coordenam tarefas e dependências, podendo invocar transformações. A trata ETL como versionamento; C confunde fluxo de dados com atomicidade distribuída; D confunde com segurança e ADABAS; E descreve arquiteturas de armazenamento e replicação.",
+      "section": "5. Bancos distribuídos, replicação e ferramentas de evolução de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela de vendas é separada por região entre servidores distintos para distribuir capacidade e carga. Que desenho se aproxima do caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Replicação integral, pois cada servidor recebe todas as vendas regionais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fragmentação vertical, pois os servidores guardam colunas diferentes da venda.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Log shipping, pois regiões diferentes são transações de recovery log.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cache de páginas, pois memória RAM distribui automaticamente os servidores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sharding horizontal, pois grupos de linhas são distribuídos entre nós.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A região atua como chave de repartição horizontal de registros entre nós. A supõe cópias completas, ausentes no caso; B divide colunas, não linhas; C descreve transporte de logs para recuperação; D relaciona cache local a uma distribuição que ele não realiza.",
+      "section": "5. Bancos distribuídos, replicação e ferramentas de evolução de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende investigar quais identidades consultaram dados sensíveis. Os registros de WAL são preservados, mas não identificam adequadamente essas leituras. Que medida atende à rastreabilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar auditoria de acesso aos objetos e proteger os registros contra alterações.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar apenas checkpoints de WAL e interpretar cada página como consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Agendar pg_dump em cada leitura e usá-lo como identidade do usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reconstruir índices da tabela para preservar o histórico de sessões autorizadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Inspecionar somente a tabela de migrações do Flyway como registro de SELECT.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Auditoria de leitura deve registrar acessos pertinentes, identidades e momentos, com proteção da trilha. B confunde WAL e consulta; C descreve exportação sem auditoria de identidade; D atribui histórico a índices; E usa o histórico de DDL do Flyway para eventos SELECT que ele não documenta.",
+      "section": "4. Segurança, auditoria e governança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No planejamento de armazenamento, a equipe aumenta o buffer cache para reduzir leituras físicas frequentes. Isso transforma o cache em backup recuperável após perda dos discos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Buffer cache mantém páginas temporariamente em memória e pode melhorar desempenho, mas não constitui cópia independente, íntegra e restaurável. Após perda física, é preciso um mecanismo de recuperação de dados, não apenas memória de trabalho.",
+      "section": "1. Fundamentos da administração e arquitetura dos SGBDs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ADABAS, uma pesquisa por descritor pode usar lista invertida mantida no Associator, relacionando o valor pesquisado a identificadores ISN de registros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A arquitetura do ADABAS distingue Data Storage das estruturas do Associator. O descritor utiliza lista invertida que referencia os ISNs dos registros pertinentes, facilitando localizar dados sem varrer todos os registros físicos.",
+      "section": "1. Fundamentos da administração e arquitetura dos SGBDs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa define RPO de cinco minutos. Isso estabelece prazo máximo de cinco minutos para disponibilizar novamente a aplicação após uma falha, independentemente da perda de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. RPO define quanto tempo de dados pode ser perdido, enquanto RTO é o limite temporal planejado para o restabelecimento. Pode haver recuperação de dados quase atualizados e serviço indisponível por período maior.",
+      "section": "2. Backup, restauração e continuidade operacional",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SQL Server 2019 em SIMPLE, é possível produzir backups de log periódicos para obter recuperação a um segundo específico entre dois backups completos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. SIMPLE não dá suporte a backup do log de transações e, portanto, não oferece essa recuperação arbitrária por cadeia de logs. É necessário adotar modelo e estratégia compatíveis antes de exigir recuperação fina no tempo.",
+      "section": "2. Backup, restauração e continuidade operacional",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina PostgreSQL executa ANALYZE após mudanças de distribuição. Sua finalidade principal é produzir um backup lógico de tabelas usadas pelo otimizador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. ANALYZE obtém estatísticas das relações para o planejamento de consultas; não exporta tabela ou cria backup. Para exportação lógica usa-se ferramenta apropriada como pg_dump, com objetivo distinto.",
+      "section": "3. Manutenção, desempenho e tratamento de erros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação necessita apenas de leitura de uma visão. Retirar privilégios administrativos e conceder SELECT somente sobre os objetos necessários está alinhado ao menor privilégio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Menor privilégio restringe a autorização ao necessário para a função desempenhada. Dar poder de criar usuários ou apagar tabelas amplia o dano de uma credencial comprometida e não é justificado por um cenário de leitura.",
+      "section": "4. Segurança, auditoria e governança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um backup do PostgreSQL realizado com pg_dump contém automaticamente a cadeia integral de WAL necessária para PITR até qualquer instante posterior à exportação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. pg_dump produz dados e objetos em formato lógico; PITR requer backup-base físico apropriado e sequência contínua de WAL arquivado. Guardar somente o dump não oferece reprodução automática de alterações realizadas depois dele.",
+      "section": "2. Backup, restauração e continuidade operacional",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas transações aguardam uma à outra por bloqueios em recursos diferentes. A dependência circular permite caracterizar deadlock, distinto de uma espera longa sem ciclo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A espera circular é elemento central do deadlock. Um timeout pode ocorrer porque uma transação longa segura bloqueio sem que haja ciclo entre sessões; por isso, a investigação precisa observar a cadeia de dependências.",
+      "section": "3. Manutenção, desempenho e tratamento de erros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Oracle 21c, RMAN pode participar de rotinas de backup e recuperação, ao passo que PL/SQL é linguagem procedural para lógica executada no banco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. RMAN é recurso para administrar cópias, restauração e recovery; PL/SQL permite blocos com variáveis, comandos e exceções. Misturar essas responsabilidades levaria a atribuir à linguagem procedural o papel de ferramenta de backup.",
+      "section": "3. Manutenção, desempenho e tratamento de erros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o fluxo de transações MySQL tiver binary log íntegro, esse log dispensa uma base consistente e basta por si só para reconstruir qualquer tabela desde o início do sistema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os binary logs registram eventos de alteração, mas o procedimento típico parte da restauração de backup consistente e então aplica eventos disponíveis até o alvo. Sem base adequada e cobertura temporal, a recuperação pretendida pode ser inviável.",
+      "section": "2. Backup, restauração e continuidade operacional",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma nova indexação pode reduzir leituras de uma consulta seletiva, mas aumentar custo de armazenamento e de escrita para atualizações e inserções na tabela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Índices são estruturas mantidas pelo SGBD e oferecem caminhos de acesso alternativos com custo próprio. A decisão de criá-los depende de seletividade, volume, consultas reais e frequência de modificações, não da presunção de ganho universal.",
+      "section": "3. Manutenção, desempenho e tratamento de erros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Flyway, alterar manualmente uma migração versionada já aplicada pode produzir divergência de checksum identificável na validação do histórico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O schema history guarda dados das migrações executadas, incluindo checksum; validate compara o estado registrado com os arquivos disponíveis. Por isso, após aplicação, uma mudança nova deve ser registrada mediante processo apropriado, não escondida em script antigo.",
+      "section": "5. Bancos distribuídos, replicação e ferramentas de evolução de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O emprego de TDE no Oracle garante que uma identidade com privilégio SELECT não possa receber linhas decifradas da tabela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A criptografia transparente atua sobre dados armazenados, e o mecanismo do banco pode devolver dados legíveis a uma conta autorizada. Para limitar leitura é necessário aplicar políticas de autorização, papéis e outras medidas de segurança.",
+      "section": "4. Segurança, auditoria e governança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em replicação assíncrona PostgreSQL, pode existir atraso entre commit confirmado no primário e recebimento do WAL pela réplica, afetando promoção após falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O streaming assíncrono permite confirmação local anterior à recepção no secundário. Em falha e promoção, registros ainda não recebidos podem não constar da réplica, motivo para relacionar a configuração às metas reais de RPO.",
+      "section": "5. Bancos distribuídos, replicação e ferramentas de evolução de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O protocolo 2PC elimina o risco de espera por coordenador durante falhas porque todos os participantes confirmam antes da etapa de preparação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O protocolo separa prepare e decisão de commit ou abort. Em determinadas falhas, o participante preparado aguarda a decisão e pode ficar bloqueado; confirmar tudo antes da preparação destruiria a coordenação pretendida.",
+      "section": "5. Bancos distribuídos, replicação e ferramentas de evolução de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transformação no Pentaho Data Integration pode processar linhas por steps, enquanto um job organiza a ordem de execução de atividades e transformações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A transformação representa fluxo de dados e operações em etapas; o job é fluxo de controle para dependências e tarefas, inclusive invocação de transformações. São conceitos próprios de integração de dados, não de restauração transacional.",
+      "section": "5. Bancos distribuídos, replicação e ferramentas de evolução de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como uma réplica sincroniza alterações do primário, ela protege por si só contra um DELETE equivocado que já tenha sido confirmado e propagado a todos os nós.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Replicação costuma reproduzir também exclusões indevidas confirmadas. Para recuperar versões históricas, é necessário mecanismo adequado de backup, retenção ou recuperação pontual; redundância de nós não significa preservação de estados anteriores.",
+      "section": "2. Backup, restauração e continuidade operacional",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação distribuída em saga usa confirmações locais e pode empregar compensações, diferindo de rollback ACID global do conjunto de operações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em saga, etapas locais já confirmadas podem demandar ações compensatórias que não apagam efeitos observados externamente. O modelo exige desenho de idempotência e tratamento de falhas diferente do coordenador de uma transação 2PC.",
+      "section": "5. Bancos distribuídos, replicação e ferramentas de evolução de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SQL Server em FULL, a simples seleção do modelo garante PITR ilimitado mesmo quando os backups do log não são executados e parte da cadeia está ausente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. FULL permite a estratégia de backups de log, mas sua recuperação depende de cópias e cadeia íntegra. Sem backups do log, a janela de restauração não é arbitrariamente preservada, e o arquivo de log pode crescer excessivamente.",
+      "section": "2. Backup, restauração e continuidade operacional",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um plano de manutenção auditável deve declarar janelas de execução, responsáveis, métricas, verificações e critérios de reversão, além de apenas enumerar tarefas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A eficácia da manutenção depende de executar e comprovar atividades com critérios observáveis. Sem métricas, janelas e rollback, é difícil identificar degradação ou atribuir causa ao ajuste realizado, mesmo quando uma lista de tarefas existe.",
+      "section": "3. Manutenção, desempenho e tratamento de erros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18: Backup and Restore",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Capítulo 25: SQL Dump, File System Level Backup e PITR",
+      "url": "https://www.postgresql.org/docs/18/backup.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18: Routine Vacuuming",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Seção 24.1: VACUUM, ANALYZE e autovacuum",
+      "url": "https://www.postgresql.org/docs/18/routine-vacuuming.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18: Log-Shipping Standby Servers",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Seção 26.2: streaming, replicação síncrona e assíncrona",
+      "url": "https://www.postgresql.org/docs/current/warm-standby.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle Database 21c Backup and Recovery User's Guide",
+      "publisher": "Oracle",
+      "reference": "Backup, ARCHIVELOG e Recovery Manager (RMAN)",
+      "url": "https://docs.oracle.com/en/database/oracle/oracle-database/21/bradv/index.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle Database 21c: Introduction to Transparent Data Encryption",
+      "publisher": "Oracle",
+      "reference": "TDE e administração de chaves",
+      "url": "https://docs.oracle.com/en/database/oracle/oracle-database/21/asoag/introduction-to-transparent-data-encryption.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Recovery Models (SQL Server)",
+      "publisher": "Microsoft Learn",
+      "reference": "Modelos SIMPLE, FULL e BULK_LOGGED",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/backup-restore/recovery-models-sql-server?view=sql-server-ver17",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MySQL 8.4: Point-in-Time Recovery",
+      "publisher": "MySQL Reference Manual",
+      "reference": "Capítulo 9.5: recuperação a ponto com binary log",
+      "url": "https://dev.mysql.com/doc/refman/8.4/en/point-in-time-recovery.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Adabas Design",
+      "publisher": "Software AG",
+      "reference": "Associator, Data Storage, listas invertidas e ISN",
+      "url": "https://documentation.softwareag.com/adabas/ada852mfr/concepts/cfdesign.htm",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Flyway Schema History Table",
+      "publisher": "Redgate",
+      "reference": "Estados, histórico e checksums de migrações",
+      "url": "https://documentation.red-gate.com/flyway/flyway-concepts/migrations/flyway-schema-history-table",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Flyway Validate",
+      "publisher": "Redgate",
+      "reference": "Validação de migrações",
+      "url": "https://documentation.red-gate.com/flyway/reference/commands/validate",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Pentaho Data Integration 11.0",
+      "publisher": "Pentaho",
+      "reference": "ETL, transformations e jobs",
+      "url": "https://docs.pentaho.com/pdia-data-integration",
+      "accessedAt": "2026-10-09"
+    }
+  ]
+}

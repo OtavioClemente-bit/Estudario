@@ -1,0 +1,135 @@
+[
+  {
+    "topic": "informatica.observabilidade-sre-resiliencia",
+    "board": "Cebraspe",
+    "role": null,
+    "version": 1,
+    "incidence": "MEDIA",
+    "howItFalls": "Na Cebraspe, prepare-se para julgar afirmações de Certo ou Errado que parecem uma definição técnica correta, mas trocam a função de uma ferramenta ou exageram seu alcance. Em tecnologia, a banca costuma explorar IaC, inclusive a diferença entre configuração declarativa e imperativa, e a distinção entre logs, monitoramento e tracing distribuído. A redação pode ser direta, em uma ou duas frases, ou apresentar um pequeno contexto sobre aplicações em nuvem. O ponto decisivo é testar cada oração: uma afirmação começa corretamente ao mencionar automação do provisionamento, mas pode terminar atribuindo à IaC a eliminação de toda atividade operacional. Exemplo típico: o item diz que o tracing distribuído permite acompanhar uma requisição ao atravessar diversos serviços e medir a duração de suas etapas. O julgamento é Certo, pois cada span representa uma operação dentro de um trace correlacionado. Em outro item, a banca afirma que o objetivo do ponto de recuperação determina o tempo máximo aceitável de indisponibilidade: está Errado; esse é o sentido do RTO, enquanto o RPO limita a perda de dados no tempo. Também vale relacionar falhas parciais, retries, limites de tempo e isolamento de dependências: uma arquitetura com réplicas não está automaticamente imune a falha compartilhada. Estude bem semântica de Terraform, papéis de providers e módulos, observabilidade em nuvem e continuidade; deixe para segundo plano a memorização de comandos raros de uma ferramenta específica quando o edital não os exigir.",
+    "tips": [
+      "Se o item disser que um trace atravessa serviços, confirme se ele preserva a correlação da mesma requisição por spans identificáveis.",
+      "Ao encontrar provider e module em Terraform, separe o conector de uma API externa da unidade reutilizável de configuração.",
+      "Quando a afirmação mencionar RPO, traduza mentalmente para perda máxima tolerável de dados, não para duração da parada.",
+      "Em frases sobre IaC declarativa, verifique se se descreve o estado desejado, em vez de uma sequência obrigatória de comandos.",
+      "Se a banca tratar monitoramento em nuvem como coleta restrita à CPU e memória, procure a restrição indevida a logs e traces."
+    ],
+    "traps": [
+      "Em aplicações distribuídas, o tracing registra somente o tempo total de resposta do sistema, sem identificar operações intermediárias. → é errado porque spans identificam etapas e dependências da solicitação → o trace distribuído reconstrói o percurso e a duração das operações correlacionadas.",
+      "A infraestrutura como código declarativa exige a especificação passo a passo da ordem de execução de todas as operações de provisionamento. → é errado porque essa descrição é característica da abordagem imperativa → a forma declarativa descreve o estado de infraestrutura pretendido.",
+      "No planejamento de recuperação, o RPO estabelece o intervalo máximo aceitável para restabelecer o serviço após a interrupção. → é errado porque confunde perda de dados com tempo de restauração → RPO limita a defasagem dos dados recuperados; RTO orienta o tempo de recuperação.",
+      "O uso de um provedor em uma ferramenta de IaC torna desnecessário o emprego de módulos reutilizáveis. → é errado porque provider e módulo desempenham papéis diferentes → o provider integra serviços e os módulos organizam configurações para reúso."
+    ],
+    "questions": []
+  },
+  {
+    "topic": "informatica.observabilidade-sre-resiliencia",
+    "board": "FGV",
+    "role": null,
+    "version": 1,
+    "incidence": "ALTA",
+    "howItFalls": "A FGV costuma aproveitar muito bem questões de múltipla escolha com cinco alternativas (A–E) e situações de operação reais, nas quais é preciso escolher o diagnóstico ou a reação técnica mais coerente. Há prova recente em que a questão combina Kubernetes, Prometheus, Grafana, Loki, Jaeger, OpenTelemetry, latência de cauda, SLO e custo de logs. Portanto, não basta decorar os três pilares de observabilidade: você precisa saber como cruzá-los sem confundir sintoma com causa. Imagine média estável, p99 piorando e SLO definido para p95; a conclusão automática de violação do SLO está errada, pois o percentil monitorado pelo objetivo é outro, ainda que o p99 mereça investigação. Em outro cenário, logs DEBUG aumentam fortemente os custos e traces apontam uma operação lenta: a análise prudente é correlacionar os identificadores de trace com registros relevantes e ajustar o volume de coleta, não simplesmente ampliar todos os recursos do cluster. A banca monta alternativas tecnicamente atraentes, mas que incluem decisões desproporcionais, como desativar toda instrumentação ou alterar o objetivo para esconder a degradação. Também pode explorar códigos de IaC e a interpretação do que um arquivo descreve. Dê peso a percentis, amostragem de traces, custos de cardinalidade e retenção, fluxos de investigação e decisões baseadas em SLI/SLO. O estudo de nomes de ferramentas ajuda a reconhecer o papel de cada uma; decorar detalhes de interface gráfica é menos valioso que entender a conexão entre sinais e impacto no usuário.",
+    "tips": [
+      "Diante de p99 degradado e objetivo expresso em p95, não declare quebra do SLO antes de examinar o valor do p95 na janela definida.",
+      "Quando aparecerem Loki e Jaeger no mesmo cenário, use trace_id como pista para relacionar registros e spans de uma requisição.",
+      "Se os custos dispararem com logs DEBUG, avalie nível de detalhamento e retenção antes de aceitar uma proposta de desligar o monitoramento.",
+      "Em alternativas sobre sampling, identifique se a intenção é preservar traces de requisições lentas ou reduzir uniformemente a coleta.",
+      "Na escolha de uma ação após alerta, exija evidência antes de concluir que a causa é falta de CPU ou memória nos pods."
+    ],
+    "traps": [
+      "O aumento do p99 caracteriza necessariamente descumprimento de um SLO medido por p95. → é errado porque percentis diferentes observam frações distintas das requisições → a conformidade deve ser verificada pelo p95 e pela janela definida no objetivo.",
+      "A estabilidade da latência média torna irrelevante a investigação de requisições muito lentas. → é errado porque a média pode ocultar degradação na cauda → devem-se examinar percentis altos e traces das solicitações afetadas.",
+      "Para reduzir custos de observabilidade, deve-se desabilitar integralmente o tracing distribuído em produção. → é errado porque elimina evidências úteis e ignora controles de coleta → amostragem e políticas de retenção podem reduzir custos preservando diagnósticos importantes.",
+      "A elevação da latência determina, por si só, o aumento imediato dos limites de CPU e memória dos contêineres. → é errado porque não demonstra saturação de recursos → é preciso investigar spans, dependências e métricas antes de dimensionar a infraestrutura."
+    ],
+    "questions": []
+  },
+  {
+    "topic": "informatica.observabilidade-sre-resiliencia",
+    "board": "FCC",
+    "role": null,
+    "version": 1,
+    "incidence": "MEDIA",
+    "howItFalls": "Na FCC, espere predominantemente múltipla escolha com cinco alternativas (A–E), construídas em torno da identificação precisa de conceitos, componentes e procedimentos de gestão de serviços. O enunciado tende a ser mais enxuto que um incidente completo de produção: apresenta uma necessidade de monitoramento ou de confiabilidade e pergunta qual recurso ou conceito atende à situação. Em observabilidade, um bom caminho de preparação é distinguir o tipo de métrica do seu significado operacional. Por exemplo, se a aplicação precisa registrar a distribuição da duração das requisições em faixas, um histograma é candidato adequado; um contador acumulativo isolado não revela essa distribuição. Outra situação típica: o texto informa um compromisso contratual de disponibilidade e o candidato deve reconhecer a ideia de SLA, sem confundi-la com o indicador medido continuamente ou a meta operacional interna. A banca pode aproximar essas noções de ITIL, continuidade, monitoração e infraestrutura em nuvem, cobrando diferença entre detectar indisponibilidade e explicar sua causa. Em arquitetura resiliente, atente para o propósito de timeouts, backoff e controles de chamadas a dependências, sobretudo quando as alternativas prometem recuperação automática sem condições. Também cabe reconhecer o uso de dashboards e alertas orientados por limiares de desempenho. Priorize classificações e relações corretas entre conceito e finalidade, além do vocabulário de métricas; não invista tanto em configuração aprofundada de coletores e sintaxe de consultas se isso não estiver explicitado no programa.",
+    "tips": [
+      "Se o cenário pedir distribuição de tempos de resposta, procure histogramas ou métricas de distribuição, não um simples contador cumulativo.",
+      "Quando o texto mencionar obrigação contratual de disponibilidade, distinga o acordo de serviço da medição técnica empregada para acompanhá-lo.",
+      "Ao ver uma métrica do tipo gauge, lembre-se de que seu valor pode subir e descer, como a ocupação instantânea de memória.",
+      "Se a alternativa recomendar tentativas sucessivas contra um serviço lento, confirme a presença de timeout e de intervalos de espera adequados.",
+      "Quando o enunciado opuser painel a diagnóstico, reconheça que a visualização indica comportamento, mas não prova sozinha a causa da falha."
+    ],
+    "traps": [
+      "O histograma de latências contém somente o valor da última requisição processada. → é errado porque o histograma agrega observações por faixas ou buckets → permite analisar a distribuição de durações observadas.",
+      "Um SLA corresponde exclusivamente à meta interna de engenharia, sem compromisso com o consumidor do serviço. → é errado porque caracteriza incorretamente o acordo de nível de serviço → SLA formaliza compromissos entre as partes, enquanto SLO é uma meta mensurável.",
+      "Contadores de requisições permitem reduzir seu valor sempre que a carga de trabalho diminui. → é errado porque um contador é monotonicamente crescente, salvo reinicializações → a carga variável é avaliada pela taxa de incremento ao longo do tempo.",
+      "Tentativas de comunicação repetidas indefinidamente dispensam a configuração de tempo limite nas chamadas remotas. → é errado porque podem ampliar congestionamentos e bloquear recursos → retries devem ser limitados e combinados com timeout e estratégia de espera."
+    ],
+    "questions": []
+  },
+  {
+    "topic": "informatica.observabilidade-sre-resiliencia",
+    "board": "Cesgranrio",
+    "role": null,
+    "version": 1,
+    "incidence": "MEDIA",
+    "howItFalls": "Na Cesgranrio, a abordagem mais produtiva é esperar múltipla escolha com cinco alternativas (A–E) e situações tecnológicas objetivas: uma tabela de capacidade, uma arquitetura em nuvem ou uma descrição de automação da infraestrutura. A banca pode pedir a identificação da estratégia que suporta variação de demanda, o cálculo simples de uma taxa ou a interpretação de desempenho. O candidato ganha pontos quando traduz os dados do enunciado em propriedades: aumentar máquinas ou réplicas caracteriza expansão horizontal; ampliar os recursos de uma instância é expansão vertical; liberar recursos quando a demanda cai faz parte da elasticidade. Exemplo típico: um serviço registra aumento de acessos em horários específicos, e uma alternativa recomenda adicionar instâncias automaticamente em função da carga. O raciocínio é reconhecer escalabilidade horizontal associada à elasticidade, não apenas substituição por um servidor maior. Em outra configuração, o item descreve definições versionadas de rede e servidores aplicadas por ferramenta de provisionamento; isso aponta para infraestrutura como código, mas não equivale a garantir, sozinho, alta disponibilidade. O cuidado principal é não confundir capacidade total, vazão efetiva, tempo de resposta e disponibilidade. No bloco de SRE, saiba fazer uma conta curta de orçamento de erro e reconhecer impacto sobre o serviço; na parte de operação, relacione balanceamento, redundância e recuperação. Priorize leitura de pequenos dados quantitativos, distinções de escalabilidade e usos de automação; detalhes específicos de plugins e comandos de fabricantes tendem a ter menor retorno sem previsão expressa no edital.",
+    "tips": [
+      "Se a solução adiciona instâncias de aplicação durante picos, classifique o crescimento como horizontal e verifique se há ajuste dinâmico da capacidade.",
+      "Quando for dado número de requisições concluídas e intervalo de tempo, calcule a vazão pela divisão entre esses dois dados, observando a unidade.",
+      "Se houver tabela de capacidade e latência, não suponha que aumento de throughput necessariamente reduz o tempo de resposta.",
+      "Diante de código que provisiona redes e máquinas, separe a automação de criação dos mecanismos adicionais de tolerância a falhas.",
+      "Em situações de redundância, confira se as instâncias atendem a falhas independentes ou compartilham uma dependência crítica."
+    ],
+    "traps": [
+      "A escalabilidade vertical é obtida acrescentando réplicas idênticas da aplicação atrás de um balanceador. → é errado porque essa adição é expansão horizontal → escalabilidade vertical amplia recursos de uma instância existente.",
+      "O crescimento da vazão de um sistema garante a redução proporcional da latência de todas as requisições. → é errado porque fila e saturação podem elevar o tempo de resposta → throughput e latência são grandezas distintas.",
+      "A descrição de servidores em arquivos versionados torna desnecessária a adoção de redundância para alcançar alta disponibilidade. → é errado porque IaC automatiza e reproduz configurações, não elimina pontos únicos de falha → a disponibilidade depende também do desenho resiliente.",
+      "O balanceador de carga elimina a necessidade de verificar se as instâncias de destino estão saudáveis. → é errado porque encaminhar tráfego a nós indisponíveis prejudica o serviço → verificações de saúde devem orientar a distribuição de tráfego."
+    ],
+    "questions": []
+  },
+  {
+    "topic": "informatica.observabilidade-sre-resiliencia",
+    "board": "FUMARC",
+    "role": null,
+    "version": 1,
+    "incidence": "BAIXA",
+    "howItFalls": "Na FUMARC, o perfil de provas de informática e engenharia de software aponta para múltipla escolha frequentemente com quatro alternativas (A–D), perguntas conceituais e, às vezes, um conjunto de afirmativas I, II e III para marcar a combinação correta. Como há menos evidência de cobrança recorrente de SRE e observabilidade moderna em sentido estrito, use esse estilo como referência sem apostar em exploração profunda de ferramentas específicas. O núcleo mais provável é a ligação entre monitoramento, testes de desempenho, recuperação e continuidade. Um exemplo compatível com a abordagem da banca descreve um teste que força a aplicação a falhar e verifica seu restabelecimento; a categoria adequada é teste de recuperação, não teste de carga. Outro exemplo apresenta afirmações sobre registro de eventos: uma delas equipara log de auditoria ao diagnóstico de latência ponta a ponta. Essa associação está incorreta, porque um registro de evento não reconstrói necessariamente o trajeto de uma chamada entre serviços. Em termos de resiliência, domine o efeito de um ponto único de falha, o sentido de replicação e a diferença entre backup e serviço disponível. A prova pode encaixar termos como automação, scripts e provisionamento em uma questão direta de definição, sem exigir leitura de arquivos Terraform. Para estudar com eficiência, revise classificações de testes, níveis de logs, monitoramento de disponibilidade e noções básicas de continuidade. Só aprofunde cardinalidade de métricas, linguagens de consulta ou configurações de OpenTelemetry se o conteúdo programático fizer essa exigência explícita.",
+    "tips": [
+      "Quando aparecerem afirmativas numeradas sobre testes, diferencie teste de recuperação, que examina o retorno após falhas, de teste de estresse, que pressiona limites.",
+      "Se a alternativa atribuir à coleta de registros capacidade de reconstruir todas as chamadas, confira se há instrumentação para correlação distribuída.",
+      "Ao identificar log de nível DEBUG, associe-o a detalhes diagnósticos, não à comunicação exclusiva de falhas críticas.",
+      "Diante de questão sobre continuidade, separe existência de cópia de segurança de disponibilidade imediata da aplicação.",
+      "Se houver opções com ferramentas desconhecidas, resolva primeiro pela finalidade descrita: monitorar, automatizar, restaurar ou distribuir carga."
+    ],
+    "traps": [
+      "O teste de estresse é executado apenas sob condições normais de uso, sem aproximar a aplicação de seus limites. → é errado porque o estresse investiga comportamento sob sobrecarga ou condições extremas → testes usuais de carga e de estresse têm propósitos distintos.",
+      "Mensagens DEBUG devem registrar exclusivamente incidentes graves que exigem atuação imediata. → é errado porque esse nível é voltado ao detalhamento diagnóstico → eventos críticos são classificados em níveis de gravidade apropriados.",
+      "A realização periódica de backup mantém a aplicação acessível aos usuários durante qualquer falha do servidor principal. → é errado porque a cópia de dados não proporciona continuidade automática do processamento → são necessários mecanismos de redundância e recuperação compatíveis.",
+      "Um sistema com servidor único torna-se tolerante a falhas simplesmente porque seu funcionamento é acompanhado por alertas. → é errado porque observar falhas não cria redundância → o monitoramento ajuda a detectá-las, e a tolerância requer recursos arquiteturais adicionais."
+    ],
+    "questions": []
+  },
+  {
+    "topic": "informatica.observabilidade-sre-resiliencia",
+    "board": "GERAL",
+    "role": null,
+    "version": 1,
+    "incidence": "MEDIA",
+    "howItFalls": "No padrão das provas, este assunto aparece sobretudo em questões conceituais e pequenos cenários de aplicações distribuídas, seja em múltipla escolha, seja em itens de Certo ou Errado. O examinador quer saber se você compreende os sinais da aplicação, a definição de confiabilidade e as medidas para manter o serviço funcional durante falhas. Logs registram acontecimentos; métricas permitem acompanhar valores e tendências; traces mostram a passagem de uma requisição por componentes. SLI é o indicador medido, SLO é a meta para esse indicador em uma janela e SLA é um compromisso de serviço. Um exemplo típico informa 10.000 requisições e 100 erros, perguntando pela proporção de sucesso: 99%, desde que o enunciado classifique os outros 9.900 eventos como bons. Outro exemplo descreve uma dependência instável e sugere repetir as operações sem limite; a proposta está errada porque pode agravar a sobrecarga, sobretudo quando há efeitos colaterais e operações não idempotentes. Conheça timeout, backoff, circuit breaker, bulkhead, cache, balanceamento, réplicas e estratégias de degradação controlada. Em infraestrutura como código, compreenda arquivos versionáveis, revisão, idempotência conforme a ferramenta, estado desejado e risco de desvios de configuração. Em escalabilidade, diferencie crescimento vertical, horizontal e ajuste elástico de recursos. A prova raramente exige implementar um sistema completo: vale mais dominar o efeito de cada padrão e interpretar indicadores do que decorar sintaxe extensa de ferramentas, salvo previsão expressa. O erro mais comum é tratar uma técnica isolada — ter logs, replicar ou automatizar deploy — como garantia absoluta de confiabilidade.",
+    "tips": [
+      "Se uma questão trouxer porcentagem de sucesso, confira o denominador e a janela da medição antes de associá-la a uma meta.",
+      "Quando aparecer uma falha em serviço dependente, avalie se circuit breaker ou isolamento de recursos evita propagar o problema.",
+      "Em operações com efeitos colaterais, pergunte se uma nova tentativa pode produzir duplicação e se há chave de idempotência.",
+      "Ao ver configuração automatizada, procure versionamento, validação e identificação de drift entre o estado declarado e o real.",
+      "Quando a arquitetura prometer resiliência, identifique o ponto único de falha e a estratégia de degradação caso uma dependência caia.",
+      "Na leitura dos três sinais, use métricas para detectar tendência, logs para examinar eventos e traces para seguir o caminho de uma solicitação."
+    ],
+    "traps": [
+      "SLI é a porcentagem mínima de disponibilidade que a equipe promete alcançar no mês. → é errado porque a frase descreve uma meta → SLI é o indicador medido, e o valor desejado definido para ele compõe o SLO.",
+      "Uma operação de pagamento pode ser repetida livremente após timeout, pois toda repetição é idempotente. → é errado porque o timeout não assegura ausência de processamento prévio → retries precisam considerar idempotência e prevenção de duplicidades.",
+      "A implementação de cache garante que todos os usuários recebam sempre a versão mais recente dos dados. → é errado porque entradas armazenadas podem ficar desatualizadas → é preciso definir expiração ou invalidação coerente com a aplicação.",
+      "A presença de dashboards de CPU e memória é suficiente para explicar qualquer falha observada por usuários. → é errado porque indicadores de infraestrutura podem não revelar erros de aplicação ou dependências → diagnóstico combina sinais de serviço e informações de execução."
+    ],
+    "questions": []
+  }
+]

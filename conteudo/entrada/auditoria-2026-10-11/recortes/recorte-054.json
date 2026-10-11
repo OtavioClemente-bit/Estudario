@@ -1,0 +1,141 @@
+[
+  {
+    "topic": "informatica.administracao-sgbd",
+    "board": "Cebraspe",
+    "role": null,
+    "version": 1,
+    "incidence": "ALTA",
+    "howItFalls": "No Cebraspe, espere principalmente itens de Certo/Errado que isolam uma propriedade técnica de administração de SGBD e trocam uma condição importante por uma afirmação absoluta. Em avaliações especializadas também pode aparecer múltipla escolha, mas o treino de julgamento de assertivas é especialmente útil. O enunciado costuma contextualizar uma arquitetura ou um procedimento e exigir que você saiba exatamente o que o mecanismo garante. Em PostgreSQL, acompanhe a relação entre WAL, réplica de leitura e defasagem: a replicação assíncrona pode manter a consulta disponível sem assegurar que a réplica já recebeu a última transação. Um item típico diz que uma réplica assíncrona apresenta necessariamente os mesmos dados do primário no instante de cada leitura; está errado pela possibilidade de atraso na aplicação. A banca também permite explorar CDC baseado em logs, manutenção com VACUUM, privilégios de objetos e a coordenação de transações em bancos distribuídos. Outro item plausível afirma que, depois de preparar uma transação distribuída, cada participante pode decidir sozinho pela confirmação definitiva; está errado porque a fase de decisão exige coordenação. Para acertar, separe consistência, durabilidade e disponibilidade, sem tratar esses atributos como sinônimos. A profundidade é conceitual e operacional: vale saber o efeito das rotinas, não só decorar siglas. Coloque menos peso na memorização de parâmetros obscuros de versões específicas e mais nas consequências de falhas, permissões e modos de replicação.",
+    "tips": [
+      "Se o item falar em leitura numa réplica assíncrona do PostgreSQL, procure a distinção entre disponibilidade para consulta e atualização imediata dos dados.",
+      "Quando aparecer CDC por log, verifique se o texto inventou a obrigação de consultar continuamente a tabela de origem ou criar coluna de data de alteração.",
+      "Ao julgar protocolo de duas fases, identifique a etapa de preparação e a decisão final do coordenador; não atribua autonomia de commit a cada participante.",
+      "Se mencionar VACUUM, confronte a recuperação de espaço para reutilização com a reescrita física normalmente associada ao VACUUM FULL.",
+      "Quando o enunciado combinar papéis e privilégios, diferencie autorização sobre uma tabela de atribuições administrativas no servidor."
+    ],
+    "traps": [
+      "Na replicação assíncrona do PostgreSQL, qualquer consulta à réplica reflete obrigatoriamente a última transação confirmada no primário. → A aplicação dos registros pode atrasar. → Uma réplica assíncrona pode oferecer leituras temporariamente defasadas.",
+      "A captura de alterações baseada em logs depende da criação de colunas timestamp nas tabelas monitoradas. → O log pode registrar as alterações sem essa alteração de esquema. → CDC baseado em logs pode identificar mudanças diretamente dos registros de transação.",
+      "Após a fase de preparação do commit em duas fases, qualquer nó participante pode concluir autonomamente a transação global. → Isso quebra a decisão coordenada. → Os participantes aguardam a decisão global de confirmar ou abortar.",
+      "No PostgreSQL, o comando VACUUM comum sempre reescreve integralmente as tabelas e devolve todo o espaço liberado ao sistema operacional. → Essa característica não corresponde à limpeza comum. → VACUUM libera espaço interno para reutilização; VACUUM FULL pode reescrever a tabela para compactá-la.",
+      "O privilégio SELECT sobre uma tabela confere ao beneficiário poderes para criar contas administrativas no SGBD. → Leitura de objeto não é administração de usuários. → A criação de contas exige privilégios administrativos próprios."
+    ],
+    "questions": []
+  },
+  {
+    "topic": "informatica.administracao-sgbd",
+    "board": "FGV",
+    "role": null,
+    "version": 1,
+    "incidence": "ALTA",
+    "howItFalls": "Na FGV, o padrão mais proveitoso para esta matéria é a questão A–E com cenário de produção, objetivo mensurável e alternativas que parecem soluções viáveis. A banca pode apresentar uma janela de backup, uma falha com horário definido, três servidores PostgreSQL ou um comando executado no terminal; você precisa traduzir a operação antes de escolher. RPO é a perda de dados tolerável, enquanto RTO mede quanto tempo o serviço pode ficar indisponível. Um exemplo típico informa backup completo anterior, cópia diferencial e logs preservados, e pergunta como recuperar até determinado instante: não basta citar o backup mais recente, pois a recuperação pontual depende de uma sequência coerente e dos registros necessários. Em outro, aparece `pg_dump banco > saida.sql` com alternativas sobre criar log, restaurar ou exportar: a leitura correta é a geração de um dump lógico no arquivo indicado, e não a recuperação do banco. Em alta disponibilidade, diferencie standby que recebe WAL diretamente do primário de replicação em cascata, e não conclua que toda réplica aceita escritas. O enunciado costuma oferecer detalhes suficientes para raciocinar sobre latência, confirmação de gravações, recuperação e topologia. Priorize aplicação prática dos utilitários, diagnóstico da arquitetura e escolha entre medidas de continuidade; deixe opções raras de linha de comando e ajustes de parâmetros pouco usuais para uma revisão final.",
+    "tips": [
+      "Ao encontrar `pg_dump nome > arquivo.sql`, identifique a direção do fluxo: a ferramenta exporta conteúdo, não executa restauração.",
+      "Em problemas com metas de continuidade, traduza RPO em perda admissível e RTO em duração admissível de indisponibilidade antes de avaliar as soluções.",
+      "Se uma alternativa descrever um standby alimentado por outro standby, reconheça a cadeia de replicação e não a confunda com envio direto do primário.",
+      "Se houver escolha de réplica para distribuir consultas, confirme se ela está em modo de leitura; standby físico não deve ser tratado como nó independente de escrita.",
+      "Quando o cenário indicar recuperação para uma hora exata, exija uma base restaurável e a continuidade dos registros de alterações até o ponto desejado."
+    ],
+    "traps": [
+      "O comando `pg_dump loja > copia.sql` efetua uma cópia física dos arquivos de dados do PostgreSQL, pronta para substituir o diretório de dados. → O comando gera um dump lógico. → O arquivo SQL contém a exportação lógica a ser restaurada por procedimento adequado.",
+      "RPO corresponde ao prazo máximo aceito para recolocar a aplicação em funcionamento após a falha. → Essa medida descreve o RTO. → RPO representa a perda de dados aceitável expressa em tempo.",
+      "Uma réplica que recebe seus WALs por meio de outro standby está em uma configuração de envio direto do primário para todos os nós. → Existe um intermediário na transmissão. → Essa disposição caracteriza replicação em cascata.",
+      "Um standby físico de PostgreSQL pode receber atualizações independentes dos clientes enquanto reproduz as alterações do primário, sem conflito. → O standby em recuperação não funciona como primário de escrita independente. → A escrita normal ocorre no primário; a promoção altera o papel do nó.",
+      "Para recuperar o estado exato entre dois dumps lógicos, basta escolher o dump mais próximo e informar o horário desejado. → Dump lógico isolado não fornece histórico contínuo de transações. → Recuperação pontual requer estratégia física e registros apropriados, como WAL arquivado no PostgreSQL."
+    ],
+    "questions": []
+  },
+  {
+    "topic": "informatica.administracao-sgbd",
+    "board": "FCC",
+    "role": null,
+    "version": 1,
+    "incidence": "MEDIA",
+    "howItFalls": "Na FCC, prepare-se para alternativas A–E de redação técnica, muitas vezes com o nome de uma ferramenta ou componente do produto como núcleo da pergunta. Em vez de um longo incidente, o item pode pedir a função correta entre descrições muito próximas: Oracle RMAN para backup e recuperação, Data Guard para manter ambientes de contingência, SQL Server Agent para agendamento de tarefas e recursos de monitoramento para diagnosticar carga. Um exemplo característico apresenta um ambiente Oracle que precisa recuperar arquivos de dados e oferece RMAN ao lado de ferramentas de ajuste de consultas; RMAN é a resposta compatível com a operação, não um otimizador SQL. Outro descreve consultas lentas após grande mudança no volume de registros e sugere que atualizar estatísticas recria todos os índices; isso está incorreto, pois estatísticas orientam o otimizador, enquanto reconstrução de índices é outra ação. A FCC também explora distinções finas entre dados históricos de desempenho e acompanhamento de sessões, além de concessão e revogação de privilégios. A dificuldade está em ligar sigla, tarefa e efeito real, inclusive quando a alternativa promete automatismo inexistente. Estude a finalidade das ferramentas dos três SGBDs e as operações administrativas recorrentes, sobretudo segurança e manutenção. Tabelas extensas de parâmetros internos e sintaxes muito dependentes da versão tendem a oferecer menos retorno do que saber escolher a ferramenta certa.",
+    "tips": [
+      "Quando aparecer Oracle RMAN entre alternativas, associe-o a operações de cópia, restauração e recuperação, não à análise do plano de execução.",
+      "Se o enunciado mencionar uma rotina agendada de manutenção no SQL Server, localize o papel do SQL Server Agent e separe-o do mecanismo de armazenamento.",
+      "Se a opção citar AWR ou ASH no Oracle, distinga histórico agregado de desempenho de amostras da atividade das sessões.",
+      "Quando o problema for plano de execução inadequado após mudanças na distribuição dos dados, avalie atualização de estatísticas antes de presumir reconstrução de índices.",
+      "Ao comparar GRANT e REVOKE, confira se o verbo altera uma autorização ou se a alternativa atribui efeitos indevidos aos próprios registros."
+    ],
+    "traps": [
+      "O RMAN é o componente do Oracle destinado primordialmente a selecionar e reescrever automaticamente as consultas SQL mais lentas. → Confunde recuperação com tuning. → RMAN atua em backup, restauração e recuperação; diagnóstico de SQL utiliza outros recursos.",
+      "O SQL Server Agent é o subsistema que armazena fisicamente as páginas e os logs de transações do banco. → Agendador de trabalhos não é mecanismo de armazenamento. → O Agent executa e agenda rotinas administrativas e outras tarefas.",
+      "O AWR do Oracle registra exclusivamente a lista de usuários habilitados, sem informações históricas sobre desempenho. → A ferramenta reúne informações de desempenho. → AWR auxilia a análise histórica de carga e indicadores do banco.",
+      "A atualização de estatísticas de uma tabela equivale à reconstrução física de todos os seus índices. → São operações distintas. → Estatísticas ajudam o otimizador a estimar custos; reorganizar ou reconstruir índices exige procedimentos próprios.",
+      "O comando REVOKE desfaz retroativamente todas as operações de dados realizadas durante o período em que o privilégio estava concedido. → Revogação não reverte transações já executadas. → REVOKE retira a autorização indicada, respeitadas as regras do SGBD."
+    ],
+    "questions": []
+  },
+  {
+    "topic": "informatica.administracao-sgbd",
+    "board": "Cesgranrio",
+    "role": null,
+    "version": 1,
+    "incidence": "MEDIA",
+    "howItFalls": "Na Cesgranrio, o formato A–E favorece uma pergunta objetiva que exige precisão sobre o comportamento de um produto, principalmente ao comparar definições gerais de backup com a implementação concreta. Observe o SQL Server: a banca consegue construir cinco opções variando somente qual cópia serve de base ao diferencial e quais dados são incluídos. Um exemplo típico diz que um backup diferencial toma como referência o diferencial imediatamente anterior; a ideia está errada, pois a base usual é o backup completo de referência, e o diferencial reúne mudanças desde ela. Vale conhecer também o backup completo do tipo copy-only, que não substitui a base normal dos diferenciais. Em outra linha, uma questão pode mencionar o Oracle SQL Tuning Advisor e dados históricos de carga, exigindo reconhecer que o diagnóstico considera impacto de CPU e entrada/saída, em vez de selecionar comandos apenas pelo tamanho da tabela. Há espaço para log de transações do SQL Server, modelos de recuperação e distinção entre checkpoint, cópia de segurança e recuperação. A Cesgranrio tende a testar o significado exato de expressões como 'mais recente', 'desde' e 'somente', com alternativas curtas e tecnicamente vizinhas. Não perca tempo apenas com a definição escolar de backup: pratique a dependência entre cópias e os efeitos reais das rotinas. Reserve a memorização de comandos menos comuns para depois de dominar as diferenças de produto.",
+    "tips": [
+      "Quando uma opção definir a base de backup diferencial do SQL Server, procure o backup completo de referência, e não o último diferencial realizado.",
+      "Se aparecer backup completo copy-only, verifique que ele não altera a base normal usada pelos diferenciais subsequentes.",
+      "Em alternativa sobre modelo SIMPLE do SQL Server, confirme que não existe a cadeia habitual de backups do log exigida no modelo FULL.",
+      "Se o enunciado trouxer SQL Tuning Advisor, diferencie a análise da carga de CPU e I/O de métricas isoladas como quantidade de linhas.",
+      "Quando surgir checkpoint, associe-o à gestão de páginas e recuperação interna; não o transforme em arquivo de backup externo."
+    ],
+    "traps": [
+      "No SQL Server, cada backup diferencial contém apenas as alterações posteriores ao backup diferencial imediatamente anterior. → Essa é uma descrição incompatível com a base diferencial. → O diferencial comum reúne mudanças desde seu backup completo de base.",
+      "Um backup completo executado com COPY_ONLY torna-se obrigatoriamente a nova base dos backups diferenciais seguintes. → A modalidade copy-only preserva a sequência habitual. → O completo copy-only não redefine a base normal dos diferenciais.",
+      "No modelo SIMPLE de recuperação do SQL Server, backups periódicos de log integram normalmente a cadeia de restauração pontual. → Esse modelo não admite a rotina usual de backup de log. → A recuperação por cadeia de logs exige modelo de recuperação compatível, como FULL.",
+      "No SQL Server, um checkpoint produz um backup completo independente, disponível para restaurar a base em outro servidor. → Checkpoint não cria esse arquivo de segurança. → É um mecanismo interno relacionado à gravação de páginas e à recuperação.",
+      "O Oracle SQL Tuning Advisor identifica necessariamente as consultas mais impactantes considerando apenas a quantidade de registros que retornam. → Volume de resultados isolado não mede o custo da carga. → A análise de impacto de desempenho envolve métricas como tempo de CPU e operações de entrada/saída."
+    ],
+    "questions": []
+  },
+  {
+    "topic": "informatica.administracao-sgbd",
+    "board": "FUMARC",
+    "role": null,
+    "version": 1,
+    "incidence": "BAIXA",
+    "howItFalls": "Para a FUMARC, há exemplos de cobrança conceitual de SGBD em múltipla escolha A–D, inclusive com três afirmativas numeradas e alternativas que combinam quais estão corretas. A amostra específica sobre administração avançada é mais limitada; por isso, use esse perfil de prova como guia sem presumir preferência comprovada por uma versão de Oracle, PostgreSQL ou SQL Server. Aqui o caminho mais seguro é dominar a arquitetura de administração: catálogo de metadados, processador e otimizador de consultas, gerenciador de buffers, responsabilidades do administrador e diferença entre manutenção preventiva e recuperação após falha. Um conjunto plausível de assertivas afirma que o catálogo guarda definições de tabelas separadamente dos programas de aplicação, que o otimizador necessariamente cria índices e que o buffer só existe para backup. A primeira pode estar correta, mas as outras duas são falsas: otimização de plano não implica criar índices e buffers são usados durante operações normais de leitura e escrita. Outra formulação pode confundir banco distribuído com um servidor central que concentra todos os dados: a distribuição envolve nós ou localidades, com mecanismos de acesso e coordenação. Observe sobretudo termos restritivos como 'somente', 'automaticamente' e 'obrigatoriamente' dentro de cada afirmativa. O estudo deve privilegiar a função de cada subsistema, a distinção entre segurança lógica e física e os efeitos da falha; recursos muito específicos de versões comerciais entram como complemento, não ponto de partida.",
+    "tips": [
+      "Em item com I, II e III, julgue cada frase sobre o SGBD separadamente antes de consultar as combinações A–D.",
+      "Se a assertiva falar em catálogo ou dicionário, procure definições de estruturas e metadados, não apenas linhas inseridas nas tabelas.",
+      "Quando o texto atribuir ao otimizador a criação inevitável de novos índices, separe escolha do plano de execução de alterações administrativas na estrutura.",
+      "Se aparecer gerenciador de buffers, lembre que cache de páginas em memória participa do funcionamento cotidiano do banco.",
+      "Na definição de banco distribuído, verifique a presença de armazenamento ou processamento em locais distintos; não aceite a exigência de concentração física num único nó."
+    ],
+    "traps": [
+      "O otimizador de consultas cria obrigatoriamente os índices que considerar necessários durante cada execução SQL. → A escolha do plano não pressupõe alteração automática do esquema. → O otimizador seleciona estratégias de execução com os recursos disponíveis.",
+      "O gerenciador de buffers somente mantém páginas na memória durante operações de restauração. → O buffer é parte da operação regular do SGBD. → Páginas de dados e índices podem permanecer em cache durante consultas e atualizações.",
+      "O catálogo do SGBD contém exclusivamente os registros de negócio inseridos pelos usuários, sem informações de estrutura. → Confunde dados da aplicação com metadados. → O catálogo descreve objetos, definições e outras informações do banco.",
+      "Um banco de dados distribuído exige que todas as tabelas residam fisicamente no mesmo servidor para oferecer transparência de acesso. → A concentração física contradiz a distribuição. → Os dados podem ser distribuídos entre nós e acessados por mecanismos de integração.",
+      "Depois de um erro de gravação, a simples reinicialização do servidor dispensa a consulta aos registros de transações e às estruturas de recuperação. → Reiniciar não substitui mecanismos de consistência. → O SGBD pode precisar de logs e procedimentos de recuperação para restabelecer estado consistente."
+    ],
+    "questions": []
+  },
+  {
+    "topic": "informatica.administracao-sgbd",
+    "board": "GERAL",
+    "role": null,
+    "version": 1,
+    "incidence": "MEDIA",
+    "howItFalls": "Em provas de administração de SGBD, a cobrança costuma vir em Certo/Errado ou em múltipla escolha, frequentemente com cinco alternativas e, em algumas organizadoras, quatro. O enunciado pode ser curto e conceitual ou descrever um banco que ficou lento, sofreu falha, precisa manter serviço ativo ou deve controlar acessos. O centro da matéria é relacionar a necessidade à operação correta. Backup serve à recuperação histórica; replicação atende à disponibilidade e à distribuição de leituras, mas propaga também alterações indesejadas. Um exemplo afirma que espelhar o banco elimina a necessidade de backups: está errado, porque uma exclusão acidental pode ser reproduzida nas cópias. Em continuidade, distinga perda tolerável de dados e tempo tolerável de parada, e pense na sequência de restauração e em testes efetivos. No tuning, saiba analisar planos, estatísticas, índices, contenção e consumo de recursos antes de propor mudanças. Um segundo exemplo diz que criar índices para todas as colunas acelera igualmente leituras e escritas; não, pois índices também elevam custo de atualização e armazenamento. Segurança envolve autenticação, privilégios mínimos, auditoria e criptografia em trânsito ou repouso. Em bancos distribuídos, separe fragmentação de dados, replicação, coordenação de transações e consistência entre nós. Oracle, PostgreSQL e SQL Server possuem ferramentas e nomes próprios, mas o raciocínio operacional vem primeiro. Priorize diferenças entre mecanismos e suas limitações; deixe detalhes de sintaxe pouco usuais e parâmetros específicos de versão para uma etapa posterior.",
+    "tips": [
+      "Ao ler um incidente, classifique antes a necessidade: restaurar um estado antigo, manter o serviço disponível, corrigir lentidão ou impedir acesso indevido.",
+      "Quando houver política de backup, confira retenção, integridade da cópia e teste real de restauração, não apenas a mensagem de execução concluída.",
+      "Se o problema apresentar RPO e RTO, trate-os como critérios diferentes para selecionar recuperação e alta disponibilidade.",
+      "Em arquitetura distribuída, identifique se o texto descreve particionamento entre nós, duplicação de dados ou coordenação de uma transação única.",
+      "Antes de aceitar uma solução de tuning, verifique o impacto de índices, estatísticas, bloqueios e consumo de recursos na carga de leitura e escrita.",
+      "Quando a proteção do banco envolver criptografia, confira separadamente os dados em trânsito, os dados armazenados e o controle de acesso."
+    ],
+    "traps": [
+      "Manter uma réplica atualizada torna desnecessária qualquer rotina de backup. → Exclusões e corrupções lógicas também podem alcançar a réplica. → Replicação complementa, mas não substitui, cópias recuperáveis de momentos anteriores.",
+      "A criptografia TLS da conexão garante, por si só, que os arquivos persistidos em disco estejam criptografados. → Proteção de transporte não equivale à proteção de armazenamento. → Criptografia em trânsito e em repouso são controles distintos.",
+      "Fragmentar horizontalmente uma tabela significa manter cópias integrais e idênticas da tabela em todos os servidores. → Confunde particionamento com replicação. → Fragmentação horizontal divide conjuntos de linhas entre partições ou nós.",
+      "A conclusão sem erro de um trabalho automático de backup comprova que a base poderá ser restaurada integralmente quando necessário. → Execução concluída não equivale a recuperabilidade testada. → A política deve incluir validação e exercícios de restauração.",
+      "A criação de um índice para cada coluna sempre acelera qualquer instrução INSERT, UPDATE ou DELETE. → Índices adicionais exigem manutenção nas escritas. → Índices devem ser escolhidos conforme consultas, seletividade e custo operacional."
+    ],
+    "questions": []
+  }
+]

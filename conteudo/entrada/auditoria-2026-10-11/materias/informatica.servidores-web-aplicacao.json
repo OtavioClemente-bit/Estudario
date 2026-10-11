@@ -1,0 +1,1796 @@
+{
+  "id": "informatica.servidores-web-aplicacao",
+  "subject": "Informática",
+  "title": "Servidores web e de aplicação, proxy e balanceamento",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Servidores web e de aplicação, proxy e balanceamento"
+  ],
+  "scope": {
+    "covers": "Apache HTTP Server, Nginx, IIS, Tomcat, WildFly/JBoss, Zope, PHP e Node.js; servidores web e de aplicação; publicação HTTP e HTTPS, proxy direto e reverso, API gateway, CDN, TLS offloading, balanceamento de carga, cluster, alta disponibilidade, configuração e diagnóstico, com serviços de rede conexos.",
+    "excludes": "Programação profunda de sistemas, configuração completa de servidores de banco, correio, DNS e diretórios; exploração ofensiva, regras extensas de firewall e detalhes próprios de licenças ou versões não documentadas."
+  },
+  "theoryTitle": "Servidores web e de aplicação: publicação, proxy, TLS, balanceamento e continuidade",
+  "chapters": [
+    {
+      "title": "1. Fundamentos dos servidores web e de aplicação",
+      "markdown": "## Da URL ao processamento\n**Servidor** pode ser um equipamento ou uma instância de software que presta um serviço. Uma única máquina pode hospedar mais de um serviço; um único site, por sua vez, pode utilizar dezenas de instâncias. Na Web, o navegador consulta DNS para obter endereços, abre a conexão de transporte, negocia TLS se o acesso for HTTPS, envia requisição HTTP e recebe resposta HTTP. Cada etapa tem função distinta: DNS resolve nomes, TLS protege o transporte e HTTP define mensagens de aplicação. Uma arquitetura frequente é cliente → proxy reverso → serviço de aplicação → banco de dados. A resposta volta pela cadeia inversa. Portas TCP 80 e 443 são os padrões usuais para HTTP e HTTPS, respectivamente, mas podem ser alteradas, por exemplo para 8080 ou 8443. O cabeçalho `Host` em HTTP/1.1 permite selecionar sites por nome em um mesmo endereço.\n\n## Servidor web versus servidor de aplicação\n**Servidor web** recebe HTTP/HTTPS, serve arquivos ou encaminha solicitações. Arquivos HTML, imagens, folhas CSS e JavaScript estáticos podem ser enviados sem executar lógica de negócio a cada acesso. **Servidor de aplicação** hospeda lógica dinâmica, componentes, serviços e estado necessário à aplicação. A divisão não é absoluta: Tomcat também pode servir arquivos estáticos, enquanto Nginx e Apache podem agir como proxies. Também não é necessário usar dois programas em todas as implantações. Uma aplicação Node.js pode publicar HTTP diretamente, e uma arquitetura maior pode colocar um Nginx à frente para TLS e roteamento.\n\n| Produto | Função típica | Distinção relevante |\n| --- | --- | --- |\n| Apache HTTP Server (`httpd`) | Servidor web modular | Publicação HTTP e proxy por módulos |\n| Nginx | Servidor web e proxy | Atuação com HTTP, FastCGI e grupos upstream |\n| IIS | Servidor web Windows | Sites, aplicações, pools e módulos de proxy |\n| Tomcat | Contêiner de aplicações web Java | Servlet e Jakarta Pages, sem equivalência automática a todo Jakarta EE |\n| WildFly / JBoss | Servidor de aplicações Java | Serviços corporativos da plataforma Jakarta EE |\n| Node.js | Ambiente de execução JavaScript | Permite implementar servidor HTTP, não é servidor Java EE |\n| PHP / PHP-FPM | Linguagem e gerenciador de execução | Integração por FastCGI em arquiteturas comuns |\n| Zope | Plataforma de aplicações Python | Hospeda aplicações, não se limita a HTML estático |\n\n## Serviços conexos\nServidor DNS traduz nomes; DHCP fornece endereços e parâmetros a clientes; e-mail usa serviços/protocolos próprios de envio e recebimento; banco de dados responde a consultas; mensageria desacopla aplicações mediante mensagens. Samba oferece compartilhamento interoperável com SMB/CIFS, enquanto NFS é um protocolo de sistemas de arquivos de rede. LDAP consulta e modifica serviços de diretório, e OpenLDAP é uma implementação. FTP é voltado à transferência de arquivos. Nenhuma dessas tecnologias vira balanceador HTTP por estar instalada na mesma máquina que um site. Uma arquitetura pode autenticar usuários com diretório LDAP e manter arquivos em NFS, sem que essas ferramentas escolham o backend HTTP.\n\n## HTTP e interpretação de falhas\nGET, POST e outros métodos representam operações; códigos 200, 301, 302, 404, 502, 503 e 504 possuem significados próprios. Um 404 pode vir do servidor de borda ou da aplicação; só o código não revela qual camada o produziu. HTTPS agrega TLS, mas o certificado é validado em relação à identidade apresentada pelo servidor naquela conexão. Em ambientes com proxy reverso, cliente e backend podem ter conexões separadas. A prova costuma descrever vários componentes e exigir que se reconheça qual resolveu nome, qual publicou HTTP, qual executou regra de negócio e qual armazenou dados. Um servidor web não é sinônimo de servidor de arquivos SMB, e JavaScript no navegador não é a mesma função de Node.js no servidor."
+    },
+    {
+      "title": "2. Apache, Nginx, IIS, Tomcat e WildFly",
+      "markdown": "## Apache HTTP Server\nO Apache HTTP Server é modular. `Listen` define escuta; `ServerName` identifica o nome principal; `VirtualHost` organiza sites; `DocumentRoot` aponta para a raiz local de documentos. `mod_proxy` possibilita proxy reverso, com `ProxyPass` associando caminho à origem e `ProxyPassReverse` ajustando determinados cabeçalhos de redirecionamento da resposta, não todos os links dentro do HTML. `mod_proxy_balancer` agrupa destinos; `BalancerMember` cadastra membros. Uma aplicação atrás de `ProxyPass /app http://10.0.0.2:8080/app` é atendida pelo backend, ao passo que `DocumentRoot` entrega arquivos do disco do próprio httpd. Em Linux, caminhos e nome do serviço podem variar conforme a distribuição: frequentemente `/etc/apache2` ou `/etc/httpd`, serviço `apache2` ou `httpd`.\n\n## Nginx: contextos e encaminhamento\nNo Nginx, `http` agrupa definições web, `server` define atendimento virtual, `location` escolhe tratamento de caminhos e `upstream` define grupo de destinos. A diretiva `root` relaciona URI a arquivos locais; `proxy_pass` remete solicitação HTTP a uma origem; `fastcgi_pass` encaminha ao protocolo FastCGI, muito usado com PHP-FPM. Exemplo: `upstream app { server 10.0.0.11:8080; server 10.0.0.12:8080; }`, combinado com `location / { proxy_pass http://app; }`, distribui solicitações HTTP. Sem método alternativo, o balanceamento padrão documentado é round robin. A sintaxe da URI importa: `location /api/ { proxy_pass http://backend/v1/; }` encaminha requisição comum a `/api/itens` para `/v1/itens`; a URI especificada em `proxy_pass` substitui a parte correspondente ao `location`. Sem URI adicionada ao endereço do backend, normalmente preserva-se a URI original. Confundir barras ou prefixos causa rotas incorretas.\n\n## IIS e ARR\nO IIS atende sites e aplicações na plataforma Windows e utiliza bindings, aplicações e pools de aplicativos. Um pool auxilia a administração e o isolamento do processo que atende determinada aplicação, mas não equivale a cluster de máquinas. Para proxy reverso e balanceamento HTTP, a Microsoft documenta o uso combinado de **Application Request Routing (ARR)** e **URL Rewrite**. ARR aplica regras de encaminhamento, monitoração e afinidade quando habilitados/configurados. O módulo de reescrita permite selecionar destinos por caminho e outras propriedades HTTP. Alterar registro DNS não substitui a necessidade de ARR quando a escolha depende de prefixo de URI.\n\n## Tomcat e WildFly/JBoss\nTomcat implementa especificações web como Jakarta Servlet e Jakarta Pages, executando aplicações normalmente empacotadas em WAR. O arquivo `server.xml` contém elementos como conectores, que podem receber requisições HTTP. Tomcat pode atender HTTP diretamente ou atrás de Apache/Nginx; não exige necessariamente um proxy. O WildFly, relacionado historicamente ao JBoss AS, é um servidor de aplicações Jakarta EE que integra mais serviços empresariais. **JBoss EAP** é uma distribuição empresarial distinta, embora relacionada tecnicamente à família. Não se deve tratá-lo como nome idêntico a qualquer instalação WildFly. Node.js, por sua vez, é runtime JavaScript capaz de criar serviços HTTP, não variante de Java EE. PHP costuma integrar-se ao Nginx via PHP-FPM/FastCGI; Zope integra tecnologias Python.\n\n## Distinguir parâmetros e protocolos\nNa implantação, confirme a porta escutada, o nome virtual, a diretiva que publica arquivos, o caminho mapeado ao backend e o protocolo usado na segunda conexão. `server_name` não identifica pasta; `root` não é balanceador; `proxy_pass` fala com origem HTTP, enquanto `fastcgi_pass` exige serviço FastCGI compatível. A prova explora a proximidade entre produtos e a atribuição incorreta de um recurso de uma plataforma a outra. O serviço de aplicação pode executar lógica e também servir HTTP, mas a escolha operacional de proxy de borda visa isolamento, distribuição, certificado ou administração centralizada."
+    },
+    {
+      "title": "3. Proxy direto e reverso, API gateway, CDN e TLS",
+      "markdown": "## Quem o proxy representa?\n**Proxy direto** intermedeia navegação a favor do cliente, como ocorre quando uma rede interna obriga usuários a sair por um ponto de filtragem, autenticação e registro. **Proxy reverso** representa origens perante usuários externos, recebendo `/portal` ou `/api` e enviando requisições aos servidores que executam os serviços. Um mesmo software pode exercer funções diferentes conforme a configuração. Proxy reverso pode esconder os endereços privados das origens, mas isso não garante ausência de vulnerabilidades na aplicação.\n\n## Roteamento nas camadas 4 e 7\nNa camada 4, encaminhamento baseado em IP, porta e estado de conexão não precisa ler HTTP. Na camada 7, o intermediário consegue selecionar destino por nome de host, URI, método, cabeçalho ou cookie, dependendo do software. Exemplo: `www.exemplo` vai para servidor de conteúdo e `api.exemplo` para serviço de pedidos, ou caminhos `/v1` e `/v2` apontam para versões distintas. DNS resolve nomes mas não analisa caminho HTTP. Roteamento por URI em HTTPS tipicamente exige que a borda tenha acesso ao HTTP decifrado. Um proxy pode adicionar `X-Forwarded-For` e `X-Forwarded-Proto` para informar endereço percebido e esquema original. Esses campos não devem ser confiados se puderem ser forjados pelo cliente: estabeleça proxies confiáveis e regras de sobrescrita, e não autentique o usuário só por cabeçalho recebido.\n\n## TLS, terminação e recriptografia\nHTTPS utiliza **TLS**, sucessor dos protocolos antigos SSL. A expressão **SSL offloading** persiste no vocabulário e significa, em geral, terminar a criptografia na borda. Se o navegador abre TLS até o balanceador e este faz uma requisição HTTP comum ao backend, só o primeiro trecho tem TLS. É possível estabelecer nova sessão HTTPS entre proxy e aplicação, protegendo o segundo enlace; isso não é automático. **TLS passthrough** mantém a sessão criptografada até o destino que a termina. Nesse modelo, o componente intermediário pode usar dados de transporte ou metadados TLS visíveis, como SNI em condições apropriadas, mas não ler caminho e corpo HTTP cifrados. Certificado válido, nome compatível, cadeia confiável, chaves protegidas e renovação são relevantes para evitar falhas antes mesmo da requisição chegar ao aplicativo.\n\n## Gateway de API\nUm **API gateway** organiza o ingresso de APIs e pode aplicar validação de credenciais, limitação de taxa, roteamento por versão, transformação de mensagens, métricas e auditoria. Nginx, Apache, HAProxy e Traefik podem compor essa camada conforme recursos e integrações disponíveis. Ter instalado um proxy não prova que limitação de requisições ou autenticação já foram ativadas. **Traefik** define roteadores e serviços de destino; seus serviços podem distribuir tráfego e usar verificações de saúde. **HAProxy** oferece balanceamento e políticas de confiabilidade, incluindo health checks. Quando o edital menciona API gateway, identifique a camada de política e não confunda seu propósito com o banco de dados.\n\n## CDN e cache\nUma **Content Delivery Network** distribui conteúdo por pontos de presença próximos dos usuários e frequentemente armazena cópias em cache, reduzindo latência e carga na origem. Não é o mesmo que um balanceador de servidores de aplicação em um único datacenter, embora possam atuar juntos. Cache precisa de política: tempo de validade, diretivas `Cache-Control`, invalidação e composição da chave. GET autenticado com resposta privada não deve ser compartilhado indiscriminadamente entre pessoas. Uma resposta 304 pode resultar de validação condicional de cache; não representa erro do servidor por si só. A CDN pode acelerar imagens e folhas CSS, mas não elimina, por si, atrasos nas transações do banco.\n\n| Recurso | Função | Confusão comum |\n| --- | --- | --- |\n| Proxy direto | Controlar saída do cliente | Tratá-lo como entrada das origens |\n| Proxy reverso | Representar origem e encaminhar HTTP | Achar que replica o estado da sessão |\n| API gateway | Concentrar políticas de APIs | Presumir autenticação automática |\n| CDN | Cache e entrega em pontos distribuídos | Confundi-la com banco replicado |\n| Offloading TLS | Encerrar TLS na borda | Supor proteção automática até a origem |\n\n> Uma URL HTTPS apresentada ao usuário prova proteção TLS do trecho até o endpoint que apresentou o certificado, não a criptografia das demais conexões criadas no caminho."
+    },
+    {
+      "title": "4. Balanceamento, cluster e alta disponibilidade",
+      "markdown": "## Algoritmos de distribuição\nO **round robin** percorre servidores disponíveis em rotação; pesos podem alterar a participação relativa de cada um. **Least connections** escolhe um destino com menor quantidade de conexões ativas, conforme a implementação, e não necessariamente menor uso de CPU. **IP hash** usa um hash do endereço do cliente para manter certa estabilidade de destino, sujeito a mudanças de IP, NAT e composição do grupo. As funcionalidades concretas dependem de versão e edição do produto. O Nginx documenta round robin como padrão, além de least-connected e IP-hash. Não se deve confundir algoritmo com capacidade garantida: distribuir requisições igualmente não significa distribuir tempos de processamento ou uso de memória igualmente.\n\n## Monitoramento de saúde e retirada da rotação\nHealth check **ativo** envia sondas regulares para determinar se o servidor está apto a receber tráfego; verificação **passiva** observa resultados das requisições reais. Uma conexão TCP estabelecida mostra que uma porta está acessível, mas não comprova que a aplicação consegue acessar banco, serviço de autenticação ou fila. Um endpoint HTTP de **readiness** bem projetado deve refletir condições para atender solicitações. **Liveness** pode indicar apenas processo vivo. Após falhas consecutivas segundo o limite configurado, um nó pode ser retirado da rotação e, recuperado, reinserido. Sem health check efetivo, o balanceador pode insistir em enviar tráfego para uma instância que aceita conexão, mas devolve falha nas transações.\n\n## Escala e modos de cluster\n**Escala horizontal** adiciona nós; **escala vertical** amplia CPU, memória ou recursos de uma máquina. **Cluster** é conjunto de nós que cooperam para prover desempenho ou disponibilidade. Na topologia **ativo-ativo**, diversos nós atendem requisições; em **ativo-passivo**, um reserva assume após detecção de falha. **Failover** é a passagem a alternativa diante da indisponibilidade do primário. Nenhum esquema assegura perda de tempo igual a zero por definição: detecção, promoção e retomada têm latências. O próprio balanceador deve ser redundante quando sua falha interromperia o acesso a todos os backends. DNS com diversos registros não substitui automaticamente health check e coordenação de estado.\n\n## Sessões e replicação\n**Afinidade de sessão** tenta manter um cliente no mesmo backend, usando cookie ou outro critério. Ajuda aplicações que guardam dados na memória local, mas não copia esses dados para outro nó. Se o nó falha, o usuário pode perder sessão mesmo com balanceamento funcionando. Alternativas são sessão compartilhada em armazenamento externo, replicação de estado ou aplicações estateless com tokens e políticas coerentes de autenticação. Replicação assíncrona pode apresentar atraso; compartilhamento de sessão não constitui backup. Em atualização de versão, é preciso considerar compatibilidade do estado e comportamento das sessões já iniciadas.\n\n## Desempenho real\nThroughput mede taxa de atendimento, latência mede espera e tempo de resposta, enquanto utilização e fila revelam saturação. Três nós com capacidade isolada de 200 solicitações por segundo cada não garantem 600 solicitações efetivas se a aplicação depende de um banco que suporta somente 300. Cache pode aliviar a origem e conexões persistentes reduzem certas sobrecargas, mas cada etapa do caminho pode ser gargalo. Escalonar o proxy e os backends exige analisar métricas de todo o sistema. A política round robin não corrige indisponibilidade do banco, nem least connections garante resposta mais rápida para operações de duração muito desigual.\n\n| Problema observado | Investigação ou solução | O que não basta |\n| --- | --- | --- |\n| Nó travado | Health check e retirada da rotação | Apenas manter seu DNS publicado |\n| Sessões perdidas após falha | Estado compartilhado ou replicado | Afinidade sem recuperação |\n| Entrada única falha | Redundância de balanceadores | Apenas múltiplos backends |\n| Latência cresce sob carga | Identificar gargalos e filas | Somar nós indiscriminadamente |\n\n> Na prova, separar **seleção de destino**, **continuidade do serviço** e **consistência de sessão** evita quase todas as trocas conceituais."
+    },
+    {
+      "title": "5. Administração de serviços e diagnóstico operacional",
+      "markdown": "## Instalar, publicar e validar\nA implantação de Apache ou Nginx exige verificar versão, escuta, site virtual, arquivos ou backend, TLS e permissões. Em Linux, gerenciadores de pacote instalam software, e serviços frequentemente podem ser geridos por `systemctl`; o nome varia por distribuição. Antes de recarregar, use validação sintática quando disponível, como `nginx -t` ou `apachectl configtest`. Em Windows, o IIS Manager permite gerir sites, bindings, certificados e pools. Um pool de aplicação não cria replicação entre máquinas. No Tomcat, conectores e serviços podem ser ajustados em `server.xml`; em WildFly há configuração própria do servidor de aplicações. Mudar o DNS não corrige porta de origem errada em `proxy_pass` nem certificado que não corresponde ao host publicado.\n\n## Serviços de rede e filtros\nDNS fornece resolução de nomes; DHCP disponibiliza configuração de rede; LDAP/OpenLDAP fazem operações em diretórios. Samba fornece serviços de compartilhamento como SMB/CIFS, e NFS atende compartilhamento de sistemas de arquivos. FTP transfere arquivos; correio eletrônico, mensageria e banco de dados têm protocolos e funções distintos. Essas funções podem sustentar uma aplicação, mas não se tornam HTTP. `iptables` administra regras tradicionais de filtragem no Linux; `ufw` é interface simplificada de gestão de firewall; pfSense é plataforma de firewall e roteamento. Abrir TCP 443 no filtro não garante que haja serviço HTTPS saudável nessa porta. Também devem ser protegidas portas administrativas e interfaces de gerenciamento, com políticas de mínimo privilégio, atualização e controle de chaves privadas.\n\n## Status e códigos de erro\nUm 404 sinaliza recurso não encontrado, podendo vir do proxy ou backend. **502 Bad Gateway** aponta problema com a resposta recebida por intermediário da origem; **503 Service Unavailable** expressa indisponibilidade, por exemplo após esgotamento de instâncias aptas; **504 Gateway Timeout** indica que o intermediário não obteve resposta a tempo. Esses códigos orientam hipóteses, mas não provam causa raiz. Em 504, verifique timeout, fila, conectividade e saturação. Em 502, examine configuração do upstream, protocolo e saúde da origem. Um redirecionamento inesperado para HTTP pode ocorrer quando a aplicação desconhece o HTTPS original terminado no proxy; confira configuração e `X-Forwarded-Proto` fornecido por intermediário confiável.\n\n## Roteiro de troubleshooting\n1. Resolva nome e confira IP de destino; erros de DNS diferem de HTTP.\n2. Verifique conectividade, porta escutada e políticas de firewall.\n3. Confirme negociação TLS, nome do certificado e validade.\n4. Analise host virtual, `location`, `ProxyPass` e regra de reescrita de URL.\n5. Verifique estado do upstream, saúde do backend e dependências.\n6. Correlacione logs de acesso/erro e identificadores entre borda e aplicação.\n7. Teste novamente após uma alteração controlada e monitore taxas de erro e latência.\n\n`curl` pode inspecionar código de resposta, redirecionamento e cabeçalhos; `curl -I` solicita HEAD e, por isso, não substitui teste de uma operação POST. Ferramentas de sockets como `ss` ajudam a verificar processos em escuta. Observabilidade exige logs, métricas e, quando possível, rastreamento da requisição pelo caminho distribuído. A coleta de logs precisa respeitar confidencialidade de credenciais e informações sensíveis.\n\n## Segurança e resiliência\nNo proxy de entrada, controles como limitação de taxa, redirecionamento para HTTPS, tamanho de requisição e autenticação podem depender de módulos ou configuração. **Cabeçalhos repassados não são automaticamente confiáveis**: um cliente pode fabricar valores `X-Forwarded-For`; delimite a cadeia de proxies confiáveis. Cache compartilhado mal configurado pode vazar respostas privadas. TLS offloading não garante criptografia do segmento interno, e teste de saúde TCP pode aprovar um serviço incapaz de completar operações. Avalie a disponibilidade do balanceador, do banco e do diretório de autenticação, além dos backends HTTP.\n\n## Como o tema costuma ser cobrado\nOs enunciados misturam papéis de httpd, Tomcat, WildFly, IIS e Node.js; trocam `proxy_pass` por `fastcgi_pass`; perguntam o efeito de URI em `location`; exigem distinguir proxy direto, reverso, CDN e gateway; equiparam TLS offloading a criptografia integral; confundem afinidade com replicação e algoritmo de distribuição com alta disponibilidade. Na análise de incidentes, a prova pode oferecer o código HTTP correto e uma conclusão causal indevida. Antes de marcar uma alternativa, descubra **quem recebe**, **quem encaminha**, **quem executa**, **quem armazena estado** e **onde a conexão TLS é encerrada**."
+    }
+  ],
+  "summary": "## Revisão dos pontos essenciais\n**Publicação:** Apache HTTP Server, Nginx e IIS atuam como servidores HTTP; Tomcat é contêiner web Java; WildFly é servidor de aplicações Jakarta EE. Node.js executa JavaScript no servidor; PHP-FPM comunica-se via FastCGI; Zope está ligado a aplicações Python.\n\n**Configuração:** Apache usa `DocumentRoot`, `VirtualHost`, `ProxyPass` e `BalancerMember` para tarefas diferentes. Nginx usa `server`, `location`, `upstream`, `proxy_pass` e `fastcgi_pass`. IIS pode combinar ARR com URL Rewrite.\n\n**Intermediação:** proxy direto representa cliente; reverso representa origens; API gateway concentra políticas; CDN aproxima e armazena cópias do conteúdo. HTTP por caminho requer roteamento capaz de interpretar URI.\n\n**Segurança:** TLS offloading encerra criptografia no proxy; HTTP até backend não é cifrado por herança. TLS passthrough não entrega conteúdo HTTP decifrado ao intermediário. Cabeçalhos `X-Forwarded-*` exigem confiança delimitada.\n\n**Balanceamento e continuidade:** round robin gira pelos destinos, least connections observa conexões ativas, IP hash associa destinos ao endereço. Health checks retiram instâncias não aptas. Redundância precisa abranger a borda; sticky session não replica estado.\n\n**Diagnóstico:** 502 aponta problema de gateway/origem, 503 indica indisponibilidade e 504 indica timeout de gateway. Logs e testes por salto são indispensáveis. DNS, DHCP, LDAP, SMB/CIFS, NFS, FTP, firewall, banco e mensageria possuem tarefas próprias.",
+  "flashcards": [
+    {
+      "front": "Qual é o papel principal de um servidor web?",
+      "back": "Atender HTTP/HTTPS, servir recursos e, quando configurado, encaminhar requisições."
+    },
+    {
+      "front": "Qual a diferença central do application server?",
+      "back": "Hospeda lógica e serviços de execução de aplicações; pode também oferecer HTTP diretamente."
+    },
+    {
+      "front": "Apache HTTP Server e Tomcat são iguais?",
+      "back": "Não. httpd é servidor HTTP modular; Tomcat é contêiner de aplicações web Java."
+    },
+    {
+      "front": "O que é WildFly?",
+      "back": "Servidor de aplicações que implementa serviços da plataforma Jakarta EE."
+    },
+    {
+      "front": "O que é Node.js?",
+      "back": "Ambiente de execução JavaScript que pode criar um servidor HTTP, sem ser servidor Java EE."
+    },
+    {
+      "front": "Para que serve `DocumentRoot`?",
+      "back": "Estabelecer o diretório de arquivos locais publicado pelo Apache HTTP Server."
+    },
+    {
+      "front": "O que faz `ProxyPass`?",
+      "back": "Mapeia requisições recebidas pelo Apache HTTP Server para uma origem intermediada."
+    },
+    {
+      "front": "O que faz `ProxyPassReverse`?",
+      "back": "Ajusta determinados cabeçalhos de redirecionamento devolvidos pela origem; não reescreve todo HTML."
+    },
+    {
+      "front": "O que significa `upstream` no Nginx?",
+      "back": "Define um grupo de destinos que pode ser usado no encaminhamento/balanceamento."
+    },
+    {
+      "front": "Nginx para PHP-FPM usa qual diretiva?",
+      "back": "`fastcgi_pass` para conversar pelo protocolo FastCGI."
+    },
+    {
+      "front": "Como o IIS implementa proxy reverso?",
+      "back": "Com módulos como ARR associados ao URL Rewrite, devidamente habilitados."
+    },
+    {
+      "front": "Proxy direto representa quem?",
+      "back": "Normalmente os clientes que saem de uma rede e acessam serviços externos."
+    },
+    {
+      "front": "Proxy reverso representa quem?",
+      "back": "Os servidores de origem perante os clientes que acessam a aplicação."
+    },
+    {
+      "front": "O que acrescenta um API gateway?",
+      "back": "Políticas de entrada de APIs, como autenticação, limite, roteamento e métricas, quando configuradas."
+    },
+    {
+      "front": "Qual o papel de CDN?",
+      "back": "Entregar conteúdo distribuído e frequentemente em cache próximo aos usuários."
+    },
+    {
+      "front": "Offloading TLS protege automaticamente o backend?",
+      "back": "Não. Se o segundo trecho for HTTP, a proteção TLS termina no proxy."
+    },
+    {
+      "front": "O que é camada 4 no balanceamento?",
+      "back": "Seleção pelo transporte, como IP, porta e conexões, sem leitura obrigatória da URI."
+    },
+    {
+      "front": "O que é camada 7 no balanceamento?",
+      "back": "Seleção baseada em atributos HTTP, como host, caminho e cabeçalhos."
+    },
+    {
+      "front": "Qual método padrão de balanceamento HTTP do Nginx?",
+      "back": "Round robin, quando nenhum método alternativo é configurado para o grupo."
+    },
+    {
+      "front": "O que testa health check ativo?",
+      "back": "Sonda periodicamente destinos para determinar aptidão para o atendimento."
+    },
+    {
+      "front": "Sticky session replica dados da sessão?",
+      "back": "Não. Apenas tenta manter a afinidade de roteamento entre cliente e nó."
+    },
+    {
+      "front": "O que significa 504?",
+      "back": "O intermediário não recebeu resposta da origem dentro do tempo permitido."
+    }
+  ],
+  "tips": [
+    "Identifique em cada cenário a camada que resolve nome, recebe HTTP, executa código e armazena estado.",
+    "Distinga diretiva de arquivos locais (`root`, `DocumentRoot`) de diretiva de proxy (`proxy_pass`, `ProxyPass`).",
+    "Memorize que PHP-FPM costuma usar FastCGI e não HTTP convencional.",
+    "Observe o ponto de terminação TLS antes de afirmar criptografia do trecho interno.",
+    "Compare algoritmos de balanceamento por seu critério real: rotação, conexões, peso ou hash.",
+    "Procure ponto único de falha mesmo que a arquitetura tenha várias instâncias de aplicação.",
+    "Leia status HTTP como pista de investigação, não como prova definitiva de causa."
+  ],
+  "traps": [
+    "Enunciado: Apache HTTP Server e Tomcat são nomes do mesmo servidor. Errado: httpd publica HTTP; Tomcat hospeda aplicações web Java.",
+    "Enunciado: `proxy_pass` HTTP e `fastcgi_pass` são intercambiáveis para um socket PHP-FPM. Errado: os protocolos são diferentes.",
+    "Enunciado: HTTPS até o proxy protege automaticamente o backend HTTP. Errado: o segundo trecho exige nova proteção.",
+    "Enunciado: afinidade por cookie copia a sessão para os outros nós. Errado: afinidade seleciona destino, não replica dados.",
+    "Enunciado: várias origens garantem alta disponibilidade com balanceador único. Errado: a entrada continua ponto único de falha.",
+    "Enunciado: CDN é idêntica a balanceador interno de aplicações. Errado: CDN distribui/cacha objetos em pontos próximos dos usuários.",
+    "Enunciado: resposta 504 comprova pane de banco de dados. Errado: o código informa timeout na passagem pelo gateway, não causa raiz."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como distinguir servidor web de aplicação?",
+      "answer": "Servidor web prioriza HTTP, arquivos e encaminhamento; o de aplicação hospeda lógica e componentes, admitindo sobreposição."
+    },
+    {
+      "question": "Em Apache, que diferença há entre `ProxyPass` e `ProxyPassReverse`?",
+      "answer": "O primeiro encaminha requisição; o segundo ajusta certos cabeçalhos de redirecionamento vindos do backend."
+    },
+    {
+      "question": "O que muda quando `proxy_pass` do Nginx contém URI após o backend?",
+      "answer": "Em situações usuais, substitui o prefixo correspondente ao `location` pela URI definida."
+    },
+    {
+      "question": "O que é necessário no IIS para roteamento HTTP reverso por caminhos?",
+      "answer": "ARR e URL Rewrite configurados, com a funcionalidade de proxy habilitada."
+    },
+    {
+      "question": "Quando o offloading TLS deixa um trecho em claro?",
+      "answer": "Quando o proxy termina HTTPS e estabelece HTTP comum até a origem."
+    },
+    {
+      "question": "Qual distinção entre checagem ativa e passiva?",
+      "answer": "A ativa faz sondas; a passiva observa falhas nas solicitações reais."
+    },
+    {
+      "question": "Por que sticky session não resolve a perda de estado?",
+      "answer": "Não guarda cópias da memória da instância que falhou."
+    },
+    {
+      "question": "Como investigar 502, 503 e 504?",
+      "answer": "Interpretar respectivamente falha de gateway/origem, indisponibilidade e timeout e correlacionar logs e dependências."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Web server não é sinônimo de application server",
+      "summary": "HTTP Server/Nginx/IIS publicam e encaminham HTTP; Tomcat é contêiner web Java; WildFly reúne serviços Jakarta EE. Podem se sobrepor, mas não são idênticos."
+    },
+    {
+      "key": "e2",
+      "title": "Proxy direto, reverso, gateway e CDN",
+      "summary": "O direto atua por clientes; o reverso representa origens; gateway organiza políticas de APIs; CDN distribui/cacheia conteúdo geograficamente."
+    },
+    {
+      "key": "e3",
+      "title": "TLS terminado não protege enlace seguinte",
+      "summary": "Terminação no proxy e HTTP até a origem significa criptografia apenas no primeiro trecho. Passthrough evita decifrar na borda."
+    },
+    {
+      "key": "e4",
+      "title": "Balanceamento não basta para disponibilidade",
+      "summary": "Escolher backend não elimina ponto único de falha no balanceador, nem falhas do banco, das sessões e demais dependências."
+    },
+    {
+      "key": "e5",
+      "title": "Afinidade não é replicação de sessão",
+      "summary": "Sticky session direciona acessos ao mesmo nó, mas não copia a sessão para recuperação diante da queda desse nó."
+    },
+    {
+      "key": "e6",
+      "title": "Código HTTP não demonstra causa raiz",
+      "summary": "502, 503 e 504 orientam diagnóstico, sem identificar sozinhos qual elemento concreto falhou."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma aplicação entrega imagens locais e encaminha a pesquisa de produtos a outro processo HTTP. Qual a classificação mais adequada para o componente exposto ao navegador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Servidor web que publica recursos e atua como proxy reverso para a pesquisa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Servidor DNS que executa lógica da aplicação após resolver o nome de domínio solicitado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Servidor LDAP que atende requisições HTTP e gera resultados dinâmicos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Servidor de banco que converte arquivos locais em sessões de usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Servidor DHCP que distribui as consultas aos processos da aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Publicação de conteúdo e encaminhamento HTTP são funções típicas de um servidor web. B atribui execução ao DNS, que resolve nomes; C confunde diretório LDAP com site; D trata armazenamento como camada de publicação; E descreve DHCP, responsável por configuração de rede, não por roteamento de pesquisas.",
+      "section": "1. Fundamentos dos servidores web e de aplicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Java utiliza Servlet e Jakarta Pages, com implantação típica em WAR. Qual plataforma corresponde diretamente a esse ambiente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Node.js, que executa servlets por meio de seu runtime JavaScript.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apache Tomcat, que atua como contêiner de aplicações web Java.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Samba, que hospeda servlets utilizando compartilhamentos SMB.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Nginx, que interpreta bytecode Java dentro dos blocos `location`.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DNS autoritativo, que inicia a aplicação quando há consulta ao nome.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Tomcat fornece contêiner Servlet/Pages e recebe aplicações web Java. A descreve um runtime JavaScript sem a função indicada; C é compartilhamento de arquivos; D publica e encaminha HTTP, sem ser contêiner de bytecode Java; E resolve nomes e não executa WAR.",
+      "section": "2. Apache, Nginx, IIS, Tomcat e WildFly",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição obriga seus navegadores a usar serviço intermediário para autenticar e filtrar o acesso a sites externos. O serviço descrito é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Proxy reverso, que representa os servidores externos perante os clientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "API gateway, que executa o código Java dos sites externos acessados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Proxy direto, que intermedeia conexões de saída dos clientes internos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "CDN, que replica previamente todas as aplicações externas consultadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Balanceador de sessão, que sincroniza cada usuário com servidor remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O proxy direto representa clientes na saída, podendo aplicar autenticação e filtros. A inverte o papel do intermediário; B confunde política de acesso de API com execução remota; D supõe rede de cópias de conteúdo; E descreve função de sessão não envolvida no acesso externo.",
+      "section": "3. Proxy direto e reverso, API gateway, CDN e TLS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer selecionar três instâncias equivalentes em sequência rotativa, sem usar o número atual de conexões como critério. Qual método atende ao pedido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "IP hash, que calcula um destino segundo o endereço do cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Least connections, que privilegia o nó menos ocupado em conexões.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ativo-passivo, que mantém a segunda instância em espera por falha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Round robin, que percorre destinos disponíveis de forma alternada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Replicação síncrona, que confirma alterações em múltiplas réplicas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Round robin utiliza rotação de destinos aptos a receber solicitações. A usa hash, B usa quantidade de conexões, C descreve contingência com reserva e D é a rotação solicitada. E é mecanismo de consistência de dados, não política de escolha de backend.",
+      "section": "4. Balanceamento, cluster e alta disponibilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um portal é acessível ao digitar seu IP, mas o nome cadastrado não resolve no computador de teste. Qual serviço deve ser examinado primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O módulo de sessões persistentes do balanceador de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O serviço de compartilhamento de arquivos usado pelos usuários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O mecanismo de persistência de dados transacionais do servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A diretiva de reescrita interna de caminhos da aplicação HTTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A resolução DNS e os registros associados ao nome do portal.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Se o nome não resolve e o IP funciona, a hipótese inicial está no DNS e configuração de resolução. A trata afinidade de sessão, B arquivos, C persistência de aplicação e D roteamento de URI após o acesso por nome; não solucionam a tradução de domínio em endereço.",
+      "section": "1. Fundamentos dos servidores web e de aplicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um host virtual do Apache HTTP Server deve publicar documentos guardados em `/srv/site`. Qual diretiva indica esse diretório local?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`DocumentRoot`, que estabelece a raiz de documentos para o site.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`ProxyPass`, que encaminha caminhos para aplicações de origem em outro servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`BalancerMember`, que adiciona nós a um grupo balanceado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`ServerName`, que define o nome principal do host virtual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`Listen`, que determina a interface e a porta de atendimento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. `DocumentRoot` define a origem local de arquivos. B encaminha a backends, C registra membros de grupo, D identifica o host nominal e E define escuta. Todas são diretivas existentes, porém apenas a primeira seleciona o diretório solicitado.",
+      "section": "2. Apache, Nginx, IIS, Tomcat e WildFly",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um IIS deve encaminhar `/vendas` e `/compras` a aplicações distintas por regras HTTP. Qual associação documentada viabiliza esse uso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DHCP com LDAP, definindo os caminhos na autenticação de rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ARR com URL Rewrite, habilitando o proxy e as regras de encaminhamento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "NFS com Samba, selecionando os backends por compartilhamento de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DNS com FTP, usando registros de nome para inspecionar métodos HTTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pool de aplicativo isolado, sem qualquer regra para interpretar URLs.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. No IIS, ARR integrado a URL Rewrite suporta proxy reverso por regras de URI. A confunde autenticação/configuração com HTTP; C administra arquivos compartilhados; D atribui inspeção de caminhos ao DNS; E usa isolamento de processo, mas não roteia caminhos a diferentes origens.",
+      "section": "2. Apache, Nginx, IIS, Tomcat e WildFly",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Nginx precisa encaminhar `/pedidos` a outro servidor que fala HTTP na porta 8080. Qual diretiva é adequada ao protocolo de destino?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`root`, para localizar arquivos estáticos no disco do Nginx.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`server_name`, para selecionar os nomes de host publicados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`proxy_pass`, para transmitir requisições HTTP ao servidor de origem.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`fastcgi_pass`, para processar diretamente requisições em FastCGI no servidor de destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`listen`, para definir qual porta o Nginx utiliza na entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. `proxy_pass` remete requisições ao backend HTTP. A lê arquivo local, B vincula nome de host, D emprega protocolo FastCGI, inadequado à origem HTTP definida, e E regula a escuta do Nginx e não o destino dos pedidos.",
+      "section": "2. Apache, Nginx, IIS, Tomcat e WildFly",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conexão HTTPS termina no proxy e o proxy chama o backend por HTTP. Que afirmação descreve corretamente a proteção da comunicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A sessão TLS atravessa a borda intacta e é decifrada apenas pelo servidor final da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O backend herda a criptografia TLS porque a URL pública é HTTPS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O certificado do backend é obrigatoriamente o mesmo usado no navegador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O tráfego cliente-proxy tem TLS; o trecho HTTP interno não tem essa proteção.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A origem encerra a conexão TLS original depois de responder ao proxy.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. TLS termina no proxy e a nova conexão HTTP com a origem fica sem cifragem TLS. A seria passthrough; B presume herança impossível; C supõe identidade de certificados sem suporte no caso; E desloca a terminação para a origem, contrariando a arquitetura descrita.",
+      "section": "3. Proxy direto e reverso, API gateway, CDN e TLS",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância deixou de responder ao endpoint de prontidão e deve ser retirada automaticamente do conjunto que recebe novas requisições. Qual mecanismo atende a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Afinidade de cliente por IP, que preserva o backend de cada sessão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cache público, que substitui todas as respostas dinâmicas da instância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escala vertical, que aumenta recursos, sem verificar prontidão da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replicação de arquivos, que copia conteúdo para origens distintas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Health check, que marca a origem indisponível segundo limites configurados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Sondas e critérios de falha podem retirar um nó da rotação, restaurando-o quando passar nos testes. A pode continuar enviando usuários a ele; B não assegura operação dinâmica; C não detecta a indisponibilidade; D replica objetos, não classifica servidores prontos.",
+      "section": "4. Balanceamento, cluster e alta disponibilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Nginx foi configurado para enviar scripts PHP a um processo PHP-FPM por um socket FastCGI. Qual diretiva corresponde ao protocolo usado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`fastcgi_pass`, com parâmetros necessários à identificação do script.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`proxy_pass`, enviando HTTP diretamente ao socket que fala FastCGI.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`server_name`, indicando o arquivo PHP como hostname da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`upstream`, sem qualquer diretiva de encaminhamento à aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`root`, executando código PHP apenas pelo caminho de documentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. PHP-FPM comunica-se normalmente via FastCGI e `fastcgi_pass` aponta para esse serviço. B propõe HTTP incompatível com o socket; C confunde host e script; D pode agrupar destinos, mas não encaminha sozinho a requisição; E indica diretório sem executar interpretação PHP.",
+      "section": "2. Apache, Nginx, IIS, Tomcat e WildFly",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação mantém a sessão na memória local do nó escolhido. Deseja-se reduzir a troca de nó entre requisições do mesmo usuário enquanto o nó está saudável. Usa-se:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Replicação de DNS, para que nomes diferentes indiquem o mesmo processo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sticky session, por cookie ou critério de afinidade, sem replicar a memória.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "CDN, distribuindo as operações transacionais segundo cache de imagens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Round robin independente, mantendo a mesma origem em cada requisição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Balanceamento de correio SMTP, para preservar o estado dos navegadores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Afinidade tenta manter cliente e backend associados, mas não replica sessão entre nós. A modifica resolução, não estado da aplicação; C é entrega de conteúdo; D alterna destinos no uso usual; E distribui outro serviço e não trata sessão HTTP.",
+      "section": "4. Balanceamento, cluster e alta disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um site atende várias regiões e pretende aproximar cópias cacheáveis de imagens dos usuários, diminuindo tráfego até a origem. Qual tecnologia é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cluster de banco relacional usado para armazenar lançamentos financeiros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Proxy direto que os navegadores corporativos são obrigados a usar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CDN com pontos de presença e políticas adequadas de cache dos objetos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Pool de aplicativo que separa processos no mesmo servidor Windows.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Servidor LDAP que cria diretórios locais para cada requisição de imagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Uma CDN distribui objetos por pontos de presença e pode atender imagens do cache. A é persistência transacional; B representa clientes na saída; D isola processos em um host; E atende informações de diretório, sem ter o propósito de distribuição geográfica de objetos.",
+      "section": "3. Proxy direto e reverso, API gateway, CDN e TLS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um distribuidor decide com base em endereço IP e porta TCP, sem considerar URL nem cabeçalho Host. Trata-se tipicamente de balanceamento de:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Camada 7, por utilizar os caminhos que o navegador envia por HTTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Camada DNS, por compreender métodos e cabeçalhos da requisição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Camada de sessão, por exigir identidade persistente no navegador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Camada 4, pois usa atributos de transporte para selecionar conexões.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Camada da aplicação Java, por examinar o resultado da lógica de negócio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. O encaminhamento de camada 4 usa informação de transporte e não precisa conhecer o conteúdo HTTP. A seria roteamento por informações de aplicação; B atribui semântica HTTP ao DNS; C exige sessão não descrita; E confunde escolha de conexão com execução da lógica Java.",
+      "section": "4. Balanceamento, cluster e alta disponibilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O proxy Nginx devolveu 504 ao aguardar uma origem que demorou além do tempo configurado. Qual diagnóstico inicial corresponde ao código?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Falha de credenciais do usuário, anterior a toda conexão com a origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Recurso inexistente, resultando necessariamente em resposta 404 local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Redirecionamento permanente do site, com novo endereço informado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sucesso da transação no backend, indicando resposta 200 ao navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Timeout do gateway ao esperar a resposta de um servidor de origem.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. 504 Gateway Timeout informa que um intermediário não recebeu resposta em tempo hábil. A sugere autenticação, B confunde com 404, C se aproxima de 301/302 e D trata sucesso 200. Ainda é necessário verificar se lentidão decorreu da origem, da rede ou de dependências.",
+      "section": "5. Administração de serviços e diagnóstico operacional",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Nginx: `location /api/ { proxy_pass http://origem/v1/; }`. Para a requisição comum `/api/clientes`, qual caminho chega ao backend?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`/v1/clientes`, pela substituição do prefixo correspondente ao `location`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`/api/clientes`, porque a URI em `proxy_pass` não afeta o caminho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`/v1/api/clientes`, pois o novo segmento é acrescido à URI completa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`/clientes`, porque todos os prefixos são retirados no proxy reverso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`/api/v1/clientes`, porque a URI é inserida após o prefixo recebido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O prefixo `/api/` é substituído por `/v1/` nessa configuração usual, produzindo `/v1/clientes`. B ignora a URI de destino; C mantém `/api/` indevidamente; D apaga também `/v1/`; E concatena em posição diversa da regra de `proxy_pass`.",
+      "section": "2. Apache, Nginx, IIS, Tomcat e WildFly",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Apache HTTP Server utiliza `ProxyPass` e o backend envia um cabeçalho de redirecionamento com endereço interno. Qual recurso ajuda a ajustar esse tipo de resposta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`BalancerMember`, que reescreve automaticamente os links de todo HTML.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`ProxyPassReverse`, que ajusta certos cabeçalhos de redirecionamento da origem.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`DocumentRoot`, que substitui o domínio contido nos cabeçalhos externos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`ServerName`, que modifica o corpo da resposta para todos os clientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`Listen`, que recebe respostas e altera os destinos de redirecionamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. `ProxyPassReverse` ajusta determinados cabeçalhos de redirecionamento/proveniência do backend quando o Apache atua como proxy. A cadastra membros de grupo; C define diretório local; D indica nome do host; E configura escuta. Nenhuma das demais equivale à reescrita desses cabeçalhos.",
+      "section": "2. Apache, Nginx, IIS, Tomcat e WildFly",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um nó de aplicação falha; o balanceador envia usuários a outro nó, mas os carrinhos guardados somente na RAM original desaparecem. Qual mudança enfrenta o motivo da perda?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o número de registros DNS usados para anunciar os servidores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Selecionar IP hash, sem alterar a dependência da memória do nó falho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Compartilhar ou replicar o estado de sessão com política coerente de recuperação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Aplicar cache prolongado aos arquivos de imagem do catálogo público.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exigir proxy direto para todos os navegadores dos clientes da loja.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. A sessão precisa estar disponível depois que o primeiro nó cai; estado compartilhado ou replicação atendem a esse requisito. A modifica nomes, B preserva afinidade apenas enquanto o nó existe, D afeta imagens e E controla acesso de saída, sem recuperar RAM perdida.",
+      "section": "4. Balanceamento, cluster e alta disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação atrás de proxy TLS gera redirecionamentos para `http://`, apesar de os clientes usarem HTTPS. Qual aspecto deve ser conferido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O compartilhamento NFS usado para os relatórios estáticos da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os registros de DHCP que indicam o DNS dos usuários da rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A política de mensagens do serviço que entrega e-mails assíncronos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O esquema externo informado pelo proxy confiável e sua leitura no aplicativo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A distribuição geográfica das imagens de cache em pontos de CDN.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Após offloading, a aplicação pode enxergar HTTP interno; o esquema original pode ser transportado, com confiança controlada, por `X-Forwarded-Proto` e configuração correspondente. A, B, C e E tratam serviços sem relação causal com a identificação de HTTPS externo.",
+      "section": "3. Proxy direto e reverso, API gateway, CDN e TLS",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quatro instâncias estão saudáveis, mas toda entrada passa por um único balanceador sem redundância. Qual risco persiste independentemente da saúde das instâncias?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A necessidade de usar DNS para interpretar cada rota `/api` recebida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A impossibilidade de executar sondas de saúde em mais de um backend.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A obrigatoriedade de expor publicamente cada instância de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A perda inevitável de toda sessão mesmo quando nenhum nó apresenta falha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O ponto único de falha na entrada, capaz de interromper acesso às origens.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Se o único balanceador falhar, o tráfego pode não chegar a qualquer instância, exigindo redundância da borda. A confunde DNS com HTTP; B nega função normal de health checks; C não é exigência; D supõe perda de sessão sem qualquer fundamento no caso.",
+      "section": "4. Balanceamento, cluster e alta disponibilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um intermediário não pode decifrar o conteúdo HTTP transportado sob TLS, mas deve escolher entre destinos por dados de conexão ou metadados visíveis. Qual estratégia atende?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "TLS passthrough com decisão de encaminhamento por transporte ou metadados visíveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Offloading TLS para ler todos os caminhos e reescrever as mensagens recebidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gateway que autentica o corpo da requisição após decifrar HTTPS na borda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Proxy de aplicação que lê cookies de sessão dentro do fluxo ainda cifrado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cache reverso que examina cabeçalhos HTTP sem terminar a sessão TLS.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Passthrough preserva a sessão TLS até a origem; o intermediário pode usar atributos que permaneçam visíveis. B e C requerem terminar TLS; D exige examinar HTTP cifrado; E pressupõe acesso a cabeçalhos que não são legíveis sem decifrar a sessão.",
+      "section": "3. Proxy direto e reverso, API gateway, CDN e TLS",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação utiliza serviços corporativos de Jakarta EE além de Servlet. Como comparar as opções WildFly e Tomcat sem generalização incorreta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tomcat é implementação completa obrigatória de todas as especificações Jakarta EE.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "WildFly oferece uma pilha de aplicação mais ampla; Tomcat prioriza contêiner web.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "WildFly fornece somente DNS e hospedagem de arquivos HTML locais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tomcat e Node.js pertencem à mesma família de runtimes Java EE completos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apache HTTP Server inclui por padrão todos os serviços corporativos do WildFly.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. WildFly oferece serviços de servidor Jakarta EE que vão além das especificações web do Tomcat. A amplia indevidamente o escopo do Tomcat; C reduz WildFly a DNS/estáticos; D mistura Node.js JavaScript com Java EE; E atribui ao Apache HTTP Server funções empresariais não inerentes.",
+      "section": "2. Apache, Nginx, IIS, Tomcat e WildFly",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O health check TCP considera um backend apto porque sua porta está aberta, mas todas as transações falham após perda do banco. Qual melhoria é mais útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter apenas TCP, que certifica a saúde de todas as dependências empresariais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o tempo de cache de imagens, porque corrige consultas ao banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Consultar readiness HTTP que reflita as condições necessárias para atender.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Trocar para IP hash, pois esse algoritmo recupera a comunicação do banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar resolução DNS do cliente, porque ela detecta falhas de transação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Readiness deve indicar capacidade efetiva de prestar o serviço, inclusive dependências essenciais. A confunde conectividade com operação; B afeta estáticos; D escolhe destino e não restaura banco; E avalia nome e não a capacidade transacional do backend.",
+      "section": "4. Balanceamento, cluster e alta disponibilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço entrega documentos privados autenticados. A equipe pretende permitir cache compartilhado das respostas GET na borda. Qual aspecto merece cautela prioritária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cache torna impossível selecionar virtual hosts com um mesmo IP público.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A existência de cache impede estabelecer qualquer conexão HTTPS para o usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todo objeto em cache converte-se necessariamente em processo FastCGI ativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A chave e a política de cache podem reutilizar conteúdo privado entre usuários.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O sistema precisa armazenar cada sessão HTTP dentro do servidor de nomes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Se o cache não respeitar identidade e políticas de privacidade, um objeto de pessoa autenticada pode ser enviado a outra. A, B e C atribuem ao cache incompatibilidades inexistentes; E confunde DNS, responsável por resolução, com armazenamento de sessão.",
+      "section": "3. Proxy direto e reverso, API gateway, CDN e TLS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gateway recebe `X-Forwarded-For` arbitrário de clientes que se conectam diretamente a ele. Qual medida evita identificar a origem apenas pelo valor alegado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Considerar todo cabeçalho externo uma prova autenticada do endereço do usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Delegar ao DNS a validação da identidade HTTP indicada nos cabeçalhos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar HTTPS por HTTP para obter uma identidade mais confiável na borda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar cache de página com chave baseada somente no IP declarado pelo cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir proxies confiáveis e regras de validação/sobrescrita de cabeçalhos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. O cliente consegue forjar cabeçalhos; a borda deve sanear e confiar apenas na cadeia autorizada. A aceita falsificação; B atribui autenticação de cabeçalho ao DNS; C remove proteção sem autenticar ninguém; D transforma um campo não confiável em chave de cache.",
+      "section": "5. Administração de serviços e diagnóstico operacional",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um servidor web serve uma página HTML local e, para um caminho específico, encaminha uma requisição HTTP a outro processo, ele pode exercer simultaneamente funções de publicação estática e proxy reverso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Apache HTTP Server e Nginx podem atender recursos locais e encaminhar certas rotas para servidores de origem. Essas funções coexistem em uma mesma instância e não transformam o proxy em responsável pela execução de toda lógica do backend.",
+      "section": "1. Fundamentos dos servidores web e de aplicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma implantação Java, Apache HTTP Server e Tomcat são denominações intercambiáveis para o mesmo software, de modo que qualquer arquivo de configuração de um é automaticamente válido no outro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O HTTP Server é servidor web modular; Tomcat é contêiner de aplicações web Java. Embora ambos possam falar HTTP, possuem configurações, extensões e finalidades próprias. A semelhança do nome Apache não os torna equivalentes.",
+      "section": "2. Apache, Nginx, IIS, Tomcat e WildFly",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Nginx, um grupo definido por `upstream` pode ser apontado por `proxy_pass` para encaminhar requisições a servidores de aplicação, sem que cada solicitação exija mudança no DNS público.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `upstream` agrupa origens e `proxy_pass` pode selecionar esse grupo como destino. A escolha concreta do membro é executada pelo intermediário, segundo as regras aplicáveis, e não por atualização de registros DNS a cada chamada.",
+      "section": "2. Apache, Nginx, IIS, Tomcat e WildFly",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma vez que o DNS resolva o domínio `portal.exemplo`, ele também pode ler o caminho `/relatorios` dentro da requisição HTTP e determinar automaticamente qual aplicação interna o atenderá.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. DNS resolve nomes, não recebe as requisições HTTP completas dos navegadores para decidir rotas por URI. Encaminhamento baseado em `/relatorios` é tarefa de componente que inspecione HTTP, como um proxy reverso ou gateway de aplicação.",
+      "section": "1. Fundamentos dos servidores web e de aplicação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um proxy reverso pode publicar aplicações internas sob um domínio externo, sem exigir que o usuário final conheça diretamente os endereços privados dos backends.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O intermediário recebe o HTTP público e o encaminha para origens de sua configuração. Essa arquitetura simplifica nomes e exposição de serviços, mas ainda exige segurança de acesso, monitoramento e proteção dos enlaces apropriados.",
+      "section": "3. Proxy direto e reverso, API gateway, CDN e TLS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O WildFly é uma ferramenta restrita a servir arquivos HTML estáticos e não fornece ambiente para executar aplicações Java com serviços empresariais Jakarta EE.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. WildFly é servidor de aplicações ligado a uma pilha ampla de especificações Jakarta EE. Sua utilidade central envolve hospedar aplicações e serviços empresariais; reduzi-lo a um publicador de arquivos ignora a execução dinâmica.",
+      "section": "2. Apache, Nginx, IIS, Tomcat e WildFly",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Apesar de a porta TCP 443 ser a porta habitual de HTTPS, um servidor pode oferecer HTTPS em outra porta configurada, desde que o cliente se conecte à porta apropriada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A porta 443 é convencional, mas o serviço pode escutar 8443 ou outro número disponível. URL, firewall, listener e negociação de certificado precisam ser coerentes; uma porta alternativa não altera por si só o uso de TLS.",
+      "section": "1. Fundamentos dos servidores web e de aplicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma infraestrutura com cinco servidores de aplicação se torna altamente disponível apenas por isso, mesmo que todo acesso dependa de um único balanceador de entrada sem alternativa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Múltiplas origens não eliminam ponto único de falha no intermediário de ingresso. Uma indisponibilidade da borda pode bloquear todas elas; o projeto de continuidade deve considerar também balanceador, rede e serviços compartilhados.",
+      "section": "4. Balanceamento, cluster e alta disponibilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No IIS, o Application Request Routing associado a URL Rewrite pode encaminhar requisições por regras HTTP e oferecer recursos de balanceamento, saúde e afinidade quando configurados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ARR atua na camada de encaminhamento HTTP do IIS, integrando-se a regras de URL. O ambiente pode aplicar algoritmos de distribuição e verificar origens, além de usar afinidade; esses recursos exigem configuração apropriada.",
+      "section": "2. Apache, Nginx, IIS, Tomcat e WildFly",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma CDN e um balanceador interno de aplicações são rigorosamente a mesma tecnologia, pois ambos se destinam apenas a escolher réplicas de banco para cada transação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A CDN distribui objetos por pontos de presença e cache, muitas vezes reduzindo latência geográfica. O balanceador interno escolhe servidores que vão atender tráfego; não é correto reduzir ambos a roteamento de consultas entre réplicas de banco.",
+      "section": "3. Proxy direto e reverso, API gateway, CDN e TLS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na seleção least connections, a quantidade de conexões ativas é critério de decisão, enquanto round robin percorre destinos disponíveis de modo rotativo, ressalvadas políticas de peso ou outras configurações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. São políticas de escolha distintas. O primeiro método observa conexões ativas, conforme implementação, e o segundo utiliza sequência de rotação. Nenhum deles garante sozinho a menor latência ou resolve um gargalo de banco.",
+      "section": "4. Balanceamento, cluster e alta disponibilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao enviar scripts a PHP-FPM, `proxy_pass` e `fastcgi_pass` do Nginx utilizam o mesmo protocolo e podem substituir um ao outro mesmo quando o destino é um socket FastCGI.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `proxy_pass` encaminha requisições HTTP, enquanto `fastcgi_pass` comunica-se com backend FastCGI. Um socket PHP-FPM nessa modalidade não se torna um servidor HTTP por estar na mesma máquina do Nginx.",
+      "section": "2. Apache, Nginx, IIS, Tomcat e WildFly",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Apache HTTP Server, `BalancerMember` pode declarar um membro de um conjunto gerenciado por `mod_proxy_balancer`, sem se confundir com a diretiva que define a raiz de documentos locais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O membro representa uma origem participante de um grupo balanceado; já `DocumentRoot` indica onde os arquivos locais do site estão armazenados. Identificar o papel de cada diretiva evita confundir distribuição de tráfego com publicação de documentos.",
+      "section": "2. Apache, Nginx, IIS, Tomcat e WildFly",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um proxy que termina HTTPS e encaminha HTTP puro ao backend mantém criptografado também o segundo trecho, pois a proteção TLS é herdada automaticamente da conexão anterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A conexão TLS termina na borda, onde o proxy decifra o conteúdo para encaminhar ao backend. Se estabelecer HTTP simples, esse enlace não possui TLS. É necessária nova conexão cifrada ou outra proteção apropriada para resguardar o segundo trecho.",
+      "section": "3. Proxy direto e reverso, API gateway, CDN e TLS",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o balanceador utiliza sticky session e o backend mantém a sessão somente na memória local, a afinidade pode manter o cliente no mesmo nó durante funcionamento normal, sem assegurar recuperação após falha desse nó.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A afinidade tenta conservar o destino do cliente enquanto ele está disponível, porém não transfere memória para outras instâncias. Para continuar uma sessão depois de falha, são necessários estado compartilhado, replicação ou desenho que dispense estado local.",
+      "section": "4. Balanceamento, cluster e alta disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um intermediário em TLS passthrough pode inspecionar livremente caminhos e corpos HTTP ainda cifrados, sem terminar a sessão TLS, para enviar `/compras` e `/vendas` a destinos diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Com passthrough, o HTTP permanece cifrado até o endpoint de terminação, impedindo leitura direta de URI e corpo pela borda. O intermediário ainda pode usar informações de transporte e metadados TLS visíveis, mas isso não equivale a inspecionar HTTP decifrado.",
+      "section": "3. Proxy direto e reverso, API gateway, CDN e TLS",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um API gateway pode integrar roteamento, autenticação e limitação de taxa de requisições, mas essas políticas dependem dos recursos disponíveis e de sua configuração, não apenas de instalar um proxy.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A função de gateway concentra políticas de acesso e encaminhamento de APIs, que podem ser realizadas por módulos e integrações. Um proxy reverso sem regras apropriadas não passa a autenticar usuários nem aplicar limites só por estar na entrada.",
+      "section": "3. Proxy direto e reverso, API gateway, CDN e TLS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta 502 emitida pelo proxy demonstra, isoladamente, que o banco de dados da aplicação caiu; a investigação de conexão, protocolo, logs e outros serviços seria desnecessária.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. 502 sinaliza problema de gateway relacionado à resposta da origem, mas não identifica automaticamente a dependência que falhou. A causa pode envolver protocolo, endereço de backend, conexão, processo ou outro serviço; a correlação de logs continua necessária.",
+      "section": "5. Administração de serviços e diagnóstico operacional",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando a aplicação confia em `X-Forwarded-For`, a política de segurança deve considerar quais intermediários são confiáveis e como os cabeçalhos recebidos de clientes são validados ou sobrescritos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O próprio cliente pode fabricar um cabeçalho com IP alegado. A cadeia de proxies confiáveis precisa ser definida para evitar que a aplicação tome um campo arbitrário por endereço de origem comprovado e aplique decisões de acesso incorretas.",
+      "section": "5. Administração de serviços e diagnóstico operacional",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma CDN que usa TLS com os navegadores dispensa controles de cache para documentos pessoais autenticados, pois a criptografia impede que um objeto privado seja reutilizado para outro usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TLS protege transporte, mas não decide quem pode receber uma resposta armazenada em cache compartilhado. Chaves de cache, validação de identidade, diretivas de privacidade e invalidação precisam evitar que um objeto de uma pessoa seja entregue a outra.",
+      "section": "3. Proxy direto e reverso, API gateway, CDN e TLS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "mod_proxy — Apache HTTP Server 2.4",
+      "publisher": "Apache Software Foundation",
+      "reference": "ProxyPass, ProxyPassReverse e BalancerMember",
+      "url": "https://httpd.apache.org/docs/current/mod/mod_proxy.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NGINX Reverse Proxy",
+      "publisher": "F5 NGINX",
+      "reference": "Encaminhamento HTTP, diretivas e substituição de URI",
+      "url": "https://docs.nginx.com/nginx/admin-guide/web-server/reverse-proxy",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Using nginx as HTTP load balancer",
+      "publisher": "NGINX",
+      "reference": "Round robin, least-connected e IP hash",
+      "url": "https://nginx.org/en/docs/http/load_balancing.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Tomcat 11 Documentation Index",
+      "publisher": "Apache Software Foundation",
+      "reference": "Jakarta Servlet, Jakarta Pages e contêiner web",
+      "url": "https://tomcat.apache.org/tomcat-11.0-doc/index.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "WildFly Quickstarts",
+      "publisher": "WildFly",
+      "reference": "Projetos e execução de aplicações Jakarta EE",
+      "url": "https://docs.wildfly.org/quickstart/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Using the Application Request Routing Module",
+      "publisher": "Microsoft Learn",
+      "reference": "ARR, URL Rewrite, balanceamento e afinidade no IIS",
+      "url": "https://learn.microsoft.com/en-us/iis/extensions/planning-for-arr/using-the-application-request-routing-module",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Traefik HTTP Services",
+      "publisher": "Traefik Labs",
+      "reference": "Serviços, balanceamento e verificações de saúde",
+      "url": "https://doc.traefik.io/traefik/reference/routing-configuration/http/load-balancing/service/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Health checks",
+      "publisher": "HAProxy Technologies",
+      "reference": "Sondas ativas, limites e retirada de backends da rotação",
+      "url": "https://www.haproxy.com/documentation/haproxy-configuration-tutorials/reliability/health-checks/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Basics of enabling TLS",
+      "publisher": "HAProxy Technologies",
+      "reference": "TLS entre cliente, balanceador e backend",
+      "url": "https://www.haproxy.com/documentation/haproxy-configuration-tutorials/security/ssl-tls/basics-enable-tls/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "Overview of HTTP",
+      "publisher": "MDN Web Docs",
+      "reference": "Conceitos de HTTP e funções de proxies",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Overview",
+      "accessedAt": "2026-10-10"
+    }
+  ]
+}

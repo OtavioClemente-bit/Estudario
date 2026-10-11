@@ -1,0 +1,1807 @@
+{
+  "id": "informatica.observabilidade-sre-resiliencia",
+  "subject": "Informática",
+  "title": "Observabilidade, SRE e resiliência de aplicações",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Observabilidade, SRE e resiliência de aplicações"
+  ],
+  "scope": {
+    "covers": "Logs, métricas, rastreamento distribuído, instrumentação, APM, SLI, SLO, orçamento de erros, incidentes, escalabilidade, concorrência, padrões de resiliência, balanceamento global, recuperação de desastres, contêineres, hardening, gestão de patches, infraestrutura como código, gerenciamento de configuração, APIs versionadas e implantações progressivas.",
+    "excludes": "Administração aprofundada de um fabricante, programação de aplicações completas, exploração ofensiva de vulnerabilidades, engenharia de redes em camada física e implementação interna de bancos de dados."
+  },
+  "theoryTitle": "Observabilidade, SRE e resiliência de aplicações: fundamentos, métricas, automação e continuidade",
+  "chapters": [
+    {
+      "title": "1. Observabilidade: logs, métricas, traces e instrumentação",
+      "markdown": "## Monitoramento e observabilidade\n**Monitoramento** verifica estados e condições previamente conhecidos, por exemplo, CPU acima de 85% ou indisponibilidade de uma URL. **Observabilidade** é a capacidade de inferir o estado interno de um sistema a partir de suas saídas, inclusive para investigar falhas não antecipadas. Uma tela verde em um painel não demonstra, isoladamente, que usuários conseguem concluir pagamentos. A observabilidade depende de instrumentação adequada, contexto e perguntas investigáveis.\n\n### Os três sinais principais\n| Sinal | Unidade típica | Pergunta respondida | Limitação isolada |\n|---|---|---|---|\n| Log | Registro de evento com horário e atributos | O que aconteceu? | Alto volume e correlação difícil |\n| Métrica | Série temporal numérica | Quanto, com que frequência e como evoluiu? | Agregação pode ocultar casos particulares |\n| Trace | Encadeamento de spans de uma operação | Onde o tempo foi gasto entre serviços? | Amostragem pode deixar de coletar uma requisição |\n\nUm log estruturado pode registrar `timestamp`, `severity`, `service.name`, `trace_id`, `span_id`, `route`, `status_code` e mensagem, sem armazenar senhas ou dados pessoais desnecessários. O `trace_id` identifica a operação distribuída; `span_id` identifica um trecho do trabalho. Um trace atravessa, por exemplo, gateway, catálogo e estoque, mantendo relações entre spans. A propagação de contexto entre serviços permite acompanhar a mesma requisição; o log com identificador compatível viabiliza saltar do erro ao trace. Spans podem representar chamadas HTTP, consultas e operações internas; duração do span não é, por definição, a soma simples de todos os filhos, pois pode haver concorrência.\n\n### Instrumentação\nInstrumentação por SDK/API no código permite atributos de negócio e spans específicos; a instrumentação automática ou sem alteração no código captura bibliotecas e interfaces suportadas, mas pode não enxergar a semântica de negócio. No OpenTelemetry, coletores recebem, processam e exportam telemetria; o coletor não substitui a geração dos dados pelo serviço. Atributos devem ser consistentes e evitar cardinalidade explosiva: `route=/clientes/{id}` costuma ser rótulo de baixa cardinalidade, enquanto `customer_id` ou URL contendo identificador único gera séries numerosas e caras. A amostragem de traces reduz custo, mas exige atenção a eventos raros. Métricas agregadas podem preservar a estimativa de erro mesmo quando nem todos os traces são retidos.\n\n### Tipos de métricas e interpretação\nContadores acumulam eventos e normalmente não diminuem durante a vida do processo; reinicializações exigem tratamento correto. Gauges expressam valores que sobem ou descem, como conexões abertas. Histogramas agrupam observações por limites e permitem estudar distribuição e percentis de latência; a média de 100 ms pode coexistir com um p99 de vários segundos. Um percentil p95 de 400 ms significa que aproximadamente 95% das observações da janela têm latência até esse valor; não significa que cada requisição levou 400 ms. Latência, tráfego, erros e saturação formam as quatro categorias clássicas para serviços online. Além disso, métricas de negócio e testes sintéticos externos detectam falhas que CPU e memória não revelam.\n\n### Centralização e ferramentas\nColetores e agentes enviam eventos a sistemas de indexação, retenção e consulta. A centralização permite consultas entre serviços e correlação temporal, mas requer normalização de horário, controle de acesso, política de retenção, mascaramento de dados, limites de ingestão e atenção às perdas no pipeline. Grafana é usado para explorar e visualizar dados de diferentes fontes e configurar painéis e alertas; não é, por si, a fonte obrigatória nem o armazenamento universal de logs. New Relic oferece funcionalidades de APM e telemetria relacionadas ao desempenho de aplicações; APM observa transações, dependências e erros, não apenas utilização da máquina.\n\n**Exemplo de investigação:** alertas mostram queda na taxa de sucesso; a métrica separada por rota localiza `/checkout`; o trace revela espera excessiva na dependência de pagamento; logs correlacionados exibem timeouts. Alterar a CPU do serviço de entrada sem examinar essa cadeia poderia não resolver a causa.\n\n> **Armadilha:** reunir logs, métricas e traces não garante observabilidade útil quando não se consegue correlacionar eventos ou relacioná-los à experiência real do usuário."
+    },
+    {
+      "title": "2. SRE, SLI, SLO, orçamento de erros e resposta a incidentes",
+      "markdown": "## Confiabilidade mensurável\n**Site Reliability Engineering (SRE)** aplica engenharia de software à operação de serviços, combina automação, objetivos de confiabilidade, tratamento de incidentes e aprendizado contínuo. Não equivale a monitorar servidores ou prometer disponibilidade de 100%. A decisão de elevar a confiabilidade envolve custo e benefício percebido por usuários. Um serviço com saúde aparente pode falhar em operações essenciais; por isso os indicadores devem refletir jornadas importantes, como emissão de documento ou conclusão de pagamento.\n\n### SLI, SLO e SLA\n**SLI (Service Level Indicator)** é uma medição quantitativa de serviço: proporção de requisições bem-sucedidas, proporção das operações com latência inferior a um limiar ou atualização de dados dentro de um intervalo. **SLO (Service Level Objective)** é a meta aplicada ao indicador em uma janela, como 99,9% de requisições boas em 30 dias. **SLA (Service Level Agreement)** é compromisso contratual entre partes e pode prever consequências por descumprimento; não é sinônimo da meta técnica interna. A escolha do denominador é decisiva: se requests bloqueados antes do servidor não são contabilizados, a taxa pode parecer melhor que a experiência real. Requisitos de latência devem especificar limiar e janela, por exemplo, 99% dos pedidos em até 300 ms durante 28 dias.\n\n### Error budget\nPara um SLO baseado em fração de eventos bons, **orçamento de erros = total de eventos elegíveis × (1 − meta do SLO)**. Com 200.000 requisições e meta de 99,5%, admitem-se até 1.000 eventos ruins no período. Se ocorrerem 600, restam 400; consumir tudo não significa necessariamente obrigação contratual descumprida, pois isso depende do SLA, se houver. Para objetivo temporal de disponibilidade, a fração de tempo não disponível é 1 − SLO e precisa ser multiplicada pela duração da janela; não confundir orçamento em minutos com contagem de requests. Em mês hipotético de 30 dias, SLO de 99,9% resulta em 43,2 minutos de indisponibilidade tolerada conforme essa métrica; janelas móveis e calendário alteram a interpretação operacional.\n\n### Taxa de consumo e alertas\nO **burn rate** mede quão rápido o orçamento é consumido em comparação com a velocidade média permitida pela janela. Se a taxa de eventos ruins atual é 1% e o SLO admite 0,1%, o burn rate é 10. Uma falha curta e crítica pode exigir alerta rápido; uma degradação discreta, porém sustentada, pede janela longa. Alertas com múltiplas janelas reduzem ruído e combinam reação rápida com confirmação de persistência; alertar sobre toda oscilação de CPU pode causar fadiga sem detectar impacto a usuários. Monitoramento de caixa-preta testa comportamento externo, enquanto caixa-branca usa sinais internos. Ambos se complementam.\n\n### Incidentes e pós-incidentes\nUma sequência útil é detectar, declarar o incidente, atribuir responsabilidades, avaliar impacto, mitigar, comunicar, restaurar e registrar aprendizados. Coordenação, comunicação e operação técnica podem ter responsáveis distintos. Mitigação imediata, como reverter uma versão, pode preceder análise de causa raiz. O registro cronológico facilita distinguir eventos observados de hipóteses. Após estabilização, uma análise sem culpabilização pessoal registra linha do tempo, fatores contribuintes, medidas corretivas verificáveis e responsáveis. MTTR pode significar tempo médio de reparo, recuperação ou resolução conforme a organização; a definição usada deve ser explícita. MTTD mede tempo médio para detectar; não confundir detecção com restauração.\n\n### APM e investigação orientada a serviço\nUma ferramenta de APM acompanha transações, latência, throughput, exceções, dependências e, conforme a integração, rastreamento distribuído. Um aumento de erros depois de uma implantação pode ser correlacionado à versão lançada; correlação temporal não prova causalidade e deve ser testada com reversão ou comparação de grupos. Dashboards são meios de investigação, não substitutos de objetivos.\n\n**Exemplo:** 40.000 operações, das quais 39.940 cumprem o critério de sucesso, produzem SLI de 99,85%. A meta de 99,9% não foi cumprida no período; o déficit foi de 20 operações boas, pois o limite de erros era 40 e ocorreram 60.\n\n> **Armadilha:** SLI é o valor observado, SLO é o objetivo, SLA é o acordo; confundir as três siglas leva a conclusões falsas sobre multas, metas e medição."
+    },
+    {
+      "title": "3. Padrões de resiliência, escalabilidade e controle de concorrência",
+      "markdown": "## Resiliência sem ilusões\n**Disponibilidade** refere-se a conseguir usar o serviço; **tolerância a falhas** é a capacidade de continuar operando diante de defeitos definidos; **resiliência** inclui absorver perturbações, degradar com controle e recuperar-se. Replicação reduz alguns pontos únicos de falha, mas não corrige automaticamente defeitos lógicos propagados às réplicas. Escalabilidade vertical adiciona recursos à instância existente; horizontal amplia o número de instâncias e costuma exigir controle de sessão, dados compartilhados e política de distribuição. Escalar réplicas do aplicativo não elimina gargalo em um único banco.\n\n### Timeout, retry, backoff e circuit breaker\n**Timeout** limita quanto o chamador espera; ele protege recursos e não assegura que a operação remota tenha sido cancelada. **Retry** tenta novamente falhas transitórias, de preferência em operações idempotentes, com limite de tentativas. **Backoff exponencial com jitter** espaça tentativas e introduz aleatoriedade para evitar ondas simultâneas de clientes. Em operações de cobrança, usar chave de idempotência evita repetição de efeitos quando a primeira tentativa foi executada, embora a resposta tenha se perdido. **Circuit breaker** monitora resultados e evita novas chamadas a dependência problemática; nos estados conceituais fechado, aberto e semiaberto, respectivamente, permite chamadas, interrompe chamadas regulares e experimenta recuperação controlada. Diferencia-se de retry: um reenvia uma operação, o outro limita novas tentativas durante falhas. **Bulkhead** isola capacidade em grupos para que congestionamento em um recurso não consuma toda a execução disponível.\n\n### Cache e fallback\nCache reduz latência e pressão sobre origem, mediante política de expiração, invalidação e consistência. Cache-aside: aplicação procura no cache e, em falta, busca na origem e preenche; write-through atualiza o cache na trilha da gravação; TTL controla validade temporal, não garante frescor durante a janela. Fallback fornece resposta alternativa ou degradada quando uma dependência falha, desde que seja segura: mostrar perfil genérico pode ser aceitável, mas aprovar transação financeira sem confirmação seria inadequado. Dados desatualizados podem cumprir disponibilidade aparente e violar SLO de frescor ou correção.\n\n### Balanceamento e regiões\nBalanceador local distribui pedidos entre instâncias; GSLB (Global Server Load Balancing) orienta tráfego entre locais geográficos mediante verificações de saúde, política de proximidade, capacidade ou latência. DNS-based GSLB sofre efeitos de TTL, cache de resolvedores e atualização não instantânea. Arquitetura **ativo-passivo** mantém ambiente alternativo pronto para assumir, com grau variável de preparação; **ativo-ativo** recebe carga em dois ou mais sites. Ativo-ativo não equivale a consistência forte e pode exigir replicação, resolução de conflitos e escolha consciente de partições. Em falhas regionais, capacidade remanescente precisa comportar o tráfego deslocado.\n\n### Concorrência, paralelismo e assincronia\nConcorrência é lidar com múltiplas tarefas em períodos sobrepostos; paralelismo é executar trabalho simultaneamente em recursos distintos; assincronia permite continuar outras atividades enquanto se aguarda conclusão. Threads compartilham memória do processo e introduzem riscos de condição de corrida, deadlock e contenção. Mutex e semáforos coordenam acesso; reduzir seção crítica pode melhorar throughput. Processamento assíncrono por fila desacopla remetente e consumidor, mas demanda reentrega, idempotência, ordenação quando necessária e tratamento de falhas. Um consumidor que processa mensagens duas vezes não pode registrar duas cobranças pelo mesmo evento.\n\n**Caso integrado:** durante saturação, filas limitadas e backpressure rejeitam ou retardam entrada, evitando colapso; cache protege leitura; circuit breaker contém dependência; instâncias adicionais ampliam capacidade somente se não houver gargalo compartilhado.\n\n> **Armadilha:** mais réplicas não corrigem indisponibilidade de dependência central, e repetição de uma chamada que não é idempotente pode transformar falha transitória em dano permanente."
+    },
+    {
+      "title": "4. Infraestrutura como código, contêineres, configuração e segurança operacional",
+      "markdown": "## Infraestrutura reproduzível\n**Infraestrutura como Código (IaC)** descreve recursos por arquivos versionáveis, permitindo revisão, comparação de mudanças, reuso e execução automatizada. Ferramentas declarativas especificam estado desejado; ferramentas imperativas descrevem passos operacionais. Terraform usa provedores, recursos, módulos e estado para mapear objetos reais; o `plan` mostra alterações propostas, enquanto `apply` as executa. O arquivo de estado não é simples registro dispensável: guarda vínculos com recursos e pode conter informações sensíveis. Recomenda-se backend remoto com controle de acesso e bloqueio de escrita concorrente. Uma mudança feita manualmente fora do código cria **drift**, que precisa ser detectado e reconciliado, e não escondido.\n\n### Modularização e pipelines\nO módulo raiz pode chamar módulos filhos com variáveis de entrada e saídas, promovendo reutilização de redes, serviços e políticas. Versionar o módulo compartilhado evita que uma atualização inesperada afete todos os ambientes. Pipeline típico: validação sintática, análise de segurança, teste, planejamento, revisão/aprovação e aplicação controlada; ambiente de produção pode exigir aprovação humana. Testes de políticas automatizadas impedem portas públicas indevidas e armazenamento sem criptografia, enquanto gestão de configuração aplica padrões repetíveis aos servidores. A automação deve ser **idempotente** sempre que possível: executar novamente preserva o estado desejado sem recriar indevidamente objetos. Segredos devem ficar em gerenciadores apropriados e não em repositório ou planos acessíveis sem controle.\n\n### Virtualização e contêineres\nMáquina virtual executa sistema operacional convidado sobre hardware virtualizado; contêiner compartilha o kernel do hospedeiro e isola processos e recursos por mecanismos do sistema. A imagem reúne artefatos para execução; o contêiner é a instância em funcionamento. Imagens reprodutíveis e minimizadas, usuário sem privilégios, filesystem com restrições e limites de CPU/memória ajudam o hardening. Escanear imagens não elimina a necessidade de corrigir configurações em execução. A imutabilidade da imagem facilita atualização por substituição em vez de alterações manuais persistentes no contêiner.\n\n### Orquestração e probes\nNo Kubernetes, Deployment declara o estado desejado e pode realizar rolling update gradualmente; ReplicaSet ajuda a manter a quantidade de pods. **Readiness probe** indica se a instância deve receber tráfego de serviço; **liveness probe** indica quando reiniciar o contêiner que aparenta estar travado; **startup probe** protege uma inicialização lenta das outras verificações até seu sucesso. Usar liveness para dependência externa intermitente pode provocar reinícios em massa. Recursos como requests e limits apoiam escalonamento e controle de consumo. HPA ajusta réplicas segundo indicadores configurados, mas pode reagir tarde a picos abruptos e não substitui teste de capacidade.\n\n### Hardening e patches\nHardening reduz superfície de ataque: serviços desnecessários desativados, menor privilégio, autenticação forte, segmentação, configuração segura, inventário e trilhas de auditoria. Gestão de patches envolve identificar ativo e versão, avaliar gravidade e exposição, testar compatibilidade, planejar janela e rollback, aplicar e verificar o resultado. Correção de vulnerabilidade não é sinônimo de simples atualização de pacote se o serviço em execução mantém binário antigo. Políticas como código verificam regras antecipadamente e continuamente, mas precisam considerar exceções aprovadas e alterações de emergência.\n\n**Exemplo de prova:** dois operadores aplicam simultaneamente mudanças ao mesmo estado remoto; bloqueio adequado protege contra gravações conflitantes. Usar Git para o código não torna seguro publicar `terraform.tfstate` em repositório, especialmente diante de segredos.\n\n> **Armadilha:** IaC é controle de infraestrutura, não garantia de que mudanças aprovadas são corretas; revisão, testes, estado confiável e proteção de credenciais continuam essenciais."
+    },
+    {
+      "title": "5. Recuperação de desastres, implantações progressivas e arquitetura operacional",
+      "markdown": "## Continuidade e recuperação\n**Contingência** é o conjunto de ações, recursos e processos planejados para manter ou recuperar funções diante de interrupções. A análise de impacto no negócio identifica processos críticos, dependências, consequências e prioridades. **RTO (Recovery Time Objective)** é a meta de tempo para restabelecer um recurso ou serviço após a interrupção; **RPO (Recovery Point Objective)** é a perda de dados, medida temporalmente, que se aceita recuperar. RTO de 2 horas e RPO de 15 minutos exigem capacidade de recuperação rápida e pontos de restauração frequentes. Backup diário isolado não demonstra cumprimento de RPO de 15 minutos; replicação contínua sem proteção contra exclusões ou corrupção tampouco substitui backup. Testes de restauração precisam verificar integridade, credenciais, dependências, tempos e procedimentos de decisão.\n\n### Topologias de continuidade\nRecuperação em site frio requer providenciar mais recursos após o desastre; site morno mantém preparação intermediária; site quente reduz tempo de recuperação com infraestrutura pronta. Modelos ativo-passivo e ativo-ativo descrevem comportamento de atendimento e não são exatamente a mesma classificação de frio/morno/quente. Um ambiente ativo-ativo pode receber tráfego nos dois locais e ainda falhar por erro de configuração replicado, problema de identidade compartilhada ou perda de dados. GSLB ajuda a deslocar tráfego, mas não restaura sozinho um banco, fila ou dependência global. Separar domínios de falha, testar capacidade em modo degradado e documentar runbooks aumenta a chance de recuperação real.\n\n### Migrações blue-green e canary\nEm **blue-green**, existem dois ambientes de aplicação, e o tráfego é trocado de um para outro após testes; manter a versão anterior facilita retorno se houver compatibilidade. Em **canary**, apenas uma fração dos usuários ou requisições recebe a nova versão, comparando-se latência, erros e indicadores de negócio com grupo de referência antes de aumentar o percentual. Rolling update substitui instâncias gradativamente e não requer dois ambientes integrais como o blue-green típico. A reversão pode exigir plano de migração de dados: remover código não desfaz alterações destrutivas no esquema. Estratégia expand-and-contract primeiro amplia compatibilidade, migra consumidores e só então remove estrutura legada. Flags de funcionalidade permitem desligar mudanças de comportamento independentemente de trocar todo o binário, mas acumulam dívida de configuração se não forem governadas.\n\n### APIs versionadas e contratos\nEvoluções compatíveis preferem adicionar campos opcionais sem retirar os antigos abruptamente; campos obrigatórios novos podem quebrar clientes existentes. Versionamento explícito pode estar na URL, cabeçalho ou negociação de mídia, conforme contrato adotado; a presença de um número não garante retrocompatibilidade. Em implantação canary com múltiplas versões simultâneas, consumidores, formatos de mensagens e persistência devem tolerar ambas. Testes de contrato identificam incompatibilidades que testes unitários internos não capturam. Observabilidade segmentada por versão e região evita que métricas globais escondam degradação do canary.\n\n### Operação sob falha\nRunbooks descrevem diagnóstico e ações repetíveis; playbooks coordenam cenários e responsabilidades. Simulações controladas de falha e exercícios de restauração validam premissas, mas devem respeitar limites de segurança. Plano de incidentes define comando, comunicação, escalonamento, rollback e critérios de encerramento. O pós-incidente prioriza ações proporcionais ao impacto e rastreia sua eficácia; não basta registrar a causa aparente. A recuperação requer confirmar serviço e dados, não apenas obter resposta HTTP 200.\n\n| Técnica | Objetivo imediato | Cuidado principal |\n|---|---|---|\n| GSLB | Direcionar tráfego entre sites | Propagação DNS e saúde das dependências |\n| Canary | Limitar exposição à versão nova | Comparar grupos e garantir rollback |\n| Blue-green | Trocar entre ambientes de implantação | Compatibilidade de dados e custo duplo |\n| Backup e restauração | Recuperar dados persistidos | Verificar RPO e restaurabilidade |\n| Ativo-ativo | Atender carga em vários sites | Consistência, capacidade e falhas comuns |\n\n### Como o tema costuma ser cobrado\nA prova contrapõe RTO e RPO, supõe erroneamente que replicação dispensa backups, mistura canary com blue-green, considera readiness sinônimo de liveness e atribui ao GSLB a recuperação de dados. Enunciados com números exigem identificar denominador e janela do SLO, medir tempo de restauração e reconhecer impacto real ao usuário. Analise sempre qual recurso falhou, qual mecanismo age e qual requisito continua sem proteção."
+    }
+  ],
+  "summary": "## Síntese para revisão\n- **Logs** descrevem eventos; **métricas**, séries numéricas; **traces**, trajetos e spans de requisições. IDs e atributos consistentes permitem correlação.\n- **SLI** é indicador medido; **SLO** define meta e janela; **SLA** estabelece compromisso contratual. Orçamento de erros baseado em eventos = total × (1 − SLO).\n- **Burn rate** compara velocidade corrente de consumo à fração de erros admitida. Alertas devem representar impacto ao usuário.\n- **APM** mede transações, dependências e exceções. Painéis em Grafana dependem de fontes de dados; centralização de logs exige retenção, normalização e segurança.\n- **Timeout** limita espera; **retry** repete tentativa; **backoff com jitter** evita sincronização; **circuit breaker** protege dependências falhas; **bulkhead** isola recursos.\n- **Cache** alivia origem mediante políticas de validade; **fallback** degrada funcionalidade com segurança. Escalabilidade horizontal não remove gargalos centralizados.\n- **GSLB** distribui tráfego entre locais. Ativo-ativo atende nos dois sites, mas exige capacidade, replicação e tratamento de consistência.\n- **Concorrência** sobrepõe tarefas; **paralelismo** as executa simultaneamente; **assincronia** permite não bloquear o fluxo aguardando respostas.\n- **IaC** versiona e automatiza o estado da infraestrutura; módulos favorecem reuso. Estado, segredos, drift, revisão e políticas são pontos críticos.\n- **Kubernetes:** readiness controla elegibilidade para tráfego; liveness orienta reinício; startup acomoda inicialização demorada.\n- **RTO** é meta de tempo de recuperação; **RPO** representa perda temporal tolerável de dados. Backups precisam ser restauráveis e testados.\n- **Blue-green** troca ambientes; **canary** libera para parcela pequena e aumenta gradualmente; rollback exige compatibilidade de contratos e dados.\n- **Operação responsável:** hardening, aplicação testada de patches, controle de versões, runbooks, resposta organizada a incidentes e pós-incidente verificável.",
+  "flashcards": [
+    {
+      "front": "O que um trace mostra?",
+      "back": "O caminho de uma operação entre componentes, por spans relacionados. Ajuda a encontrar a etapa que concentra a latência."
+    },
+    {
+      "front": "Qual é a função de um trace_id?",
+      "back": "Correlacionar registros e spans que pertencem à mesma operação distribuída."
+    },
+    {
+      "front": "Contador ou gauge para conexões abertas?",
+      "back": "Gauge, pois o número de conexões pode aumentar ou diminuir durante a execução."
+    },
+    {
+      "front": "O que significa p99 de latência?",
+      "back": "Aproximadamente 99% das observações da janela têm latência menor ou igual ao percentil informado."
+    },
+    {
+      "front": "SLI versus SLO?",
+      "back": "SLI mede o nível alcançado; SLO define a meta para um período e uma população de eventos."
+    },
+    {
+      "front": "SLA é a mesma coisa que SLO?",
+      "back": "Não. SLA é acordo de nível de serviço com consequências contratuais possíveis; SLO é meta de desempenho ou confiabilidade."
+    },
+    {
+      "front": "Error budget de SLO 99,9%?",
+      "back": "Admite até 0,1% de eventos ruins na janela, se o indicador for uma proporção de eventos."
+    },
+    {
+      "front": "O que mede o burn rate?",
+      "back": "A velocidade de consumo do orçamento de erros em relação à taxa admitida pelo objetivo."
+    },
+    {
+      "front": "O que faz o circuit breaker aberto?",
+      "back": "Interrompe chamadas regulares à dependência problemática e aguarda critérios de recuperação."
+    },
+    {
+      "front": "Para que serve jitter em retries?",
+      "back": "Espalhar as novas tentativas no tempo para reduzir picos sincronizados de clientes."
+    },
+    {
+      "front": "Cache-aside em poucas palavras?",
+      "back": "A aplicação consulta cache, recorre à origem em uma falta e então preenche o cache."
+    },
+    {
+      "front": "Bulkhead resolve qual risco?",
+      "back": "Isola capacidade para limitar a propagação de saturação entre operações ou dependências."
+    },
+    {
+      "front": "Escala vertical versus horizontal?",
+      "back": "Vertical aumenta os recursos da instância; horizontal amplia a quantidade de instâncias."
+    },
+    {
+      "front": "Concorrência é paralelismo?",
+      "back": "Não. Concorrência coordena tarefas sobrepostas; paralelismo executa tarefas ao mesmo tempo."
+    },
+    {
+      "front": "O que é drift em IaC?",
+      "back": "Divergência entre configuração desejada, estado conhecido e infraestrutura real, frequentemente causada por alteração externa."
+    },
+    {
+      "front": "Por que proteger terraform.tfstate?",
+      "back": "O estado mapeia recursos e pode conter atributos sensíveis; precisa de controle de acesso e proteção apropriada."
+    },
+    {
+      "front": "Readiness versus liveness?",
+      "back": "Readiness indica se a instância deve receber tráfego; liveness indica quando reiniciar um contêiner não saudável."
+    },
+    {
+      "front": "RTO versus RPO?",
+      "back": "RTO define tempo-alvo de recuperação; RPO define a perda temporal de dados tolerável."
+    },
+    {
+      "front": "O que é GSLB?",
+      "back": "Distribuição/orientação global do tráfego entre locais conforme regras de saúde, capacidade ou proximidade."
+    },
+    {
+      "front": "Canary versus blue-green?",
+      "back": "Canary expõe gradualmente uma parcela do tráfego à nova versão; blue-green alterna entre dois ambientes."
+    },
+    {
+      "front": "Por que testar restauração?",
+      "back": "Backup presente não comprova dados íntegros, tempo de recuperação nem sucesso do procedimento real."
+    },
+    {
+      "front": "Papel da instrumentação automática?",
+      "back": "Capturar sinais de bibliotecas e interfaces com pouca alteração do código, complementando atributos e spans de negócio."
+    }
+  ],
+  "tips": [
+    "Comece a investigação pela jornada do usuário: compare taxa de erro, latência e saturação antes de escolher a ferramenta.",
+    "Em questões numéricas, escreva o denominador do SLI e a janela do SLO; depois calcule eventos ruins admitidos.",
+    "Diferencie circuit breaker de retry pela ação: bloquear chamadas versus refazer chamadas.",
+    "Nos cenários de cache, identifique fonte da verdade, política de invalidação e exigência de frescor.",
+    "Para orquestração, associe readiness ao tráfego e liveness ao reinício; startup protege o período de inicialização.",
+    "Ao avaliar IaC, procure estado remoto protegido, módulo versionado, revisão de plano e detecção de drift.",
+    "Em continuidade, pergunte separadamente quanto tempo pode ficar fora (RTO) e quanto dado pode perder (RPO)."
+  ],
+  "traps": [
+    "A prova diz que log centralizado substitui traces; está errado porque eventos isolados não representam automaticamente a cadeia causal entre serviços. Correto: correlacione eventos por contexto e spans.",
+    "A prova chama um SLO de cláusula com penalidade contratual; isso caracteriza SLA. Correto: o SLO é a meta técnica definida sobre um SLI.",
+    "A prova afirma que p95 de 200 ms significa média de 200 ms. Errado: p95 marca um percentil, não a média aritmética.",
+    "A prova propõe retries ilimitados para resolver saturação. Errado: repetição agrava pressão; use limites, backoff e jitter, considerando idempotência.",
+    "A prova afirma que ativo-ativo garante consistência imediata dos dados. Errado: atendimento simultâneo não elimina conflitos de replicação.",
+    "A prova confunde readiness com liveness. Errado: a primeira controla encaminhamento de tráfego; a segunda pode determinar reinício do contêiner.",
+    "A prova trata replicação contínua como substituta de backup. Errado: alterações indevidas e corrupção podem ser replicadas; restauração independente continua necessária."
+  ],
+  "activeRecall": [
+    {
+      "question": "Um serviço atendeu 80.000 pedidos e errou 80. Qual SLI de sucesso?",
+      "answer": "99,9%: 79.920/80.000. É necessário confirmar previamente o que conta como pedido elegível e erro."
+    },
+    {
+      "question": "Com SLO de 99,5% e 60.000 eventos, quantos podem falhar?",
+      "answer": "300 eventos (0,005 × 60.000), na janela e na população definidas para o objetivo."
+    },
+    {
+      "question": "Por que logs estruturados usam trace_id e span_id?",
+      "answer": "Para relacionar um evento ao fluxo distribuído e ao trecho específico da operação."
+    },
+    {
+      "question": "O que fazer quando uma dependência falha e milhares de clientes repetem pedidos?",
+      "answer": "Combinar timeout, tentativas limitadas, backoff com jitter, proteção por circuit breaker e idempotência quando há efeito persistente."
+    },
+    {
+      "question": "Uma aplicação usa 100% de CPU, mas o banco é o gargalo. Aumentar réplicas resolve?",
+      "answer": "Não necessariamente; aumentar consumidores pode ampliar a pressão no banco compartilhado. É preciso medir a cadeia e a capacidade."
+    },
+    {
+      "question": "Uma meta de RPO de 10 minutos é atendida por backup noturno?",
+      "answer": "Não, isoladamente. Uma falha ao fim do dia pode perder muitas horas; requer pontos de recuperação compatíveis."
+    },
+    {
+      "question": "Qual a distinção entre canary, blue-green e rolling update?",
+      "answer": "Canary limita inicialmente a exposição do usuário; blue-green troca entre ambientes; rolling update substitui instâncias gradualmente."
+    },
+    {
+      "question": "Por que um Terraform plan não deve ser aplicado automaticamente sem avaliação em toda situação?",
+      "answer": "O plano pode conter exclusão, troca de recurso e consequências operacionais ou de segurança que exigem revisão e aprovação proporcionais ao risco."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir sinais de observabilidade",
+      "summary": "Logs descrevem eventos, métricas agregam medições e traces encadeiam spans. A combinação com IDs e contexto ajuda a investigar falhas distribuídas."
+    },
+    {
+      "key": "e2",
+      "title": "Misturar SLI, SLO, SLA e orçamento",
+      "summary": "SLI é resultado medido, SLO é meta com janela, SLA é acordo. O orçamento depende da definição do indicador e do denominador."
+    },
+    {
+      "key": "e3",
+      "title": "Aplicar resiliência sem avaliar efeitos colaterais",
+      "summary": "Retries podem amplificar carga e duplicar efeitos; circuit breaker limita chamadas; cache e fallback exigem critérios de correção e frescor."
+    },
+    {
+      "key": "e4",
+      "title": "Confundir proteção de infraestrutura com automação",
+      "summary": "IaC depende de estado íntegro, controle de segredos e políticas; probes de contêiner têm finalidades diferentes, e patches exigem verificação."
+    },
+    {
+      "key": "e5",
+      "title": "Equivocar continuidade e estratégias de implantação",
+      "summary": "RTO mede o tempo-alvo de recuperação; RPO mede perda temporal de dados. GSLB, ativo-ativo, canary e blue-green resolvem problemas distintos."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Ao investigar uma compra que percorreu gateway, pedidos e pagamentos, a equipe quer reconstruir as etapas e identificar qual serviço consumiu mais tempo. Qual sinal é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um gauge de conexões abertas com coleta por minuto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um trace distribuído com spans correlacionados entre serviços.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um contador agregado de requisições recebidas por hora.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um registro local sem identificador da requisição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um painel de disponibilidade sem detalhes das etapas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Os spans relacionados revelam o percurso e a duração das operações. A é um estado pontual de conexões; C conta eventos e perde a sequência; D não permite correlação entre serviços; E indica condição global sem localizar o trecho demorado. O trace complementa, e não elimina, logs e métricas.",
+      "section": "1. Observabilidade: logs, métricas, traces e instrumentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação registra em tempo real o número de sessões abertas, que aumenta com novos acessos e diminui com encerramentos. Qual instrumento representa diretamente esse valor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Contador acumulativo de sessões criadas desde a inicialização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Histograma de durações das sessões já concluídas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trace de login com spans das consultas envolvidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gauge de sessões atualmente abertas na aplicação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Log de autenticação emitido na abertura de sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Gauge modela medições capazes de crescer ou cair, como o total corrente de sessões. A não diminui ao encerrar acessos; B representa distribuição temporal; C detalha fluxo de uma operação; E registra um acontecimento, não o nível atual de sessões. A escolha depende do comportamento do dado.",
+      "section": "1. Observabilidade: logs, métricas, traces e instrumentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe acompanha a porcentagem efetiva de pedidos concluídos sem erro, calculada a partir das transações do último dia. Essa porcentagem constitui qual elemento de SRE?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um SLI, por representar o nível de serviço efetivamente medido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um SLO, por estabelecer o objetivo formal para o período.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um SLA, por definir penalidade na relação contratual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um RPO, por limitar a perda admissível de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um RTO, por determinar o tempo-alvo de recuperação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. SLI é o indicador observado, como taxa de sucesso. B é a meta aplicável a esse indicador; C é o compromisso contratual, que pode conter sanções; D descreve tolerância à perda temporal de dados; E estabelece tempo de recuperação após interrupção. Medição atual não se transforma em meta apenas por ser porcentagem.",
+      "section": "2. SRE, SLI, SLO, orçamento de erros e resposta a incidentes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um portal define SLO de 99% de pedidos válidos em uma janela de 10.000 pedidos elegíveis. Quantos pedidos ruins podem ocorrer sem ultrapassar o orçamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "10 pedidos, usando a fração de 0,1% da janela.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "50 pedidos, usando a fração de 0,5% da janela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "99 pedidos, usando a taxa-alvo como contagem direta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "101 pedidos, somando a meta ao total de falhas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "100 pedidos, equivalentes a 1% da janela definida.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A margem é 1 − 0,99 = 0,01 e corresponde a 100 de 10.000 pedidos. A e B adotam percentuais menores não informados; C transforma o número 99 em contagem sem calcular seu complemento; D ultrapassa o máximo permitido. O orçamento se refere aos eventos elegíveis, não à capacidade do servidor.",
+      "section": "2. SRE, SLI, SLO, orçamento de erros e resposta a incidentes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço externo apresenta falhas sucessivas. A aplicação passa a interromper temporariamente novas chamadas para evitar sobrecarregar a dependência. Qual padrão foi aplicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retry com atraso progressivo antes de cada tentativa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cache-aside com busca de dados em caso de falta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Circuit breaker ao abrir o circuito de chamadas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Balanceamento de carga entre instâncias disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Blue-green ao direcionar tráfego para nova versão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O circuit breaker aberto bloqueia chamadas regulares à dependência em falha, permitindo teste posterior de recuperação. A ainda produz tentativas; B trata cache; D escolhe destinos de carga; E é técnica de implantação de versões. O propósito aqui é conter propagação de falhas, não mudar ambiente.",
+      "section": "3. Padrões de resiliência, escalabilidade e controle de concorrência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe amplia um serviço web de duas para seis instâncias de aplicação, mantendo o tamanho de cada instância. Qual alteração caracteriza essa expansão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escalabilidade vertical, por ampliar a memória de cada máquina.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumento de RPO, por replicar mais pontos de recuperação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escalabilidade horizontal, por ampliar o número de instâncias.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Redução de latência garantida, por criar serviços independentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tolerância total a falhas, por multiplicar as cópias ativas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O aumento da quantidade de instâncias é escala horizontal. A seria ampliar recursos de uma instância; B confunde disponibilidade de cópias com perda temporal de dados; D não é efeito garantido, sobretudo com banco compartilhado; E ignora falhas comuns. A arquitetura precisa também suportar distribuição de carga.",
+      "section": "3. Padrões de resiliência, escalabilidade e controle de concorrência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cluster, um pod está funcional, mas ainda não terminou de carregar dados necessários para atender novas solicitações. Qual verificação deve impedir o encaminhamento de tráfego?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Readiness probe, ao sinalizar falta temporária de prontidão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Liveness probe, ao solicitar reinício por indisponibilidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Startup probe, ao definir o número desejado de réplicas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Autoscaler, ao reencaminhar a requisição para outro site.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Collector, ao interceptar requisições ainda não prontas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Readiness determina se o pod está apto a receber tráfego pelos serviços. B está ligado a reinícios de contêiner não saudável; C protege a inicialização, mas não define réplicas; D dimensiona capacidade, não é teste de prontidão; E coleta telemetria. Reiniciar um processo saudável que apenas carrega dados pode agravar a situação.",
+      "section": "4. Infraestrutura como código, contêineres, configuração e segurança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após análise de impacto, um sistema define tempo-alvo máximo de recuperação de duas horas após interrupção. O indicador descrito é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RPO, referente aos dados que podem ficar desatualizados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SLI, referente à taxa observada de sucesso do sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MTTD, referente ao tempo de detecção da interrupção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SLO de latência, referente ao tempo de resposta das APIs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RTO, referente ao prazo pretendido para restaurar o serviço.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. RTO é objetivo de tempo para recuperação do recurso ou serviço. A trata da perda temporal tolerada dos dados, não da restauração; B mede desempenho observado; C delimita detecção, etapa anterior à recuperação; D cobre respostas individuais e não um desastre. Tempo até restabelecimento e quantidade de dados perdidos precisam ser avaliados separadamente.",
+      "section": "5. Recuperação de desastres, implantações progressivas e arquitetura operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após implantar uma nova versão, a equipe observa que 95% das requisições foram atendidas abaixo de 250 ms. Qual interpretação estatística desse dado é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A média de todas as requisições corresponde a 250 ms.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O valor informado caracteriza o percentil 95 da latência.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A latência máxima foi de 250 ms no período analisado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O percentil 99 pode ser inferido como exatamente 250 ms.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A taxa de erros corresponde a 5% das requisições.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. p95 em torno de 250 ms indica que 95% das observações não ultrapassaram esse limiar. A confunde percentil com média; C ignora os 5% mais lentos; D exige medir outro percentil; E deduz erro de uma medida de duração. Lentidão e falha podem compor indicadores distintos.",
+      "section": "1. Observabilidade: logs, métricas, traces e instrumentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo tem SLO de sucesso de 99,9%, mas sofre taxa corrente de erros de 0,5% na mesma definição de eventos. Qual é seu burn rate aproximado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,2, pois a taxa corrente é menor que 1%.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "0,5, pois equivale à taxa percentual observada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "2, pois o objetivo permite meio por cento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "5, pois a falha atual é cinco vezes a tolerada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "10, pois basta dividir a disponibilidade por erros.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. O SLO admite 0,1% de erros; 0,5% dividido por 0,1% resulta em burn rate de 5. A inverte a razão; B usa a taxa bruta como multiplicador; C supõe orçamento de 0,5%; E emprega uma divisão sem correspondência ao conceito. É necessário usar mesma população de eventos e janela de avaliação.",
+      "section": "2. SRE, SLI, SLO, orçamento de erros e resposta a incidentes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API apresenta falhas intermitentes de rede. O cliente já usa tentativas com atrasos exponenciais, mas picos de reenvio continuam coincidindo entre milhares de usuários. O que acrescentar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o número de tentativas simultâneas de cada cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Retirar o limite de repetição para maximizar sucesso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir o timeout por espera ilimitada pela resposta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar novas tentativas sempre no mesmo segundo exato.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar jitter aos intervalos e preservar limites de retry.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Jitter aleatoriza esperas e diminui a sincronização das novas tentativas, complementando o backoff. A e B ampliam a carga diante da falha; C mantém recursos presos à dependência; D reforça justamente a coincidência dos acessos. Também se deve verificar idempotência e orçamentos de timeout.",
+      "section": "3. Padrões de resiliência, escalabilidade e controle de concorrência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação armazena em cache perfis consultados com frequência. Em caso de ausência da chave, busca os dados na base e registra o resultado em cache para acessos futuros. Essa técnica é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Write-through, por gravar todo acesso primeiro na origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Read-replica, por replicar toda leitura entre dois bancos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cache-aside, por consultar a origem nas faltas de cache.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Circuit breaker, por interromper consultas após falhas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Bulkhead, por reservar uma fila isolada para perfis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Cache-aside deixa a aplicação procurar no cache e buscar na origem quando a chave não está disponível. A descreve um padrão de propagação de escrita; B é replicação de banco; D protege uma dependência durante falhas; E isola capacidade de trabalho. A política de invalidação segue necessária para dados atualizados.",
+      "section": "3. Padrões de resiliência, escalabilidade e controle de concorrência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador altera manualmente a configuração de uma instância criada por IaC, sem atualizar o repositório. O próximo planejamento detecta divergência entre o declarado e o real. O fenômeno é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma migração canary entre versões da mesma aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Drift de configuração causado por alteração fora do IaC.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um rollback automático do estado após aplicar o plano.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma substituição blue-green de infraestrutura completa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um mecanismo de replicação de recursos entre regiões.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Drift é a divergência entre configuração desejada e infraestrutura efetiva, comum após mudanças externas. A e D são técnicas de implantação; C seria reversão deliberada de mudanças; E é redundância geográfica. Detectar drift não significa corrigir sem avaliar o impacto de restaurar ou incorporar a alteração.",
+      "section": "4. Infraestrutura como código, contêineres, configuração e segurança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe compartilha módulos Terraform entre ambientes e pretende impedir mudanças inesperadas no recurso após atualizações do módulo. Qual decisão é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Excluir o arquivo de estado antes de atualizar o módulo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Copiar segredos para o Git e registrar sua alteração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar todos os módulos remotos sem revisar as diferenças.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fixar versões e revisar o plano antes da aplicação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Alterar recursos manualmente para dispensar versionamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Controle de versões do módulo e revisão do plano reduzem surpresas em mudanças compartilhadas. A danifica o mapeamento do estado; B expõe credenciais; C dispensa a avaliação de impacto; E favorece drift e perda de rastreabilidade. O módulo reutilizável organiza recursos, mas não valida automaticamente sua segurança.",
+      "section": "4. Infraestrutura como código, contêineres, configuração e segurança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação usa duas regiões para atender tráfego e permite que usuários sejam encaminhados para a região saudável. Qual característica adicional é indispensável para uma arquitetura ativo-ativo confiável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir replicação, capacidade de failover e conflitos de dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Presumir consistência síncrona pela existência de duas regiões.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tratar DNS como confirmação de integridade do banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter as mesmas falhas de configuração nos dois locais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adotar backups apenas no site de menor quantidade de tráfego.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Dois sites atendendo carga exigem política de replicação, consistência e capacidade para absorver deslocamentos. B deduz sincronia da topologia; C atribui ao DNS verificação do estado dos dados; D conserva modo de falha comum; E restringe indevidamente a estratégia de recuperação. Ativo-ativo não é equivalente a backup nem a integridade garantida.",
+      "section": "5. Recuperação de desastres, implantações progressivas e arquitetura operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema precisa apresentar nova versão a apenas 5% dos usuários, comparar taxa de erro com a anterior e aumentar gradualmente a exposição se os indicadores permanecerem saudáveis. A abordagem é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Canary com avaliação progressiva dos indicadores por versão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Contingência em site frio sem exposição de nova versão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Recuperação por backup de dados antes de publicar código.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Circuit breaker sobre chamadas à versão anterior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Blue-green com troca integral e imediata do ambiente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. A estratégia descrita é canary, com fração inicial pequena e expansão condicionada às métricas. B trata de continuidade; C trata de restauração; D bloqueia chamadas a dependências; E envolve alternância entre ambientes, não necessariamente exposição gradual. Distribuição progressiva é diferente de troca de ambiente.",
+      "section": "5. Recuperação de desastres, implantações progressivas e arquitetura operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time observa no painel agregado p95 de latência satisfatório, mas usuários de uma região relatam lentidão grave. Qual ação investigativa resolve melhor essa aparente contradição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar somente a média temporal do painel agregado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Segmentar latência por região e rota, correlacionando traces.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desativar o registro de erros para reduzir ruído de coleta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir os percentis por contagem total de solicitações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pressupor que a queixa é incorreta porque p95 está adequado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Um percentil global pode esconder subpopulação pequena e gravemente prejudicada; dimensões por região e rota permitem investigar a experiência afetada. A conserva a agregação; C remove evidências; D ignora distribuição temporal; E toma métrica de cobertura limitada como prova universal. Traces ajudam a localizar gargalos específicos.",
+      "section": "1. Observabilidade: logs, métricas, traces e instrumentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint instrumentado recebe IDs de usuários como rótulo de cada série temporal. Em alta escala, o banco de métricas passa a consumir recursos excessivos. Qual correção mantém utilidade operacional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma série de métricas adicional para cada sessão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar todas as métricas por logs completos dos usuários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminar os rótulos de rota e preservar apenas identificadores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar rótulos limitados, como rota normalizada e código HTTP.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Adicionar IDs de transação aos histogramas existentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Rótulos de cardinalidade controlada, como rota normalizada e classe de status, evitam explosão de séries. A e E multiplicam combinações únicas; B transfere dados pessoais para logs sem resolver necessidade de métricas; C mantém a dimensão de maior cardinalidade. Identificadores individuais podem ser correlacionados em traces ou logs com segurança adequada.",
+      "section": "1. Observabilidade: logs, métricas, traces e instrumentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API possui SLO de 99,8% em 50.000 operações. Após 70 falhas elegíveis, a equipe analisa o orçamento restante. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O limite era 70 e o orçamento foi integralmente consumido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O limite era 200 e ainda restam 130 falhas toleráveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O limite era 100 e restam 30 falhas no período.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O limite era 100 e faltam 70 eventos bons adicionais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O limite era 50 e restaram 20 falhas no período.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. A fração ruim admitida é 0,2%; de 50.000 operações resulta em 100, restando 30 após as 70 falhas. A equipara consumo ao limite; B usa 0,4%; D converte falhas em eventos bons de forma indevida; E calcula o limite com 0,1%, e ainda subtrai incorretamente as ocorrências. A janela e o denominador são essenciais.",
+      "section": "2. SRE, SLI, SLO, orçamento de erros e resposta a incidentes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O serviço de cobrança aplica retry automático após timeout. O servidor processou o primeiro pedido, mas a resposta se perdeu. Como minimizar o risco de cobrança duplicada no reenvio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar uma nova identificação da operação a cada tentativa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desligar o timeout e aguardar por período indefinido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar CPU para decidir se deve cobrar novamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar réplicas do gateway durante todos os retries.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exigir chave de idempotência persistida para a operação.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Uma chave de idempotência permite reconhecer reenvios da mesma intenção e devolver resultado coerente sem duplicar o efeito. A trata cada retry como operação nova; B pode prender recursos; C não informa se o pagamento ocorreu; D melhora capacidade potencial, mas não impede cobrança dupla. O estado de idempotência precisa ser armazenado com consistência.",
+      "section": "3. Padrões de resiliência, escalabilidade e controle de concorrência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer identificar degradação da versão nova sem comprometer a compatibilidade do banco. O esquema antigo será removido somente depois que os consumidores forem migrados. Qual estratégia atende ao caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Contração primeiro, removendo colunas antes de distribuir versões.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Recriação imediata do banco com migração sem compatibilidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atualização isolada dos clientes após remoção dos campos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Expand-and-contract com transição de leitores e escritores.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Reversão do código como substituto de migração de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Expand-and-contract amplia primeiro a compatibilidade, migra consumidores e só depois remove estruturas antigas. A e C antecipam remoção e quebram versões coexistentes; B não preserva contratos; E supõe que rollback do binário reverte também alterações destrutivas de dados. Essa disciplina é decisiva em canary e blue-green.",
+      "section": "5. Recuperação de desastres, implantações progressivas e arquitetura operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura tolera falha de instâncias da aplicação, mas uma dependência compartilhada fica sobrecarregada quando todos os clientes fazem retry. Qual combinação contém melhor a falha em cascata?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retries ilimitados com tempo de espera fixo e igual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escala de consumidores sem impor limites à dependência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cache vencido como confirmação de transações críticas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativação do timeout para preservar a tentativa original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Circuit breaker, isolamento de capacidade e backoff com jitter.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Circuit breaker interrompe chamadas durante falhas, bulkhead isola recursos e backoff com jitter reduz tempestades de repetição. A e B aumentam demanda; C utiliza informação desatualizada para decisão crítica; D prolonga ocupação de recursos. Nenhuma técnica substitui avaliação de idempotência e limitação de carga.",
+      "section": "3. Padrões de resiliência, escalabilidade e controle de concorrência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização exige RTO de 30 minutos e RPO de 5 minutos para banco crítico. Possui apenas backup completo realizado a cada 24 horas e recuperação testada de 20 minutos. O que pode ser concluído?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambas as metas estão demonstradas pelo backup diário existente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O RPO está atendido pela restauração inferior a 30 minutos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O RTO foi demonstrado no teste, mas o RPO não foi assegurado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A disponibilidade ativo-ativo dispensa medir perda de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os 20 minutos de restauração provam recuperação sem perdas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O exercício de restauração de 20 minutos sugere cumprimento do RTO de 30 minutos nesse cenário testado; um único backup diário pode causar perda de quase 24 horas e não atende RPO de 5 minutos. A e B confundem objetivos; D acrescenta topologia não informada e ignora dados; E transforma velocidade em integridade temporal.",
+      "section": "5. Recuperação de desastres, implantações progressivas e arquitetura operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um contêiner demora dois minutos para inicializar. A sonda liveness começa após dez segundos e causa reinícios em ciclo, embora a aplicação fique saudável ao completar o carregamento. Qual ajuste é mais indicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar startup probe coerente com a inicialização lenta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar reinícios automáticos sempre que o serviço aquecer.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retirar readiness e declarar todo pod pronto imediatamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ampliar HPA para impedir ação da verificação de vida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar liveness por teste de latência da rede externa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Startup probe fornece período apropriado para inicialização e posterga outras verificações até o sucesso. B reforça a sequência de reinícios; C pode encaminhar tráfego cedo; D ajusta réplicas sem corrigir o momento da sonda; E pode reiniciar processos saudáveis por falha externa. A calibração deve refletir o tempo de inicialização observado.",
+      "section": "4. Infraestrutura como código, contêineres, configuração e segurança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API adicionará campo obrigatório a todas as mensagens, mas durante o canary clientes antigos continuarão ativos. Qual estratégia preserva melhor a interoperabilidade na transição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exigir o novo campo imediatamente de todos os clientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Introduzir campo compatível e migrar consumidores por etapas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Eliminar os campos antigos e manter o mesmo identificador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Modificar o formato persistido sem considerar leitores antigos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar testes de contrato e observar apenas uso de memória.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Adição inicialmente compatível e migração gradual permitem coexistência dos clientes durante canary; quando todos forem adaptados, novas restrições podem ser aplicadas de maneira controlada. A, C e D quebram consumidores anteriores; E não testa a comunicação entre versões. Número de versão sozinho não assegura contrato válido.",
+      "section": "5. Recuperação de desastres, implantações progressivas e arquitetura operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma requisição que atravessa três microsserviços, o compartilhamento do identificador do trace entre os componentes facilita correlacionar spans e logs de uma mesma operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A propagação de contexto permite identificar operações relacionadas entre serviços diferentes. O trace_id vincula o fluxo; o span_id diferencia trechos. Sem correlação, registros locais continuam úteis, mas a reconstrução do caminho completo se torna mais difícil.",
+      "section": "1. Observabilidade: logs, métricas, traces e instrumentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma aplicação registra 200 ms de latência média, pode-se concluir que pelo menos 95% das requisições foram concluídas em até 200 ms.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A média não determina o percentil 95; uma pequena proporção de observações muito lentas altera a média e diferentes distribuições podem produzir o mesmo valor médio. Para afirmar que 95% terminaram em até 200 ms é necessário medir a distribuição ou o p95.",
+      "section": "1. Observabilidade: logs, métricas, traces e instrumentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um SLO de 99,9% de requisições boas permite, pela definição de orçamento em eventos, uma fração de 0,1% de requisições ruins durante sua janela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O complemento de 99,9% é 0,1%, desde que eventos bons e totais tenham classificação e janela definidas. Esse orçamento técnico não determina automaticamente multa contratual; para isso é preciso examinar eventual SLA e seus critérios específicos.",
+      "section": "2. SRE, SLI, SLO, orçamento de erros e resposta a incidentes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema distribuído, o circuit breaker tem como comportamento principal repetir a chamada com intervalos cada vez menores enquanto a dependência falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Circuit breaker limita novas chamadas quando o circuito está aberto e verifica recuperação em condições controladas. Repetição de chamadas é papel do retry, que normalmente usa limite de tentativas e intervalos crescentes com jitter para reduzir carga sincronizada.",
+      "section": "3. Padrões de resiliência, escalabilidade e controle de concorrência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao adicionar nós idênticos para executar instâncias adicionais do mesmo serviço, uma equipe realizou escalabilidade horizontal, ainda que precise verificar gargalos compartilhados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Escalar horizontalmente é aumentar o número de instâncias; escalar verticalmente seria ampliar recursos da instância existente. A extensão da capacidade total depende ainda de balanceamento, estado de sessão e limites de banco, fila ou outras dependências centrais.",
+      "section": "3. Padrões de resiliência, escalabilidade e controle de concorrência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Kubernetes, uma readiness probe com falha tem por função principal reiniciar imediatamente o contêiner da mesma forma que uma liveness probe com falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A readiness determina se o pod está pronto para receber tráfego, sem ser por si um pedido de reinício. Liveness detecta situações que justificam reinício do contêiner; startup protege inicializações lentas. Confundir essas finalidades pode criar indisponibilidade desnecessária.",
+      "section": "4. Infraestrutura como código, contêineres, configuração e segurança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um serviço estabelece RTO de uma hora, sua estratégia de contingência deve ser capaz de recuperar o serviço dentro desse tempo-alvo em condições compatíveis com os cenários previstos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. RTO estabelece o objetivo temporal de recuperação e deve orientar escolha de arquitetura, runbooks e testes. Não informa por si quantos dados podem ser perdidos; essa é a dimensão do RPO. Demonstrar cumprimento requer exercícios próximos dos cenários relevantes.",
+      "section": "5. Recuperação de desastres, implantações progressivas e arquitetura operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em logs centralizados, indexar o identificador único de cada cliente como rótulo de uma métrica reduz a cardinalidade e torna as séries temporais mais econômicas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um rótulo diferente por cliente multiplica combinações possíveis e pode criar volume excessivo de séries. Métricas exigem atributos com cardinalidade controlada, como rota normalizada. Logs e traces possuem modelos de armazenamento distintos e devem proteger dados sensíveis.",
+      "section": "1. Observabilidade: logs, métricas, traces e instrumentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um alerta de SLO pode usar duas janelas de observação para identificar consumo rápido do orçamento de erros e evitar acionamentos por oscilações muito breves.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Janelas curta e longa podem equilibrar detecção ágil e persistência do problema. O cálculo deve tomar como base o orçamento e o SLI estabelecidos; alarmes apenas sobre utilização de CPU não refletem necessariamente o impacto percebido pelos usuários.",
+      "section": "2. SRE, SLI, SLO, orçamento de erros e resposta a incidentes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante falha de uma dependência, enviar a mesma ordem de pagamento repetidamente após timeout é seguro por definição, porque timeout prova que o servidor remoto não a executou.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Timeout limita o tempo de espera do cliente, mas a operação remota pode ter sido executada antes da perda de resposta. Reenvios exigem idempotência ou mecanismos equivalentes de deduplicação, além de limites e políticas de repetição controladas.",
+      "section": "3. Padrões de resiliência, escalabilidade e controle de concorrência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila permite que produtores continuem a trabalhar sem aguardar a conclusão imediata dos consumidores, mas a aplicação ainda precisa lidar com duplicatas e falhas de entrega.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Mensageria assíncrona desacopla o tempo de execução do produtor e consumidor. Entretanto, reentregas, ordem e falhas de persistência exigem tratamento de negócio, especialmente quando processamento repetido pode gerar cobranças ou atualizações duplicadas.",
+      "section": "3. Padrões de resiliência, escalabilidade e controle de concorrência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como módulos Terraform são arquivos versionados, o estado da infraestrutura pode ser publicado sem controle de acesso, pois contém apenas referências públicas de recursos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O estado relaciona recursos declarados aos objetos reais e pode incluir dados sensíveis. Versionar módulos favorece auditoria, mas não sanitiza o state. Armazenamento remoto seguro, proteção de segredos e bloqueio contra escritas simultâneas são medidas distintas.",
+      "section": "4. Infraestrutura como código, contêineres, configuração e segurança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema com dois sites ativos dispensa estratégia independente de backup, pois todas as exclusões e corrupções são impedidas pela replicação em tempo real.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Replicação pode propagar exclusões acidentais, corrupção de dados e operações indevidas. Ativo-ativo prioriza atendimento em múltiplos locais; proteção de dados demanda retenção, recuperação por pontos no tempo, cópias adequadas e testes de restauração.",
+      "section": "5. Recuperação de desastres, implantações progressivas e arquitetura operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na implantação blue-green, a equipe pode manter dois ambientes e alternar o encaminhamento de tráfego após a validação, mas deve avaliar compatibilidade das alterações de esquema persistente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O modelo blue-green usa ambientes de versões diferentes e permite alternar tráfego, facilitando retorno quando contratos e dados são compatíveis. Se a nova versão destruiu colunas ainda usadas pela antiga, reverter somente o serviço pode não restaurar o funcionamento esperado.",
+      "section": "5. Recuperação de desastres, implantações progressivas e arquitetura operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas tarefas podem ser concorrentes em uma única CPU sem executar instruções literalmente no mesmo instante, enquanto paralelismo exige execução simultânea de atividades.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A concorrência pode resultar da alternância entre tarefas num único processador; paralelismo requer execução simultânea em recursos capazes de fazê-la. A programação assíncrona está relacionada à espera não bloqueante e não assegura, por si, processamento paralelo.",
+      "section": "3. Padrões de resiliência, escalabilidade e controle de concorrência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cache com TTL de dez minutos assegura, independentemente de novas escritas na origem, que toda leitura dentro do TTL refletirá o estado mais recente dos dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TTL limita o tempo de permanência ou validade configurada no cache, não força invalidação no momento de uma atualização na origem. Durante a janela, leituras podem estar desatualizadas; exigências de consistência dependem de invalidação, atualização coordenada ou outro protocolo.",
+      "section": "3. Padrões de resiliência, escalabilidade e controle de concorrência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para manter SLO de latência, a equipe mede fração de operações abaixo de 300 ms e contabiliza todas as operações elegíveis; essa definição preserva informação de cauda melhor do que usar apenas média global.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um SLI baseado em proporção de pedidos abaixo de limiar representa diretamente quantos usuários receberam resposta em tempo aceitável. A média pode ocultar parte lenta da distribuição. É importante definir abrangência, período, exclusões justificadas e como são contados os pedidos sem resposta.",
+      "section": "2. SRE, SLI, SLO, orçamento de erros e resposta a incidentes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao usar GSLB baseado em DNS, a alteração de um registro para região secundária torna o direcionamento novo instantâneo para todos os clientes, independentemente de caches de resolvedores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Direcionamento via DNS depende de TTL e comportamento de caches e resolvedores, de modo que parte dos clientes pode continuar acessando o endereço antigo. A mudança global de tráfego deve considerar propagação, saúde de serviços e capacidade da região de destino.",
+      "section": "5. Recuperação de desastres, implantações progressivas e arquitetura operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a equipe aplica um patch e o pacote em disco muda, ainda é prudente conferir a versão efetivamente executada, pois processos antigos podem continuar ativos até reinício apropriado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Gestão de patches inclui inventário, validação, implantação e confirmação de que a correção está ativa; arquivos atualizados não comprovam que processos antigos foram substituídos. O reinício necessário deve ser planejado conforme disponibilidade, compatibilidade e procedimento de rollback.",
+      "section": "4. Infraestrutura como código, contêineres, configuração e segurança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de recuperação que obtém HTTP 200 da aplicação prova, sem inspecionar armazenamento ou dependências, que o RPO foi cumprido e que todas as operações de negócio estão funcionais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma rota acessível demonstra apenas parte da disponibilidade. É preciso verificar integridade e idade dos dados, fluxos críticos, autenticação, filas e integrações para sustentar RPO e recuperação real. Um serviço pode responder 200 enquanto informações recentes foram perdidas.",
+      "section": "5. Recuperação de desastres, implantações progressivas e arquitetura operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Implementing SLOs — Site Reliability Engineering Workbook",
+      "publisher": "Google",
+      "reference": "SLIs, SLOs e orçamentos de erros",
+      "url": "https://sre.google/workbook/implementing-slos/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Alerting on SLOs — Site Reliability Engineering Workbook",
+      "publisher": "Google",
+      "reference": "Taxas de consumo e alertas baseados em objetivos",
+      "url": "https://sre.google/workbook/alerting-on-slos/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Incident Response — Site Reliability Engineering Workbook",
+      "publisher": "Google",
+      "reference": "Coordenação, comunicação e gestão de incidentes",
+      "url": "https://sre.google/workbook/incident-response/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Canarying Releases — Site Reliability Engineering Workbook",
+      "publisher": "Google",
+      "reference": "Publicação canary e análise de resultados",
+      "url": "https://sre.google/workbook/canarying-releases/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Signals — OpenTelemetry Documentation",
+      "publisher": "OpenTelemetry",
+      "reference": "Traces, metrics, logs e propagação de contexto",
+      "url": "https://opentelemetry.io/docs/concepts/signals/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Instrumentation — OpenTelemetry Documentation",
+      "publisher": "OpenTelemetry",
+      "reference": "Instrumentação por SDK e sem código",
+      "url": "https://opentelemetry.io/docs/concepts/instrumentation/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Modules overview — Terraform",
+      "publisher": "HashiCorp",
+      "reference": "Módulos raiz e filhos, reuso e versionamento",
+      "url": "https://developer.hashicorp.com/terraform/language/modules",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "State — Terraform",
+      "publisher": "HashiCorp",
+      "reference": "Mapeamento de recursos, estado e segurança",
+      "url": "https://developer.hashicorp.com/terraform/language/state",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Deployments — Kubernetes",
+      "publisher": "Kubernetes",
+      "reference": "Rolling update e controle de réplicas",
+      "url": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Liveness, Readiness, and Startup Probes",
+      "publisher": "Kubernetes",
+      "reference": "Finalidades das verificações de saúde",
+      "url": "https://kubernetes.io/docs/concepts/workloads/pods/probes/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Circuit Breaker Pattern",
+      "publisher": "Microsoft Learn",
+      "reference": "Estados e contenção de falhas de dependências",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Timeouts, retries, and backoff with jitter",
+      "publisher": "Amazon Web Services",
+      "reference": "Retries, backoff e jitter em sistemas distribuídos",
+      "url": "https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/",
+      "accessedAt": "2026-10-10"
+    }
+  ]
+}

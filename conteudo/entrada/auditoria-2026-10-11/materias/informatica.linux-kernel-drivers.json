@@ -1,0 +1,1814 @@
+{
+  "id": "informatica.linux-kernel-drivers",
+  "subject": "Informática",
+  "title": "Kernel Linux, módulos e drivers",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Kernel Linux, módulos e drivers"
+  ],
+  "scope": {
+    "covers": "Arquitetura dos sistemas operacionais; kernel e espaço do usuário; configuração, compilação e instalação do Linux; módulos e drivers, depuração, bootloader, initramfs, rootfs, distribuições embarcadas, serviços e aplicativos; comparação pontual com drivers, serviços e aplicativos Windows.",
+    "excludes": "Administração avançada de redes, programação completa de subsistemas específicos, detalhes internos de todas as arquiteturas de processadores e distribuição comercial particular; aborda desenvolvimento Windows apenas nos pontos indicados pelo escopo."
+  },
+  "theoryTitle": "Kernel Linux, módulos, drivers e inicialização de sistemas embarcados",
+  "chapters": [
+    {
+      "title": "1. Arquitetura do sistema operacional e compilação do kernel",
+      "markdown": "## Kernel, processos e interfaces\nO **kernel** gerencia processos, memória virtual, escalonamento, sistemas de arquivos, redes e dispositivos. Aplicações comuns executam no **espaço de usuário**, com isolamento por processos, e solicitam serviços ao núcleo por **chamadas de sistema** como `open`, `read`, `write` e `ioctl`. Uma biblioteca da linguagem pode oferecer uma função de conveniência, mas não se confunde com a chamada de sistema; nem toda função de biblioteca provoca transição ao kernel. Um programa que grava em um arquivo não precisa conhecer diretamente o controlador de armazenamento: a pilha de sistema de arquivos, bloco e driver trata a interação. Uma falha de segmentação em aplicativo normalmente encerra o processo; um erro de memória no núcleo pode comprometer o sistema inteiro. O Linux é descrito como kernel monolítico modular: diversos subsistemas rodam em espaço privilegiado, e parte de seu código pode ser carregada dinamicamente como módulos. Isso não transforma um módulo em processo isolado nem o torna equivalente a um serviço de usuário.\n\n### Fontes, configuração e construção\nO código-fonte do kernel traz `Kconfig` para descrição de opções e **kbuild** para compilação. O arquivo `.config` contém a configuração efetiva. Nas opções triestado, `y` inclui no kernel, `m` compila como módulo carregável e `n` desativa. O valor `m` depende de a opção permitir modularização e de a infraestrutura de módulos estar habilitada; dependências podem impedir determinada escolha. `make menuconfig` abre interface textual de configuração; `make defconfig` cria configuração-padrão para a arquitetura/plataforma; `make olddefconfig` adapta configuração anterior usando valores padrão para símbolos novos, sem perguntas. `make oldconfig` pode perguntar sobre opções novas. `make O=/caminho/build menuconfig` e `make O=/caminho/build` deixam resultados fora da árvore do código, mas exigem uso coerente de `O=` nas invocações seguintes. Não confunda `mrproper`, que remove inclusive configurações e artefatos relevantes, com a mera recompilação incremental.\n\n### Artefatos e instalação\nApós configurar, `make -j4` pode paralelizar tarefas; o número quatro expressa o limite solicitado de trabalhos simultâneos, não a quantidade obrigatória de processadores. Em determinadas arquiteturas surgem imagens como `arch/x86/boot/bzImage`, além de módulos `.ko`. O comando `make modules_install` instala módulos preparados para a versão construída, normalmente sob `/lib/modules/<versão>/`, e não reconfigura automaticamente o carregador de inicialização de toda distribuição. O alvo `make install` pode recorrer à integração do sistema, cuja existência varia. `uname -r` exibe a identificação do kernel **em execução**; ela pode diferir da versão recém-compilada até uma nova inicialização. Se o núcleo for atualizado sem instalar módulos compatíveis ou sem ajustar o bootloader, drivers necessários podem não carregar.\n\n### Compilação cruzada e detalhes de prova\nPara uma placa ARM usando máquina de desenvolvimento x86-64, o **toolchain cruzado** produz código para a arquitetura de destino. Em construções tradicionais, `ARCH=arm64` escolhe a arquitetura do alvo e `CROSS_COMPILE=aarch64-linux-gnu-` fornece prefixo de ferramentas, desde que instaladas e adequadas. A configuração deve corresponder à placa: drivers, sistema de arquivos do volume raiz e recursos indispensáveis ao boot precisam estar embutidos (`y`) ou estar disponíveis em um initramfs capaz de carregá-los antes da montagem do rootfs definitivo. Compilar não é instalar; instalar não é ativar; ativar outro kernel costuma exigir seleção de imagem e reinício.\n\n| Elemento | Função | Confusão comum |\n| --- | --- | --- |\n| `.config` | Guarda escolhas de compilação | Não é o binário do kernel |\n| `vmlinux` | Imagem ELF usualmente não comprimida, com símbolos | Não é a mesma representação que `bzImage` |\n| `bzImage` | Imagem de boot x86 | Não significa módulo carregável |\n| `.ko` | Objeto de módulo do núcleo | Não é aplicativo de usuário |\n| `uname -r` | Informa kernel em execução | Não identifica automaticamente a última construção |\n\n> Atenção: o símbolo selecionado com `m` gera código carregável quando a funcionalidade admite módulo; se o driver tiver de existir antes de o sistema acessar o local de onde carrega módulos, a sequência de boot precisará prover solução antecipada. Fontes: documentação oficial de construção e configuração do kernel."
+    },
+    {
+      "title": "2. Módulos Linux: ativação, dependências e desenvolvimento",
+      "markdown": "## O que é um módulo carregável\nO **Loadable Kernel Module (LKM)** é código que se integra ao kernel em execução, compartilhando seu espaço de endereçamento privilegiado. Arquivos de módulos geralmente têm extensão `.ko`, mas a simples existência desse arquivo não garante compatibilidade: versão, arquitetura, símbolos exportados, configuração e políticas de assinatura precisam ser considerados. Um driver pode estar **embutido** no kernel e funcionar sem aparecer em `lsmod`. A opção `CONFIG_MODULES` habilita suporte a módulos; uma funcionalidade configurada como `n` não é ressuscitada por `modprobe` sem recompilar ou obter suporte compatível.\n\n### Ferramentas e responsabilidades\n`lsmod` relaciona módulos carregados; `modinfo nome` mostra informações disponíveis, como licença, descrição, dependências e identificador de versão; `insmod ./arquivo.ko` tenta inserir diretamente um arquivo e não resolve automaticamente a cadeia de dependências. `modprobe nome` busca o módulo no conjunto instalado para o kernel escolhido, consulta índices e normalmente trata dependências e opções; `modprobe -r nome` solicita retirada com tratamento de dependências, enquanto `rmmod nome` remove diretamente, podendo falhar se há uso ou referências ativas. `depmod` gera ou atualiza mapas de dependências usados por carregamento automático. `dmesg` auxilia na leitura de mensagens do kernel, desde que a política de segurança permita o acesso; `journalctl -k`, quando há journal, consulta mensagens do núcleo. O arquivo `/etc/modprobe.d/*.conf` pode configurar opções, aliases e regras específicas de modprobe; confundi-lo com a configuração de compilação `.config` é erro clássico.\n\n| Ferramenta | Operação típica | Limite principal |\n| --- | --- | --- |\n| `insmod` | Insere arquivo `.ko` apontado | Não resolve dependências como `modprobe` |\n| `modprobe` | Carrega por nome, considerando índices | Não compila módulos ausentes |\n| `lsmod` | Consulta lista de módulos residentes | Não lista drivers embutidos |\n| `depmod` | Atualiza informação de dependências | Não carrega os módulos |\n| `modinfo` | Inspeciona metadados do módulo | Não prova que esteja ativo |\n\n### Construção fora da árvore\nNo kbuild externo, um Makefile mínimo pode declarar `obj-m += exemplo.o`. A compilação típica é `make -C /lib/modules/$(uname -r)/build M=$PWD modules`, com cabeçalhos e artefatos compatíveis com o kernel alvo. O parâmetro `-C` direciona ao ambiente de construção do núcleo; `M=$PWD` aponta a pasta do módulo externo. Se `CONFIG_MODVERSIONS` estiver ativo, símbolos e seus CRCs ajudam a detectar incompatibilidade de interface; `make modules_prepare` prepara parte da árvore, mas **não** gera, sozinho, o `Module.symvers` requerido para todos os casos de versionamento de símbolos. Mesmo módulo que compila pode falhar ao carregar por símbolo inexistente, versão divergente ou exigência de assinatura.\n\n### Programação de um módulo e segurança\n`module_init(funcao)` indica rotina de inicialização; `module_exit(funcao)` indica rotina de saída no descarregamento de módulo. Para código embutido, a primeira pode ser executada como parte da inicialização do kernel, enquanto a rotina de saída associada a `module_exit` não é usada da mesma forma. As rotinas devem gerenciar recursos de maneira simétrica: registrar dispositivo, solicitar memória ou interrupção, tratar falhas parciais e liberar corretamente ao remover. `printk` e a infraestrutura `pr_info`/`pr_err` permitem diagnósticos; falhas de acesso inválido, corrida ou uso após liberação dentro de módulo podem afetar todo o sistema. Preferir interfaces documentadas, testar em máquina virtual ou placa de laboratório, e acompanhar avisos de taint e assinatura são precauções essenciais. O carregamento requer privilégios adequados e pode ser limitado por Secure Boot, lockdown ou políticas do sistema; possuir o `.ko` não dá direito automático de inseri-lo."
+    },
+    {
+      "title": "3. Inicialização: bootloader, initramfs, rootfs e distribuição embarcada",
+      "markdown": "## Da energização ao processo inicial\nUma sequência comum é **firmware/ROM de boot → bootloader → kernel → rootfs → processo inicial (PID 1)**. Em máquinas com UEFI, há particularidades como inicialização via EFI stub, e em placas embarcadas pode haver estágios sucessivos de carregamento. GRUB é frequente em sistemas gerais; U-Boot é comum em dispositivos embarcados. A função do bootloader é localizar, preparar e transferir controle para o kernel, fornecendo informações de boot e, quando necessário, initramfs e **device tree**; ele não se torna o gerenciador permanente de processos do Linux. Parâmetros como `root=` e `console=` afetam escolhas posteriores do kernel. Um erro de argumento `root=` ou driver de armazenamento ausente pode impedir a montagem do sistema raiz, mesmo que a imagem do núcleo tenha iniciado corretamente.\n\n### Rootfs, initramfs e init\nO **root filesystem (rootfs)** é a árvore de arquivos que aparece sob `/` ao sistema em operação. Precisa dos arquivos adequados ao projeto: executável inicial, bibliotecas requeridas, diretórios e configuração. `/proc`, `/sys` e `/dev` têm funções diferentes: procfs expõe informações de processos e kernel; sysfs fornece modelo de dispositivos e atributos do núcleo; devtmpfs ou gestores de dispositivos ajudam a oferecer nós de dispositivo em `/dev`. Estar no rootfs não significa que todos esses sistemas de arquivos já estejam montados. O **initramfs** é um ambiente inicial temporário, tipicamente arquivo cpio incorporado ou disponibilizado na inicialização, frequentemente usado para carregar drivers, desbloquear volumes, localizar e montar a raiz definitiva. O uso histórico de `initrd` tem particularidades; não é tecnicamente correto tratá-los como o mesmo formato. Quando se usa initramfs com programa `/init`, ele prepara a transição ao rootfs real. Quando o kernel executa o primeiro processo de usuário definitivo, este passa a desempenhar papel de **PID 1**, com responsabilidades de iniciar e supervisionar serviços, colher processos órfãos e administrar encerramento. `systemd` é uma implementação comum; BusyBox init e outras alternativas existem em sistemas mínimos.\n\n### Buildroot, Yocto e produção de imagem\n**Buildroot** automatiza a construção de toolchain cruzado, pacotes de usuário, imagens de rootfs e, conforme seleção, kernel e bootloader. No diretório `output/images` ficam artefatos para o alvo, enquanto `output/build` guarda resultados intermediários de compilação. Buildroot não é o nome do kernel nem uma simples ferramenta de ativar módulos. **Yocto Project** combina metadados, receitas, camadas e o mecanismo BitBake para construir imagens reproduzíveis e personalizadas; receitas e dependências não equivalem a comandos diretos de gerenciador de pacotes do equipamento final. Em ambos os sistemas, a arquitetura, bibliotecas, ABI, versão de kernel e conjunto de pacotes precisam ser compatíveis.\n\n### Fluxo de falhas e diagnóstico\nSe o bootloader não encontra a imagem, verifique partição, endereços e formato. Se carrega o kernel mas este não monta a raiz, confira `root=`, suporte ao controlador, sistema de arquivos e conteúdo do initramfs. Se a raiz monta, mas não executa `init`, investigue caminho de executável, permissões, interpretador ELF e bibliotecas. Se o PID 1 inicia, mas um serviço falha, o problema já pode estar na camada de usuário. Em hardware ARM, um **device tree blob (DTB)** descreve topologia e recursos de hardware para drivers quando a plataforma o utiliza; não contém, por si só, o código executável de todos os drivers.\n\n| Artefato | Identidade | Exemplo de problema |\n| --- | --- | --- |\n| Bootloader | Inicia o kernel | Imagem ou endereço incorreto |\n| Kernel | Gerencia recursos | Controlador raiz não suportado |\n| Initramfs | Ambiente temporário inicial | Módulo de armazenamento ausente |\n| Rootfs | Árvore de arquivos do sistema | `/sbin/init` ausente ou inviável |\n| DTB | Descrição de hardware | Barramento/dispositivo mal descrito |\n\n> Uma distribuição mínima não é só o arquivo do kernel: requer rootfs funcional e sequência de inicialização coerente. A ferramenta que constrói a imagem não substitui o bootloader no equipamento."
+    },
+    {
+      "title": "4. Drivers Linux: registro, concorrência e depuração",
+      "markdown": "## Driver como intermediário do dispositivo\nUm **driver** implementa o protocolo de interação com hardware ou dispositivo virtual, usando interfaces dos subsistemas do kernel. Drivers de caractere atendem fluxos ou operações de bytes; drivers de bloco expõem armazenamento com abstração própria; drivers de rede integram pilha de rede e filas de pacotes. A classificação depende da interface do subsistema, não da aparência física do equipamento. Um programa de usuário abre `/dev/dispositivo` quando existe nó apropriado, mas dispositivos de rede geralmente são usados por sockets e interfaces específicas. `open`, `read`, `write`, `poll` e `ioctl` podem ser operações fornecidas por um driver de caractere, com semântica definida pela implementação. `ioctl` não é uma permissão irrestrita de acessar qualquer endereço de memória.\n\n### Descoberta, associação e ciclo de vida\nO núcleo mantém **modelo de dispositivos e drivers**. Em barramentos apropriados, uma tabela de IDs possibilita associar driver ao dispositivo; uma rotina de `probe` costuma preparar recursos quando ocorre correspondência, enquanto remoção desfaz associações e libera recursos. `module_init` é entrada geral do módulo; não substitui necessariamente `probe`, executado por dispositivo identificado. Um módulo pode estar carregado sem nenhum dispositivo associado. Em plataformas que usam **device tree**, propriedades de `compatible`, endereços e IRQs ajudam a casar dispositivo e driver, mas não bastam se o driver estiver ausente ou se as dependências de energia e clock não forem satisfeitas. Em dispositivos PCI/USB, correspondências podem ocorrer por identificadores do barramento. Para DMA, é preciso usar APIs adequadas de mapeamento; endereço virtual de CPU não pode ser enviado automaticamente ao dispositivo como endereço de barramento válido.\n\n### Contextos e sincronização\nKernel-space exige distinguir contexto de processo, interrupção e trechos atômicos. Funções que podem **dormir** não devem ser executadas em contexto atômico inadequado. `mutex` é apropriado à exclusão mútua quando o código pode dormir; **spinlocks** protegem regiões críticas curtas nas condições apropriadas, sem bloqueio que durma. A escolha depende do contexto e não apenas de uma preferência de desempenho. As primitivas de trabalho adiado, como workqueues, permitem deslocar processamento que requer sono para contexto apropriado. Uma interrupção sinaliza evento; não implica que o driver possa executar trabalho indefinido dentro de seu tratador. O descarregamento seguro de um driver deve impedir novos acessos e aguardar atividades pendentes antes de liberar estruturas, evitando uso após liberação.\n\n### Ferramentas de diagnóstico\n`dmesg` ou `journalctl -k` revelam logs do kernel; `modinfo` ajuda a avaliar parâmetros e versão do módulo, enquanto `lsmod` identifica o que está carregado. Informações de `/sys` ajudam a inspecionar associação de dispositivos e drivers. **ftrace**, tracepoints, dynamic debug e, quando disponível e configurado, `kgdb` oferecem observabilidade mais profunda. `strace` rastreia chamadas de sistema observadas por processos de usuário e pode revelar erro `ENOENT` ou `EACCES`, mas não é substituto direto de rastreamento interno do kernel. KASAN, se habilitado, ajuda a detectar determinadas violações de memória; não substitui análise de concorrência nem garante ausência de bugs. Um erro `Unknown symbol` sugere investigação de símbolos exportados, dependências e compatibilidade; `Invalid module format` sugere conferir versão, arquitetura e configuração. Restringir operações de desenvolvimento a ambiente de teste diminui risco de travamentos e perda de dados.\n\n| Situação observada | Investigação inicial | Não conclua precipitadamente |\n| --- | --- | --- |\n| Módulo carrega, mas hardware não funciona | ID, `probe`, DTB e recursos | Carregamento não significa associação |\n| Oops após remoção | Referências e trabalho pendente | Descarregamento não garante liberação segura |\n| Processo recebe erro de `open` | Permissão, nó e driver | Erro não prova defeito do hardware |\n| Falha apenas sob carga | Corridas, IRQ e sincronização | Compilação bem-sucedida não valida execução |\n\n> Um driver opera sob privilégios elevados: validação de entrada, disciplina de memória, uso correto de APIs e respeito ao ciclo de vida de dispositivos são requisitos de correção e segurança."
+    },
+    {
+      "title": "5. Serviços, aplicativos e comparação com desenvolvimento Windows",
+      "markdown": "## Aplicação, daemon e serviço\nUm **aplicativo Linux** roda em espaço de usuário; pode oferecer interface textual, gráfica, API ou tarefa em segundo plano. Um **daemon** é um programa associado a atividade de fundo, mas não é código executando dentro do kernel. A diferença decisiva para um módulo é o domínio de execução: daemons usam memória de processo, privilégios e chamadas de sistema; módulos compartilham estruturas do núcleo. Num equipamento embarcado, uma aplicação pode coletar medidas de sensor via `/dev`, sysfs, sockets ou outra API, transformá-las e enviar dados. Caso o kernel não exponha interface apropriada, pode ser necessário desenvolver ou adaptar um driver, e não simplesmente elevar permissões de um aplicativo.\n\n### Inicialização e gerenciamento de serviços\nCom **systemd**, arquivos de unidade do tipo `*.service` podem conter seções `[Unit]`, `[Service]` e `[Install]`. `ExecStart=` especifica comando de execução; `After=` indica ordenação relativa quando os dois serviços participam da transação, mas, sozinho, **não cria dependência de ativação**. `Requires=` expressa exigência de unidade relacionada, enquanto `Wants=` expressa dependência mais fraca. `systemctl start exemplo.service` solicita início agora; `systemctl enable exemplo.service` prepara ativação nos pontos previstos na configuração da unidade, sem equivaler necessariamente a iniciar imediatamente. `systemctl status` consulta estado; `journalctl -u exemplo.service` consulta logs registrados para a unidade. Para serviços críticos, estratégias de reinício, limitação de permissões, isolamento e dependências de dispositivos devem ser configuradas com cuidado. BusyBox init, SysV init e scripts dedicados também podem inicializar serviços, especialmente em rootfs reduzido; o sistema não exige systemd por definição.\n\n### Desenvolvimento de software embarcado\nPara aplicação C ou C++ de alvo diferente do host, ferramenta cruzada, sysroot, bibliotecas e ABI precisam corresponder ao sistema de destino. **Buildroot** permite incorporar pacote à imagem; **Yocto** utiliza receitas e camadas. Testar somente no computador de desenvolvimento não prova compatibilidade com a placa, pois arquitetura, libc, permissões, nós de dispositivo e dependências podem diferir. Em atualizações, convém separar configuração persistente de sistema de arquivos somente leitura e prever recuperação em caso de falha. O PID 1 deve continuar capaz de iniciar o sistema mesmo que a aplicação de negócio falhe.\n\n### Ponto comparativo: Windows\nNo **Windows**, aplicativos de usuário podem utilizar Windows API/Win32; **serviços** são programas gerenciados pelo **Service Control Manager (SCM)**, com inicialização, estados e comandos de controle. `CreateService` cadastra objeto de serviço, `StartService` solicita início e `QueryServiceStatusEx` consulta status; criar e iniciar são operações distintas. Um serviço pode rodar sem sessão de usuário aberta, mas isso não o transforma em driver. No desenvolvimento de **drivers Windows**, o **Windows Driver Frameworks (WDF)** inclui **KMDF** para modo kernel e **UMDF** para drivers elegíveis em modo usuário; a escolha depende do tipo e dos requisitos do dispositivo. `DriverEntry` e callbacks como `EvtDriverDeviceAdd` pertencem ao modelo WDF; não são equivalentes textuais de `module_init` e `probe` do Linux. O **Windows Driver Kit (WDK)** reúne ferramentas voltadas ao desenvolvimento de drivers e não substitui o SDK de aplicativos. Um arquivo **INF** descreve informações de instalação e associação de drivers Windows; não é arquivo Kconfig do Linux.\n\n| Objetivo | Linux típico | Windows típico |\n| --- | --- | --- |\n| Driver do núcleo | Subsistema do kernel, eventualmente `.ko` | KMDF e WDK quando cabíveis |\n| Driver de usuário | Interfaces e mecanismos específicos do Linux | UMDF para classes compatíveis |\n| Serviço de fundo | Daemon com init ou systemd | Serviço gerido pelo SCM |\n| Aplicação | Processo com libc e chamadas de sistema | Processo com Windows API ou outra plataforma |\n| Imagem embarcada | Buildroot ou Yocto, conforme projeto | Processo de imagem e implantação próprio do Windows |\n\n### Como o tema costuma ser cobrado\nA prova explora trocas entre **compilar e carregar**, entre `insmod` e `modprobe`, entre módulo e daemon, entre bootloader e init, entre rootfs e initramfs, e entre `enable` e `start`. Problemas contextualizados pedem identificar a **etapa** em que a falha ocorreu: antes do kernel, durante montagem da raiz, na carga de driver ou já no serviço. Nas comparações com Windows, observe diferenças entre driver WDF, serviço do SCM e aplicativo Win32. O critério seguro é localizar o componente, seu domínio de execução, a operação efetiva e a dependência necessária."
+    }
+  ],
+  "summary": "## Visão de conjunto\nO kernel Linux gerencia memória, processos, arquivos e dispositivos. Aplicativos e daemons executam em espaço de usuário, enquanto módulos `.ko` executam no espaço do núcleo. Uma opção de configuração do kernel pode assumir `y` (embutido), `m` (módulo) ou `n` (inativo), se suas dependências permitirem.\n\n## Configuração e compilação\n`make menuconfig` configura; `make olddefconfig` usa valores padrão para novos símbolos; `.config` guarda escolhas; `make O=...` separa diretório de resultados; `make modules_install` instala módulos. `uname -r` descreve o kernel que está rodando, não necessariamente o compilado por último. A compilação cruzada combina arquitetura do alvo, prefixo de toolchain e rootfs compatível.\n\n## Módulos e desenvolvimento\n`insmod` insere arquivo diretamente; `modprobe` considera dependências e índices; `lsmod` lista módulos residentes; `modinfo` mostra metadados; `depmod` atualiza mapas de dependências; `rmmod` remove diretamente. `module_init` e `module_exit` participam do ciclo de vida, e `probe` está ligado à associação de um dispositivo. Um módulo carregado pode não controlar dispositivo algum.\n\n## Boot e imagens\nFirmware/ROM de boot → bootloader → kernel → ambiente inicial opcional (`initramfs`) → rootfs definitivo → PID 1. Bootloader carrega ou inicia kernel; rootfs contém a árvore de arquivos; initramfs é ambiente inicial, não sinônimo de rootfs final. Buildroot automatiza ferramentas, pacotes e imagens; Yocto usa BitBake, receitas e camadas.\n\n## Serviços e Windows\n`systemctl start` inicia; `enable` configura ativação futura; `After=` ordena, mas não exige a outra unidade. Windows distingue aplicativo Win32, serviço controlado pelo SCM e driver WDF (KMDF/UMDF). `CreateService` não equivale a `StartService`. Sempre identifique se a falha envolve compilação, carregamento, hardware, boot ou processo de usuário.",
+  "flashcards": [
+    {
+      "front": "O que faz o kernel?",
+      "back": "Gerencia recursos como processos, memória, arquivos e dispositivos; expõe serviços aos processos por chamadas de sistema."
+    },
+    {
+      "front": "O que significa `CONFIG_X=y`?",
+      "back": "A funcionalidade é compilada diretamente no kernel, se as dependências permitirem."
+    },
+    {
+      "front": "O que significa `CONFIG_X=m`?",
+      "back": "A funcionalidade é construída como módulo carregável, quando permite essa escolha e o suporte a módulos está ativo."
+    },
+    {
+      "front": "Para que serve `.config`?",
+      "back": "Registra as opções efetivas selecionadas na configuração do kernel."
+    },
+    {
+      "front": "Para que serve `make olddefconfig`?",
+      "back": "Atualiza configuração anterior adotando valores padrão para novos símbolos, sem perguntas interativas."
+    },
+    {
+      "front": "Qual o efeito de `make O=dir`?",
+      "back": "Direciona os arquivos gerados e a configuração para diretório de construção separado do código-fonte."
+    },
+    {
+      "front": "O que exibe `uname -r`?",
+      "back": "A identificação da versão do kernel atualmente em execução."
+    },
+    {
+      "front": "`insmod` resolve dependências?",
+      "back": "Não como o `modprobe`: ele tenta inserir o arquivo indicado, exigindo que os requisitos já estejam atendidos."
+    },
+    {
+      "front": "Qual função de `modprobe`?",
+      "back": "Inserir ou remover módulos por nome com suporte aos índices, configurações e dependências do conjunto instalado."
+    },
+    {
+      "front": "Para que serve `depmod`?",
+      "back": "Cria ou atualiza metadados de dependências para o carregamento de módulos."
+    },
+    {
+      "front": "Por que `lsmod` não lista todos os drivers?",
+      "back": "Drivers compilados no kernel não são módulos carregados e por isso não aparecem nessa listagem."
+    },
+    {
+      "front": "O que é `module_init`?",
+      "back": "Macro que declara a função de inicialização do módulo ou a entrada de inicialização quando o código é embutido."
+    },
+    {
+      "front": "O que é `probe`?",
+      "back": "Rotina de um driver que normalmente configura recursos quando um dispositivo compatível é associado."
+    },
+    {
+      "front": "Bootloader é PID 1?",
+      "back": "Não. Ele inicia o kernel; PID 1 é o primeiro processo de usuário iniciado pelo sistema."
+    },
+    {
+      "front": "Para que serve o initramfs?",
+      "back": "Fornece ambiente inicial temporário que pode preparar armazenamento e montar a raiz definitiva."
+    },
+    {
+      "front": "O que é rootfs?",
+      "back": "É a árvore de arquivos usada como raiz `/` do sistema Linux em operação."
+    },
+    {
+      "front": "O que entrega Buildroot?",
+      "back": "Pode gerar toolchain, pacotes, rootfs e, conforme configuração, imagens de kernel e bootloader."
+    },
+    {
+      "front": "Qual o papel de BitBake?",
+      "back": "Executa a lógica de tarefas e dependências de receitas usada nas construções do ecossistema Yocto."
+    },
+    {
+      "front": "`systemctl enable` inicia serviço agora?",
+      "back": "Não necessariamente; configura a ativação segundo as regras de instalação da unidade."
+    },
+    {
+      "front": "O que significa `After=` em systemd?",
+      "back": "Expressa ordenação relativa, mas não cria, isoladamente, a exigência de ativar a outra unidade."
+    },
+    {
+      "front": "O que distingue KMDF de UMDF?",
+      "back": "KMDF é framework de driver Windows em modo kernel; UMDF é framework de driver em modo usuário para classes compatíveis."
+    },
+    {
+      "front": "Qual a função de `CreateService`?",
+      "back": "Cadastra um serviço no banco do Service Control Manager do Windows; iniciar é outra operação."
+    }
+  ],
+  "tips": [
+    "Identifique em qual camada está o defeito: bootloader, kernel, initramfs, rootfs, daemon ou aplicativo.",
+    "Antes de escolher `m`, pergunte como o módulo será disponibilizado antes de montar o dispositivo raiz.",
+    "Associe `modprobe` a nome, dependências e índices; `insmod` a inserção direta do arquivo `.ko`.",
+    "Ao ler `uname -r`, pense no kernel em execução, não na última imagem construída.",
+    "Diferencie módulo carregado de driver associado: procure logs de `probe` e informações de `/sys`.",
+    "Lembre que `After=` trata ordenação; `Wants=` e `Requires=` tratam dependências de ativação.",
+    "Em questões comparativas, separe Windows WDF, SCM e aplicativos Win32, sem transferir comandos do Linux.",
+    "Confira arquitetura de destino, toolchain e ABI antes de interpretar erro de compilação cruzada."
+  ],
+  "traps": [
+    "A prova escreve que um `lsmod` vazio prova ausência de drivers. Está errado: drivers embutidos (`y`) não são módulos carregados.",
+    "A prova diz que `insmod` carrega automaticamente todas as dependências. Está errado: esse comportamento é típico do `modprobe` apoiado nos índices.",
+    "A prova confunde `make modules_install` com reiniciar no novo kernel. Está errado: instalação e seleção da imagem de boot são etapas diferentes.",
+    "A prova descreve initramfs como partição raiz permanente. Está errado: costuma servir de ambiente temporário até a transição à raiz definitiva.",
+    "A prova troca `module_init` por `probe`. Está errado: o primeiro inicializa o módulo; o segundo participa da vinculação de dispositivo compatível.",
+    "A prova afirma que `systemctl enable` sempre inicia imediatamente. Está errado: habilitação de ativação futura é distinta de `start`.",
+    "A prova trata `CreateService` como carregamento de driver Linux. Está errado: essa API cadastra serviço no SCM do Windows.",
+    "A prova considera driver Windows UMDF equivalente a módulo `.ko`. Está errado: UMDF opera em modo de usuário, enquanto LKM opera no núcleo Linux."
+  ],
+  "activeRecall": [
+    {
+      "question": "Quais são as três escolhas triestado de Kconfig?",
+      "answer": "`y` embutido, `m` módulo e `n` desativado, condicionadas às dependências e ao tipo da opção."
+    },
+    {
+      "question": "Como distinguir construção de módulo externo e carregamento?",
+      "answer": "Kbuild gera `.ko`; `modprobe` ou `insmod` tentam inserir no kernel em execução, exigindo compatibilidade."
+    },
+    {
+      "question": "O que `depmod` altera e o que não faz?",
+      "answer": "Atualiza índices de dependências; não compila nem carrega por si os módulos."
+    },
+    {
+      "question": "Que elementos costumam ser necessários para iniciar uma placa embarcada?",
+      "answer": "Firmware/bootloader adequados, imagem do kernel, descrição de hardware quando pertinente, rootfs e init; initramfs pode ser usado."
+    },
+    {
+      "question": "Qual distinção prática entre `initramfs` e rootfs definitivo?",
+      "answer": "O primeiro prepara a inicialização temporária; o segundo é a árvore de arquivos usada pelo sistema após a transição."
+    },
+    {
+      "question": "Por que um módulo carregado não garante funcionamento do hardware?",
+      "answer": "Pode não haver correspondência com o dispositivo ou a rotina `probe` pode falhar por recursos, identificadores ou DTB."
+    },
+    {
+      "question": "Como reconhecer risco de deadlock ou falha em interrupção?",
+      "answer": "Examine o contexto de execução e se a rotina tenta dormir mantendo spinlock ou dentro de região atômica."
+    },
+    {
+      "question": "Como diferenciar serviço Linux, serviço Windows e driver?",
+      "answer": "Serviço Linux é programa de usuário gerenciado por init; serviço Windows é gerenciado pelo SCM; drivers usam as interfaces próprias do respectivo sistema."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Configuração versus construção e instalação",
+      "summary": "`.config` define o que se constrói; compilar gera imagens; instalar módulos e configurar a escolha de boot são etapas distintas."
+    },
+    {
+      "key": "e2",
+      "title": "Ferramentas e dependências de módulos",
+      "summary": "`insmod`, `modprobe`, `depmod`, `modinfo` e `lsmod` têm tarefas diferentes. Um módulo carregado também não equivale a dispositivo vinculado."
+    },
+    {
+      "key": "e3",
+      "title": "Bootloader, initramfs e rootfs",
+      "summary": "Bootloader inicia o núcleo, initramfs oferece ambiente temporário opcional, rootfs sustenta a raiz do sistema e PID 1 inicia serviços."
+    },
+    {
+      "key": "e4",
+      "title": "Driver e ciclo de vida do dispositivo",
+      "summary": "`module_init` registra inicialização de módulo; `probe` associa dispositivo, e remoção deve encerrar uso pendente e liberar recursos com sincronização."
+    },
+    {
+      "key": "e5",
+      "title": "Serviços e domínio de execução",
+      "summary": "Serviços e aplicativos são processos de usuário, não módulos kernel. `enable` não é o mesmo que `start` e `After=` não exige ativação."
+    },
+    {
+      "key": "e6",
+      "title": "Comparação Windows e Linux",
+      "summary": "WDF/KMDF/UMDF, SCM e Windows API atendem funções diferentes; não correspondem diretamente a `.ko`, `modprobe` e systemd."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe deseja incluir suporte a um dispositivo diretamente na imagem do kernel Linux, sem produzir módulo carregável. Qual configuração representa essa escolha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecionar `m`, que incorpora o driver ao arquivo principal do kernel.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Selecionar `n`, que mantém o código do driver disponível no boot.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Selecionar `y`, que integra a funcionalidade à construção do núcleo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executar `depmod`, que converte automaticamente o driver em código interno.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar `modprobe`, que grava definitivamente o driver na imagem do kernel.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O valor `y` indica compilação embutida, quando dependências o permitem. A indica módulo carregável; B desabilita a opção; D apenas cria índices de dependências; E carrega módulos disponíveis no kernel em execução, sem modificar a imagem compilada.",
+      "section": "1. Arquitetura do sistema operacional e compilação do kernel",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após compilar novo kernel, o administrador executa `uname -r` antes de reiniciar a máquina. Qual informação o comando fornece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A identificação do kernel atualmente em execução no computador.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A identificação da última imagem produzida no diretório de compilação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A versão de cada pacote instalado no sistema de arquivos raiz.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A versão de todos os módulos disponíveis, inclusive os incompatíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A identificação do bootloader selecionado para a próxima partida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. `uname -r` descreve a release do núcleo em execução, mesmo que exista outra imagem compilada. B confunde construção e uso; C se refere a pacotes de usuário; D extrapola para módulos não carregados; E trata da configuração de boot, que o comando não consulta.",
+      "section": "1. Arquitetura do sistema operacional e compilação do kernel",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo `sensor.ko` depende de outro módulo já instalado. Qual comando normalmente deve ser preferido para carregar `sensor` pelo nome e considerar dependências?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`modinfo sensor`, pois seus metadados executam a inserção das dependências.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`depmod sensor`, pois atualiza índices e inicializa o driver solicitado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`lsmod sensor`, pois consulta o estado e insere os módulos faltantes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`insmod sensor`, pois interpreta dependências e procura o módulo por nome.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`modprobe sensor`, pois usa índices e lida com dependências disponíveis.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. `modprobe` localiza o módulo pelo nome e normalmente resolve dependências conhecidas. A inspeciona informações; B não carrega módulos; C apenas lista residentes; D trata inserção direta de arquivo e não desempenha a resolução feita por modprobe.",
+      "section": "2. Módulos Linux: ativação, dependências e desenvolvimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao preparar uma imagem embarcada, uma pessoa identifica o componente responsável por selecionar e iniciar a imagem do Linux. Trata-se de qual componente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Do processo PID 1, responsável por selecionar o kernel no firmware.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Do bootloader, que prepara e transfere controle para o kernel.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Do rootfs, que executa antes do núcleo e localiza a imagem de boot.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Do modprobe, que faz a seleção do kernel ao inserir um módulo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Do daemon, que escolhe a imagem antes da montagem do sistema raiz.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O bootloader normalmente carrega ou inicia a imagem do núcleo. A descreve etapa de usuário posterior; C é a árvore de arquivos, não o iniciador; D atua sobre módulos de um núcleo já ativo; E também depende da existência prévia do sistema operacional.",
+      "section": "3. Inicialização: bootloader, initramfs, rootfs e distribuição embarcada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O projeto precisa registrar no arquivo de configuração do kernel as opções escolhidas na ferramenta `menuconfig`. Qual arquivo é normalmente usado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`Module.symvers`, que guarda as escolhas de menu para todos os drivers.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`vmlinux`, que registra as escolhas em formato de configuração textual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`modules.dep`, que define quais opções entram na compilação principal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`.config`, que armazena as opções efetivas selecionadas no Kconfig.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`initramfs`, que substitui o registro de parâmetros de compilação do núcleo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. `.config` registra escolhas de configuração. A lista símbolos exportados e informações associadas; B é imagem executável do núcleo; C pertence aos índices de módulos instalados; E é ambiente temporário de inicialização, não arquivo de opções Kconfig.",
+      "section": "1. Arquitetura do sistema operacional e compilação do kernel",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico executa `lsmod` e não encontra um driver que está funcionando no equipamento. Qual hipótese técnica é compatível com esse resultado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O driver foi desabilitado em Kconfig e não pode executar operações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O driver pode ter sido compilado diretamente no kernel, com `y`.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O driver deve ser gerenciado exclusivamente pelo processo PID 1.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O driver foi convertido automaticamente em biblioteca de usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O driver foi removido do kernel, embora permaneça fazendo chamadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Drivers embutidos não aparecem na listagem de módulos residentes. A é incompatível com o funcionamento descrito; C confunde serviço com driver; D não é transformação executada por `lsmod`; E desconsidera que o funcionamento pode vir do código incorporado ao núcleo.",
+      "section": "2. Módulos Linux: ativação, dependências e desenvolvimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma distribuição Linux mínima usa ambiente temporário para localizar e montar o armazenamento raiz definitivo. Como esse ambiente é conhecido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Bootloader, pois executa drivers como processo após a montagem da raiz.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sysfs, pois substitui os executáveis do sistema raiz definitivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Swap, pois armazena todos os arquivos do início da inicialização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Initramfs, que pode preparar o acesso à raiz antes da transição.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Device tree, pois monta a partição raiz com seus nós de hardware.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Initramfs fornece arquivos e ferramentas iniciais para preparar o rootfs real. A atua antes da execução do kernel; B expõe estrutura de dispositivos; C é espaço de troca; E descreve hardware, mas não executa o processo de montagem por si.",
+      "section": "3. Inicialização: bootloader, initramfs, rootfs e distribuição embarcada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao investigar logs internos do Linux, alguém deseja consultar mensagens emitidas pelo núcleo. Qual ferramenta é apropriada, conforme permissões do sistema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`dmesg`, que apresenta mensagens do buffer de registros do kernel.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`depmod`, que imprime exclusivamente a sequência de eventos do kernel.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`make menuconfig`, que acompanha mensagens registradas na inicialização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`modinfo`, que exibe continuamente todos os erros de qualquer driver.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`uname -r`, que imprime o histórico das falhas de carga de módulos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. `dmesg` consulta mensagens do kernel quando o acesso é permitido. B atualiza mapas de módulos; C configura a construção; D mostra dados estáticos de módulo; E exibe identificação da release em execução, sem histórico de eventos.",
+      "section": "4. Drivers Linux: registro, concorrência e depuração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço Linux gerenciado por systemd deve ser iniciado imediatamente, sem alterar necessariamente sua habilitação para futuros boots. Qual comando corresponde à tarefa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`systemctl enable coleta.service`, que inicia o processo imediatamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`systemctl daemon-reload`, que executa o serviço após reler unidades.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`journalctl -u coleta.service`, que inicia ao consultar o histórico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`systemctl status coleta.service`, que ativa o serviço ao ler seu estado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`systemctl start coleta.service`, que solicita sua ativação agora.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. O subcomando `start` solicita a partida no momento. A configura habilitação; B recarrega definição das unidades sem executar a indicada; C consulta registros; D verifica estado. Iniciar e preparar ativação futura são decisões diferentes.",
+      "section": "5. Serviços, aplicativos e comparação com desenvolvimento Windows",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma configuração de kernel antiga deve ser aproveitada em versão nova, aceitando automaticamente os valores-padrão de símbolos recém-introduzidos. Qual alvo é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`make mrproper`, que conserva a configuração e resolve símbolos novos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`make localmodconfig`, que adiciona opções a partir de valores-padrão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`make olddefconfig`, que resolve símbolos novos com valores-padrão.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`make randconfig`, que adapta a configuração preservando escolhas anteriores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`make allmodconfig`, que mantém as opções escolhidas pelo usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. `olddefconfig` aproveita configuração anterior e usa defaults para opções novas. A remove artefatos e configurações; B seleciona com base em módulos carregados; D randomiza escolhas; E favorece modularização ampla, não preservação seletiva da configuração.",
+      "section": "1. Arquitetura do sistema operacional e compilação do kernel",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor deseja compilar módulo externo contra o kernel em execução. Qual comando expressa corretamente o uso típico de kbuild?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`make modules_install M=$PWD`, sem consultar a árvore de construção do kernel.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`modprobe -C $PWD modules`, usando configurações para gerar o arquivo `.ko`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`depmod -C $PWD modules`, fazendo compilação com os índices instalados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`make -C /boot M=$PWD`, apontando a pasta de imagens do carregador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`make -C /lib/modules/$(uname -r)/build M=$PWD modules`, usando kbuild.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A alternativa E aponta para a árvore de construção correspondente à release em uso e declara a pasta do módulo externo. A é etapa de instalação e carece de ambiente apropriado; B carrega módulos; C atualiza dependências; D indica pasta de boot, não árvore kbuild.",
+      "section": "2. Módulos Linux: ativação, dependências e desenvolvimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pacote Buildroot foi construído para uma placa. Onde ficam tipicamente os artefatos finais de imagem que serão usados no destino?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`output/build`, porque contém unicamente imagens prontas para gravar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`output/host`, porque armazena o rootfs definitivo de inicialização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`output/images`, porque reúne imagens preparadas para o equipamento.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`/lib/modules`, porque reúne todos os bootloaders produzidos para o alvo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`/proc`, porque mantém em execução as imagens produzidas por Buildroot.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Buildroot coloca imagens finais em `output/images`. A reúne componentes de construção; B mantém ferramentas do host e sysroot; D é caminho típico de módulos instalados em um Linux, não saída geral de imagens; E expõe informações de execução, não artefatos construídos.",
+      "section": "3. Inicialização: bootloader, initramfs, rootfs e distribuição embarcada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um módulo foi inserido com sucesso, porém um periférico USB correspondente não funciona. Qual verificação distingue carregamento do módulo de associação do dispositivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir apenas o resultado de `uname -r`, que comprova execução de `probe`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar IDs suportados, associação no barramento e execução de `probe`.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar `depmod`, pois ele vincula diretamente drivers aos periféricos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Examinar `systemctl enable`, que realiza a associação automática do USB.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Consultar `make menuconfig`, que mostra todos os dispositivos já vinculados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. A rotina `probe` e as tabelas de identificação fazem parte da associação de drivers a dispositivos. A apenas identifica o kernel; C reconstrói índices de dependência; D gerencia habilitação de serviços; E configura código para futuras compilações, não vínculos de hardware ativos.",
+      "section": "4. Drivers Linux: registro, concorrência e depuração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema embarcado constrói código para ARM64 em host x86-64. Qual combinação corresponde à seleção da arquitetura e ao prefixo de ferramentas em uma compilação cruzada tradicional do kernel?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`ARCH=x86_64` e `CROSS_COMPILE=aarch64-linux-gnu-`, pois ARCH indica o host.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`ARCH=arm64` e `CROSS_COMPILE=x86_64-linux-gnu-`, pois o prefixo indica o host.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`ARCH=arm64` e `CROSS_COMPILE=`, pois cruzamento dispensa o compilador-alvo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`ARCH=arm64` e `CROSS_COMPILE=aarch64-linux-gnu-`, com toolchain disponível.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`ARCH=x86` e `CROSS_COMPILE=arm64`, usando o nome da placa como compilador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. ARCH aponta a arquitetura do destino, e CROSS_COMPILE indica o prefixo real das ferramentas cruzadas. A configura arquitetura de host; B usa ferramentas x86; C omite seletor do compilador cruzado neste fluxo; E combina arquitetura e prefixo inadequados.",
+      "section": "1. Arquitetura do sistema operacional e compilação do kernel",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma unidade systemd contém `After=rede.service`, sem `Wants=` nem `Requires=` para essa unidade. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Estabelece ordenação entre unidades iniciadas, mas não exige iniciar rede.service.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cria dependência obrigatória para iniciar rede.service antes de cada execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Habilita automaticamente rede.service no próximo boot, independentemente de `[Install]`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substitui `ExecStart=` e define qual programa deve ser executado como serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Impõe reinício de rede.service em toda falha de serviço dependente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. `After=` estabelece apenas relação de ordem se ambas as unidades forem ativadas. B atribui a ele exigência semelhante a Requires; C confunde dependência com enable; D envolve ExecStart; E corresponde a políticas de reinício, ausentes do parâmetro.",
+      "section": "5. Serviços, aplicativos e comparação com desenvolvimento Windows",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fabricante pretende descrever recursos de uma placa ARM, como endereços e interrupções, para drivers compatíveis. Que artefato é apropriado quando a plataforma usa essa abordagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um arquivo `.ko`, pois declara todos os dispositivos sem código executável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um arquivo `Module.symvers`, pois contém o mapa de IRQs da placa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um arquivo `modules.dep`, pois associa endereços físicos às portas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um arquivo `.service`, pois oferece propriedades `compatible` ao kernel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um device tree blob, que descreve recursos e identificação de hardware.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. O DTB informa topologia e propriedades como compatible e recursos em plataformas que usam device tree. A é código de módulo; B descreve símbolos exportados; C indexa dependências entre módulos; D é unidade de serviço de usuário, não descrição do hardware.",
+      "section": "3. Inicialização: bootloader, initramfs, rootfs e distribuição embarcada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um driver Linux recebe evento em contexto atômico e precisa proteger estrutura compartilhada por breve intervalo. Qual escolha respeita melhor a proibição de dormir nesse contexto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `mutex_lock` dentro do trecho atômico e aguardar o recurso ficar livre.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aguardar por operação de disco mantendo a interrupção e o bloqueio ativos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar spinlock adequado ao contexto em seção curta, sem operações que durmam.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executar uma espera bloqueante para tornar a exclusão mútua mais estável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transferir dados de usuário com operação bloqueante dentro da região protegida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Em trecho atômico, spinlock apropriado protege seção curta sem dormir. A pode bloquear dormindo com mutex; B espera por I/O em contexto inadequado; D igualmente introduz espera bloqueante; E pressupõe operação potencialmente bloqueante enquanto mantém região crítica.",
+      "section": "4. Drivers Linux: registro, concorrência e depuração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O bootloader carregou o kernel, mas este não consegue acessar um dispositivo de armazenamento que guarda o rootfs; o driver existe apenas como módulo naquele volume. Qual medida resolve a dependência circular?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Incluir o driver no kernel ou disponibilizá-lo em initramfs funcional.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Habilitar o serviço de montagem depois que o PID 1 terminar de iniciar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar `modinfo` no armazenamento inacessível durante o bootloader.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gravar apenas `modules.dep` no volume inacessível e aguardar sua leitura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir rootfs por sysfs, que provê arquivos do dispositivo permanentemente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O kernel precisa do driver antes de alcançar o volume que o contém; embutir o suporte ou fornecê-lo antecipadamente no initramfs resolve a circularidade. B depende do rootfs já montado; C não carrega drivers; D deixa índice igualmente inacessível; E confunde sysfs com sistema raiz.",
+      "section": "3. Inicialização: bootloader, initramfs, rootfs e distribuição embarcada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um módulo externo foi preparado apenas com `make modules_prepare`; o núcleo de destino usa `CONFIG_MODVERSIONS=y`. A equipe supõe que o arquivo `Module.symvers` já estará plenamente gerado. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`modules_prepare` gera CRCs de todos os símbolos sem construção adicional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`modules_prepare` não gera sozinho `Module.symvers`; pode ser necessária construção completa.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`modules_prepare` instala os símbolos exportados diretamente no rootfs definitivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`modules_prepare` ativa um módulo em cada dispositivo compatível encontrado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`modules_prepare` substitui os metadados de símbolos por índices `modules.dep`.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. A documentação de kbuild ressalva que `modules_prepare` não constrói `Module.symvers` para o controle por CRCs em CONFIG_MODVERSIONS. A afirma o contrário; C trata instalação de rootfs; D confunde preparação e carregamento; E troca símbolos por índices de dependências instaladas.",
+      "section": "2. Módulos Linux: ativação, dependências e desenvolvimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor ajustou opção de kernel como `n` e tenta usar `modprobe recurso`. O código correspondente não foi construído nem como módulo. Qual diagnóstico é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O comando deve converter `n` em `m` no `.config` da imagem ativa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`depmod` deve carregar código ausente do kernel após recriar os índices.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O uso de `modinfo` basta para gerar o módulo omitido na construção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Será necessário obter ou construir suporte compatível; `modprobe` não o cria.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O sistema iniciará a funcionalidade assim que um serviço systemd for habilitado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A opção `n` exclui a funcionalidade da construção; modprobe só procura e carrega módulos disponíveis. A altera ficticiamente a configuração do kernel ativo; B apenas reindexa; C inspeciona metadados; E envolve serviços de usuário sem fornecer código de driver.",
+      "section": "1. Arquitetura do sistema operacional e compilação do kernel",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um driver é removido enquanto uma workqueue ainda tem função agendada que acessará uma estrutura alocada pelo driver. O que melhor previne o uso após liberação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Impedir novos usos e sincronizar/cancelar trabalhos antes de liberar recursos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar `depmod` para retirar referências de memória mantidas pela fila.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover o arquivo `.ko` do disco antes de encerrar os trabalhos ativos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar o serviço PID 1 para bloquear toda execução de callbacks de kernel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Excluir mensagens de `dmesg` para impedir acesso posterior à estrutura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. A saída deve cessar novas atividades e aguardar ou cancelar com segurança os trabalhos pendentes antes da liberação. B gerencia índices de módulos; C mexe no armazenamento, não em referências vivas; D afeta serviços de usuário; E atua somente na observação de logs.",
+      "section": "4. Drivers Linux: registro, concorrência e depuração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe testa aplicativo Linux ARM64 gerado com compilador cruzado, mas o executável depende de uma libc ausente no rootfs da placa. Qual conclusão é mais correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O binário deve executar normalmente porque arquitetura do alvo foi indicada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É preciso compatibilizar bibliotecas e ABI do alvo além da arquitetura.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Deve-se registrar o aplicativo como módulo `.ko` para carregar a libc.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A solução é regenerar apenas `modules.dep` no kernel da placa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O bootloader precisa executar o aplicativo antes de montar o rootfs.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Um executável de usuário precisa de interpretador dinâmico, bibliotecas e ABI compatíveis com o rootfs. A ignora dependências; C troca programa por módulo do kernel; D trata índices de driver; E situa a aplicação antes de seu ambiente de execução adequado.",
+      "section": "5. Serviços, aplicativos e comparação com desenvolvimento Windows",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha ocorre apenas no uso de driver quando `probe` requisita IRQ não descrita corretamente para a placa. O módulo havia sido carregado com sucesso. Qual ação é mais diretamente relacionada à causa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Modificar o parâmetro `ExecStart=` do daemon que consulta o dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Recriar índices `modules.dep`, suficientes para mudar números de interrupção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar descrição de recursos do hardware e tratamento de erro em `probe`.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Substituir `module_init` por serviço Windows gerenciado pelo SCM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar a ferramenta `lsmod`, que impede a solicitação de interrupções.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O `probe` depende dos recursos informados pelo barramento/plataforma, inclusive IRQ; carga de módulo não prova disponibilidade desses recursos. A atua em programa de usuário; B indexa dependências; D troca ambientes incompatíveis; E apenas inspeciona módulos residentes.",
+      "section": "4. Drivers Linux: registro, concorrência e depuração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe compara imagem Linux feita por Buildroot com projeto que usa Yocto. Qual distinção corresponde às funções dessas ferramentas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Buildroot gera apenas `.ko`, enquanto Yocto compila apenas aplicações Windows.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Buildroot substitui o kernel, enquanto Yocto substitui o carregador de inicialização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Buildroot é um daemon, enquanto Yocto é um driver carregado pelo núcleo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Buildroot automatiza sistemas embarcados; Yocto usa receitas, camadas e BitBake.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Buildroot fornece device tree, enquanto Yocto fornece apenas gerência de IRQ.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Buildroot pode construir toolchain, pacotes, rootfs, kernel e bootloader; Yocto organiza construções por metadados, receitas e BitBake. A limita indevidamente objetivos; B confunde geradores com componentes executados; C troca ferramentas por programas de execução; E reduz ambas a partes do hardware.",
+      "section": "3. Inicialização: bootloader, initramfs, rootfs e distribuição embarcada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um software Windows controla dispositivo por driver KMDF. Ao verificar sua instalação, o administrador encontra arquivo INF. Qual a função principal desse arquivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Servir como a função DriverEntry executada pelo kernel na carga.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Implementar os callbacks de E/S do driver como biblioteca dinâmica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gerenciar serviços Linux com equivalência direta a `systemctl`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter o buffer de mensagens de kernel equivalente ao `dmesg`.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Declarar informações e diretivas usadas na instalação do driver Windows.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Arquivos INF descrevem informações de instalação e associação; drivers WDF podem incluir diretivas específicas de framework. A confunde dado de instalação com rotina executável; B atribui-lhe código de driver; C mistura sistemas; D o trata como ferramenta de logs.",
+      "section": "5. Serviços, aplicativos e comparação com desenvolvimento Windows",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um computador Linux, um programa de usuário pode acessar operações do sistema por chamadas de sistema sem executar suas instruções comuns diretamente em modo kernel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Processos normalmente executam em espaço de usuário e recorrem à interface de chamadas de sistema para solicitar operações do kernel. Essa divisão ajuda no isolamento de memória e de privilégios, embora não elimine transições ao núcleo quando necessárias.",
+      "section": "1. Arquitetura do sistema operacional e compilação do kernel",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador que executa `modinfo radio` insere automaticamente o módulo radio no kernel e inicializa todos os dispositivos associados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `modinfo` consulta metadados conhecidos do módulo, como descrição, parâmetros e licença. Carregar é tarefa de `modprobe` ou `insmod`; além disso, módulo carregado não significa que o barramento tenha vinculado algum dispositivo e concluído a rotina `probe`.",
+      "section": "2. Módulos Linux: ativação, dependências e desenvolvimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um equipamento Linux embarcado, a existência de bootloader funcional dispensa a presença de rootfs e de processo inicial para iniciar serviços comuns de usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O bootloader inicia o kernel, mas aplicações e serviços comuns precisam de ambiente de usuário e componentes apropriados de rootfs. Sistemas especiais podem empregar arranjos mínimos, porém a existência do carregador não fornece por si bibliotecas, executáveis e PID 1.",
+      "section": "3. Inicialização: bootloader, initramfs, rootfs e distribuição embarcada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando um driver é embutido no núcleo, sua funcionalidade pode estar ativa mesmo que o arquivo correspondente não seja apresentado como módulo residente pela ferramenta `lsmod`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A escolha `y` integra o código à imagem do kernel; `lsmod` apresenta módulos carregados dinamicamente. A ausência de nome nessa lista é insuficiente para concluir que o suporte ao dispositivo não foi compilado ou não esteja funcionando.",
+      "section": "2. Módulos Linux: ativação, dependências e desenvolvimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um rootfs criado por Buildroot pode integrar aplicativos de usuário e arquivos de configuração, ao passo que a imagem do kernel permanece um artefato distinto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Buildroot prepara arquivos de sistema e pacotes de usuário e, quando selecionado, também constrói a imagem de kernel e o bootloader. O rootfs é uma árvore de arquivos do sistema, enquanto o kernel é a imagem executável privilegiada iniciada pelo carregador.",
+      "section": "3. Inicialização: bootloader, initramfs, rootfs e distribuição embarcada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Windows, o framework KMDF é destinado a drivers em modo usuário, enquanto UMDF identifica os drivers WDF executados no kernel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A afirmação inverte os frameworks Windows: KMDF é Kernel-Mode Driver Framework; UMDF é User-Mode Driver Framework. A seleção depende das capacidades e restrições do dispositivo e não deve ser confundida com os módulos `.ko` do Linux.",
+      "section": "5. Serviços, aplicativos e comparação com desenvolvimento Windows",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema que executa `make modules_install` já terá selecionado e iniciado, sem outras providências, o kernel novo na sessão atualmente em execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A instalação dos módulos disponibiliza os arquivos compatíveis com a imagem construída, mas não substitui o kernel que está rodando. Selecionar a nova imagem no mecanismo de inicialização e efetuar nova partida são ações distintas, condicionadas ao sistema.",
+      "section": "1. Arquitetura do sistema operacional e compilação do kernel",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao preparar kernel novo a partir de `.config` antigo, `make olddefconfig` pode aplicar valores-padrão a opções novas sem solicitar resposta interativa para cada símbolo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `olddefconfig` foi concebido para aproveitar a configuração existente e resolver novos símbolos pelos valores-padrão. Ele difere de `oldconfig`, que pode fazer perguntas, e não garante que uma opção renomeada preserve automaticamente o comportamento anterior.",
+      "section": "1. Arquitetura do sistema operacional e compilação do kernel",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um módulo compilado para kernel de arquitetura diferente tende a funcionar se o administrador executar `depmod`, porque o índice substitui a exigência de compatibilidade binária.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `depmod` reorganiza índices de dependência, mas não converte arquitetura nem corrige incompatibilidade ABI ou símbolos de módulo. O carregador do núcleo pode rejeitar o artefato com erro de formato, mesmo havendo índices atualizados e arquivo presente.",
+      "section": "2. Módulos Linux: ativação, dependências e desenvolvimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um módulo Linux pode ser carregado com êxito e ainda não operar um dispositivo específico se o driver não for associado por identificação ou se a etapa `probe` falhar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Inicialização do módulo e vinculação ao dispositivo são etapas separadas do ciclo de vida. O driver pode registrar-se e permanecer residente sem correspondência no barramento ou falhar ao solicitar recursos como clock, mapeamento de memória e interrupção.",
+      "section": "4. Drivers Linux: registro, concorrência e depuração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma unidade systemd, a indicação isolada `After=armazenamento.service` obriga o gerenciador a iniciar essa outra unidade, ainda que não exista dependência de ativação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `After=` estabelece apenas relação de ordem quando as unidades participam da operação; não exige iniciar a unidade mencionada. Para estabelecer dependências de ativação usam-se diretivas como `Wants=` ou `Requires=`, com semânticas distintas.",
+      "section": "5. Serviços, aplicativos e comparação com desenvolvimento Windows",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em projeto Linux embarcado, um DTB pode descrever os periféricos e recursos de uma plataforma, mas não substitui o código dos respectivos drivers.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O device tree disponibiliza metadados usados por mecanismos de associação e configuração de dispositivos, incluindo propriedades de compatibilidade e recursos. O kernel ainda precisa de implementações de driver capazes de utilizar essa descrição e controlar o hardware.",
+      "section": "3. Inicialização: bootloader, initramfs, rootfs e distribuição embarcada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor que cria driver Windows com WDF pode usar `DriverEntry` e callbacks de eventos, como `EvtDriverDeviceAdd`, em seu código de driver.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Na arquitetura WDF, DriverEntry cria/inicializa o objeto do driver e callbacks como EvtDriverDeviceAdd são chamados quando há eventos do dispositivo. Essa organização difere dos identificadores de inicialização e descoberta de dispositivos da API Linux.",
+      "section": "5. Serviços, aplicativos e comparação com desenvolvimento Windows",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um driver Linux que usa spinlock pode fazer espera bloqueante por I/O dentro da seção crítica em contexto de interrupção, desde que a seção utilize memória alocada pelo kernel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Spinlocks em contextos atômicos não autorizam chamadas que durmam; aguardar I/O bloqueante pode causar travamento ou violações de regras de contexto. A origem da memória não remove a restrição. Trabalho que pode dormir precisa ser adiado para contexto adequado.",
+      "section": "4. Drivers Linux: registro, concorrência e depuração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um módulo Linux declarado por `module_init` pode ter inicialização executada na partida quando o código está embutido no kernel, embora não exista operação posterior de descarregamento desse componente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O kernel adapta `module_init` para participar da sequência de initcalls de código incorporado; no caso embutido, `module_exit` não corresponde a um descarregamento dinâmico. Confundir esse caso com um módulo `.ko` inserido em tempo de execução leva a erro.",
+      "section": "2. Módulos Linux: ativação, dependências e desenvolvimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando `CONFIG_MODVERSIONS=y`, executar somente `make modules_prepare` na árvore do kernel assegura gerar `Module.symvers` completo e suficiente para qualquer módulo externo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A documentação de construção externa deixa claro que `modules_prepare` não gera o arquivo `Module.symvers`; com versionamento de símbolos, pode ser necessária compilação completa do núcleo. A preparação da árvore não equivale à disponibilidade de todos os CRCs requeridos.",
+      "section": "2. Módulos Linux: ativação, dependências e desenvolvimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um executável ARM64 dinamicamente ligado pode falhar no rootfs da placa mesmo sendo produzido pela arquitetura correta, se seu interpretador dinâmico ou bibliotecas não existirem no alvo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A arquitetura do código é somente uma das condições para executar programa de usuário. Um ELF pode depender de carregador dinâmico e bibliotecas com ABI correspondente; sua ausência pode impedir a execução antes mesmo de a aplicação efetuar sua primeira operação útil.",
+      "section": "5. Serviços, aplicativos e comparação com desenvolvimento Windows",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O rastreamento de chamadas de sistema realizado por `strace` substitui integralmente o uso de ftrace e de outras técnicas internas do kernel para diagnosticar corrida entre interrupções.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `strace` observa interações de processos com chamadas de sistema, o que auxilia a diagnosticar falhas na fronteira usuário-kernel. Corridas internas de drivers, IRQs e rotinas do núcleo podem exigir ftrace, tracepoints ou instrumentação própria; os mecanismos são complementares.",
+      "section": "4. Drivers Linux: registro, concorrência e depuração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma imagem Linux com sistema raiz armazenado em dispositivo cujo driver é módulo, a simples presença do arquivo `.ko` no initramfs garante montagem da raiz, mesmo sem qualquer mecanismo de carga ou configuração adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A afirmação seria verdadeira se o initramfs **também tivesse os recursos de carregamento e montagem configurados corretamente**; conter apenas o módulo não garante execução, dependências, acesso ao dispositivo e transição. Assim, afirmar a suficiência automática apenas da presença do arquivo é indevido.",
+      "section": "3. Inicialização: bootloader, initramfs, rootfs e distribuição embarcada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Windows, criar o registro de um serviço com `CreateService` não equivale necessariamente a iniciá-lo imediatamente; `StartService` é uma operação própria de solicitação de execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `CreateService` adiciona objeto ao banco do Service Control Manager com propriedades de configuração; `StartService` é usado para solicitar que um serviço instalado inicie. A distinção é análoga conceitualmente à diferença entre configurar e iniciar, mas as APIs são próprias do Windows.",
+      "section": "5. Serviços, aplicativos e comparação com desenvolvimento Windows",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Linux kernel release 6.x — README de instalação e construção",
+      "publisher": "Linux kernel documentation",
+      "reference": "Configuração do kernel, menuconfig, olddefconfig, O=, modules_install, inicialização",
+      "url": "https://docs.kernel.org/admin-guide/README.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Configuration targets and editors",
+      "publisher": "Linux kernel documentation",
+      "reference": "kbuild Kconfig, alvos *config e variáveis de ambiente",
+      "url": "https://docs.kernel.org/kbuild/kconfig.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Building External Modules",
+      "publisher": "Linux kernel documentation",
+      "reference": "obj-m, compilação externa, Module.symvers, modules_prepare e instalação",
+      "url": "https://docs.kernel.org/kbuild/modules.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Driver Basics",
+      "publisher": "Linux kernel documentation",
+      "reference": "module_init, module_exit e entrada/saída dos drivers",
+      "url": "https://docs.kernel.org/driver-api/basics.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Using the initial RAM disk (initrd)",
+      "publisher": "Linux kernel documentation",
+      "reference": "Boot, raiz inicial e transição ao sistema de arquivos definitivo",
+      "url": "https://docs.kernel.org/admin-guide/initrd.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Buildroot user manual",
+      "publisher": "Buildroot developers",
+      "reference": "Toolchain, root filesystem, kernel, bootloader e output/images",
+      "url": "https://buildroot.buildroot.org/downloads/manual/manual.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Images — Yocto Project Reference Manual",
+      "publisher": "Yocto Project",
+      "reference": "Imagem de sistema, receitas e BitBake",
+      "url": "https://docs.yoctoproject.org/5.0.12/ref-manual/images.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Windows Driver Frameworks",
+      "publisher": "Microsoft Learn",
+      "reference": "KMDF, UMDF e abstrações de desenvolvimento de drivers",
+      "url": "https://learn.microsoft.com/pt-br/windows-hardware/drivers/wdf/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Components of a simple WDF driver",
+      "publisher": "Microsoft Learn",
+      "reference": "DriverEntry e EvtDriverDeviceAdd",
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/wdf/components-of-a-simple-kmdf-driver",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Service control manager",
+      "publisher": "Microsoft Learn",
+      "reference": "Controle e estados de serviços do Windows",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/services/service-control-manager",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "CreateServiceA function",
+      "publisher": "Microsoft Learn",
+      "reference": "Criação e tipos de serviços no SCM",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/api/Winsvc/nf-winsvc-createservicea",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Specifying WDF directives in INF files",
+      "publisher": "Microsoft Learn",
+      "reference": "Instalação de drivers Windows e diretivas WDF em INF",
+      "url": "https://learn.microsoft.com/pt-br/windows-hardware/drivers/wdf/specifying-wdf-directives-in-inf-files",
+      "accessedAt": "2026-10-09"
+    }
+  ]
+}

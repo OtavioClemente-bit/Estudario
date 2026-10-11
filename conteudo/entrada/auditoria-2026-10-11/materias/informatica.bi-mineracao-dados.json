@@ -1,0 +1,1793 @@
+{
+  "id": "informatica.bi-mineracao-dados",
+  "subject": "Informática",
+  "title": "BI, data warehouse, OLAP, ETL e mineração de dados",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "BI, data warehouse, OLAP, ETL e mineração de dados"
+  ],
+  "scope": {
+    "covers": "BI e suporte à decisão; OLTP e OLAP; data warehouse, data mart, ODS, data lake, lakehouse e data mesh; Inmon e Kimball; fatos, dimensões, grão, métricas e SCD; modelos estrela, floco e constelação; ETL, ELT, CDC, FTP/SFTP, lotes, fluxo e orquestração; otimização física multidimensional; dashboards e KPI; operações e arquiteturas OLAP; KDD, CRISP-DM, mineração, algoritmos clássicos, associação, anomalias e aprendizagem supervisionada e não supervisionada.",
+    "excludes": "Visão ampla de IA, ética, viés e explicabilidade; SQL e normalização relacional em profundidade; programação de modelos, redes neurais detalhadas e tutoriais operacionais de ferramentas comerciais."
+  },
+  "theoryTitle": "BI e dados analíticos: arquitetura, modelagem, integração, OLAP e mineração",
+  "chapters": [
+    {
+      "title": "1. Business Intelligence e arquiteturas de dados analíticos",
+      "markdown": "## BI, OLTP e OLAP\n**Business Intelligence (BI)** reúne processos, arquitetura, indicadores e recursos de análise para transformar dados em informação útil à decisão. Não é sinônimo de ferramenta de gráficos: para comparar receita de regiões ao longo de anos é necessário definir métricas, integrar fontes, tratar inconsistências e preservar a interpretação histórica. Sistemas **OLTP** registram transações individuais, como inserir um pedido ou atualizar um pagamento; priorizam integridade e operações curtas e concorrentes. Sistemas **OLAP** apoiam agregações e consultas exploratórias, como receita por trimestre, região e produto, com leitura analítica intensiva. A distinção é de **carga de trabalho**, não simplesmente de fabricante ou quantidade de dados. Uma base operacional pode alimentar relatórios, mas consultas analíticas intensas podem competir com operações transacionais.\n\n| Aspecto | OLTP | OLAP |\n|---|---|---|\n| Pergunta típica | Qual pedido foi pago agora? | Como evoluíram as vendas por região? |\n| Operação típica | Inserção e atualização de registros | Leituras, agrupamentos e séries históricas |\n| Modelo frequente | Operacional estruturado para integridade | Dimensional ou multidimensional para análise |\n| Horizonte | Situação corrente e eventos do negócio | Comparações consolidadas e históricas |\n\n## Data warehouse e características clássicas\nO **data warehouse (DW)** é um repositório analítico integrado que consolida dados relevantes à organização. Na formulação clássica associada a Bill Inmon, é **orientado a assunto** (vendas, clientes, abastecimento), **integrado** (reconcilia nomes, unidades e códigos), **variante no tempo** (guarda referência temporal e histórico adequado) e **não volátil** (uso tipicamente voltado à leitura, sem atualizações operacionais contínuas sobre o histórico consolidado). Não volátil **não significa jamais receber cargas, correções ou reconstruções**. Imagine duas origens que usam 'SP' e 'São Paulo': a integração estabelece significado comum antes de comparar resultados.\n\n**Data mart** é subconjunto analítico orientado a domínio ou departamento, como vendas. Pode derivar de DW corporativo ou ser implementado como componente dimensional consoante a arquitetura. **ODS (Operational Data Store)** integra dados operacionais, normalmente mais atuais e destinados a consultas táticas ou integração; não substitui automaticamente histórico profundo de DW. **Data lake** recebe dados brutos ou pouco transformados em múltiplos formatos, inclusive não estruturados. **Lakehouse** combina armazenamento flexível típico de lake com recursos analíticos e controles de gestão e consulta típicos de warehouse. O nome da solução não dispensa averiguar formato, governança, qualidade e cargas atendidas.\n\n| Estrutura | Ênfase | Exemplo |\n|---|---|---|\n| DW | Dados organizados, integrados e históricos para análise | Séries plurianuais de receitas |\n| Data mart | Visão de assunto ou área | Indicadores de suprimentos |\n| ODS | Integração operacional atualizada | Status integrado de solicitações |\n| Data lake | Dados variados, inclusive brutos | Arquivos, eventos e logs |\n| Lakehouse | Flexibilidade de lake com gestão e consulta analítica | Dados brutos e tabelas analíticas governadas |\n\n## Inmon, Kimball e data mesh\nNa abordagem atribuída a **Inmon**, costuma-se partir de DW corporativo integrado e os data marts dele derivados: desenho associado à visão **top-down**. Na de **Kimball**, processos de negócio, fatos e dimensões conformadas são peças centrais de arquitetura **bottom-up/bus**, permitindo integração entre data marts. Não é correto dizer que Kimball dispensa integração corporativa: **dimensões conformadas** são precisamente mecanismo de coerência entre processos.\n\n**Data mesh** é paradigma organizacional e arquitetural: propriedade descentralizada pelos domínios, **dados como produto**, plataforma de autosserviço e **governança federada computacional**. Uma equipe de logística pode disponibilizar 'entregas consolidadas' com documentação, qualidade e contrato de acesso, enquanto padrões compartilhados impedem que cada equipe invente significados incompatíveis. Data mesh não é um sinônimo de data lake e não impõe ausência de plataforma ou regras comuns.\n\n## BI no uso prático\nDashboard é painel visual de acompanhamento; **KPI** é indicador-chave ligado a objetivo, fórmula, período, unidade e meta. Um painel pode conter várias visualizações que não são KPIs. Para 'percentual de entregas no prazo', devem ser definidos numerador, denominador e tratamento de cancelamentos. Gráfico de linhas favorece trajetória temporal; barras permitem comparar categorias; tabelas apoiam leitura exata; pizza convém apenas a poucas partes de um todo com denominador explícito. Uma ferramenta como Power BI, Tableau ou Qlik possibilita modelagem e visualização, mas nenhum produto corrige dados divergentes automaticamente por mera importação.\n\n> Reconheça o erro: BI não é apenas visualização; OLTP e OLAP não são sinônimos; lake e warehouse podem coexistir; a integração semântica é tão importante quanto a infraestrutura."
+    },
+    {
+      "title": "2. Modelagem dimensional, fatos, dimensões e histórico",
+      "markdown": "## Comece pelo grão\n**Granularidade (grão)** é aquilo que uma linha na tabela fato representa. Em vendas, a linha pode ser *um item de um pedido*; em saldos, *o saldo diário de uma conta*. Declarar o grão precede a escolha das dimensões e medidas. Se uma linha representa item de pedido e outra representa total do pedido, somá-las na mesma fato sem diferenciação duplica valor. Uma **tabela fato** armazena eventos ou medições, chaves que a relacionam às dimensões e medidas numéricas; **tabela dimensão** fornece descrições e eixos de corte, como Produto, Data, Local e Cliente.\n\nUma dimensão **Data** pode ter hierarquia dia → mês → trimestre → ano; Local pode ter município → estado → região. Hierarquias ajudam agregação, mas caminhos não necessariamente são fixos para toda organização. **Chave natural/de negócio** vem do domínio (código do cliente); **chave substituta (surrogate key)** é identificador técnico criado no DW para isolar chaves de origens diferentes e preservar versões de dimensões. Uma cliente com mesma chave natural pode ter várias versões históricas com chaves substitutas distintas.\n\n## Esquemas analíticos\nNo **estrela**, uma fato central conecta-se diretamente a dimensões frequentemente desnormalizadas: a estrutura diminui quantidade de junções para consulta analítica. No **floco de neve**, atributos dimensionais são separados em tabelas relacionadas, por exemplo Produto → Subcategoria → Categoria; pode diminuir redundância, mas aumentar junções. **Constelação/galáxia** possui múltiplas fatos relacionadas a dimensões compartilhadas, como fato Vendas e fato Devoluções utilizando Data e Produto. Essa organização não impõe que métricas com grãos distintos sejam somadas sem cuidado.\n\n| Modelo | Exemplo | Atenção |\n|---|---|---|\n| Estrela | FatoVendas → DimProduto, DimData, DimLoja | Dimensão diretamente ligada à fato |\n| Floco de neve | DimProduto → DimSubcategoria → DimCategoria | Hierarquia fragmentada |\n| Constelação | FatoVendas e FatoDevoluções compartilham DimData | Conformidade, grão e chaves |\n\n## Medidas e aditividade\n**Aditiva:** quantidade vendida somável sobre dimensões compatíveis (produto, região e tempo) sem duplicação. **Semiaditiva:** saldo de conta pode ser somado entre contas na mesma data, mas somar saldo de segunda e terça cria interpretação enganosa. **Não aditiva:** média, percentual e razão; para obter percentual geral, recompute a partir dos totais do numerador e denominador, não some percentuais. Em duas lojas, vendas de 10/20 e 90/100 produzem taxas 50% e 90%; a taxa conjunta é 100/120, cerca de 83,33%, não soma de 140%.\n\nGrão também determina medidas válidas. Se cada linha é um item vendido, `valor_item` pode ser agregado no nível de pedido; se cada linha é um pedido que contém diversos produtos, replicar `valor_pedido` após juntar itens pode provocar duplicação. **Fato sem medidas (factless fact table)** registra ocorrência ou cobertura de evento por chaves dimensionais, permitindo contar presenças mesmo sem coluna monetária.\n\n## Dimensões que mudam lentamente (SCD)\n**SCD tipo 1** sobrescreve um atributo e não preserva sua versão anterior, apropriado para correção de erro ou histórico dispensável. **SCD tipo 2** fecha a versão vigente e insere uma nova linha com outra surrogate key, vigência e indicador de atualidade, preservando contexto histórico. **SCD tipo 3** mantém histórico limitado em colunas, como região atual e anterior. Exemplo: cliente passa de Norte a Sul em junho. Se é necessário analisar vendas de março pelo território de março, a SCD 2 pode manter a versão Norte associada aos fatos antigos. Substituir toda região pela atual (tipo 1) reclassificaria o passado.\n\n## Otimização física multidimensional\nTécnicas de desempenho incluem **particionamento** por data, permitindo ler apenas intervalos filtrados; **índices bitmap**, potencialmente úteis para atributos de baixa cardinalidade em cargas analíticas e mecanismos que os suportam; **índices B-tree**, relevantes para buscas seletivas e faixas; **tabelas agregadas** e **visões materializadas**, que armazenam resultados pré-calculados para acelerar consultas frequentes. Nenhuma delas é ganho garantido: índices e materializações custam armazenamento e manutenção; partições excessivas prejudicam gestão; agregações devem respeitar dimensões e grão.\n\nImagine consulta mensal de receitas por estado sobre 500 milhões de linhas. Uma tabela agregada mês–estado reduz leitura, mas não responde corretamente à pergunta diária por cliente porque perdeu o detalhe. **Drill through** para registros individuais requer fonte granular acessível; agregados isolados não a preservam. O princípio de otimização é conhecer consultas, filtros, cardinalidade e atualização, não decorar que determinado índice é sempre superior.\n\n> Antes de escolher técnica ou esquema, determine o grão, a semântica da medida e se o histórico precisa ser preservado."
+    },
+    {
+      "title": "3. Integração, ingestão, ETL/ELT e pipelines confiáveis",
+      "markdown": "## Das fontes ao repositório analítico\nPipeline de dados é sequência orquestrada de ingestão, validação, transformação, publicação e monitoramento. **ETL** significa extrair → transformar → carregar; transformações principais ocorrem antes da carga final. **ELT** extrai → carrega → transforma, utilizando capacidade do destino. Ambas podem ter preparação, tratamento de erros e persistência intermediária. A diferença não é 'ETL antigo versus ELT novo': depende de capacidade do destino, necessidade de governança e volume.\n\n**Staging/área de preparação** armazena lotes temporários ou intermediários, facilitando conferência, deduplicação e reprocessamento. Transformações incluem padronização de datas e unidades, correção de tipos, correspondência de códigos e detecção de nulos. Dado inválido não deve ser transformado silenciosamente em zero quando zero possui significado legítimo; melhor separar em quarentena e registrar o motivo. **Qualidade** pode ser aferida por completude (campos presentes), validade (formato e domínio), unicidade, consistência e atualidade.\n\n## Modos de ingestão\n**Transferência por arquivos** pode usar FTP ou, preferencialmente quando necessário canal seguro, **SFTP**; ambos movem arquivos, mas SFTP usa canal SSH e não é simplesmente FTP acrescido de um indicador de carga incremental. Arquivo CSV recebido diariamente pode ser carregado em **lotes**, com identificação de origem e período. **Integração via banco** pode utilizar conectores, consultas sobre views, conexões entre bases e replicação; **CDC (Change Data Capture)** captura inserções, alterações e exclusões para propagação incremental, conforme capacidade da tecnologia. CDC não significa copiar a tabela inteira a cada execução. Replicação pode transportar mudanças ou cópias sem resolver diferenças semânticas entre sistemas.\n\n**Lote (batch)** processa conjuntos em momentos definidos; **fluxo (streaming)** processa eventos à medida que chegam, com latência potencialmente menor. Processar micro-lotes frequentes não implica que todas as etapas sejam contínuas. Uma atualização diária basta a relatórios de fechamento, mas painel de monitoramento de filas pode exigir ingestão mais frequente. A escolha depende de latência aceita, volume, ordenação, garantias de entrega e custos.\n\n## Confiabilidade e orquestração\n**Orquestração** controla dependências, agenda, reexecução e observabilidade: primeiro obter arquivo, depois validar, depois carregar dimensão, por fim carregar fatos e atualizar agregados. Ferramentas desse propósito incluem orquestradores de workflow; não confunda o orquestrador com o motor que executa transformações. **Idempotência** significa que reexecutar operação com mesmo conjunto identificado não altera o resultado além do que já deveria existir: por exemplo, inserir com chave estável/merge controlado em vez de duplicar todas as linhas após falha. **Checkpoint** permite retomar a partir de posição conhecida; **watermark** indica evento ou horário até o qual os dados foram processados. Uma política só de marcar o horário atual antes de concluir a carga pode perder eventos se o lote falhar.\n\nMonitoramento deve distinguir atraso, volume inesperado, taxa de rejeição, erro de schema e falha de destino. **Linhagem (lineage)** registra proveniência e transformações, apoiando explicação de um indicador. Um pipeline pode terminar tecnicamente sem erro mas publicar dados incorretos se regras de qualidade estiverem ausentes.\n\n## Exemplo de ponta a ponta\nDois cadastros enviam arquivos com datas em formatos diferentes e a base de pedidos transmite alterações por CDC. O pipeline ingere arquivos identificados, captura mudanças, valida a identidade de clientes, harmoniza datas, registra rejeições, atualiza dimensão de clientes (tipo 2 para endereço histórico quando necessário), carrega fatos com grão item do pedido e produz agregado mensal. Se houver reexecução do lote de terça, uma estratégia idempotente impede duplicidade. A carga histórica requer escolher corretamente chave substituta vigente na data do evento, não só a versão atual do cliente.\n\n| Decisão | Opção apropriada | Erro comum |\n|---|---|---|\n| Capturar mudanças de linha | CDC | Confundir com cópia completa obrigatória |\n| Processar arquivo noturno | Batch | Interpretar como fluxo em tempo real |\n| Transformar dentro do destino | ELT | Classificar como ETL por conter limpeza |\n| Reexecutar lote sem duplicação | Idempotência | Confiar apenas no agendamento |\n| Preservar linhas com erro para análise | Quarentena + logs | Substituir toda falha por zero |\n\n> Pipelines não se resumem a 'copiar dados': decisões sobre integração, versão histórica, segurança operacional, qualidade e reprocessamento condicionam todo resultado analítico."
+    },
+    {
+      "title": "4. OLAP, visualização e desempenho da análise multidimensional",
+      "markdown": "## Operações do cubo analítico\nUm cubo representa medidas analisadas por eixos como tempo, produto e região; não pressupõe arquivo cúbico literal nem apenas três dimensões. **Roll-up** agrega de nível mais detalhado para mais geral: cidade → estado. **Drill-down** desce para detalhe: ano → trimestre → mês. **Slice** fixa valor em uma dimensão, por exemplo apenas ano 2025; **dice** seleciona subconjunto multidimensional, por exemplo dois estados, três categorias e dois trimestres. **Pivot/rotate** reorganiza eixos de apresentação sem alterar os dados. **Drill-through** acessa registros detalhados subjacentes a uma célula ou medida agregada, quando a arquitetura os disponibiliza. **Drill-across** cruza medidas de **fatos diferentes** alinhadas a dimensões conformadas, com atenção ao grão.\n\n| Comando | Ação sobre relatório de vendas |\n|---|---|\n| Roll-up | De cidades para seus estados |\n| Drill-down | De trimestre para seus meses |\n| Slice | Fixar somente uma região |\n| Dice | Combinar faixas de produtos e meses |\n| Pivot | Trocar linhas de região por colunas |\n| Drill-through | Abrir documentos associados ao total |\n| Drill-across | Comparar vendas e devoluções no mesmo mês/produto |\n\n**ROLAP** utiliza mecanismo relacional e consultas sobre tabelas, incluindo fatos e dimensões; **MOLAP** utiliza estruturas multidimensionais e agregações pré-processadas; **HOLAP** combina aspectos das duas estratégias, por exemplo agregados multidimensionais e detalhes relacionais. Essas siglas classificam abordagem de armazenamento/consulta, não os tipos de gráfico que a interface mostrará. Pré-cálculo costuma reduzir custo de leitura de agregados frequentes, mas pode aumentar custo de atualização e armazenamento.\n\n## Desenho de relatórios e KPIs\nUm **dashboard operacional** acompanha filas ou atrasos com frequência adequada; um **painel gerencial** pode enfatizar tendências, metas e comparações. **KPI** deve ligar métrica a objetivo: tempo médio de atendimento em horas, taxa de solução em porcentagem e período. Sem definição de denominador, comparar percentuais entre unidades com população muito diferente pode induzir erro. Gráficos de barras são apropriados a comparação categórica; linhas, a evolução temporal; dispersão, a relação entre duas variáveis numéricas; mapa somente se informação espacial agrega interpretação. Os mesmos dados podem ser visualizados de modos diferentes, mas escalas truncadas e agregações indevidas distorcem a leitura.\n\nFerramentas como **Power BI, Qlik e Tableau** são plataformas de análise e visualização, sem que a marca determine a correção da modelagem. Algumas usam motores em memória, modelos semânticos ou acesso a fontes; em prova conceitual, o essencial é compreender datasets, medidas, dimensões, filtros, painéis e atualização. **Visualização não é mineração**: um gráfico pode mostrar tendência já agregada sem aprender padrão ou treinar algoritmo.\n\n## Melhorar consultas\nPara consultas com filtro por mês, particionar fatos por períodos pode evitar varrer partições irrelevantes. **Índices bitmap** podem ser eficientes sobre categorias de poucos valores, dependendo do banco e concorrência; **B-tree** serve diversos filtros seletivos e ordenações. **Visões materializadas** guardam resultados que precisam ser atualizados ou reconstruídos quando a origem muda. **Tabela agregada** por mês-região pode acelerar roll-up, mas não permite inferir venda individual por cliente. **Caching** reutiliza resultados; invalidação precisa acompanhar o frescor exigido.\n\n## Cuidados com métricas semiaditivas\nConsidere saldo da conta A de R$ 100 na segunda e R$ 120 na terça. Somar e divulgar R$ 220 como saldo de duas datas não expressa patrimônio em qualquer uma delas. Já para cinco contas na terça, somar seus saldos dessa data pode ter sentido. Uma taxa de inadimplência de 10% num grupo de 10 clientes e 20% em outro de 100 clientes precisa ser recomputada por totais (1 + 20 inadimplentes em 110), não pela média simples de 10% e 20% sem ponderação. Esse cuidado liga visualização, OLAP e modelagem dimensional.\n\n> O nome da operação deve ser identificado pelo **efeito**: detalhar é drill-down; subir é roll-up; mudar orientação é pivot; consultar fato de outra tabela é drill-across; abrir registros é drill-through."
+    },
+    {
+      "title": "5. KDD, CRISP-DM, mineração e aprendizado de máquina",
+      "markdown": "## Da descoberta ao uso\n**Mineração de dados** busca padrões, relações e modelos úteis em conjuntos de dados; não se confunde com a mera extração e carga. Em **KDD (Knowledge Discovery in Databases)**, seleção, pré-processamento, transformação, mineração e interpretação/avaliação compõem um processo de descoberta; a etapa de mineração é parte desse processo. **CRISP-DM** estrutura o trabalho em seis fases: entendimento do negócio, entendimento dos dados, preparação, modelagem, avaliação e implantação. As fases admitem retorno e revisão; escolher algoritmo antes de compreender objetivo ou qualidade é erro metodológico.\n\n**Aprendizado supervisionado** treina com rótulo conhecido, como prever inadimplência a partir de históricos identificados. **Não supervisionado** busca estrutura sem rótulos de resultado, como agrupar perfis semelhantes. Algumas tarefas misturam abordagens, e detecção de anomalias pode ser conduzida com ou sem rótulo, conforme cenário.\n\n## Tarefas clássicas\n**Classificação** prevê classe (aprovado/reprovado; fraude/não fraude). **Regressão** prevê valor numérico contínuo (valor esperado de consumo). **Agrupamento (clustering)** forma grupos de observações semelhantes sem classes-alvo fornecidas. **Associação** descobre coocorrências de itens, como produtos que aparecem juntos. **Anomalia** identifica observação destoante, que merece investigação e não é prova automática de fraude.\n\n| Técnica/algoritmo | Uso principal | Cuidado |\n|---|---|---|\n| Árvore de decisão | Classificação ou regressão por regras de divisão | Profundidade excessiva favorece sobreajuste |\n| k-NN | Classificação/regressão pelos vizinhos próximos | Escala e distância afetam resultados |\n| Naive Bayes | Classificação probabilística baseada em Bayes | Pressupõe independência condicional entre atributos no modelo |\n| k-means | Agrupamento em k grupos por centróides | Necessita k e é sensível a escala/inicialização |\n| Apriori | Busca conjuntos frequentes para regras de associação | Suporte não mede causalidade |\n\n## Suporte, confiança e lift\nEm 100 compras, 30 incluem café (A), 20 incluem pão (B) e 12 incluem ambos. A regra A → B tem **suporte** de 12/100 = 12%; **confiança** de 12/30 = 40%; prevalência de B de 20/100 = 20%; **lift** de 0,40/0,20 = 2. A interpretação é associação positiva em relação ao nível geral de ocorrência de B, **não causalidade**. Lift superior a 1 indica coocorrência acima da esperada sob independência; lift igual a 1 indica independência em termos dessas frequências; inferior a 1, associação negativa. Regra inversa B → A terá confiança 12/20 = 60%, embora o suporte conjunto seja o mesmo. O **Apriori** usa a propriedade de que todo subconjunto de conjunto frequente também é frequente para podar candidatos.\n\n## Identificação de anomalias\n**z-score** mede distância padronizada em relação à média/desvio padrão, e seu uso exige cautela com assimetria e valores extremos. **IQR** é intervalo interquartil Q3 - Q1; regra exploratória comum marca valores abaixo de Q1 - 1,5 IQR ou acima de Q3 + 1,5 IQR. **LOF** compara densidade local com vizinhos: valores atípicos podem estar em regiões menos densas que seus vizinhos. **Isolation Forest** isola observações por partições aleatórias, em geral com percursos menores para pontos mais isoláveis. Nenhuma abordagem demonstra intenção fraudulenta. Um pagamento muito alto pode ser contrato legítimo; anomalia é sinal para inspeção contextual.\n\n## Avaliação, apresentação e decisão\nPara classificação, **matriz de confusão** distingue verdadeiros e falsos positivos e negativos; acurácia elevada em classe rara pode enganar se o modelo não detectar eventos relevantes. Para agrupamento, avalie coerência dos grupos e utilidade para o negócio, não acurácia de rótulo inexistente. Treino, validação e avaliação devem evitar vazamento de informações futuras; caso contrário, desempenho aparente não representa uso real. Na implantação, monitore atualização dos dados e mudança de distribuição. Esses pontos são tratados aqui somente no nível conceitual da mineração.\n\n## Como o tema costuma ser cobrado\nAs perguntas contrapõem classificação e clustering, ETL e mineração, confiança e suporte, OLAP e OLTP, KDD e CRISP-DM. Também apresentam cesta de compras para calcular suporte, confiança e lift; pedem reconhecer o algoritmo apropriado ou identificam comportamento anômalo sem concluir fraude. Resolva pela **natureza da saída** (classe, valor, agrupamento, regra ou outlier), pela **existência de rótulo** e pelo **denominador correto** em cada métrica. Evite confundir correlação, associação estatística e relação causal."
+    }
+  ],
+  "summary": "## Resumo de alta retenção\n**BI** envolve arquitetura, métricas, integração e visualização para decisão; **OLTP** trata transações; **OLAP** agrega e explora dados históricos. **DW** é orientado a assunto, integrado, não volátil no sentido analítico clássico e variante no tempo. **Data mart** atende recorte de assunto; **ODS**, integração operacional; **lake**, formatos diversos; **lakehouse**, características de lake e warehouse; **data mesh**, domínio + dado como produto + autosserviço + governança federada.\n\n**Inmon:** integração corporativa top-down. **Kimball:** fatos, dimensões conformadas e arquitetura dimensional bottom-up. **Fato** contém métricas/ocorrências e chaves; **dimensão** oferece contexto. Defina o **grão** antes de agregar. **Estrela** conecta fatos diretamente a dimensões; **floco** normaliza dimensões; **constelação** compartilha dimensões entre fatos. **SCD1** sobrescreve; **SCD2** cria versões e preserva histórico; **SCD3** retém histórico limitado. **Aditiva** soma nas dimensões apropriadas; **semiaditiva** não soma em algumas dimensões, como o tempo para saldos; **não aditiva** requer recomputação, como percentuais.\n\n**ETL** transforma antes de carregar; **ELT** transforma no destino. **CDC** propaga mudanças; **batch** agrupa eventos; **streaming** trata chegada contínua; **SFTP** transfere arquivos sobre SSH. **Staging** prepara e valida; **idempotência** evita duplicidade em reexecuções; **orquestração** coordena dependências; qualidade exige validação explícita. Para desempenho: **partição** reduz leitura pertinente, **bitmap** pode favorecer baixa cardinalidade, **B-tree** atende buscas diversas, **agregados/materializações** trocam custo de atualização por consultas mais rápidas.\n\n**Roll-up:** agrega; **drill-down:** detalha; **slice:** fixa uma dimensão; **dice:** filtra subconjunto em várias; **pivot:** troca eixos; **drill-through:** busca registros; **drill-across:** compara fatos. **ROLAP:** relacional; **MOLAP:** multidimensional; **HOLAP:** híbrido.\n\n**KDD:** processo amplo de descoberta; **CRISP-DM:** negócio, dados, preparação, modelagem, avaliação e implantação. **Classificação:** classe; **regressão:** número; **k-means:** agrupamento; **Apriori:** associação; **z-score/IQR/LOF/Isolation Forest:** anomalias. **Suporte(A→B)** = conjunto A∩B / total; **confiança** = A∩B / A; **lift** = confiança / frequência de B. Associação não demonstra causalidade.",
+  "flashcards": [
+    {
+      "front": "OLTP e OLAP: diferença?",
+      "back": "OLTP otimiza transações individuais; OLAP otimiza consultas analíticas e agregações."
+    },
+    {
+      "front": "Quatro características do DW?",
+      "back": "Orientado a assunto, integrado, não volátil na acepção clássica e variante no tempo."
+    },
+    {
+      "front": "O que é data mart?",
+      "back": "Recorte analítico voltado a assunto, domínio ou área."
+    },
+    {
+      "front": "ODS substitui o DW?",
+      "back": "Não necessariamente; prioriza integração operacional mais atual, não histórico analítico profundo."
+    },
+    {
+      "front": "Lake versus lakehouse?",
+      "back": "Lake aceita dados variados, inclusive brutos; lakehouse agrega recursos analíticos e gestão estruturada."
+    },
+    {
+      "front": "Quatro princípios do data mesh?",
+      "back": "Domínio descentralizado, dados como produto, plataforma de autosserviço e governança federada."
+    },
+    {
+      "front": "Inmon e Kimball?",
+      "back": "Inmon é associado ao DW corporativo top-down; Kimball, a fatos e dimensões conformadas bottom-up."
+    },
+    {
+      "front": "O que é grão da fato?",
+      "back": "Evento ou medição específica representada por uma linha da tabela fato."
+    },
+    {
+      "front": "Fato versus dimensão?",
+      "back": "Fato armazena eventos e medidas; dimensão descreve atributos para filtrar e agrupar."
+    },
+    {
+      "front": "Esquema estrela?",
+      "back": "Fato central ligada diretamente a dimensões geralmente desnormalizadas."
+    },
+    {
+      "front": "O que é constelação?",
+      "back": "Várias tabelas fato compartilhando dimensões conformadas."
+    },
+    {
+      "front": "Saldo bancário é medida aditiva no tempo?",
+      "back": "Não: é semiaditiva, pois somar saldos de datas diferentes pode ser incorreto."
+    },
+    {
+      "front": "SCD tipo 2 preserva como?",
+      "back": "Cria nova versão de linha com chave substituta e vigência, mantendo a versão anterior."
+    },
+    {
+      "front": "ETL versus ELT?",
+      "back": "ETL transforma antes da carga final; ELT transforma no ambiente de destino."
+    },
+    {
+      "front": "O que é CDC?",
+      "back": "Captura alterações da origem para integração incremental, conforme mecanismo disponível."
+    },
+    {
+      "front": "O que é idempotência?",
+      "back": "Reprocessar a mesma entrada produz o mesmo estado final, evitando duplicações."
+    },
+    {
+      "front": "Roll-up versus drill-down?",
+      "back": "Roll-up agrega níveis; drill-down navega do geral ao detalhe."
+    },
+    {
+      "front": "Drill-across versus through?",
+      "back": "Across combina fatos por dimensões conformadas; through acessa registros que compõem uma agregação."
+    },
+    {
+      "front": "KDD versus mineração?",
+      "back": "KDD é processo de descoberta mais amplo; mineração é uma etapa de extração de padrões."
+    },
+    {
+      "front": "Seis fases CRISP-DM?",
+      "back": "Negócio, dados, preparação, modelagem, avaliação e implantação."
+    },
+    {
+      "front": "Confiança A→B?",
+      "back": "Ocorrências de A e B divididas pelas ocorrências de A."
+    },
+    {
+      "front": "O que significa lift 2?",
+      "back": "B ocorre entre transações com A duas vezes a taxa geral de B, sem provar causalidade."
+    },
+    {
+      "front": "LOF e Isolation Forest?",
+      "back": "LOF compara densidade local; Isolation Forest isola observações por partições aleatórias."
+    }
+  ],
+  "tips": [
+    "Em questão de arquitetura, identifique se a demanda é registro operacional, consulta histórica, armazenamento bruto ou responsabilidade por domínio.",
+    "Antes de somar medidas, anote o grão e pergunte se a medida é aditiva, semiaditiva ou não aditiva.",
+    "Para histórico de mudança de atributo, contraste SCD1 (sobrescrita) com SCD2 (novas versões).",
+    "Em ETL/ELT, verifique onde a transformação ocorre; uma carga incremental não é por isso um tipo distinto de OLAP.",
+    "Nos comandos OLAP, separe navegação em níveis (roll-up/drill-down) de filtros (slice/dice) e abertura de detalhes (through).",
+    "Calcule associação separando total de transações, contagem de A, contagem de B e interseção A∩B.",
+    "Se a afirmação chamar uma anomalia de fraude comprovada, identifique a inferência indevida: outlier é indício estatístico, não conclusão causal."
+  ],
+  "traps": [
+    "A prova diz que DW não volátil não admite carga nova: incorreto; ele recebe cargas e pode sofrer correções controladas.",
+    "A prova troca data mesh por data lake distribuído: incorreto; mesh é modelo de responsabilidade por domínios e produtos de dados.",
+    "A prova soma saldos em datas diferentes: erro de aditividade; saldo é medida tipicamente semiaditiva no tempo.",
+    "A prova afirma que SCD tipo 1 preserva valores anteriores: erro; o tipo 2 cria versões temporais.",
+    "A prova diz que CDC é necessariamente cópia integral noturna: falso; a essência é capturar alterações para carga incremental.",
+    "A prova confunde drill-through com drill-across: o primeiro abre registros de detalhe; o segundo compara fatos distintos.",
+    "A prova afirma confiança A→B = confiança B→A: falso; denominadores A e B diferem.",
+    "A prova trata cluster e anomalia como rótulos supervisionados por definição: falso; agrupamento é não supervisionado e detecção de anomalia pode empregar vários métodos."
+  ],
+  "activeRecall": [
+    {
+      "question": "Que atributos clássicos definem um data warehouse?",
+      "answer": "Orientação a assunto, integração, não volatilidade no sentido de análise e variação no tempo."
+    },
+    {
+      "question": "Por que definir grão antes de medida e dimensão?",
+      "answer": "Para assegurar que cada linha represente o mesmo evento e impedir duplicidade ou agregações incompatíveis."
+    },
+    {
+      "question": "Como manter a região histórica de um cliente que mudou de estado?",
+      "answer": "SCD tipo 2, criando nova versão com chave substituta e período de vigência."
+    },
+    {
+      "question": "Qual é a distinção operacional de ETL e ELT?",
+      "answer": "ETL transforma antes de carregar o destino final; ELT carrega e transforma no destino."
+    },
+    {
+      "question": "Qual diferença entre CDC, lote e fluxo?",
+      "answer": "CDC captura mudanças; lote é estratégia de processamento em conjunto; fluxo trata eventos conforme chegam."
+    },
+    {
+      "question": "Que comando navega de ano para mês?",
+      "answer": "Drill-down, descendo na hierarquia de tempo."
+    },
+    {
+      "question": "Qual é a diferença entre classificação e clustering?",
+      "answer": "Classificação aprende classes com rótulos; clustering procura agrupamentos sem classes-alvo rotuladas."
+    },
+    {
+      "question": "Em 200 compras, A aparece em 80, B em 50 e ambos em 20. Quais suporte, confiança e lift de A→B?",
+      "answer": "Suporte 20/200 = 10%; confiança 20/80 = 25%; lift 0,25/(50/200) = 1."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Troca entre arquitetura operacional e analítica",
+      "summary": "OLTP executa transações; OLAP explora dados. DW, ODS, lake, lakehouse e mesh cumprem finalidades diferentes e podem coexistir."
+    },
+    {
+      "key": "e2",
+      "title": "Desconsiderar o grão e a aditividade",
+      "summary": "Grão fixa a unidade de cada fato. Percentuais não são somados; saldos normalmente não são somáveis no tempo."
+    },
+    {
+      "key": "e3",
+      "title": "Confundir versionamento de dimensão",
+      "summary": "SCD1 sobrescreve; SCD2 mantém versões com chaves substitutas; SCD3 mantém histórico limitado em atributos."
+    },
+    {
+      "key": "e4",
+      "title": "Misturar ingestão, transformação e confiabilidade",
+      "summary": "ETL/ELT diferem pelo local da transformação; CDC é captura incremental e idempotência protege contra duplicação."
+    },
+    {
+      "key": "e5",
+      "title": "Trocar operações OLAP",
+      "summary": "Roll-up agrega, drill-down detalha, slice/dice filtram, pivot reorganiza, through abre detalhe e across compara fatos."
+    },
+    {
+      "key": "e6",
+      "title": "Confundir tarefa de mineração e suas métricas",
+      "summary": "Classificação prediz classe, regressão valor, clustering grupos, associação coocorrência e anomalia desvios; suporte, confiança e lift possuem denominadores distintos."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um comércio precisa registrar milhares de compras individuais e, separadamente, comparar a receita por região ao longo de três anos. Qual combinação associa corretamente as duas necessidades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "OLTP para registrar compras e OLAP para analisar receitas históricas por região.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "OLAP para registrar compras e OLTP para explorar tendências históricas de vendas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Data mart para registrar compras e CDC para calcular agregações históricas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MOLAP para registrar pedidos e SCD para construir a consulta de receita anual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Data lake para confirmar pagamentos e ETL para substituir consultas analíticas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. OLTP é adequado às transações, enquanto OLAP atende agregações e comparações históricas. B inverte as cargas; C troca mecanismo de ingestão por análise; D trata técnica de histórico dimensional como consulta; E apresenta armazenamento e processo de integração como substitutos das duas cargas.",
+      "section": "1. Business Intelligence e arquiteturas de dados analíticos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa reúne bases de diversas filiais, padroniza códigos de produto e preserva registros para comparação plurianual. Qual característica clássica do data warehouse é demonstrada pela padronização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não volatilidade, pois impede revisar os dados históricos carregados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Integração, pois reconcilia representações divergentes do mesmo conceito.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Orientação ao tempo, pois concentra exclusivamente os dados do período atual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Orientação a arquivos, pois obriga que todas as fontes adotem o mesmo formato.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Operação transacional, pois substitui a finalidade analítica pela atualização.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Integrar implica harmonizar códigos, formatos e semântica entre origens. A confunde característica de DW com proibição de cargas; C descreve o oposto de conservar histórico; D presume formato único de arquivo; E troca a função analítica do DW pelo processamento operacional.",
+      "section": "1. Business Intelligence e arquiteturas de dados analíticos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe projeta tabela de vendas em que cada linha representa um item de pedido. A descrição 'um item de pedido' indica, sobretudo:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cardinalidade de cliente, pois cada item deve pertencer a um comprador distinto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A hierarquia de produto, pois cada mercadoria pertence a uma categoria.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A granularidade da tabela fato, isto é, o evento representado por linha.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O tipo de SCD, pois os itens de um pedido precisam preservar versões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A aditividade de toda métrica, inclusive percentuais e saldos históricos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O grão especifica precisamente o evento que uma linha registra. A confunde unidade da linha com unicidade de cliente; B aborda atributo dimensional; D trata versionamento de dimensão; E supõe que o grão torna aditivas medidas que podem exigir recomputação.",
+      "section": "2. Modelagem dimensional, fatos, dimensões e histórico",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma plataforma extrai registros de diversos arquivos, corrige datas e códigos em área intermediária e só depois grava a tabela analítica definitiva. Como é classificado o fluxo principal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ELT, pois qualquer integração utiliza área de preparação antes de sua execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CDC, pois as transformações tornam toda extração uma captura de mudanças.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Streaming, pois valida registros conforme os eventos chegam.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ETL, pois a transformação é efetuada antes do carregamento definitivo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "OLAP, pois carregar registros é o mesmo processo de agregação multidimensional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. As etapas de extração, transformação intermediária e carga final definem ETL. A inverte a sequência no destino; B reduz CDC a qualquer extração; C confunde tratamento com modalidade de fluxo; E troca pipeline por processamento analítico de consultas.",
+      "section": "3. Integração, ingestão, ETL/ELT e pipelines confiáveis",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um painel mostra receita por ano. O usuário abre o ano 2025 e passa a visualizar os quatro trimestres correspondentes. Qual operação analítica foi aplicada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Roll-up, que agrega os trimestres em uma única linha anual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Slice, que troca a métrica de receita por quantidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pivot, que permuta medidas entre duas fontes independentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Drill-across, que combina valores de tabelas de fatos diferentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Drill-down, que detalha o ano em seus quatro trimestres.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Ir de ano a trimestre desce na hierarquia temporal. A realiza o caminho inverso; B é filtragem por valor de dimensão, não troca de métrica; C altera orientação dos eixos; D combina fatos diferentes por dimensões compartilhadas.",
+      "section": "4. OLAP, visualização e desempenho da análise multidimensional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma analista tem dados sem categorias prévias e deseja encontrar grupos de consumidores com comportamentos semelhantes. Qual tarefa se ajusta ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Agrupamento, que identifica estruturas de similaridade sem classe-alvo fornecida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Classificação, que necessita prever o rótulo fornecido para cada consumidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Regressão, que exige estimar o gasto numérico futuro de cada consumidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Associação, que busca regras de coocorrência entre itens das transações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Drill-through, que consulta os registros individuais de uma célula agregada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Clustering busca grupos sem classes pré-identificadas. B pressupõe rótulos supervisionados; C prevê valor contínuo, que não foi solicitado; D descobre itens associados e não segmentos; E é navegação analítica, não tarefa de aprendizagem.",
+      "section": "5. KDD, CRISP-DM, mineração e aprendizado de máquina",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização possui tabelas de dados operacionais quase atuais, integradas para consultas táticas, mas não mantém nelas extensa série histórica. O repositório descrito corresponde mais diretamente a:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Data lake, porque exige arquivos brutos de sensores e documentos externos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ODS, por concentrar informação integrada de caráter operacional.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Data warehouse, cuja função clássica é substituir integralmente os sistemas OLTP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Data mesh, porque a centralização garante propriedade exclusiva por domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MOLAP, por armazenar dados em cubos dimensionais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. ODS reúne informação operacional integrada e atualizada para uso tático. A não corresponde à descrição; C confunde DW com substituição de transações; D contradiz a propriedade descentralizada do mesh; E descreve arquitetura de processamento multidimensional.",
+      "section": "1. Business Intelligence e arquiteturas de dados analíticos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma dimensão Cliente muda de região e a empresa quer manter a região que constava na data das vendas passadas. Qual técnica é a mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SCD tipo 1, porque sobrescrever o cadastro mantém cada valor histórico anterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Particionamento temporal, que organiza linhas conforme a data.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SCD tipo 2, porque cria versões com vigência e mantém o contexto anterior.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Roll-up geográfico, porque transforma dados antigos em agregações mais gerais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Índice bitmap, porque preserva o valor anterior da coluna a cada atualização.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. SCD2 insere nova versão da dimensão e encerra a vigência da anterior, permitindo associar fatos antigos a contexto histórico. A sobrescreve; B otimiza armazenamento; D agrega dados; E é estrutura de acesso, não mecanismo de versionamento.",
+      "section": "2. Modelagem dimensional, fatos, dimensões e histórico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema precisa importar só alterações de pedidos ocorridas desde a última carga, incluindo inclusões, mudanças e exclusões. Qual mecanismo responde melhor à necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SFTP integral, que identifica mudanças linha a linha somente pelo transporte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Roll-up, que consolida valores por níveis de hierarquia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SCD tipo 3, que captura toda operação da origem em log transacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CDC, que captura eventos de mudança para integração incremental.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "MOLAP, que replica a fonte operacional a cada interação com um cubo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. CDC identifica alterações de dados para propagá-las incrementalmente, conforme suporte do sistema. A é transporte de arquivos, não detecção das mudanças; B é operação OLAP; C preserva histórico dimensional limitado; E é estratégia de armazenamento e consulta analítica.",
+      "section": "3. Integração, ingestão, ETL/ELT e pipelines confiáveis",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa armazena os registros detalhados em mecanismo relacional e usa consultas sobre essas tabelas para atender análises dimensionais. Que abordagem tradicional de OLAP foi descrita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "MOLAP, com armazenamento necessariamente concentrado em matrizes multidimensionais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "HOLAP, pela obrigatoriedade de armazenar todo detalhe em cubos pré-calculados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Data mesh, por definir o mecanismo de execução das consultas dimensionais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ETL, processo de extração e transformação de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ROLAP, que realiza análise multidimensional sobre estruturas relacionais.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. ROLAP baseia a exploração analítica em estrutura e consulta relacionais. A privilegia armazenamento multidimensional; B é híbrido, não exigência de todos os detalhes em cubos; C trata governança de produtos de dados; D é integração, não arquitetura OLAP.",
+      "section": "4. OLAP, visualização e desempenho da análise multidimensional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um comitê de dados distribui a responsabilidade pelos conjuntos às equipes de seus domínios, fornece plataforma comum e estabelece padrões compartilhados. Qual conceito caracteriza essa organização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Data mesh, que concilia produtos de domínio com plataforma e governança federada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "ODS, que obriga todos os domínios a uma única unidade de produção de dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SCD tipo 2, que descentraliza equipes por meio da criação de versões temporais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ROLAP, que define responsabilidade por domínio conforme o esquema relacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Data mart, que representa necessariamente a governança integral e descentralizada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Data mesh combina domínio, dados como produto, plataforma autosserviço e governança federada. B descreve integração operacional; C é histórico dimensional; D é arquitetura de OLAP; E é subconjunto de dados analíticos, sem implicar esse modelo organizacional.",
+      "section": "1. Business Intelligence e arquiteturas de dados analíticos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista soma o saldo de cada conta em determinada data e, depois, pretende somar também os saldos das mesmas contas nos sete dias anteriores para obter o 'saldo semanal'. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A medida é aditiva em tempo e clientes, logo as duas somas são equivalentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A medida é semiaditiva: soma entre contas na data, mas não entre datas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A medida é não aditiva em todos os eixos, logo não se soma nem entre contas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A medida exige SCD2 para que a soma por datas possa tornar-se válida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A medida exige drill-through, que transforma saldos diários em totais semanais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Saldos pontuais podem ser agregados entre contas do mesmo instante, mas a soma entre instantes repete posições e não produz saldo do período. A ignora a dimensão tempo; C proíbe soma válida entre contas; D invoca histórico de atributo; E confunde acesso a detalhes com semântica de agregação.",
+      "section": "2. Modelagem dimensional, fatos, dimensões e histórico",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma base analítica guarda Produto → Subcategoria → Categoria em três tabelas dimensionais relacionadas e uma tabela de vendas ligada a Produto. O esquema descrito é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Estrela, porque todas as dimensões se ligam diretamente à tabela de vendas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Constelação, porque a hierarquia do produto exige várias tabelas de fatos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Floco de neve, porque a dimensão de produto foi desmembrada em tabelas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "SCD tipo 3, porque as categorias representam versões anteriores do produto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ROLAP, que consulta bases de dados relacionais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O floco de neve normaliza hierarquias dimensionais em tabelas relacionadas. A pressupõe acesso direto às dimensões do esquema estrela; B necessita múltiplas fatos; D diz respeito a histórico limitado; E classifica arquitetura analítica relacional, não esse padrão estrutural.",
+      "section": "2. Modelagem dimensional, fatos, dimensões e histórico",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após falha de rede, um arquivo diário de 10 mil registros é enviado novamente e a rotina insere os mesmos registros duas vezes. Qual propriedade deveria orientar a correção do pipeline?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pivot, pois mudar os eixos impediria a repetição de linhas na carga.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Particionamento, pois distribuir tabelas evita repetições em qualquer falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Drill-across, pois combinar fatos permite descartar cópias sem verificar chaves.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Idempotência, pois reexecutar o mesmo lote deve preservar o estado final.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "SCD tipo 3, pois armazenar atributo anterior bloqueia toda duplicação transacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Uma carga idempotente reconhece entradas já processadas e evita efeito adicional em reexecução. A reorganiza relatórios; B trata desempenho e gestão física; C cruza fatos para análise; E é método de histórico limitado em dimensões.",
+      "section": "3. Integração, ingestão, ETL/ELT e pipelines confiáveis",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta apresenta vendas somente para as regiões Norte e Sul, produtos A e B e meses janeiro e fevereiro, mantendo o cruzamento dessas três dimensões. Qual operação expressa o filtro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Slice, por fixar uma única categoria de uma dimensão e remover os demais eixos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Roll-up, por consolidar os meses em períodos anuais de apuração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pivot, por trocar a localização de linhas e colunas sem selecionar valores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Drill-through, por abrir as transações detalhadas de um total.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dice, por restringir conjuntos de valores em várias dimensões simultâneas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Dice seleciona um subcubo usando restrições em mais de uma dimensão. A costuma fixar um valor de dimensão; B percorre hierarquia para cima; C apenas gira a apresentação; D recupera registros subjacentes ao agregado.",
+      "section": "4. OLAP, visualização e desempenho da análise multidimensional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em 100 transações, 40 possuem produto A e 15 possuem A e B. Para a regra A → B, a confiança é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "37,5%, pois divide as 15 transações conjuntas pelas 40 com A.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "15%, pois divide as 15 transações conjuntas pelo total de 100.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "40%, pois utiliza a frequência de A como probabilidade condicional de B.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "25%, pois subtrai o suporte conjunto da frequência marginal de A.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "62,5%, pois considera o complemento da ocorrência de B entre compras de A.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Confiança(A→B) é frequência de A∩B dividida pela frequência de A: 15/40 = 37,5%. B calcula suporte; C utiliza somente a frequência do antecedente; D faz subtração de percentuais; E representa o complemento da confiança, não a confiança.",
+      "section": "5. KDD, CRISP-DM, mineração e aprendizado de máquina",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um algoritmo encontra conjuntos frequentes de produtos comprados em uma mesma transação e produz regras como A → B, sem classe-alvo conhecida. Qual algoritmo clássico corresponde a essa finalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Naive Bayes, que estima classes pela probabilidade posterior dos atributos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apriori, que poda conjuntos infrequentes ao construir regras de associação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "k-means, que organiza exemplos em grupos representados por centróides.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "k-NN, que atribui resposta conforme os vizinhos de um novo exemplo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Árvore de decisão, que reparte observações segundo atributos preditivos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Apriori explora conjuntos frequentes para formar regras de associação. A é classificador probabilístico; C resolve agrupamento em k grupos; D usa vizinhos para prever rótulo ou valor; E constrói divisões supervisionadas de classificação ou regressão.",
+      "section": "5. KDD, CRISP-DM, mineração e aprendizado de máquina",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede deseja cruzar os fatos Vendas e Devoluções por Data e Produto para comparar valores mensais, preservando o grão apropriado de cada processo. Qual recurso descreve melhor essa consulta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Drill-through, pois percorre registros individuais de uma só fato e os soma.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pivot, pois inverter a posição das medidas equivale a relacionar duas fatos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Drill-across, pois consulta fatos distintas mediante dimensões conformadas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Slice, pois selecionar um mês impede a necessidade de combinar processos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Roll-up, pois agregar por mês dispensa verificar as diferenças de grão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Drill-across alinha medidas de diferentes tabelas fato por dimensões conformadas, respeitando o grão. A abre detalhes subjacentes; B troca eixos de exibição; D restringe uma dimensão; E agrega, mas não resolve a combinação entre processos distintos.",
+      "section": "4. OLAP, visualização e desempenho da análise multidimensional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta mensal costuma somar bilhões de linhas de vendas; o DW mantém visão pré-calculada por mês e região. Um usuário passa a solicitar vendas individuais por cliente e dia. Qual diagnóstico técnico é correto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A visão agregada responde diretamente, pois total mensal preserva clientes e dias.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O índice bitmap recupera granularidade descartada independentemente das fontes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O particionamento temporal reconstrói automaticamente o detalhe individual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A visão acelera a soma mensal, mas não substitui fatos no grão individual.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O cache converte total mensal em registros de detalhe sem consultar outra base.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Pré-agregados reduzem custo das consultas que correspondem a seu grão, sem inventar detalhe perdido. A supõe reversibilidade da agregação; B e C tratam índices/partições como fonte de informações inexistentes; E confunde reutilização do resultado com reconstrução de dados.",
+      "section": "2. Modelagem dimensional, fatos, dimensões e histórico",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição recebe arquivos diários por SFTP, captura atualizações de cadastros por CDC e reexecuta lotes após falha sem duplicar linhas. Qual afirmação descreve corretamente os três mecanismos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SFTP identifica mudanças, CDC criptografa arquivos e o lote dispensa validação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CDC substitui todas as integrações por arquivo, e idempotência elimina atrasos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SFTP define o esquema do DW, enquanto CDC realiza exclusivamente roll-up.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reexecução idempotente resolve por si só o histórico de dimensões do tipo 2.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SFTP transporta, CDC captura alterações e idempotência evita duplicidade.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. SFTP é transporte seguro baseado em SSH, CDC identifica mudanças de dados e idempotência protege o estado final contra reexecuções. A troca funções; B confunde CDC com canal universal; C atribui modelagem e OLAP aos mecanismos de ingestão; D equipara repetibilidade técnica a versionamento histórico.",
+      "section": "3. Integração, ingestão, ETL/ELT e pipelines confiáveis",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um estabelecimento registra 200 compras: 80 incluem A, 50 incluem B e 20 incluem ambos. Para a regra A → B, qual tripla apresenta suporte, confiança e lift nessa ordem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "10%, 25% e 1, pois a taxa de B entre A coincide com sua frequência geral.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "25%, 10% e 1, pois suporte e confiança trocam seus denominadores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "10%, 40% e 1,6, pois a confiança deve dividir a interseção pelo total de B.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "25%, 40% e 1, pois a interseção deve ser comparada apenas com B.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "10%, 25% e 2,5, pois o lift divide a confiança pelo suporte conjunto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Suporte=20/200=10%; confiança=20/80=25%; B aparece em 50/200=25%, logo lift=0,25/0,25=1. B troca denominadores; C e D usam B para a confiança de A→B; E divide pela frequência conjunta, não pelo suporte marginal de B.",
+      "section": "5. KDD, CRISP-DM, mineração e aprendizado de máquina",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa conciliar vendas históricas após mudança do código de cliente entre fontes distintas, preservando duas versões temporais de atributos. Qual desenho é coerente com essa exigência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter a chave de negócio como única chave física e sobrescrever a região anterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar chaves substitutas por versão e relacionar fatos à versão histórica pertinente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Copiar o nome atual do cliente em todas as fatos, dispensando dimensões de histórico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Agregar todas as vendas mensais antes de escolher a identidade histórica de cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar SCD tipo 1 sobre toda mudança para reconstruir retrospectivamente as regiões.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Surrogate keys permitem múltiplas versões da mesma chave de negócio e apoiam associação do fato ao contexto válido. A e E sobrescrevem história; C promove redundância sem rastreio correto; D perde detalhe antes de resolver a identificação temporal.",
+      "section": "2. Modelagem dimensional, fatos, dimensões e histórico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa escolhe ELT porque a plataforma de destino possui processamento escalável, mas parte dos registros precisa de validação e quarentena. Qual posição sobre o ELT é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ELT proíbe a limpeza de dados porque a carga deve permanecer inalterada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ELT exige processar eventos em tempo real, sem possibilidade de lotes agendados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ELT permite transformar no destino e ainda exige regras de validação e qualidade.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "ELT é o mesmo que CDC, porque ambos capturam mudanças em vez de realizar cargas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ELT descarta o staging por definição, já que toda tabela recebida é definitiva.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. ELT desloca a transformação ao destino, sem dispensar preparação, validação, monitoramento ou rejeição de entradas ruins. A veta transformação; B confunde ordem de tarefas com modalidade temporal; D troca ingestão incremental por transformação; E toma um desenho possível por requisito universal.",
+      "section": "3. Integração, ingestão, ETL/ELT e pipelines confiáveis",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um auditor analítico investiga uma compra muito acima do padrão. O time compara z-score, IQR, LOF e Isolation Forest para apontar candidatos à revisão. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "LOF detecta classes rotuladas de fraude pela independência entre atributos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "IQR exige centróides de grupos e valor de k escolhido antecipadamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Isolation Forest atribui causalidade a cada registro isolado pelo algoritmo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os métodos apontam desvios por critérios diferentes, não provam irregularidade.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "z-score usa exclusivamente densidade de vizinhos e independe da média.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Outliers exigem exame contextual; z-score usa média e desvio, IQR usa quartis, LOF densidade local e Isolation Forest partições. A atribui a LOF classificação probabilística; B confunde IQR com k-means; C afirma causalidade; E descreve densidade, não padronização estatística.",
+      "section": "5. KDD, CRISP-DM, mineração e aprendizado de máquina",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização escolhe entre consolidar muitos fatos em tabela única ou manter fatos Vendas e Atendimento separadas, partilhando dimensões Data e Unidade. Qual justificativa favorece o segundo desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "As dimensões compartilhadas permitem ignorar a granularidade de cada atividade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A constelação transforma todas as medidas de atendimento em medidas aditivas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A dimensão Data deve conter uma linha por registro das duas atividades distintas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cada fato deve obrigatoriamente repetir seus dados dimensionais em todas as linhas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A constelação preserva fatos com grãos próprios e dimensões conformadas comuns.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Fatos de processos distintos podem ter grãos diferentes e compartilhar dimensões conformadas na constelação. A dispensa a regra central de grão; B transforma indevidamente a semântica das métricas; C confunde dimensão com fato; D ignora chaves para dimensões compartilhadas.",
+      "section": "2. Modelagem dimensional, fatos, dimensões e histórico",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação que registra pagamento de pedidos individualmente atende a uma carga tipicamente OLTP; a consulta ao total de vendas por trimestre é exemplo de demanda OLAP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. OLTP privilegia operações transacionais individuais e frequentes; OLAP apoia agregação, séries históricas e exploração analítica. Uma organização pode empregar os dois, inclusive integrando dados operacionais em repositórios analíticos.",
+      "section": "1. Business Intelligence e arquiteturas de dados analíticos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um data warehouse denominado não volátil não pode receber cargas incrementais ou correções controladas, ainda que esses procedimentos preservem sua finalidade analítica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Na descrição clássica, não volatilidade contrasta uso analítico com atualização transacional contínua; ela não impede novas cargas nem ajustes administrados. O DW pode ser atualizado periodicamente para incorporar dados e histórico.",
+      "section": "1. Business Intelligence e arquiteturas de dados analíticos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um esquema estrela, uma tabela fato de vendas pode armazenar o valor vendido e chaves relacionadas a dimensões Data e Produto, usadas nos filtros e agrupamentos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os eventos e suas medidas são armazenados na fato, enquanto dimensões oferecem descrições dos eixos de análise. A presença de chaves de dimensão permite relacionar observações às categorias pelas quais os resultados serão agrupados.",
+      "section": "2. Modelagem dimensional, fatos, dimensões e histórico",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um projeto ELT, as principais transformações são obrigatoriamente concluídas em motor separado antes de carregar os dados no repositório analítico de destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Transformar antes do destino final é o desenho ETL. Em ELT, a carga antecede as principais transformações, que utilizam os recursos do destino; ambas as abordagens podem possuir estágios intermediários e regras de controle.",
+      "section": "3. Integração, ingestão, ETL/ELT e pipelines confiáveis",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao selecionar apenas o ano de 2025 em um cubo com eixos Ano, Produto e Região, o usuário realiza operação compatível com slice sobre a dimensão de tempo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Slice fixa um valor de dimensão e permite examinar uma fatia do conjunto multidimensional. Isso difere de drill-down, que percorre a hierarquia do ano para trimestres ou meses, e de pivot, que reorganiza os eixos.",
+      "section": "4. OLAP, visualização e desempenho da análise multidimensional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "K-means é algoritmo de classificação supervisionada cuja principal saída são rótulos previamente fornecidos a todas as observações de treinamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. K-means realiza agrupamento não supervisionado e determina k centróides e grupos de observações similares. Classificação supervisionada utiliza exemplos rotulados para aprender previsões de classe, como em árvores ou Naive Bayes.",
+      "section": "5. KDD, CRISP-DM, mineração e aprendizado de máquina",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na modelagem de vendas, a definição de que cada linha registra um item de pedido é anterior à escolha correta das medidas e ajuda a impedir a duplicação de totais ao agregar dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Declarar o grão estabelece a unidade observada em cada fato; sem isso, pode-se misturar item e pedido e somar o mesmo valor mais de uma vez. As dimensões e medidas precisam ser compatíveis com a unidade declarada.",
+      "section": "2. Modelagem dimensional, fatos, dimensões e histórico",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SCD tipo 1, a troca da região de um cliente gera obrigatoriamente nova linha histórica com outra chave substituta, mantendo a região anterior vinculada a vendas antigas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O tipo 1 normalmente sobrescreve o atributo na linha existente e não preserva sua história como versão distinta. A inserção de nova linha com vigência e chave substituta é característica da dimensão lentamente mutável tipo 2.",
+      "section": "2. Modelagem dimensional, fatos, dimensões e histórico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estratégia de ingestão por CDC pode transportar eventos de inserção, alteração e exclusão para um destino analítico, reduzindo a necessidade de copiar integralmente a origem a cada ciclo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. CDC acompanha mudanças da origem e pode alimentar carga incremental, conforme implementação. Isso é diferente de um arquivo completo periódico, embora uma organização possa combinar CDC com cargas integrais de inicialização e reconciliação.",
+      "section": "3. Integração, ingestão, ETL/ELT e pipelines confiáveis",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O drill-through agrega cidade em estado e mês em trimestre, enquanto o roll-up abre documentos transacionais subjacentes a uma célula de relatório.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A descrição inverte as duas operações: roll-up agrega na hierarquia e drill-through abre registros detalhados associados à medida, se disponíveis. A operação de descer de estado para cidade é drill-down.",
+      "section": "4. OLAP, visualização e desempenho da análise multidimensional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um índice bitmap pode ser útil em alguns ambientes analíticos para colunas de baixa cardinalidade, mas sua conveniência depende do motor, da carga de atualização e do perfil de consulta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Bitmap pode representar eficientemente categorias com poucos valores em certos mecanismos, mas desempenho não é universal. Concorrência de escrita, distribuição dos dados e suporte do SGBD influenciam a seleção entre bitmap, B-tree e outras técnicas.",
+      "section": "4. OLAP, visualização e desempenho da análise multidimensional",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No processo CRISP-DM, a avaliação de modelos deve necessariamente ocorrer antes de qualquer entendimento do problema de negócio, pois essa fase determina o objetivo da mineração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O CRISP-DM começa por entendimento do negócio, seguido de entendimento e preparação de dados, modelagem, avaliação e implantação. As fases podem ser revisitadas, mas a avaliação não substitui a formulação inicial do objetivo.",
+      "section": "5. KDD, CRISP-DM, mineração e aprendizado de máquina",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra A → B e sua inversa B → A possuem o mesmo suporte conjunto, mas suas confianças podem diferir porque os antecedentes utilizados como denominador não são iguais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Ambas utilizam a interseção A∩B para o suporte; a confiança A→B divide essa interseção por A, enquanto B→A divide por B. Se as frequências marginais diferem, as probabilidades condicionais também podem diferir.",
+      "section": "5. KDD, CRISP-DM, mineração e aprendizado de máquina",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao manter duas tabelas fato com grãos distintos, uma constelação que utiliza dimensões Data e Produto conformadas torna automaticamente aditivas entre si todas as medidas, dispensando compatibilizar as granularidades.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Dimensões conformadas alinham significados e facilitam análises entre processos, mas não transformam medidas nem apagam diferenças de grão. A comparação deve agregar fatos a níveis compatíveis, evitando junções que multipliquem valores.",
+      "section": "2. Modelagem dimensional, fatos, dimensões e histórico",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um pipeline de ingestão por lotes possui agendamento e checkpoints, sua execução é automaticamente idempotente, mesmo quando cada tentativa acrescenta todas as linhas novamente ao destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Agendamento e checkpoint coordenam a execução e a retomada; não impedem, sozinhos, duplicação. Se cada tentativa insere todos os registros sem reconhecimento de entradas prévias, o processo não preserva o mesmo estado em reexecuções.",
+      "section": "3. Integração, ingestão, ETL/ELT e pipelines confiáveis",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela mensal pré-agregada pode acelerar consultas de receita por região e mês, mas não é suficiente para reconstruir, sem outra fonte, o valor individual de cada item vendido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A tabela agregada conserva o total no grão mês-região, não todas as contribuições individuais. Consultas de detalhe requerem fatos granulares preservados, enquanto materializações podem oferecer ganhos de velocidade para agregações frequentes.",
+      "section": "4. OLAP, visualização e desempenho da análise multidimensional",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em 100 compras, A ocorreu em 20, B em 50 e A∩B em 10. A regra A → B possui confiança de 50% e lift igual a 2, indicando associação positiva segundo esses dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A confiança é 10/20 = 50%, mas B aparece em 50/100 = 50% das compras, de modo que lift = 0,50/0,50 = 1. A frequência conjunta é compatível com independência, não com lift 2 ou associação positiva acima do esperado.",
+      "section": "5. KDD, CRISP-DM, mineração e aprendizado de máquina",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma abordagem de data mesh pode manter padrões compartilhados de qualidade e acesso ao mesmo tempo que atribui a diferentes domínios a responsabilidade pelos próprios produtos de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Governança federada não equivale à ausência de normas comuns: os domínios podem operar seus produtos enquanto padrões e plataforma compartilhados garantem interoperabilidade, descoberta, segurança e confiabilidade.",
+      "section": "1. Business Intelligence e arquiteturas de dados analíticos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como uma pontuação de LOF ou Isolation Forest indica isolamento estatístico, qualquer transação classificada como anômala deve ser interpretada como fraude confirmada sem análise contextual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. LOF compara densidade local, e Isolation Forest utiliza facilidade de isolamento. Ambos identificam observações atípicas por critérios algorítmicos, que podem representar situações legítimas. É necessária investigação adicional para confirmar fraude.",
+      "section": "5. KDD, CRISP-DM, mineração e aprendizado de máquina",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma dimensão que adota SCD tipo 2 pode ter múltiplas linhas com a mesma chave natural e chaves substitutas distintas, cada uma associada a um intervalo de vigência histórico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A técnica de versionamento tipo 2 preserva estados anteriores do mesmo membro dimensional; por isso, diferentes linhas mantêm a mesma identidade de negócio com surrogate keys e vigências próprias, permitindo associar fatos ao contexto temporal correto.",
+      "section": "2. Modelagem dimensional, fatos, dimensões e histórico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Understand star schema and the importance for Power BI",
+      "publisher": "Microsoft Learn",
+      "reference": "Fatos, dimensões, surrogate keys, snowflake e SCD",
+      "url": "https://learn.microsoft.com/en-us/power-bi/guidance/star-schema",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Dimensional modeling in Fabric Data Warehouse",
+      "publisher": "Microsoft Learn",
+      "reference": "Fatos, dimensões e desenho de data warehouse",
+      "url": "https://learn.microsoft.com/en-us/fabric/data-warehouse/dimensional-modeling-overview",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ETL (extração, transformação, carregamento)",
+      "publisher": "Microsoft Learn",
+      "reference": "ETL, ELT, lote e streaming",
+      "url": "https://learn.microsoft.com/pt-br/azure/architecture/data-guide/relational-data/etl",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Online Analytical Processing",
+      "publisher": "Microsoft Learn",
+      "reference": "OLTP, OLAP e cargas de trabalho",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/data-guide/relational-data/online-analytical-processing",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Slowly changing dimension type 2",
+      "publisher": "Microsoft Learn",
+      "reference": "Versionamento SCD2",
+      "url": "https://learn.microsoft.com/en-us/fabric/data-factory/slowly-changing-dimension-type-two",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Change Data Capture Tables",
+      "publisher": "Microsoft Learn",
+      "reference": "Captura e carga incremental",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/system-tables/change-data-capture-tables-transact-sql?view=sql-server-ver17",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Understanding and preparing data — CRISP-DM",
+      "publisher": "IBM Documentation",
+      "reference": "Seis fases CRISP-DM e preparação",
+      "url": "https://www.ibm.com/docs/en/ws-and-kc?topic=modeler-understanding-preparing-data",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "What is a Data Mesh?",
+      "publisher": "IBM",
+      "reference": "Princípios de data mesh",
+      "url": "https://www.ibm.com/think/topics/data-mesh",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Modeling Dimension Tables in Warehouse",
+      "publisher": "Microsoft Learn",
+      "reference": "Chaves substitutas e SCD1, SCD2 e SCD3",
+      "url": "https://learn.microsoft.com/en-us/fabric/data-warehouse/dimensional-modeling-dimension-tables",
+      "accessedAt": "2026-10-10"
+    }
+  ]
+}

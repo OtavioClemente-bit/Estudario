@@ -1,0 +1,1804 @@
+{
+  "id": "informatica.git-versionamento",
+  "subject": "Informática",
+  "title": "Git e controle de versão",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Git e controle de versão"
+  ],
+  "scope": {
+    "covers": "Finalidade do controle de versão; modelos centralizado e distribuído; gerência de configuração, itens, baselines, mudanças e releases; Subversion; repositório, index, working tree, HEAD, hash e comandos Git; branches, merge, rebase, conflitos e recuperação; colaboração com remotes, forks e revisões; Git Flow, GitHub Flow e trunk-based; versionamento semântico e integração contínua introdutória.",
+    "excludes": "Pipelines CI/CD complexos, administração de servidores, GitOps, métodos ágeis, internos de objetos e packfiles, hooks e submódulos, e aprofundamento de cherry-pick, bisect, automação de implantação e ferramentas de acompanhamento de tarefas."
+  },
+  "theoryTitle": "Git, Subversion, gestão de configuração e fluxos de versionamento",
+  "chapters": [
+    {
+      "title": "1. Controle de versão, gerência de configuração e Subversion",
+      "markdown": "## Por que versionar\nControle de versão registra alterações realizadas em artefatos ao longo do tempo, identificando autores, revisões e condições para comparar e recuperar versões. A finalidade não é apenas fazer cópias de segurança: é compreender **o que mudou**, reconstruir uma configuração e permitir trabalho colaborativo. Em projeto com código e documentação, uma alteração na interface pode exigir que o manual e os testes sejam atualizados na mesma entrega. O histórico ajuda a localizar a alteração que introduziu comportamento indesejado. O fato de um arquivo ter nome terminado em `final_v3` não oferece, por si, rastreabilidade de autor, divergência de alterações ou revisão de código.\n\n## Modelos centralizado e distribuído\nEm um sistema **centralizado**, como o **Apache Subversion (SVN)** e, em linhas gerais, o CVS, um repositório central é a referência principal para confirmar mudanças; a cópia de trabalho contém arquivos e metadados necessários ao trabalho, mas não é, ordinariamente, um clone independente de todo o histórico do repositório. Em um sistema **distribuído**, como **Git** e **Mercurial**, cada clone normal contém histórico e objetos suficientes para muitas operações locais, incluindo commits e criação de branches. O Git pode utilizar servidor compartilhado e políticas centralizadoras de colaboração, mas isso não altera seu modelo de dados distribuído. Na ausência de conexão, é possível fazer `git commit` local; publicar no servidor por `git push` dependerá de conectividade e permissão.\n\n| Aspecto | SVN | Git |\n| --- | --- | --- |\n| Organização típica | Repositório central | Clones com histórico local |\n| Publicação da alteração | `svn commit` no repositório | `git commit` local e posterior `git push` |\n| Atualização | `svn update` | `git fetch` ou `git pull`, conforme intenção |\n| Identificação de histórico | Revisões numéricas de repositório | Identificadores de commits (hashes) |\n| Branch e tag | Convenções de diretórios versionados | Referências próprias a commits |\n\n## Subversion na prática\nO **SVN** organiza frequentemente o repositório em caminhos `trunk/`, `branches/` e `tags/`. Essa disposição é **convenção**, não imposição estrutural universal do programa. O `trunk` costuma ser a linha principal; `branches` conserva linhas paralelas e `tags`, cópias de referência, frequentemente de releases. Como o repositório SVN versiona também diretórios, branch e tag são normalmente criados por cópia versionada, usualmente eficiente no servidor. `svn checkout URL` obtém cópia de trabalho; `svn update` incorpora revisões mais recentes na cópia, tentando combinar mudanças locais; `svn commit -m \"mensagem\"` publica alterações e cria uma **revisão global** do repositório, com número crescente. Uma revisão **r57** identifica estado global após o commit, e não uma versão independente de cada arquivo. O commit SVN é **atômico**: publica o conjunto como uma transação ou não o publica como revisão parcial.\n\nExemplo: Ana baixa `trunk` na revisão 40, Bruno publica revisão 41, e Ana altera arquivo local. Executar `svn update` pode integrar a revisão 41, gerando conflito se ambos alteraram o mesmo trecho. Executar `svn commit` não significa, automaticamente, atualizar todos os outros arquivos locais: atualização e publicação são operações distintas. Um ramo de manutenção pode ser criado em `branches/release-2` sem que as revisões globais deixem de ser sequenciais.\n\n## Gerência de configuração de software\nA **gerência de configuração** é mais ampla que controlar versões. Ela identifica **itens de configuração** (código, scripts, documentação, casos de teste, arquivos de implantação), estabelece **baselines** ou linhas de base aprovadas, administra solicitações e autorizações de mudança, registra o estado da configuração e verifica conformidade por **auditoria de configuração**. Uma baseline representa conjunto identificado e aprovado em determinado momento, a partir do qual alterações seguem processo controlado; não é sinônimo de toda branch de trabalho. **Relatórios de configuração** registram versões utilizadas, mudanças aprovadas, responsáveis, estado e composição de entregas. Uma auditoria verifica se itens físicos/lógicos e documentação correspondem à configuração declarada.\n\nImagine release 2.4.0 composta de commit identificado, versão de esquema, documentação e artefato compilado. A tag Git pode identificar o commit-fonte, mas não prova sozinha que binário, configurações e testes correspondem ao release aprovado. É necessário rastrear a produção e as aprovações do pacote. **Controle de mudanças** avalia solicitações e impactos antes de alterar baseline; registrar um commit não significa que a mudança foi autorizada. A prova frequentemente equipara controle de versão à gestão completa de configuração ou atribui ao SVN um hash por commit no mesmo sentido das referências Git; ambos os atalhos são incorretos."
+    },
+    {
+      "title": "2. Repositório Git, áreas, estados e comandos cotidianos",
+      "markdown": "## Três áreas e quatro situações dos arquivos\nO Git separa **working tree** (arquivos materiais no diretório de trabalho), **staging area** ou **index** (snapshot preparado para a próxima confirmação) e **repositório local** (commits registrados). `git add` copia para o index o conteúdo atual do arquivo especificado. `git commit` registra, em regra, o snapshot do index, não automaticamente todas as edições presentes no disco. Se alguém faz `git add arquivo.txt`, depois edita novamente o arquivo e executa `git commit`, a segunda edição não entra no commit a menos que seja novamente adicionada. A comparação entre index, working tree e `HEAD` explica como um mesmo arquivo pode ter simultaneamente alterações staged e unstaged.\n\nArquivo **untracked** existe na working tree e ainda não é acompanhado; arquivo **tracked e unmodified** corresponde à versão de referência; **modified** diverge do index ou da base; **staged** tem conteúdo preparado no index. `git status` informa essas condições. `.gitignore` contém padrões de exclusão para arquivos **ainda não rastreados**, mas não remove automaticamente um arquivo já versionado. Para parar de rastrear mantendo o arquivo no disco, pode-se usar `git rm --cached caminho` e registrar a alteração, tendo cuidado com histórico já publicado.\n\n## Iniciar, clonar, comparar e registrar\n`git init` cria um repositório vazio na pasta indicada ou atual. `git clone URL` copia histórico disponível de um repositório e normalmente configura um remoto chamado `origin`; esse nome é uma convenção, não uma obrigação. `git status` exibe estado do index e da working tree. `git add caminho` prepara conteúdo; `git commit -m \"mensagem\"` registra snapshot preparado; `git log --oneline` examina histórico; `git diff` sem argumentos compara, por padrão, working tree e index; `git diff --staged` compara index e `HEAD` para mostrar conteúdo a confirmar. `git show HASH` inspeciona commit determinado. Um commit contém referência a pais, árvore, autor e mensagem, e recebe identificador baseado em hash; o texto abreviado de hash é conveniência visual, não identificador composto por número global crescente como r57 no SVN.\n\n| Comando | Efeito essencial | Erro típico |\n| --- | --- | --- |\n| `git init` | Inicializa repositório | Confundir com cópia remota |\n| `git clone` | Copia repositório existente | Tratar como branch novo vazio |\n| `git add` | Atualiza index | Achar que publica no servidor |\n| `git commit` | Cria commit local | Supor que equivale a `push` |\n| `git diff` | Compara working tree e index | Confundir com `--staged` |\n| `git log` | Mostra histórico | Tomar por lista de arquivos alterados ainda sem commit |\n\n## HEAD, branches e mudanças de posição\nUma **branch** é referência móvel que aponta para um commit; **HEAD** geralmente referencia a branch atualmente selecionada, mas pode apontar diretamente para um commit em estado **detached HEAD**. `git branch nova` cria referência sem necessariamente mudar a seleção; `git switch -c nova` cria e seleciona; `git switch outra` troca de branch existente. `git checkout` é mais antigo e multifuncional, podendo selecionar branches, commits ou recuperar caminhos conforme sintaxe. `git restore arquivo` normalmente restaura conteúdo da working tree a partir do index; `git restore --staged arquivo` retira alterações do index, sem descartar a edição na working tree. Essas opções são fundamentais para não perder trabalho.\n\n`git commit --amend` substitui o último commit local por novo commit, por exemplo para corrigir a mensagem ou incluir conteúdo staged esquecido. Como muda a identidade do commit, requer cuidado se o commit anterior já foi compartilhado. `git tag v2.1.0` cria tag **leve**, simples referência; `git tag -a v2.1.0 -m \"Release\"` cria tag **anotada** com metadados próprios. Tag costuma apontar a versão de release e, diferentemente de branch, não avança automaticamente quando se confirma novo commit.\n\n## Comandos e segurança operacional\n`git restore` serve para restaurar arquivos em index/working tree, ao passo que `git reset` pode também mover HEAD quando usado com referência de commit. `git status` deve ser consultado antes de descartar edições. `git stash push -m \"pausa\"` armazena mudanças locais rastreadas e normalmente limpa os estados correspondentes, permitindo trocar de contexto; `git stash list`, `apply` e `pop` consultam e reaplicam. Sem `-u`, novos arquivos untracked não são incluídos na operação padrão; arquivos ignorados exigem tratamento próprio. Guardar alteração em stash não publica commit remoto nem constitui liberação de versão.\n\nUm cenário de prova: arquivo `a.txt` foi adicionado ao index com 'versão 1'; depois recebeu 'versão 2' somente no disco. `git diff --staged` mostra as alterações de 'versão 1' em relação ao último commit, enquanto `git diff` mostra a diferença da working tree ('versão 2') frente ao index ('versão 1'). Confirmar imediatamente registrará 'versão 1'. Portanto, 'salvo no computador' e 'staged para commit' descrevem estados diferentes."
+    },
+    {
+      "title": "3. Merge, rebase, conflitos, reset, revert e recuperação",
+      "markdown": "## Formas de integrar branches\n`git merge feature` incorpora o histórico de `feature` à branch **atualmente selecionada**. Se a branch de destino é ancestral da ponta de `feature`, é possível **fast-forward**: apenas a referência da branch de destino avança, sem commit adicional de merge. `git merge --no-ff feature` força criação de commit de merge quando a operação é possível, inclusive quando avanço simples bastaria, preservando um marco explícito de integração. Quando branches divergiram a partir de ancestral comum, um **merge de três vias** considera ancestral e as duas pontas, criando commit de merge com pais que representam as linhas conciliadas, desde que a resolução tenha sucesso. `git merge --ff-only` recusa integração se não puder fazer fast-forward. `git merge --squash feature` prepara no index e na working tree o efeito combinado da integração, mas **não move HEAD nem cria automaticamente commit de merge**; o próximo commit feito manualmente consolida alterações sem preservar a ligação de parentesco de merge.\n\nExemplo lógico: `main` está em A, `feature` contém A–B–C. Em `main`, `git merge feature` pode mover `main` diretamente para C. Depois de `--no-ff`, há commit novo com pais A e C. Já com `--squash`, fica preparado conteúdo equivalente às alterações de B e C, aguardando `git commit`; o commit resultante na main não tem como segundo pai a ponta de feature. Portanto, 'squash = merge normal que preserva todos os commits como pais' é afirmação incorreta.\n\n## Rebase e histórico compartilhado\n`git rebase main`, executado a partir de uma branch de trabalho, **reaplica os commits próprios** dessa branch sobre a ponta atual de `main`, criando usualmente novos identificadores. Diferentemente de merge que preserva linhas de desenvolvimento, rebase organiza uma sequência linear reescrita. É útil para atualizar branch privada antes de revisão, mas em branch publicada e usada por outras pessoas pode causar divergências e necessidade de reconciliação; não se deve reescrever histórico compartilhado sem coordenação. Rebase **não** significa que o commit de base foi alterado retroativamente; são novos commits equivalentes em nova ancestralidade.\n\n## Resolver conflitos de maneira verificável\nUm conflito surge quando mudanças não conseguem ser conciliadas automaticamente, por exemplo quando duas branches modificam de modos incompatíveis as mesmas linhas. Durante merge, `git status` aponta caminhos não mesclados; arquivos podem conter marcadores `<<<<<<<`, `=======` e `>>>>>>>`. A resolução correta exige examinar intenções de ambas as versões, editar conteúdo final, testar e `git add` para marcar o caminho como resolvido; então realizar `git commit` de merge quando aplicável ou `git merge --continue`. Se quiser cancelar, `git merge --abort` tenta restaurar o estado anterior ao início. No rebase, após resolver e adicionar os arquivos, usa-se `git rebase --continue`; `git rebase --abort` cancela a operação. Remover os marcadores sem comparar semântica das mudanças não garante resolução correta.\n\n## Reset versus revert\n`git reset --soft ALVO` move a referência atual de HEAD ao commit-alvo e **preserva index e working tree**; assim, as diferenças passam a aparecer staged. `git reset --mixed ALVO` (padrão do comando com alvo de commit) move HEAD e atualiza index ao alvo, **preservando working tree**, de modo que mudanças tipicamente ficam unstaged. `git reset --hard ALVO` move HEAD e ajusta index e working tree ao alvo, **descartando alterações locais rastreadas** que sejam sobrescritas; pode também remover arquivos untracked que bloqueiem caminhos a restaurar. Já `git revert HASH` cria **novo commit** com alteração inversa à de commit anterior, geralmente preferível para desfazer mudança em histórico já compartilhado. Revert não apaga o commit original. A comparação é sobre **reescrever referência/histórico versus registrar reversão**.\n\n| Situação | Comando apropriado | Efeito decisivo |\n| --- | --- | --- |\n| Voltar um commit mantendo tudo staged | `git reset --soft HEAD~1` | Move HEAD, mantém index |\n| Voltar e deixar mudanças unstaged | `git reset --mixed HEAD~1` | Atualiza index, mantém disco |\n| Descartar alterações rastreadas | `git reset --hard ALVO` | Ajusta HEAD, index e working tree |\n| Desfazer commit já compartilhado | `git revert HASH` | Registra novo commit inverso |\n| Investigar posição anterior | `git reflog` | Exibe histórico local de movimento de refs/HEAD |\n\n`git reflog` mostra movimentos recentes de referências locais e de HEAD e pode auxiliar recuperar commit alcançável por uma entrada anterior, sujeito a retenção e limpeza; não é substituto de backup ilimitado. `git commit --amend` também reescreve o último commit, ao passo que uma **tag anotada** fornece nome de release e mensagem sem transformar a sequência de commits. Nas questões, preste atenção se a intenção é **desfazer conteúdo publicamente** (revert) ou **reorganizar commits privados** (reset/rebase)."
+    },
+    {
+      "title": "4. Remotos, colaboração, branches e baselines de release",
+      "markdown": "## Remotos e sincronização\nUm remoto é apelido local para um repositório acessível por URL. `git remote -v` lista nomes e endereços; `git remote add origin URL` cadastra remoto, mas não transmite commits por esse ato. `git fetch origin` busca objetos e atualiza referências de acompanhamento remoto, como `origin/main`, **sem mesclar automaticamente** o histórico obtido na branch atual. `git pull` combina busca e integração de histórico — por merge ou rebase, segundo opções e configuração —, não é simples sinônimo de fetch. `git push origin main` tenta enviar commits e atualizar a branch indicada no remoto; pode ser rejeitado por políticas de acesso ou por não ser um avanço permitido, por exemplo se o servidor tiver commits que a branch local não contém.\n\nSuponha `main` local em C e `origin/main` em D, com D incluindo commit novo de colega. Fazer fetch atualiza a referência remota para D sem alterar o conteúdo atual da main; integrar com merge ou rebase é uma decisão posterior. `git push` de uma branch divergente pode falhar por **non-fast-forward**. Forçar envio em branch compartilhada pode sobrescrever referências alheias; a opção `--force-with-lease` fornece salvaguarda relativa à referência remota conhecida, mas exige avaliação de impacto. A questão central é identificar o estado anterior e o resultado pretendido, não decorar equivalência falsa entre comandos.\n\n## Fork, revisão e solicitações de integração\n**Fork** é cópia de projeto mantida sob outro espaço de colaboração em plataformas como GitHub; não é o mesmo que branch dentro do repositório original. Contribuidor pode fazer fork, clonar, criar branch de melhoria, publicar commits em seu fork e abrir **pull request** ao projeto de origem. Em GitLab, a proposta equivalente costuma ser chamada **merge request**. Esses mecanismos hospedados oferecem discussão, revisão de código, verificações e decisão de integração; **não são comandos nativos obrigatórios do Git**. `git clone` cria repositório local; abrir pull request não executa automaticamente merge sem decisões/políticas de projeto.\n\n## Fluxos de branches\nO **Git Flow** tradicional utiliza branches duradouras como `main`/`master` e `develop`, além de `feature`, `release` e `hotfix`: funcionalidades integram develop; release prepara publicação; correção urgente pode partir da linha de produção e precisar ser reintegrada. É um modelo de organização, não um recurso específico exigido pelo motor do Git. **GitHub Flow** privilegia branch principal estável e branches curtas com solicitação de revisão, integração e entrega; não exige a branch develop como etapa fixa. **Trunk-based development** concentra integrações frequentes em um trunk único, geralmente com branches pequenas e breves e técnicas para manter a principal utilizável. Trunk-based não é a mesma coisa que proibir quaisquer branches; o relevante é diminuir a duração de divergências.\n\n| Fluxo | Branches características | Objetivo predominante |\n| --- | --- | --- |\n| Git Flow | Main, develop, feature, release, hotfix | Organizar releases e manutenção em linhas diferentes |\n| GitHub Flow | Main e branches curtas | Revisar e integrar mudanças continuamente |\n| Trunk-based | Trunk e ramificações muito curtas | Integração frequente e baixo desvio |\n\n## Gerência de configuração aplicada ao Git\nAprovar uma **baseline** significa identificar exatamente quais artefatos constituem um estado aceito. Branch móvel representa evolução e não equivale a baseline imutável; uma tag apontando para commit específico pode compor a identificação da baseline, associada a documentação, versão de dependências, registros de revisão, configuração de build e artefato produzido. Uma release candidata marcada `v3.2.0-rc.1` não se confunde com release final `v3.2.0`. Solicitações de mudanças devem registrar razão, impacto, aprovação, implementação e verificação. A **auditoria de configuração** confronta produto liberado e evidências declaradas; o **relatório de situação** permite informar quais mudanças foram incorporadas em qual baseline.\n\nA rastreabilidade pode associar solicitação de melhoria a branch e commits, pedido de revisão, testes realizados, tag e pacote publicado. O merge aprovado sinaliza integração no código-fonte, mas não prova por si que o artefato de produção corresponde ao mesmo commit. Exemplo: tag da release aponta C1, mas pacote foi compilado de C2, com dependência diferente; há falha de gestão de configuração, mesmo que ambos os códigos estejam versionados. Controle de configuração é, portanto, uma prática de **identificar, aprovar, registrar e verificar estados** ao longo da evolução, indo além do ato de dar commit.\n\nEm trabalhos colaborativos, políticas de proteção de branch e revisão podem impedir push direto ou exigir validação, mas são **configurações da plataforma**, não limitações inerentes ao comando `git commit`. Uma branch temporária pode existir no clone local antes de qualquer interação com hospedagem."
+    },
+    {
+      "title": "5. Versionamento semântico, builds e integração contínua introdutória",
+      "markdown": "## Releases e SemVer\nO **Versionamento Semântico 2.0.0 (SemVer)** estabelece convenção `MAJOR.MINOR.PATCH` para produto que declara **API pública**. Incrementa-se **MAJOR** quando ocorre alteração incompatível da API, **MINOR** para nova funcionalidade compatível e **PATCH** para correção de falha compatível. Ao aumentar MAJOR ou MINOR, os campos inferiores aplicáveis retornam a zero. Exemplo: de `2.7.4`, correção compatível leva a `2.7.5`; novo recurso compatível, a `2.8.0`; ruptura de API, a `3.0.0`. Esse número não é a mesma coisa que SHA do commit nem número global de revisão do SVN.\n\nA especificação permite sufixos de **pré-lançamento**, como `3.0.0-rc.1`, que têm precedência inferior à versão normal `3.0.0`; permite metadados de build após sinal `+`, como `3.0.0+build.8`, que **não mudam a precedência** semântica. A versão **0.y.z** tem significado especial de desenvolvimento inicial, quando a API pública ainda pode ser instável. SemVer precisa refletir a compatibilidade declarada; um ajuste de interface interna que não afeta API pública pode não exigir incremento MAJOR. Uma tag Git `v2.8.0` é referência a commit; nomear a tag conforme SemVer não verifica automaticamente compatibilidade ou qualidade do código.\n\n## Build, integração contínua e composição da entrega\n**Build** é processo de transformar artefatos versionados em resultado utilizável — compilar, empacotar, gerar documentação e recursos necessários. **Integração contínua (CI)** consiste em integrar alterações com frequência e executar verificações automatizadas de modo repetível, como testes e análise estática. **Entrega contínua** mantém versões validadas prontas para implantação por decisão posterior; **implantação contínua** automatiza também a passagem à produção conforme política adotada. A existência de Git não significa que haja CI configurada. Uma linha de código confirmada em branch não se torna automaticamente um pacote compilado ou versão liberada.\n\nNo GitLab, uma configuração introdutória de integração contínua é escrita geralmente no arquivo **`.gitlab-ci.yml`**. Um **job** contém comandos de uma atividade, por exemplo compilar ou testar; **stages** organizam conjuntos de jobs e sua ordem padrão; um **runner** executa jobs elegíveis. Dois jobs de teste podem executar no mesmo stage de maneira paralela, desde que haja recursos e configuração, enquanto stage seguinte espera as condições de conclusão previstas. A sintaxe YAML de pipeline e os executores são assuntos próprios; aqui importa sua **relação com versão, build e rastreabilidade**, não o desenho avançado de pipelines.\n\n| Elemento | Papel essencial | Equívoco frequente |\n| --- | --- | --- |\n| `.gitlab-ci.yml` | Descrever jobs e sua organização | Confundir com arquivo do repositório Git interno |\n| Stage | Agrupar jobs por etapa lógica | Achar que é o processo executor |\n| Job | Comandos de uma tarefa da pipeline | Tratar como branch de Git |\n| Runner | Executar trabalho definido no job | Achar que é a própria definição YAML |\n| Tag Git | Identificar commit de versão | Supor que compila ou valida automaticamente |\n| Artefato de build | Resultado produzido de uma configuração | Confundir com o commit-fonte |\n\n## Auditoria de configuração e liberação\nNo preparo de release, uma equipe identifica baseline aprovada, verifica alterações integradas e testes correspondentes, associa tag e commit, constrói artefatos e registra sua origem. **Relatório de situação da configuração** indica quais itens, versões e solicitações entram na entrega; **auditoria de configuração** verifica correspondência entre declarado e efetivamente compilado ou distribuído. Se `v4.0.0` deveria ser gerado a partir de commit A, mas o pacote final veio do commit B, o problema é rastreabilidade e conformidade da release, não simples falta de nome para branch. O processo de controle de mudanças autoriza, acompanha e documenta modificações na baseline, distinguindo 'foi feito um commit' de 'foi aprovada uma mudança de produto'.\n\nUma organização pode usar Git com processo formal de release e SVN para outro produto, mas as referências são diferentes: commit Git identificado por hash, revisão SVN global numérica e versão SemVer que comunica compatibilidade. O build deveria poder ser associado a determinada configuração e executado de forma reprodutível na medida possível; a revisão de código verifica alterações humanas, enquanto CI verifica condições automatizadas definidas. Nenhum mecanismo isolado substitui os demais.\n\n## Como o tema costuma ser cobrado\nA prova troca `fetch` por `pull` e `commit` por `push`; afirma que `git add` já cria histórico; iguala `reset --hard` a `revert`; chama o squash de merge que mantém os pais da feature; interpreta tag como branch móvel; supõe que `.gitignore` elimina rastreamento já existente; troca SVN centralizado e revisões globais por clones completos; confunde baseline com branch temporária; e troca MINOR por MAJOR na evolução SemVer. Identifique o **estado inicial**, o **comando ou prática**, o **efeito sobre working tree, index, histórico ou release** e as exceções declaradas."
+    }
+  ],
+  "summary": "## Controle de versão e configuração\nGit e Mercurial são distribuídos; SVN e CVS usam modelo centralizado. No SVN, `svn checkout` obtém cópia de trabalho, `svn update` recebe revisões e `svn commit` publica alteração atômica, criando revisão numérica global. `trunk/branches/tags` é convenção de diretórios. **Gerência de configuração** vai além do versionamento: identifica itens, aprova baseline, controla mudanças, produz relatórios de situação, verifica conformidade e relaciona releases a seus artefatos.\n\n## Operação Git\nWorking tree = arquivos editados; index ou staging area = conteúdo preparado; repositório = histórico confirmado. `git add` prepara, `git commit` confirma localmente e `git push` publica. `git diff` compara disco com index; `git diff --staged`, index com HEAD. HEAD normalmente acompanha branch, que aponta para commit; tag identifica referência de versão, geralmente sem avançar. `.gitignore` não deixa de rastrear arquivos já committed.\n\n## Integração e desfazimento\nFast-forward move ponteiro sem commit novo de merge; `--no-ff` cria commit de merge; `--squash` prepara alterações agregadas sem criar merge commit ou mover HEAD. Rebase reaplica commits sobre outra base, normalmente mudando hashes. Resolva conflitos editando conteúdo, adicionando caminhos e continuando a operação correspondente. `reset --soft` mantém index e disco; `--mixed` reinicia index; `--hard` também ajusta disco. `revert` registra commit inverso, sem apagar o original. `reflog` ajuda a localizar posições anteriores; `stash` guarda mudanças locais temporárias.\n\n## Colaboração e versões\n`fetch` busca sem integrar branch atual; `pull` busca e integra; `push` tenta publicar. Fork é cópia hospedada sob outro espaço, enquanto branch é linha de desenvolvimento; pull request e merge request são fluxos de revisão nas plataformas. Git Flow usa main/develop e ramificações feature/release/hotfix; GitHub Flow adota principal e branches curtas; trunk-based favorece integração frequente ao trunk. SemVer MAJOR.MINOR.PATCH indica quebra de API, recurso compatível e correção compatível. A CI testa integrações e builds; `.gitlab-ci.yml` descreve jobs organizados em stages e executados por runners. Tag, build e pacote liberado devem ser rastreados em relação à baseline aprovada.",
+  "flashcards": [
+    {
+      "front": "Git é centralizado ou distribuído?",
+      "back": "Distribuído: clones normais possuem histórico local e permitem commits sem servidor disponível."
+    },
+    {
+      "front": "SVN: quem recebe o commit?",
+      "back": "O repositório central, por `svn commit`, que cria uma revisão numérica global."
+    },
+    {
+      "front": "`svn update` faz o quê?",
+      "back": "Traz revisões do servidor para a cópia de trabalho; não publica mudanças locais."
+    },
+    {
+      "front": "`trunk`, `branches`, `tags` no SVN?",
+      "back": "Diretórios organizados por convenção para linha principal, ramificações e versões de referência."
+    },
+    {
+      "front": "O que é item de configuração?",
+      "back": "Artefato identificado e controlado, como código, teste, documentação ou configuração de build."
+    },
+    {
+      "front": "O que é baseline?",
+      "back": "Conjunto identificado e aprovado de itens e versões, referência para controle de mudanças."
+    },
+    {
+      "front": "Working tree e index?",
+      "back": "Working tree são arquivos em uso; index é o snapshot preparado para o próximo commit."
+    },
+    {
+      "front": "`git add` publica?",
+      "back": "Não. Prepara conteúdo no index. `git commit` confirma localmente e `git push` publica remotamente."
+    },
+    {
+      "front": "`git diff --staged`?",
+      "back": "Mostra diferenças entre o index e HEAD, ou seja, o que está preparado para o próximo commit."
+    },
+    {
+      "front": "O que é HEAD?",
+      "back": "Referência ao checkout atual, geralmente por uma branch; pode apontar diretamente a um commit no modo detached."
+    },
+    {
+      "front": "`.gitignore` remove arquivo versionado?",
+      "back": "Não. Padrões ignoram normalmente arquivos untracked; rastreamento prévio exige ação própria."
+    },
+    {
+      "front": "Fast-forward merge?",
+      "back": "Quando possível, move a referência da branch para commit descendente, sem merge commit novo."
+    },
+    {
+      "front": "`merge --no-ff`?",
+      "back": "Força commit de merge mesmo quando fast-forward poderia ocorrer."
+    },
+    {
+      "front": "`merge --squash`?",
+      "back": "Prepara alterações agregadas no index/working tree, sem criar merge commit ou mover HEAD automaticamente."
+    },
+    {
+      "front": "Rebase versus merge?",
+      "back": "Rebase reaplica commits em outra base e muda identificadores; merge integra históricos preservando a ramificação."
+    },
+    {
+      "front": "`reset --soft`, `--mixed`, `--hard`?",
+      "back": "Soft move HEAD; mixed também ajusta index; hard ajusta ainda working tree, com risco de perda."
+    },
+    {
+      "front": "Quando preferir `revert`?",
+      "back": "Ao desfazer commit já compartilhado por novo commit inverso, mantendo o histórico anterior."
+    },
+    {
+      "front": "`git stash`?",
+      "back": "Guarda temporariamente alterações locais para trocar de contexto e aplicá-las posteriormente."
+    },
+    {
+      "front": "Fetch e pull?",
+      "back": "Fetch busca objetos e referências sem integrar a branch atual; pull busca e integra conforme configuração."
+    },
+    {
+      "front": "Fork versus branch?",
+      "back": "Fork é cópia de repositório na hospedagem; branch é referência para linha de commits."
+    },
+    {
+      "front": "Git Flow?",
+      "back": "Fluxo com linhas main/develop e branches feature, release e hotfix para organizar versões."
+    },
+    {
+      "front": "MAJOR.MINOR.PATCH?",
+      "back": "MAJOR quebra API, MINOR inclui recurso compatível e PATCH corrige falha compatível."
+    },
+    {
+      "front": "Job, stage e runner?",
+      "back": "Job define tarefa, stage agrupa/ordena jobs e runner executa os jobs de CI."
+    },
+    {
+      "front": "Tag garante qualidade do release?",
+      "back": "Não. Marca referência; baseline, build, testes e aprovações devem ser verificáveis."
+    }
+  ],
+  "tips": [
+    "Antes de responder comando Git, desenhe três colunas: working tree, index e HEAD; identifique qual cada comando modifica.",
+    "Para desfazer commit compartilhado sem reescrever seu histórico, considere `git revert`, não `reset --hard` seguido de envio forçado.",
+    "No SVN, número de revisão se refere ao repositório inteiro; não é um hash individual por arquivo.",
+    "Quando a prova falar em baseline, exija estado identificado e aprovado, não apenas branch criada.",
+    "Diferencie merge fast-forward, merge com commit e squash pelas alterações de ponteiros e quantidade de pais.",
+    "Associe `fetch` a recebimento e `pull` a recebimento mais integração; publicação depende de `push`.",
+    "Para SemVer, verifique se a mudança de fato afeta compatibilidade da API pública antes de decidir MAJOR ou MINOR."
+  ],
+  "traps": [
+    "A prova afirma que `git add` cria um commit. Errado: ele atualiza o index; `git commit` registra o snapshot.",
+    "A prova diz que SVN atribui r57 somente ao arquivo alterado. Errado: r57 identifica revisão do repositório inteiro.",
+    "A prova equipara `git fetch` a `git pull`. Errado: pull integra os dados buscados, fetch não altera automaticamente a branch atual.",
+    "A prova afirma que `merge --squash` preserva o commit de merge com dois pais. Errado: agrega alterações sem criar esse commit.",
+    "A prova diz que `reset --mixed` descarta edições no disco. Errado: mixed redefine index e mantém working tree.",
+    "A prova afirma que `.gitignore` remove do histórico arquivos já rastreados. Errado: não cancela automaticamente o rastreamento.",
+    "A prova chama tag de baseline aprovada completa. Errado: tag só identifica referência e não comprova pacote e documentação.",
+    "A prova eleva MAJOR ao acrescentar recurso compatível. Errado: SemVer reserva MINOR para novidade compatível e MAJOR para quebra da API."
+  ],
+  "activeRecall": [
+    {
+      "question": "O que muda entre `git diff` e `git diff --staged`?",
+      "answer": "O primeiro compara working tree com index; o segundo compara index com HEAD."
+    },
+    {
+      "question": "Após `svn commit` de um arquivo, os demais arquivos locais recebem automaticamente a última revisão?",
+      "answer": "Não. `svn commit` publica a alteração, enquanto `svn update` atualiza a cópia de trabalho."
+    },
+    {
+      "question": "Como distinguir uma baseline de uma tag?",
+      "answer": "Baseline é configuração identificada/aprovada, incluindo composição da entrega; tag é apenas referência de versão a commit."
+    },
+    {
+      "question": "Branch main em A, feature em A-B-C: qual o efeito possível do fast-forward?",
+      "answer": "Mover main para C sem commit novo de merge, porque C descende de A."
+    },
+    {
+      "question": "Como desfazer um commit publicado de modo auditável?",
+      "answer": "Com `git revert HASH`, que cria novo commit de alterações inversas mantendo o original no histórico."
+    },
+    {
+      "question": "Em uma edição staged e outra não staged do mesmo arquivo, qual entra no próximo commit?",
+      "answer": "A versão que estava no index; deve executar novo `git add` para incluir a edição posterior da working tree."
+    },
+    {
+      "question": "Quais são os efeitos de `git fetch`, `git pull` e `git push`?",
+      "answer": "Fetch busca, pull busca e integra, push publica commits/referências no remoto se autorizado."
+    },
+    {
+      "question": "Uma biblioteca evoluiu de 2.3.7 com recurso compatível: qual versão SemVer?",
+      "answer": "2.4.0, desde que seja novidade compatível da API pública."
+    },
+    {
+      "question": "Se o binário publicado veio de commit diferente da tag aprovada, qual problema?",
+      "answer": "Inconsistência da baseline ou release, exigindo rastreabilidade do build e auditoria de configuração."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Controle centralizado e gerência de configuração",
+      "summary": "SVN publica no servidor central e usa revisões globais; Git é distribuído. Versionamento não substitui identificação, aprovação, auditoria e relato de baseline."
+    },
+    {
+      "key": "e2",
+      "title": "Árvore de trabalho, index e histórico",
+      "summary": "Add prepara snapshot, commit registra localmente, push publica. Diff comum e staged comparam áreas diferentes e .gitignore não desversiona arquivos existentes."
+    },
+    {
+      "key": "e3",
+      "title": "Integração e alteração do histórico",
+      "summary": "Fast-forward, no-ff e squash têm efeitos diferentes; rebase reaplica commits; soft, mixed e hard modificam áreas distintas; revert conserva histórico."
+    },
+    {
+      "key": "e4",
+      "title": "Sincronização e modelos colaborativos",
+      "summary": "Fetch não integra automaticamente, pull integra; fork difere de branch; Git Flow, GitHub Flow e trunk-based variam na duração das ramificações."
+    },
+    {
+      "key": "e5",
+      "title": "SemVer, CI e rastreabilidade de release",
+      "summary": "Compatibilidade da API define MAJOR/MINOR/PATCH; jobs, stages e runners têm papéis distintos; tag não prova que artefato e baseline coincidem."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe deseja registrar quem alterou o código e recuperar versões anteriores sem depender de arquivos nomeados como final1 e final2. Qual é a finalidade central da ferramenta a adotar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar o pacote compilado e guardar apenas sua saída de teste.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter cópias de segurança sem registrar autoria ou diferenças.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Rastrear alterações, comparar revisões e recuperar estados anteriores.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Publicar automaticamente cada edição na versão de produção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir a aprovação de mudanças pela data do arquivo salvo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Controle de versão registra estados, autores e alterações para comparação e recuperação. A descreve execução de build; B omite o histórico de diferenças; D confunde versionamento com implantação automática; E toma data do arquivo como substituta do controle formal de mudanças.",
+      "section": "1. Controle de versão, gerência de configuração e Subversion",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma desenvolvedora clonou um projeto Git e ficou temporariamente sem internet. Precisa registrar uma alteração no histórico antes de publicá-la. O que pode fazer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar `git commit` localmente e enviar depois com `git push`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar `git push` offline e enviar o commit ao servidor central.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `svn commit`, pois o Git exige conexão para registrar revisões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma pull request offline como substituta do commit local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fazer apenas `git fetch`, pois ele registra novas alterações locais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O Git distribuído permite criar commits no clone sem conexão, publicando-os depois. B confunde registro local com transmissão; C inverte o funcionamento de Git e SVN; D trata funcionalidade de hospedagem como operação local; E atribui ao fetch uma confirmação de conteúdo que ele não realiza.",
+      "section": "1. Controle de versão, gerência de configuração e Subversion",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SVN, foi realizado um commit que alterou apenas o arquivo `a.txt` e gerou a revisão 52. O que identifica esse número de revisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A quinquagésima segunda edição exclusiva do arquivo `a.txt`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O hash individual do autor do último commit enviado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A versão da cópia de trabalho de todos os usuários conectados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O estado global do repositório após a transação de commit.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O número do branch ativo, independente do repositório.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. No Subversion, a revisão 52 identifica o estado da árvore do repositório após o commit, mesmo que somente um arquivo tenha sido alterado. A sugere numeração por arquivo; B confunde revisão SVN com hash Git; C presume atualização automática das cópias; E troca revisão global por identificação de branch.",
+      "section": "1. Controle de versão, gerência de configuração e Subversion",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Git, a estudante modificou `relatorio.md` e quer preparar o conteúdo atual para o próximo commit, sem publicá-lo remotamente. Qual comando deve usar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`git push origin main`, para preparar somente o index local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`git add relatorio.md`, para atualizar a staging area.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`git log relatorio.md`, para incluir a edição no histórico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`git fetch origin`, para preparar a edição do diretório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`git tag relatorio.md`, para confirmar o arquivo alterado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. `git add` atualiza a staging area ou index com a versão editada. A tenta enviar uma referência remota; C consulta histórico sem preparar mudanças; D recebe dados remotos; E cria ou consulta referência de tag, não seleciona conteúdo do arquivo para commit.",
+      "section": "2. Repositório Git, áreas, estados e comandos cotidianos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe aprova um conjunto identificado de código, testes e documentação que servirá como referência controlada para mudanças posteriores. Qual termo descreve esse conjunto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Working tree pessoal, contendo as edições não confirmadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Staging area, usada temporariamente antes de cada commit.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fork de colaboração, independente da aprovação de versões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Branch de experimento, cujas alterações ainda serão discutidas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Baseline de configuração, identificada e formalmente aceita.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Uma baseline reúne itens e versões identificados e aprovados como referência para futuras mudanças. A contém estado pessoal em edição; B é preparação transitória do Git; C representa cópia para colaboração; D pode evoluir sem aprovação e, isoladamente, não constitui linha de base.",
+      "section": "1. Controle de versão, gerência de configuração e Subversion",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma desenvolvedora quer saber quais arquivos estão modificados, novos ou preparados no index antes de confirmar as alterações. Qual comando do Git fornece essa visão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`git log`, para listar as modificações sem commit na working tree.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`git status`, para consultar os estados dos arquivos locais.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`git push`, para inspecionar diferenças ainda não preparadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`git branch`, para exibir todos os caminhos ignorados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`git remote -v`, para comparar arquivos locais e index.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. `git status` diferencia caminhos untracked, modificados e staged. A se concentra em commits existentes; C publica referências se permitido; D lista ou gerencia branches; E apresenta remotos configurados, não o estado das edições locais.",
+      "section": "2. Repositório Git, áreas, estados e comandos cotidianos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia de trabalho do SVN ficou na revisão 80 enquanto colegas publicaram a revisão 81. Qual comando recebe as alterações da revisão mais nova sem publicar as edições locais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`svn commit`, que recebe o estado novo antes de publicar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`svn checkout`, que necessariamente atualiza a mesma cópia existente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`git pull`, que é comando nativo de sincronização do Subversion.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`svn update`, que integra revisões à cópia de trabalho.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`svn tag`, que transfere a revisão 81 para o diretório local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. `svn update` recebe mudanças do repositório na cópia de trabalho, podendo exigir resolução de conflitos. A publica alterações, mas não atualiza automaticamente toda a cópia; B normalmente cria uma cópia inicial; C pertence ao Git; E não é o comando usual para receber revisões no SVN.",
+      "section": "1. Controle de versão, gerência de configuração e Subversion",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após confirmar alterações no repositório Git local, uma colaboradora precisa enviá-las à branch `main` do remoto `origin`. Que operação corresponde à publicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`git push origin main`, sujeito às permissões e ao estado remoto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`git commit -m \"envio\"`, para transferir o histórico ao servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`git fetch origin`, para publicar os commits da branch local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`git restore main`, para atualizar o servidor sem sincronizar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`git diff --staged`, para remeter o snapshot ao remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. `git push origin main` tenta atualizar a referência remota com commits locais autorizados. B só registra um commit local; C busca referências do servidor; D não é sintaxe adequada para publicar branch; E apenas apresenta diferenças preparadas, sem transmissão.",
+      "section": "4. Remotos, colaboração, branches e baselines de release",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo de credenciais já foi confirmado no histórico. A equipe adiciona seu nome ao `.gitignore` e espera que o Git deixe de acompanhá-lo. Que ação ou conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O ignore apagará automaticamente todas as versões antigas do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O ignore transforma o arquivo rastreado em tag do repositório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O ignore remove a referência remota assim que ocorrer um push.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O ignore atualiza o index e elimina o histórico da credencial.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O arquivo continua rastreado; retirar do index exige ação adicional.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. `.gitignore` afeta o tratamento usual de arquivos não rastreados; não cancela rastreamento já existente. A promete apagar histórico sem reescrevê-lo; B confunde arquivo com referência; C altera remoto sem fundamento; D atribui ao ignore comportamento de remoção que ele não executa. Exposição prévia de segredo ainda exige resposta de segurança específica.",
+      "section": "2. Repositório Git, áreas, estados e comandos cotidianos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo foi adicionado ao index e recebeu uma segunda alteração ainda não adicionada. A equipe quer examinar somente o que entrará no próximo commit em relação ao HEAD. Qual opção utiliza?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`git diff`, pois ele mostra apenas o conteúdo já staged.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`git log`, porque a alteração staged já é um commit.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`git diff --staged`, comparando o index com HEAD.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`git fetch`, comparando a working tree com o último commit.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`git remote -v`, para inspecionar o conteúdo preparado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. `git diff --staged` apresenta o conteúdo preparado no index comparado a HEAD. A mostra, sem opções, diferenças da working tree frente ao index; B apresenta histórico confirmado; D busca dados de remotos; E lista endereços remotos e não compara snapshots.",
+      "section": "2. Repositório Git, áreas, estados e comandos cotidianos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A branch `main` aponta A, e `feature` avançou a A–B–C sem commits novos em main. A equipe integra feature usando `git merge feature` no modo padrão. Que histórico pode resultar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um novo commit de merge obrigatório mesmo com ancestralidade linear.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A criação de três commits extras para representar as diferenças.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um commit squash automático sem mover a referência main.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O avanço da referência main até C, sem merge commit adicional.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A reescrita dos commits A, B e C com novos hashes por rebase.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Como C descende de A e não houve divergência, o merge padrão pode ser fast-forward e mover main a C. A descreve `--no-ff`; B inventa duplicação de commits; C confunde com squash; E atribui ao merge efeitos usuais de rebase.",
+      "section": "3. Merge, rebase, conflitos, reset, revert e recuperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de realizar o commit C, a pessoa quer retirar esse commit da ponta da branch, mantendo as alterações exatamente como estavam preparadas no index. Que comando corresponde à intenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`git reset --hard HEAD~1`, que mantém staged todo o conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`git reset --soft HEAD~1`, que preserva o index e o disco.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`git reset --mixed HEAD~1`, que mantém o index intacto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`git revert HEAD`, que remove o último commit da branch.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`git stash pop`, que move HEAD ao primeiro commit ancestral.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. `reset --soft` desloca HEAD e preserva o index e a working tree, deixando mudanças staged. A descarta diferenças rastreadas ao ajustar disco; C redefine o index e normalmente deixa mudanças unstaged; D cria novo commit inverso; E reaplica stash e não serve para mover HEAD a ancestral.",
+      "section": "3. Merge, rebase, conflitos, reset, revert e recuperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma biblioteca pública compatível com a versão 4.2.9 ganhou funcionalidade nova que preserva a API anterior. Pela especificação SemVer, que versão corresponde à atualização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "4.3.0, pela ampliação compatível da funcionalidade da API.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "5.0.0, porque qualquer funcionalidade nova rompe a API.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "4.2.10, reservado normalmente à correção compatível de falhas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "4.3.9, mantendo o PATCH anterior após incrementar MINOR.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "3.3.0, reduzindo MAJOR em atualização compatível.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. SemVer 2.0.0 determina incremento MINOR para nova funcionalidade compatível, reiniciando PATCH em zero: 4.3.0. B reserva MAJOR a quebra incompatível; C é incremento PATCH; D não reinicia o campo inferior; E diminui a versão principal sem motivo.",
+      "section": "5. Versionamento semântico, builds e integração contínua introdutória",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe deseja criar uma referência para a release com autor, data e mensagem da anotação, em vez de uma referência leve. Qual comando atende à necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`git branch v2.0.0`, que fixa metadados de tag anotada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`git tag v2.0.0`, que cria anotação com mensagem própria.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`git log v2.0.0`, que registra uma nova etiqueta de release.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`git remote add v2.0.0`, que define tag com metadados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`git tag -a v2.0.0 -m \"Release\"`, criando tag anotada.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A opção `-a` cria tag anotada, e `-m` informa a mensagem. A cria branch móvel; B cria tag leve; C somente consulta histórico se a revisão existir; D tenta cadastrar remoto, não etiqueta. Uma tag anotada identifica commit, mas não constitui auditoria da configuração publicada.",
+      "section": "2. Repositório Git, áreas, estados e comandos cotidianos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto hospeda sua implementação no SVN seguindo o padrão `trunk/branches/tags`. Foi criada uma pasta de release em `tags/`. O que descreve corretamente esse mecanismo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`tags/` contém necessariamente referências Git independentes do sistema SVN.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A nova tag SVN exige criar repositório central distinto para cada versão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A tag representa uma cópia versionada em diretório por convenção do projeto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma tag altera retroativamente a revisão global de todos os arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A tag SVN é um índice de staging para preparar `svn commit` local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Trunk, branches e tags costumam ser diretórios convencionais no SVN; tag é normalmente cópia versionada usada como referência. A importa referências internas do Git; B inventa repositório novo; D supõe revisão retroativa; E confunde o SVN com a staging area do Git.",
+      "section": "1. Controle de versão, gerência de configuração e Subversion",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O relatório de uma release precisa demonstrar quais solicitações aprovadas, versões de documentação, código e artefatos compõem o pacote liberado. Qual atividade de configuração atende diretamente a isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Rebase das branches sem registro de aprovações de mudança.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Revisão do diff de um único arquivo ainda não confirmado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criação de branch experimental sem identificação da entrega.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Backup periódico sem mapear quais itens foram publicados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Contabilização e relato da situação dos itens de configuração.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Relatar situação da configuração identifica versões, alterações, aprovações e componentes de cada release. A reorganiza histórico mas não aprova mudança; B examina edição isolada; C cria linha móvel de trabalho; D mantém cópias sem rastrear a composição exata do pacote.",
+      "section": "4. Remotos, colaboração, branches e baselines de release",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas branches tiveram commits divergentes. Em main, a pessoa executa `git merge --squash feature` e não cria commit adicional naquele momento. O que ocorreu?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Foi criado commit de merge com dois pais e registrado em HEAD.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todos os commits da feature foram reaplicados com hashes diferentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O efeito combinado ficou preparado, sem mover HEAD ou criar merge commit.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A referência da feature foi apagada após o merge automático.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Foi efetuado avanço fast-forward obrigatório até a ponta da feature.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Conforme documentação de merge, `--squash` prepara no index e na working tree as mudanças integradas, sem produzir merge commit nem mover HEAD automaticamente. A descreve integração ordinária com dois pais; B atribui rebase; D supõe exclusão de branch; E confunde squash com fast-forward.",
+      "section": "3. Merge, rebase, conflitos, reset, revert e recuperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma correção urgente já foi publicada e utilizada por vários colaboradores, mas contém erro. O projeto deve desfazer seu efeito preservando o histórico público auditável. Qual operação é preferível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`git reset --hard HEAD~1` e reescrita forçada da main remota.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`git revert HASH`, registrando outro commit de reversão.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`git commit --amend`, substituindo em silêncio o commit publicado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`git restore arquivo`, apagando diretamente o commit do servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`git stash push`, convertendo o commit remoto em alteração temporária.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. `git revert` cria commit inverso mantendo a confirmação original, adequado ao histórico compartilhado. A e C reescrevem referências/commits publicados e exigem coordenação de histórico; D altera arquivos locais sem desfazer o commit remoto; E armazena mudanças ainda locais, não reverte versão publicada.",
+      "section": "3. Merge, rebase, conflitos, reset, revert e recuperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa executa `git reset --mixed HEAD~1` após confirmar uma edição. Qual é o efeito sobre a confirmação retirada da ponta, assumindo alterações rastreadas comuns?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mantém index staged e descarta as alterações da working tree.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Preserva HEAD, criando um commit inverso com mensagem própria.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atualiza index e working tree, descartando toda edição rastreada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Move HEAD, redefine o index e conserva edições no disco.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Recebe novo commit remoto e integra alterações por fast-forward.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. No modo mixed, HEAD passa ao alvo e o index é alinhado, mas a working tree permanece, tipicamente deixando a edição unstaged. A atribui ao soft e hard efeitos trocados; B descreve revert; C pertence ao hard; E descreve integração de remoto, não reset local.",
+      "section": "3. Merge, rebase, conflitos, reset, revert e recuperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pacote release foi marcado por tag em commit C, mas a auditoria encontrou executável compilado de commit D e documentação referente ao commit B. Qual ação atende à gerência de configuração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Identificar a divergência, confrontar baseline aprovada e refazer a liberação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Considerar a tag prova suficiente de que todos os itens são compatíveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mudar o nome da branch e manter executável e documentação distintos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar o histórico Git para que a tag represente qualquer pacote.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Marcar o commit D com uma tag leve, dispensando aprovação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Auditoria de configuração confronta itens reais e baseline declarada; diferenças exigem apuração e correção rastreável da release. B confunde referência a fonte com certificação de binário; C mascara inconsistência; D elimina histórico de verificação; E adiciona referência sem resolver aprovação e composição divergentes.",
+      "section": "4. Remotos, colaboração, branches e baselines de release",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A branch privada feature possui commits F1 e F2 baseados em A. Main recebeu M1 depois de A. A pessoa executa `git rebase main` estando em feature. Qual mudança é esperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os commits F1 e F2 são reaplicados após M1, com novos identificadores.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Main recebe commit de merge com pais F2 e M1 sem mudar feature.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As duas branches passam a compartilhar hash igual sem novos commits.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O commit M1 é apagado da main e substituído pelo commit A.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O comando salva alterações no stash e cancela a atualização da branch.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Rebase reaplica commits da branch atual sobre a ponta de main, criando equivalentes com nova ancestralidade e identificadores. B descreve merge na main; C ignora que novas referências de pais alteram hashes; D propõe apagar trabalho de main; E atribui papel do stash ao rebase.",
+      "section": "3. Merge, rebase, conflitos, reset, revert e recuperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja garantir que `git merge feature` só avance a branch principal quando for possível fast-forward, rejeitando integração por commit com dois pais. Qual opção estabelece isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`git merge --no-ff feature`, que impede criação de merge commit.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`git merge --squash feature`, que verifica ancestralidade e não aplica diferenças.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`git rebase --abort feature`, que força avanço sem reescrever commits.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`git reset --soft feature`, que integra históricos com verificação de pais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`git merge --ff-only feature`, que recusa histórico divergente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. `--ff-only` faz merge apenas se for possível mover ponteiro sem commit de merge; diante de divergência recusa a integração. A força justamente o commit que se quer evitar; B prepara squash sem equivaler a regra de fast-forward; C cancela rebase; D move HEAD preservando index, não realiza merge.",
+      "section": "3. Merge, rebase, conflitos, reset, revert e recuperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pipeline simples possui `build-job` e dois `test-job`, definidos em `.gitlab-ci.yml`. A equipe quer explicar por que o runner não equivale ao stage. Qual afirmação procede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O stage é o agente que executa comandos, e runner é nome do branch.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O job é somente identificador de commit, sem comandos associados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O runner executa jobs; stages organizam a sequência e agrupamentos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O arquivo YAML é criado somente após os jobs serem executados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Todos os jobs de stages distintos executam em paralelo obrigatoriamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Documentação de CI distingue job (tarefas/comandos), stage (organização e sequência) e runner (agente que executa jobs). A inverte as funções; B reduz job a metadado do Git; D ignora a configuração versionada; E presume paralelismo de etapas distintas, quando a ordenação padrão respeita stages.",
+      "section": "5. Versionamento semântico, builds e integração contínua introdutória",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um colaborador deseja propor alteração a um repositório hospedado ao qual não possui permissão de escrita direta. Cria cópia em seu espaço e depois solicita revisão na origem. Que relação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O fork é branch interna da origem e dispensa comparação entre versões.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O fork é cópia hospedada; a pull request solicita revisão e integração.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A pull request cria um commit local sem comunicação com a hospedagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O fork converte o projeto distribuído em repositório SVN central.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A revisão de código é propriedade automática do comando `git add`.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Fork cria cópia em outro espaço de hospedagem, e pull request solicita discussão e integração na origem. A confunde fork com branch; C reduz a solicitação hospedada a commit local; D mistura modelos de versionamento; E atribui revisão colaborativa a comando de indexação do Git.",
+      "section": "4. Remotos, colaboração, branches e baselines de release",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização recebeu proposta de mudar a API de `3.6.8` removendo parâmetro obrigatório e quebrando consumidores existentes. Quer manter SemVer e produzir baseline identificável. Que estratégia atende às duas exigências?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Etiquetar como `3.6.9` e tratar ruptura como correção compatível.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Etiquetar como `3.7.0` e dispensar aprovação do conjunto final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Etiquetar como `3.6.8+build2` e supor que mudou precedência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Planejar `4.0.0` e vincular tag, itens e artefatos à baseline aprovada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Planejar `3.6.8-rc.1` e manter a entrega incompatível sem nova versão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A mudança incompatível exige incremento MAJOR para 4.0.0; controle de configuração pede rastrear baseline aprovada e sua composição real. A representa correção PATCH; B reserva MINOR a compatibilidade; C usa metadados que não alteram precedência; E declara pré-release anterior sem refletir ruptura de API.",
+      "section": "5. Versionamento semântico, builds e integração contínua introdutória",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe confirma em SVN alterações de três arquivos em um único commit. O sistema deve registrar essa operação como transação atômica, sem publicar apenas parte dela quando o commit falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O SVN registra commits atômicos no repositório central: o conjunto confirmado integra uma nova revisão ou a transação não se completa. Isso favorece consistência da revisão global, embora não dispense testes nem revisão das alterações incluídas.",
+      "section": "1. Controle de versão, gerência de configuração e Subversion",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de executar `git add src/app.js`, a alteração já estará publicada no repositório remoto `origin`, ainda que não tenham ocorrido `git commit` nem `git push`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `git add` modifica o index local, preparando um snapshot. Para registrar historicamente é necessário um commit, e para atualizar remoto é exigido push ou mecanismo equivalente autorizado. A preparação não transmite alterações pela rede.",
+      "section": "2. Repositório Git, áreas, estados e comandos cotidianos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Executar `git clone URL` em projeto Git equivale a criar diretório sem histórico, que só passa a ter commits depois de receber a primeira alteração própria.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um clone normal transfere histórico e objetos existentes do repositório de origem; a pessoa pode examinar commits anteriores assim que a clonagem termina. Quem inicializa repositório novo e sem histórico anterior é `git init`, não o clone comum.",
+      "section": "2. Repositório Git, áreas, estados e comandos cotidianos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No repositório Git, `git log` permite consultar commits registrados e seus metadados, enquanto `git status` permite observar arquivos locais ainda modificados ou staged.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `git log` percorre o histórico confirmado; `git status` apresenta situação da working tree e do index. São consultas complementares. Um arquivo modificado mas ainda não confirmado pode não aparecer como commit novo no histórico.",
+      "section": "2. Repositório Git, áreas, estados e comandos cotidianos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tag de release Git normalmente aponta para uma referência específica e não acompanha automaticamente os commits futuros, enquanto uma branch pode avançar a cada novo commit nela realizado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A branch é referência móvel para a ponta de uma linha de desenvolvimento, ao passo que a tag funciona como nome para um estado de interesse, frequentemente release. É possível reposicionar tags manualmente, mas elas não avançam a cada commit como branches.",
+      "section": "2. Repositório Git, áreas, estados e comandos cotidianos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de Git garante, sem configuração adicional, que cada `git commit` execute testes automatizados, gere pacote de instalação e implante a alteração em produção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Git registra versões e permite colaboração; processos de testes, build e implantação exigem ferramentas e políticas adicionais. Integração contínua e entrega contínua relacionam-se ao fluxo de versionamento, mas não surgem automaticamente ao inicializar um repositório.",
+      "section": "5. Versionamento semântico, builds e integração contínua introdutória",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma baseline aprovada pode incluir versão de código, documentos, parâmetros de build e registro das alterações autorizadas, servindo como referência de configuração de uma release.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Baseline é configuração identificada e aprovada, envolvendo os itens necessários à entrega e ao posterior controle de mudanças. A simples criação de branch não produz esse aceite; o conjunto deve permitir verificar o que foi considerado parte do produto.",
+      "section": "1. Controle de versão, gerência de configuração e Subversion",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após executar `svn commit` e receber revisão nova, a cópia de trabalho é automaticamente atualizada com todas as alterações concorrentes feitas por outras pessoas, dispensando `svn update`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Publicar mudanças e receber revisões são operações separadas no SVN. O commit pode avançar a revisão registrada no repositório, mas não incorpora automaticamente todas as alterações remotas à cópia de trabalho; `svn update` cumpre essa função.",
+      "section": "1. Controle de versão, gerência de configuração e Subversion",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de preparar uma edição com `git add`, a pessoa pode usar `git restore --staged caminho` para retirar esse conteúdo do index sem necessariamente apagar a edição mantida na working tree.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `git restore --staged` redefine a entrada indicada do index a partir da fonte padrão, mantendo a edição no diretório de trabalho. É diferente de `git restore caminho`, que, sem opção de staging, restaura a working tree a partir do index e pode descartar edição unstaged.",
+      "section": "2. Repositório Git, áreas, estados e comandos cotidianos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando `git stash push`, usado sem opções, inclui automaticamente qualquer arquivo novo não rastreado e qualquer arquivo ignorado pelos padrões de `.gitignore`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. No comportamento padrão, stash guarda mudanças rastreadas pertinentes; `-u` ou `--include-untracked` permite incluir novos arquivos não rastreados, enquanto os ignorados exigem opção específica, como `-a`. Tratar todas essas categorias como equivalentes pode deixar arquivos locais fora do stash.",
+      "section": "2. Repositório Git, áreas, estados e comandos cotidianos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se main aponta para A e feature para o descendente C, sem divergência na main, um merge padrão pode apenas mover a referência de main para C, sem criar commit de merge.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. É a definição de fast-forward: branch de destino é ancestral da outra ponta, então o Git pode avançar a referência sem novo commit. `--no-ff` muda essa escolha para registrar um commit de merge, mesmo quando seria possível avanço simples.",
+      "section": "3. Merge, rebase, conflitos, reset, revert e recuperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O GitHub Flow exige como estrutura fixa a branch `develop` permanente e branches `release` antes de integrar qualquer funcionalidade, ao contrário do Git Flow.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A descrição de linhas main e develop com feature/release/hotfix corresponde ao Git Flow tradicional. GitHub Flow enfatiza branch principal e ramificações de trabalho curtas, com pull request e revisão, sem exigir develop como etapa permanente.",
+      "section": "4. Remotos, colaboração, branches e baselines de release",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Pela convenção SemVer, de `1.9.6` para uma funcionalidade nova compatível com a API existente corresponde, em regra, a `1.10.0` e não a `2.0.0`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Incrementar MINOR para nova funcionalidade compatível transforma 1.9.6 em 1.10.0, zerando PATCH. MAJOR seria indicado para alteração incompatível da API pública, e 1.9.7 seria atualização PATCH correspondente apenas a correção compatível.",
+      "section": "5. Versionamento semântico, builds e integração contínua introdutória",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`git fetch origin` integra imediatamente as novas alterações de `origin/main` à branch main local, realizando automaticamente o merge que `git pull` não faria.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Fetch atualiza objetos e referências de acompanhamento remoto sem integrar automaticamente a branch atual. Pull combina busca e integração, por merge ou rebase conforme configuração e opções. A afirmação inverte exatamente a responsabilidade de cada comando.",
+      "section": "4. Remotos, colaboração, branches e baselines de release",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante um merge, duas branches alteraram de maneira incompatível um mesmo trecho. A equipe examina ambas, resolve o arquivo, executa `git add` e conclui o merge depois de verificar o resultado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Após conflito, é preciso conciliar conteúdo, retirar os marcadores e atualizar o index com `git add`, realizando então a conclusão do merge conforme o estado da operação. A seleção automática de qualquer lado sem análise pode perder mudanças semanticamente necessárias.",
+      "section": "3. Merge, rebase, conflitos, reset, revert e recuperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`git reset --hard HEAD~1` e `git revert HEAD` têm resultado histórico idêntico: ambos criam novo commit que reverte a mudança, sem alterar a referência da branch.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Reset hard move a referência para commit anterior e redefine index e working tree, podendo descartar mudanças locais. Revert cria um novo commit que desfaz o efeito do anterior, preservando-o no histórico. A escolha afeta colaboração e rastreabilidade.",
+      "section": "3. Merge, rebase, conflitos, reset, revert e recuperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de reposicionar a branch por reset, uma pessoa pode consultar `git reflog` para identificar posições recentes anteriores de HEAD e tentar recuperar um commit ainda acessível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Reflog registra movimentos locais recentes de referências e HEAD e pode permitir localizar um commit que deixou de estar na ponta da branch. A recuperação depende da retenção dos dados; reflog não garante armazenamento permanente nem substitui backup.",
+      "section": "3. Merge, rebase, conflitos, reset, revert e recuperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Pelo SemVer 2.0.0, acrescentar `+build.5` a `2.4.1` aumenta a precedência da versão em relação a `2.4.1` sem metadados, exigindo atualização do campo PATCH.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Metadados de build acrescentados após `+` não participam da precedência de versões pela especificação SemVer. `2.4.1+build.5` tem a mesma precedência de `2.4.1`; apenas mudança compatível de correção efetiva justificaria novo PATCH.",
+      "section": "5. Versionamento semântico, builds e integração contínua introdutória",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pacote compilado de commit distinto daquele registrado na tag da baseline aprovada representa divergência de configuração, mesmo que os testes do pacote executado tenham sido bem-sucedidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A auditoria de configuração verifica correspondência entre código, parâmetros, documentos, versões declaradas e artefatos entregues. Testes aprovados podem demonstrar comportamento, mas não tornam correta uma declaração falsa sobre a origem do pacote; a baseline precisa ser reconciliada.",
+      "section": "4. Remotos, colaboração, branches e baselines de release",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`git merge --squash feature` cria automaticamente commit de merge com dois pais, preservando na branch principal o mesmo vínculo histórico de `git merge --no-ff feature`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `--squash` prepara o efeito agregado das alterações sem mover HEAD e sem registrar MERGE_HEAD para commit de merge. Se a pessoa confirmar depois, o novo commit não terá segundo pai da feature como no merge `--no-ff`, que cria commit de integração.",
+      "section": "3. Merge, rebase, conflitos, reset, revert e recuperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Pro Git — Getting Started: What is Git?",
+      "publisher": "Git Project",
+      "reference": "Working tree, index, repositório distribuído e workflow básico",
+      "url": "https://git-scm.com/book/en/v2/Getting-Started-What-is-Git.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Git — git-merge Documentation",
+      "publisher": "Git Project",
+      "reference": "Fast-forward, --no-ff, --ff-only, --squash, merge de três vias e conflitos",
+      "url": "https://git-scm.com/docs/git-merge",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Git — git-reset Documentation",
+      "publisher": "Git Project",
+      "reference": "Comportamento de --soft, --mixed e --hard e diferenças de index e working tree",
+      "url": "https://git-scm.com/docs/git-reset",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Git — git-rebase Documentation",
+      "publisher": "Git Project",
+      "reference": "Reaplicação de commits em nova base e implicações de reescrita",
+      "url": "https://git-scm.com/docs/git-rebase",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Git — git-stash Documentation",
+      "publisher": "Git Project",
+      "reference": "Armazenamento temporário de index e working tree e opções de arquivos untracked",
+      "url": "https://git-scm.com/docs/git-stash",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "Version Control with Subversion — Version Control the Subversion Way",
+      "publisher": "Subversion Book",
+      "reference": "Revisões globais, svn checkout, svn update, svn commit e publicação atômica",
+      "url": "https://svnbook.red-bean.com/en/1.8/svn.basic.in-action.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Versionamento Semântico 2.0.0",
+      "publisher": "Semantic Versioning",
+      "reference": "MAJOR.MINOR.PATCH, versões preliminares e metadados de build",
+      "url": "https://semver.org/lang/pt-BR/spec/v2.0.0.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GitHub Flow",
+      "publisher": "GitHub Docs",
+      "reference": "Branches curtas, pull requests, revisão e integração",
+      "url": "https://docs.github.com/en/get-started/using-github/github-flow",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GitLab — CI/CD Jobs",
+      "publisher": "GitLab Docs",
+      "reference": "Jobs, stages, runners e .gitlab-ci.yml em pipelines",
+      "url": "https://docs.gitlab.com/ci/jobs/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GitLab — Runners",
+      "publisher": "GitLab Docs",
+      "reference": "Papel do executor de jobs na integração contínua",
+      "url": "https://docs.gitlab.com/ci/runners/",
+      "accessedAt": "2026-10-10"
+    }
+  ]
+}

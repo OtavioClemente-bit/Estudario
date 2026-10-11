@@ -1,0 +1,1809 @@
+{
+  "id": "informatica.persistencia-jpa-hibernate-bancos",
+  "subject": "Informática",
+  "title": "Persistência com JPA e Hibernate",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Persistência com JPA e Hibernate"
+  ],
+  "scope": {
+    "covers": "Persistência Java com JPA/Jakarta Persistence e Hibernate a partir da série 4.3; entidades, ciclo de vida, identificadores, associações, consultas, transações, caches, carregamento e concorrência; auditoria com Envers; migração de esquema com Flyway; integração com PostgreSQL, H2, Oracle 11g ou superior e SQL Server; distinção entre autenticação SSO e persistência da aplicação.",
+    "excludes": "Desenvolvimento de interfaces gráficas, administração avançada de cluster de banco de dados, replicação distribuída, implementação completa de provedores de identidade e detalhes internos não padronizados de cada versão do Hibernate."
+  },
+  "theoryTitle": "Persistência Java com JPA e Hibernate: mapeamento, transações, Envers, Flyway, bancos relacionais e SSO",
+  "chapters": [
+    {
+      "title": "1. JPA, Hibernate e ciclo de vida das entidades",
+      "markdown": "## ORM, especificação e implementação\n\n**Mapeamento objeto-relacional (ORM)** estabelece correspondência entre objetos Java e tabelas relacionais: uma classe `Cliente` pode representar linhas de `cliente`, um atributo `nome` pode corresponder a uma coluna e uma associação entre objetos pode ser representada por chave estrangeira. ORM não elimina SQL nem regras de integridade: o mecanismo gera comandos e depende do banco para armazenar, consultar e restringir dados. **JPA** é o nome histórico da especificação de persistência Java; nas edições atuais, a especificação é chamada **Jakarta Persistence**. **Hibernate ORM** é uma implementação desse padrão e também possui API própria. Em projetos baseados em **Hibernate 4.3**, a referência é **JPA 2.1**, com pacote `javax.persistence`; em aplicações Jakarta modernas, anotações equivalentes pertencem ao pacote `jakarta.persistence`. Misturar imports das gerações sem compatibilização causa problemas de compilação ou integração. Não se deve presumir que todo recurso recente da versão 3.2 da especificação exista no Hibernate 4.3.\n\n### Entidade, unidade de persistência e contexto\n\nUma entidade é classe persistente anotada com `@Entity`, em geral com identificador `@Id` e construtor sem argumentos pelo menos `protected` ou `public`, conforme a especificação. A anotação `@Table(name=\"cliente\")` permite definir tabela física, enquanto `@Column(name=\"nome\", nullable=false)` personaliza mapeamento. O exemplo simplificado `@Entity class Cliente { @Id Long id; String nome; }` depende de construtor e métodos adequados para cumprir integralmente as regras da API, mas ilustra as anotações principais. A unidade de persistência configura entidades, provedor e propriedades, tradicionalmente em `META-INF/persistence.xml`. O **EntityManagerFactory** é pesado, normalmente compartilhado pela aplicação; o **EntityManager** gerencia o contexto de persistência e não deve ser compartilhado livremente entre threads. Na API nativa, papéis correspondentes são **SessionFactory** e **Session**.\n\nA **identidade do primeiro nível** significa que, dentro de um mesmo contexto, a busca da mesma entidade por identidade persistente retorna a instância gerenciada correspondente. O contexto acompanha alterações e realiza **dirty checking**, possibilitando sincronização com o banco em `flush`. A instância pode estar nos estados **transient/new** (sem gerenciamento), **managed/persistent** (associada ao contexto), **detached** (com identidade persistente, mas fora do contexto) e **removed** (marcada para exclusão). A classificação depende do ciclo de vida, não da simples presença de `id` preenchido manualmente.\n\n### Operações essenciais\n\n`persist(nova)` torna uma entidade nova gerenciada e agenda sua inserção; o momento exato do `INSERT` depende de estratégia de identificação e sincronização. `find(Cliente.class, id)` procura pelo identificador. `remove(entidadeGerenciada)` agenda exclusão. `detach(entidade)` retira instância do contexto; `clear()` desprende todas as entidades gerenciadas; `refresh(entidade)` atualiza estado a partir da base. `merge(detached)` **copia o estado para uma instância gerenciada e devolve essa instância**; a referência detached original não se torna automaticamente gerenciada. Assim, após `Cliente gerenciado = em.merge(clienteDesanexado)`, alterações subsequentes devem ser feitas em `gerenciado`, ou um novo `merge` será necessário. `merge` não equivale a `persist` e tampouco garante substituição total de registro sem validação.\n\n| Operação | Efeito principal | Erro frequente |\n| --- | --- | --- |\n| `persist` | Torna nova entidade gerenciada | Confundir com gravar e confirmar transação imediatamente |\n| `merge` | Copia estado e retorna instância gerenciada | Pensar que a instância de entrada vira gerenciada |\n| `flush` | Sincroniza comandos pendentes com banco | Confundir com `commit` |\n| `clear` | Esvazia o contexto, destacando entidades | Pensar que apaga registros da base |\n| `remove` | Marca entidade gerenciada para exclusão | Tomar remoção por desvinculação simples |\n\n### Identificadores e estratégias\n\n`@GeneratedValue(strategy=GenerationType.IDENTITY)` usa geração vinculada a coluna de identidade onde suportada; `SEQUENCE` utiliza sequência; `TABLE` utiliza tabela geradora; `AUTO` delega escolha ao provedor. O comportamento e as opções variam conforme versão e dialeto. Oracle **11g**, por exemplo, tem sequências e não a sintaxe de coluna `IDENTITY` introduzida em versões posteriores; por isso, o modelo JPA portável precisa considerar as capacidades da versão do banco. `@Version` é controle de versão de entidades para **concorrência otimista**, não mecanismo de auditoria histórica e tampouco especifica número da versão do aplicativo.\n\n### Ciclo de vida e transação\n\nCom contexto transacional normal, métodos de escrita como `persist`, `merge`, `remove` e `refresh` exigem participação em transação conforme os pressupostos do padrão. Uma chamada isolada a `flush` sincroniza SQL, porém só `commit` conclui com sucesso a transação; um **rollback** desfaz as alterações transacionais. O uso de `getTransaction().begin()/commit()` é típico em contexto local; em ambiente gerenciado, transações JTA ou gerenciamento declarativo podem controlar o ciclo. No escopo estendido e em contextos não sincronizados há exceções específicas: por isso, a frase 'todo método EntityManager sempre exige transação' é excessiva, pois `find` sem bloqueio pode ser invocado sem transação.\n\n> **Questão típica:** objeto recuperado em sessão já fechada recebe alteração em atributo; isso não gera atualização automática porque o objeto está detached. É necessário restabelecer estado gerenciado mediante operação apropriada, dentro de contexto e transação corretos. Uma anotação `@Entity` não torna qualquer objeto novo automaticamente persistente."
+    },
+    {
+      "title": "2. Mapeamento de relações, consultas e desempenho",
+      "markdown": "## Associações e lado proprietário\n\nO relacionamento **`@ManyToOne`** representa várias instâncias que apontam para uma entidade; por exemplo, diversos pedidos pertencem a um cliente. Nesse caso, a entidade `Pedido` costuma conter `@ManyToOne @JoinColumn(name=\"cliente_id\") Cliente cliente;` e a coluna `cliente_id` armazena uma chave estrangeira. O lado inverso pode ser declarado no cliente por `@OneToMany(mappedBy=\"cliente\")`. O atributo `mappedBy` aponta para o **nome da propriedade Java** do lado proprietário, e não para o nome da coluna SQL. No mapeamento bidirecional `OneToMany/ManyToOne` mais comum, o lado `ManyToOne` é proprietário. Atualizar apenas a coleção inversa sem ajustar a referência proprietária pode não persistir o relacionamento esperado.\n\n`@OneToOne` pode usar chave estrangeira ou chave primária compartilhada; `@ManyToMany` normalmente emprega tabela de junção com `@JoinTable`. Se a tabela intermediária contém atributos de negócio próprios, como data da matrícula ou quantidade do item, muitas vezes é melhor mapear uma **entidade associativa** com dois relacionamentos `ManyToOne`, em vez de `ManyToMany` puro. `@Embedded`/`@Embeddable` representa valor composto sem identidade de entidade independente; `@ElementCollection` pode armazenar coleção de valores com tabela própria, mas não transforma cada elemento em entidade com identidade independente.\n\n### Cascata e remoção de órfãos\n\n`cascade = CascadeType.PERSIST` propaga a operação de persistir para entidades associadas; `MERGE` propaga a operação de mesclar; `REMOVE` propaga remoção; `ALL` reúne os tipos. Cascata diz respeito a **operações sobre entidades** e não equivale à ação `ON DELETE CASCADE` no banco, ainda que efeitos possam interagir. `orphanRemoval = true` em relacionamento aplicável permite excluir entidade filha quando deixa de pertencer à associação gerenciada, conforme regras da especificação. Remover item de coleção sem `orphanRemoval` não implica, por si, exclusão física de seu registro. Cascatas devem corresponder ao ciclo de vida real: repassar `REMOVE` do pedido ao cliente compartilhado pode causar exclusão indevida ou violação de integridade.\n\n### Carregamento `LAZY`, `EAGER` e problema N+1\n\nNa especificação, `@ManyToOne` e `@OneToOne` têm **EAGER** como padrão; `@OneToMany` e `@ManyToMany` têm **LAZY** como padrão. O padrão **EAGER** exige obtenção do relacionamento na forma prevista, mas não implica obrigatoriamente um único `JOIN` SQL: o provedor pode executar consultas adicionais. **LAZY** é estratégia de carregamento sob demanda sujeita a limitações do provedor. Acesso a coleção lazy fora de sessão ativa do Hibernate pode provocar `LazyInitializationException`; abrir a sessão globalmente não é solução universal, pois pode mascarar consultas numerosas. O **N+1** ocorre, por exemplo, quando uma consulta traz N pedidos e cada acesso ao cliente dispara busca adicional. Alternativas incluem `JOIN FETCH` em JPQL, `EntityGraph`, consultas por projeção e busca em lote, cada qual com efeitos sobre multiplicidade de linhas, paginação e memória.\n\n| Conceito | Exemplo | Limitação |\n| --- | --- | --- |\n| `JOIN` em JPQL | `select p from Pedido p join p.cliente c` | Junta para filtro; não obriga materializar relação como carregada |\n| `JOIN FETCH` | `select p from Pedido p join fetch p.cliente` | Busca associação; múltiplas coleções podem multiplicar linhas |\n| `LAZY` | `@OneToMany` padrão | Acesso fora do contexto pode falhar |\n| `EAGER` | `@ManyToOne` padrão | Não garante uma só consulta física |\n| Projeção | `select new ...` | Retorna dados selecionados, não uma entidade completa gerenciada |\n\n### JPQL, SQL e parâmetros\n\nA **JPQL** consulta entidades e propriedades do modelo, não diretamente os nomes físicos de tabelas e colunas. `select p from Pedido p where p.status = :status` emprega entidade `Pedido` e atributo `status`; `:status` é parâmetro nomeado, preenchido por `setParameter`. SQL nativo pode referir `pedido` e suas colunas físicas mediante `createNativeQuery`. **HQL** é linguagem de consultas própria do Hibernate, próxima de JPQL, com possíveis extensões. Para ordenação e paginação, `setFirstResult` e `setMaxResults` abstraem parte das diferenças de dialeto; a aplicação deve cuidar de ordenação determinística, especialmente em páginas sucessivas. Concatenar valores recebidos de usuários diretamente no texto da consulta cria risco de injeção; parametrizar valores não permite parametrizar identificadores de coluna arbitrários, que exigem controle por lista permitida.\n\n### Caches e concorrência\n\nO **cache de primeiro nível** integra obrigatoriamente a sessão/contexto: duas buscas da mesma entidade na mesma sessão, sem limpeza ou condições especiais, aproveitam sua identidade. O **cache de segundo nível** é opcional, compartilhável entre sessões de uma SessionFactory e requer configuração apropriada. O **cache de consultas** é distinto do de entidades e depende de configuração e invalidação: ativá-lo não garante que todos os resultados sejam recuperados sem SQL. O **`@Version`** auxilia detecção de atualizações concorrentes perdidas: se duas transações partem da versão 3, a primeira pode gravar versão 4 e a segunda falhar ao tentar atualizar assumindo versão 3, com exceção de concorrência otimista. Bloqueios pessimistas, como `PESSIMISTIC_WRITE`, procuram coordenar acesso usando bloqueio do banco conforme transação e dialeto. Escalonamento de lock, isolamento e conflitos podem variar por PostgreSQL, Oracle, SQL Server e H2.\n\n> **Caso de prova:** mudar `pedido.getCliente()` enquanto a coleção inversa do `Cliente` permanece desatualizada cria inconsistência no grafo em memória; o mapeamento físico depende do lado proprietário. Se a coleção lazy falha após fechar `EntityManager`, o diagnóstico é carregamento fora do contexto, não ausência de chave estrangeira."
+    },
+    {
+      "title": "3. Hibernate Envers: auditoria histórica e revisões",
+      "markdown": "## Auditoria não é a mesma coisa que versão otimista\n\nO **Hibernate Envers** é módulo de auditoria do ORM que armazena versões históricas de estados de entidades selecionadas. Para versões da série 4.3, a documentação descreve a inclusão do módulo `hibernate-envers` e a anotação **`@Audited`** sobre entidade ou propriedade. Quando mudanças auditadas são persistidas e a transação é efetivada, o Envers grava dados de auditoria em tabelas auxiliares. A versão mais recente do módulo usa identificação de dependência Maven diferente da série antiga, mas o princípio permanece. Auditoria histórica responde **quem mudou o quê e em qual revisão do banco**, na medida das informações configuradas. `@Version` do JPA, ao contrário, verifica conflito de atualização; guardar apenas versão numérica na tabela principal não permite reconstruir automaticamente campos anteriores.\n\n### Estrutura padrão de auditoria\n\nPor padrão, uma entidade `Cliente` pode ter tabela histórica `Cliente_AUD` ou nome derivado do mapeamento, e uma tabela de informações de revisão tradicionalmente denominada **`REVINFO`**. Uma linha histórica traz o identificador da entidade e número da revisão, além de dados do estado e tipo de alteração. O Envers distingue inclusão, modificação e exclusão por tipo de revisão; a estratégia e propriedades de armazenamento do estado excluído podem influenciar o conteúdo histórico de uma exclusão. **Uma revisão** se refere ao conjunto de mudanças auditadas em uma **transação**, não a um contador novo para cada atributo modificado. Por exemplo, se a mesma transação altera `Cliente` e `Endereco`, alterações auditadas podem compartilhar a mesma revisão.\n\n| Elemento | Função | Não confundir com |\n| --- | --- | --- |\n| `@Audited` | Habilita auditoria de entidade/propriedade | `@Version`, de concorrência otimista |\n| `REVINFO` | Metadados de revisão no modelo padrão | Tabela de negócios principal |\n| `*_AUD` | Histórico de entidades mapeadas | Log geral de todos os comandos SQL |\n| `AuditReader` | Acesso programático ao histórico | `EntityManager.find`, que busca estado atual |\n| `@NotAudited` | Exclui propriedade de auditoria | Exclusão do campo da entidade relacional |\n\n### Consultas históricas\n\nA API **`AuditReaderFactory.get(entityManager)`** fornece leitor de histórico em contexto apropriado. `reader.find(Cliente.class, id, numeroRevisao)` recupera o estado auditado de determinada entidade na revisão solicitada, conforme regras da API. `reader.getRevisions(Cliente.class, id)` pode obter números das revisões que alteraram a entidade. Para pesquisas com critérios históricos, usa-se `reader.createQuery()`, com recursos próprios do Envers. O número de revisão não é necessariamente timestamp, ainda que metadados possam registrar instante; chamar `find` do EntityManager comum com esse número busca uma entidade atual de identificador correspondente, não fotografia temporal.\n\n### Estratégias `Default` e `Validity`\n\nNa **`DefaultAuditStrategy`**, registros históricos identificam a revisão inicial em que determinado estado passou a valer. Encontrar o estado aplicável a uma revisão envolve consultas que podem usar subconsultas para localizar registros pertinentes. Na **`ValidityAuditStrategy`**, há campos de início e de **fim da validade**: ao inserir nova revisão, a estratégia atualiza a revisão final do estado anterior. Isso pode melhorar determinadas leituras históricas, ao custo de operações adicionais na escrita. Não significa que essa estratégia grava menos mudanças nem que dispensa configuração das tabelas de auditoria. Os nomes de propriedades e opções devem ser conferidos na versão instalada.\n\n### Exclusões, transações e limites da trilha histórica\n\nO Envers não garante automaticamente **autoria humana**, endereço IP ou justificativa de negócios: para registrar tais informações é preciso personalizar entidade de revisão e integrar contexto de segurança de forma confiável. Também não substitui retenção de logs de segurança ou trilhas auditáveis de operações feitas **fora do Hibernate**, como SQL executado diretamente por outra aplicação. Um `UPDATE` por SQL nativo, que contorne os eventos do ORM, não deve ser presumido como auditado pelo Envers. Igualmente, alterações revertidas por rollback não devem gerar história confirmada na transação desfeita. A auditoria precisa ser testada com operações de inserção, alteração, exclusão e relacionamentos realmente utilizados.\n\n### Auditoria e SSO\n\nSe uma aplicação autentica pessoas via provedor SSO, é possível incluir um identificador estável do usuário na entidade customizada de revisão, por exemplo o par emissor/identificador de sujeito de um provedor OpenID Connect. O Envers não autentica pessoas, não valida ID tokens e não oferece login centralizado: recebe do contexto da aplicação dados escolhidos para auditoria. Inserir nome de usuário vindo de requisição não validada fragiliza a trilha; a integração deve usar identidade verificada e respeitar autorização e proteção de dados.\n\n**Exemplo concreto:** um pedido passa de `ABERTO` para `ENVIADO`. Se a entidade está marcada `@Audited`, o sistema mantém estado histórico relativo à revisão confirmada. Se está apenas `@Version`, há verificação de atualização concorrente, mas não necessariamente uma consulta pronta que reconstrua o estado anterior. A prova costuma trocar esses recursos porque ambos usam a palavra versão."
+    },
+    {
+      "title": "4. Flyway e evolução controlada do esquema",
+      "markdown": "## Migração como histórico reproduzível\n\n**Flyway** organiza alterações de estrutura e de certos dados por **migrações versionadas** e **repetíveis**. Migrações são arquivos SQL ou outros formatos suportados pela edição/configuração, mantidos sob controle de versão da aplicação. Uma sequência como `V1__criar_cliente.sql`, `V2__adicionar_email.sql` e `V3__criar_indice.sql` descreve evolução incremental do esquema. O comando `flyway migrate` compara arquivos disponíveis com histórico do banco e aplica migrações pendentes na sequência apropriada. Se o banco já aplicou V1 e V2, uma nova execução com V3 disponível aplica V3; não significa executar V1 e V2 outra vez. Essa propriedade é a **idempotência operacional do migrate**, distinta da obrigação de cada SQL ser intrinsecamente idempotente.\n\n### Convenção de nomes e tabela de histórico\n\nNas configurações convencionais, um script versionado usa prefixo `V`, número da versão, separador `__` e descrição, por exemplo `V4__adicionar_status.sql`. Uma migração repetível usa `R__atualizar_view.sql`, sem versão numérica. O Flyway registra eventos na tabela padrão **`flyway_schema_history`**, com informações de versão, nome, tipo, sucesso e checksum. `validate` compara o estado registrado com os arquivos de migração: editar **V2 já executado** altera checksum e normalmente gera falha de validação. A prática recomendada para nova alteração é criar **V3** em vez de sobrescrever V2. O nome ou localização da tabela de histórico pode ser configurado; portanto, `flyway_schema_history` é padrão e não uma obrigação imutável em todas as instalações.\n\n### Versionadas versus repetíveis\n\nMigrações **versionadas** normalmente são executadas uma vez para aquela versão registrada. **Repetíveis** rodam novamente quando seu **checksum muda**, após a aplicação das versionadas pendentes; são úteis para definições de views e rotinas substituíveis. Exemplo: `R__visao_clientes_ativos.sql` pode conter `CREATE OR REPLACE VIEW` em dialeto que suporte a sintaxe; ao editar a definição, o Flyway reaplica esse script. Uma migração repetível precisa ser preparada para reexecução apropriada; um `INSERT` puro em tabela sem restrição pode produzir duplicações, caso reexecutado. A lista de migrations é executada sob propriedades transacionais do **banco e do tipo de instrução**: PostgreSQL permite DDL transacional em muitos casos, mas algumas operações ou versões de outros bancos não fornecem rollback integral de DDL. Não prometa que qualquer alteração do Flyway pode ser revertida por `rollback`.\n\n| Comando/conceito | Finalidade | Erro típico |\n| --- | --- | --- |\n| `migrate` | Executar migrações pendentes | Confundir com `validate` |\n| `validate` | Conferir arquivos versus histórico e checksums | Esperar que corrija esquema automaticamente |\n| `info` | Mostrar versões e estados registrados | Considerar histórico igual a backup |\n| `baseline` | Marcar ponto inicial em banco preexistente | Executar todas as migrações anteriores ao baseline |\n| `repair` | Corrigir metadados de histórico em situações controladas | Supor que desfaz DDL defeituoso |\n\n### `baseline` e banco legado\n\nNum banco já povoado e ainda não versionado, `baseline` marca o estado inicial e registra versão de partida. Migrações de versões até o baseline são consideradas já representadas na estrutura existente, não executadas retrospectivamente por padrão. É necessário planejar qual é a versão de base para evitar duplicação de tabelas já criadas. A configuração `baselineOnMigrate`, quando deliberadamente habilitada, pode automatizar essa etapa e, se usada de maneira descuidada, ocultar escolha da base errada. Ter o Hibernate configurado para criar tabelas automaticamente e também utilizar Flyway para evoluí-las pode gerar disputa sobre quem altera o esquema; em ambiente controlado, a aplicação pode **validar** o mapeamento em vez de produzir DDL concorrente.\n\n### Diferentes bancos, mesmo processo e SQL não idêntico\n\nFlyway organiza execução, mas não converte automaticamente todo SQL entre PostgreSQL, H2, Oracle e SQL Server. `CREATE SEQUENCE`, definição de identidade, uso de aspas, tipos de colunas, índices e regras de transação têm detalhes próprios. Uma migração testada somente em **H2** pode falhar no **Oracle 11g** ou no **SQL Server**, mesmo quando o ORM executa a maioria das operações de dados corretamente. Recomenda-se controlar scripts específicos por ambiente/banco quando necessários e testar migrações no motor e na versão reais de produção. O checksum acusa mudança de conteúdo de script; não garante equivalência semântica das estruturas implantadas nem detecta toda alteração manual no esquema fora do controle de histórico.\n\n**Caso de prova:** em homologação V5 aparece como executada; alguém edita o conteúdo de V5 e aciona `flyway validate`. O resultado esperado é divergência de checksum, não reexecução silenciosa de V5. Criar V6 com comando de ajuste, mantendo V5 imutável, preserva a história de implantação."
+    },
+    {
+      "title": "5. PostgreSQL, H2, Oracle, SQL Server e autenticação SSO",
+      "markdown": "## O papel do dialeto e da conexão\n\nJPA e Hibernate dependem de **JDBC**, driver e dialeto para conversar com cada banco. O dialeto ajuda o ORM a gerar SQL compatível com recursos do motor, incluindo paginação, sequência, identidade e funções. Não substitui credenciais, permissões, limites do banco nem migrações estruturais. Uma entidade mapeada de modo portável pode funcionar nos quatro motores; um SQL nativo com `LIMIT` específico do PostgreSQL, por exemplo, não se torna automaticamente válido no Oracle 11g ou em SQL Server antigo. A documentação do Hibernate 4.3 permite configurar dialetos e conexões próprias da época; migrar para versão recente exige validar suporte da combinação de Java, Hibernate, JDBC e produto relacional.\n\n### PostgreSQL e transações\n\n**PostgreSQL** é SGBD relacional de código aberto com extensões de SQL, integridade referencial, sequências, identidades em versões atuais e **MVCC (Multiversion Concurrency Control)**. Em MVCC, leituras trabalham com versões visíveis de dados; transações concorrentes não precisam bloquear todas as leituras só porque outra transação escreve. Isso não elimina bloqueios, contenção de atualização nem possibilidade de deadlock. `PRIMARY KEY` implica valor único e não nulo; `FOREIGN KEY` restringe referência a linha da tabela alvo e `UNIQUE` protege unicidade, conforme a regra de tratamento de nulos do motor. Em aplicações Hibernate, `@Version` detecta concorrência no nível do ORM e é conceitualmente diferente do MVCC do PostgreSQL.\n\n### H2: bancos de teste e compatibilidade limitada\n\n**H2** é SGBD Java que pode operar **em memória** e em arquivo, de modo embutido ou servidor. `jdbc:h2:mem:teste` exemplifica uma base em memória, cujo ciclo de vida depende das configurações e das conexões; isso não garante persistência em disco após encerramento. A URL `jdbc:h2:file:...` usa armazenamento persistente. O H2 oferece modos como `MODE=PostgreSQL` e `MODE=Oracle` para **emular parte das diferenças de sintaxe e comportamento**; a documentação frisa que esses modos abrangem somente subconjunto da compatibilidade, não equivalência plena. Usar H2 como substituto de integração de PostgreSQL pode deixar passar problemas de índices, tipos, transações, collation e comportamento específico do motor de produção.\n\n### Oracle Database 11g ou superior\n\n**Oracle 11g** utiliza **sequences** para geração independente de valores, com `NEXTVAL` na sequência correspondente, e pode integrar `GenerationType.SEQUENCE` no ORM. Sintaxe de colunas de identidade incorporada ao Oracle em versões posteriores não deve ser assumida disponível no 11g. A versão também influencia paginação: consultas Oracle 11g frequentemente usam `ROWNUM` e construções próprias, enquanto edições posteriores suportam `OFFSET ... FETCH` diretamente. Se o Hibernate usa o dialeto correto, certas diferenças podem ser abstraídas em JPQL; comandos SQL nativos e scripts Flyway continuam sujeitos a particularidades da versão exata.\n\n### SQL Server\n\n**Microsoft SQL Server** usa Transact-SQL, suporta colunas **`IDENTITY(seed, increment)`** e estratégias de transações e bloqueio. `IDENTITY(1,1)` descreve geração inicial em 1 com incremento 1; não é, por si só, a mesma coisa que restrição de chave primária: é prática associá-la a `PRIMARY KEY` quando identifica registro. Dependendo de versão e consulta, utiliza-se `TOP` e/ou `OFFSET/FETCH` para limitação e paginação. O mecanismo oferece controle de concorrência por locks e recursos de versionamento de linhas conforme isolamento/configuração. A coluna `rowversion` no SQL Server representa marcador de versão binária para detecção de alterações, não timestamp cronológico nem trilha de auditoria Envers.\n\n| Banco | Recurso reconhecível | Atenção na integração |\n| --- | --- | --- |\n| PostgreSQL | MVCC, constraints, sequências e tipos próprios | SQL nativo, isolamento e tipos específicos |\n| H2 | In-memory/file; `MODE=PostgreSQL` e outros | Emulação não garante equivalência de produção |\n| Oracle 11g | `SEQUENCE` e características próprias de paginação | Não pressupor `IDENTITY` e sintaxe posterior |\n| SQL Server | `IDENTITY`, Transact-SQL, locks e versionamento | Não confundir propriedade de identidade com PK |\n\n### SSO, OIDC e responsabilidade da camada de persistência\n\n**SSO (Single Sign-On)** é experiência em que uma autenticação central permite acesso a mais de um sistema integrado sem exigir nova digitação de credenciais a cada aplicação, conforme configuração das sessões e confiança. **OpenID Connect (OIDC)** é protocolo de identidade construído sobre OAuth 2.0; o **ID Token** contém declarações de autenticação, incluindo identificadores como `iss` (emissor), `sub` (sujeito) e `aud` (destinatário), que devem ser validados pelo cliente conforme o fluxo. **OAuth 2.0** sozinho descreve principalmente delegação de autorização de acesso, não prova padronizada de identidade do usuário. OIDC ou SAML podem implementar SSO, mas são protocolos de autenticação/federação, distintos de JPA e JDBC. Um aplicativo pode armazenar em banco o identificador externo de usuário e perfis/autorizações locais, sem gerenciar senhas do provedor central. Registrar pessoa no Envers requer integrar o contexto de identidade validado e não confiar cegamente em cabeçalhos fornecidos pelo cliente.\n\n> **Exemplo integrado:** após login SSO, a aplicação recupera em PostgreSQL o usuário local pelo identificador estável do provedor, atualiza uma entidade Hibernate em transação, registra revisão Envers e mantém alterações de esquema via Flyway. Cada ferramenta executa responsabilidade diferente: SSO autentica, JPA/Hibernate persiste, PostgreSQL armazena, Envers audita e Flyway versiona o esquema.\n\n## Como o tema costuma ser cobrado\n\nA prova troca JPA (especificação) por Hibernate (provedor); usa `javax.persistence` e `jakarta.persistence` como se fossem intercambiáveis em qualquer versão; afirma que `merge` gerencia a instância de entrada; confunde `flush` com `commit`, `@Version` com `@Audited`, `LAZY` com ausência de vínculo e `JOIN` com `JOIN FETCH`; presume que H2 imita perfeitamente PostgreSQL; considera `repair` equivalente a desfazer migração; mistura identidade do SSO com persistência de senha no ORM e ignora que Oracle 11g e SQL Server usam recursos de geração e dialetos diferentes."
+    }
+  ],
+  "summary": "## JPA e Hibernate\n**JPA/Jakarta Persistence** é especificação ORM; **Hibernate** é provedor e oferece API própria. Hibernate **4.3** implementa **JPA 2.1** e usa `javax.persistence`; versões Jakarta empregam `jakarta.persistence`. `@Entity`, `@Id`, `@GeneratedValue`, `@Column` e `@Table` mapeiam entidade e identidade. `EntityManagerFactory` organiza a unidade de persistência e `EntityManager` mantém contexto; `SessionFactory` e `Session` são equivalentes principais da API nativa.\n\n**Estados:** novo/transient, gerenciado, detached, removed. **`persist`** associa uma entidade nova; **`merge`** copia estado e retorna outra referência gerenciada; **`remove`** marca exclusão; **`clear`** destaca entidades; **`flush`** sincroniza alterações pendentes com SQL, mas **não efetiva o commit**. `@Version` detecta conflitos otimistas. `IDENTITY` depende de coluna geradora; `SEQUENCE` de sequência compatível.\n\n## Associações e consultas\n`@ManyToOne` costuma ser o lado proprietário da FK; `@OneToMany(mappedBy=\"cliente\")` refere o **atributo Java** proprietário. `cascade=PERSIST/MERGE/REMOVE` propaga operações; `orphanRemoval` atende ao ciclo de vida de filhos nos relacionamentos permitidos. Padrões de busca: **EAGER** em `ManyToOne` e `OneToOne`; **LAZY** em `OneToMany` e `ManyToMany`. `JOIN` não implica `JOIN FETCH`; N+1 surge por consultas adicionais ao carregar associações. **JPQL** consulta entidades/atributos, SQL nativo usa tabelas/colunas; valores de consultas devem ser parametrizados. Cache de primeiro nível é do contexto, cache de segundo nível é opcional e compartilhável.\n\n## Envers\n`@Audited` habilita histórico de entidades mapeadas, normalmente em tabelas `*_AUD` e metadados `REVINFO`. Cada revisão agrupa alterações auditadas de transação confirmada; `AuditReader` consulta estados históricos. **`@NotAudited`** exclui propriedade da auditoria, mas não da tabela de negócio. `@Version` não guarda histórico. Estratégia Default armazena revisão inicial; Validity registra início e fim de validade. Envers não captura automaticamente SQL feito fora do ORM nem comprova identidade humana sem integração específica.\n\n## Flyway\nMigrações versionadas: `V1__criar_cliente.sql`, `V2__adicionar_email.sql`; repetíveis: `R__atualizar_view.sql`. Histórico padrão: `flyway_schema_history`. **`migrate`** executa pendentes; **`validate`** compara histórico, nomes e checksums; **`info`** exibe estados; **`baseline`** marca estado inicial de esquema legado; **`repair`** ajusta metadados, não reverte SQL. Migração versionada já executada deve permanecer imutável; repetível é reaplicada quando checksum muda. DDL transacional depende do banco e da instrução.\n\n## Bancos e SSO\n**PostgreSQL**: MVCC e integridade referencial. **H2**: embarcado, memória/arquivo e modos de compatibilidade parciais. **Oracle 11g**: sequências e paginação própria; não pressupor identidade de versões mais novas. **SQL Server**: Transact-SQL, `IDENTITY`, locks e versionamento de linhas configurável. **SSO** centraliza autenticação; **OIDC** adiciona camada de identidade ao OAuth 2.0, com ID Token. SSO não substitui JPA nem Envers.",
+  "flashcards": [
+    {
+      "front": "JPA é biblioteca ORM concreta?",
+      "back": "JPA/Jakarta Persistence é uma especificação; Hibernate é uma implementação com recursos próprios."
+    },
+    {
+      "front": "Hibernate 4.3 usa qual JPA?",
+      "back": "JPA 2.1, com o pacote `javax.persistence`, enquanto versões Jakarta recentes usam `jakarta.persistence`."
+    },
+    {
+      "front": "Para que serve `@Entity`?",
+      "back": "Identifica classe como entidade gerenciável pelo ORM, obedecidas as demais regras de mapeamento."
+    },
+    {
+      "front": "Qual a função do `EntityManager`?",
+      "back": "Gerenciar contexto de persistência, identidade e operações sobre entidades."
+    },
+    {
+      "front": "O que `persist` faz?",
+      "back": "Torna entidade nova gerenciada e prepara sua inserção conforme o contexto e a transação."
+    },
+    {
+      "front": "O que `merge` devolve?",
+      "back": "Uma instância gerenciada com estado copiado da entidade recebida; a instância original não vira gerenciada automaticamente."
+    },
+    {
+      "front": "`flush` confirma transação?",
+      "back": "Não. Sincroniza comandos pendentes com o banco; o commit é operação distinta."
+    },
+    {
+      "front": "O que significa entidade detached?",
+      "back": "Objeto anteriormente persistente fora do contexto atual; alterações nele não são automaticamente sincronizadas."
+    },
+    {
+      "front": "Para que serve `@Version`?",
+      "back": "Controle de concorrência otimista por versão de entidade, não auditoria histórica."
+    },
+    {
+      "front": "Qual lado possui FK em `ManyToOne` típico?",
+      "back": "O lado `ManyToOne`, por exemplo `Pedido.cliente` com coluna `cliente_id`."
+    },
+    {
+      "front": "Para o que aponta `mappedBy`?",
+      "back": "Nome do atributo Java do lado proprietário, não nome físico de coluna."
+    },
+    {
+      "front": "Qual padrão de fetch em `OneToMany`?",
+      "back": "`LAZY` é o padrão definido pela especificação."
+    },
+    {
+      "front": "Qual padrão de fetch em `ManyToOne`?",
+      "back": "`EAGER` é o padrão, sem promessa de um único SQL com JOIN."
+    },
+    {
+      "front": "O que é N+1?",
+      "back": "Uma consulta inicial traz N entidades e acessos posteriores geram consultas extras de associações."
+    },
+    {
+      "front": "JPQL usa tabela física?",
+      "back": "A JPQL referencia nomes de entidades e atributos Java, não diretamente tabelas e colunas físicas."
+    },
+    {
+      "front": "Qual anotação inicia auditoria Envers?",
+      "back": "`@Audited`, com módulo Envers instalado e mapeamento correspondente."
+    },
+    {
+      "front": "O que é uma revisão Envers?",
+      "back": "Unidade que agrupa as alterações auditadas de uma transação, conforme a configuração."
+    },
+    {
+      "front": "Como ler estado histórico Envers?",
+      "back": "Por `AuditReader`, obtido com `AuditReaderFactory`, informando classe, identificador e revisão."
+    },
+    {
+      "front": "O que `flyway validate` faz?",
+      "back": "Confere histórico e migrações disponíveis, incluindo metadados e checksums; não aplica pendentes."
+    },
+    {
+      "front": "Quando uma migração `R__` roda de novo?",
+      "back": "Quando seu checksum muda; migrações repetíveis são processadas após versionadas pendentes."
+    },
+    {
+      "front": "Modo PostgreSQL do H2 replica PostgreSQL?",
+      "back": "Não. O H2 emula apenas subconjunto das diferenças; integração deve ser testada no banco real."
+    },
+    {
+      "front": "Qual a diferença entre OIDC e OAuth 2.0?",
+      "back": "OIDC adiciona autenticação/identidade ao OAuth 2.0, que fornece estrutura para delegação de acesso."
+    }
+  ],
+  "tips": [
+    "Identifique a versão: Hibernate 4.3 combina com JPA 2.1/`javax.persistence`, não com qualquer API Jakarta recente.",
+    "Para o ciclo de vida, compare referência original versus referência devolvida por `merge`; no `persist`, pense em objeto novo gerenciado.",
+    "Separe operações: `flush` sincroniza, `commit` confirma, `clear` destaca e `remove` agenda exclusão.",
+    "Em relacionamentos bidirecionais, encontre quem possui a FK e confira `mappedBy` pelo nome do atributo Java.",
+    "Para N+1, procure carregamentos sucessivos e avalie `JOIN FETCH` ou projeção sem supor que EAGER significa um só SQL.",
+    "Associe `@Version` a concorrência e `@Audited` à história; `REVINFO` não substitui tabela de negócio.",
+    "No Flyway, V tem versão e execução histórica; R não tem versão e volta a executar após mudança de checksum.",
+    "Compare dialetos reais e não presuma que H2, Oracle 11g, PostgreSQL e SQL Server aceitam o mesmo DDL nativo."
+  ],
+  "traps": [
+    "A prova afirma: 'JPA e Hibernate são duas implementações equivalentes'. Errado: JPA é especificação, e Hibernate é implementação com API própria.",
+    "A prova afirma: '`merge` torna gerenciada a referência detached recebida'. Errado: retorna referência gerenciada para a qual copia o estado.",
+    "A prova afirma: '`flush` confirma definitivamente o INSERT'. Errado: sincronização pode ocorrer antes do commit; rollback pode desfazer os efeitos transacionais.",
+    "A prova afirma: '`mappedBy` aponta para a coluna da chave estrangeira'. Errado: aponta para propriedade Java do lado proprietário.",
+    "A prova afirma: '`ManyToOne(fetch=EAGER)` usa obrigatoriamente uma consulta JOIN'. Errado: EAGER trata de carregamento, não de número fixo de instruções SQL.",
+    "A prova afirma: '`@Version` guarda automaticamente o histórico completo de alterações'. Errado: auditoria é recurso do Envers, por exemplo com `@Audited`.",
+    "A prova afirma: 'Editar V2 já executada faz o Flyway reaplicá-la sem alerta'. Errado: normalmente ocasiona falha de validação de checksum.",
+    "A prova afirma: 'Modo Oracle do H2 garante compatibilidade com Oracle 11g'. Errado: modos H2 apenas emulam parte do comportamento."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como distinguir JPA, Hibernate, EntityManager e Session?",
+      "answer": "JPA é padrão, Hibernate é provedor; EntityManager é API JPA de contexto e Session é API de gerenciamento nativa do Hibernate."
+    },
+    {
+      "question": "O que acontece se modificar objeto detached e chamar `flush` em outro contexto?",
+      "answer": "A modificação no objeto detached não é acompanhada automaticamente; é preciso torná-lo gerenciado de modo apropriado, como `merge`, e efetivar a transação."
+    },
+    {
+      "question": "Qual a diferença entre `persist`, `merge`, `remove`, `clear` e `flush`?",
+      "answer": "Persistir novo, copiar estado e devolver managed, marcar remoção, desprender objetos do contexto e sincronizar comandos pendentes, respectivamente."
+    },
+    {
+      "question": "O que muda entre `JOIN` e `JOIN FETCH` em JPQL?",
+      "answer": "O JOIN navega para filtro/associação na consulta; JOIN FETCH também solicita carregamento da associação relacionada."
+    },
+    {
+      "question": "Como identificar bug N+1 em um relatório de pedidos?",
+      "answer": "Primeira consulta recupera N pedidos e o acesso a associações provoca consultas adicionais. Avaliar fetch adequado, projeção ou batching."
+    },
+    {
+      "question": "Para que servem `@Version`, `@Audited` e `AuditReader`?",
+      "answer": "Controle de concorrência, gravação de histórico auditado e consulta de estados históricos, respectivamente."
+    },
+    {
+      "question": "Em que diferem `migrate`, `validate`, `baseline` e `repair` no Flyway?",
+      "answer": "Aplicar pendentes, verificar histórico/checksum, marcar ponto inicial legado e corrigir metadados selecionados sem desfazer automaticamente DDL."
+    },
+    {
+      "question": "Por que projeto testado no H2 pode falhar no Oracle 11g?",
+      "answer": "Modos de emulação são parciais; tipos, identidade versus sequência, paginação, DDL e transações variam entre motores."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Especificação, implementação e estados trocados",
+      "summary": "JPA define APIs, Hibernate implementa; versão 4.3 utiliza `javax.persistence`. `merge` devolve instância gerenciada, `persist` atua em entidade nova e `flush` não é commit."
+    },
+    {
+      "key": "e2",
+      "title": "Relacionamentos, fetch e consultas confundidos",
+      "summary": "`mappedBy` aponta para propriedade proprietária; cascata não se confunde com FK ON DELETE; EAGER/LAZY descrevem carregamento, não quantidade fixa de SQL; JPQL trabalha com entidades."
+    },
+    {
+      "key": "e3",
+      "title": "Concorrência otimista confundida com auditoria",
+      "summary": "`@Version` monitora alterações concorrentes. Envers `@Audited` persiste revisões históricas em tabelas auxiliares, acessíveis por `AuditReader`, não por simples `find` atual."
+    },
+    {
+      "key": "e4",
+      "title": "Migração de esquema e comandos Flyway",
+      "summary": "`migrate` executa pendentes, `validate` compara conteúdo e histórico, `baseline` declara ponto de partida e `repair` ajusta registros sem reverter automaticamente alterações de esquema."
+    },
+    {
+      "key": "e5",
+      "title": "Portabilidade, banco e autenticação indevidamente unificados",
+      "summary": "H2 não substitui teste no SGBD final; Oracle 11g usa sequências, SQL Server dispõe de IDENTITY, PostgreSQL MVCC. SSO autentica, não persiste entidades ou audita alterações."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe Java precisa adotar padrão de persistência sem se vincular diretamente a API específica do Hibernate. Que tecnologia descreve o contrato de mapeamento objeto-relacional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "JPA, que padroniza interfaces e anotações implementadas por provedores como Hibernate.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Hibernate Session, que define obrigatoriamente todas as APIs Java de persistência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Flyway, que transforma classes Java em linhas persistidas durante as migrações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Envers, que representa a especificação comum de acesso transacional por JDBC.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "H2, que fornece anotações portáveis independentemente do provedor de persistência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. A Jakarta Persistence especifica mapeamento e gerenciamento de entidades, que o Hibernate pode implementar. B cita API concreta do provedor; C é ferramenta de migração de esquema, não padrão ORM; D audita entidades por revisões; E é banco relacional e não define a API JPA.",
+      "section": "1. JPA, Hibernate e ciclo de vida das entidades",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema permanece na linha Hibernate ORM 4.3 e pretende utilizar o padrão JPA correspondente, sem atualização de plataforma. Qual combinação é a documentada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Jakarta Persistence 3.2 com anotações `jakarta.persistence` próprias dessa edição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "JPA 2.1 com anotações `javax.persistence` do ecossistema Java EE da época.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "JPA 1.0 com a API moderna `jakarta.persistence` sem necessidade de adaptação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Jakarta Persistence 3.1 com suporte nativo padrão a recursos atuais de record.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "JPA 2.2 com substituição automática da API Hibernate pelo Flyway JDBC.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. A documentação do Hibernate 4.3 indica compatibilidade com JPA 2.1 e Java EE 7, que utilizam `javax.persistence`. A e D importam especificações Jakarta posteriores; C junta geração antiga com pacote novo; E atribui JPA 2.2 e uma substituição pelo Flyway que não integram essa linha.",
+      "section": "1. JPA, Hibernate e ciclo de vida das entidades",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma transação, um programador chama `persist` passando uma entidade nova que possui mapeamento válido. Qual consequência caracteriza essa operação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A entidade passa ao estado detached até que seja localizada por consulta SQL posterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A entidade torna-se removed e aguarda confirmação de exclusão na transação corrente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A entidade nova torna-se gerenciada, com inserção sincronizada conforme o ciclo transacional.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A entidade é gravada e sua transação confirmada independentemente do gerenciador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A entidade é copiada para outra instância gerenciada por retorno obrigatório do método.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. `EntityManager.persist` associa a entidade nova ao contexto e prepara sua persistência segundo a estratégia do provedor. A descreve desprendimento, não persistência; B corresponde à marcação para remoção; D confunde operação com commit; E descreve efeito de `merge`, cujo retorno é referência gerenciada.",
+      "section": "1. JPA, Hibernate e ciclo de vida das entidades",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em mapeamento bidirecional, `Pedido` contém `cliente`, propriedade associada à coluna `cliente_id`. Qual configuração inversa é apropriada no objeto `Cliente`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`@OneToMany(mappedBy=\"cliente_id\")`, porque `mappedBy` usa o nome da coluna estrangeira.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`@ManyToMany(mappedBy=\"cliente\")`, porque uma compra une sempre vários clientes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`@OneToOne(mappedBy=\"cliente_id\")`, porque cada pedido usa uma única chave estrangeira.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`@OneToMany(mappedBy=\"cliente\")`, porque a referência nomeia a propriedade proprietária.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`@ManyToOne(mappedBy=\"cliente\")`, porque o cliente é o lado de múltiplos pedidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. O lado inverso `Cliente.pedidos` deve usar `@OneToMany(mappedBy=\"cliente\")` se a propriedade proprietária em `Pedido` se chama `cliente`. A e C usam coluna SQL em vez de propriedade e cardinalidade errada em C; B propõe muitos-para-muitos; E inverte a cardinalidade e uso de `mappedBy`.",
+      "section": "2. Mapeamento de relações, consultas e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após configurar histórico de alterações de `Cliente`, a aplicação precisa indicar ao Hibernate Envers quais entidades auditar. Qual anotação atende ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`@Version`, que grava todas as fotografias históricas a cada nova transação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`@GeneratedValue`, que reconstrói os valores antigos ao gerar identificadores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`@Column`, que ativa o diário completo quando aplicada aos dados de negócios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`@Transactional`, que cria tabelas históricas para toda entidade vinculada ao método.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`@Audited`, que marca entidade ou propriedades abrangidas pelo mecanismo de revisão.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. `@Audited` habilita auditoria no Envers, com módulo e infraestrutura adequados. A controla concorrência por versão numérica; B trata geração de identificador; C mapeia coluna sem auditoria; D controla transação em frameworks que a disponibilizam, mas não configura por si a trilha Envers.",
+      "section": "3. Hibernate Envers: auditoria histórica e revisões",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe mantém os scripts `V1__criar_cliente.sql` e `V2__adicionar_email.sql`, já aplicados, e publica V3. Qual comando do Flyway executa a versão pendente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`flyway migrate`, que compara histórico e aplica as migrações ainda pendentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`flyway validate`, que aplica qualquer SQL cuja verificação de checksum termine bem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`flyway info`, que implanta automaticamente cada versão exibida na listagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`flyway baseline`, que executa todos os scripts anteriores ao início do histórico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`flyway repair`, que atualiza o esquema ao reprocessar integralmente as versões antigas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. `migrate` executa migrações pendentes, utilizando os registros da tabela de histórico. B valida sem executar; C apenas exibe estados; D estabelece marco inicial em base existente; E ajusta registros de histórico em hipóteses controladas, não executa o novo SQL como finalidade principal.",
+      "section": "4. Flyway e evolução controlada do esquema",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para testes rápidos, uma aplicação Java pretende abrir banco H2 que reside na memória durante a execução. Qual formato de URL exemplifica esse modo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`jdbc:postgresql://localhost/teste`, que inicializa memória interna do processo H2.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`jdbc:h2:mem:teste`, que designa banco H2 em memória da aplicação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`jdbc:h2:file:teste`, que configura armazenamento apenas volátil dentro da JVM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`jdbc:oracle:thin:@teste`, que utiliza a API H2 em modo compatível com Oracle.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`jdbc:sqlserver://teste`, que cria sessão local H2 com protocolo TDS.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O H2 documenta `jdbc:h2:mem:` como base em memória. A é URL PostgreSQL; C aponta para banco em arquivo; D utiliza esquema de driver Oracle; E se refere a driver SQL Server. O armazenamento H2 in-memory não deve ser confundido com equivalência a bancos de produção.",
+      "section": "5. PostgreSQL, H2, Oracle, SQL Server e autenticação SSO",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta precisa filtrar entidades `Pedido` pelo atributo Java `status`, utilizando JPQL e valor parametrizado. Qual escrita é compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`select * from pedido where status = :status`, consultando a tabela física por JPQL.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`select p from pedido p where p.status = ?`, utilizando a tabela com wildcard JDBC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`select p from Pedido p where p.status = :status`, atribuindo o parâmetro por `setParameter`.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`select * from Pedido p where p.status = :status`, retornando propriedades como colunas SQL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`select p from Pedido p where coluna_status = :status`, com coluna sem navegação do atributo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. JPQL opera sobre entidade `Pedido`, alias `p`, propriedade `status` e parâmetro nomeado. A é sintaxe SQL física; B usa tabela física e marcador sem indexação JPQL adequada; D mistura seleção SQL de todas as colunas com entidade; E emprega nome de coluna em lugar da propriedade Java mapeada.",
+      "section": "2. Mapeamento de relações, consultas e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação quer impedir atualizações perdidas quando duas transações alteram a mesma entidade. Qual anotação JPA fornece controle otimista de versões?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`@Audited`, que rejeita alterações concorrentes usando a tabela de revisões históricas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`@ElementCollection`, que controla a concorrência de coleções de valores por padrão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`@SequenceGenerator`, que evita conflitos ao comparar a versão lógica do registro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`@Version`, que participa da verificação otimista de atualização da entidade.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`@NotAudited`, que bloqueia mudanças antigas de atributos ainda não sincronizados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A anotação `@Version` marca atributo de versão para verificação de concorrência otimista. A e E dizem respeito à auditoria, não à prevenção automática de conflito; B identifica coleção de valores; C configura gerador de identificador, não versão das atualizações.",
+      "section": "1. JPA, Hibernate e ciclo de vida das entidades",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta local autenticada por provedor central é salva no PostgreSQL; a aplicação precisa distinguir identidade do usuário da persistência de suas entidades. Que afirmação descreve corretamente SSO?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SSO é uma estratégia de gerar automaticamente chaves estrangeiras para tabelas de usuários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SSO substitui o Hibernate porque gerencia o estado das entidades após o login.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SSO cria migrações de banco ao validar credenciais de todas as aplicações ligadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SSO é o cache de segundo nível compartilhado entre sessões de uma mesma aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SSO centraliza autenticação para acesso a sistemas integrados, não mapeamento ORM.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Single Sign-On envolve autenticação reutilizável entre aplicações, geralmente por relação de confiança com provedor de identidade. A descreve esquema de banco; B confunde camada de login e contexto de persistência; C atribui trabalho de Flyway ao SSO; D confunde sessões de autenticação com cache Hibernate.",
+      "section": "5. PostgreSQL, H2, Oracle, SQL Server e autenticação SSO",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um objeto `Cliente` foi carregado e saiu do contexto após fechamento do EntityManager. O desenvolvedor altera seu nome e chama `merge` em novo contexto. Qual referência deve usar depois?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A referência retornada por `merge`, que contém estado copiado e é gerenciada no novo contexto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A referência detached original, que se torna gerenciada por efeito colateral de `merge`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A entidade recebida por `remove`, necessária para converter o estado detached em novo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A referência criada por `clear`, que restaura todas as entidades desprendidas da sessão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A entidade recuperada com `flush`, método que sempre retorna uma nova instância.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. JPA define `merge` como cópia do estado do objeto de entrada para instância gerenciada retornada; a entrada continua detached. B atribui-lhe mudança de estado errada; C propõe exclusão; D usa `clear`, que destaca; E confunde sincronização, cujo `flush` não retorna entidade.",
+      "section": "1. JPA, Hibernate e ciclo de vida das entidades",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma transação, alterações de duas entidades estão pendentes. O código chama `flush`, mas depois realiza rollback. O que se deve esperar em banco transacional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "As mudanças confirmam antes do rollback porque `flush` é equivalente a `commit`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os comandos podem ter sido executados, mas rollback desfaz as alterações da transação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O contexto cancela o rollback porque já houve sincronização explícita com a base.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As entidades passam ao estado removed por efeito obrigatório da sincronização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O `flush` só executa após `commit` e, portanto, jamais antecede um rollback.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. `flush` sincroniza SQL pendente, mas não encerra a transação; rollback desfaz mudanças transacionais ainda não confirmadas. A confunde dois comandos; C inventa impedimento de rollback; D confunde estados de entidade; E nega expressamente a sincronização anterior ao commit prevista pela especificação.",
+      "section": "1. JPA, Hibernate e ciclo de vida das entidades",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório consulta 200 pedidos e, ao mostrar o nome de cada cliente associado, dispara dezenas de consultas adicionais. Qual problema é provável e qual medida pode enfrentá-lo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conflito otimista; aplicar `@Version` ao pedido elimina as consultas posteriores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ausência de chave primária; usar `@GeneratedValue` carrega todas as associações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Problema N+1; empregar `JOIN FETCH` adequado ou projeção pode reduzir buscas extras.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Falha do Flyway; `validate` materializa clientes em consulta única por padrão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Auditoria excessiva; desativar `@Audited` substitui o carregamento das relações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O padrão N+1 envolve consulta inicial mais buscas por associações, podendo ser mitigado por fetch planejado, projeções ou busca em lote. A trata conflito de atualização; B confunde identificador com carga associativa; D invoca ferramenta de migração; E retira auditoria mas não resolve automaticamente a consulta.",
+      "section": "2. Mapeamento de relações, consultas e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entidade de cadastro tem `@ManyToOne` sem `fetch` expresso e uma coleção `@OneToMany` sem `fetch` expresso. Quais padrões define a especificação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "LAZY para ambos, porque relacionamentos são carregados apenas por solicitação explícita.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "EAGER para ambos, porque todas as associações devem ser carregadas junto com a entidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "LAZY para ManyToOne e EAGER para OneToMany, conforme o lado que detém a chave.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "EAGER para ManyToOne e LAZY para OneToMany, sem garantia de número de consultas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Dependente apenas do dialeto SQL, já que JPA não define valores padrão de fetch.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A especificação define EAGER como padrão de `ManyToOne` e LAZY para `OneToMany`. A e B atribuem padrão uniforme incorreto; C inverte os dois; E ignora as anotações JPA. O provedor conserva liberdade na estratégia de SQL e fetch eager não obriga uma única instrução.",
+      "section": "2. Mapeamento de relações, consultas e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após gravar revisões auditadas, um desenvolvedor quer recuperar o estado de `Cliente` na revisão de número 12, não seu estado corrente. Qual API do Envers se destina a isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`EntityManager.find(Cliente.class, 12)`, interpretando 12 automaticamente como revisão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`EntityManager.flush()`, que devolve a versão histórica mais antiga do objeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`Session.clear()`, que reconstrói o estado a partir da última transação auditada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`Flyway.info()`, que recupera versões antigas dos atributos persistidos pela entidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`AuditReader.find(Cliente.class, id, 12)`, usando o identificador e a revisão desejada.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. `AuditReader` é a API Envers para consultar estados históricos com classe, id e número de revisão. A confundiria número 12 com id atual de entidade; B sincroniza contexto, sem consulta; C destaca entidades; D retorna informações de migrações e não versões de registros auditados.",
+      "section": "3. Hibernate Envers: auditoria histórica e revisões",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe executou `V2__criar_indice.sql` em produção e depois modificou seu conteúdo no repositório. Em nova execução de `flyway validate`, qual resultado é esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A verificação pode falhar por checksum divergente entre o arquivo atual e o histórico.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A versão V2 será reaplicada automaticamente pelo validate como migração repetível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O comando excluirá o índice antigo porque validação inclui desfazer toda alteração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A mudança será ignorada porque checksums existem apenas em scripts R sem versão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Flyway criará V3 automaticamente a partir de diferenças encontradas no arquivo V2.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Flyway valida migrações aplicadas comparando metadados e checksums; alteração de versão já executada tende a ser identificada. B atribui execução ao validate e confunde V com R; C presume rollback de DDL; D nega checksum de versionadas; E inventa geração automática de V3 nesse comando.",
+      "section": "4. Flyway e evolução controlada do esquema",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição pretende começar a usar Flyway em banco Oracle já povoado com tabelas históricas que não foram criadas por scripts Flyway. Qual recurso marca o ponto inicial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`repair`, que recria integralmente o banco e redefine o histórico como vazio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`baseline`, que registra versão inicial do esquema legado sem repetir todo DDL existente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`validate`, que executa scripts de versões anteriores ao banco de produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`info`, que converte estruturas legadas em migrações idênticas às já executadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`migrate`, que sempre apaga tabelas para garantir reprodução histórica desde V1.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. `baseline` declara ponto de partida para um esquema preexistente, evitando executar migrações já representadas pela estrutura do banco. A confunde reparo de metadados com recriação; C toma validação por implantação; D atribui conversão a comando informativo; E presume exclusão automática incompatível com operação normal de migrate.",
+      "section": "4. Flyway e evolução controlada do esquema",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em mapeamento de pedidos e clientes, a equipe colocou `cascade=REMOVE` em `Pedido.cliente`. Vários pedidos apontam para o mesmo cliente. Qual avaliação técnica é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É equivalente a `ON DELETE CASCADE` obrigatório na chave estrangeira do cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É configuração adequada para impedir exclusão de um pedido com cliente compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pode propagar remoção ao cliente compartilhado e causar exclusão indevida ou falha de integridade.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ativa remoção apenas do vínculo em memória sem operação sobre a entidade cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Implica `orphanRemoval=true` na coleção inversa, sem necessidade de configuração adicional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Cascata REMOVE propaga a operação para a entidade associada e é arriscada de pedido a cliente compartilhado. A confunde cascata do ORM e DDL ON DELETE; B atribui proteção inexistente; D ignora propagação da operação remove; E equipara cascade e orphanRemoval, recursos de natureza distinta.",
+      "section": "2. Mapeamento de relações, consultas e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas transações obtêm entidade versionada com `@Version=4`. A primeira atualiza e confirma a versão 5; a segunda tenta confirmar dados baseados na versão anterior. Qual comportamento é coerente com o padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A segunda atualização substitui a primeira, porque versão serve somente para Envers.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A segunda atualização cria automaticamente revisão histórica sem examinar concorrência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A segunda transação recebe bloqueio pessimista obrigatório já na leitura inicial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A segunda operação deve detectar conflito otimista e pode lançar exceção ao sincronizar.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A segunda transação recalcula sua versão silenciosamente e soma alterações conflitantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A verificação de versão impede atualização silenciosa a partir de estado obsoleto, com conflito que pode surgir em `flush` ou `commit`. A descarta controle otimista; B confunde auditoria e versionamento; C descreve bloqueio pessimista, não obrigatório com @Version; E presume reconciliação automática que a especificação não oferece.",
+      "section": "2. Mapeamento de relações, consultas e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Envers registra várias alterações auditadas na mesma transação e usa `ValidityAuditStrategy`. Que afirmação caracteriza a estratégia e o significado da revisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cria uma revisão por atributo modificado e dispensa a tabela histórica de cada entidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Armazena somente a última modificação, eliminando estados válidos em revisões anteriores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substitui o controle transacional por auditoria sem sincronização com o banco relacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Faz do número de revisão um timestamp obrigatório de alteração de cada coluna.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Agrupa mudanças auditadas da transação; a estratégia registra início e fim de validade.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Uma revisão Envers abrange alterações auditadas de uma transação; ValidityAuditStrategy conserva revisões inicial e final de validade, atualizando estado anterior. A cria granularidade por atributo errada; B elimina a finalidade histórica; C desassocia auditoria da transação; D confunde índice de revisão e carimbo de tempo.",
+      "section": "3. Hibernate Envers: auditoria histórica e revisões",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa executa atualização de registros por SQL nativo externo ao Hibernate e espera encontrar automaticamente os novos estados em tabelas de auditoria Envers. Qual diagnóstico é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Envers não deve ser presumido capaz de auditar alterações que ignoram seus eventos ORM.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O Envers intercepta por padrão todo comando SQL emitido por qualquer programa da rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O `@Version` garante registro histórico de todo UPDATE emitido diretamente ao banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A tabela `REVINFO` armazena por padrão cópia de toda linha alterada por triggers externas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Flyway recalcula automaticamente as revisões Envers de qualquer escrita SQL externa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Envers se integra aos eventos do Hibernate ORM e não funciona como auditor geral de todos os clientes SQL do banco. B atribui interceptação global inexistente; C confunde atributo de versão com captura externa; D transforma metadados de revisão em cópias de linhas; E atribui auditoria ao gerenciador de migrações.",
+      "section": "3. Hibernate Envers: auditoria histórica e revisões",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação usa scripts `V7__tabela.sql` e `R__visao.sql`. O script R é modificado após estar aplicado; o V7 permanece idêntico. O que ocorre numa execução normal de `migrate`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Flyway executa V7 novamente e ignora R, porque o histórico prioriza arquivos versionados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A migração R alterada é reaplicada pelo checksum, sem repetir a V7 já aplicada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O script R recebe automaticamente o próximo número V8 e substitui a versão anterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ambos os scripts são bloqueados, porque revisões de objetos SQL exigem nova versão para R.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O comando usa `repair` como etapa obrigatória e apaga o histórico antes da execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Repeatables `R__` são reaplicadas se mudar o checksum, e versionadas já cumpridas não são executadas outra vez. A inverte a regra; C inventa renumeração automática; D nega a natureza repetível da migração R; E atribui exclusão e reparo obrigatório a migrate sem base documental.",
+      "section": "4. Flyway e evolução controlada do esquema",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto mapeia `@GeneratedValue(strategy=IDENTITY)` e tem obrigação de suportar Oracle Database 11g. Qual providência demonstra conhecimento das versões?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Presumir que Oracle 11g oferece as colunas de identidade introduzidas em edições posteriores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `IDENTITY(1,1)` do SQL Server no Oracle e manter um único SQL nativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Avaliar `SEQUENCE` e dialeto compatível, porque Oracle 11g trabalha com sequências.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Substituir geração de id por `@Version`, que estabelece chaves em bancos antigos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Migrar a lógica de identidade para Envers, que cria IDs pela revisão da transação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Oracle 11g utiliza sequências e não dispõe da sintaxe moderna de coluna IDENTITY; `SEQUENCE` deve ser avaliada no mapeamento e no dialeto. A ignora limite de versão; B importa sintaxe SQL Server; D confunde versão de concorrência e identificador; E confunde número de revisão auditada com chave de entidade.",
+      "section": "5. PostgreSQL, H2, Oracle, SQL Server e autenticação SSO",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Testes passam no H2 com `MODE=PostgreSQL`, mas DDL de produção falha no PostgreSQL real. Como essa diferença pode ser explicada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O modo PostgreSQL converte H2 no mesmo mecanismo MVCC e garante equivalência total.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O H2 em modo compatível utiliza automaticamente driver e armazenamento do PostgreSQL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O erro prova que o Flyway desativou os constraints SQL ao executar em produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O H2 emula somente parte do dialeto, de modo que testes reais no motor-alvo são necessários.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A incompatibilidade decorre exclusivamente de falta de anotações Envers no modelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A documentação do H2 reconhece que modos de compatibilidade cobrem apenas subconjuntos de diferenças entre bancos. A pressupõe identidade de implementação; B inventa troca de driver e motor; C atribui falha genericamente ao Flyway sem evidência; E confunde auditoria histórica com portabilidade do DDL.",
+      "section": "5. PostgreSQL, H2, Oracle, SQL Server e autenticação SSO",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação com SSO recebe um ID Token OIDC e pretende usar esse conteúdo como prova de identidade para associar revisões Envers a usuários. Qual procedimento separa corretamente responsabilidades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confiar no valor do campo `sub` isolado, ainda que o token não tenha sido validado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar credenciais JDBC para determinar o sujeito do usuário no provedor SSO.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ler o login de cabeçalho HTTP enviado pelo cliente como identidade auditada obrigatória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenar a senha central no Envers para provar que a autenticação ocorreu corretamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validar o ID Token e usar identidade confiável do provedor na autoria da revisão customizada.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. OIDC requer verificação adequada das declarações do ID Token, como emissor, destinatário e assinatura; uma revisão customizada pode incorporar a identidade validada. A ignora validade do token; B troca identidade final por usuário técnico de banco; C confia em informação do cliente; D armazena segredo indevidamente e não caracteriza auditoria segura.",
+      "section": "5. PostgreSQL, H2, Oracle, SQL Server e autenticação SSO",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe Java marcada com `@Entity` e dotada de identificador `@Id` pode participar do mapeamento objeto-relacional pelo provedor JPA, desde que cumpra os demais requisitos de entidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `@Entity` identifica classe persistente e `@Id` marca a identidade, acompanhados de requisitos como construtor sem argumentos adequado. A especificação JPA define o contrato e o Hibernate fornece implementação que traduz esse mapeamento em operações relacionais.",
+      "section": "1. JPA, Hibernate e ciclo de vida das entidades",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A série Hibernate 4.3 implementa diretamente Jakarta Persistence 3.2 e exige que todas as classes mapeadas importem `jakarta.persistence`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A linha Hibernate 4.3 foi construída para JPA 2.1, no ambiente `javax.persistence`. Jakarta Persistence 3.2 é especificação muito posterior. O desenvolvedor deve observar compatibilidade de bibliotecas e não misturar pacotes de gerações diferentes sem adaptação.",
+      "section": "1. JPA, Hibernate e ciclo de vida das entidades",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O contexto de persistência mantém identidade de entidades gerenciadas, de modo que consultas pela mesma identidade nesse contexto trabalham com a instância correspondente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O contexto de persistência tem cache de primeiro nível e associa cada identidade persistente a uma instância gerenciada. Isso possibilita acompanhamento de mudanças e sincronização; não significa que dados estejam permanentemente atualizados após mudanças externas.",
+      "section": "1. JPA, Hibernate e ciclo de vida das entidades",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A chamada `EntityManager.clear()` exclui definitivamente todas as linhas correspondentes às entidades gerenciadas, ainda que não haja chamada a `remove`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `clear()` destaca as entidades do contexto, tornando-as detached, sem equivaler a exclusão das linhas no banco. A operação `remove` marca entidade gerenciada para exclusão, e o resultado definitivo também depende da sincronização e conclusão transacional.",
+      "section": "1. JPA, Hibernate e ciclo de vida das entidades",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Envers permite marcar uma entidade com `@Audited` e consultar informações históricas relativas às revisões gravadas para essa entidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `@Audited` é anotação central do Envers; o módulo cria histórico de estados auditados conforme o mapeamento e permite leitura por AuditReader. A anotação não substitui a criação da infraestrutura de banco nem garante identidade humana sem extensão específica.",
+      "section": "3. Hibernate Envers: auditoria histórica e revisões",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando `flyway validate` executa todas as migrações pendentes para comparar a nova estrutura com o histórico registrado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `validate` verifica coerência entre scripts disponíveis e metadados de implantação, incluindo checksums. O comando voltado à aplicação de migrações pendentes é `migrate`; execução de alterações no banco não é o significado de validar o histórico.",
+      "section": "4. Flyway e evolução controlada do esquema",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em associação bidirecional, `mappedBy=\"cliente\"` na coleção de pedidos indica que a propriedade Java `cliente`, presente no lado proprietário, controla o vínculo persistido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O atributo `mappedBy` identifica a propriedade do lado proprietário do relacionamento, como `Pedido.cliente`; a coluna física pode ter nome diferente, por exemplo `cliente_id`. Alterar somente a coleção inversa sem sincronizar os dois lados pode gerar resultado inesperado.",
+      "section": "2. Mapeamento de relações, consultas e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A associação `@ManyToOne` da JPA tem, como padrão de carregamento, `LAZY`, assim como `@OneToMany`, sem necessidade de explicitar `fetch`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `ManyToOne` possui padrão EAGER e `OneToMany` possui padrão LAZY na especificação. O desenvolvedor pode definir estratégias explicitamente onde permitido; o tipo de carregamento ainda não determina um número fixo de comandos SQL emitidos pelo provedor.",
+      "section": "2. Mapeamento de relações, consultas e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JPQL, `select p from Pedido p where p.status = :status` expressa consulta por entidade e atributo do modelo Java, usando parâmetro nomeado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. JPQL é expressa sobre entidades, alias e propriedades; `:status` recebe valor parametrizado. SQL nativo consultaria nomes físicos conforme o esquema. A parametrização protege valores de entrada contra injeção quando utilizada adequadamente, mas não transforma nomes arbitrários de colunas em parâmetros.",
+      "section": "2. Mapeamento de relações, consultas e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta JPQL que utiliza `JOIN` sobre associação carrega necessariamente todo o relacionamento da mesma maneira que `JOIN FETCH`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `JOIN` permite navegar e filtrar pelo relacionamento; `JOIN FETCH` expressa solicitação de carregamento da associação no resultado. As modalidades não são equivalentes, e o uso de fetch joins com coleções pode afetar duplicação de linhas e paginação.",
+      "section": "2. Mapeamento de relações, consultas e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Envers, o número de revisão identifica alterações auditadas dentro de uma transação, não sendo necessariamente criado um número distinto para cada atributo alterado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação Envers define revisão como conjunto das mudanças auditadas relacionadas a uma transação. Várias entidades e atributos podem constar na mesma revisão, de acordo com as operações realizadas; o número não representa obrigatoriamente um campo ou um instante exclusivo.",
+      "section": "3. Hibernate Envers: auditoria histórica e revisões",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como uma migração `R__` possui descrição sem número de versão, o Flyway a executa uma vez e jamais verifica alterações posteriores em seu conteúdo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Scripts repetíveis são reaplicados quando seu checksum muda; justamente por isso convém escrever comandos seguros para nova execução, como definições substituíveis de views. Scripts versionados `V__` têm comportamento histórico diferente, evitando reexecução normal de versão já registrada.",
+      "section": "4. Flyway e evolução controlada do esquema",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em banco preexistente que ainda não usa Flyway, o recurso `baseline` permite registrar versão de partida sem executar retroativamente todas as migrações antigas representadas no esquema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O comando baseline marca a situação inicial do esquema e permite planejar a execução de versões posteriores, sem recriar necessariamente tabelas que já existem. Escolher a versão correta é essencial para evitar que o histórico de migração descreva estado diferente do banco real.",
+      "section": "4. Flyway e evolução controlada do esquema",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um objeto detached permanece automaticamente monitorado pelo `EntityManager` já encerrado; por isso, basta alterar seus atributos para que o ORM emita UPDATE em transação futura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A entidade detached não participa mais do contexto que rastreava seu estado. Alterações posteriores não se tornam automaticamente comandos SQL em outra transação; a aplicação precisa empregar uma operação apropriada, como `merge`, e utilizar a instância gerenciada no novo contexto.",
+      "section": "1. JPA, Hibernate e ciclo de vida das entidades",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na estratégia ValidityAuditStrategy do Envers, as revisões de início e fim permitem definir intervalos de validade dos estados auditados, com atualização do estado histórico anterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A estratégia Validity armazena revisão inicial e final de validade de cada linha histórica, atualizando o registro anterior quando ocorre nova revisão. Isso diferencia seu custo de escrita e suas possibilidades de consulta da DefaultAuditStrategy, que normalmente usa revisão inicial.",
+      "section": "3. Hibernate Envers: auditoria histórica e revisões",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cache de segundo nível do Hibernate é necessariamente idêntico ao cache de primeiro nível, limitado a uma única sessão, sem depender de configuração adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O primeiro nível corresponde ao contexto de persistência e é intrínseco ao gerenciamento das entidades; o segundo nível é compartilhável entre sessões ligadas à fábrica e normalmente requer configuração apropriada. O cache de consultas é outro recurso, com política distinta de armazenamento e invalidação.",
+      "section": "2. Mapeamento de relações, consultas e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O PostgreSQL utiliza controle multiversão para isolamento transacional, mas isso não exclui conflitos de escrita ou a necessidade de bloqueios em determinadas situações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O MVCC fornece visões consistentes dos dados e reduz interferências entre leituras e escritas, mas não elimina conflitos de atualização, deadlocks ou locks necessários em operações concorrentes. O controle otimista de JPA pode complementar a estratégia do banco.",
+      "section": "5. PostgreSQL, H2, Oracle, SQL Server e autenticação SSO",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O modo `MODE=Oracle` do H2 assegura que consultas e migrações criadas em H2 se comportarão de modo idêntico no Oracle Database 11g, inclusive quanto à geração de identificadores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os modos de compatibilidade H2 emulam apenas parte das diferenças de SQL e comportamento. Oracle 11g possui particularidades de sequências, DDL e paginação que merecem testes no próprio motor e versão usados em produção; equivalência plena não é promessa do H2.",
+      "section": "5. PostgreSQL, H2, Oracle, SQL Server e autenticação SSO",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O OIDC acrescenta uma camada de autenticação ao OAuth 2.0 e utiliza um ID Token, de modo que validar a identidade recebida é responsabilidade diferente de persistir um cadastro via JPA.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. OpenID Connect define identificação do usuário e informações sobre a autenticação por ID Token. JPA/Hibernate tratam persistência e não validam, por natureza, emissor, audiência e assinatura de token. A associação segura de revisões a pessoas exige integrar essas camadas.",
+      "section": "5. PostgreSQL, H2, Oracle, SQL Server e autenticação SSO",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SQL Server, a propriedade `IDENTITY(1,1)` já equivale, por si só, a uma restrição PRIMARY KEY, independentemente de qualquer definição adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `IDENTITY` descreve geração incremental de valores conforme semente e incremento, e não substitui automaticamente a constraint de chave primária. Para identificar a linha e impor unicidade e não nulidade de PK, a definição de tabela deve estabelecer a restrição apropriada.",
+      "section": "5. PostgreSQL, H2, Oracle, SQL Server e autenticação SSO",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Jakarta Persistence Specification 3.2",
+      "publisher": "Eclipse Foundation — Jakarta EE",
+      "reference": "Ciclo de vida, operações EntityManager, mapeamento, consultas e controle otimista",
+      "url": "https://jakarta.ee/specifications/persistence/3.2/jakarta-persistence-spec-3.2",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Hibernate ORM 4.3 — documentação e compatibilidade",
+      "publisher": "Hibernate ORM",
+      "reference": "Hibernate 4.3, JPA 2.1 e APIs correspondentes",
+      "url": "https://hibernate.org/orm/releases/4.3/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Hibernate Developer Guide 4.3",
+      "publisher": "Hibernate ORM",
+      "reference": "Transactions, persistence contexts, associations, caching e Envers",
+      "url": "https://docs.hibernate.org/core/4.3/devguide/en-US/html/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Hibernate ORM 4.3 Developer Guide, Chapter 15 — Envers",
+      "publisher": "Hibernate ORM",
+      "reference": "Anotação @Audited, AuditReader e estratégias de auditoria",
+      "url": "https://docs.hibernate.org/core/4.3/devguide/en-US/html/ch15.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Flyway — Migrations",
+      "publisher": "Redgate",
+      "reference": "Versioned migrations, repeatable migrations e execução do migrate",
+      "url": "https://documentation.red-gate.com/flyway/flyway-concepts/migrations",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Flyway — Schema History Table",
+      "publisher": "Redgate",
+      "reference": "Registro de versões, checksums e estados de migração",
+      "url": "https://documentation.red-gate.com/flyway/flyway-concepts/migrations/flyway-schema-history-table",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Flyway — Repeatable Migrations",
+      "publisher": "Redgate",
+      "reference": "Reexecução por mudança de checksum e ordem de aplicação",
+      "url": "https://documentation.red-gate.com/flyway/flyway-concepts/migrations/repeatable-migrations",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL — Introduction to MVCC",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Controle multiversão e consistência de transações",
+      "url": "https://www.postgresql.org/docs/16/mvcc-intro.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL — Constraints",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Primary key, foreign key, unique e integridade referencial",
+      "url": "https://www.postgresql.org/docs/current/ddl-constraints.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "H2 Database Engine — Features",
+      "publisher": "H2 Database",
+      "reference": "Banco em memória/arquivo e modos parciais de compatibilidade",
+      "url": "https://h2database.com/html/features.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle Database 11g Release 2 — Database Concepts",
+      "publisher": "Oracle",
+      "reference": "Geradores de sequência e utilização para chaves",
+      "url": "https://docs.oracle.com/cd/E11882_01/server.112/e40540.pdf",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SQL Server — IDENTITY Property",
+      "publisher": "Microsoft Learn",
+      "reference": "IDENTITY(seed, increment) e geração de valores",
+      "url": "https://learn.microsoft.com/en-us/sql/t-sql/statements/create-table-transact-sql-identity-property?view=azuresqldb-current",
+      "accessedAt": "2026-10-09"
+    }
+  ]
+}

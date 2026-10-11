@@ -1,0 +1,1807 @@
+{
+  "id": "informatica.virtualizacao-vmware",
+  "subject": "Informática",
+  "title": "Virtualização e ferramentas VMware",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Virtualização e ferramentas VMware"
+  ],
+  "scope": {
+    "covers": "Virtualização de servidores, tipos de hipervisores, VMs, containers, provisionamento, recursos, snapshots e continuidade; ESXi, vCenter Server, vSphere HA, DRS, vMotion, Storage vMotion; VMware NSX, microsegmentação, redes overlay; vCloud Director/VMware Cloud Director e multitenancy; vRealize Automation, Operations, Log Insight e Orchestrator e suas denominações posteriores; Harbor, Clair, Red Hat Quay e análise de vulnerabilidades de imagens.",
+    "excludes": "Comandos de configuração específicos de uma versão, licenciamento comercial e migração exaustiva entre releases; desenvolvimento de aplicações dentro das VMs, operação aprofundada de Kubernetes e investigação forense de incidentes."
+  },
+  "theoryTitle": "Virtualização, gerenciamento VMware, redes definidas por software e segurança de imagens",
+  "chapters": [
+    {
+      "title": "1. Fundamentos da virtualização, hipervisores e isolamento",
+      "markdown": "## Virtualizar recursos físicos\nVirtualização é a técnica de abstrair recursos computacionais de maneira que várias máquinas virtuais (VMs) compartilhem um host físico com isolamento lógico. Cada VM apresenta hardware virtual — CPUs virtuais, memória, dispositivos de armazenamento e interfaces de rede — e pode executar um sistema operacional convidado. O **hipervisor** intermedeia o acesso ao hardware e gerencia a execução dessas máquinas. Compartilhamento não significa que memória, processador ou armazenamento estejam fisicamente duplicados: são recursos alocados e controlados sobre uma mesma infraestrutura.\n\n### Tipo 1 e tipo 2\nUm hipervisor **tipo 1**, também chamado bare metal, executa diretamente sobre o hardware físico; o ESXi é exemplo clássico. Um hipervisor **tipo 2** roda como aplicação sobre um sistema operacional hospedeiro convencional; VMware Workstation é exemplo de uso em estações. O critério da distinção é a arquitetura de execução, não a quantidade de VMs ou a presença de interface gráfica. Em ambiente corporativo, hipervisores tipo 1 são comuns por seu desenho operacional, mas um tipo 2 também pode servir a testes. No tipo 2, o sistema hospedeiro participa do caminho de execução; no tipo 1, não há uma instalação convencional de sistema desktop intermediando a arquitetura da mesma forma.\n\n### VM não é contêiner\nUma VM executa um **sistema operacional convidado** e abstrai hardware; um contêiner normalmente isola processos e suas dependências mediante recursos do kernel compartilhado com outros contêineres do host. No mesmo host Linux, múltiplos contêineres podem usar namespaces e cgroups sem cada um inicializar seu próprio kernel. Imagens de contêiner descrevem camadas e configuração de aplicação, ao passo que discos de VMs representam volumes usados por sistemas convidados. As duas técnicas podem ser combinadas: contêineres dentro de VMs são frequentes. Isolamento de contêiner não deve ser anunciado automaticamente como idêntico à fronteira de hipervisor, pois modelo de ameaça e mecanismos diferem.\n\n### Modalidades e recursos\nVirtualização completa apresenta ao convidado uma arquitetura compatível com a expectativa de hardware, apoiada em extensões de CPU quando aplicáveis. **Paravirtualização** implica interfaces ou drivers cooperativos que reconhecem a camada virtual e otimizam operações; drivers de rede e de armazenamento paravirtualizados são comuns mesmo quando a VM executa um sistema convidado convencional. Virtualizar CPU não significa reservar fisicamente um núcleo para cada vCPU. O agendador do hipervisor distribui tempo de CPU; excesso de vCPUs ou sobrecomprometimento pode elevar contenção e latência. A memória configurada define capacidade virtual apresentada ao convidado, mas gestão da memória física pode envolver compartilhamento, ballooning, compressão ou paginação, conforme a implementação e políticas. A existência desses mecanismos não substitui dimensionamento adequado.\n\n| Recurso | Representação virtual | Risco de interpretação |\n| --- | --- | --- |\n| CPU | vCPU agendada em núcleos físicos | Igualar vCPU a núcleo dedicado |\n| Memória | RAM configurada para VM | Confundir alocação com reserva física exclusiva |\n| Disco | Arquivo/dispositivo de disco virtual | Supor que snapshot seja cópia de segurança independente |\n| Rede | Adaptador virtual ligado a rede virtual | Achar que isolamento entre VMs dispensa políticas |\n\n### Snapshots, clones e backups\n**Snapshot** captura estado referencial da VM em determinado instante, com tratamento de arquivos de disco e, opcionalmente, de memória conforme a opção e a plataforma. Depois do snapshot, alterações podem ser registradas em discos diferenciais; mantê-los prolongadamente pode gerar crescimento de armazenamento e impacto operacional. Snapshot **não é substituto de backup independente**: normalmente depende da cadeia de discos e da disponibilidade do armazenamento original. **Clone** cria outra VM ou cópia utilizável; **template** é modelo para implantações repetidas, geralmente não executado como VM operacional regular enquanto permanece template. Backup restaurável deve ter retenção, cópia separada conforme política, verificações de consistência e testes de restauração. Para uma aplicação com banco de dados, um snapshot de infraestrutura nem sempre garante consistência da transação sem coordenação com o sistema convidado.\n\n### Alta disponibilidade e limites de isolamento\nA concentração de VMs em um host aumenta utilização de recursos, mas cria dependência comum: falha do hardware pode afetar várias VMs. Para continuidade, arquitetura deve contemplar hosts redundantes, armazenamento, rede, monitoramento e recuperação. A virtualização facilita movimentação e recuperação, mas não elimina falhas de software, exclusões humanas nem problemas de segurança. Em decisão de projeto, a pergunta central é **qual camada** precisa ser isolada ou recuperada: processo, sistema operacional, VM, host, cluster ou serviço distribuído. É esse critério que diferencia um contêiner, uma VM, uma migração, um snapshot e um backup."
+    },
+    {
+      "title": "2. ESXi e vCenter Server: gestão, mobilidade e disponibilidade",
+      "markdown": "## Camada de execução e camada de gerenciamento\nNo ecossistema vSphere, **ESXi** é hipervisor instalado em servidor físico para executar VMs; **vCenter Server** é plataforma de gerenciamento central de inventário, hosts, clusters, VMs, permissões e operações administrativas. O vCenter não é o processador que executa as VMs de um ESXi: o host mantém sua função de execução mesmo quando perde temporariamente contato com o gerenciamento, respeitadas as dependências de serviços específicos. Gerenciar muitos hosts por vCenter facilita aplicar políticas comuns e coordenar recursos. Um datacenter lógico organiza objetos de inventário, enquanto cluster agrega hosts para recursos de operação coordenada.\n\n### Objetos comuns\n**Host** é máquina física gerida por ESXi; **cluster** reúne hosts sob certas políticas; **datastore** fornece capacidade de armazenamento para arquivos das VMs; **resource pool** define compartilhamento hierárquico de recursos computacionais. Um objeto de inventário pode herdar permissões de objetos superiores, segundo configuração. A atribuição de papéis por RBAC limita quais operações a conta consegue realizar; credenciais de administrador do sistema convidado não concedem automaticamente privilégios em vCenter. Uma falha ao ligar VM pode resultar de quota, recurso insuficiente, datastore sem espaço ou privilégio inadequado — diagnóstico depende da etapa que falhou.\n\n### vMotion e Storage vMotion\n**vMotion** permite migrar a execução de VM ligada entre hosts compatíveis, transferindo estado computacional com interrupção muito pequena quando os requisitos são satisfeitos. É recurso de manutenção e balanceamento: antes de desativar um host para atualização, migram-se as VMs para outro host. **Storage vMotion** move arquivos ou discos de VM para outro datastore com manutenção da disponibilidade nas condições suportadas. Essas operações não são sinônimas: uma altera principalmente a localização de execução; outra altera a localização do armazenamento. Existem modalidades combinadas de migração, que exigem validar compatibilidade de CPU, rede, conectividade e capacidade de destino. A migração ao vivo não garante que uma aplicação mal dimensionada ficará mais rápida; ela muda onde a VM é executada.\n\n### DRS, HA e FT\n**Distributed Resource Scheduler (DRS)** auxilia posicionamento e balanceamento de VMs entre hosts do cluster conforme carga, regras e políticas, podendo recomendar ou automatizar migrações. **vSphere High Availability (HA)** detecta falhas de hosts e busca reiniciar VMs afetadas em hosts sobreviventes, desde que existam condições e capacidade para recuperação. Reinício não é continuidade sem interrupção: sistema e aplicação podem sofrer período de indisponibilidade enquanto iniciam. **Fault Tolerance (FT)**, quando suportado e configurado para determinada VM, mantém execução redundante para reduzir interrupção em falha de host; possui requisitos e restrições próprios, não é o comportamento padrão de toda VM em HA. Não atribua ao DRS a mesma função do HA: DRS busca balanceamento e posicionamento, HA reage à falha.\n\n| Recurso | Propósito principal | Exemplo prático |\n| --- | --- | --- |\n| ESXi | Executar VMs sobre hardware | Host físico com diversas VMs |\n| vCenter Server | Gerenciar hosts e objetos | Inventário e políticas de cluster |\n| vMotion | Migrar execução de VM ligada | Manutenção de host sem desligamento planejado |\n| Storage vMotion | Mudar arquivos de armazenamento | Transferir discos para outro datastore |\n| DRS | Posicionar/balancear cargas | Recomendar migração por desequilíbrio |\n| HA | Reiniciar VMs após falha de host | Recuperação em host sobrevivente |\n| FT | Redundância de execução aplicável | Continuidade com VM protegida específica |\n\n### Políticas, limites e casos de prova\nA admissão de recursos e as regras de afinidade/antiafinidade influenciam local de execução e comportamento de cluster. Reserva é capacidade assegurada sob condições definidas; limite estabelece teto; shares representam prioridade relativa em cenários de contenção. A soma das configurações de RAM de VMs não informa, sozinha, a utilização física efetiva ou o risco de swap. Para duas VMs que precisam ficar em hosts diferentes por resiliência, regras de anti-afinidade podem orientar posicionamento; entretanto, políticas rígidas também limitam flexibilidade quando há poucos hosts disponíveis.\n\n### Cenários de falha\nSe um host pára abruptamente, a resposta típica configurada em HA é **reiniciar** VMs em host sobrevivente — não executar um vMotion convencional a partir de CPU já desligada. Se a empresa precisa apenas mover VMs de um host saudável para manutenção, vMotion é apropriado. Se o problema é excesso de carga em um host do cluster, DRS ajuda a identificar melhor distribuição. Se o datastore está perto do limite, movimentação de armazenamento pode ser melhor que migração somente de execução. Backup continua necessário contra corrupção e exclusão lógica, mesmo com HA e FT. O critério de seleção é o evento operacional: manutenção, rebalanceamento, falha, proteção contra perda de dados ou mudança de armazenamento."
+    },
+    {
+      "title": "3. VMware NSX e Cloud Director: rede virtual e multitenancy",
+      "markdown": "## NSX e redes definidas por software\n**VMware NSX** é plataforma de virtualização de rede e segurança que permite criar segmentos lógicos, roteamento e políticas distribuídas sobre infraestrutura física subjacente. A **rede underlay** é o tecido IP físico que transporta tráfego entre hosts e componentes; a **overlay** constrói conectividade lógica entre endpoints sobre esse transporte, tipicamente por encapsulamento. A rede física precisa ter conectividade e características adequadas, como MTU compatível com encapsulação. A existência de um switch virtual não implica que todos os pacotes abandonem o host físico: tráfego local pode ser comutado onde os endpoints residem, conforme a topologia.\n\n### Segmentos e roteamento\nUm **segmento** é domínio lógico de camada 2 ao qual cargas podem se conectar; o roteamento possibilita comunicação entre segmentos ou com redes externas conforme políticas. Na arquitetura NSX, **Tier-1 Gateway** é usado frequentemente para conexões de redes de aplicação/locatários, enquanto **Tier-0 Gateway** viabiliza comunicação com a infraestrutura de rede externa e pode conectar diferentes Tier-1, conforme a implantação. Essas funções são lógicas, não equivalem a um único roteador físico dedicado para cada segmento. A disponibilidade e a topologia dependem de dispositivos edge, configuração de roteamento e arquitetura. O fato de duas VMs estarem em segmentos diferentes não prova isolamento completo sem regras adequadas.\n\n### Distributed Firewall e microsegmentação\nO **Distributed Firewall (DFW)** aplica políticas de segurança próximas às interfaces virtuais ou às cargas distribuídas, possibilitando controle granular, inclusive de tráfego leste-oeste entre aplicações no datacenter. Uma organização pode permitir que a camada web acesse uma porta específica da camada de aplicação e impedir comunicação desnecessária com a camada de dados. **Microsegmentação** é estratégia de restringir fluxos com base em grupos, identidade, tags e serviços; não significa criar uma VLAN física para cada VM. Um firewall apenas perimetral tende a inspecionar melhor tráfego norte-sul, mas pode não oferecer a mesma granularidade para fluxos internos. Grupos dinâmicos com tags permitem que políticas acompanhem mudanças no inventário, dependendo da integração configurada. Uma exceção de firewall precisa ser analisada cuidadosamente porque pode ampliar superfície de ataque.\n\n### Cloud Director e provimento a locatários\n**vCloud Director**, denominado nas versões posteriores **VMware Cloud Director**, é plataforma para entregar infraestrutura virtual como serviço e administrar múltiplos locatários. Diferentemente de vCenter, que organiza e administra infraestrutura vSphere, Cloud Director oferece abstrações de organização, catálogos e **virtual data centers** atribuídos a consumidores/tenants. Uma **Organization** agrupa usuários, recursos e entidades; um **Org vDC** apresenta capacidade computacional, armazenamento e rede alocados ou consumíveis pela organização; um **Provider vDC** representa recursos provenientes do ambiente provedor e serve à oferta para organizações. Organizações podem dispor de catálogos de imagens, mídias e modelos de vApps; uma **vApp** agrupa VMs e configurações correlatas para implantação e gerenciamento conjunto.\n\n### Tenancy, cotas e políticas\nO provedor administra infraestrutura e recursos disponíveis; a organização usuária opera sobre sua parcela autorizada, sob papéis e políticas de acesso. **Multitenancy** separa identidade, administração e recursos lógicos de vários clientes sobre uma plataforma compartilhada, sem exigir host físico exclusivo por cliente. Isolamento adequado requer políticas de rede, permissões, quotas e armazenamento coerentes; somente criar duas organizações não prova segurança se os acessos forem configurados incorretamente. Capacidades de rede externa, gateways de borda e serviços podem variar conforme versão e backing NSX. O controle de catálogo também deve distinguir permissão para **visualizar** template de permissão para **instanciá-lo**.\n\n| Produto/objeto | Papel | Limite da comparação |\n| --- | --- | --- |\n| NSX segment | Rede lógica para cargas | Não é datastore |\n| NSX DFW | Política de tráfego distribuída | Não é antivírus de imagem |\n| Tier-0 / Tier-1 | Roteamento lógico e interconexões | Não são hosts ESXi |\n| Provider vDC | Base de oferta de recursos | Não é tenant específico |\n| Org vDC | Recursos consumidos por organização | Não é cluster físico exclusivo |\n| Cloud Director catalog | Templates e mídias | Não executa sozinho as VMs |\n\n### Situações concretas\nPara permitir que duas organizações utilizem a mesma infraestrutura sem visualizarem seus objetos, a gestão de tenant e de Org vDC é do Cloud Director; políticas de tráfego entre segmentos podem envolver NSX. Para bloquear conexão entre VMs de segmentos internos diferentes, o DFW pode complementar o roteamento e o controle do perímetro. Para migrar uma VM de host físico por manutenção, recorre-se às funções vSphere, não ao mecanismo de publicação de catálogos de Cloud Director. As plataformas podem ser integradas, mas cada uma responde a um problema distinto: **execução**, **gestão da infraestrutura**, **rede/segurança** e **consumo da nuvem**."
+    },
+    {
+      "title": "4. vRealize: automação, orquestração, logs e operações",
+      "markdown": "## Nomes históricos e famílias de funções\nEditais frequentemente usam **vRealize Automation**, **vRealize Operations**, **vRealize Log Insight** e **vRealize Orchestrator**. Esses nomes apareceram posteriormente em diferentes gerações da marca **VMware Aria** — por exemplo, Aria Automation, Aria Operations, Aria Operations for Logs e Aria Automation Orchestrator. Mais recentemente, ofertas foram apresentadas em famílias de VMware Cloud Foundation/VCF; nomes exatos dependem da versão e do licenciamento. Para responder à questão funcional, a correspondência histórica importa mais que assumir que um nome comercial seja permanente. Não confunda mudança de marca com fusão automática das funcionalidades em um único componente indivisível.\n\n### vRealize Automation: autosserviço e provisionamento\n**vRealize Automation (vRA)** concentra experiência de consumo sob demanda, catálogos, modelos ou blueprints, políticas, aprovações e entrega automatizada de recursos. Um exemplo: usuário autorizado solicita uma VM Linux de tamanho padrão; o fluxo verifica políticas, provisiona infraestrutura e apresenta o recurso. A automação pode chamar operações em vCenter, integrar redes, armazenamentos e ferramentas de configuração. **Catálogo de autosserviço** não significa que o usuário recebeu privilégios globais no hipervisor. Restrições de quota, política de consumo e credenciais seguem relevantes. Algumas versões empregam modelos declarativos e extensibilidade; detalhes de telas e sintaxe mudam entre releases. A característica central é o ciclo de solicitação/provisionamento do serviço.\n\n### vRealize Orchestrator: workflows e integrações\n**vRealize Orchestrator (vRO)** executa **workflows** de automação com tarefas e conectores, podendo interagir com APIs e plug-ins. Exemplo: após solicitar uma VM, um workflow consulta sistema de endereçamento, reserva IP, registra inventário e envia notificação. Automation pode expor um item de catálogo que chama Orchestrator, mas as duas funções não são idênticas. Um workflow é sequência lógica de atividades com entradas, condições e saídas; ele não é, por si, mecanismo de medir capacidade de hosts. Erros de certificado, identidade ou privilégios de integração podem impedir a execução mesmo que o serviço de catálogo esteja disponível. Isso torna autenticação e observabilidade parte do desenho de automação.\n\n### vRealize Operations: saúde, capacidade e desempenho\n**vRealize Operations (vROps)**, conhecido posteriormente como Aria Operations, analisa métricas, alertas, saúde da infraestrutura, tendências de capacidade e desempenho. Cenário: cluster registra aumento sustentado de uso de memória e risco de esgotamento; o monitoramento e a análise de capacidade indicam quais objetos demandam investigação. Métricas numéricas como consumo de CPU, latência e capacidade livre diferem de linhas textuais de log, mesmo que exista correlação entre elas. vROps não substitui totalmente o vCenter: o vCenter continua sendo plataforma fundamental de gerenciamento dos objetos vSphere, enquanto Operations amplia a capacidade analítica e de observabilidade. Recomendações de right-sizing exigem olhar aplicação, picos e políticas, não apenas média histórica.\n\n### vRealize Log Insight: eventos e logs\n**vRealize Log Insight**, posteriormente Aria Operations for Logs, reúne, indexa, pesquisa e correlaciona mensagens de logs originadas de hosts, vCenter e outros sistemas. É útil investigar eventos como falha de autenticação, reinício de serviço ou sequência de erros num período. Em contraste, Operations é orientado especialmente a métricas, capacidade e saúde. Ambos podem interagir, mas não são sinônimos. Um evento pode ser exibido em análise de logs mesmo sem significar falha de capacidade; uma saturação de CPU pode ser detectada por métrica mesmo que nenhum log textual revele diretamente sua causa. Retenção de logs, horário sincronizado e campos de correlação são relevantes para investigação.\n\n| Produto histórico | Enfoque | Exemplo de demanda |\n| --- | --- | --- |\n| vRealize Automation | Catálogo, autosserviço e provisionamento | Solicitar VM com política de aprovação |\n| vRealize Orchestrator | Fluxos e integração por workflows | Executar passos após implantação |\n| vRealize Operations | Métricas, saúde, capacidade, desempenho | Diagnosticar saturação de cluster |\n| vRealize Log Insight | Ingestão, busca e análise de logs | Identificar sequência de erros em hosts |\n\n### Processo transversal\nConsidere a implantação de serviço: a requisição surge no catálogo de Automation, que pode invocar Orchestrator para tarefas externas; o vCenter controla a criação e execução de VMs em ESXi; o NSX fornece conectividade e política; o Operations monitora utilização/capacidade e o Log Insight permite correlacionar eventos. O fato de todas as ferramentas participarem não muda suas atribuições individuais. Para distinguir alternativas, identifique a palavra decisiva: **solicitação**, **workflow**, **métrica**, **log**, **execução de VM**, **rede** ou **tenant**. Uma questão que apresenta falha em integração automatizada, por exemplo, pode exigir examinar tanto o workflow quanto a autenticação, mas não concluir que Log Insight é ferramenta de provisionamento."
+    },
+    {
+      "title": "5. Harbor, Clair, segurança e integração operacional",
+      "markdown": "## Registro de imagens e varredura de vulnerabilidades\n**Harbor** é registro de artefatos/imagens de contêiner com recursos de organização por projetos, controle de acesso, políticas, replicação, retenção e integração com análise de vulnerabilidades. Um registro armazena e distribui imagens; não é hipervisor, nem substitui ESXi ou vCenter. Uma imagem de contêiner contém camadas e metadados; uma tag como `app:1.2` é referência legível que pode mudar de associação conforme políticas, enquanto digest identifica o conteúdo de maneira adequada para rastreabilidade. Para deployments reproduzíveis, registrar o digest e acompanhar versões é mais robusto do que presumir que toda tag seja imutável. Projetos permitem separar recursos e permissões de equipes, sujeito à configuração.\n\n### Clair e Red Hat Quay\n**Clair** é mecanismo de análise estática de vulnerabilidades conhecidas em imagens de contêiner; aparece em documentação do **Red Hat Quay**, registro empresarial de imagens. O scanner inspeciona componentes e metadados das imagens e compara informações com bases de vulnerabilidades, apontando CVEs e outras informações conforme cobertura e versões disponíveis. Ele não executa testes de penetração da aplicação em produção nem comprova a inexistência de falhas lógicas. Em instalações Red Hat Quay, Clair pode ser habilitado/configurado para apresentar resultados associados a repositórios e manifests. A detecção depende da atualização das bases e do suporte a sistemas/pacotes da imagem: um relatório sem achados não é atestado absoluto de segurança.\n\n### Harbor e a mudança do scanner padrão\nA documentação do Harbor registra que **Clair deixou de ser scanner padrão a partir do Harbor 2.2**, permanecendo possível integrá-lo como scanner externo, conforme a compatibilidade. **Trivy** aparece nas instalações e na documentação atuais como integração de análise de vulnerabilidades do Harbor. Portanto, uma alternativa que chama Clair de componente padrão obrigatório de toda instalação atual do Harbor incorre em generalização temporal. Ao integrar scanner externo, o administrador configura serviço capaz de responder à interface de scanners plugáveis; a disponibilidade e os tipos de artefatos suportados dependem do scanner. Políticas podem disparar varredura manual, agendada ou associada a fluxos de publicação, conforme configuração.\n\n### Vulnerabilidade, atualização e política de deployment\nUma CVE representa informação de vulnerabilidade identificada; seu aparecimento em relatório não significa automaticamente exploração comprovada no ambiente específico. Prioridade de correção depende de gravidade, exposição, contexto da aplicação e existência de atualização ou mitigação. Um registro pode aplicar política de impedir consumo de artefatos que excedam limiar, mas o resultado depende de ativar regras e integrá-las ao fluxo de entrega. A análise por imagem ajuda a identificar bibliotecas e pacotes vulneráveis; não substitui análise dinâmica, autenticação segura, proteção de segredos, verificação de assinaturas ou monitoramento de aplicações em execução. Também é preciso controlar quem pode enviar novas imagens, substituir tags e promover versões para produção.\n\n### Comparação com a pilha VMware\nUma VM gerida no vCenter pode hospedar um registro Harbor ou um cluster de contêineres. O Harbor controla **artefatos** publicados; NSX controla **conectividade e políticas de rede**; ESXi executa **máquinas virtuais**; vRealize/Aria gerencia **provisionamento, workflows e observabilidade**. Clair verifica vulnerabilidades conhecidas nas imagens; não inspeciona por definição o tráfego entre VMs como um firewall. Cloud Director pode entregar recursos virtuais a equipes que operem workloads com contêineres, mas não muda o papel do registro de imagens. Um desenho de segurança completo combina autenticação, RBAC, segregação, varredura de artefatos, políticas de rede e cópias de segurança, cada qual na camada correspondente.\n\n| Necessidade | Ferramenta/abordagem | Falsa equivalência |\n| --- | --- | --- |\n| Armazenar e distribuir imagens de contêiner | Harbor ou Red Hat Quay | Confundir com datastore de VM |\n| Procurar CVEs nos componentes da imagem | Clair ou scanner compatível | Confundir com análise de tráfego NSX |\n| Restringir tráfego leste-oeste de cargas | NSX Distributed Firewall | Confundir com registro de imagens |\n| Provisionar VM por solicitação de serviço | vRealize Automation | Confundir com vRealize Log Insight |\n| Investigar sequência de erros de host | vRealize Log Insight | Confundir com vSphere HA |\n| Recuperar VM por falha de host | vSphere HA, quando configurado | Confundir reinício com backup |\n\n### Exemplo integrado de segurança\nUma equipe publica imagem com biblioteca vulnerável no Harbor. Um scanner integrado identifica a ocorrência. A organização pode bloquear promoção, corrigir dependências e gerar nova imagem; ainda precisará confirmar que o serviço em produção foi atualizado. Se as VMs que hospedam a aplicação precisam separar tráfego da camada de dados, a medida é de segmentação NSX, não função do scanner. Se um host falhar, HA pode reiniciar VMs; essa recuperação não elimina a vulnerabilidade da imagem. Se o provisionamento precisa incorporar checagem de segurança, um workflow de Orchestrator acionado por Automation pode consultar resultados do registro, respeitadas APIs, permissões e políticas implementadas.\n\n### Como o tema costuma ser cobrado\nA prova substitui funções vizinhas: chama vCenter de hipervisor, HA de migração sem interrupção, DRS de backup, Cloud Director de firewall, vRealize Log Insight de catálogo de VMs e Clair de registro. Outra armadilha é confundir produto antigo com função atual e afirmar que Clair é o scanner padrão do Harbor em qualquer versão. Resolva localizando a camada: **hipervisor, controle de cluster, rede e segurança, multitenancy, automação, monitoramento, análise de logs ou artefatos de contêiner**. Identificar o objeto administrado costuma revelar a única opção correta."
+    }
+  ],
+  "summary": "## Síntese de revisão\n**Virtualização:** hipervisor tipo 1 opera diretamente sobre hardware, como ESXi; tipo 2 funciona sobre sistema operacional hospedeiro, como Workstation. VM apresenta hardware virtual e sistema convidado; contêiner compartilha o kernel do host, em geral. vCPU não implica núcleo físico reservado. Snapshot captura um estado referencial dependente de cadeia e armazenamento, não substituindo backup independente; template serve à implantação repetível.\n\n**vSphere:** ESXi executa VMs; vCenter Server administra hosts, clusters, inventário e permissões. vMotion migra execução ligada entre hosts compatíveis; Storage vMotion movimenta arquivos/discos entre datastores. DRS distribui cargas/posicionamento, HA procura reiniciar VMs afetadas por falha de host, FT mantém redundância de execução para VMs e condições suportadas. Resource pools, reservas, limits e shares governam capacidade e contenção; alta disponibilidade não resolve apagamento de dados.\n\n**NSX e Cloud Director:** NSX cria segmentos lógicos, overlay e políticas de rede; firewall distribuído auxilia microsegmentação leste-oeste. Tier-1 atende conectividade de workloads e Tier-0 conecta a ambientes externos conforme o desenho. Cloud Director, chamado anteriormente vCloud Director, disponibiliza recursos virtualizados a organizações e locatários. Provider vDC é a base da oferta; Org vDC representa recursos consumíveis pela organização, que pode utilizar catálogos e vApps.\n\n**Família vRealize:** Automation organiza catálogo e provisionamento; Orchestrator executa workflows e integrações; Operations acompanha métricas, saúde, desempenho e capacidade; Log Insight pesquisa e correlaciona logs. Em versões posteriores, nomes VMware Aria/VCF refletem rebranding; a função de cada produto continua sendo a pista principal.\n\n**Imagens e segurança:** Harbor e Red Hat Quay são registros de artefatos de contêiner. Clair analisa vulnerabilidades conhecidas em componentes de imagens e integra-se ao Quay e, quando compatível, a registros como Harbor. O scanner padrão do Harbor passou a Trivy nas versões a partir de 2.2, deixando Clair como possibilidade externa. CVE identificada não equivale a exploração comprovada nem a garantia de correção automática. Distinga a camada de execução da VM, firewall de rede, autosserviço e segurança da cadeia de imagens.",
+  "flashcards": [
+    {
+      "front": "O que faz um hipervisor?",
+      "back": "Gerencia VMs e abstrai acesso ao hardware físico compartilhado."
+    },
+    {
+      "front": "Qual é a característica de hipervisor tipo 1?",
+      "back": "Executa sobre o hardware físico; ESXi é o exemplo clássico."
+    },
+    {
+      "front": "Qual é a característica de hipervisor tipo 2?",
+      "back": "Funciona sobre sistema operacional hospedeiro convencional, como VMware Workstation."
+    },
+    {
+      "front": "Qual a diferença entre VM e contêiner?",
+      "back": "VM executa sistema operacional convidado sobre hardware virtual; contêiner normalmente compartilha o kernel do host e isola processos."
+    },
+    {
+      "front": "vCPU equivale a núcleo físico exclusivo?",
+      "back": "Não. A CPU física é agendada entre vCPUs conforme recursos, reservas e políticas."
+    },
+    {
+      "front": "Snapshot é backup independente?",
+      "back": "Não. Snapshot depende de discos e cadeia da VM; backup requer cópia independente e restauração verificável."
+    },
+    {
+      "front": "Qual a função do ESXi?",
+      "back": "Executar máquinas virtuais em host físico como hipervisor bare metal."
+    },
+    {
+      "front": "Qual a função do vCenter Server?",
+      "back": "Gerenciar centralizadamente hosts ESXi, clusters, VMs, inventário e operações de infraestrutura."
+    },
+    {
+      "front": "Qual o foco do vMotion?",
+      "back": "Migrar execução de uma VM ligada entre hosts compatíveis, com interrupção reduzida."
+    },
+    {
+      "front": "Qual o foco do Storage vMotion?",
+      "back": "Mover arquivos e discos de VM entre datastores conforme requisitos da plataforma."
+    },
+    {
+      "front": "O que faz DRS?",
+      "back": "Auxilia posicionamento e balanceamento de VMs nos hosts de um cluster."
+    },
+    {
+      "front": "O que faz vSphere HA?",
+      "back": "Busca reiniciar VMs em hosts sobreviventes após falha de host, respeitada a capacidade disponível."
+    },
+    {
+      "front": "Qual é a ideia do NSX?",
+      "back": "Virtualização de rede e serviços de segurança com segmentos lógicos e políticas distribuídas."
+    },
+    {
+      "front": "Para que serve o Distributed Firewall?",
+      "back": "Aplica políticas de tráfego próximas às cargas, apoiando microsegmentação de comunicações internas."
+    },
+    {
+      "front": "O que é Org vDC no Cloud Director?",
+      "back": "Capacidade virtual de computação, rede e armazenamento disponibilizada para uma organização."
+    },
+    {
+      "front": "O que distingue Cloud Director de vCenter?",
+      "back": "Cloud Director entrega abstrações de consumo multi-inquilino; vCenter gerencia a infraestrutura vSphere subjacente."
+    },
+    {
+      "front": "Para que serve vRealize Automation?",
+      "back": "Catálogo e autosserviço para provisionamento com regras e políticas."
+    },
+    {
+      "front": "Para que serve vRealize Orchestrator?",
+      "back": "Execução de workflows que encadeiam atividades e integrações."
+    },
+    {
+      "front": "Para que serve vRealize Operations?",
+      "back": "Análise de métricas, capacidade, saúde e desempenho da infraestrutura."
+    },
+    {
+      "front": "Para que serve vRealize Log Insight?",
+      "back": "Ingestão, pesquisa e análise correlacionada de logs e eventos."
+    },
+    {
+      "front": "O que é Harbor?",
+      "back": "Registro de imagens e artefatos de contêiner com controles de acesso e integrações de segurança."
+    },
+    {
+      "front": "O que faz Clair?",
+      "back": "Analisa vulnerabilidades conhecidas de componentes de imagens; não substitui testes dinâmicos nem firewall."
+    }
+  ],
+  "tips": [
+    "Ao ver execução de VM, escolha ESXi; ao ver inventário e administração de hosts e clusters, escolha vCenter.",
+    "Se a questão menciona migração ao vivo de host, pense em vMotion; se menciona mudança de datastore, em Storage vMotion.",
+    "Leia o verbo com cuidado: DRS balanceia, HA reinicia após falha, FT mantém redundância quando configurado.",
+    "Em redes, segmento e DFW pertencem a NSX; organização, Org vDC e catálogo pertencem a Cloud Director.",
+    "Para a família vRealize, memorize o par verbo e ferramenta: provisionar–Automation, orquestrar–Orchestrator, medir–Operations, pesquisar logs–Log Insight.",
+    "Harbor e Quay guardam artefatos; Clair e Trivy identificam vulnerabilidades. Relatório de scan não significa remediação concluída.",
+    "Em questões sobre versões, separe o nome histórico vRealize, o nome Aria e as famílias VCF; não deduza que todo release tem os mesmos recursos."
+  ],
+  "traps": [
+    "A prova escreve que vCenter é o hipervisor físico. Incorreto: ESXi executa VMs; vCenter centraliza gerenciamento.",
+    "A prova afirma que um snapshot é cópia independente e substitui backup. Incorreto: a cadeia pode depender do armazenamento original e requer estratégia própria de restauração.",
+    "A prova diz que DRS reinicia VMs quando um host falha. Incorreto: HA cuida do reinício por falha; DRS trabalha posicionamento e balanceamento.",
+    "A prova trata HA como migração ao vivo transparente após pane súbita do host. Incorreto: HA geralmente reinicia cargas; vMotion exige condições para migração da VM ligada.",
+    "A prova apresenta NSX Distributed Firewall como ferramenta de scanner CVE de imagens. Incorreto: DFW aplica políticas de tráfego, ao passo que Clair/Trivy inspecionam componentes de imagens.",
+    "A prova troca Cloud Director por Orchestrator na gestão de organizações/Org vDC. Incorreto: Cloud Director provê tenancy; Orchestrator executa workflows.",
+    "A prova afirma que Clair é o scanner padrão obrigatório do Harbor atual. Incorreto: desde Harbor 2.2, Clair deixou de ser o padrão e pode ser integrado externamente."
+  ],
+  "activeRecall": [
+    {
+      "question": "Um servidor precisa executar várias VMs sem um desktop hospedeiro convencional. Qual modelo de hipervisor é indicado?",
+      "answer": "Tipo 1, como ESXi, instalado diretamente no hardware."
+    },
+    {
+      "question": "Por que snapshot não é estratégia completa de backup?",
+      "answer": "Porque depende de arquivos e da cadeia da VM; é necessária cópia independente com testes de restauração."
+    },
+    {
+      "question": "Após falha física de host, qual recurso busca reiniciar VMs sobrevivendo no cluster?",
+      "answer": "vSphere HA; vMotion é apropriado para migração planejada a partir de host em operação."
+    },
+    {
+      "question": "Qual a diferença entre Tier-0/Tier-1 e firewall distribuído no NSX?",
+      "answer": "Tier-0 e Tier-1 cumprem papéis de roteamento; DFW filtra fluxos distribuídos segundo políticas."
+    },
+    {
+      "question": "Para separar duas organizações consumidoras da mesma infraestrutura, qual plataforma fornece Org vDC?",
+      "answer": "VMware Cloud Director, anteriormente vCloud Director."
+    },
+    {
+      "question": "Qual produto recebe requisições de catálogo e qual encadeia ações de workflow?",
+      "answer": "vRealize Automation recebe/provisiona; vRealize Orchestrator encadeia workflows."
+    },
+    {
+      "question": "Como distinguir vRealize Operations de Log Insight durante um incidente?",
+      "answer": "Operations analisa métricas e capacidade; Log Insight pesquisa logs e eventos, podendo ambos ser correlacionados."
+    },
+    {
+      "question": "Uma imagem no Harbor acusa CVE em relatório Clair/Trivy. Quais conclusões são legítimas?",
+      "answer": "Há detecção de vulnerabilidade conhecida conforme base e cobertura do scanner; isso não comprova exploração nem corrige automaticamente o artefato."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Hipervisor, VM, contêiner e snapshot confundidos",
+      "summary": "Tipo 1 roda sobre hardware e tipo 2 sobre sistema hospedeiro; VM executa sistema convidado, contêiner geralmente compartilha kernel; snapshot não substitui backup independente."
+    },
+    {
+      "key": "e2",
+      "title": "ESXi, vCenter, DRS, HA e vMotion trocados",
+      "summary": "ESXi executa VMs, vCenter gerencia, vMotion migra execução, Storage vMotion migra armazenamento, DRS balanceia e HA reinicia após falha."
+    },
+    {
+      "key": "e3",
+      "title": "NSX e Cloud Director confundidos",
+      "summary": "NSX fornece redes lógicas, roteamento e microsegmentação; Cloud Director expõe serviços e recursos a organizações, com Org vDC e catálogos sobre infraestrutura compartilhada."
+    },
+    {
+      "key": "e4",
+      "title": "Funções da família vRealize misturadas",
+      "summary": "Automation entrega catálogo/provisionamento, Orchestrator executa workflows, Operations analisa métricas/capacidade e Log Insight processa logs; nomes de marca podem variar por versão."
+    },
+    {
+      "key": "e5",
+      "title": "Registro de imagens e scanner CVE confundidos",
+      "summary": "Harbor e Red Hat Quay distribuem imagens; Clair e Trivy examinam vulnerabilidades conhecidas. A integração/padrão depende da versão, e análise não garante correção nem imunidade."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um administrador instala uma camada de virtualização diretamente em um servidor físico, sem sistema operacional desktop convencional como hospedeiro. Qual exemplo corresponde a essa arquitetura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ESXi, hipervisor tipo 1 projetado para executar VMs diretamente sobre o hardware.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "VMware Workstation, hipervisor tipo 1 instalado como firmware da placa-mãe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "vCenter Server, hipervisor tipo 1 encarregado de executar CPUs virtuais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "vRealize Operations, camada de hipervisor que substitui sistemas convidados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Harbor, serviço de execução de VMs que instala discos e interfaces virtuais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. ESXi é hipervisor bare metal que executa VMs sobre o servidor. B confunde Workstation, tipicamente tipo 2, com instalação direta. C transforma vCenter, gerente da infraestrutura, em hipervisor. D é ferramenta analítica de desempenho/capacidade. E é registro de artefatos de contêiner, não executor de máquinas virtuais.",
+      "section": "1. Fundamentos da virtualização, hipervisores e isolamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe compara contêineres Linux com máquinas virtuais convencionais e deseja distinguir o sistema operacional em cada caso. Qual afirmação descreve a diferença central?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada contêiner exige um kernel convidado próprio, enquanto as VMs compartilham um kernel.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Contêineres normalmente compartilham o kernel do host; VMs podem executar convidados próprios.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Contêineres reservam hosts físicos inteiros, enquanto VMs compartilham somente imagens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Máquinas virtuais executam aplicações sem sistema convidado, ao contrário de contêineres.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Contêineres são sistemas de backup de VMs, enquanto hipervisores guardam imagens OCI.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O isolamento de processos em contêineres costuma compartilhar o kernel do host; VMs apresentam hardware virtual para sistemas convidados. A inverte os modelos; C confunde compartilhamento com reserva física; D nega o sistema convidado típico da VM; E mistura execução, backup e distribuição de imagens de contêiner.",
+      "section": "1. Fundamentos da virtualização, hipervisores e isolamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um operador pretende conservar a capacidade de restaurar dados mesmo que o datastore principal seja perdido. Qual medida é apropriada além de snapshots locais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter apenas mais snapshots da VM no mesmo datastore que será protegido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter o snapshot em template e apagar a cópia original da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar backup independente, com retenção adequada e teste de restauração.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ativar DRS, pois o balanceamento guarda cópias completas dos dados da VM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Habilitar vMotion, pois a migração de CPU equivale ao arquivamento dos discos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Backup independente e testado atende ao cenário de perda do armazenamento principal. A mantém a mesma dependência física; B confunde template de implantação com preservação de dados; D atribui cópias a ferramenta de balanceamento; E considera migração de execução como operação de backup de armazenamento.",
+      "section": "1. Fundamentos da virtualização, hipervisores e isolamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma infraestrutura possui dez hosts ESXi e deseja administrar VMs, inventário e permissões por meio de um ponto central. Qual produto atende melhor ao requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "NSX Distributed Firewall, por centralizar inventário de datastores e hosts físicos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Clair, por acompanhar recursos de CPU e permissões de contas do cluster.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "vRealize Log Insight, por fornecer o mecanismo de inventário de VMs do vSphere.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "vCenter Server, que centraliza gerenciamento dos objetos e hosts do vSphere.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Harbor, que organiza hosts ESXi em projetos de registro de imagens OCI.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. vCenter Server centraliza inventário e gerenciamento da infraestrutura vSphere. A é controle distribuído de rede e segurança; B analisa vulnerabilidades em imagens, não hosts; C indexa logs, podendo auxiliar diagnóstico, sem substituir vCenter; E registra artefatos de contêiner, não organiza clusters ESXi.",
+      "section": "2. ESXi e vCenter Server: gestão, mobilidade e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Antes de atualizar um host ESXi que está saudável, a equipe deseja realocar uma VM ligada para outro host compatível sem desligamento planejado. Qual operação é a mais específica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "vSphere HA, com reinício da VM depois de uma falha simulada no host.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Storage vMotion, para mover apenas os discos da VM entre datastores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "vRealize Log Insight, para reproduzir a memória ativa em novo servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Harbor, para replicar a imagem do sistema convidado entre hosts físicos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "vMotion, para migrar a execução de VM ligada entre hosts compatíveis.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. vMotion migra a execução de uma VM ligada, respeitados os requisitos de compatibilidade. A trata recuperação por falha via reinício; B move localização de armazenamento, não apenas host de execução; C não transporta estado de VM, mas logs; D lida com imagens de contêiner e não com memória ativa de VMs.",
+      "section": "2. ESXi e vCenter Server: gestão, mobilidade e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor físico falha abruptamente em cluster que possui recurso e capacidade de recuperação configurados. Qual serviço do vSphere procura religar as VMs afetadas em hosts sobreviventes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "vSphere HA, que pode reiniciar VMs em hosts saudáveis após falha do host.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "vMotion, que migra ao vivo a CPU já desligada do host indisponível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Storage vMotion, que reexecuta processos interrompidos dentro do convidado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "vRealize Orchestrator, que substitui nativamente o mecanismo de HA.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "VMware NSX, que reinicia a memória da VM ao reconfigurar o roteamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. HA detecta falhas e tenta reiniciar VMs em hosts sobreviventes, havendo recursos. B exige condições de migração ao vivo e não ressuscita CPU do host falho; C é migração de armazenamento; D automatiza workflows, mas não é o mecanismo HA; E fornece rede e segurança, não reinício de VM após pane.",
+      "section": "2. ESXi e vCenter Server: gestão, mobilidade e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois hosts de um cluster apresentam cargas muito diferentes e a equipe quer recomendações ou execução automatizada de migrações para equilibrar recursos. Que recurso atende ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "vSphere HA, pois sua atividade normal é distribuir cargas antes de falhas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DRS, que avalia posicionamento e balanceamento das VMs entre hosts.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Clair, que calcula a utilização de CPU a partir de pacotes de imagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "vCloud Director Catalog, que movimenta automaticamente VMs por métricas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NSX DFW, que equilibra consumo de memória com políticas de microsegmentação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. DRS atua sobre posicionamento e balanceamento dos recursos do cluster. A confunde recuperação de falha com distribuição de carga; C analisa vulnerabilidades de imagens; D oferece templates e mídias, sem ser o balanceador DRS; E controla tráfego, não reequilibra memória entre hosts.",
+      "section": "2. ESXi e vCenter Server: gestão, mobilidade e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe precisa limitar o tráfego leste-oeste entre grupos de VMs que compartilham o ambiente virtual, usando regras próximas às cargas. Qual componente é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "vRealize Automation, que aplica inspeção de pacotes como sua função principal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "vSphere HA, que filtra portas virtuais antes de reiniciar máquinas após pane.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "NSX Distributed Firewall, que aplica políticas distribuídas de tráfego.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "vRealize Operations, que substitui o firewall ao medir a carga de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Harbor, que analisa fluxos Ethernet internos ao publicar imagens OCI.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O firewall distribuído do NSX é apropriado a políticas granulares e microsegmentação de fluxos internos. A provisiona serviços, sem ser firewall de pacotes; B é alta disponibilidade; D acompanha métricas e desempenho; E é registro e análise de artefatos com scanners, não filtragem de tráfego.",
+      "section": "3. VMware NSX e Cloud Director: rede virtual e multitenancy",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um provedor deseja oferecer datacenters virtuais a clientes separados por organizações e catálogos de modelos de VMs. Qual plataforma corresponde a essa proposta de multitenancy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "vRealize Log Insight, que expõe tenants por grupos de mensagens syslog.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ESXi, que cria organizações comerciais e catálogos diretamente no kernel.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Clair, que reserva datacenters virtuais por faixa de vulnerabilidades.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "VMware Cloud Director, que entrega Org vDC e catálogos a organizações.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "vMotion, que publica modelos multi-inquilino ao mover execução de VMs.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Cloud Director usa Organizations, Org vDC e catálogos para oferta de recursos virtuais a diferentes clientes. A trata logs; B é execução de VMs, não camada de tenancy; C analisa imagens e CVEs; E move a execução de VM e não oferece portal multitenant ou catálogo de serviços.",
+      "section": "3. VMware NSX e Cloud Director: rede virtual e multitenancy",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os arquivos de uma VM ligada precisam ser transferidos do datastore A para B, sem mudar prioritariamente seu host de execução. Qual tecnologia atende ao deslocamento pretendido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "vSphere HA, que restaura discos no destino depois de reiniciar a VM.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "vRealize Operations, que muda fisicamente discos ao sugerir capacidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DRS, que transfere arquivos VMDK quando equilibra o uso de processadores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NSX overlay, que encapsula blocos de armazenamento para outra rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Storage vMotion, que realoca o armazenamento da VM em datastores.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Storage vMotion é direcionado a mover arquivos e discos entre datastores nas condições suportadas. A relaciona recuperação de host com cópia de discos; B apenas monitora/analisa; C confunde posicionamento de execução com migração de armazenamento; D usa encapsulamento de rede, não ferramenta de movimentação de VMDK.",
+      "section": "2. ESXi e vCenter Server: gestão, mobilidade e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador ajusta uma VM para prioridade relativa de CPU em momentos de contenção, sem assegurar quantidade física exclusiva. Qual parâmetro descreve essa preferência comparativa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Shares, que expressam peso relativo na disputa de recursos compartilhados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reservation, que representa apenas o máximo permitido para consumo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Limit, que assegura capacidade mínima física ao sistema convidado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Snapshot, que aumenta a prioridade de CPU por capturar a memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Template, que distribui automaticamente cotas entre VMs concorrentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Shares exprimem prioridade relativa em cenários de disputa. B confunde reserva — garantia de capacidade conforme condições — com limite máximo; C inverte a função do limit; D é captura de estado e não priorização de CPU; E é modelo para provisionamento, não parâmetro de escalonamento de recursos.",
+      "section": "2. ESXi e vCenter Server: gestão, mobilidade e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede NSX utiliza segmentos lógicos conectando VMs em hosts distintos sobre um tecido IP físico. Qual alternativa identifica corretamente overlay e underlay nessa topologia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Underlay são as redes virtuais encapsuladas e overlay corresponde aos switches físicos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Overlay oferece conectividade lógica encapsulada; underlay fornece transporte IP físico.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Overlay é o datastore da VM e underlay corresponde à memória virtual do host.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Underlay é catálogo de tenants e overlay é a autenticação do Cloud Director.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Overlay substitui qualquer rede física, dispensando conectividade entre servidores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Overlay descreve redes lógicas que usam o transporte IP da underlay. A inverte os papéis; C troca conectividade por armazenamento e memória; D usa termos de multitenancy sem relação com encapsulamento; E ignora a dependência de rede física e suas condições, como conectividade e MTU adequada.",
+      "section": "3. VMware NSX e Cloud Director: rede virtual e multitenancy",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização conectou redes de aplicação a gateways lógicos do NSX e precisa alcançar redes externas. Qual associação corresponde a uma arquitetura típica de Tier-1 e Tier-0?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tier-1 executa VMs diretamente e Tier-0 cataloga imagens de contêiner.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tier-0 registra a organização e Tier-1 define cotas do vCenter.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tier-1 atende redes das cargas e Tier-0 provê ligação de roteamento externo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Tier-0 é firewall de pacotes do host e Tier-1 é o scanner de imagens.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tier-1 é datastore de cada VM e Tier-0 reserva espaço dos discos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Tier-1 costuma conectar redes dos workloads/locatários; Tier-0 atende interconexão com rede externa conforme a topologia. A confunde roteamento com hipervisor e registro; B mistura roteamento com tenancy e quotas; D substitui gateways por firewall/scanner; E desloca conceitos de rede para armazenagem.",
+      "section": "3. VMware NSX e Cloud Director: rede virtual e multitenancy",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No VMware Cloud Director, o provedor estabelece capacidade de infraestrutura para várias organizações, e cada cliente recebe recursos virtuais alocados. Qual par expressa corretamente essas entidades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Organization como recurso físico e Provider vDC como usuário individual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Org vDC como hipervisor e Provider vDC como arquivo de imagem OCI.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "vApp como base do provedor e catálogo como datacenter exclusivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Provider vDC como oferta-base e Org vDC como capacidade da organização.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "NSX Tier-0 como projeto do cliente e ESXi como catálogo do locatário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Provider vDC se relaciona à capacidade ofertada pelo provedor, e Org vDC à parcela acessível/consumida por uma organização. A reduz organização a host físico; B confunde vDC com hipervisor e imagens; C troca vApp e catálogo por base de capacidade; E introduz roteamento e execução física em lugar de tenancy.",
+      "section": "3. VMware NSX e Cloud Director: rede virtual e multitenancy",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Usuários autorizados solicitam uma VM padronizada por portal, com aprovação e regras de quota antes do provisionamento. Qual produto vRealize está diretamente associado ao catálogo e autosserviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "vRealize Log Insight, que entrega a VM a partir de mensagens de syslog.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "vRealize Operations, que aprova catálogos por sua análise de CPU.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "vRealize Orchestrator, usado somente como datacenter multi-inquilino.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "VMware NSX, que hospeda o portal de compras de servidores virtuais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "vRealize Automation, voltado ao provisionamento com políticas de serviço.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Automation organiza catálogo, solicitação, políticas e entrega automatizada de recursos. A é análise de logs; B acompanha métricas e capacidade; C pode executar workflows chamados pelo catálogo, mas não é a entidade multitenant descrita; D atende redes e segurança e não substitui o autosserviço de provisionamento.",
+      "section": "4. vRealize: automação, orquestração, logs e operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após implantar uma VM, uma automação precisa chamar API de inventário, obter endereço de rede e avisar outro sistema. A equipe deseja modelar isso como sequência de ações e condições. Que ferramenta é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "vRealize Orchestrator, por oferecer workflows e integrações com outros sistemas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "vRealize Log Insight, por gravar logs que automaticamente reservam endereços.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "vSphere HA, por criar passos de negócio quando um processo termina.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Clair, por executar as chamadas de rede após identificar CVEs em imagens.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NSX Distributed Firewall, por armazenar scripts de ciclo de vida da VM.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Orchestrator executa workflows com tarefas e integração via APIs e plug-ins. B registra e pesquisa logs, não implementa por si o fluxo de inventário; C responde a falhas de host; D examina vulnerabilidades de imagem; E aplica segurança de tráfego, não substitui o orquestrador de processos.",
+      "section": "4. vRealize: automação, orquestração, logs e operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cluster registra tendência de saturação de CPU, enquanto há necessidade separada de pesquisar eventos textuais de autenticação no mesmo período. Qual par de ferramentas vRealize corresponde às duas necessidades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Log Insight para tendência de capacidade e Automation para pesquisa textual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Operations para métricas/capacidade e Log Insight para logs de autenticação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Orchestrator para métricas de CPU e Cloud Director para correlação de logs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Automation para desempenho e NSX DFW para ingestão de mensagens de log.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ESXi para análise avançada de capacidade e Clair para eventos de usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Operations analisa métricas, saúde e capacidade; Log Insight pesquisa e correlaciona logs. A inverte e ainda atribui pesquisa ao Automation; C confunde fluxos e multitenancy com observabilidade; D não reconhece funções de provisionamento/firewall; E troca execução e varredura de imagens por ferramentas de análise.",
+      "section": "4. vRealize: automação, orquestração, logs e operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe exige duas características diferentes: recuperar VMs após perda física de host e, para uma VM crítica suportada, manter execução redundante capaz de reduzir interrupção. Qual associação é tecnicamente correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DRS cuida do reinício por pane e Storage vMotion mantém uma VM secundária ativa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "vMotion reinicia as VMs após host falho e HA transfere instruções sem pausa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "HA reinicia VMs em hosts saudáveis; FT mantém redundância nas condições suportadas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "FT apenas migra VMDKs e DRS recupera o estado dos processos em memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "vCenter Backup executa as duas tarefas por criar snapshots persistentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. HA busca reiniciar cargas afetadas por falha de host; FT, quando aplicável/configurado, procura manter uma execução redundante. A mistura DRS e migração de disco; B atribui migração viva a host que já falhou; D descreve incorretamente FT e DRS; E toma snapshots/backup por mecanismos equivalentes de execução redundante.",
+      "section": "2. ESXi e vCenter Server: gestão, mobilidade e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política NSX deve acompanhar VMs de uma categoria de aplicação mesmo quando novos integrantes são criados. A equipe possui tags coerentemente aplicadas ao inventário e quer evitar manter lista de endereços estáticos. Que desenho é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar somente ACLs por endereço IP fixo, porque tags não podem orientar grupos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir DFW por snapshot das VMs, que preserva o isolamento de tráfego.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar vMotion como filtro permanente entre VM de origem e VM de destino.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir grupos dinâmicos por tags e aplicar regras DFW aos grupos resultantes.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Alterar catálogos Harbor para que CVEs sejam convertidas em portas permitidas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Grupos dinâmicos podem utilizar critérios como tags integradas ao inventário, permitindo que regras DFW acompanhem a classificação das cargas. A desconsidera essa capacidade e exige manutenção estática; B trata snapshot como firewall; C transforma migração em controle de fluxo; E mistura scanner de imagens com políticas NSX sem mecanismo pertinente.",
+      "section": "3. VMware NSX e Cloud Director: rede virtual e multitenancy",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O provedor utiliza Cloud Director para atender três organizações; cada uma deve poder acessar um catálogo de templates compartilhado, mantendo recursos e permissões independentes. Qual interpretação é a mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Catálogo compartilhado torna as três organizações uma única identidade administrativa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada organização deve possuir host físico exclusivo para que exista multitenancy.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um vApp compartilhado substitui os Org vDCs e elimina quotas de recursos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Provider vDC é a conta de cada cliente e só pode servir a um tenant.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O catálogo pode ser publicado, enquanto organizações preservam acessos e Org vDCs.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Cloud Director permite compartilhamento controlado de catálogos sem fundir tenants, preservando papéis e recursos de cada organização. A iguala publicação de conteúdo à identidade; B exige isolamento físico que não define multitenancy; C elimina injustificadamente alocação de capacidade; D inverte relação de provedor e consumidor na arquitetura.",
+      "section": "3. VMware NSX e Cloud Director: rede virtual e multitenancy",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma solicitação de VM aparece em catálogo de autosserviço, mas a etapa de registrar o equipamento em sistema externo falha por certificado de plug-in inválido. Que componentes devem ser investigados primeiro segundo o papel de cada um?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Automation pela solicitação e Orchestrator pelo workflow e confiança no plug-in.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Log Insight pelo provisionamento e Harbor pela autenticação do plug-in VMware.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Operations como catálogo e NSX DFW como executor das chamadas de inventário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ESXi como portal de aprovação e Clair como responsável pela integração externa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cloud Director como coletor de logs e HA como motor de workflow por certificado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Automation provê catálogo e serviço solicitado; Orchestrator executa workflows e depende de integrações/autenticação como certificados de plug-in. B mistura análise de logs e registro; C troca monitoramento e firewall por catálogo/workflow; D atribui autosserviço e integração ao hipervisor/scanner; E confunde multitenancy e recuperação de falhas com execução de scripts.",
+      "section": "4. vRealize: automação, orquestração, logs e operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe opera imagens de contêiner num registro e quer analisar bibliotecas vulneráveis por CVE antes da implantação. Qual divisão entre Harbor e Clair é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Clair armazena as imagens como registro principal; Harbor executa testes de rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Harbor gerencia artefatos e acessos; Clair verifica vulnerabilidades conhecidas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Harbor reinicia hosts após falha; Clair substitui o serviço de migração vMotion.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Clair aplica roteamento de segmentos; Harbor calcula utilização de CPU de VMs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Harbor substitui imagens por VMDKs; Clair atribui recursos de Org vDC.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Harbor é registro de imagens/artefatos e Clair é ferramenta de análise de vulnerabilidades conhecidas. A inverte armazenamento e scanner; C atribui alta disponibilidade e migração a ferramentas de contêiner; D transfere rede e métricas às ferramentas erradas; E confunde imagem OCI, disco virtual e capacidade de tenant.",
+      "section": "5. Harbor, Clair, segurança e integração operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um manual antigo do Harbor descreve Clair como scanner integrado. A implantação atual está em versão posterior à 2.2 e usa o mecanismo padrão recomendado de análise. Qual conclusão sobre as versões é consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Clair permanece componente padrão obrigatório em toda versão posterior à 2.2.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A versão 2.2 eliminou todos os scanners e impediu integrações externas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trivy passou a integrar o padrão; Clair pode ser conectado como scanner externo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A atualização transformou Harbor em hipervisor, deixando de analisar imagens.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A escolha de scanner migrou para DRS, que lê pacotes da imagem no ESXi.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. A documentação do Harbor registra que Clair saiu da condição de scanner padrão na versão 2.2 e permaneceu utilizável como scanner externo compatível; Trivy passou a ocupar o lugar padrão. A ignora a mudança; B nega o mecanismo plugável; D altera o propósito do registro; E atribui análise CVE ao balanceador DRS.",
+      "section": "5. Harbor, Clair, segurança e integração operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma imagem recebe relatório sem CVEs em uma execução do scanner, mas sua aplicação pode conter falha lógica de autorização desconhecida das bases consultadas. Qual conclusão é tecnicamente defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ausência de achados prova que a aplicação não possui falhas de segurança.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O relatório indica que a rede está segmentada por NSX com isolamento eficaz.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A ausência de CVEs equivale ao teste de recuperação de todas as VMs da solução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O resultado é limitado pela cobertura e bases do scanner; outros testes seguem úteis.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um scanner de imagens verifica automaticamente todas as autorizações em produção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Scanners de imagens comparam componentes a informações conhecidas e não esgotam falhas lógicas, de runtime, configuração ou exposição. A transforma resultado limitado em garantia universal; B confunde artefatos e firewall; C mistura varredura com restauração de VM; E atribui ao scanner teste dinâmico de permissões da aplicação.",
+      "section": "5. Harbor, Clair, segurança e integração operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de contêiner roda numa VM ESXi. É preciso: bloquear conexão não autorizada entre serviços, investigar logs da VM e encontrar bibliotecas vulneráveis na imagem publicada. Que combinação distribui corretamente as responsabilidades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "HA para filtrar tráfego, DRS para logs e vMotion para examinar pacotes da imagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "vCenter para inspeção de CVE, Log Insight para firewall e Clair para migrar VMs.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cloud Director para ler logs, vMotion para segurança de rede e Operations para CVEs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Harbor para firewall distribuído, NSX para indexar logs e HA para analisar imagens.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NSX DFW para tráfego, Log Insight para logs e Clair/Trivy para varrer a imagem.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. NSX DFW implementa políticas de tráfego; Log Insight reúne/pesquisa logs; Clair ou Trivy detectam vulnerabilidades conhecidas em imagens. A usa mecanismos de disponibilidade e migração para segurança e logs; B troca todas as funções; C atribui CVEs a Operations e firewall a vMotion; D inverte registro, rede e recuperação.",
+      "section": "5. Harbor, Clair, segurança e integração operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa executa máquinas virtuais em ESXi sobre um servidor físico; o ESXi é classificado como hipervisor tipo 1, mesmo que a equipe administre as VMs remotamente por interface web.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A classificação tipo 1 decorre da arquitetura em que o hipervisor roda sobre hardware físico, não da interface usada para gerenciá-lo. A existência de console web ou conexão com vCenter não transforma ESXi em hipervisor hospedado sobre sistema desktop comum.",
+      "section": "1. Fundamentos da virtualização, hipervisores e isolamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cluster utiliza vCenter Server para administrar dez hosts ESXi. Nesse caso, é o vCenter que executa diretamente as instruções de CPU de todas as VMs, enquanto ESXi armazena apenas seus arquivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. ESXi é o hipervisor que executa as VMs no hardware e gerencia dispositivos virtualizados. O vCenter centraliza inventário, políticas e operações administrativas. Confundir servidor de gerenciamento com host de execução leva a diagnósticos incorretos sobre onde uma VM realmente consome recursos.",
+      "section": "2. ESXi e vCenter Server: gestão, mobilidade e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma plataforma virtualizada, a configuração de oito vCPUs para uma VM não comprova que oito núcleos físicos exclusivos tenham sido reservados para seu uso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. vCPUs são recursos apresentados à VM e agendados sobre processadores físicos. Garantias de capacidade dependem de configuração de reservas, disponibilidade e políticas; simples quantidade de vCPUs não prova exclusividade física ou ausência de contenção de CPU.",
+      "section": "1. Fundamentos da virtualização, hipervisores e isolamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma VM possui snapshot recente no mesmo datastore e esse datastore é totalmente perdido, o snapshot por si só oferece cópia independente suficiente para reconstruir todos os dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Snapshots usualmente dependem de arquivos da VM e de sua cadeia de discos no armazenamento de origem. Se o datastore inteiro desaparece, esses componentes podem desaparecer juntos. Uma estratégia de backup exige cópia independente, retenção definida e recuperação testada.",
+      "section": "1. Fundamentos da virtualização, hipervisores e isolamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VM ligada pode, respeitadas as condições de compatibilidade e conectividade, ter sua execução transferida entre hosts por vMotion durante manutenção planejada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. vMotion foi concebido para migrar estado de execução de VMs ligadas entre hosts adequados com impacto reduzido na disponibilidade. Isso exige verificar requisitos operacionais e não significa que a migração seja backup, mudança obrigatória de datastore ou recuperação de host já destruído.",
+      "section": "2. ESXi e vCenter Server: gestão, mobilidade e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O DRS possui como função principal reiniciar automaticamente uma VM cujo host sofreu pane física, enquanto vSphere HA se concentra no balanceamento prévio das cargas entre os hosts.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O enunciado inverte os serviços. DRS avalia posicionamento/balanceamento de VMs no cluster; vSphere HA cuida da recuperação por reinício em hosts sobreviventes quando ocorre falha. Balancear carga e restaurar execução após pane física são objetivos distintos.",
+      "section": "2. ESXi e vCenter Server: gestão, mobilidade e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um projeto NSX, um segmento overlay depende da conectividade proporcionada pela rede underlay, mesmo que a comunicação entre VMs seja representada por uma rede lógica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A rede lógica usa transporte subjacente, frequentemente IP, para conectar endpoints em hosts distintos. Falhas da underlay ou incompatibilidade de MTU podem prejudicar o overlay, apesar de os segmentos aparecerem corretamente no inventário lógico.",
+      "section": "3. VMware NSX e Cloud Director: rede virtual e multitenancy",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A criação de duas organizações no Cloud Director obriga a reservar um servidor ESXi físico exclusivo para cada uma, pois essa exclusividade define tecnicamente o multitenancy.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Multitenancy permite oferecer recursos logicamente separados a consumidores distintos sobre uma infraestrutura que pode ser compartilhada. Isolamento efetivo depende de permissões, redes, recursos e políticas; organização não significa propriedade necessária de hardware exclusivo.",
+      "section": "3. VMware NSX e Cloud Director: rede virtual e multitenancy",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No VMware Cloud Director, um Org vDC representa recursos virtualizados disponibilizados a uma organização, distinguindo-se da base de recursos representada por Provider vDC.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Provider vDC está associado à oferta do provedor e um Org vDC representa capacidade e recursos acessíveis a determinada organização. A distinção separa a origem da infraestrutura de sua visão consumível pelo locatário, evitando equiparar o Org vDC a um host físico.",
+      "section": "3. VMware NSX e Cloud Director: rede virtual e multitenancy",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico deseja pesquisar falhas de autenticação textuais em logs coletados de hosts. A ferramenta vRealize Operations substitui integralmente a função de pesquisa e indexação atribuída ao vRealize Log Insight.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Operations é voltado principalmente a métricas, capacidade, saúde e desempenho; Log Insight é especializado em ingerir, indexar e pesquisar logs e eventos. Integração entre ferramentas não as torna equivalentes ou transforma análise de capacidade em mecanismo idêntico de logs.",
+      "section": "4. vRealize: automação, orquestração, logs e operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um item de catálogo de vRealize Automation pode acionar um workflow de vRealize Orchestrator para executar integração externa após o provisionamento de uma VM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Automation concentra catálogo e solicitação de serviços, e Orchestrator pode complementar o fluxo com etapas de integração por APIs e plug-ins. A disponibilidade do item de catálogo não assegura que todo workflow funcione sem as credenciais e conectividade necessárias.",
+      "section": "4. vRealize: automação, orquestração, logs e operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um registro Harbor armazena imagens de contêiner; por esse motivo, ele também é o hipervisor encarregado de executar o sistema operacional convidado de cada VM ESXi.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Harbor é registro que armazena e distribui imagens/artefatos de contêiner, enquanto ESXi é hipervisor de VMs. Publicar uma imagem não significa executar uma VM; seu consumo por runtime ou plataforma de contêineres é outra etapa de implantação.",
+      "section": "5. Harbor, Clair, segurança e integração operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor Red Hat Quay pode ser configurado para analisar imagens por Clair, que compara componentes a metadados de vulnerabilidades conhecidas e apresenta resultados associados às imagens.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Clair é scanner integrado em cenários Red Hat Quay quando habilitado e configurado. Seus resultados podem indicar CVEs de componentes reconhecidos, sujeitos à cobertura das bases. Eles não significam que a própria execução da aplicação foi testada dinamicamente ou que a correção ocorreu.",
+      "section": "5. Harbor, Clair, segurança e integração operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador precisa retirar de operação um host ESXi que já falhou abruptamente. Nessa situação, o vMotion constitui mecanismo de migração ao vivo das VMs em execução no host indisponível, preservando o estado sem reinício.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A migração vMotion pressupõe condições para transferir estado de uma VM em operação entre hosts compatíveis. Uma falha abrupta pode inviabilizar essa transferência; vSphere HA, quando configurado e com capacidade disponível, atua buscando reiniciar as VMs em outro host.",
+      "section": "2. ESXi e vCenter Server: gestão, mobilidade e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Políticas do NSX Distributed Firewall podem ser associadas a grupos dinâmicos baseados em tags ou atributos de VMs, favorecendo microsegmentação sem depender de relação manual de IPs fixos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Regras DFW podem usar grupos construídos segundo critérios dinâmicos, se o inventário e a integração de tags estiverem configurados. Isso facilita acompanhar alterações das cargas e reduzir manutenção de endereços, sem dispensar auditoria das permissões e das políticas aplicadas.",
+      "section": "3. VMware NSX e Cloud Director: rede virtual e multitenancy",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ambiente Cloud Director publica um catálogo para duas organizações. Como os modelos são compartilhados, as identidades, permissões e cotas dos dois Org vDCs tornam-se automaticamente as mesmas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Publicar conteúdo de catálogo para mais de uma organização não implica compartilhar a administração, os usuários ou as quotas de recursos. A separação de tenants e Org vDCs continua sendo uma finalidade da plataforma; políticas específicas precisam ser configuradas e verificadas.",
+      "section": "3. VMware NSX e Cloud Director: rede virtual e multitenancy",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma infraestrutura vSphere, uma VM pode apresentar problemas de capacidade detectados por vRealize Operations e eventos específicos de autenticação pesquisados em vRealize Log Insight, pois as ferramentas atendem a tipos diferentes de observabilidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Operations monitora métricas e tendências de saúde/capacidade, enquanto Log Insight analisa mensagens de log e eventos. Um mesmo incidente pode exigir correlação de ambos para compreender sintomas e causas; a complementaridade não torna as funcionalidades idênticas.",
+      "section": "4. vRealize: automação, orquestração, logs e operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A partir do Harbor 2.2, Clair permaneceu o único scanner padrão integrado, e o uso de Trivy passou a exigir serviço externo por não existir integração na instalação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A documentação do Harbor registra justamente a retirada de Clair da condição de scanner padrão em v2.2, com possibilidade de adicioná-lo como scanner externo. Trivy tornou-se a integração padrão em instalações documentadas, sujeita a configuração. A assertiva inverte a evolução histórica.",
+      "section": "5. Harbor, Clair, segurança e integração operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma imagem de contêiner apresenta vulnerabilidade conhecida em scanner Clair; mesmo após bloquear tráfego entre VMs com NSX, ainda pode ser necessário corrigir dependências da imagem e publicar novo artefato.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. NSX DFW reduz fluxos de rede permitidos, mas não modifica as bibliotecas instaladas dentro da imagem. O resultado de Clair ou scanner similar orienta remediação dos componentes e controle da cadeia de entrega. Segmentação e tratamento de CVEs são controles complementares.",
+      "section": "5. Harbor, Clair, segurança e integração operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando o mesmo sistema usa VMware Cloud Director para multitenancy, ESXi para executar VMs, NSX para segmentação e Harbor para artefatos de contêiner, o vCenter Server passa automaticamente a substituir essas quatro funções por concentrar o inventário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. vCenter gerencia objetos e operações de vSphere, mas não substitui a execução de VMs no ESXi, a gestão multitenant do Cloud Director, as políticas de rede de NSX ou o registro de imagens do Harbor. Integração entre plataformas não equivale a identidade de função ou de camada tecnológica.",
+      "section": "5. Harbor, Clair, segurança e integração operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "VMware vSphere API Reference Documentation",
+      "publisher": "Broadcom / VMware",
+      "reference": "vSphere Web Services API — managed objects e operações de VM, host e infraestrutura",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "vSphere Web Services API: VirtualMachine",
+      "publisher": "Broadcom / VMware",
+      "reference": "Operações de migração e relocação de VMs e privilégios necessários",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.VirtualMachine.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Virtual Machines Do Not Automatically Failback to Original Host After vSphere HA Recovery",
+      "publisher": "Broadcom Knowledge Base",
+      "reference": "Artigo 441110, funções de HA e DRS no cluster vSphere",
+      "url": "https://knowledge.broadcom.com/external/article/441110/virtual-machines-do-not-automatically-fa.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "VMware Cloud Director: Creating an Organization",
+      "publisher": "Broadcom Knowledge Base",
+      "reference": "Artigo 309819, Organizations, Org vDC e catálogos",
+      "url": "https://knowledge.broadcom.com/external/article/309819/creating-an-organization-in-vmware-cloud.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "VMware Cloud Director OpenAPI: OrgVdc",
+      "publisher": "Broadcom Developer",
+      "reference": "Objeto OrgVdc da API do Cloud Director",
+      "url": "https://developer.broadcom.com/xapis/vmware-cloud-director-openapi/latest/data-structures/OrgVdc/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "VMware Cloud Director Service — Datasheet",
+      "publisher": "VMware",
+      "reference": "Arquitetura de tenancy, Provider vDC, Org vDC e recursos",
+      "url": "https://www.vmware.com/content/dam/digitalmarketing/vmware/en/pdf/partners/vmware-cloud-director-service-datasheet.pdf",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NSX Distributed Firewall: Infrastructure Tags and Groups",
+      "publisher": "Broadcom Knowledge Base",
+      "reference": "Artigo 445802, regras e grupos dinâmicos por tags em NSX",
+      "url": "https://knowledge.broadcom.com/external/article/445802/performance-degradation-and-high-network.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Aria Automation and Orchestrator: Plug-in Certificate Issues",
+      "publisher": "Broadcom Knowledge Base",
+      "reference": "Artigo 326082, nomes históricos e integrações de Orchestrator",
+      "url": "https://knowledge.broadcom.com/external/article/326082",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Aria Automation and Workflows in Service Broker",
+      "publisher": "Broadcom Knowledge Base",
+      "reference": "Artigo 320556, integração de catálogo e Orchestrator",
+      "url": "https://knowledge.broadcom.com/external/article/320556/aria-automation-formerly-vrealize-automa.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Aria Operations for Logs — Product Versions",
+      "publisher": "Broadcom Knowledge Base",
+      "reference": "Artigo 325701, correspondência vRealize Log Insight e Aria Operations for Logs",
+      "url": "https://knowledge.broadcom.com/external/article/325701/build-numbers-and-versions-of-vmware-ari.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Log Ingestion in Aria Operations for Logs",
+      "publisher": "Broadcom Knowledge Base",
+      "reference": "Artigo 372664, ingestão e análise de logs",
+      "url": "https://knowledge.broadcom.com/external/article/372664/diagnose-log-ingestion.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Clair security scans — Red Hat Quay",
+      "publisher": "Red Hat Documentation",
+      "reference": "Red Hat Quay 3.12, cap. 9, apresentação de vulnerabilidades por Clair",
+      "url": "https://docs.redhat.com/en/documentation/red_hat_quay/3.12/html/use_red_hat_quay/security-scanning",
+      "accessedAt": "2026-10-09"
+    }
+  ]
+}

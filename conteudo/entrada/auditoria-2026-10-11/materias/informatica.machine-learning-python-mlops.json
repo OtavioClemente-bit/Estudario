@@ -1,0 +1,1809 @@
+{
+  "id": "informatica.machine-learning-python-mlops",
+  "subject": "Informática",
+  "title": "Machine learning com Python e MLOps",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Machine learning com Python e MLOps"
+  ],
+  "scope": {
+    "covers": "Python para ciência de dados; NumPy, pandas, visualização, álgebra linear; aprendizado supervisionado e não supervisionado; avaliação, regularização, inferência bayesiana; redes neurais, CNN e PLN; modelos distribuídos, federados e MLOps.",
+    "excludes": "Implementação interna de bibliotecas, provas matemáticas avançadas, administração detalhada de clusters, engenharia de hardware e arquitetura de sistemas alheia ao ciclo de aprendizado de máquina."
+  },
+  "theoryTitle": "Machine learning com Python e MLOps: fundamentos, modelagem, redes neurais, escala e produção",
+  "chapters": [
+    {
+      "title": "1. Python, preparação de dados e álgebra linear",
+      "markdown": "## Ecossistema de ciência de dados\n**Python** serve para preparar dados, treinar modelos e automatizar experimentos. **Jupyter Notebook** combina células de código, resultados e texto; a execução fora de ordem pode deixar variáveis com estados incompatíveis com o que aparece na tela. Para reproduzir um experimento, reinicie o kernel e execute todas as células na sequência. **R** também é usado em análise estatística; **Scala** e **Java** aparecem em aplicações distribuídas e integrações. Uma linguagem não determina, por si, se um método é supervisionado.\n\n**NumPy** usa `ndarray`, estrutura homogênea com dimensões e formas explícitas. O vetor `np.array([2,4,6])` tem forma `(3,)`; a matriz `np.array([[1,2],[3,4]])` tem forma `(2,2)`. A operação `a * b` entre arrays compatíveis multiplica elemento a elemento; `a @ b` executa produto matricial. *Broadcasting* compatibiliza dimensões quando são iguais ou uma delas tem tamanho 1. Não se deve confundir a soma de arrays com concatenação de listas Python. O método `reshape` exige conservar o total de elementos.\n\n**pandas** distingue `Series` (estrutura unidimensional rotulada) e `DataFrame` (tabela bidimensional). `df.loc[rotulo]` opera por rótulo; `df.iloc[posicao]` opera por posição inteira. `df['idade'].isna()` identifica ausências, `dropna()` elimina linhas ou colunas conforme parâmetros e `fillna()` preenche ausências. `groupby('grupo')['valor'].mean()` calcula médias por grupo; `merge()` combina tabelas mediante chaves, enquanto `concat()` as empilha ou justapõe. Ao converter tipos com `astype()`, valores incompatíveis podem provocar erro: verificar dados é parte do processo.\n\n### Limpeza, transformação e risco de vazamento\nUm procedimento defensável identifica duplicatas, tipos incorretos, unidades divergentes, valores impossíveis, dados faltantes e categorias raras. Eliminar todas as linhas incompletas pode reduzir drasticamente a amostra; imputar a mediana é robusto a extremos, mas não recupera informação inexistente. `StandardScaler` centraliza pela média e divide pelo desvio-padrão estimado no conjunto de treino; `MinMaxScaler` transforma usando mínimo e máximo do treino. Nenhuma dessas técnicas torna dados normais por definição. A codificação *one-hot* cria indicadores por categoria e não introduz ordem fictícia como a codificação numérica simples poderia fazer.\n\nA sequência correta é **separar treino e teste antes de ajustar transformações que aprendem parâmetros**. Por exemplo: se a média de idade no treino é 30 e no teste é 40, imputar faltantes do teste com a média global utiliza informação reservada à avaliação. Ajuste o imputador a 30 no treino e aplique esse mesmo valor ao teste. Um `Pipeline` encadeia transformações e estimador, reduzindo vazamento na validação cruzada. Para séries temporais, respeite a ordem cronológica; embaralhar observações futuras no treino falsifica o desempenho.\n\n### Álgebra linear aplicada\nUma transformação linear `T(x)=Ax` satisfaz aditividade e homogeneidade. O **produto interno** usual `x·y` mede alinhamento e permite definir `||x||₂ = sqrt(x·x)`. A norma **L1** é a soma dos valores absolutos; a **L2** é a raiz da soma dos quadrados. Para `x=(3,4)`, L1 vale 7 e L2 vale 5. O autovetor não nulo `v` de uma matriz quadrada `A` satisfaz `Av=λv`; o autovalor `λ` expressa o fator de escala naquela direção. Nem toda matriz real possui base completa de autovetores reais.\n\n| Técnica | Condição/ideia | Aplicação |\n| --- | --- | --- |\n| Diagonalização | `A=PDP⁻¹` quando existe base de autovetores | Potências de matrizes e dinâmica linear |\n| Cholesky | `A=LLᵀ` para matriz real simétrica positiva definida | Solução eficiente de sistemas |\n| SVD | `A=UΣVᵀ` para matriz real, inclusive retangular | Redução de posto e análise de componentes |\n| Normas L1 e L2 | Penalizam magnitudes de coeficientes | Regularização e controle de complexidade |\n\nA decomposição em valores singulares (SVD) não requer que a matriz seja quadrada ou diagonalizável. Em dados numéricos, a PCA costuma empregar autovetores da matriz de covariância ou SVD da matriz de dados **centralizada**. A centralização é essencial quando se deseja a interpretação usual de componentes principais. **Matplotlib** permite figuras e eixos (`pyplot`); **Seaborn** cria representações estatísticas de alto nível sobre Matplotlib. Histogramas mostram distribuições, diagramas de dispersão revelam relação entre variáveis e mapas de calor podem exibir correlações; nenhuma figura isolada demonstra causalidade.\n\n> Em questões com código, identifique primeiro o tipo de objeto, depois o eixo da operação e, por fim, se ela aprende estatísticas dos dados."
+    },
+    {
+      "title": "2. Aprendizado estatístico, modelos e avaliação",
+      "markdown": "## Tarefas e divisão dos dados\nNo **aprendizado supervisionado**, exemplos possuem rótulos ou valores-alvo: prever inadimplência é classificação; prever consumo em kWh é regressão. O **não supervisionado** busca padrões sem rótulos-alvo, como agrupamento (`KMeans`) e redução de dimensionalidade (`PCA`). Agrupar clientes não significa descobrir classes verdadeiras preexistentes. Para testar generalização, reserve dados de teste, ajuste hiperparâmetros em validação e compare com uma linha de base. Em classificação desbalanceada, uma amostra estratificada preserva aproximadamente a proporção de classes; em séries temporais, a validação deve respeitar o tempo.\n\nNo **scikit-learn**, o padrão `fit(X_treino,y_treino)` ajusta um estimador; `predict(X_teste)` fornece predições. Transformadores implementam `fit`, `transform` e, frequentemente, `fit_transform`. `Pipeline` evita o ajuste de um escalador ou seletor de atributos fora da dobra de treinamento. Hiperparâmetros, como intensidade da penalidade, profundidade e número de vizinhos, são definidos antes do treinamento e podem ser escolhidos por validação cruzada. Os parâmetros aprendidos, como coeficientes da regressão, são ajustados pelo algoritmo.\n\n### Regressões e regularização\nRegressão linear estima uma resposta contínua. **Regressão logística** modela uma probabilidade binária por função sigmoide aplicada ao preditor linear; apesar do nome, é método de classificação. O limiar 0,5 é uma escolha operacional, não lei universal. **Ridge** adiciona penalidade L2 à função objetivo e tende a reduzir coeficientes sem tipicamente zerá-los. **Lasso** usa L1 e pode zerar alguns coeficientes, realizando seleção implícita. **Elastic Net** combina L1 e L2. Padronizar variáveis costuma ser importante antes de comparar magnitudes de penalidades; para coeficientes correlacionados, a escolha da regularização altera estabilidade e esparsidade.\n\nÁrvores de decisão particionam o espaço por regras; uma floresta aleatória agrega árvores com aleatorização, reduzindo a variância em relação a uma árvore isolada em muitas situações. **XGBoost** implementa métodos de *gradient boosting* com árvores construídas sequencialmente para melhorar a função objetivo. Não se confunde com uma floresta de árvores treinadas independentemente. `KMeans` minimiza a soma de distâncias quadráticas aos centróides, sendo sensível à escala e à inicialização; o número `k` deve ser definido ou selecionado. Agrupamentos não devem ser avaliados automaticamente com acurácia quando não existem classes verdadeiras.\n\n### Métricas que mudam a decisão\nNa classificação binária, `TP` são positivos corretamente detectados, `FP` são alarmes falsos e `FN` são positivos perdidos. **Precisão** = `TP/(TP+FP)`; **revocação** = `TP/(TP+FN)`; **F1** = média harmônica de precisão e revocação. **Acurácia** = `(TP+TN)/N`. Com 950 negativos e 50 positivos, prever tudo como negativo dá 95% de acurácia, porém revocação da classe positiva igual a zero. **ROC-AUC** analisa discriminação ao variar o limiar; a curva precisão-revocação pode ser mais informativa quando a classe positiva é rara. AUC não informa diretamente calibração das probabilidades. Para regressão, **MAE** mede erro absoluto médio, **MSE** erro quadrático médio e **RMSE** sua raiz, na unidade original do alvo. `R²` pode ser negativo no conjunto avaliado.\n\n| Situação | Medida especialmente informativa | Limite |\n| --- | --- | --- |\n| Perdas graves por falso negativo | Revocação | Pode crescer às custas da precisão |\n| Alertas caros por falso positivo | Precisão | Pode cair se o limiar for reduzido |\n| Erros grandes muito caros | RMSE | Amplifica desvios elevados |\n| Necessidade de probabilidades confiáveis | Calibração, log-loss ou Brier | Alta acurácia não garante calibração |\n\n### Inferência bayesiana\nA atualização de crenças usa `P(H|D)=P(D|H)P(H)/P(D)`: distribuição **a priori** + verossimilhança produzem **posterior**. Com prevalência de 1%, sensibilidade de 90% e taxa de falso positivo de 10%, um teste positivo corresponde a probabilidade posterior aproximada de 8,3%, não 90%. Seleção de modelos bayesiana compara probabilidades posteriores de modelos, cuja evidência integra a verossimilhança sobre parâmetros; a média de modelos pondera predições por essas probabilidades. **Modelos hierárquicos** compartilham informação entre grupos por parâmetros de níveis diferentes. Na **inferência sequencial**, cada posterior pode se tornar a priori da atualização seguinte, desde que o modelo e as hipóteses de atualização sejam preservados.\n\n> A prova costuma trocar a função da regressão logística, confundir precisão com revocação e aplicar a porcentagem de sensibilidade diretamente como probabilidade posterior."
+    },
+    {
+      "title": "3. Redes neurais, CNN, visão computacional e linguagem natural",
+      "markdown": "## Redes neurais e frameworks\nUma rede neural combina camadas com transformações parametrizadas e funções de ativação. No treinamento supervisionado, a **propagação direta** calcula saídas e perda; a **retropropagação** obtém gradientes, e um otimizador como SGD ou Adam atualiza pesos. O gradiente não corresponde, por si, à taxa de aprendizado: esta é um hiperparâmetro que controla o passo do otimizador. **Época** é uma passagem sobre os exemplos de treinamento; um **minilote** processa parte deles por atualização. Em tarefas de classificação de múltiplas classes mutuamente exclusivas, usa-se frequentemente `softmax` e perda de entropia cruzada; a escolha da perda deve ser consistente com logits ou probabilidades.\n\n**TensorFlow** e **PyTorch** oferecem tensores, autodiferenciação e operações aceleradas. A API **Keras** simplifica criação e treinamento de modelos; `Sequential` corresponde a uma pilha linear de camadas com uma entrada e uma saída por camada, não a arquiteturas de múltiplas ramificações. Em PyTorch, `model.train()` habilita comportamentos de treinamento em módulos específicos, enquanto `model.eval()` define comportamento de avaliação, como em dropout e normalização em lotes. `torch.no_grad()` evita o registro de gradientes naquele contexto; `eval()` sozinho não desativa o mecanismo de autodiferenciação. Essas diferenças são frequentemente relevantes para memória e inferência.\n\n### Regularização e CNN\n**Regularização L2**, **L1**, *dropout*, aumento de dados e parada antecipada são estratégias diferentes para limitar sobreajuste. Dropout desliga unidades de forma estocástica durante o treinamento; na inferência, não se aplica o mesmo desligamento aleatório na configuração convencional. Em uma **rede convolucional (CNN)**, filtros compartilhados exploram padrões locais de imagens. Uma convolução bidimensional, sem dilatação, tem tamanho de saída em cada eixo `floor((entrada + 2·padding − kernel)/stride)+1`. Para imagem de 32 por 32, filtro 3 por 3, `padding=1` e `stride=1`, a saída espacial permanece 32 por 32. Com `stride=2`, a mesma configuração produz 16 por 16. O número de canais de saída depende dos filtros aprendidos, e não da altura da imagem.\n\n**Classificação de imagens** atribui rótulo à imagem; **detecção de objetos** identifica classes e posições, tipicamente caixas delimitadoras, e **segmentação** prevê regiões ou rótulos espaciais. Confundir detecção com classificação mascara a necessidade de avaliar localização (por exemplo, IoU entre caixas). *Fine-tuning* reutiliza pesos pré-treinados e atualiza parte ou todos os parâmetros em novos dados. Congelar o extrator e treinar uma cabeça nova é diferente de descongelar camadas e ajustar pesos com taxa de aprendizado controlada. Dados sintéticos podem ampliar variedade, testar cenários ou reduzir exposição de dados reais, mas também reproduzir vieses e informações sensíveis; não são automaticamente anônimos ou representativos.\n\n### Processamento de linguagem natural\nEm **PLN**, normalizar texto, tokenizar e construir representações numéricas antecede ou integra a modelagem. **NLTK** disponibiliza ferramentas didáticas e linguísticas, como tokenização, corpus e classificação; **spaCy** favorece pipelines com componentes de processamento de texto e entidades nomeadas; **gensim** é conhecido por modelos de tópicos e representações vetoriais, como Word2Vec. **TF-IDF** pondera termos segundo frequência no documento e raridade no corpus; não codifica automaticamente ordem ou contexto profundo. *Embeddings* densos representam palavras ou trechos em vetores; seu significado depende de treinamento e contexto. Lematização tenta reduzir palavras a lemas; *stemming* remove afixos por regras, podendo gerar formas que não são palavras.\n\n| Problema | Saída típica | Instrumento/abordagem |\n| --- | --- | --- |\n| Classificar sentimento | Classe ou probabilidade | Vetorização + classificador |\n| Reconhecer entidades | Trechos rotulados | Pipeline de NER |\n| Descobrir temas | Distribuições de tópicos | LDA ou métodos de tópicos |\n| Localizar objetos | Classes e coordenadas | Detector com arquitetura visual |\n\nA qualidade deve ser avaliada fora dos dados de ajuste e com atenção à mudança de domínio. Um classificador treinado com comentários informais pode deteriorar ao receber documentos técnicos. **Acurácia sobre treino** é insuficiente para afirmar capacidade de generalização. Para redes profundas, registrar arquitetura, pré-processamento, sementes e versões é tão necessário quanto salvar os pesos."
+    },
+    {
+      "title": "4. Processamento distribuído, aprendizado federado e atualização bayesiana",
+      "markdown": "## Escalabilidade com Dask e Spark\nO crescimento do volume de dados introduz restrições de memória, transferência e paralelismo. **Dask** oferece arrays, dataframes e grafos de tarefas, permitindo executar cálculos paralelos e distribuídos com APIs próximas às de Python e NumPy/pandas. Muitas operações Dask são **preguiçosas**: representam um plano de cálculo até um gatilho como `compute()` ou persistência explícita. O particionamento pode acelerar processamento, mas junções amplas e operações de *shuffle* geram comunicação cara. Dask não converte automaticamente qualquer código sequencial em solução eficiente: tamanho das partições e dependências importam.\n\n**Apache Spark** utiliza execução distribuída; **PySpark** apresenta DataFrames distribuídos com colunas nomeadas. Transformações como `select`, `filter` e `groupBy` constroem planos; ações como `count` e `collect` disparam materialização de resultados. `collect()` traz dados ao processo controlador e pode esgotar sua memória. Usar `groupBy` não garante ordenação dos registros. O processamento em vários nós pode exigir formatos particionados, minimização de transferência e controle de assimetria entre chaves (*data skew*). **Scala** e **Java** também se integram ao ecossistema de processamento distribuído; Spark é motor de execução, não um algoritmo de aprendizado por si só.\n\n### Paralelismos diferentes\n**Paralelismo de dados** replica o modelo e distribui minilotes a trabalhadores; os gradientes precisam ser agregados de modo coerente para atualizar pesos. **Paralelismo de modelo** reparte componentes de um modelo entre dispositivos, útil quando uma cópia não cabe na memória de um acelerador. **Treinamento em múltiplas GPUs** não implica aceleração linear, pois existe custo de sincronização e comunicação. Se o lote global cresce sem ajuste cuidadoso de hiperparâmetros, convergência e generalização também podem mudar. Treinamento distribuído costuma pressupor acesso a dados compartilhados ou a partições coordenadas.\n\nNo **aprendizado federado**, participantes treinam localmente e enviam atualizações ou estatísticas para agregação, em vez de centralizar sistematicamente exemplos brutos. Um esquema conhecido é o FedAvg, que calcula média ponderada de parâmetros ou atualizações locais segundo o desenho do algoritmo. **Isso não assegura privacidade por definição**: gradientes podem revelar informações, e são necessárias medidas adicionais, como agregação segura, minimização de dados e privacidade diferencial quando exigidas. Dados não identicamente distribuídos entre participantes (*non-IID*) podem prejudicar convergência. Federado, distribuído clássico e múltiplas GPUs resolvem problemas parcialmente diferentes.\n\n### Modelos probabilísticos avançados\nUma **rede neural bayesiana** atribui distribuição de probabilidade aos pesos ou a subconjuntos de parâmetros, procurando capturar incerteza sobre eles. Em vez de um único vetor fixo, aproxima-se ou amostra-se uma posterior, por exemplo por aproximação variacional ou amostragem quando viável. Incerteza **epistêmica** se relaciona a desconhecimento do modelo e pode diminuir com informação; incerteza **aleatória** está associada à variabilidade inerente aos dados e não é eliminada só por adicionar exemplos.\n\nEm **modelos hierárquicos**, observações de várias unidades compartilham hiperparâmetros, permitindo *pooling* parcial. Exemplo: estimar taxas de falha de 20 equipamentos em locais diferentes, evitando tanto uma taxa única para todos quanto estimativas totalmente isoladas. Na **inferência bayesiana sequencial**, a posterior após novos dados pode funcionar como a próxima priori. Para dados que chegam ao longo do tempo, cuidado com dependência temporal e mudança de distribuição: a identidade bayesiana é válida, mas a verossimilhança precisa representar corretamente essas dependências.\n\n### Dados sintéticos e adaptação\n**Dados sintéticos** podem ser gerados por simulação física, amostragem estatística ou modelos generativos. Servem para ensaiar eventos raros, equilibrar cenários ou testar tubulações, mas um conjunto sintético de excelente aparência pode falhar ao representar casos reais. **Fine-tuning** em um domínio novo pode corrigir parte dessa distância, porém requer conjunto independente de validação. Em computação distribuída, registre também versões dos dados e diferenças entre nós, pois uma alteração silenciosa no pré-processamento entre participantes produz modelos inconsistentes.\n\n> Identifique quem mantém dados, quem executa o modelo e quais artefatos circulam pela rede: essas três perguntas separam Spark, paralelismo de dados e aprendizado federado."
+    },
+    {
+      "title": "5. Ciclo MLOps: implantação, governança e monitoramento",
+      "markdown": "## Da experimentação à operação\n**MLOps** aplica práticas de engenharia ao ciclo de modelos: aquisição e validação de dados, versionamento, preparação, experimentos, treinamento, avaliação, empacotamento, implantação, monitoramento e eventual retreinamento. Não é sinônimo de disponibilizar um arquivo serializado em uma API. Um modelo depende de **código + parâmetros/pesos + esquema de atributos + transformações + versões de dados e dependências**. Registrar apenas a acurácia do último treino é insuficiente para reproduzir um resultado.\n\nO controle de versão do código pode usar Git, enquanto artefatos grandes e conjuntos de dados precisam de mecanismos apropriados de armazenamento e identificação por versão. **MLflow Tracking** permite registrar métricas, parâmetros, artefatos e execuções; um **registro de modelos** associa versões e metadados, facilitando rastreabilidade e reversão. Isso não substitui testes de qualidade: uma versão mais recente pode ser pior para o objetivo real. Uma *pipeline* de treino executa validação de dados, transformações ajustadas somente no treino, treino, avaliação e publicação condicionada a critérios mensuráveis.\n\n### Validação e implantação\nAntes da promoção, avalie métricas técnicas e regras operacionais: esquema esperado, amplitude e tipos das entradas, latência, consumo de memória, invariantes, métricas por subgrupo e comparação com modelo base. **Implantação em lote** produz predições periodicamente; **serviço on-line** responde às requisições, normalmente com exigência de baixa latência. Estratégias *canary* ou *shadow* permitem observar uma nova versão com tráfego limitado ou paralelo; *shadow* não deve afetar a resposta efetiva do usuário. A atualização deve permitir reversão para versão conhecida, com pré-processamento e esquema correspondentes.\n\n### Derivas e observabilidade\n**Data drift** é mudança na distribuição das entradas; **concept drift** ocorre quando muda a relação entre atributos e alvo, como `P(y|X)`. Um deslocamento na frequência de categorias pode existir sem degradação do modelo, enquanto a relação entre sinais e desfecho pode mudar mesmo que marginais pareçam estáveis. É necessário separar alertas de distribuição, qualidade de dados (nulos, intervalos, atraso de ingestão), operação (erros, latência, disponibilidade) e qualidade preditiva (que depende de rótulos reais posteriores). Monitorar apenas acurácia quando os rótulos chegam semanas depois não detecta rapidamente todos os incidentes. Configure limiares com base em impacto, custo de falso alarme e processos de resposta.\n\n| Camada | Evidência observada | Ação possível |\n| --- | --- | --- |\n| Dados | Novas categorias e campos ausentes | Validar contrato e origem |\n| Serviço | Latência e falhas de resposta | Ajustar capacidade ou reverter |\n| Modelo | Precisão, revocação e calibração | Reavaliar limiar ou retreinar |\n| Governança | Artefatos, responsável e versão | Auditar decisões e promover versão |\n\n### Segurança, reprodutibilidade e responsabilidade\nModelos serializados em formatos que executam código durante o carregamento exigem fonte confiável e controles de segurança. A entrada deve ser validada; também se devem restringir permissões, proteger dados e registrar quem implantou cada versão. Reprodutibilidade envolve fixar particionamentos quando apropriado, registrar sementes, dependências e ambiente, sabendo que algumas operações em GPU podem apresentar não determinismo. Retrain automático sem critério de aceitação pode automatizar a degradação. A sequência correta é detectar problema, investigar causa, criar versão candidata, avaliar contra dados relevantes e então implantar de forma controlada.\n\n**Exemplo integrado:** um serviço de classificação usa `Pipeline` para imputação e codificação; o artefato com transformações e estimador é registrado com a versão dos dados. Um alerta de categoria desconhecida exige verificar esquema e transformação, não presumir que a solução é reexecutar todo o treinamento. Se a taxa de falsos negativos crescer após uma alteração no padrão dos exemplos, devem-se investigar mudança conceitual e limiar, além de verificar qualidade e atraso dos rótulos.\n\n### Como o tema costuma ser cobrado\nA prova apresenta **um pipeline com vazamento de dados**, **uma métrica incompatível com o custo do erro**, **um uso indevido de `collect()`**, **uma avaliação de rede neural feita em modo de treino** ou **a suposição de que registrar um modelo basta para colocá-lo em produção**. Resolva identificando o que é ajustado em cada etapa, qual conjunto fornece informação, qual recurso é consumido, qual incerteza está sendo medida e como a mudança seria detectada ou revertida."
+    }
+  ],
+  "summary": "## Síntese para revisão\n- **NumPy:** `ndarray`, formas, operações vetorizadas; `*` elemento a elemento e `@` produto matricial. **pandas:** `Series`, `DataFrame`, `loc` por rótulo, `iloc` por posição, `dropna`, `fillna`, `groupby`, `merge`.\n- **Preparação:** dividir conjuntos antes de ajustar imputação, escala e seleção de variáveis; na validação cruzada, colocar essas etapas no `Pipeline` evita vazamento.\n- **Álgebra:** L1 soma valores absolutos; L2 é raiz da soma de quadrados; `Av=λv`; Cholesky exige matriz simétrica positiva definida; SVD serve também para matriz retangular.\n- **Aprendizado:** supervisionado usa alvos; não supervisionado encontra estrutura; regressão logística classifica, regressão linear prevê números, KMeans agrupa.\n- **Regularização:** Ridge L2; Lasso L1 pode zerar coeficientes; Elastic Net combina ambas. XGBoost treina árvores por boosting sequencial.\n- **Métricas:** precisão `TP/(TP+FP)`; revocação `TP/(TP+FN)`; F1 média harmônica; acurácia engana no desbalanceamento; RMSE penaliza erros grandes.\n- **Bayes:** posterior proporcional a priori vezes verossimilhança; evidência de modelo integra parâmetros; média bayesiana pondera predições.\n- **Redes neurais:** pesos por retropropagação; modo treino difere da avaliação; CNN explora padrões locais; classificação, detecção e segmentação têm saídas distintas.\n- **PLN:** NLTK, spaCy, gensim; TF-IDF não representa ordem; embeddings representam informação em vetores.\n- **Escala:** Dask usa tarefas paralelas e execução preguiçosa; Spark distribui DataFrames e `collect()` retorna dados ao controlador; federado mantém exemplos locais em desenho típico, mas não garante sigilo.\n- **MLOps:** registrar código, dados, parâmetros, métricas e modelos; validar antes de implantar; monitorar dados, serviço, desempenho e deriva; permitir rollback.",
+  "flashcards": [
+    {
+      "front": "`loc` versus `iloc`?",
+      "back": "`loc` seleciona por rótulos; `iloc`, por posições inteiras."
+    },
+    {
+      "front": "`dropna()` faz o quê?",
+      "back": "Descarta linhas ou colunas com ausências conforme os parâmetros definidos."
+    },
+    {
+      "front": "Quando usar `fillna()`?",
+      "back": "Para substituir ausências por valores definidos; estatísticas de imputação devem ser aprendidas apenas no treino."
+    },
+    {
+      "front": "`@` em NumPy?",
+      "back": "Realiza multiplicação matricial entre arrays com dimensões compatíveis."
+    },
+    {
+      "front": "Norma L1 de (3,4)?",
+      "back": "7, pois soma os módulos dos componentes."
+    },
+    {
+      "front": "Norma L2 de (3,4)?",
+      "back": "5, pela raiz da soma dos quadrados."
+    },
+    {
+      "front": "Quando existe Cholesky real padrão?",
+      "back": "Para matriz simétrica positiva definida: A = LLᵀ."
+    },
+    {
+      "front": "SVD requer matriz quadrada?",
+      "back": "Não. A fatoração com valores singulares também é definida para matrizes retangulares."
+    },
+    {
+      "front": "Regressão logística prevê o quê?",
+      "back": "Probabilidade de classe, geralmente convertida em rótulo por um limiar escolhido."
+    },
+    {
+      "front": "Ridge e Lasso?",
+      "back": "Ridge utiliza L2; Lasso utiliza L1 e pode produzir coeficientes nulos."
+    },
+    {
+      "front": "Por que usar `Pipeline`?",
+      "back": "Encadeia pré-processamento e estimador, fazendo o ajuste apropriado dentro de cada divisão de treino."
+    },
+    {
+      "front": "Defina precisão.",
+      "back": "TP dividido por TP + FP: fração de positivos previstos que são realmente positivos."
+    },
+    {
+      "front": "Defina revocação.",
+      "back": "TP dividido por TP + FN: fração dos positivos reais recuperados."
+    },
+    {
+      "front": "O que é KMeans?",
+      "back": "Método de agrupamento que procura centróides minimizando distâncias quadráticas internas."
+    },
+    {
+      "front": "Qual é a regra de Bayes?",
+      "back": "Posterior = verossimilhança × priori / evidência."
+    },
+    {
+      "front": "`model.eval()` em PyTorch?",
+      "back": "Altera comportamento de camadas como dropout; não desliga sozinho o cálculo de gradientes."
+    },
+    {
+      "front": "CNN classifica ou detecta?",
+      "back": "Pode apoiar ambas; classificação retorna classes, enquanto detecção também localiza objetos."
+    },
+    {
+      "front": "TF-IDF captura ordem das palavras?",
+      "back": "Não; a representação clássica se baseia na importância estatística dos termos."
+    },
+    {
+      "front": "O risco de `collect()`?",
+      "back": "Reúne os dados no processo controlador e pode esgotar sua memória."
+    },
+    {
+      "front": "Federado garante privacidade?",
+      "back": "Não. Atualizações compartilhadas podem vazar informação; exigem controles adicionais."
+    },
+    {
+      "front": "Data drift x concept drift?",
+      "back": "Data drift muda distribuição das entradas; concept drift muda a relação entre entradas e resultado."
+    },
+    {
+      "front": "Para que serve MLflow Tracking?",
+      "back": "Para registrar execuções, parâmetros, métricas e artefatos, apoiando rastreabilidade dos experimentos."
+    }
+  ],
+  "tips": [
+    "Em perguntas de pandas, cheque se o índice citado é rótulo (`loc`) ou posição (`iloc`).",
+    "Marque onde ocorre `fit`: usar informação do teste ou de validação na preparação pode invalidar o resultado.",
+    "Antes de escolher acurácia, calcule a proporção das classes e o custo dos falsos positivos e negativos.",
+    "Diferencie parâmetros aprendidos de hiperparâmetros selecionados por validação.",
+    "Associe Lasso à possibilidade de coeficientes zero; Ridge tende a encolher sem produzir esparsidade exata.",
+    "Se a questão menciona CNN, identifique stride, padding e dimensão dos filtros antes de calcular a saída.",
+    "Em Spark, suspeite de gargalo se a solução usa `collect()` sobre um dataset grande.",
+    "Em MLOps, exija versão de dados, transformações, métricas, aprovação e possibilidade de reversão."
+  ],
+  "traps": [
+    "A prova diz que `df.iloc['A']` acessa o rótulo A. Está errado: `iloc` acessa posições inteiras; para rótulo, use `loc`.",
+    "A prova afirma que escalar todo o dataset antes da divisão não afeta a avaliação. Errado: estatísticas do teste vazam para o treinamento.",
+    "A prova trata regressão logística como predição de valor contínuo sem classes. Errado: a saída usual é probabilidade associada a classe.",
+    "A prova iguala precisão e sensibilidade. Errado: a primeira divide por TP+FP; a segunda, por TP+FN.",
+    "A prova afirma que Ridge elimina automaticamente atributos ao zerar pesos. Errado: Lasso é a penalização tipicamente associada à esparsidade.",
+    "A prova declara que `model.eval()` desliga o autograd. Errado: use `torch.no_grad()` quando desejar impedir o registro de gradientes na inferência.",
+    "A prova considera federado sinônimo de dados totalmente protegidos. Errado: atualizações podem vazar informações sem medidas adicionais.",
+    "A prova chama mudança na distribuição das entradas de concept drift. Não necessariamente: concept drift refere-se à alteração de P(y|X)."
+  ],
+  "activeRecall": [
+    {
+      "question": "O que diferencia transformação aprendida de operação determinística no pré-processamento?",
+      "answer": "A primeira estima parâmetros nos dados, como média ou escala, e deve ajustar-se apenas ao treino; a segunda pode ser aplicada igualmente sem estimar estatísticas globais."
+    },
+    {
+      "question": "Calcule precisão e revocação para TP=30, FP=10 e FN=20.",
+      "answer": "Precisão = 30/40 = 0,75; revocação = 30/50 = 0,60."
+    },
+    {
+      "question": "Qual o efeito conceitual de L1, L2 e Elastic Net?",
+      "answer": "L1 pode gerar esparsidade, L2 reduz magnitudes e Elastic Net combina as duas penalidades."
+    },
+    {
+      "question": "Por que uma matriz retangular pode passar por SVD, mas não por diagonalização usual?",
+      "answer": "SVD vale para matrizes retangulares; diagonalização por autovetores é formulada para matrizes quadradas com base apropriada."
+    },
+    {
+      "question": "O que muda entre `model.eval()` e `torch.no_grad()`?",
+      "answer": "`eval()` define comportamento de módulos; `no_grad()` impede registro de operações para diferenciação automática no contexto."
+    },
+    {
+      "question": "Qual a diferença entre classificação e detecção de objetos?",
+      "answer": "Classificação fornece classe da imagem; detecção também estima posições espaciais, tipicamente caixas."
+    },
+    {
+      "question": "Como distinguir Spark, Dask e aprendizado federado?",
+      "answer": "Spark e Dask distribuem processamento; no aprendizado federado, participantes treinam localmente e agregam atualizações sem centralização sistemática dos exemplos brutos."
+    },
+    {
+      "question": "Que sinais justificam rollback de modelo em produção?",
+      "answer": "Falhas de esquema, aumento de latência, degradação de métricas relevantes, comportamento inesperado ou violação dos critérios de aceitação da versão."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Pré-processar antes de separar conjuntos",
+      "summary": "Imputadores, escaladores, PCA e seletores aprendem parâmetros. Ajustá-los sobre dados futuros ou teste produz vazamento; o ajuste deve ocorrer dentro do treino ou de cada dobra."
+    },
+    {
+      "key": "e2",
+      "title": "Confundir tarefa e métrica",
+      "summary": "Regressão logística classifica, acurácia pode ocultar classe rara e precisão não equivale a revocação. A avaliação acompanha o objetivo e custo do erro."
+    },
+    {
+      "key": "e3",
+      "title": "Trocar propriedades da regularização",
+      "summary": "L1 pode induzir pesos exatamente nulos; L2 reduz coeficientes sem produzir esparsidade típica; Elastic Net combina penalidades."
+    },
+    {
+      "key": "e4",
+      "title": "Misturar modelos, bibliotecas e operações",
+      "summary": "NumPy não é o mesmo que pandas; Keras organiza camadas, PyTorch oferece autodiferenciação e Spark/Dask executam processamento distribuído. Cada ferramenta atua em uma camada do projeto."
+    },
+    {
+      "key": "e5",
+      "title": "Supor privacidade ou estabilidade automáticas",
+      "summary": "Federado não garante sigilo e registrar um modelo não garante generalização. É necessário testar, rastrear artefatos, monitorar deriva, aprovar mudanças e prever reversão."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma tabela tem índice textual formado por 'Norte' e 'Sul'. Para recuperar a linha identificada pelo rótulo 'Sul', sem depender de sua posição, qual acesso está correto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `df.iloc['Sul']` para selecionar a linha pelo nome do índice.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `df.loc['Sul']` para recuperar a linha pelo nome indicado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar `df.iat['Sul']` para acessar a linha pelo índice textual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `df.iloc[1]` porque os rótulos são ordenados alfabeticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `df.at[1]` porque esse método busca a posição da linha.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. `loc` é indexador orientado a rótulos. A confunde `iloc`, que recebe posições inteiras; C usa `iat`, acesso escalar posicional, com texto; D pressupõe uma ordem de linhas que não foi informada; E confunde `at`, que opera com rótulos, e ainda omite o rótulo da coluna para acesso escalar.",
+      "section": "1. Python, preparação de dados e álgebra linear",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação multiplica duas matrizes NumPy de forma `(2,2)` e pretende obter o produto matricial usual, e não o produto elemento a elemento. Qual operação atende ao requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`a * b`, porque o operador de multiplicação compõe linhas e colunas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`a + b`, porque a soma entre matrizes contrai o eixo comum.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`np.concatenate((a,b))`, porque a concatenação calcula produtos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`a @ b`, porque esse operador efetua a multiplicação matricial.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`a.reshape(4)`, porque remodelar calcula as entradas do produto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. O operador `@` efetua produto matricial com dimensões compatíveis. A produz multiplicação posição a posição; B soma elementos correspondentes; C une arrays ao longo de um eixo; E apenas altera a forma, conservando os elementos, sem calcular qualquer produto.",
+      "section": "1. Python, preparação de dados e álgebra linear",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja preencher idades faltantes pela mediana e avaliar o modelo em observações reservadas. Qual procedimento protege a avaliação contra vazamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dividir os dados, ajustar a mediana no treino e aplicá-la ao teste.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Preencher tudo pela mediana global e depois dividir treino e teste.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Calcular a mediana no teste e aplicá-la apenas às linhas de teste.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolher a mediana pelo teste e ajustá-la novamente em cada predição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Calcular a mediana no conjunto completo e validá-la com outra semente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. A estatística de imputação deve ser aprendida somente com observações de treino e reutilizada no teste. B e E deixam o teste influenciar o preparo; C estima transformação a partir do próprio teste; D usa desempenho ou dados do teste para decidir a imputação, comprometendo sua independência.",
+      "section": "1. Python, preparação de dados e álgebra linear",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para comparar a distribuição de uma variável contínua por grupos, uma pessoa pretende usar visualizações estatísticas em Python. Qual associação de ferramentas é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "NumPy cria apenas histogramas estatísticos; Seaborn é sistema de banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "pandas calcula só imagens; Matplotlib executa treinamento supervisionado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Jupyter define testes de significância; Seaborn substitui os dados por gráficos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Scikit-learn é exclusivo para gráficos; Matplotlib prepara os rótulos automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Matplotlib desenha gráficos; Seaborn oferece visualizações estatísticas de alto nível.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Matplotlib fornece recursos de desenho e Seaborn facilita gráficos estatísticos sobre essa infraestrutura. A reduz NumPy indevidamente e define Seaborn de forma incorreta; B atribui treinamento a Matplotlib; C confunde ambiente de notebook com metodologia estatística; D troca funções de modelagem e visualização.",
+      "section": "1. Python, preparação de dados e álgebra linear",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um notebook, uma variável é redefinida em uma célula executada fora da sequência visível. Qual ação melhora a reprodutibilidade do resultado apresentado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Renomear o arquivo do notebook, preservando o estado do kernel.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar somente a última célula, aproveitando os resultados anteriores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reiniciar o kernel e executar todas as células na ordem registrada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Salvar uma imagem das saídas, mantendo as variáveis em memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ocultar as células intermediárias, para evitar novas dependências.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Reiniciar e executar sequencialmente revela dependências de estados invisíveis. A altera somente identificação do arquivo; B continua dependendo de variáveis pré-existentes; D registra aparência, não a execução; E modifica a apresentação sem assegurar a reprodução dos cálculos.",
+      "section": "1. Python, preparação de dados e álgebra linear",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um conjunto registra atributos dos clientes e a etiqueta 'cancelou' ou 'não cancelou'. Qual enquadramento descreve o treinamento de um classificador com esses registros?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aprendizado não supervisionado, pois existem duas categorias de resultado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Redução de dimensionalidade, pois a saída contém um atributo categórico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aprendizado supervisionado, pois os exemplos contêm rótulos conhecidos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Agrupamento por centróides, pois há grupos de clientes no conjunto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Regressão não supervisionada, pois o alvo descreve um evento futuro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Classificação supervisionada aprende a partir de pares de atributos e rótulos. A troca o conceito de supervisão; B se refere a compactar atributos, não prever classe; D atribui indevidamente uso de centróides; E mistura regressão com ausência de rótulos e ignora que a saída é categórica.",
+      "section": "2. Aprendizado estatístico, modelos e avaliação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação estima a probabilidade de um registro pertencer à classe positiva por meio de uma função sigmoide sobre combinação linear de atributos. Qual modelo está sendo descrito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Regressão logística para classificação binária probabilística.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Regressão linear com resposta numérica sem limiar de decisão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "KMeans com centróides estimados sem rótulos de classe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PCA com componentes ordenados por variância explicada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ridge ajustada apenas para prever quantidades contínuas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. A regressão logística transforma o preditor linear em probabilidade de classe usando sigmoide. B não descreve essa transformação; C e D são técnicas não supervisionadas com objetivos distintos; E acrescenta regularização L2 à regressão e não caracteriza, por si, o classificador sigmoidal apresentado.",
+      "section": "2. Aprendizado estatístico, modelos e avaliação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em 100 observações, um detector assinalou 20 positivas, das quais 15 eram realmente positivas; havia ainda 10 positivos reais que ele não detectou. Qual foi a precisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "60%, porque o denominador é a soma dos positivos reais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "80%, porque cinco alarmes falsos são subtraídos dos positivos reais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "85%, porque se considera o total de exemplos corretamente negativos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "75%, porque quinze dos vinte alarmes positivos estavam corretos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "90%, porque se descontam apenas os positivos não detectados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Com TP=15 e FP=5, precisão=15/(15+5)=75%. A corresponde à revocação 15/(15+10)=60%; B não deriva da matriz de confusão; C depende também dos verdadeiros negativos, não informados como tal; E desconsidera incorretamente os falsos positivos.",
+      "section": "2. Aprendizado estatístico, modelos e avaliação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regressão com numerosos atributos correlacionados deve permitir que alguns coeficientes se tornem exatamente nulos. Qual regularização atende mais diretamente a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Penalização Ridge com norma L2 como mecanismo típico de esparsidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Penalização Lasso com norma L1, capaz de zerar coeficientes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Escalonamento MinMax como penalização explícita de coeficientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Validação KFold como restrição L1 diretamente sobre os pesos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Regressão linear comum como método de seleção automática por norma.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. A Lasso utiliza penalidade L1, capaz de produzir soluções esparsas. A confunde a contração típica de L2 com eliminação exata; C apenas transforma atributos; D é procedimento de avaliação e não função de penalização; E, sem regularização, não impõe por si a seleção descrita.",
+      "section": "2. Aprendizado estatístico, modelos e avaliação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma base sem rótulos deve ser dividida em k grupos por minimização de distâncias quadráticas aos centróides. Qual método corresponde a essa descrição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Random Forest de classificação com votação de árvores rotuladas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Regressão logística com decisão sobre probabilidades estimadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PCA com componentes ordenados pela variância de cada vetor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gradient boosting com ajuste sequencial por função de perda.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "KMeans, que atualiza atribuições e centróides dos agrupamentos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. KMeans procura minimizar a dispersão quadrática interna de k agrupamentos. A e B dependem tipicamente de rótulos para classificar; C reduz a dimensionalidade sem produzir diretamente os k grupos pedidos; D treina estimadores sequenciais para previsão supervisionada, e não o objetivo descrito.",
+      "section": "2. Aprendizado estatístico, modelos e avaliação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um classificador obteve precisão de 0,80 e revocação de 0,50 na classe de interesse. Qual é o F1 aproximado dessa classe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,40, calculado pela multiplicação direta das duas métricas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "0,50, igual à revocação por ser a menor das duas taxas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "0,65, obtido pela média aritmética simples das duas taxas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "0,80, igual à precisão por ser a maior das duas taxas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "0,615, obtido pela média harmônica de precisão e revocação.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. F1=2×0,8×0,5/(0,8+0,5)=0,8/1,3≈0,615. A omite a normalização da média harmônica; B e D substituem indevidamente F1 por uma única métrica; C usa a média aritmética, que não é a definição de F1.",
+      "section": "2. Aprendizado estatístico, modelos e avaliação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto usa `StandardScaler` dentro de validação cruzada com cinco dobras. Onde o escalador deve estimar média e desvio-padrão em cada rodada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "No conjunto completo, antes de dividir as cinco dobras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Nos quatro quintos de treino de cada rodada, aplicando ao quinto restante.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "No quinto reservado, reutilizando as estatísticas para os quatro quintos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Nos cinco quintos após escolher o modelo, para computar o escore da rodada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Na união das dobras de validação, evitando variações entre rodadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Cada dobra de validação deve receber transformação ajustada exclusivamente nos exemplos de treino daquela rodada. A, D e E deixam a informação reservada influenciar parâmetros; C inverte o papel de treino e validação. O uso de `Pipeline` faz esse ajuste dentro do processo de validação.",
+      "section": "2. Aprendizado estatístico, modelos e avaliação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um vetor `v=(6,8)` representa dois atributos numéricos. Seus valores de norma L1 e norma L2 são, respectivamente:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "10 e 14, pois L1 calcula a distância euclidiana dos pontos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "14 e 100, pois L2 soma os quadrados sem extrair raiz.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "48 e 10, pois L1 usa o produto dos componentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "14 e 10, pois se aplicam soma dos módulos e raiz dos quadrados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "100 e 14, pois L1 corresponde ao quadrado da norma euclidiana.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A norma L1 vale |6|+|8|=14; L2 é sqrt(36+64)=10. A troca os resultados; B identifica L2 com sua quantidade ao quadrado; C confunde norma com produto de coordenadas; E inverte definições e interpreta o quadrado da norma como L1.",
+      "section": "1. Python, preparação de dados e álgebra linear",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma matriz de dados com 200 linhas e 30 colunas será fatorada para redução de posto, sem suposição de ser quadrada. Qual decomposição é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cholesky, aplicável diretamente a qualquer matriz retangular.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Diagonalização por autovetores da própria matriz retangular.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SVD, que fornece valores singulares para matrizes retangulares.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Decomposição escalar, que dispensa analisar os eixos da matriz.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fatoração LDLᵀ, exigida para toda matriz de dados não quadrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. SVD fatoriza matrizes retangulares em vetores singulares e valores singulares, permitindo aproximações de posto reduzido. A exige uma matriz quadrada simétrica positiva definida para Cholesky padrão; B pressupõe matriz quadrada; D não define a decomposição solicitada; E atribui uso geral a uma fatoração de matrizes simétricas.",
+      "section": "1. Python, preparação de dados e álgebra linear",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um projeto tabular, árvores são ajustadas sequencialmente para reduzir a função de perda a partir dos resultados das anteriores. Qual descrição corresponde ao XGBoost?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Implementa boosting de árvores, acrescentando estimadores sequenciais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Treina árvores independentes e decide só por voto majoritário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substitui todas as árvores por um único centróide de agrupamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Estima componentes principais antes de criar um classificador linear.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usa exclusivamente uma rede convolucional com filtros compartilhados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. XGBoost é uma implementação de gradient boosting, com adição de árvores para melhorar o objetivo. B descreve mais de perto agregação típica de floresta aleatória; C remete a agrupamento; D confunde redução dimensional com boosting; E troca árvores por arquitetura neural de visão.",
+      "section": "2. Aprendizado estatístico, modelos e avaliação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma condição ocorre em 1% da população. Um teste tem sensibilidade de 90% e taxa de falso positivo de 10%. Dado um resultado positivo, qual probabilidade aproximada da condição é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "8,3%, porque a priori baixa reduz o valor preditivo positivo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "90%, pois sensibilidade e probabilidade posterior são equivalentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "10%, pois basta usar a taxa de falso positivo do teste.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "50%, porque o exame separa pessoas positivas e negativas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "99%, porque a prevalência foi o único erro na amostragem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Por Bayes, P(condição|positivo)=0,9×0,01/[0,9×0,01+0,1×0,99]=0,009/0,108≈8,3%. B confunde sensibilidade com posterior; C usa só o falso positivo; D ignora taxas de base; E interpreta prevalência como certeza após exame.",
+      "section": "2. Aprendizado estatístico, modelos e avaliação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma camada convolucional recebe imagem de 32×32 pixels e usa filtro 3×3, stride 2, padding 1 e dilatação 1. Qual dimensão espacial tem sua saída?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "32×32, porque padding 1 preserva a resolução para qualquer stride.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "30×30, porque se retiram dois pixels de cada dimensão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "16×16, porque a fórmula combina stride 2 com padding 1.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "17×17, porque cada dimensão recebe sempre uma unidade extra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "15×15, porque o filtro reduz a imagem antes de aplicar o padding.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Por eixo: floor((32+2×1−3)/2)+1=floor(31/2)+1=16. A desconsidera o passo 2; B calcula redução como se não houvesse padding e não divide por stride; D arredonda a saída para cima; E ignora o efeito combinado do padding e da fórmula correta.",
+      "section": "3. Redes neurais, CNN, visão computacional e linguagem natural",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura visual tem duas entradas, ramos paralelos e uma operação que combina seus resultados. Como escolher a forma de construção em Keras?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `Sequential`, pois a presença de ramos paralelos é seu caso básico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar apenas uma camada Dense, pois ela preserva as duas entradas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `Sequential` com um único tensor e descartar um dos ramos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar um objeto de métrica no lugar da definição da topologia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar a API funcional, adequada a múltiplas entradas e ramificações.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A API funcional modela topologias com ramos e múltiplas entradas. A e C atribuem ao `Sequential` uma flexibilidade que ele não possui e C ainda perde uma entrada; B simplifica indevidamente os dados e a estrutura; D confunde a medição de desempenho com a construção de camadas.",
+      "section": "3. Redes neurais, CNN, visão computacional e linguagem natural",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a inferência em PyTorch, uma rede com dropout deve usar comportamento de avaliação e não construir grafo de gradientes. Qual combinação atende aos dois objetivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`model.train()` com `torch.no_grad()`, mantendo dropout em treinamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`model.eval()` sem qualquer contexto, desativando todo o autograd.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`model.train()` sem contexto, usando gradientes apenas para inferência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`model.eval()` em conjunto com o contexto `torch.no_grad()`.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`model.zero_grad()` em vez de alterar os modos de funcionamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. `eval()` altera módulos como dropout para avaliação e `no_grad()` evita registrar operações para derivação. A e C mantêm comportamento de treino; B erra porque `eval()` não desliga o autograd sozinho; E zera gradientes acumulados, mas não controla adequadamente nenhum dos dois requisitos.",
+      "section": "3. Redes neurais, CNN, visão computacional e linguagem natural",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe transforma notícias em vetores TF-IDF e deseja identificar nomes de pessoas e organizações como trechos rotulados. Qual avaliação é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "TF-IDF produz automaticamente spans de entidades ao ponderar termos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "TF-IDF fornece pesos de termos; reconhecimento de entidades exige método próprio.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "TF-IDF preserva integralmente a ordem das palavras em seus vetores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NLTK e spaCy são nomes de classificadores exclusivos para imagens.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma distribuição de tópicos equivale aos limites exatos de cada nome.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. TF-IDF transforma importância estatística de termos em atributos; extração de entidades requer modelo ou regras específicos, como componente de NER. A confunde representação com anotação; C atribui ordenação ao modelo saco de palavras; D erra o domínio das bibliotecas; E mistura descoberta temática com delimitação de entidades.",
+      "section": "3. Redes neurais, CNN, visão computacional e linguagem natural",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise em PySpark manipula centenas de milhões de registros e pretende contar linhas sem materializar a tabela no processo controlador. Qual alternativa é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar `collect()` e contar os elementos recebidos na memória local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter o DataFrame inteiro em lista Python antes da contagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Transferir cada partição por `toPandas()` e fazer a soma local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar a ação distribuída `count()` sobre o DataFrame no Spark.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Chamar `show()` em todos os registros e contar as linhas impressas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. `count()` executa agregação distribuída e retorna uma contagem escalar. A e B centralizam todos os registros; C também transfere dados em massa ao controlador, com risco de memória; E trata uma exibição limitada e custosa como se fosse operação de contagem confiável.",
+      "section": "4. Processamento distribuído, aprendizado federado e atualização bayesiana",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dispositivos treinam localmente e enviam atualizações para agregação em servidor. A equipe afirma que esse desenho garante anonimato dos dados. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "As atualizações são iguais a dados brutos e exigem centralização integral.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A agregação exclui a necessidade de autenticar os participantes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O desenho obriga a usar a mesma distribuição de dados em cada dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O treinamento local elimina qualquer risco de reconstrução por gradientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O arranjo é federado, mas a privacidade requer salvaguardas adicionais.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Federado evita centralização sistemática de exemplos brutos, mas atualizações podem revelar informações sensíveis. A equipara indevidamente atualização a registro bruto; B ignora controle de acesso; C supõe dados identicamente distribuídos; D presume inexistência de ataques por inferência ou reconstrução.",
+      "section": "4. Processamento distribuído, aprendizado federado e atualização bayesiana",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um modelo estima taxas de defeito para vários locais com poucas observações em alguns deles, usando parâmetros específicos por local e uma distribuição comum superior. Qual interpretação corresponde ao desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Modelagem completamente separada, sem compartilhamento de informação entre locais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Modelagem bayesiana hierárquica, com compartilhamento parcial entre grupos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ajuste de taxa única, que proíbe diferenças nas estimativas dos locais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Agrupamento KMeans, cuja variável-alvo é a distribuição posterior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Decomposição de Cholesky que cria automaticamente uma estrutura multinível.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Parâmetros locais ligados por hiperparâmetros representam modelo hierárquico e podem produzir pooling parcial. A elimina a ligação compartilhada; C elimina a variação entre grupos; D confunde agrupamento não supervisionado com inferência probabilística; E cita fatoração matricial que não define níveis de modelagem.",
+      "section": "4. Processamento distribuído, aprendizado federado e atualização bayesiana",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Vários treinamentos usam diferentes taxas de aprendizado e atributos. É necessário registrar parâmetros, métricas e artefatos e recuperar a execução correspondente ao melhor modelo. Qual recurso é indicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "MLflow Tracking, que organiza execuções, parâmetros, métricas e artefatos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`DataFrame.dropna()`, que armazena versões de modelos e todos os logs.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`np.linalg.svd()`, que cria um registro central de implantações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`KMeans.predict()`, que compara metadados de execução histórica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`plt.hist()`, que substitui o armazenamento de experimentos e pesos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. MLflow Tracking associa cada execução a parâmetros, métricas e artefatos, facilitando comparação e rastreabilidade. B é limpeza de dados; C realiza fatoração matricial; D atribui grupos aos exemplos; E desenha histograma. Nenhuma dessas operações cumpre a função de registro de experimentos descrita.",
+      "section": "5. Ciclo MLOps: implantação, governança e monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma mudança de processo, a distribuição de atributos de entrada permanece semelhante, mas a relação entre sinais e resultado real se altera. Que fenômeno explica a degradação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente data drift de marginais, independente de qualquer mudança no alvo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Exclusivamente erro de serialização, pois as entradas ainda se parecem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Concept drift, pois a relação condicional entre entrada e alvo mudou.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Apenas regularização L1, pois ela mantém as frequências de atributos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Diferença de versão do gráfico, sem alteração do problema estatístico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Concept drift ocorre quando a relação entre atributos e alvo, representável por P(y|X), muda. A restringe o diagnóstico a distribuições marginais; B presume um defeito de artefato sem evidência; D confunde penalização de modelo com mudança externa; E atribui o efeito à visualização, que não determina a relação preditiva.",
+      "section": "5. Ciclo MLOps: implantação, governança e monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela de observações contém valores ausentes. Em pandas, `df.dropna()` pode remover linhas com dados faltantes, enquanto `df.fillna(0)` substitui ausências por zero sem descartá-las.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `dropna()` descarta observações ou colunas conforme argumentos e `fillna()` preenche entradas ausentes. A escolha não é neutra: eliminar linhas reduz a amostra, enquanto usar zero pode introduzir um valor artificial com significado próprio.",
+      "section": "1. Python, preparação de dados e álgebra linear",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para dois arrays NumPy de mesma forma, o operador `*` executa por padrão multiplicação matricial, enquanto `@` multiplica os componentes correspondentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A afirmação inverte os operadores: `*` multiplica elemento por elemento; `@` implementa produto matricial. O formato de resultado pode coincidir em casos particulares, mas os valores e a operação matemática não são equivalentes.",
+      "section": "1. Python, preparação de dados e álgebra linear",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto possui observações rotuladas como fraude e operação legítima. Treinar um modelo para prever esses rótulos configura classificação supervisionada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O treinamento é supervisionado porque o algoritmo recebe exemplos com classes conhecidas e aprende a associá-las aos atributos. A existência de duas classes não transforma o problema em agrupamento não supervisionado.",
+      "section": "2. Aprendizado estatístico, modelos e avaliação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em classificação binária, precisão é dada por TP/(TP+FN), enquanto revocação corresponde a TP/(TP+FP).",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. As fórmulas foram trocadas: precisão é TP/(TP+FP), mensurando confiabilidade dos alarmes positivos; revocação é TP/(TP+FN), mensurando cobertura dos positivos reais. A escolha depende do custo de cada erro.",
+      "section": "2. Aprendizado estatístico, modelos e avaliação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para um vetor real (3,4), a norma L1 é 7 e a norma L2 é 5.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A L1 soma os valores absolutos, portanto 3+4=7. A L2 é a distância euclidiana à origem, sqrt(3²+4²)=5. Essa diferença também explica por que penalidades L1 e L2 afetam modelos de maneiras distintas.",
+      "section": "1. Python, preparação de dados e álgebra linear",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método KMeans utiliza os rótulos verdadeiros para calcular a função de perda e, por essa razão, é classificado como aprendizado supervisionado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. KMeans é método não supervisionado: trabalha com atributos e procura centróides que reduzam distâncias quadráticas internas aos grupos. Rótulos externos podem ser usados para análise posterior, mas não são necessários ao seu ajuste básico.",
+      "section": "2. Aprendizado estatístico, modelos e avaliação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede convolucional pode compartilhar os mesmos pesos de um filtro em diferentes posições espaciais da imagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O compartilhamento de filtros é característica central de CNNs e permite procurar padrões locais em posições distintas. Isso reduz a necessidade de aprender um conjunto inteiramente independente de pesos para cada posição da imagem.",
+      "section": "3. Redes neurais, CNN, visão computacional e linguagem natural",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe calcula PCA e padronização sobre todos os registros antes de executar validação cruzada. Como o alvo não foi empregado nessas etapas, esse procedimento está livre de vazamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mesmo transformações não supervisionadas aprendem propriedades dos dados. Ajustar PCA e escala antes das dobras transmite informação da validação ao treinamento; ambos devem ser ajustados apenas na parcela de treino de cada rodada.",
+      "section": "2. Aprendizado estatístico, modelos e avaliação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A decomposição em valores singulares de uma matriz retangular é viável mesmo quando não se pode diagonalizar essa matriz por autovetores próprios.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A SVD é definida para matrizes retangulares e fornece fatores associados a direções singulares; a diagonalização usual por similaridade pressupõe uma matriz quadrada com base apropriada de autovetores.",
+      "section": "1. Python, preparação de dados e álgebra linear",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na regressão Ridge, a penalidade L2 é conhecida por produzir coeficientes exatamente nulos como consequência típica, enquanto Lasso reduz todos sem permitir esparsidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Ridge aplica L2 e tende a encolher pesos, sem zerá-los de maneira típica. Lasso aplica L1 e pode produzir coeficientes exatamente nulos. Elastic Net combina ambas; a padronização dos atributos afeta a comparação entre penalidades.",
+      "section": "2. Aprendizado estatístico, modelos e avaliação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação `collect()` aplicada a um DataFrame distribuído em PySpark pode trazer os registros para a memória do processo controlador e provocar esgotamento de memória.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `collect()` materializa o resultado no controlador. Mesmo que a transformação anterior tenha sido distribuída, a etapa final pode criar gargalo ou falha de memória; agregações como `count()` ou filtros distribuídos podem evitar transferências desnecessárias.",
+      "section": "4. Processamento distribuído, aprendizado federado e atualização bayesiana",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PyTorch, chamar `model.eval()` é suficiente para impedir a criação do grafo de autodiferenciação durante qualquer operação posterior de inferência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `eval()` controla comportamentos de módulos como dropout e normalização por lotes. Para não registrar operações em grafo de gradientes, utiliza-se contexto apropriado, como `torch.no_grad()`; os dois mecanismos têm finalidades distintas.",
+      "section": "3. Redes neurais, CNN, visão computacional e linguagem natural",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No MLOps, registrar o conjunto de dados e sua versão, parâmetros, métricas e artefatos favorece a rastreabilidade dos experimentos e a investigação de regressões de desempenho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A vinculação entre versão dos dados, código, execução, parâmetros, métricas e artefatos facilita reproduzir resultados e localizar mudanças que afetaram desempenho. O registro, porém, não substitui testes nem aprovação para implantação.",
+      "section": "5. Ciclo MLOps: implantação, governança e monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um detector de objetos, por identificar visualmente classes em uma imagem, pode ser avaliado apenas com acurácia de classificação de imagem, sem verificar as posições previstas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A detecção requer avaliar classificação e localização dos objetos, tipicamente usando correspondência de caixas, sobreposição espacial e medidas como precisão média. Acurácia de uma classe atribuída à imagem não verifica se os objetos foram posicionados corretamente.",
+      "section": "3. Redes neurais, CNN, visão computacional e linguagem natural",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma atualização bayesiana sequencial com hipóteses e dependências corretamente especificadas, a posterior obtida após um lote de evidências pode servir de priori para o próximo lote.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A atualização bayesiana incorpora informação acumulada: sob fatoração adequada da verossimilhança, a posterior anterior resume a evidência disponível para a etapa seguinte. Dependências ignoradas ou mudança de modelo podem invalidar uma atualização ingênua.",
+      "section": "4. Processamento distribuído, aprendizado federado e atualização bayesiana",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em aprendizado federado, a não transferência dos exemplos brutos implica que um servidor agregador não consegue inferir nenhuma informação sensível a partir de gradientes ou atualizações recebidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mesmo sem compartilhar observações diretamente, gradientes e pesos atualizados podem revelar características dos participantes. Privacidade precisa de proteção adicional, como agregação segura e técnicas formais adequadas ao risco, não apenas descentralização.",
+      "section": "4. Processamento distribuído, aprendizado federado e atualização bayesiana",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um classificador de classe positiva rara, a acurácia de 98% pode coexistir com revocação igual a zero para a classe de interesse.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Se apenas 2% dos registros forem positivos e o modelo prever todos como negativos, acertará os 98% negativos, mas perderá todos os positivos. A revocação será zero; por isso a escolha da métrica depende do custo dos erros.",
+      "section": "2. Aprendizado estatístico, modelos e avaliação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O surgimento de novas categorias em um campo de entrada comprova, por si só, a ocorrência de concept drift, ainda que a relação entre atributos e alvo permaneça idêntica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Novas categorias evidenciam mudança ou problema na distribuição/esquema das entradas, mas não demonstram alteração de P(y|X). Concept drift requer mudança da relação com o alvo; monitorar apenas frequências de atributos não prova esse fenômeno.",
+      "section": "5. Ciclo MLOps: implantação, governança e monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Dask, operações sobre arrays e dataframes podem construir grafos de tarefas sem computação imediata, sendo a avaliação disparada posteriormente por operações adequadas, como `compute()`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Muitas coleções de Dask representam computações preguiçosas e só materializam resultados ao executar ações apropriadas. A estratégia permite otimização e paralelismo, mas não elimina custos de particionamento, movimentação de dados e memória.",
+      "section": "4. Processamento distribuído, aprendizado federado e atualização bayesiana",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um procedimento automático que retreina e substitui o modelo em produção assim que detecta data drift torna desnecessários avaliação de nova versão, critério de aceitação e estratégia de reversão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Data drift não equivale necessariamente a degradação preditiva, e retreinar pode piorar o sistema. Uma nova versão precisa ser avaliada em dados relevantes, cumprir condições de promoção e admitir rollback em caso de regressão ou falha operacional.",
+      "section": "5. Ciclo MLOps: implantação, governança e monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Working with missing data",
+      "publisher": "pandas",
+      "reference": "Documentação de valores ausentes e imputação",
+      "url": "https://pandas.pydata.org/docs/user_guide/missing_data.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NumPy: linalg.svd",
+      "publisher": "NumPy",
+      "reference": "Decomposição em valores singulares",
+      "url": "https://numpy.org/doc/stable/reference/generated/numpy.linalg.svd.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Common pitfalls and recommended practices",
+      "publisher": "scikit-learn",
+      "reference": "Inconsistent preprocessing e data leakage",
+      "url": "https://scikit-learn.org/stable/common_pitfalls.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Linear Models",
+      "publisher": "scikit-learn",
+      "reference": "Logistic regression, Ridge, Lasso e Elastic Net",
+      "url": "https://scikit-learn.org/stable/modules/linear_model.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Metrics and scoring",
+      "publisher": "scikit-learn",
+      "reference": "Métricas de classificação e regressão",
+      "url": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Sequential model",
+      "publisher": "TensorFlow",
+      "reference": "Keras Sequential e limitações de topologia",
+      "url": "https://www.tensorflow.org/guide/keras/sequential_model",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Dask Documentation",
+      "publisher": "Dask",
+      "reference": "Processamento paralelo e distribuído",
+      "url": "https://docs.dask.org/en/stable/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PySpark DataFrame",
+      "publisher": "Apache Spark",
+      "reference": "Coleção distribuída com colunas nomeadas",
+      "url": "https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.DataFrame.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Federated Learning for Image Classification",
+      "publisher": "TensorFlow Federated",
+      "reference": "Aprendizado federado em classificação visual",
+      "url": "https://www.tensorflow.org/federated/tutorials/federated_learning_for_image_classification",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MLflow Tracking",
+      "publisher": "MLflow",
+      "reference": "Parâmetros, métricas, artefatos e execuções",
+      "url": "https://mlflow.org/docs/latest/ml/tracking/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "spaCy 101",
+      "publisher": "spaCy",
+      "reference": "Pipelines de PLN e entidades",
+      "url": "https://spacy.io/usage/spacy-101",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Introduction to Boosted Trees",
+      "publisher": "XGBoost",
+      "reference": "Fundamentos de boosting de árvores",
+      "url": "https://xgboost.readthedocs.io/en/stable/tutorials/model.html",
+      "accessedAt": "2026-10-10"
+    }
+  ]
+}

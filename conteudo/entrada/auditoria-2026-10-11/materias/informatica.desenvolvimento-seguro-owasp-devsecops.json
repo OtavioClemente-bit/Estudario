@@ -1,0 +1,1816 @@
+{
+  "id": "informatica.desenvolvimento-seguro-owasp-devsecops",
+  "subject": "Informática",
+  "title": "Desenvolvimento seguro, OWASP e DevSecOps",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Desenvolvimento seguro, OWASP e DevSecOps"
+  ],
+  "scope": {
+    "covers": "Desenvolvimento seguro e requisitos não funcionais; dívida técnica, qualidade, análise estática, revisão por pares, mocks e stubs, testes de carga e estresse; OWASP Top 10 web de 2025 e comparação com 2021, riscos de APIs e variantes; SQL/LDAP injection, XSS, CSRF, autenticação, sessão, controle de acesso, IDOR, criptografia; SAST, DAST, SCA, revisão de código e testes de segurança; SDLC seguro, OWASP SAMM, BSIMM, Microsoft SDL, NIST SSDF, CI/CD e cadeia de suprimentos.",
+    "excludes": "Exploração ofensiva passo a passo, procedimentos de invasão, perícia digital e segurança de redes em profundidade; normas internas específicas de fornecedores e configuração detalhada de ferramentas comerciais."
+  },
+  "theoryTitle": "Desenvolvimento seguro: requisitos, vulnerabilidades OWASP, verificações e DevSecOps",
+  "chapters": [
+    {
+      "title": "1. Fundamentos do desenvolvimento seguro e gestão da qualidade",
+      "markdown": "## Segurança como requisito de engenharia\nDesenvolvimento seguro não é instalar um verificador de vulnerabilidades antes da publicação. Consiste em incorporar confidencialidade, integridade, disponibilidade, autenticidade e rastreabilidade às decisões de requisitos, arquitetura, codificação, testes, implantação e operação. Um sistema de agendamento que impede o acesso a dados de outro usuário atende a um requisito de autorização; o mesmo sistema que aplica TLS mas permite consultar qualquer registro pelo identificador continua inseguro. **Segurança por projeto** exige eliminar causas de falhas no desenho, enquanto **segurança por padrão** seleciona configurações iniciais restritivas, como negar acesso não concedido.\n\nO ciclo de desenvolvimento de software (SDLC) seguro acrescenta práticas verificáveis a cada etapa: na concepção, inventário de ativos e requisitos; no desenho, limites de confiança e modelagem de ameaças; na implementação, programação segura e revisão; na verificação, testes automatizados e manuais; na entrega, proteção dos artefatos; na operação, telemetria e tratamento das falhas descobertas. Uma história de usuário 'como titular, desejo visualizar meus pedidos' precisa de critério verificável: somente pedidos associados à identidade autenticada devem ser retornados, inclusive quando outro identificador for fornecido na URL. Verificar apenas que o botão correto aparece não satisfaz esse critério.\n\n### Requisitos funcionais, não funcionais e casos de abuso\nRequisito funcional descreve comportamento, como efetuar pagamento; requisito não funcional (RNF) descreve atributo ou restrição, como disponibilidade, latência máxima ou resistência à tentativa de força bruta. Um RNF mensurável define condição, métrica e limiar: 'sob 300 usuários simultâneos, o percentil 95 do tempo de resposta deve permanecer abaixo de dois segundos'. Isso não equivale a testar segurança; desempenho e segurança são dimensões distintas que podem se influenciar. Casos de abuso descrevem ações indesejadas: um usuário autenticado tenta consultar o relatório alheio alterando um parâmetro. O teste deve observar se a autorização no servidor impede o acesso.\n\n### Modelagem de ameaças e princípios\nMapeie entradas externas, processos, armazenamentos de dados, terceiros e fronteiras de confiança. STRIDE é uma técnica de classificação: spoofing (falsificação de identidade), tampering (adulteração), repudiation (repúdio), information disclosure (divulgação de informações), denial of service (negação de serviço) e elevation of privilege (elevação de privilégios). Não é uma lista de ferramentas, tampouco substitui avaliação do risco. Para cada ameaça, associe controle e evidência de teste. **Menor privilégio** limita permissões; **defesa em profundidade** sobrepõe controles independentes; **falha segura** evita conceder acesso quando uma dependência falha. Verificar autorização por objeto é necessário mesmo depois de autenticar o usuário.\n\n| Conceito | Pergunta operacional | Exemplo verificável |\n|---|---|---|\n| Autenticação | Quem fez a requisição? | Token válido identifica a conta |\n| Autorização | A conta pode realizar a ação? | Leitura permitida apenas sobre recursos próprios |\n| Validação | A entrada atende ao contrato? | Campo de data rejeita formato inválido no servidor |\n| Registro de segurança | O incidente deixa evidência? | Tentativa negada gera evento sem expor segredo |\n\n### Dívida técnica e qualidade de implementação\nDívida técnica é o custo futuro associado a escolhas que tornam alterações e manutenção mais difíceis; pode ser intencional, como adiar a refatoração de um módulo, ou involuntária, por desconhecimento. Não equivale automaticamente a vulnerabilidade. Entretanto, biblioteca sem manutenção, autorização duplicada e testes ausentes podem transformar dívida em risco de segurança. Registre origem, impacto, responsável e estratégia de pagamento da dívida; classifique correções segundo criticidade e exposição, em vez de presumir que qualquer alerta merece prioridade idêntica. Refatorar melhora estrutura interna preservando comportamento observável; correção de falha modifica comportamento inadequado.\n\nRevisão de código busca erros lógicos, violações de requisitos e vulnerabilidades, além do que analisadores automáticos encontram. Na programação em pares, duas pessoas colaboram sobre a implementação e revisam decisões continuamente; isso não elimina a necessidade de teste independente. **Mock** é um substituto de dependência que permite estabelecer e verificar interações esperadas; **stub** fornece respostas predefinidas para controlar cenários. Para verificar se a aplicação chama o serviço de auditoria após negar uma operação, o mock é apropriado; para simular uma consulta que retorna 'não encontrado', um stub é suficiente. A terminologia pode variar entre bibliotecas, portanto avalie a finalidade no cenário.\n\n> Reconhecimento em prova: se o problema descreve uma decisão de arquitetura, pense em prevenção de riscos; se descreve cobertura de uma falha no requisito, pense em critério de aceitação; se descreve reestruturação interna sem alterar a função, pense em refatoração e dívida técnica."
+    },
+    {
+      "title": "2. OWASP Top 10 e vulnerabilidades de aplicações",
+      "markdown": "## A lista depende da edição e do tipo de aplicação\nO OWASP Top 10 é um documento de conscientização sobre riscos de aplicações web, não uma certificação, uma ferramenta de teste nem uma lista exaustiva de ataques. A edição **2025** contém: A01 controle de acesso quebrado; A02 configuração insegura; A03 falhas na cadeia de suprimentos de software; A04 falhas criptográficas; A05 injeção; A06 design inseguro; A07 falhas de autenticação; A08 falhas de integridade de software ou dados; A09 falhas de registro e alerta de segurança; A10 tratamento incorreto de condições excepcionais. Na edição **2021**, injeção era A03, componentes vulneráveis e desatualizados eram A06 e SSRF aparecia como A10. Em 2025, SSRF integra a categoria de controle de acesso; CSRF também é associada a problemas de controle de acesso. A prova pode utilizar uma edição indicada no enunciado: memorize o ano junto ao código.\n\n| Risco observado | Classificação útil | Correção principal |\n|---|---|---|\n| Identificador de pedido trocado expõe outro titular | A01:2025, controle de acesso | Autorização por objeto no servidor |\n| Console administrativo habilitado em produção | A02:2025, configuração | Configuração restritiva e revisão da implantação |\n| Dependência maliciosa no processo de build | A03:2025, cadeia de suprimentos | Dependências confiáveis e proveniência |\n| Senhas gravadas reversivelmente sem necessidade | A04:2025, criptografia | Hash de senha robusto e proteção de chaves |\n| Entrada controla sintaxe de uma consulta | A05:2025, injeção | Consulta parametrizada ou API segura |\n| Fluxo de negócio concebido sem limite de operações | A06:2025, design inseguro | Requisitos de abuso e controles arquiteturais |\n| Recuperação de senha permite assumir conta alheia | A07:2025, autenticação | Tokens imprevisíveis e ciclo de vida correto |\n| Atualização aceita artefato sem integridade verificada | A08:2025, integridade | Assinatura e verificação antes do uso |\n| Falhas de login não produzem alerta acionável | A09:2025, registro e alerta | Eventos suficientes, correlação e resposta |\n| Timeout desativa autorização e libera a operação | A10:2025, condições excepcionais | Falha fechada e tratamento seguro de erros |\n\n### Injeção SQL e LDAP\nInjeção ocorre quando dados controlados por usuário alteram a interpretação de uma linguagem ou comando. No SQL, concatenar diretamente `nome` na consulta pode transformar entrada em sintaxe de consulta. A defesa principal para valores é **consulta preparada com parâmetros vinculados**, além de privilégio mínimo da conta de banco. Validação de formato complementa, mas não substitui parametrização. Identificadores estruturais que não podem ser vinculados como parâmetros, como nomes de colunas em alguns contextos, exigem seleção em lista permitida. Em LDAP, a montagem de filtros com entrada sem escape contextual permite alterar a lógica do filtro; use APIs seguras, construção de filtros e escape apropriado ao contexto LDAP. Não confunda escape para LDAP com escape de HTML.\n\n### XSS e CSRF não são a mesma falha\n**Cross-Site Scripting (XSS)** faz conteúdo não confiável ser interpretado como código no navegador. XSS refletido ocorre quando o valor da requisição retorna na resposta; armazenado, quando fica persistido e atinge outros acessos; baseado em DOM, quando JavaScript do cliente manipula fontes não confiáveis e as insere em destinos que interpretam código. A prevenção central é **codificação contextual na saída** e uso de APIs seguras como `textContent` para texto; HTML permitido exige sanitização adequada. Content Security Policy (CSP) acrescenta camada, não substitui tratamento da saída.\n\n**Cross-Site Request Forgery (CSRF)** induz um navegador autenticado a enviar uma ação indesejada a um serviço que utiliza credenciais automaticamente associadas à requisição, por exemplo um cookie de sessão. Controles adequados incluem tokens ant-CSRF vinculados à sessão ou desenho apropriado, verificação de origem e atributo SameSite como medida adicional. SameSite não é defesa universal; o contexto de autenticação importa. XSS pode comprometer medidas ant-CSRF. HTTP GET deve ser seguro e não provocar alterações de estado. Uma aplicação que usa apenas token bearer enviado explicitamente em cabeçalho não apresenta automaticamente o mesmo mecanismo de CSRF de uma sessão por cookie.\n\n### Autenticação, sessão, controle de acesso e criptografia\nAutenticação valida identidade; autorização verifica permissões para uma ação e um objeto. **IDOR** é referência direta insegura a objeto quando trocar um identificador permite acesso não autorizado. O identificador imprevisível não dispensa checagem de autorização. Quebra de autenticação pode envolver credenciais fracas, recuperação de conta mal concebida e sessão não invalidada no logout; proteções incluem limitação de tentativas, MFA adequado ao risco, cookies Secure/HttpOnly/SameSite conforme uso, renovação de identificador após login e expiração. Senhas devem ser tratadas com algoritmo de derivação adequado a senhas, sal individual e parâmetros atualizados, não com criptografia reversível por conveniência. Para dados armazenados que precisam ser recuperados, criptografia autenticada e gestão segura de chaves são apropriadas. Hash, criptografia e codificação têm finalidades diferentes.\n\n> Leitura crítica: edição 2025 não possui categoria exclusiva denominada XSS, nem categoria exclusiva denominada CSRF. Isso não retira a relevância das falhas; a classificação é agregadora e pode reunir várias fraquezas."
+    },
+    {
+      "title": "3. Controles para Web, APIs e serviços",
+      "markdown": "## Proteção em cada fronteira de confiança\nUma aplicação web recebe requisições de navegadores, clientes automatizados e serviços de terceiros. Tudo o que chega de fora de uma fronteira de confiança deve ser tratado como potencialmente não confiável, inclusive cabeçalhos, identificadores no caminho, conteúdo JSON, dados de APIs externas e arquivos enviados. **Validação de entrada** estabelece tipo, comprimento, formato e limites de domínio; **codificação de saída** impede que o dado seja interpretado como sintaxe em determinado contexto; **autorização** decide se a operação é permitida. Esses controles são complementares, não sinônimos. Validar a idade como número entre zero e 120 não autoriza o solicitante a ler o cadastro de outra pessoa.\n\n### Autorização de objetos, funções e propriedades\nAPIs frequentemente retornam dados por rotas como `/pedidos/482`. Se a aplicação aceita o número e retorna o registro sem validar propriedade ou permissão, há falha no nível do objeto, chamada BOLA na edição **OWASP API Security Top 10:2023**, categoria API1:2023. Se o usuário comum chama uma rota reservada a funções administrativas, há falha de autorização no nível de função, API5:2023 (BFLA). Se uma API permite ao cliente escrever `isAdmin: true` ou retorna campos sigilosos que deveriam ser omitidos, o problema pode envolver autorização no nível de propriedades, API3:2023. **Mass assignment** é vinculação indiscriminada de propriedades enviadas pelo cliente a um objeto interno; a proteção é definir explicitamente campos permitidos e aplicar regras por atributo.\n\n| Situação | Fraqueza predominante | Verificação necessária |\n|---|---|---|\n| Pessoa A acessa pedido de B alterando ID | BOLA/IDOR | Permissão do solicitante sobre o objeto |\n| Pessoa comum chama exclusão administrativa | BFLA | Permissão para executar a função |\n| Campo `papel` enviado altera privilégio | Autorização de propriedade/mass assignment | Lista de campos graváveis e regras de alteração |\n| Resposta inclui CPF não solicitado | Exposição de propriedade | Seleção explícita dos atributos retornados |\n| Versão antiga da API segue acessível sem controle | Gestão inadequada de inventário | Catálogo, desativação e políticas por versão |\n\nA edição API 2023 também destaca API2 autenticação quebrada; API4 consumo irrestrito de recursos; API6 acesso irrestrito a fluxos de negócio sensíveis; API7 SSRF; API8 configuração insegura; API9 gestão inadequada de inventário; e API10 consumo inseguro de APIs de terceiros. Não confunda **OWASP Top 10 web:2025**, cujos códigos começam com A, com **API Security Top 10:2023**, cujos códigos começam com API. A edição específica deve acompanhar qualquer referência numérica.\n\n### Serviços, sessões e transporte\nREST e HTTP não asseguram proteção por si. APIs devem verificar esquema e conteúdo recebido, autenticar quando necessário, controlar acesso para cada operação, limitar volume por identidade e origem conforme ameaça e emitir mensagens de erro sem pilhas de execução ou segredos. O método HTTP não define autorização: uma requisição PATCH exige checagem tão rigorosa quanto GET. Respostas com credenciais ou dados privados demandam política adequada de cache. Na Web, **CORS** determina quais origens podem ler certas respostas no navegador, mas não é mecanismo de autenticação nem de autorização do servidor. Uma origem incluída em CORS não ganha direito de acessar qualquer dado.\n\nA proteção do transporte depende de TLS corretamente configurado e validação de certificado; HTTPS não corrige SQL injection, BOLA ou XSS. Tokens de sessão devem ter entropia suficiente e não aparecer em logs ou URL. Cookies HttpOnly dificultam leitura por JavaScript, Secure exige envio em conexões seguras e SameSite restringe certos envios entre sites. Nenhum desses atributos, isoladamente, substitui validação do lado servidor, renovação de sessão e defesa contra XSS. Em sistemas com OAuth 2.0/OIDC, diferencie **token de acesso** (uso de API) de **token de identidade** (identidade na autenticação OIDC); conferir assinatura sem verificar audiência, emissor, expiração e escopos pertinentes é insuficiente.\n\n### Armazenamento, erros, disponibilidade e testes\nCriptografia em trânsito e em repouso protege contra ameaças distintas; dados sensíveis exigem classificação, retenção mínima, rotação e segregação de chaves. Nunca armazene senha reutilizável em texto claro ou a confunda com segredo de API; hash lento para senha atende a um objetivo diferente da criptografia autenticada para informação recuperável. Mensagens de erro externas devem ser controladas; logs internos podem registrar contexto técnico sem expor tokens, senhas ou dados desnecessários.\n\n**Teste de carga** examina comportamento sob demanda esperada ou crescente; **teste de estresse** força operação além da capacidade esperada para avaliar degradação e recuperação. Ambos são testes de RNF e ajudam a detectar indisponibilidade, mas não substituem DAST de segurança nem avaliação de abuso de recursos. Um serviço pode responder dentro da meta de latência e ainda expor registros indevidos. Critérios úteis combinam latência por percentil, taxa de erros, uso de recursos e resultados de controles de autorização.\n\n> Para identificar a defesa, primeiro determine o que está errado: dado interpretado como comando pede separação entre dado e sintaxe; usuário alcançando recurso alheio pede checagem de permissão; conteúdo executado no navegador pede saída segura; requisição forjada pela sessão do navegador pede controle de CSRF."
+    },
+    {
+      "title": "4. Análise estática, dinâmica e testes de segurança",
+      "markdown": "## Detecção em momentos diferentes\n**SAST (Static Application Security Testing)** examina código-fonte, bytecode ou outras representações sem precisar executar a aplicação na forma de um ataque de caixa-preta. Pode encontrar padrões de uso perigoso de funções, fluxo de entrada não confiável até uma operação sensível e segredos embutidos, conforme a ferramenta e configuração. Resultados podem conter falsos positivos; uma regra desatualizada pode também deixar passar falhas. Sua principal vantagem é a detecção antecipada no desenvolvimento e indicação da localização no código. **DAST (Dynamic Application Security Testing)** interage com a aplicação em execução, examinando respostas e comportamentos observáveis, como cabeçalhos, falhas de autenticação e vulnerabilidades exploráveis. Precisa de ambiente configurado, dados e, para rotas protegidas, autenticação apropriada; cobertura incompleta gera falsos negativos.\n\n**SCA (Software Composition Analysis)** inventaria bibliotecas diretas e transitivas, respectivas versões, licenças e vulnerabilidades conhecidas, utilizando fontes e políticas adequadas. Uma dependência vulnerável sem caminho de execução possível ainda pode requerer investigação contextual; a simples existência de um CVE não determina, sozinha, que o sistema seja explorável. SCA não detecta integralmente falhas autorais da lógica de acesso nem substitui SAST e DAST. A gestão envolve atualização, substituição, mitigação, prazo para correção e registro das decisões. A visibilidade de dependências aumenta quando é produzido um **SBOM**, inventário estruturado de componentes, sem garantir automaticamente ausência de vulnerabilidades ou integridade do build.\n\n| Método | Observa principalmente | Limitação típica |\n|---|---|---|\n| SAST | Implementação sem explorar sistema publicado | Ruído e dificuldade para verificar comportamento real |\n| DAST | Resposta da aplicação executando | Escopo depende dos caminhos e estados alcançados |\n| SCA | Composição e riscos de dependências | Não analisa integralmente lógica própria de autorização |\n| Revisão manual | Fluxo de negócio, intenção e exceções | Depende de contexto e competência de revisão |\n| Teste de penetração autorizado | Cenários integrados sob escopo controlado | Resultado pontual e dependente do cenário |\n\n### Outros testes e qualidade\nTeste unitário valida partes isoladas, empregando doubles quando necessário; teste de integração revela defeitos nas interfaces entre módulos; teste de contrato verifica expectativas entre clientes e serviços; teste de aceitação mede requisitos, inclusive autorização. Análise estática convencional também encontra defeitos não relacionados à segurança, como código inalcançável, convenções violadas e complexidade excessiva. Não confunda **análise estática de qualidade** com SAST: ambas inspecionam sem execução, mas focos e regras diferem. Teste de caixa-branca usa conhecimento da estrutura; caixa-preta observa comportamento externo. Ambos podem ser empregados em segurança, mas a ferramenta não determina por si a cobertura.\n\nPara um endpoint com controle por usuário, um teste unitário pode verificar uma regra de autorização por objeto; um teste de integração garante que o middleware e a consulta aplicam a regra; um teste dinâmico tenta acessar um objeto fora do escopo da identidade; a revisão manual confere se existe atalho que dispense a checagem. Essa composição aumenta confiança e reduz o risco de depender de um único tipo de teste.\n\n### Revisão, falsos positivos e pipeline\nA revisão por pares deve avaliar comportamento esperado, caminhos de exceção, confiança nas dependências e tratamento de segredos, não somente formatação. Uma descoberta deve registrar evidência reproduzível, impacto, contexto de exposição e decisão de correção. **Falso positivo** é alerta sobre falha que não existe nas condições analisadas; **falso negativo** é falha real não detectada. Reduzir alarmes sem preservar detecção pode esconder riscos. Portas de qualidade razoáveis usam regras proporcionais: bloquear mudança com segredo exposto ou vulnerabilidade crítica verificável e encaminhar achados contestados para triagem documentada.\n\nNo CI/CD, SAST e testes rápidos podem executar a cada alteração, SCA avalia dependências e DAST é mais adequado a ambiente executável controlado. A ordem exata depende de custo e arquitetura, mas nenhuma prática isolada prova que a aplicação esteja segura. Segredos de produção não devem ser copiados para testes. Testes de segurança para serviços incluem autenticação, autorização por objeto e função, limitação de recursos, validação de payload, respostas de erro, protocolos e inventário de endpoints. O OWASP ASVS 5.0 apresenta requisitos verificáveis para aplicações; o WSTG orienta atividades de testes e o Top 10 prioriza conscientização sobre riscos.\n\n> Atalho confiável: código sem execução sugere SAST; interface de um sistema ativo sugere DAST; bibliotecas e versões sugerem SCA. Se a pergunta envolve evidência de controles detalhados, pense em ASVS ou plano de testes, não apenas na classificação de riscos do Top 10."
+    },
+    {
+      "title": "5. DevSecOps, cadeia de suprimentos e modelos de maturidade",
+      "markdown": "## Segurança contínua na entrega\nDevSecOps integra segurança à colaboração entre desenvolvimento, operação e entrega, com políticas e verificações repetíveis. Segurança não é uma aprovação manual isolada ao final do projeto: requisitos, modelagem de ameaças, revisão, testes, políticas de dependência, verificação de artefatos e monitoramento devem operar ao longo do ciclo. Uma esteira pode verificar alterações por SAST, SCA, testes automatizados e análise de infraestrutura como código; executar DAST em ambiente controlado; empacotar o artefato; gerar proveniência; assiná-lo e validar sua identidade antes da implantação. **Pipeline aprovado** não significa aplicação invulnerável: falhas de negócio e ameaças inéditas continuam exigindo revisão e resposta.\n\n### Riscos e controles da cadeia de suprimentos\nA cadeia envolve origem do código, contribuições, dependências transitivas, ferramentas, serviços de build, repositórios, pacotes, contêineres e canais de distribuição. Exemplos de ameaças: publicação de pacote malicioso com nome semelhante a biblioteca popular, tomada de conta de mantenedor, dependência alterada, segredo vazado em log e etapa do pipeline que baixa script sem conferir procedência. Controles correspondentes são revisão de mudanças, proteção de branches, menor privilégio para tokens, credenciais efêmeras quando possíveis, isolamento de runners, fixação verificável de versões, atualização de dependências, SBOM, assinatura e verificação de artefatos e planos de revogação. Um hash isolado informa se bytes coincidem com uma referência: se o atacante controla simultaneamente artefato e referência, não há autenticidade garantida. Assinatura e proveniência precisam de cadeia de confiança.\n\n**SLSA versão 1.2** descreve níveis e trilhas para fortalecer a cadeia, com destaque a proveniência do processo de build. Proveniência responde como e onde determinado artefato foi construído; SBOM responde quais componentes o integram. São evidências complementares. Controlar o repositório não equivale a proteger a máquina de build; publicar um SBOM não equivale a validar a assinatura de um pacote. Para reduzir ataque de dependência, associe inventário com procedência, atualização e verificação efetiva antes do deploy.\n\n### Modelos de referência comparados\n**NIST SP 800-218, SSDF versão 1.1**, organiza práticas em PO (Prepare the Organization), PS (Protect the Software), PW (Produce Well-Secured Software) e RV (Respond to Vulnerabilities). PO prepara pessoas, processos e tecnologia; PS protege o software de adulteração e acesso indevido; PW orienta produção com menos falhas; RV trata descobertas e suas causas. Não é uma ferramenta de varredura nem uma sequência de quatro ambientes. **Microsoft SDL** estrutura fases principais de requisitos, projeto, implementação, verificação e lançamento, apoiadas por preparação/treinamento e resposta. **OWASP SAMM** ajuda a avaliar e melhorar maturidade, com cinco funções de negócio: Governance, Design, Implementation, Verification e Operations, abrangendo quinze práticas de segurança. **BSIMM** descreve práticas observadas em iniciativas reais de segurança de software e serve de referência comparativa; não confunda um modelo descritivo de observação com lista obrigatória de controles.\n\n| Referência | Propósito principal | Particularidade |\n|---|---|---|\n| OWASP Top 10 | Conscientizar sobre categorias de riscos | Classificação varia conforme edição e domínio |\n| OWASP ASVS | Requisitos técnicos verificáveis | Apoia especificação e avaliação de controles |\n| OWASP SAMM | Avaliar e evoluir práticas organizacionais | Cinco funções e quinze práticas |\n| BSIMM | Retratar iniciativas de segurança observadas | Referencial descritivo para comparação |\n| Microsoft SDL | Integrar atividades de segurança ao desenvolvimento | Cinco fases centrais e atividades de apoio |\n| NIST SSDF SP 800-218 | Práticas de desenvolvimento seguro integráveis ao SDLC | Grupos PO, PS, PW e RV |\n| SLSA | Melhorar confiança na cadeia de software | Trilhas e níveis com evidência de procedência |\n\n### Política de entrega, resposta e métricas\nUma política pode exigir revisões por pares, registro de alterações, testes de autorização, inventário de dependências e rastreabilidade do pacote até o código de origem. Resultados automatizados devem chegar a responsáveis com prazo interno documentado, levando em conta severidade, explorabilidade, exposição e criticidade do ativo. O tempo médio para corrigir vulnerabilidades, a cobertura de endpoints testados, o percentual de dependências inventariadas e as taxas de achados reabertos mostram ângulos diferentes; uma única métrica não resume maturidade. Após incidente, preservam-se evidências, corrigem-se falhas, revogam-se credenciais comprometidas e atualizam-se requisitos e testes para impedir recorrência.\n\n### Como o tema costuma ser cobrado\nÉ comum confrontar prevenção por projeto com detecção por ferramenta; diferenciar SAST, DAST e SCA; identificar IDOR/BOLA versus falha de autenticação; distinguir XSS de CSRF; escolher entre SAMM, SSDF, SDL, BSIMM, ASVS, WSTG e Top 10; comparar categorias de 2021 e 2025; ou perguntar por que SBOM, assinatura e proveniência não são equivalentes. Para resolver, localize **objeto protegido, fronteira de confiança, fase do ciclo, evidência exigida e edição do padrão** antes de escolher a alternativa."
+    }
+  ],
+  "summary": "## Desenvolvimento seguro\n- SDLC seguro: definir requisitos e abuso, modelar ameaças, programar com controles, revisar, verificar, entregar com integridade e responder a vulnerabilidades. Segurança por projeto previne defeitos estruturais; por padrão restringe configuração inicial.\n- Autenticação identifica; autorização permite ação sobre objeto e função; validação verifica formato; codificação de saída impede interpretação de conteúdo não confiável.\n- RNF mensurável define cenário, métrica e limiar. Carga mede comportamento sob volume planejado; estresse ultrapassa capacidade. Mock verifica interações; stub fornece respostas controladas. Dívida técnica representa custo futuro e pode acumular risco.\n\n## Vulnerabilidades\n- OWASP Web Top 10:2025: A01 acesso, A02 configuração, A03 cadeia de suprimentos, A04 criptografia, A05 injeção, A06 design, A07 autenticação, A08 integridade, A09 registro/alerta, A10 condições excepcionais. Em 2021, injeção era A03, componentes desatualizados A06 e SSRF A10.\n- SQL injection: separar instrução de dados com parâmetros. LDAP injection: codificar corretamente filtros. XSS: saída codificada para o contexto e APIs seguras; CSRF: tokens/verificação de origem contra requisições forjadas com credenciais automáticas.\n- IDOR/BOLA: acesso indevido por ID; BFLA: função indevida; API3:2023: propriedade sensível alterada ou exposta. CORS não autentica, HTTPS não autoriza, SameSite não substitui controle ant-CSRF em todas as situações.\n- Senhas: hash específico com sal; dados recuperáveis: criptografia com gerenciamento de chaves. Mensagens de erro não devem vazar segredos.\n\n## Verificação e entrega\n- SAST inspeciona código sem execução; DAST testa comportamento da aplicação ativa; SCA avalia dependências e licenças. Revisão manual aborda fluxos não cobertos; falsos positivos e negativos exigem triagem.\n- SAMM: cinco funções e quinze práticas; SSDF SP 800-218 v1.1: PO, PS, PW e RV; SDL: requisitos, design, implementação, verificação e lançamento, com atividades de apoio; BSIMM: observação e comparação de práticas.\n- SBOM lista componentes; proveniência descreve build; assinatura ajuda a verificar autenticidade. DevSecOps aplica controles contínuos da alteração de código ao monitoramento.",
+  "flashcards": [
+    {
+      "front": "Autenticação versus autorização?",
+      "back": "Autenticação confirma identidade; autorização verifica se a identidade pode usar a função ou acessar o objeto."
+    },
+    {
+      "front": "O que é segurança por padrão?",
+      "back": "Configurar o sistema inicialmente com permissões e exposição restritas, sem depender de ajuste posterior."
+    },
+    {
+      "front": "O que descreve um caso de abuso?",
+      "back": "Uma tentativa indesejada que a aplicação deve resistir, como acessar o pedido de outro usuário."
+    },
+    {
+      "front": "O que é STRIDE?",
+      "back": "Classificação de ameaças em seis grupos: falsificação, adulteração, repúdio, divulgação, negação de serviço e elevação de privilégios."
+    },
+    {
+      "front": "Mock ou stub?",
+      "back": "Mock verifica interações; stub entrega resultados predeterminados para controlar um cenário de teste."
+    },
+    {
+      "front": "Teste de carga versus estresse?",
+      "back": "Carga mede comportamento sob demanda planejada; estresse extrapola a capacidade para observar degradação e recuperação."
+    },
+    {
+      "front": "OWASP A01:2025?",
+      "back": "Controle de acesso quebrado, incluindo acessos indevidos a objetos e outras fraquezas da categoria."
+    },
+    {
+      "front": "OWASP A03:2025?",
+      "back": "Falhas na cadeia de suprimentos de software, incluindo riscos de dependências e do processo de distribuição."
+    },
+    {
+      "front": "OWASP A05:2025?",
+      "back": "Injeção, quando entrada não confiável altera sintaxe de comando ou consulta."
+    },
+    {
+      "front": "OWASP A10:2025?",
+      "back": "Tratamento incorreto de condições excepcionais, como falhar de modo que a autorização seja liberada."
+    },
+    {
+      "front": "Prevenção central de SQL injection?",
+      "back": "Consultas parametrizadas vinculam valores como dados, impedindo que alterem a estrutura SQL."
+    },
+    {
+      "front": "Prevenção central de XSS?",
+      "back": "Codificação de saída apropriada ao contexto e uso de APIs DOM seguras; conteúdo HTML permitido exige sanitização."
+    },
+    {
+      "front": "O que caracteriza CSRF?",
+      "back": "Indução de ação em sessão cujo navegador envia credenciais automaticamente; tokens ant-CSRF e checagem de origem são proteções pertinentes."
+    },
+    {
+      "front": "O que é BOLA?",
+      "back": "Falha de autorização por objeto na API: o identificador permite acessar recurso de outro titular."
+    },
+    {
+      "front": "O que é mass assignment?",
+      "back": "Aceitação indiscriminada de propriedades do cliente, podendo alterar campos internos ou protegidos."
+    },
+    {
+      "front": "SAST?",
+      "back": "Testes estáticos de segurança sobre representações do software, sem explorar a aplicação em execução."
+    },
+    {
+      "front": "DAST?",
+      "back": "Testes dinâmicos por interação com uma aplicação em execução e observação do comportamento."
+    },
+    {
+      "front": "SCA?",
+      "back": "Análise de composição: identifica componentes e riscos conhecidos de dependências de software."
+    },
+    {
+      "front": "Quatro grupos do SSDF?",
+      "back": "PO, preparar organização; PS, proteger software; PW, produzir software seguro; RV, responder a vulnerabilidades."
+    },
+    {
+      "front": "Cinco funções do SAMM?",
+      "back": "Governança, design, implementação, verificação e operações; distribuem quinze práticas."
+    },
+    {
+      "front": "SBOM versus proveniência?",
+      "back": "SBOM registra componentes; proveniência descreve a origem e o processo de construção do artefato."
+    },
+    {
+      "front": "ASVS versus OWASP Top 10?",
+      "back": "ASVS oferece requisitos verificáveis; Top 10 classifica riscos prioritários para conscientização."
+    }
+  ],
+  "tips": [
+    "Ao ler uma questão de vulnerabilidade, identifique primeiro quem confia em quem: entrada, navegador, API, banco, dependência ou pipeline.",
+    "Associe a edição ao código: A03:2021 trata de injeção, mas A03:2025 trata de cadeia de suprimentos.",
+    "Uma troca de ID que expõe registros alheios indica autorização por objeto, não necessariamente falha de autenticação.",
+    "Em ferramenta de teste, pergunte o alvo: código parado = SAST; serviço ativo = DAST; componentes = SCA.",
+    "Não atribua à criptografia o papel da autorização: TLS protege trânsito, mas não define acesso a dados.",
+    "Em CI/CD, verifique segredo, confiança no executor, dependências, assinatura e proveniência como controles complementares.",
+    "Separe qualidade de segurança: reduzir latência ou complexidade não corrige automaticamente um bypass de permissão."
+  ],
+  "traps": [
+    "A prova afirma que OWASP A03:2025 é injeção. Está errado: injeção é A05:2025; A03:2025 representa falhas na cadeia de suprimentos.",
+    "A prova sugere que ID aleatório resolve IDOR. Está errado: ainda se deve autorizar cada objeto para a identidade solicitante.",
+    "A prova troca XSS por CSRF porque ambos usam navegador. XSS executa conteúdo não confiável; CSRF induz requisição de ação sob credenciais automáticas.",
+    "A prova descreve SCA como varredura de comportamento da API ativa. Isso é típico de DAST; SCA analisa composição e dependências.",
+    "A prova usa CORS como autenticação. Incorreto: CORS regula leitura de respostas entre origens no navegador, sem substituir autenticação ou autorização.",
+    "A prova diz que registrar SBOM comprova integridade do artefato. Não comprova: inventário, assinatura e proveniência fornecem informações distintas.",
+    "A prova equipara BSIMM e SAMM como listas mandatórias idênticas. O BSIMM descreve práticas observadas; o SAMM orienta avaliação e evolução de maturidade."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como transformar 'o sistema deve ser seguro' em requisito verificável?",
+      "answer": "Defina ameaça, ator, ativo, regra e critério testável: uma identidade autenticada só pode consultar pedidos de que é titular, inclusive por ID alterado."
+    },
+    {
+      "question": "Qual diferença entre autenticação, BOLA e BFLA?",
+      "answer": "Autenticação reconhece identidade; BOLA exige autorização por objeto; BFLA exige autorização para a operação ou função."
+    },
+    {
+      "question": "Quais categorias A01 a A05 da OWASP Web 2025?",
+      "answer": "A01 acesso quebrado; A02 configuração insegura; A03 cadeia de suprimentos; A04 falhas criptográficas; A05 injeção."
+    },
+    {
+      "question": "Que medidas distinguem prevenção de SQL injection, XSS e CSRF?",
+      "answer": "SQL injection: parâmetros vinculados; XSS: saída codificada conforme contexto e DOM seguro; CSRF: token/controle de origem em requisições de alteração de estado autenticadas por credenciais automáticas."
+    },
+    {
+      "question": "Quando usar SAST, DAST e SCA?",
+      "answer": "SAST sobre código/representações; DAST sobre sistema em execução; SCA sobre bibliotecas diretas e transitivas, suas versões e riscos."
+    },
+    {
+      "question": "Qual a diferença entre mock, stub, carga e estresse?",
+      "answer": "Mock verifica chamadas; stub entrega respostas; carga verifica desempenho na demanda-alvo; estresse examina degradação acima da capacidade."
+    },
+    {
+      "question": "Quais as cinco funções OWASP SAMM?",
+      "answer": "Governance, Design, Implementation, Verification e Operations, com quinze práticas distribuídas."
+    },
+    {
+      "question": "O que significam PO, PS, PW e RV no SSDF?",
+      "answer": "Preparar organização; proteger software; produzir software bem protegido; responder a vulnerabilidades."
+    },
+    {
+      "question": "Como SBOM, assinatura e proveniência se complementam?",
+      "answer": "SBOM lista componentes; assinatura ajuda a autenticar artefato; proveniência registra processo e ambiente de produção."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Autenticação confundida com autorização",
+      "summary": "Identificar a conta não significa permitir acesso a todo objeto ou função. Verifique política por recurso, função e propriedade no servidor."
+    },
+    {
+      "key": "e2",
+      "title": "Confusão entre riscos OWASP e suas edições",
+      "summary": "A numeração da lista Web mudou de 2021 para 2025; a lista de APIs de 2023 tem categorias próprias. Leia a sigla e o ano antes de associar código e nome."
+    },
+    {
+      "key": "e3",
+      "title": "XSS, CSRF e injeção misturados",
+      "summary": "XSS trata de interpretação de conteúdo no navegador, CSRF de requisição induzida com credenciais automáticas e injeção de interpretação indevida de comandos/consultas."
+    },
+    {
+      "key": "e4",
+      "title": "SAST, DAST, SCA e testes funcionais equiparados",
+      "summary": "SAST observa código, DAST observa sistema em execução, SCA observa componentes. Testes funcionais e revisão completam a cobertura, sem substituir essas análises."
+    },
+    {
+      "key": "e5",
+      "title": "Modelos de maturidade confundidos com ferramentas",
+      "summary": "SAMM e BSIMM orientam avaliação/comparação organizacional; SSDF e SDL estruturam práticas no ciclo; ASVS verifica requisitos, e Top 10 classifica riscos."
+    },
+    {
+      "key": "e6",
+      "title": "Inventário confundido com integridade e procedência",
+      "summary": "SBOM, assinatura e proveniência respondem perguntas diferentes. A cadeia de suprimentos requer confiança nas dependências, na construção e no artefato distribuído."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma plataforma valida o login de uma pessoa, mas permite visualizar pedidos de terceiros pela troca do número na URL. Qual é a falha predominante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autenticação insuficiente, pois a senha da pessoa foi aceita sem segundo fator.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criptografia de transporte ausente, pois o identificador apareceu na URL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Autorização por objeto quebrada, pois faltou conferir a titularidade do pedido.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Validação sintática insuficiente, pois o número deveria conter mais caracteres.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registro de segurança incompleto, pois o acesso precisaria gerar alerta de login.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O usuário está identificado, mas alcança objeto que não lhe pertence: é BOLA/IDOR. A erra ao presumir falha na validação da identidade; B confunde sigilo em trânsito com autorização; D fala de formato do ID, insuficiente para resolver permissão; E trata de detecção, não do controle que deveria negar a leitura.",
+      "section": "3. Controles para Web, APIs e serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao iniciar um sistema novo, a equipe propõe desabilitar contas privilegiadas não necessárias e exigir concessões explícitas de acesso. Qual princípio fundamenta a decisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Segurança por padrão, com permissões inicialmente restritivas e habilitação controlada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Segurança por obscuridade, com ocultação dos nomes dos perfis administrativos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tolerância a falhas, com liberação temporária quando o serviço de identidade cair.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Testes de regressão, com reexecução da suíte após conceder todo acesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Observabilidade, com registros de auditoria substituindo restrições de acesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Segurança por padrão pressupõe opções iniciais defensivas, como negar privilégios não concedidos. B apenas esconde nomes; C descreve liberação em falha, oposta à falha segura; D é verificação de mudança, não política inicial; E auxilia detecção posterior, mas não substitui prevenção.",
+      "section": "1. Fundamentos do desenvolvimento seguro e gestão da qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa avaliar se a API responde em até dois segundos a 300 acessos simultâneos e como se comporta acima de sua capacidade. Que combinação de testes atende ao pedido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SAST para os 300 acessos e SCA para o aumento de requisições.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Teste unitário para os 300 acessos e revisão por pares para a saturação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Teste de penetração para a latência e análise de código para a recuperação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Teste de contrato para a demanda usual e mock para a sobrecarga.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Teste de carga para a demanda-alvo e teste de estresse para a sobrecarga.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Carga mede desempenho na demanda prevista e estresse investiga degradação e recuperação acima dela. A troca desempenho por análises de código e dependências; B usa técnicas inadequadas à medida de capacidade; C examina segurança; D verifica interfaces e substitutos de teste, sem medir concorrência real.",
+      "section": "1. Fundamentos do desenvolvimento seguro e gestão da qualidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço inclui diretamente em SQL o nome informado em um formulário. A equipe pretende impedir que esse valor altere a consulta. Qual medida é central?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Codificar o nome para apresentação HTML antes de construir o SQL.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Empregar instrução preparada e vincular o nome como parâmetro de valor.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ocultar os erros SQL do usuário sem modificar a consulta montada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar TLS à conexão do navegador sem revisar a camada de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fazer apenas validação do tamanho do campo e manter concatenação livre.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Consulta parametrizada distingue comando de valor conforme a orientação de prevenção de SQL injection da OWASP. A usa codificação destinada ao navegador; C reduz exposição de erro, mas mantém a falha; D protege trânsito, não sintaxe; E limita tamanho e não garante que a entrada deixe de ser interpretada como SQL.",
+      "section": "2. OWASP Top 10 e vulnerabilidades de aplicações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um comentário armazenado é inserido em uma página de modo que o navegador interprete marcação e execute código do conteúdo. Qual controle de saída é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar o identificador da sessão ao receber cada comentário armazenado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Exigir token ant-CSRF para a consulta que renderiza os comentários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir parâmetros SQL por nomes de colunas fixos na consulta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Codificar dados pelo contexto de renderização e usar destinos DOM seguros.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o tempo de expiração do cookie que apresenta o comentário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A execução indevida no navegador caracteriza XSS armazenado; codificação contextual e APIs como textContent evitam interpretação de texto como código. A e E lidam com sessão; B protege ações forjadas, não conteúdo executável; C previne uma classe de injeção no banco, sem tratar a saída HTML.",
+      "section": "2. OWASP Top 10 e vulnerabilidades de aplicações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo contém biblioteca de terceiro com versão conhecida e precisa identificar seus riscos e dependências indiretas. Qual análise foi descrita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DAST, com interação direta na interface executável e coleta de respostas HTTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SCA, com identificação de componentes, versões e vulnerabilidades conhecidas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "SAST, com inspeção dos fluxos de dados de funções autorais do sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Teste de estresse, com sobrecarga controlada da dependência em execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mock de serviço, com simulação do retorno fornecido pelo fornecedor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. SCA analisa a composição do software e identifica riscos em dependências diretas ou transitivas. A exige aplicação executando; C examina representação de código e não é inventário de bibliotecas; D mede resposta à sobrecarga; E é substituto de teste, sem descobrir versões vulneráveis.",
+      "section": "4. Análise estática, dinâmica e testes de segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após receber uma requisição, o código usa uma dependência simulada que devolve a resposta previamente fixada 'registro inexistente'. Que tipo de substituto está em uso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um mock voltado principalmente a verificar o número de invocações realizadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um scanner dinâmico voltado a explorar os caminhos do sistema real.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma análise de composição voltada a inspecionar bibliotecas utilizadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um stub configurado para retornar dados previsíveis no cenário testado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um teste de estresse destinado a sobrecarregar a dependência remota.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. O stub fornece retorno predeterminado, criando condição estável de teste. A descreve o uso típico de mock para verificar interações; B executa análise dinâmica; C identifica dependências; E exige carga além da capacidade, elemento que não consta do cenário.",
+      "section": "1. Fundamentos do desenvolvimento seguro e gestão da qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em projeto de segurança, a equipe precisa separar análise sobre código da investigação de um serviço implantado e acessível. Qual associação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SAST examina código ou representações; DAST interage com a aplicação ativa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SAST exercita a API ativa; DAST inventaria bibliotecas sem executá-las.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SAST compara licenças de pacotes; DAST revisa código-fonte sem execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SAST mede concorrência máxima; DAST verifica formatação de classes-fonte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SAST produz respostas simuladas; DAST verifica chamadas a objetos falsos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Análise estática de segurança atua sobre código e representações, enquanto análise dinâmica testa comportamento observável na execução. B e C atribuem a SAST/DAST funções de SCA e invertem conceitos; D descreve carga e análise de qualidade; E confunde as técnicas com mocks e stubs.",
+      "section": "4. Análise estática, dinâmica e testes de segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao elaborar um inventário de componentes diretos e transitivos de uma versão distribuída, qual artefato oferece a resposta mais específica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Relatório de DAST com respostas capturadas durante a exploração HTTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Documento de ameaças STRIDE com classificação dos riscos da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SBOM com a relação estruturada dos componentes presentes no software.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Registro de carga com latências dos componentes sob tráfego simulado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Assinatura isolada com informações suficientes sobre toda a composição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O SBOM documenta a composição do produto; não assegura, por si, ausência de falhas. A descreve teste dinâmico; B cataloga ameaças, não dependências; D mede desempenho; E ajuda na autenticidade do artefato, mas não lista todos os componentes que contém.",
+      "section": "5. DevSecOps, cadeia de suprimentos e modelos de maturidade",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma página bancária usa cookie de sessão e aceita alteração de endereço por POST. Um site externo pode induzir o navegador autenticado a enviar essa ação. Qual proteção combate diretamente o problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar hash de senha ao corpo HTML antes de exibir o formulário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar somente o cabeçalho CORS para autorizar mudanças entre origens.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Parametrizar consultas SQL sem alterar os critérios da requisição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ocultar o identificador de registro em campo não visível do formulário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validar token ant-CSRF associado à sessão nas ações que mudam estado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Em sessão que envia cookies automaticamente, token ant-CSRF validado no servidor é defesa apropriada, complementável por origem e SameSite. A trata credenciais e ainda as exporia; B atribui autorização a CORS; C evita SQL injection; D mantém a ação forjável, apenas escondendo um campo.",
+      "section": "2. OWASP Top 10 e vulnerabilidades de aplicações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação permite modificar o atributo `nivelDeAcesso` porque converte todo JSON recebido diretamente em campos do cadastro. Qual solução trata a causa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir lista permitida de propriedades alteráveis e validar autorização por campo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar verificação de disponibilidade ao fim de cada operação de cadastro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Renomear o atributo no cliente e ocultá-lo da interface de edição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar algoritmo de hash ao nome do campo antes de executar o salvamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir a alteração se o cliente apresentar um token de login válido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O cenário é mass assignment e falha de autorização por propriedade, associada à API3:2023; requer campos graváveis explícitos e regra de acesso. B mede disponibilidade, C apenas esconde no cliente, D não define permissão, e E confunde autenticação com direito de alterar nível de acesso.",
+      "section": "3. Controles para Web, APIs e serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer avaliar práticas organizacionais de segurança em cinco funções de negócio e quinze práticas. Qual referência atende a essa estrutura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "OWASP ASVS, um catálogo de riscos web distribuídos em dez categorias.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "NIST SSDF, um modelo de maturidade organizado em quinze práticas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Microsoft SDL, um levantamento descritivo de iniciativas observadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "OWASP Top 10, um método de avaliação em cinco funções corporativas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "OWASP SAMM, um modelo de maturidade com cinco funções e quinze práticas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. O SAMM organiza melhoria de maturidade em Governance, Design, Implementation, Verification e Operations, totalizando quinze práticas. A atribui ao ASVS a finalidade do Top 10; B confunde SSDF com estrutura SAMM; C descreve melhor o BSIMM; D transforma a lista de riscos em modelo de maturidade.",
+      "section": "5. DevSecOps, cadeia de suprimentos e modelos de maturidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na revisão de um serviço, foi solicitado um padrão com grupos denominados PO, PS, PW e RV, capaz de ser integrado ao ciclo de vida. Qual opção corresponde à referência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "OWASP SAMM, em sua divisão de grupos por quatro etapas de análise.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "NIST SSDF SP 800-218, com preparação, proteção, produção e resposta.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "BSIMM, com as quatro fases obrigatórias para qualquer esteira de entrega.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "OWASP WSTG, com grupos de maturidade para desenho e monitoramento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "OWASP API Top 10:2023, com quatro famílias de controle de riscos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. SSDF v1.1, NIST SP 800-218, define os quatro grupos PO, PS, PW e RV. A fala de SAMM, que tem cinco funções; C transforma BSIMM em fases prescritivas; D confunde guia de testes com processo organizacional; E é uma classificação de dez riscos próprios de APIs.",
+      "section": "5. DevSecOps, cadeia de suprimentos e modelos de maturidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um scanner detecta que um módulo próprio utiliza entrada não confiável em uma operação sensível, sem iniciar servidor nem enviar HTTP. Como a técnica deve ser classificada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Análise dinâmica, pois acompanha um fluxo de informação entre instruções.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Análise de composição, pois compara dependências a vulnerabilidades publicadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Teste de penetração, pois confirma exploração em ambiente operacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SAST, pois inspeciona fluxo no código sem execução da aplicação testada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Teste de contrato, pois confirma padrões de entrada e saída entre serviços.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Análise de fluxo sobre representação do código, sem aplicação em execução, é típica de SAST. A confunde fluxo de dados estático com runtime; B exigiria foco em componentes externos; C pressupõe exercício ofensivo de um alvo; E verifica compromissos de interface, não vulnerabilidades em caminhos internos.",
+      "section": "4. Análise estática, dinâmica e testes de segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time precisa comparar uma classificação de riscos frequentes em aplicações web com uma referência de requisitos técnicos verificáveis para controles. Que par atende, nessa ordem, às finalidades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "ASVS para categorias de riscos; BSIMM para requisitos por função da API.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "WSTG para categorias de riscos; SAMM para verificações de cada endpoint.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "OWASP Top 10 para riscos; OWASP ASVS para requisitos verificáveis.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Microsoft SDL para riscos; SCA para especificação de autorização por campo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NIST SSDF para riscos; DAST para conjunto de requisitos de arquitetura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. OWASP Top 10 é instrumento de conscientização sobre categorias de risco; ASVS fornece requisitos de verificação técnica. A inverte ASVS e trata BSIMM como norma técnica; B troca WSTG, guia de testes, por ranking e SAMM por teste de endpoint; D e E confundem processos ou técnicas com catálogos de requisitos.",
+      "section": "4. Análise estática, dinâmica e testes de segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API autentica com sucesso uma conta de perfil comum, mas aceita chamada para uma função de exclusão reservada a administradores. Qual categoria da OWASP API Security Top 10:2023 se destaca?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "API1:2023, autorização por objeto, pois o caminho informa um recurso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "API3:2023, autorização por propriedade, pois a ação altera registros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "API2:2023, autenticação quebrada, pois há conta comum reconhecida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "API5:2023, autorização por função, pois a operação exige privilégio maior.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "API9:2023, inventário inadequado, pois o endpoint não está documentado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A execução indevida da função administrativa caracteriza BFLA, API5:2023. A diz respeito a acesso a objeto específico de outro titular; B a propriedades expostas ou alteradas; C confunde identidade validada com permissão; E dependeria de falha de inventário, não informada no caso.",
+      "section": "3. Controles para Web, APIs e serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entrega automatizada gera um documento que descreve onde, com quais insumos e por qual processo seu binário foi construído. Isso representa principalmente:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SBOM, cujo foco é detalhar o processo que executou cada etapa do build.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Proveniência de build, destinada a registrar a origem e construção do artefato.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "SAST, que gera evidências de autoria e assinatura de todo binário entregue.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CSP, política que define quais executores podem distribuir o aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DAST, que associa componentes instalados ao pacote utilizado no build.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Proveniência registra informações sobre a origem e o processo de build, conceito importante em SLSA. A confunde inventário de componentes com histórico de construção; C encontra padrões estáticos e não atesta origem; D regula fontes de conteúdo no navegador; E exercita sistemas em execução, não descreve processo de construção.",
+      "section": "5. DevSecOps, cadeia de suprimentos e modelos de maturidade",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço nega consulta quando a autorização está disponível, mas libera a leitura de dados caso o verificador de permissões exceda o tempo de resposta. Qual interpretação é mais precisa na OWASP Web 2025?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A04:2025, falha criptográfica, pois toda decisão de segurança depende de TLS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A09:2025, falha de alerta, pois o timeout tornou a operação invisível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A10:2025, tratamento incorreto de condição excepcional com falha aberta.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A03:2025, falha de cadeia de suprimentos, pois o verificador é dependência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A05:2025, injeção, pois o tempo de resposta altera a sintaxe da operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. A condição excepcional provoca liberação indevida: padrão fail-open, que se enquadra no A10:2025 e também impacta acesso. A não indica criptografia; B exigiria deficiência de registro ou alerta; D necessitaria problema na cadeia de fornecimento; E exigiria entrada interpretada como comando, inexistente no caso.",
+      "section": "2. OWASP Top 10 e vulnerabilidades de aplicações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma avaliação exige distinguir o risco A03:2021 do risco A03:2025. Qual associação preserva as versões publicadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Em 2021, falhas criptográficas; em 2025, configuração insegura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Em 2021, falhas de autenticação; em 2025, design inseguro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Em 2021, componentes vulneráveis; em 2025, injeção de comandos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Em 2021, registro e monitoramento; em 2025, falhas criptográficas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Em 2021, injeção; em 2025, falhas na cadeia de suprimentos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A03:2021 é Injection e A03:2025 é Software Supply Chain Failures. A desloca categorias A02:2021 e A02:2025; B aproxima A07:2021 e A06:2025; C descreve A06:2021 e A05:2025; D desloca A09:2021 e A04:2025. A edição modifica o código associado ao risco.",
+      "section": "2. OWASP Top 10 e vulnerabilidades de aplicações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em aplicação SPA, um desenvolvedor garante que cookies têm HttpOnly, mas insere texto vindo da URL em `innerHTML`, sem saneamento. Qual conclusão técnica é defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Persistirá risco de DOM XSS; HttpOnly não impede interpretação de HTML inseguro.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O atributo HttpOnly evita DOM XSS, desde que a página também utilize HTTPS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O uso de `innerHTML` transforma o problema em CSRF, não em execução de script.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A URL precisa ser parametrizada em SQL, eliminando o risco na renderização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Basta configurar CORS restritivo, pois ele sanitiza o valor do fragmento URL.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. `innerHTML` pode interpretar conteúdo não confiável no navegador; HttpOnly restringe leitura do cookie, não neutraliza XSS. B confunde proteção de cookie/transporte com DOM; C troca execução de conteúdo por requisição forjada; D protege SQL, contexto ausente; E confunde política entre origens com saneamento do DOM.",
+      "section": "2. OWASP Top 10 e vulnerabilidades de aplicações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização usa SCA e recebe alerta de vulnerabilidade em biblioteca transitiva. O pacote existe no inventário, mas a função vulnerável parece inalcançável. Qual tratamento é o mais consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ignorar automaticamente a ocorrência, porque dependência transitiva não é executada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aprovar a entrega sem registro, pois o alerta não veio de análise dinâmica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Afirmar exploração confirmada, pois qualquer CVE do inventário é explorável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Investigar alcance e contexto, documentando exposição, mitigação e decisão.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Trocar SCA por teste de latência, porque o risco relevante é desempenho.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A presença de CVE exige triagem contextual: confirmar versão, caminho de execução, superfície exposta, correção e exceção documentada. A presume impossibilidade sem prova; B usa ausência de DAST como dispensa de risco; C confunde alerta com explorabilidade demonstrada; E substitui análise de segurança por desempenho.",
+      "section": "4. Análise estática, dinâmica e testes de segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe protegeu o repositório com revisões, mas permite que a etapa de build baixe código executável de fonte externa sem fixar versão nem validar origem. Qual é o risco residual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente erro de disponibilidade do repositório, sem reflexo na integridade do pacote.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Exposição de cache no navegador, resolvida por alteração de cabeçalhos HTTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Comprometimento da cadeia de suprimentos apesar do repositório protegido.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Falha de autorização por objeto, causada pela numeração da versão recebida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Problema exclusivamente de licença, tratado apenas com inventário jurídico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Código externo não verificado pode comprometer a construção mesmo quando as mudanças do repositório são revisadas. A reduz ameaça de integridade a disponibilidade; B desloca o problema para navegador; D remete a acesso a objetos; E ignora adulteração de artefatos e execução no pipeline, além das licenças.",
+      "section": "5. DevSecOps, cadeia de suprimentos e modelos de maturidade",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe escolheu uma abordagem para orientar o desenvolvimento, mas precisa separar um modelo baseado em observação de iniciativas existentes de outro que propõe avaliação evolutiva por práticas. Qual associação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "NIST SSDF é descritivo; OWASP Top 10 prescreve quinze práticas de maturidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Microsoft SDL é observacional; ASVS aplica cinco funções empresariais de maturidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "OWASP WSTG é descritivo; SCA determina práticas corporativas de melhoria.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SLSA observa organizações; DAST prescreve a evolução da engenharia segura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "BSIMM observa práticas reais; OWASP SAMM orienta evolução da maturidade.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. BSIMM caracteriza práticas identificadas em iniciativas reais; SAMM organiza avaliação e evolução da capacidade de segurança. A confunde SSDF e Top 10; B mistura ciclo Microsoft e requisitos ASVS; C confunde testes e composição com maturidade; D atribui à SLSA e ao DAST finalidades organizacionais que não têm.",
+      "section": "5. DevSecOps, cadeia de suprimentos e modelos de maturidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API interna usa TLS, autentica por token e tem CORS restritivo. Uma pessoa autenticada consegue consultar o comprovante de outra mediante mudança do ID. Qual ajuste tem efeito direto no defeito descrito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar autorização por objeto no servidor antes de retornar cada comprovante.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Renovar certificados TLS com maior frequência, preservando os demais fluxos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Restringir ainda mais CORS, mantendo a consulta por identificador sem política.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar tamanho dos tokens de acesso, sem alterar a regra de titularidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar índices SQL adicionais na consulta para reduzir tempo de resposta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O defeito é BOLA: autenticação, TLS e CORS funcionam, mas falta conferir o direito do solicitante ao recurso. B melhora aspectos de transporte; C regula leitura entre origens no navegador; D trata entropia de credenciais; E otimiza consulta. Nenhuma dessas medidas decide a autorização do objeto.",
+      "section": "3. Controles para Web, APIs e serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço aceita URL fornecida pelo cliente e busca seu conteúdo. Uma requisição pode fazê-lo alcançar endereço interno não autorizado. Em qual relação entre variantes OWASP essa falha é melhor situada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É XSS refletido na Web 2025 e falha de autenticação na API 2023.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É SSRF, associada a A01:2025 Web e a API7:2023 na lista de APIs.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É CSRF, incluída em A05:2025 Web e em API3:2023 na lista de APIs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É SQL injection, registrada em A10:2025 Web e em API8:2023 nas APIs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É BFLA, enquadrada em A04:2025 Web e em API4:2023 nas APIs.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. SSRF induz o servidor a buscar destino indevido; a OWASP Top 10 Web 2025 inclui o tema em A01 e a API Security 2023 o destaca em API7. A confunde execução no navegador e identidade; C trata requisição forjada por navegador; D envolve linguagem SQL; E refere-se a autorização de função e recursos da API.",
+      "section": "3. Controles para Web, APIs e serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa cenários de abuso, registra limites de confiança e associa controles às ameaças antes de escrever a aplicação. Essas práticas integram segurança à arquitetura, em vez de depender apenas de testes finais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A definição de ameaças e controles ainda no desenho representa segurança por projeto. O ciclo de desenvolvimento seguro inclui requisitos e modelagem de ameaças antes da verificação dinâmica, permitindo reduzir defeitos de concepção que scanners não corrigem.",
+      "section": "1. Fundamentos do desenvolvimento seguro e gestão da qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa autenticada altera o número de um pedido e alcança dados alheios. A autenticação foi necessariamente quebrada, mesmo que a identidade tenha sido confirmada corretamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O cenário aponta autorização por objeto insuficiente, também chamada BOLA/IDOR; a identidade pode estar corretamente autenticada. Confundir autenticação com autorização impede reconhecer a necessidade de validar a titularidade de cada recurso acessado.",
+      "section": "3. Controles para Web, APIs e serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema usa consultas SQL parametrizadas. Para combater XSS no conteúdo exibido no navegador, bastaria manter essa parametrização, pois ela também faz a codificação de saída em HTML.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Parâmetros SQL defendem o banco contra interpretação de entrada como consulta, não tratam a forma como o navegador interpreta conteúdo. Para prevenir XSS, empregam-se codificação contextual da saída, destinos seguros do DOM e sanitização quando HTML for permitido.",
+      "section": "2. OWASP Top 10 e vulnerabilidades de aplicações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao planejar a qualidade de um serviço, a equipe mede latência sob uma carga-alvo e depois aplica volume superior para observar degradação e recuperação. São respectivamente carga e estresse.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O teste de carga avalia comportamento sob volume esperado; o de estresse investiga efeitos da ultrapassagem da capacidade. As duas atividades verificam requisitos não funcionais de desempenho e resiliência, mas não provam que controles de acesso estejam corretos.",
+      "section": "1. Fundamentos do desenvolvimento seguro e gestão da qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório de composição de software lista bibliotecas diretas, transitivas, versões e alertas de vulnerabilidade. Essa atividade corresponde ao foco de SCA.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Software Composition Analysis identifica componentes usados e relaciona versões com vulnerabilidades e políticas de licenciamento. O achado precisa de triagem quanto à exposição e correção; o SCA não substitui exame da lógica de autorização implementada no próprio serviço.",
+      "section": "4. Análise estática, dinâmica e testes de segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um aplicativo, o uso de HTTPS impede que alguém com sessão válida envie requisições CSRF por meio de outro site, dispensando tokens e checagem de origem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. HTTPS protege a comunicação em trânsito, mas o navegador pode enviar cookies de sessão automaticamente ao serviço alvo. A prevenção de CSRF considera tokens ant-CSRF, validação de origem, SameSite e características do método de autenticação utilizado.",
+      "section": "2. OWASP Top 10 e vulnerabilidades de aplicações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na classificação OWASP Web Top 10 de 2025, o risco A03 se refere a falhas na cadeia de suprimentos, ao passo que na edição de 2021 A03 se referia a injeção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os códigos são dependentes da edição: A03:2021 designava Injection e A03:2025 designa Software Supply Chain Failures. A leitura sem ano gera erro especialmente porque componentes vulneráveis estavam em A06:2021, categoria expandida em 2025.",
+      "section": "2. OWASP Top 10 e vulnerabilidades de aplicações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API adota um UUID aleatório no endereço de cada objeto. Como é improvável que alguém descubra esse valor, a verificação de autorização por objeto no servidor deixa de ser necessária.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Identificadores imprevisíveis dificultam enumeração, porém podem vazar por logs, links ou outros canais. A regra decisiva é autorizar o usuário sobre cada objeto antes da resposta. A edição API 2023 denomina essa falha de API1, BOLA.",
+      "section": "3. Controles para Web, APIs e serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em revisão de código, um mock foi utilizado para verificar que o registrador de auditoria foi chamado após uma tentativa de acesso negada; um stub retornou uma resposta fixa na consulta. A distinção funcional está correta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O uso descrito distingue teste de interação, característico de mock, e fornecimento de respostas controladas, característico de stub. As bibliotecas podem usar nomenclatura variável, razão pela qual o objetivo do substituto é o aspecto mais importante no enunciado.",
+      "section": "1. Fundamentos do desenvolvimento seguro e gestão da qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para validar que o servidor rejeita uma operação administrativa realizada por usuário comum, uma verificação apenas de presença do botão na interface é equivalente ao teste da autorização no backend.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O botão oculto pode ser contornado por requisição direta à API. A autorização de função deve ser aplicada pelo servidor, independentemente das decisões de apresentação da interface. Trata-se de fraqueza como API5:2023 quando a função privilegiada fica acessível.",
+      "section": "3. Controles para Web, APIs e serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe trabalha com NIST SSDF SP 800-218 v1.1. As siglas PO, PS, PW e RV designam grupos de práticas de preparação, proteção, produção de software mais seguro e resposta a vulnerabilidades.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O SSDF organiza suas recomendações em Prepare the Organization, Protect the Software, Produce Well-Secured Software e Respond to Vulnerabilities. Esses grupos podem ser incorporados a diferentes ciclos de desenvolvimento, sem constituírem ambientes executáveis de uma esteira.",
+      "section": "5. DevSecOps, cadeia de suprimentos e modelos de maturidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time obtém um SBOM completo da aplicação. Esse inventário basta para provar que o binário implantado foi produzido pelo pipeline esperado e não sofreu adulteração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O SBOM lista componentes, mas a confiança no processo de construção depende de evidências próprias, como proveniência, assinatura e verificação do artefato. Inventário completo não atesta, de forma automática, origem confiável ou integridade na distribuição.",
+      "section": "5. DevSecOps, cadeia de suprimentos e modelos de maturidade",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma revisão técnica utiliza o OWASP ASVS para definir requisitos verificáveis, enquanto usa o OWASP Top 10 para priorizar compreensão dos riscos recorrentes. As finalidades foram distinguidas adequadamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ASVS é referência de controles e requisitos técnicos avaliáveis; Top 10 é documento de conscientização sobre classes relevantes de riscos. A combinação pode orientar critérios de aceitação e prioridades, sem transformar a lista de dez categorias em plano completo de testes.",
+      "section": "4. Análise estática, dinâmica e testes de segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política de CORS permite a origem de um site parceiro. Por esse fato isolado, a API deve considerar autenticadas e autorizadas as requisições vindas do parceiro, inclusive para ler dados de terceiros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. CORS regula o acesso de scripts de diferentes origens a respostas no navegador, mas não identifica usuário nem confere permissão sobre recurso. Mesmo uma origem permitida deve passar por autenticação aplicável e autorização no servidor antes de consultar dados sensíveis.",
+      "section": "3. Controles para Web, APIs e serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O fluxo de entrega verifica assinaturas de pacotes e obtém proveniência de build, além de armazenar SBOM. Essas evidências oferecem proteção e visibilidade sobre aspectos diferentes da cadeia de suprimentos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Assinaturas podem vincular o artefato a uma identidade confiável; a proveniência descreve seu processo de construção; o SBOM relaciona componentes. Como os objetivos diferem, a presença de um deles não elimina a necessidade de conferir os outros e sua cadeia de confiança.",
+      "section": "5. DevSecOps, cadeia de suprimentos e modelos de maturidade",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma API com cookie de sessão, uma falha de XSS permite executar código no contexto da página. O atributo HttpOnly neutraliza integralmente o XSS e impede que esse código realize ações autenticadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. HttpOnly dificulta que JavaScript leia o cookie, mas não impede a execução do código injetado no contexto da página. Esse código pode invocar operações acessíveis à sessão; a prevenção de XSS exige saída segura, sanitização pertinente e controles complementares.",
+      "section": "2. OWASP Top 10 e vulnerabilidades de aplicações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao verificar uma aplicação, a equipe classifica como falso negativo uma falha real de autorização que não gerou alerta no scanner; um alerta sobre defeito inexistente é classificado como falso positivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Falso negativo corresponde à vulnerabilidade presente que o método não detectou; falso positivo é indicação de problema que não ocorre naquele contexto. A triagem de alertas e a associação de técnicas variadas reduzem decisões baseadas apenas em resultados automáticos.",
+      "section": "4. Análise estática, dinâmica e testes de segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na lista OWASP API Security Top 10:2023, permitir escrita arbitrária do atributo interno de privilégio pelo JSON do cliente caracteriza prioritariamente API5, falha de autorização por função, e não API3.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O núcleo do caso é a propriedade indevidamente gravável, inclusive por mass assignment, tema de API3:2023, Broken Object Property Level Authorization. API5:2023 refere-se à execução de funções às quais a identidade não deveria ter acesso, como chamar operação administrativa.",
+      "section": "3. Controles para Web, APIs e serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma revisão afirma que o BSIMM é uma norma prescritiva idêntica ao SAMM, com as mesmas quinze práticas e a obrigação de seguir os mesmos níveis. Essa afirmação descreve corretamente os modelos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O BSIMM organiza observações de iniciativas reais de segurança, ao passo que o OWASP SAMM oferece estrutura para avaliação e evolução da maturidade em cinco funções e quinze práticas. Eles podem apoiar comparações, mas não são modelos idênticos nem impõem níveis iguais.",
+      "section": "5. DevSecOps, cadeia de suprimentos e modelos de maturidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço mantém autorizações corretas durante operação normal, mas, quando o verificador de permissões falha, aplica um comportamento de negação por padrão. Essa resposta evita uma falha aberta por condição excepcional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Falhar de modo fechado preserva a política de acesso quando não é possível obter decisão confiável. O tratamento seguro de condições excepcionais é relevante à categoria A10:2025, embora erros e indisponibilidades também possam afetar outros controles e a disponibilidade do serviço.",
+      "section": "2. OWASP Top 10 e vulnerabilidades de aplicações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP Top 10:2025",
+      "publisher": "OWASP Foundation",
+      "reference": "Lista de riscos A01–A10, edição 2025",
+      "url": "https://top10.owasp.org/2025/pt-BR/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP Top 10:2025 — Introdução",
+      "publisher": "OWASP Foundation",
+      "reference": "Mudanças entre 2021 e 2025",
+      "url": "https://top10.owasp.org/2025/0x00_2025-Introduction/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP API Security Top 10 — 2023",
+      "publisher": "OWASP Foundation",
+      "reference": "Categorias API1:2023 até API10:2023",
+      "url": "https://api-security.owasp.org/editions/2023/en/0x11-t10/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP SAMM — The Model",
+      "publisher": "OWASP Foundation",
+      "reference": "Cinco funções de negócio e quinze práticas",
+      "url": "https://owaspsamm.org/model/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Secure Software Development Framework",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "NIST SP 800-218 versão 1.1, PO, PS, PW e RV",
+      "url": "https://csrc.nist.gov/pubs/sp/800/218/final",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Microsoft Security Development Lifecycle (SDL)",
+      "publisher": "Microsoft",
+      "reference": "Cinco fases centrais e atividades de suporte",
+      "url": "https://learn.microsoft.com/pt-br/compliance/assurance/assurance-microsoft-security-development-lifecycle",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP SQL Injection Prevention Cheat Sheet",
+      "publisher": "OWASP Foundation",
+      "reference": "Consultas parametrizadas e proteção em profundidade",
+      "url": "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP Cross Site Scripting Prevention Cheat Sheet",
+      "publisher": "OWASP Foundation",
+      "reference": "Codificação contextual, sanitização e destinos DOM seguros",
+      "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP Cross-Site Request Forgery Prevention Cheat Sheet",
+      "publisher": "OWASP Foundation",
+      "reference": "Tokens, origem e defesa contra CSRF",
+      "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SLSA Specification Version 1.2",
+      "publisher": "SLSA",
+      "reference": "Trilhas de segurança, níveis e proveniência",
+      "url": "https://slsa.dev/spec/v1.2/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP Application Security Verification Standard",
+      "publisher": "OWASP Foundation",
+      "reference": "ASVS 5.0.0, requisitos técnicos verificáveis",
+      "url": "https://owasp.org/projects/asvs",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "BSIMM16 Report",
+      "publisher": "Black Duck",
+      "reference": "Edição de 2026, modelo descritivo baseado em iniciativas reais",
+      "url": "https://www.blackduck.com/resources/analyst-reports/bsimm.html",
+      "accessedAt": "2026-10-09"
+    }
+  ]
+}
