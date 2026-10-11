@@ -1,0 +1,14 @@
+# RECORTE 670 — medicina-legal.introducao-pericias-documentos
+==================================================
+Você é professor de cursinho preparatório que conhece a fundo as provas de concurso público no Brasil. Escreva, para o aplicativo Estudário, a parte "Como a prova cobra" da matéria **Medicina Legal: Medicina Legal: introdução, perícias e documentos médico-legais** (id `medicina-legal.introducao-pericias-documentos`), para cada banca abaixo e mais um recorte "Padrão das provas". Pesquise provas reais dessas bancas para calibrar o estilo.
+
+## Assunto (escopo da matéria)
+Conceito, histórico breve, importância e relações da medicina legal com os ramos do Direito; divisão em medicina legal geral (deontologia e diceologia) e especial (antropologia, traumatologia, tanatologia, asfixiologia, sexologia, toxicologia, psicopatologia e psiquiatria forense, infortunística, genética forense) em noções. Perícia: conceito e classificações (direta e indireta, percipiendi e deducendi, retrospectiva e prospectiva, oficial e não oficial, judicial e extrajudicial); perito oficial e peritos não oficiais (arts. 159 e §§ do CPP), impedimentos e suspeição, assistente técnico, quesitos, esclarecimentos em audiência, perícia complexa, divergência entre peritos (art. 180). Corpo de delito: conceito, vestígio, exame direto e indireto, indispensabilidade (art. 158), prioridades (art. 158, parágrafo único), prova testemunhal supletiva (art. 167), exame a qualquer dia e hora (art. 161), autópsia (art. 162), exame complementar (art. 168), fotografia e esquemas, exumação, noção de cadeia de custódia. Documentos médico-legais: notificação, atestado (inclusive de óbito), relatório (auto e laudo e suas partes), parecer e depoimento oral; prazo do laudo (art. 160). Valor da prova pericial (art. 182) e como o tema é cobrado.
+
+## Bancas (nesta ordem)
+- **Cebraspe** — aparece em 13 edital(is) salvo(s); público: PC-CE Delegado 2025 — Delegado de Polícia Civil | PC-MA Delegado 2017 — Delegado de Polícia Civil — 3ª Classe | PC/AL 2012 — Delegado de Polícia Civil do Estado de Alagoas
+- **Instituto AOCP** — aparece em 6 edital(is) salvo(s); público: PCBA 2026 — Delegado de Polícia Civil | PCBA 2026 — Escrivão de Polícia Civil | PCBA 2026 — Investigador de Polícia Civil
+- **IBFC** — aparece em 3 edital(is) salvo(s); público: PCBA 2022 — Delegado de Polícia | PCBA 2022 — Escrivão de Polícia | PCBA 2022 — Investigador de Polícia
+- **CEV/UECE** — aparece em 2 edital(is) salvo(s); público: PC-CE Oficial Investigador 2025 — Oficial Investigador de Polícia | PCCE 2025 — Oficial Investigador de Polícia — carreira resultante da unificação de Inspetor e Escrivão
+- **FUMARC** — aparece em 1 edital(is) salvo(s); público: TRT 3ª Região — Analista Judiciário, Área de Apoio Especializado, Medicina (Psiquiatria)
+- **Padrão das provas** (board "GERAL") — vale quando o concurso não tem banca ou a banca não está acima
