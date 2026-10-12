@@ -383,7 +383,9 @@ export class ClosedBetaAiPolicy {
       planTier: tier,
       planRenewsAt: tier === "FREE" ? null : profile?.planRenewsAt ?? null,
       betaAccess: profile?.betaAccess === true,
-      plans: VISIBLE_PLAN_TIERS.map((planTier) => ({
+      // O plano da própria conta vai junto mesmo fora da vitrine (TESTE): o app tira dele o limite de
+      // questões por pedido e, sem achá-lo, cairia no do Grátis.
+      plans: (VISIBLE_PLAN_TIERS.includes(tier) ? VISIBLE_PLAN_TIERS : [...VISIBLE_PLAN_TIERS, tier]).map((planTier) => ({
         planTier,
         limits: limits
           .filter((row) => row.planTier === planTier)

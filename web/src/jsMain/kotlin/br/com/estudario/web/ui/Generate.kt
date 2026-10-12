@@ -1,6 +1,7 @@
 package br.com.estudario.web.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -52,7 +53,8 @@ private val difficultyChoices = listOf(
 )
 
 /** Máximo de questões por pedido no plano grátis (GenerationLimits do app). */
-private const val MAX_QUESTIONS = 10
+/** Limite do Grátis, usado enquanto o plano da conta carrega; o servidor é quem aplica o limite de verdade. */
+private const val FREE_MAX_QUESTIONS = 10
 
 @Composable
 private fun ChoiceCards(items: List<Choice>, isOn: (String) -> Boolean, cols: Int = 2, onToggle: (String) -> Unit) {
@@ -77,7 +79,9 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
     var step by remember { mutableStateOf(0) }
     var blocks by remember { mutableStateOf(if (questionsOnly) setOf("QUESTIONS") else blockChoices.map { it.key }.toSet()) }
     var depth by remember { mutableStateOf("DEEP") }
-    var count by remember { mutableStateOf(MAX_QUESTIONS) }
+    var maxQuestions by remember { mutableStateOf(FREE_MAX_QUESTIONS) }
+    var count by remember { mutableStateOf(FREE_MAX_QUESTIONS) }
+    LaunchedEffect(Unit) { questionBatchLimit()?.takeIf { it >= 1 }?.let { maxQuestions = it } }
     var style by remember { mutableStateOf("MIXED") }
     var difficulty by remember { mutableStateOf("MEDIUM") }
     var board by remember { mutableStateOf("") }
@@ -117,11 +121,11 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                     "questions" -> {
                         FolhaSays("point", 64) {
                             B { Text("Quantas questões e em qual formato?") }
-                            P({ classes("small", "muted") }) { Text("No plano grátis, até $MAX_QUESTIONS questões por pedido.") }
+                            P({ classes("small", "muted") }) { Text("No seu plano, até $maxQuestions questões por pedido.") }
                         }
                         Div({ classes("day-row") }) {
                             Div({ classes("grow") }) { Div({ classes("name") }) { Text("Quantidade") }; Div({ classes("hint") }) { Text("$count questões") } }
-                            Stepper(count, { count = it }, min = 1, max = MAX_QUESTIONS, label = "Quantidade de questões")
+                            Stepper(count, { count = it }, min = 1, max = maxQuestions, label = "Quantidade de questões")
                         }
                         ChoiceCards(styleChoices, { it == style }) { style = it }
                     }

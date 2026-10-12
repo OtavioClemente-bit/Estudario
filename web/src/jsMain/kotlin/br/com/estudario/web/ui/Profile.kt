@@ -465,6 +465,17 @@ private fun parsePlan(body: String): PlanInfo {
     return PlanInfo(root.s("planTier") ?: "FREE", root.s("planRenewsAt"), plans, usage, pricing, playEnabled)
 }
 
+/** Questões por pedido no plano da conta (Grátis 10, Essencial 20, Pro 30); null se não deu para ler. */
+suspend fun questionBatchLimit(): Int? {
+    if (Store.demo) return null
+    val token = Auth.accessToken() ?: return null
+    val response = runCatching {
+        httpRequest("GET", "${WebConfig.SUPABASE_URL}/functions/v1/ai-plan", mapOf("Authorization" to "Bearer $token", "apikey" to WebConfig.SUPABASE_KEY, "Accept" to "application/json", "x-estudario-client" to "web"))
+    }.getOrNull()?.takeIf { it.ok } ?: return null
+    val info = runCatching { parsePlan(response.body) }.getOrNull() ?: return null
+    return info.plans.firstOrNull { it.first == info.tier }?.second?.firstOrNull { it.feature == "QUESTION_BATCH" }?.maxPerRequest
+}
+
 @Composable
 fun PlanLimitsScreen() {
     var info by remember { mutableStateOf<PlanInfo?>(null) }
