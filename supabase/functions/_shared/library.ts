@@ -39,6 +39,13 @@ const BOARD_NAMES: Record<string, string> = {
   "instituto aocp": "aocp",
   "instituto ibfc": "ibfc",
   "instituto consulplan": "consulplan",
+  "fundacao cesgranrio": "cesgranrio",
+  "fundacao fafipa": "fafipa",
+  "instituto brasileiro de formacao e capacitacao ibfc": "ibfc",
+  "instituto brasileiro de formacao e capacitacao": "ibfc",
+  "fundacao getulio vargas mpgo": "fgv",
+  "crs pmmg": "pmmg crs",
+  "comissao organizadora e examinadora do trf3": "comissao do trf3",
 };
 
 /** Recorte "Padrão das provas" (board "GERAL"): vale quando o concurso não tem banca ou a banca não tem recorte. */
