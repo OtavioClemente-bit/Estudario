@@ -1,0 +1,1818 @@
+{
+  "id": "informatica.windows-server-active-directory",
+  "subject": "Informática",
+  "title": "Windows Server, Active Directory e serviços de servidor",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Windows Server, Active Directory e serviços de servidor"
+  ],
+  "scope": {
+    "covers": "Active Directory, LDAP, DNS e GPO; administração de Windows Server 2012 e 2016, PowerShell, WSUS, Remote Desktop Services, RDP, VPN e Failover Cluster; administração de Red Hat Enterprise Linux 5, 6 e 7; virtualização e consolidação; NTP, SMTP, Nginx, Apache HTTP Server, proxy reverso, Tomcat 10, JBoss EAP 7 e níveis de RAID.",
+    "excludes": "Programação avançada, implementação de aplicações de negócio, dimensionamento profundo de armazenamento, engenharia de redes e detalhes de licenciamento alheios aos conceitos essenciais."
+  },
+  "theoryTitle": "Windows Server, Active Directory, infraestrutura de rede, aplicações e alta disponibilidade",
+  "chapters": [
+    {
+      "title": "1. Active Directory, identidade, LDAP e políticas de grupo",
+      "markdown": "## Diretório, domínio e autenticação\nO **Active Directory Domain Services (AD DS)** é um serviço de diretório que armazena e organiza objetos de rede, como usuários, computadores, grupos e impressoras, permitindo autenticação, autorização e administração centralizada. **Autenticar** significa comprovar a identidade; **autorizar** significa verificar quais recursos aquela identidade pode acessar. Um usuário autenticado no domínio ainda pode não possuir permissão de leitura em determinado compartilhamento. Controladores de domínio (DCs) mantêm cópias do diretório do domínio e participam de sua replicação. **DNS** é essencial para localizar serviços e controladores; ter conectividade IP não basta se a resolução de nomes e os registros de serviço estiverem incorretos.\n\n### Hierarquia lógica\n**Floresta** é o limite de esquema e configuração compartilhados, reunindo um ou mais domínios e seu catálogo global; **domínio** é a partição administrativa e de replicação que reúne objetos; **unidade organizacional (OU)** é um contêiner usado para organizar objetos, delegar administração e direcionar GPOs. Uma OU não cria novo domínio, nem uma floresta corresponde obrigatoriamente a um único domínio. **Sites** representam a topologia física da rede, normalmente definida por sub-redes, para otimizar autenticação e replicação. O **catálogo global** permite pesquisar objetos da floresta, inclusive quando estão em domínios distintos. A **relação de confiança** permite autenticação entre domínios ou florestas conforme seu tipo e configuração; não concede automaticamente permissão a cada recurso.\n\n| Conceito | Característica decisiva | Exemplo |\n| --- | --- | --- |\n| Floresta | Esquema e configuração compartilhados | Dois domínios na mesma estrutura lógica |\n| Domínio | Identidades e políticas em uma partição | dominio.exemplo |\n| OU | Delegação e aplicação de GPO | OU=Vendas |\n| Site | Representação de localização e conectividade | Matriz e filial em sub-redes distintas |\n| DC | Autenticação e replicação do domínio | Dois controladores no mesmo domínio |\n\n### LDAP, Kerberos e DNS\n**LDAP** fornece operações de consulta e modificação de informações do diretório; não é sinônimo de AD DS, que é uma implementação de diretório com múltiplos serviços. LDAP usa tipicamente **TCP 389** e LDAP sobre TLS dedicado, chamado LDAPS, usa tipicamente **TCP 636**. **Kerberos** é mecanismo de autenticação por tíquetes, com porta **88** em TCP/UDP. **DNS** usa tipicamente **53** em UDP/TCP e ajuda os clientes a encontrar controladores. No Windows, um DN como `CN=Ana,OU=Contabilidade,DC=empresa,DC=local` identifica o objeto na hierarquia. Confundir DN com nome de logon ou com endereço IP produz resposta errada.\n\n### Grupos e permissões\nGrupos de segurança representam conjuntos de identidades empregados em autorizações; grupos de distribuição servem à distribuição de mensagens. O escopo pode ser global, local de domínio ou universal, segundo a necessidade de participação e concessão de acesso. Permissões de compartilhamento e NTFS devem ser analisadas conjuntamente no acesso de rede; uma concessão ampla em um nível não contorna uma restrição efetiva no outro. A prova pode apresentar conta válida que consegue fazer logon, mas é impedida de abrir pasta: a causa provável pode estar na autorização, não na autenticação.\n\n### GPOs: ordem e exceções\nObjetos de Política de Grupo configuram parâmetros de **computador** e **usuário**. A ordem padrão é **Local → Site → Domínio → OU pai → OU filha** (LSDOU). Em conflito entre configurações efetivamente aplicáveis da mesma categoria, a aplicada por último tende a prevalecer. Links **Enforced** impedem que níveis inferiores substituam a configuração imposta; **Block Inheritance** bloqueia herança ordinária recebida de níveis superiores, mas não neutraliza links impostos aplicáveis. Filtragem de segurança e filtros WMI podem restringir a aplicação. O processamento de **loopback** altera a avaliação de políticas de usuário conforme o computador, útil em terminais compartilhados; não transforma toda configuração de usuário em configuração de computador. Use `gpresult /r` para examinar resultados e `gpupdate /force` para solicitar reaplicação, sabendo que certas configurações demandam reinicialização ou novo logon.\n\n> Reconhecimento em prova: 'OU' sugere delegação e vinculação de GPO; 'site' sugere topologia; 'domínio' sugere partição de diretório; 'LDAP' sugere consulta; 'Kerberos' sugere autenticação por tíquetes. GPO imposta e bloqueio de herança não são equivalentes."
+    },
+    {
+      "title": "2. Windows Server, PowerShell, atualizações e acesso remoto",
+      "markdown": "## Administração de servidores Windows\nO Windows Server reúne funções, como **AD DS**, DNS, DHCP e Remote Desktop Services, e recursos adicionais, como ferramentas administrativas e componentes de cluster. A instalação pode utilizar interface gráfica ou **Server Core**, opção com interface reduzida administrada por comandos e ferramentas remotas. **Server Manager** permite administrar funções e servidores; **PowerShell** automatiza tarefas por cmdlets que retornam objetos estruturados, não apenas linhas de texto. A sintaxe típica é `Verbo-Substantivo`, como `Get-Service`, `Get-Process` e `Get-WindowsFeature`. O pipeline encaminha **objetos**, tornando possível selecionar propriedades e filtrar resultados sem depender somente de análise textual.\n\n### PowerShell e administração remota\n`Get-Service` consulta serviços; `Get-Help Get-Service` mostra ajuda; `Get-Command` pesquisa comandos disponíveis; `Get-ADUser` consulta objetos do diretório quando o módulo ActiveDirectory está presente. `Invoke-Command` executa comandos remotos em sessão configurada, enquanto `Enter-PSSession` oferece sessão interativa. PowerShell Remoting em Windows utiliza normalmente **WinRM**, em portas **5985** (HTTP) e **5986** (HTTPS), conforme configuração. Um erro de conexão remota pode decorrer de resolução DNS, autenticação, firewall ou remoting não habilitado. O comando `Get-Service` isolado não implica execução remota, e `Invoke-Command` não equivale a uma sessão gráfica RDP.\n\n### WSUS e políticas de atualização\n**Windows Server Update Services (WSUS)** centraliza sincronização, seleção, aprovação e distribuição de atualizações Microsoft aos clientes configurados. Pode obter metadados e conteúdo de Microsoft Update ou de um servidor WSUS upstream. Grupos de computadores permitem liberar uma atualização primeiro para testes e depois para produção. **GPO** pode apontar os clientes para o servidor WSUS interno, mas criar ou vincular uma GPO, por si só, não equivale a aprovar uma atualização. Servidores **downstream** em modo de réplica herdam aprovações e grupos do upstream; no modelo de gerenciamento distribuído, a administração local pode aprovar conforme sua estrutura. O WSUS está **descontinuado para novos recursos**, mas a tecnologia continua suportada nas versões de Windows Server indicadas pelo fornecedor; 'deprecated' não significa remoção imediata.\n\n### RDP, RDS e VPN\n**RDP** transmite a interface de uma sessão remota, usando normalmente **TCP/UDP 3389** em conexão direta. **Remote Desktop Services (RDS)** é um conjunto de funções para publicar desktops e aplicativos. **RD Session Host** hospeda sessões; **RD Connection Broker** direciona e reconecta sessões e pode distribuir conexões; **RD Gateway** intermedeia acesso remoto protegido por HTTPS, tipicamente **TCP 443**; **RD Web Access** apresenta recursos em portal; **RD Licensing** administra licenças de acesso. **VPN** cria um túnel de rede e pode viabilizar diversos protocolos internos, inclusive RDP, mas não é a mesma coisa que RDP. Para acesso externo, um Gateway RD pode evitar a exposição direta da porta 3389. **NLA** exige autenticação antes do estabelecimento completo da sessão de área de trabalho remota e reduz exposição a conexões não autenticadas.\n\n| Necessidade | Ferramenta ou função | Distinção |\n| --- | --- | --- |\n| Área de trabalho remota | RDP/RDS | Remotiza a sessão gráfica |\n| Acesso a rede interna | VPN | Encapsula comunicação de rede |\n| Aplicação publicada | RD Session Host e Broker | Executa aplicativo remotamente |\n| Entrada externa protegida | RD Gateway | Usa HTTPS para RDS |\n| Atualização aprovada por grupo | WSUS | Controla distribuição |\n| Comando administrativo remoto | PowerShell Remoting | Executa cmdlets sem desktop |\n\n### Versões citadas em editais\nWindows Server **2012 e 2012 R2** encerraram suporte estendido em **outubro de 2023**, com programa separado de atualizações estendidas em condições específicas. Windows Server **2016** tem término do suporte estendido previsto para **13 de janeiro de 2027**. Isso não muda retroativamente a função de comandos ou recursos legados; apenas impede tomar uma plataforma antiga como recomendação atual de implantação. Questões de versões antigas devem ser resolvidas de acordo com o comportamento da versão apresentada. Administrar significa instalar funções adequadas, definir rede e firewall, aplicar princípio do menor privilégio, monitorar eventos, fazer backup e testar recuperação — instalar o serviço é apenas a etapa inicial.\n\n> Reconhecimento em prova: 'aprovação de patches' aponta para WSUS; 'sessão gráfica' aponta para RDP; 'túnel de rede' aponta para VPN; 'execução de script remoto' aponta para PowerShell Remoting."
+    },
+    {
+      "title": "3. Alta disponibilidade, virtualização, consolidação e RAID",
+      "markdown": "## Serviços disponíveis mesmo diante de falhas\n**Alta disponibilidade** busca reduzir indisponibilidades por redundância, monitoramento e recuperação. **Failover Cluster** no Windows Server reúne nós que hospedam funções clusterizadas, transferindo a execução quando ocorre falha suportada e os demais requisitos permanecem atendidos. Cluster não substitui backup: uma exclusão lógica replicada, corrupção de dados ou ataque pode afetar todos os nós. Também não é sinônimo de **balanceamento de carga**, técnica que distribui requisições entre instâncias. O primeiro prioriza continuidade de uma função após falha; o segundo prioriza distribuição de tráfego, ainda que possam ser combinados em arquiteturas maiores.\n\n### Quórum e testemunha\nO **quórum** determina se há votos suficientes para o conjunto manter uma visão válida do cluster, evitando cenários de divisão de cérebro (*split-brain*). No modelo de votação por maioria, exige-se **mais da metade dos votos ativos**. Uma **testemunha de quórum** pode acrescentar voto e desempatar configuração com número par de nós. Exemplos: **disk witness**, **file share witness** e **cloud witness**, observadas compatibilidades e configurações da versão. Dois nós e uma testemunha, com voto cada, somam três votos: dois são maioria. Se um nó falhar e o sobrevivente conservar comunicação com a testemunha, a maioria pode persistir. A capacidade de continuar depende também do armazenamento, rede e serviço clusterizado. A testemunha de compartilhamento não é, por definição, repositório dos dados da aplicação.\n\n### Virtualização de computadores\nUm **hipervisor** abstrai recursos físicos para criar máquinas virtuais (VMs) com sistemas operacionais convidados. No **tipo 1**, o hipervisor opera diretamente sobre a infraestrutura física; no **tipo 2**, depende de um sistema operacional hospedeiro convencional. **Hyper-V** é tecnologia de virtualização Microsoft. VMs isolam ambientes lógicos, mas compartilham recursos físicos: falha do host pode atingir todas as VMs nele alojadas se não houver proteção. **Consolidação de servidores** troca vários equipamentos físicos subutilizados por VMs ou serviços em menos hosts; benefícios incluem maior utilização e administração concentrada, com riscos de concentração de falhas, competição por CPU/RAM e necessidade de planejamento de capacidade. **Snapshot/checkpoint** registra estado para certos cenários operacionais, mas não equivale a backup independente nem substitui plano de recuperação.\n\n### RAID: desempenho, redundância e capacidade\n**RAID** combina unidades de armazenamento para desempenho e/ou tolerância a falhas. A capacidade útil depende do nível e da quantidade e tamanho dos discos. Suponha discos de **1 TB**, sem considerar metadados: RAID 0 com quatro discos fornece aproximadamente **4 TB**, sem redundância; RAID 1 com dois discos fornece **1 TB** por espelhamento; RAID 5 com quatro discos fornece **3 TB** pela equivalência de um disco de paridade distribuída; RAID 10 com quatro discos fornece **2 TB** ao combinar espelhamento e distribuição. No RAID 5 convencional é tolerada a falha de uma unidade; RAID 6 usa dupla paridade e pode tolerar falha de duas unidades em condições normais. RAID 10 exige ao menos quatro discos no arranjo comum de pares espelhados e não garante tolerar quaisquer duas falhas: se ocorrerem no mesmo par, haverá perda. O tamanho da menor unidade pode limitar a utilização das demais.\n\n| Arranjo | Técnica | Tolerância típica | Característica |\n| --- | --- | --- | --- |\n| RAID 0 | Distribuição | Nenhuma unidade | Desempenho/capacidade, sem redundância |\n| RAID 1 | Espelhamento | Uma unidade em par de dois | Duas cópias de dados |\n| RAID 5 | Distribuição e paridade | Uma unidade | Reconstrução a partir da paridade |\n| RAID 6 | Distribuição e dupla paridade | Duas unidades | Maior resiliência que RAID 5 |\n| RAID 10 | Espelhamento e distribuição | Depende dos pares atingidos | Combina velocidade e espelhamento |\n\n### Como diagnosticar falhas\nDiante de desligamento de host virtualizado, identifique se houve redundância no **host**, na **VM**, na **aplicação** e no **armazenamento**: são camadas distintas. Diante de falha de disco, determine o **nível de RAID** antes de concluir se há acesso aos dados. Diante de partição de rede entre nós, examine o quórum, não apenas se os serviços estão instalados. **Backups versionados, externos à falha compartilhada e periodicamente restaurados em teste** protegem contra eventos que RAID e cluster não resolvem.\n\n> Reconhecimento em prova: 'testemunha' e 'maioria de votos' remetem a quórum; 'distribuição de tráfego' a balanceamento; 'cópias em discos' a RAID 1; 'paridade' a RAID 5/6; 'equipamento físico substituído por VMs' a consolidação."
+    },
+    {
+      "title": "4. Red Hat Enterprise Linux e serviços fundamentais de rede",
+      "markdown": "## Administração Linux em versões históricas\n**Red Hat Enterprise Linux (RHEL)** é uma distribuição empresarial com ferramentas de administração, gerenciador de pacotes, serviços de rede, controle de acesso e mecanismos de segurança. As versões **5 e 6** utilizam tradicionalmente o sistema de inicialização **SysV init/Upstart** conforme os componentes e a versão; o **RHEL 7** adotou **systemd** como gerenciador de serviços e inicialização. Em RHEL 7, `systemctl status sshd` consulta o serviço SSH, `systemctl start sshd` inicia na sessão corrente e `systemctl enable sshd` configura inicialização automática; iniciar não equivale a habilitar no boot. Em instalações legadas, `service sshd status` e `chkconfig` aparecem como interfaces administrativas clássicas. A prova pode indicar versão antiga e oferecer somente comandos de geração posterior: a distinção é central.\n\n### Pacotes, rede e segurança\n**RPM** é formato e ferramenta de manipulação de pacotes; **Yum** resolve dependências e acessa repositórios em RHEL 5, 6 e 7. `yum install pacote` solicita instalação, enquanto `rpm -q pacote` consulta se está instalado localmente; o RPM isolado não equivale ao gerenciamento completo de dependências por repositórios. Em RHEL 7, **firewalld** administra regras dinâmicas de firewall e `firewall-cmd` é ferramenta de configuração; em versões anteriores, configurações com **iptables** eram comuns. **SELinux** é mecanismo de controle obrigatório de acesso (MAC), complementar às permissões Unix tradicionais (DAC). Um processo pode ter permissão de arquivo convencional e mesmo assim sofrer negativa pela política SELinux. Modos **enforcing** aplicam a política, **permissive** registram violações sem bloquear por SELinux, e **disabled** desativa o mecanismo. Desabilitar segurança para contornar um erro não é solução administrativa adequada.\n\n### DNS, LDAP, NTP e SMTP\n**DNS** resolve nomes e publica registros necessários a serviços como o AD; **LDAP** consulta diretórios; **NTP** sincroniza relógios pela rede, tipicamente **UDP 123**; **SMTP** é protocolo de transferência e encaminhamento de mensagens entre servidores, associado tradicionalmente a **TCP 25**. Submissão autenticada de mensagens por clientes é frequentemente realizada em **TCP 587**; receber mensagens em uma caixa postal envolve protocolos como IMAP e POP, não SMTP como mecanismo de leitura. **Sincronização de tempo** é particularmente importante para autenticação baseada em Kerberos, cujos tíquetes têm limites de validade e tolerâncias de relógio. É erro confundir NTP (tempo) com DNS (nomes) ou LDAP (diretório).\n\n| Serviço | Função principal | Porta típica |\n| --- | --- | --- |\n| DNS | Resolução de nomes | 53 UDP/TCP |\n| LDAP | Acesso ao diretório | 389 TCP |\n| LDAPS | LDAP em TLS dedicado | 636 TCP |\n| Kerberos | Autenticação por tíquetes | 88 UDP/TCP |\n| NTP | Sincronização de relógio | 123 UDP |\n| SMTP | Transporte entre servidores de correio | 25 TCP |\n| RDP direto | Sessão gráfica remota | 3389 TCP/UDP |\n| HTTPS | Tráfego web cifrado | 443 TCP |\n\n### Serviços e diagnóstico por camadas\nAo encontrar problema de autenticação em máquina de domínio, comece por **hora**, **DNS**, **conectividade** e **controlador acessível**, em vez de presumir senha incorreta. Ao encontrar serviço Linux que não responde, identifique se o processo está ativo, se a porta está em escuta, se firewall permite tráfego e se SELinux autoriza acesso. Uma atualização de pacote não garante reinício do processo que mantém bibliotecas antigas carregadas; a necessidade deve ser verificada por serviço e ambiente. Configuração de rede envolve IP, máscara, rota, servidores DNS, nome do host e persistência das alterações. Reiniciar serviços sem examinar logs pode ocultar a causa e aumentar a indisponibilidade.\n\n### Compatibilidade e ciclo de vida\nRHEL **5, 6 e 7** aparecem em questões por seu legado, mas não representam escolhas atuais sem acordos de suporte especiais. Uma orientação de `systemctl` deve ser atribuída ao ambiente que utiliza systemd; não se pode generalizar para todo Linux. A distinção entre **sistema operacional**, **serviço de diretório**, **protocolo** e **programa servidor** evita confusões clássicas: RHEL é sistema; LDAP é protocolo; AD DS é serviço de diretório; Nginx é software para HTTP/proxy. Esse enquadramento ajuda a eliminar alternativas tecnicamente próximas.\n\n> Reconhecimento em prova: `systemctl` aponta para systemd e RHEL 7; `yum` gerencia dependências; `getenforce` informa modo SELinux; `ntp` sincroniza relógios; `smtp` transporta mensagens."
+    },
+    {
+      "title": "5. Servidores web, proxy reverso e servidores de aplicação",
+      "markdown": "## Separação de responsabilidades na camada web\nUm **servidor web** recebe solicitações HTTP e pode responder com arquivos estáticos, encerrar conexões TLS, servir como proxy reverso e encaminhar requisições para aplicações. **Apache HTTP Server (httpd)** e **Nginx** realizam essas funções, embora empreguem arquiteturas e configurações diferentes. O Apache usa módulos, como **mod_proxy**, para encaminhamento. O Nginx usa blocos de configuração como `server` e `location` e a diretiva **proxy_pass** para indicar destino. Um exemplo é uma requisição a `https://portal.exemplo` chegar ao Nginx e ser encaminhada a aplicação interna em `http://127.0.0.1:8080`. O usuário enxerga o endereço público, e a aplicação pode estar isolada da internet.\n\n### Proxy direto e reverso\n**Proxy direto (forward proxy)** age normalmente em nome do cliente, por exemplo para controlar a saída de uma rede interna. **Proxy reverso** recebe tráfego destinado a serviços de origem e decide qual backend atenderá; pode realizar terminação TLS, distribuição de carga e proteção de serviços internos. No Apache, `ProxyPass` mapeia caminhos externos para o backend e **ProxyPassReverse** ajusta cabeçalhos relacionados a redirecionamentos, como `Location`, para que eles não exponham destino interno. Essa diretiva **não reescreve automaticamente todos os links absolutos no HTML**. No Nginx, `proxy_pass` encaminha a requisição, enquanto `proxy_set_header` permite passar cabeçalhos adequados. Um proxy reverso não é equivalente a VPN: ele intermedeia requisições de aplicação, não cria por definição um túnel geral de rede.\n\n### Contêiner web Tomcat 10\n**Apache Tomcat 10** executa aplicações Java que usam especificações Jakarta Servlet e tecnologias relacionadas. O Tomcat **10.0** implementa Servlet **5.0** e o Tomcat **10.1** implementa Servlet **6.0**; a subversão importa. Ao migrar do Tomcat 9 para o 10, APIs antes no namespace **javax.servlet** passaram para **jakarta.servlet**. Uma aplicação compilada para o namespace antigo pode exigir conversão, recompilação ou adaptação, não bastando copiar o mesmo artefato para a pasta de implantação. Tomcat é especialmente associado ao contêiner de servlets e páginas Jakarta; não se deve atribuir-lhe automaticamente todos os perfis e serviços de uma plataforma Jakarta EE empresarial completa.\n\n### JBoss EAP 7 e modos de execução\n**JBoss Enterprise Application Platform (EAP) 7**, ligado ao ecossistema WildFly, é plataforma de aplicações empresariais Java que integra subsistemas além da execução básica de servlets, conforme perfil e configuração. Opera em **standalone mode**, no qual a instância é administrada de forma independente, ou em **managed domain mode**, que centraliza a gestão de vários servidores por controlador de domínio de gerenciamento. Esse 'domain' administrativo do JBoss **não é domínio Active Directory**. Em ambiente Unix, são típicos `standalone.sh` e `domain.sh`; na instalação, arquivos `standalone.xml` e configurações de domínio cumprem papéis distintos. Um site simples servido em Nginx não precisa, por essa razão apenas, de JBoss; a escolha decorre da aplicação e de seus requisitos.\n\n| Produto | Papel característico | Pista de identificação |\n| --- | --- | --- |\n| Nginx | HTTP e proxy reverso | `proxy_pass` |\n| Apache HTTP Server | HTTP modular e proxy | `mod_proxy`, `ProxyPass` |\n| Tomcat 10 | Contêiner web Jakarta | `jakarta.servlet` |\n| JBoss EAP 7 | Plataforma de aplicações Java empresarial | Modo standalone ou managed domain |\n| SMTP | Transferência de e-mail | Encaminhamento de mensagens |\n\n### Projeto de publicação e diagnóstico\nConsidere uma aplicação interna em Tomcat 10 atrás de Nginx. O fluxo é **cliente HTTPS → Nginx → Tomcat → resposta via Nginx**. Se o acesso público falha, examine DNS, certificado TLS, firewall, logs de Nginx e integridade do Tomcat antes de acusar o código da aplicação. Um erro HTTP **502 Bad Gateway** no proxy geralmente indica falha de comunicação ou resposta inválida do upstream; **404** pode indicar rota ou recurso inexistente, dependendo da camada que respondeu. Se o backend responde em localhost, mas não pelo domínio externo, concentre a investigação no caminho entre cliente e proxy. A publicação correta inclui certificados válidos, cabeçalhos coerentes, limites de acesso e monitoramento; abrir a porta interna 8080 publicamente não é requisito de proxy reverso.\n\n### Como o tema costuma ser cobrado\nA prova cruza **camadas** e **versões**: distingue AD de LDAP; OU de domínio; GPO imposta de bloqueio de herança; VPN de RDP; cluster de backup; RAID 5 de RAID 10; Apache HTTP Server de Tomcat; e domínio de gerenciamento do JBoss de domínio de identidade. Questões avançadas descrevem sintomas e pedem a primeira hipótese técnica, identificam qual produto atua em determinado ponto da requisição ou questionam as condições de continuidade após falha. Memorizar nomes sem compreender o fluxo costuma produzir erro; siga a trilha **identidade → rede → servidor → aplicação → armazenamento** para identificar exatamente o componente relevante."
+    }
+  ],
+  "summary": "## Diretório e políticas\n**AD DS** organiza objetos e integra autenticação e autorização; floresta compartilha esquema e configuração, domínio particiona diretório, OU organiza/delega, site representa topologia física e DC replica dados. **LDAP** consulta diretório (389/636 em LDAPS); **Kerberos** autentica por tíquetes (88); **DNS** localiza serviços (53). GPO padrão: **Local → Site → Domínio → OU pai → OU filha**; links impostos prevalecem sobre conflitos em níveis inferiores e bloqueio de herança comum não os neutraliza.\n\n## Administração Windows\n**PowerShell** usa cmdlets e pipeline de objetos; `Get-Service` consulta, `Invoke-Command` executa remotamente e `Enter-PSSession` abre sessão interativa. **WSUS** sincroniza e aprova atualizações por grupos; cliente pode receber indicação do servidor via GPO. **RDP** entrega área de trabalho remota; **VPN** dá conectividade por túnel; **RDS** publica sessões e aplicativos com Host, Broker, Gateway, Web Access e Licensing. O Gateway RD pode usar HTTPS 443 em vez de expor RDP 3389 na internet.\n\n## Resiliência\n**Failover Cluster** mantém função após falhas suportadas; **quórum** exige maioria dos votos relevantes e pode ter testemunha. **RAID 0** sem redundância; **RAID 1** espelha; **RAID 5** usa uma paridade; **RAID 6**, dupla paridade; **RAID 10**, espelhos distribuídos. RAID, cluster e snapshot não substituem backup. Virtualização permite consolidar servidores, mas concentra dependência de hosts físicos.\n\n## Linux e protocolos\nRHEL 7 utiliza **systemd/systemctl**, e versões legadas apresentam `service`/`chkconfig`; **Yum** resolve dependências, **RPM** trata pacotes. **firewalld** e **SELinux** protegem recursos por mecanismos diferentes. **NTP** sincroniza relógios (UDP 123); **SMTP** transporta mensagens (TCP 25 entre servidores; 587 para submissão frequente).\n\n## Web e aplicações\n**Nginx** usa `proxy_pass`; **Apache httpd** usa `mod_proxy`, `ProxyPass` e `ProxyPassReverse`. **Tomcat 10** hospeda aplicações web Jakarta; suas APIs usam `jakarta.*` em lugar de `javax.*`. **JBoss EAP 7** oferece serviços de aplicação Java e modos standalone/managed domain. Proxy reverso atende clientes em nome de backends, enquanto proxy direto costuma operar em nome dos clientes.",
+  "flashcards": [
+    {
+      "front": "O que o AD DS armazena?",
+      "back": "Objetos de rede, como usuários, computadores, grupos e recursos, com autenticação e controle centralizado."
+    },
+    {
+      "front": "Floresta e domínio são iguais?",
+      "back": "Não. A floresta pode conter vários domínios e compartilha esquema e configuração entre eles."
+    },
+    {
+      "front": "Para que serve uma OU?",
+      "back": "Organiza objetos, permite delegar administração e receber vínculos de GPO."
+    },
+    {
+      "front": "Qual a função dos sites no AD?",
+      "back": "Representar a topologia física, auxiliando localização de serviços e replicação."
+    },
+    {
+      "front": "LDAP é o mesmo que AD?",
+      "back": "Não. LDAP é protocolo de acesso ao diretório; AD DS é um serviço de diretório."
+    },
+    {
+      "front": "Qual a ordem padrão das GPOs?",
+      "back": "Local, site, domínio, OU pai e OU filha, com exceções de escopo, imposição e herança."
+    },
+    {
+      "front": "O que faz Enforced em GPO?",
+      "back": "Protege as configurações do link imposto contra substituição por políticas em contêineres inferiores."
+    },
+    {
+      "front": "O que faz o WSUS?",
+      "back": "Sincroniza, aprova e distribui atualizações a grupos de computadores administrados."
+    },
+    {
+      "front": "RDP e VPN são equivalentes?",
+      "back": "Não. RDP apresenta sessão remota; VPN cria conectividade de rede por túnel."
+    },
+    {
+      "front": "Função do RD Connection Broker?",
+      "back": "Direciona novas conexões, equilibra sessões e reconecta usuários à sessão existente."
+    },
+    {
+      "front": "O que oferece RD Gateway?",
+      "back": "Intermedia acesso a recursos RDS pelo transporte HTTPS, geralmente na porta TCP 443."
+    },
+    {
+      "front": "Para que serve Invoke-Command?",
+      "back": "Executar script ou comando em uma ou mais sessões remotas configuradas."
+    },
+    {
+      "front": "Qual é a função da testemunha de quórum?",
+      "back": "Participar da votação para sustentar uma maioria e reduzir risco de split-brain."
+    },
+    {
+      "front": "RAID 0 tolera falha de disco?",
+      "back": "Não. Ele distribui dados para desempenho/capacidade, sem redundância."
+    },
+    {
+      "front": "RAID 5 com quatro discos de 1 TB?",
+      "back": "Capacidade útil aproximada de 3 TB, equivalendo a um disco de paridade distribuída."
+    },
+    {
+      "front": "RAID 10 tolera duas falhas quaisquer?",
+      "back": "Não. A sobrevivência depende de quais discos, em quais pares espelhados, falham."
+    },
+    {
+      "front": "Qual gerenciador caracteriza RHEL 7?",
+      "back": "systemd, administrado por systemctl; RHEL 5 e 6 usam mecanismos legados."
+    },
+    {
+      "front": "Yum e RPM fazem a mesma coisa?",
+      "back": "Ambos lidam com pacotes, mas Yum agrega repositórios e resolução automática de dependências."
+    },
+    {
+      "front": "Qual a diferença entre NTP e SMTP?",
+      "back": "NTP sincroniza horários na rede; SMTP transporta mensagens de correio eletrônico."
+    },
+    {
+      "front": "Proxy direto e reverso: distinção?",
+      "back": "O direto representa clientes; o reverso recebe solicitações destinadas aos servidores de origem."
+    },
+    {
+      "front": "Qual diretiva Nginx encaminha ao backend?",
+      "back": "proxy_pass, geralmente dentro de um bloco location."
+    },
+    {
+      "front": "Qual mudança marcante no Tomcat 10?",
+      "back": "A migração das APIs de javax.* para jakarta.*, podendo exigir adaptações de aplicações."
+    },
+    {
+      "front": "Quais os modos centrais do JBoss EAP 7?",
+      "back": "Standalone, para instância independente, e managed domain, para administração coordenada."
+    }
+  ],
+  "tips": [
+    "Separe identidade de autorização: credencial aceita não equivale a permissão em compartilhamento.",
+    "Decore LSDOU e examine Enforced, Block Inheritance e filtros antes de decidir qual GPO prevalece.",
+    "Para conexões, identifique a camada: VPN = rede; RDP = desktop; Gateway RD = entrada RDS por HTTPS.",
+    "Em falha de cluster, calcule votos efetivos de quórum e verifique o local da testemunha.",
+    "Em questões de armazenamento, calcule capacidade de RAID pelo nível e não confunda tolerância a falhas com backup.",
+    "Associe RHEL 7 a systemd; versões antigas precisam de comandos correspondentes à época.",
+    "Em publicação web, diferencie Nginx/Apache HTTP, Tomcat, JBoss e o endereço de backend.",
+    "Observe a versão exata: Tomcat 10.0 e 10.1 implementam versões distintas de Jakarta Servlet."
+  ],
+  "traps": [
+    "A prova diz que criar OU cria novo domínio. Incorreto: OU é contêiner interno do domínio para organização e delegação.",
+    "A prova afirma que Block Inheritance anula qualquer GPO superior. Incorreto: um link Enforced aplicável resiste ao bloqueio de herança.",
+    "A prova troca VPN por RDP ao falar de túnel. Incorreto: RDP fornece sessão gráfica e VPN oferece conectividade de rede.",
+    "A prova chama testemunha de quórum de cópia de backup. Incorreto: sua função é participar da arbitragem de votos do cluster.",
+    "A prova diz que RAID 10 tolera duas falhas independentemente dos discos. Incorreto: perder os dois membros do mesmo espelho rompe o par.",
+    "A prova considera WSUS removido por estar descontinuado. Incorreto: ele deixou de receber novos recursos, mas segue suportado em plataformas indicadas.",
+    "A prova afirma que qualquer arquivo do Tomcat 9 funciona inalterado no Tomcat 10. Incorreto: a mudança javax para jakarta pode exigir migração.",
+    "A prova confunde managed domain do JBoss com domínio AD. Incorreto: o primeiro organiza instâncias de aplicação; o segundo é uma estrutura de diretório."
+  ],
+  "activeRecall": [
+    {
+      "question": "Um usuário autentica no domínio, mas não abre pasta compartilhada. Quais camadas analisar?",
+      "answer": "Autenticação já ocorreu; verificar grupo, permissões de compartilhamento e NTFS efetivas, além de políticas aplicáveis."
+    },
+    {
+      "question": "Qual GPO tende a prevalecer entre domínio e OU filha, sem exceções?",
+      "answer": "A GPO da OU filha, processada depois da política de domínio."
+    },
+    {
+      "question": "Em dois nós com uma testemunha que vota, quantos votos formam maioria?",
+      "answer": "Dois dos três votos, supondo um voto ativo por componente."
+    },
+    {
+      "question": "Quatro discos de 1 TB em RAID 5 resultam em qual capacidade aproximada?",
+      "answer": "3 TB úteis, antes de diferenças de unidade de medida e metadados."
+    },
+    {
+      "question": "Qual o comando de RHEL 7 para habilitar sshd na inicialização?",
+      "answer": "systemctl enable sshd, diferente de systemctl start sshd, que inicia o serviço agora."
+    },
+    {
+      "question": "Qual ferramenta libera atualizações por grupos antes de instalá-las?",
+      "answer": "WSUS, que sincroniza, aprova e distribui atualizações a clientes configurados."
+    },
+    {
+      "question": "Como diferenciar servidores web de contêineres de aplicação em um fluxo?",
+      "answer": "Nginx/Apache podem receber e encaminhar HTTP; Tomcat executa aplicações Jakarta web; JBoss EAP oferece serviços de aplicações empresariais Java."
+    },
+    {
+      "question": "Por que a migração de Tomcat 9 para Tomcat 10 requer atenção?",
+      "answer": "Porque as APIs Java EE com nomes javax.* passam a jakarta.*, exigindo compatibilidade no aplicativo."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Fronteiras e protocolos de diretório",
+      "summary": "Floresta, domínio, OU e site descrevem níveis diferentes; LDAP consulta diretório, enquanto Kerberos autentica e DNS localiza serviços."
+    },
+    {
+      "key": "e2",
+      "title": "Precedência e escopo de GPO",
+      "summary": "LSDOU é a ordem padrão, mas Enforced, herança bloqueada, filtros e loopback afetam a política realmente aplicada."
+    },
+    {
+      "key": "e3",
+      "title": "Acesso remoto, automação e atualização",
+      "summary": "VPN, RDP, RDS, PowerShell Remoting e WSUS resolvem problemas diferentes e não podem ser trocados pelo simples fato de atuar na rede."
+    },
+    {
+      "key": "e4",
+      "title": "Continuidade e armazenamento",
+      "summary": "Cluster, quórum, virtualização, RAID e backup são camadas distintas; tolerância a falha não garante preservação de versões dos dados."
+    },
+    {
+      "key": "e5",
+      "title": "Linux legado e protocolos de infraestrutura",
+      "summary": "Versões de RHEL diferem em gestão de serviços; SELinux, firewall e permissões não se substituem; NTP, SMTP, DNS e LDAP possuem funções específicas."
+    },
+    {
+      "key": "e6",
+      "title": "Proxy e contêiner Java",
+      "summary": "Nginx/Apache HTTP intermedeiam requisições; Tomcat hospeda aplicações web Jakarta; JBoss oferece ambiente empresarial com modos próprios de administração."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma rede corporativa precisa autenticar usuários e reunir computadores, contas e grupos sob administração centralizada. Qual serviço atende diretamente a esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Active Directory Domain Services, com objetos de diretório e controladores de domínio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DNS, responsável por cadastrar usuários e conceder permissões de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "NTP, que valida credenciais por meio de sincronização de relógios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "WSUS, cuja finalidade principal é autenticar usuários em redes locais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SMTP, que organiza contas e políticas de acesso a computadores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O AD DS mantém objetos de identidade e recursos do domínio, com autenticação e autorização integradas. B confunde resolução de nomes com contas; C troca sincronização horária por autenticação; D atribui ao WSUS uma função de diretório, embora ele administre atualizações; E confunde transporte de e-mail com gestão de identidades.",
+      "section": "1. Active Directory, identidade, LDAP e políticas de grupo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A administração pretende delegar a gestão de usuários de um departamento sem criar outro domínio. Qual objeto do AD é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma nova floresta, com esquema e configuração independentes do domínio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma unidade organizacional, com delegação administrativa de seus objetos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um novo site, que substitua as permissões dos objetos do departamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um catálogo global, para separar a autenticação dos usuários selecionados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma confiança externa, para organizar contas dentro do domínio atual.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. A OU agrupa objetos e admite delegação sem alterar os limites do domínio. A cria fronteira lógica muito mais ampla; C modela topologia física e replicação; D é mecanismo de pesquisa de objetos da floresta; E trata relação de confiança entre estruturas e não substitui contêiner organizacional.",
+      "section": "1. Active Directory, identidade, LDAP e políticas de grupo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema precisa consultar atributos de usuários mantidos no serviço de diretório. Qual protocolo é especificamente voltado a esse acesso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Kerberos, cujo propósito é transportar consultas de atributos LDAP entre clientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "NTP, utilizado para recuperar objetos e atributos do catálogo global.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "LDAP, que permite pesquisar e manipular informações mantidas no diretório.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "RDP, empregado na pesquisa hierárquica de contas e grupos de segurança.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SMTP, empregado para consultar entradas de usuários e computadores no AD.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. LDAP é protocolo de acesso a serviços de diretório, incluindo consultas a entradas e atributos. A confunde Kerberos, voltado à autenticação por tíquetes, com pesquisa; B atribui ao NTP a função de diretório; D transforma protocolo de desktop em consulta; E usa o transporte de mensagens em lugar de LDAP.",
+      "section": "1. Active Directory, identidade, LDAP e políticas de grupo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sem imposição, filtros ou bloqueios, políticas conflitantes estão vinculadas ao domínio e à OU filha em que se encontra um computador. Qual tende a prevalecer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A política local, por ser processada depois da política da OU filha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A política do site, pois tem precedência final sobre as políticas do domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A política do domínio, porque a OU apenas organiza usuários e computadores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A política da OU filha, por ser processada depois da vinculada ao domínio.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A política da OU pai, ainda que o objeto esteja na OU filha.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A sequência padrão LSDOU aplica a OU mais próxima por último, permitindo que sua configuração prevaleça em conflitos ordinários. A coloca a GPO local no fim da ordem; B exagera precedência do site; C ignora vínculos de GPO a OUs; E troca a posição da OU pai pela da OU filha.",
+      "section": "1. Active Directory, identidade, LDAP e políticas de grupo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição deseja sincronizar e aprovar atualizações primeiro em máquinas de testes e depois em produção. Que ferramenta é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RD Gateway, por intermediar o acesso remoto protegido à rede interna.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Failover Cluster, por alternar automaticamente a execução entre nós disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Active Directory Sites, por separar computadores de acordo com suas sub-redes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NTP, por manter relógios alinhados durante a instalação dos pacotes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "WSUS, com grupos de computadores e aprovações controladas de atualizações.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. WSUS sincroniza atualizações e permite aprová-las de forma gradual por grupos. A descreve passagem de tráfego RDS; B trata continuidade de serviços, não gestão de patches; C modela topologia de AD sem aprovar conteúdo; D sincroniza tempo, sem capacidade de distribuir atualizações.",
+      "section": "2. Windows Server, PowerShell, atualizações e acesso remoto",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico precisa executar um comando PowerShell em computadores remotos já preparados para remoting, sem abrir interface gráfica. O cmdlet adequado é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Invoke-Command, que permite executar blocos de comandos em destinos remotos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Get-Help, que abre uma sessão administrativa interativa no servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Get-Process, que configura o túnel de comandos entre computadores remotos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Get-Service, que distribui scripts para múltiplos computadores do domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Get-Command, que conecta automaticamente ao console gráfico de outro host.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Invoke-Command executa comandos ou scriptblocks em máquinas ou sessões remotas configuradas. B exibe documentação; C enumera processos, não configura remoting; D consulta serviços e só atuará remotamente com contexto apropriado; E descobre comandos disponíveis, sem criar conexão gráfica ou administrativa remota.",
+      "section": "2. Windows Server, PowerShell, atualizações e acesso remoto",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer disponibilizar uma sessão de desktop de servidor aos usuários, transmitindo sua interface remotamente. A tecnologia diretamente associada a isso é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "NTP, utilizado no ajuste do relógio de computadores corporativos conectados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RDP, utilizado para acesso à interface de uma sessão remota.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "LDAP, empregado para consulta e alteração de objetos de diretório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SMTP, utilizado no encaminhamento de correio entre servidores de mensagens.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "WSUS, utilizado para distribuição aprovada de atualizações de sistemas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. RDP oferece o protocolo de apresentação e interação com a sessão gráfica remota. A descreve sincronização de horário; C é acesso a diretório; D transporta mensagens eletrônicas; E controla atualizações Microsoft. VPN pode ajudar na conectividade até o servidor, mas não substitui o protocolo da sessão.",
+      "section": "2. Windows Server, PowerShell, atualizações e acesso remoto",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um conjunto de quatro discos de 1 TB é configurado em RAID 5 convencional. Qual capacidade útil aproximada deve ser esperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "1 TB, porque todos os discos espelham uma mesma unidade lógica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "2 TB, porque o nível utiliza pares de discos integralmente espelhados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "3 TB, porque a paridade distribuída equivale à capacidade de um disco.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "4 TB, porque não existe redundância ou redução de capacidade útil.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "2,5 TB, porque a paridade reserva metade de um disco físico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. No RAID 5 com quatro discos iguais, a capacidade aproximada é (4 − 1) × 1 TB = 3 TB. A descreve um espelhamento sem pertinência; B aproxima RAID 10; D corresponderia a RAID 0; E usa uma reserva fracionária de paridade que não representa o cálculo desse arranjo.",
+      "section": "3. Alta disponibilidade, virtualização, consolidação e RAID",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor Linux utiliza systemd como gerenciador de serviços. Qual comando configura o serviço sshd para iniciar automaticamente com o sistema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "systemctl status sshd, que habilita o serviço para todas as inicializações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "systemctl restart sshd, que registra a inicialização automática no boot.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "systemctl start sshd, que habilita o serviço mesmo após desligamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "systemctl enable sshd, que configura o serviço para a inicialização.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "systemctl list-units sshd, que ativa o serviço em todas as sessões.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. No systemd, `systemctl enable sshd` configura habilitação para inicialização automática, sem ser sinônimo de iniciar imediatamente. A consulta estado; B reinicia o processo agora; C inicia no momento, sem necessariamente habilitar o boot; E lista unidades, sem alterar sua habilitação.",
+      "section": "4. Red Hat Enterprise Linux e serviços fundamentais de rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um portal público usa Nginx na frente de um serviço interno, encaminhando requisições HTTP para esse backend. Qual diretiva realiza o encaminhamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "listen, responsável por encaminhar requisições HTTP ao serviço de aplicação interno.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "server_name, responsável por abrir conexão com o backend configurado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "root, que encaminha toda requisição a outra instância HTTP em rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "index, que escolhe o endereço do servidor upstream para cada cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "proxy_pass, que indica para qual serviço upstream a requisição é enviada.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. No módulo HTTP de proxy do Nginx, `proxy_pass` define o encaminhamento ao upstream. A configura escuta; B participa da seleção de servidor virtual por nome; C define a raiz de arquivos estáticos; D trata índices de diretório. Essas diretivas podem coexistir, mas não executam o repasse descrito.",
+      "section": "5. Servidores web, proxy reverso e servidores de aplicação",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma floresta com dois domínios, uma aplicação precisa localizar objetos pertencentes a ambos. Qual recurso do AD oferece pesquisa abrangente de objetos da floresta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O catálogo global, que oferece pesquisa de objetos presentes nos domínios da floresta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma OU compartilhada, que replica integralmente objetos entre os dois domínios.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um site remoto, que unifica as partições de diretório em uma única base.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O DHCP integrado, que armazena atributos de contas dos dois domínios.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O WSUS upstream, que agrega dados de usuário dos vários domínios.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O catálogo global mantém informações necessárias à busca de objetos de toda a floresta, sem exigir que tudo pertença ao mesmo domínio. B confunde OU com mecanismo de replicação entre domínios; C usa topologia física como se fosse fusão lógica; D distribui parâmetros IP; E sincroniza atualizações.",
+      "section": "1. Active Directory, identidade, LDAP e políticas de grupo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política de domínio foi marcada como Enforced; uma OU subordinada bloqueia herança e define valor conflitante. Qual é o efeito esperado para o mesmo ajuste?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O bloqueio de herança remove o vínculo imposto antes de avaliar o conflito.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O vínculo imposto do domínio preserva seu ajuste contra o conflito inferior.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A política local assume precedência, pois as duas políticas de AD conflitam.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A OU transforma automaticamente a configuração imposta em filtro WMI.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O bloqueio torna a OU uma fronteira de floresta isolada do domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Enforced protege configurações do vínculo imposto contra substituição por GPO inferior e o bloqueio de herança não o anula. A atribui ao bloqueio alcance excessivo; C ignora a precedência de políticas de domínio; D mistura filtros WMI com regras de herança; E confunde organização em OU com limite de floresta.",
+      "section": "1. Active Directory, identidade, LDAP e políticas de grupo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer que usuários externos acessem aplicativos publicados por RDS através de HTTPS, sem expor diretamente a porta 3389. A função apropriada é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RD Licensing, que recebe conexões HTTPS e realiza o túnel de desktop.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RD Web Access, cuja função principal é substituir o gateway de conexões.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RD Gateway, que intermedeia conexões remotas utilizando o transporte HTTPS.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "RD Session Host, responsável por encapsular o tráfego externo em HTTPS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RD Connection Broker, que concentra a terminação HTTPS para a internet.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. RD Gateway é a função de entrada remota segura para RDS via HTTPS, normalmente TCP 443. A controla licenças; B apresenta portal de recursos, não substitui por si só o gateway; D hospeda sessões e aplicativos; E gerencia encaminhamento e reconexão de sessões, mas não é o componente de gateway de borda.",
+      "section": "2. Windows Server, PowerShell, atualizações e acesso remoto",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário perde a conexão com sua sessão RDS, que permanece ativa em um dos vários hosts. Qual componente o reconecta à sessão preexistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RD Licensing, por consultar o estado operacional das sessões desconectadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RD Gateway, por armazenar e restaurar os processos da sessão perdida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RD Web Access, por assumir a execução do aplicativo no navegador do usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RD Connection Broker, por identificar e encaminhar o usuário à sessão existente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Windows Update, por restaurar os processos do usuário após desconexão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. O RD Connection Broker gerencia destinos, redirecionamentos e reconexões a sessões hospedadas nos RD Session Hosts. A trata licenças; B intermedeia acesso seguro, não mantém os processos da sessão; C publica acesso web; E gerencia atualização de software, não continuidade de sessão.",
+      "section": "2. Windows Server, PowerShell, atualizações e acesso remoto",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois nós de cluster dispõem de um voto cada e uma testemunha independente possui mais um voto. Qual condição simples mantém a maioria nesse modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um voto ativo, porque cada nó consegue executar sua cópia do serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dois discos ativos, mesmo quando nenhum voto está disponível no cluster.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Três nós ativos, porque testemunhas não participam da votação de quórum.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um nó ativo com qualquer testemunha configurada, mesmo inacessível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dois dos três votos ativos, garantindo mais da metade da votação.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Em um conjunto de três votos efetivos, a maioria requer dois. A admite conjunto minoritário, favorecendo split-brain; B confunde dispositivos físicos com votos; C exige terceiro nó inexistente e desconsidera testemunha; D conta testemunha indisponível como se tivesse voto ativo. A integridade dos serviços ainda depende de outras condições.",
+      "section": "3. Alta disponibilidade, virtualização, consolidação e RAID",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois discos pertencentes ao mesmo par espelhado de um RAID 10 com quatro discos falham ao mesmo tempo. O que isso representa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Perda do par espelhado e possível indisponibilidade dos dados do arranjo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Continuidade garantida, porque RAID 10 suporta quaisquer duas falhas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reconstrução pela dupla paridade, existente em todos os espelhos do RAID.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ativação automática de uma testemunha de quórum para recompor o espelho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conversão automática do arranjo em RAID 5 com os dois discos restantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. RAID 10 distribui dados entre pares espelhados; perder ambos os membros do mesmo par compromete seus dados. B confunde tolerância condicionada com tolerância a qualquer combinação; C descreve paridade de RAID 6, não espelhamento; D importa conceito de cluster; E inventa mudança automática de nível RAID.",
+      "section": "3. Alta disponibilidade, virtualização, consolidação e RAID",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador migra rotinas de serviços de RHEL 6 para RHEL 7. Qual mudança de gestão de inicialização deve considerar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RHEL 7 passou a usar apenas rpm para iniciar e interromper serviços.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RHEL 7 adotou systemd e o comando systemctl como interface principal.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "RHEL 7 substituiu o kernel Linux pelo gerenciador de serviços do Windows.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RHEL 7 abandonou serviços de sistema e usa somente aplicações de usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RHEL 7 tornou LDAP a ferramenta de inicialização dos daemons locais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. RHEL 7 adota systemd/systemctl como base de gerenciamento de unidades e serviços. A confunde empacotamento RPM com controle de processos; C mistura sistemas operacionais; D ignora a estrutura de serviços; E atribui a um protocolo de diretório a função de gerenciar a inicialização do sistema.",
+      "section": "4. Red Hat Enterprise Linux e serviços fundamentais de rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Java originalmente implantada no Tomcat 9 é migrada para Tomcat 10. A inicialização falha por classes de Servlet não encontradas. Qual hipótese tem maior aderência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O LDAP foi substituído pelo Kerberos como linguagem obrigatória de servlets.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O arquivo WAR deve ser convertido em pacote RPM para toda implantação Java.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A API de Servlet mudou de namespace javax.servlet para jakarta.servlet.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O Tomcat 10 deixou de executar aplicações baseadas em requisições HTTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O JBoss assumiu automaticamente o processamento dos servlets do Tomcat 10.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. A migração para Tomcat 10 introduz o namespace jakarta nas APIs antes referidas como javax, exigindo compatibilidade do código e das dependências. A confunde protocolos de diretório/autenticação com APIs Java; B atribui ao RPM obrigação inexistente; D ignora a função web do Tomcat; E inventa integração automática com JBoss.",
+      "section": "5. Servidores web, proxy reverso e servidores de aplicação",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema de aplicação JBoss EAP 7 possui quatro instâncias e exige configuração centralizada de seu grupo de servidores. Qual modo atende a essa administração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Standalone, pois todas as instâncias recebem automaticamente uma configuração comum.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Modo Active Directory, que cria controladores de domínio para os serviços Java.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Modo DNS integrado, que replica as configurações de aplicação entre os hosts.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Managed domain, com coordenação de servidores pelo domínio de gerenciamento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Modo Tomcat proxy, que distribui arquivo de configuração pela porta SMTP.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. O managed domain do JBoss EAP centraliza a administração de um conjunto de instâncias sob controladores de gerenciamento. A descreve execução independente do modo standalone; B confunde domínio de aplicação com AD; C atribui ao DNS replicação de configuração; E mistura Tomcat, proxy e SMTP, que não implementam esse modelo.",
+      "section": "5. Servidores web, proxy reverso e servidores de aplicação",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa deseja publicar serviço interno em Apache HTTP Server, ajustando redirecionamentos que apontam para o nome privado do backend. Qual diretiva é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ProxyRequests On, que reescreve especificamente os cabeçalhos Location do backend.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DocumentRoot, que traduz destinos privados em URLs públicos de redirecionamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ServerAlias, que altera automaticamente referências absolutas do conteúdo HTML.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ProxyPass, que reescreve por si só todos os cabeçalhos de resposta do backend.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ProxyPassReverse, que ajusta cabeçalhos de redirecionamento nas respostas intermediadas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. `ProxyPassReverse` modifica cabeçalhos de redirecionamento como Location, Content-Location e URI em respostas de backend conforme mapeamento. A liga proxy direto, não a reescrita descrita; B define raiz de arquivos; C serve a aliases de nomes virtuais; D mapeia requisições de entrada ao upstream, sem substituir o papel da diretiva Reverse.",
+      "section": "5. Servidores web, proxy reverso e servidores de aplicação",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um ambiente com GPOs conflitantes, o vínculo de domínio é Enforced, a OU filha usa Block Inheritance e um filtro WMI restringe outra política a determinada versão de sistema. Qual análise está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O vínculo Enforced pode prevalecer, e a política filtrada só aplica quando o filtro corresponde.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O Block Inheritance elimina qualquer imposição e também desativa filtros WMI do domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O filtro WMI define ordem de processamento superior à GPO local e ao vínculo imposto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A aplicação de GPO depende apenas da posição da OU, independentemente de filtros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A imposição muda o filtro WMI para consulta LDAP com resultado obrigatoriamente verdadeiro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O vínculo imposto mantém prioridade sobre conflito inferior e o filtro WMI pode impedir uma GPO de aplicar a equipamentos que não satisfazem sua condição. B exagera o bloqueio; C confunde filtro de elegibilidade com ordem; D ignora segurança e WMI; E mistura mecanismos sem relação de conversão automática.",
+      "section": "1. Active Directory, identidade, LDAP e políticas de grupo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O WSUS de uma filial está configurado em modo de réplica de um servidor upstream. A equipe local tenta instituir aprovações próprias para outro grupo. Qual orientação corresponde ao modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor de réplica sincroniza arquivos, mas ignora aprovações provenientes do upstream.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O modo de réplica herda aprovações e grupos; aprovações locais exigem outro modelo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O WSUS em réplica converte GPOs de clientes em políticas locais de firewall.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O upstream só fornece DNS, cabendo ao downstream definir a lista de correções.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A filial deve substituir o WSUS por NTP para aprovar atualizações independentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O modo réplica centraliza decisões e herda aprovações/grupos definidos no upstream; um modelo de administração distribuída permite decisões locais. A ignora herança de aprovações; C confunde diretivas do Windows com firewall; D nega a função de atualizações do upstream; E troca gerenciamento de patches por sincronização de relógios.",
+      "section": "2. Windows Server, PowerShell, atualizações e acesso remoto",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um host físico executa seis VMs. Após defeito do próprio host, todas ficam indisponíveis, embora cada VM tenha seu sistema independente. Que conclusão é tecnicamente correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A independência lógica garante sobrevivência das VMs sem redundância de host.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O isolamento virtual substitui a necessidade de mecanismos externos de recuperação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A consolidação concentra dependência física e requer planejamento de resiliência.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O RAID interno de cada VM assegura restauração automática do hardware físico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O uso de um hipervisor tipo 1 dispensa capacidade excedente e monitoramento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. VMs oferecem isolamento lógico, mas compartilham recursos do host, e sua falha pode indisponibilizar todas as cargas consolidadas. A confunde independência lógica com física; B transforma isolamento em recuperação de desastre; D atribui a RAID de VM reparo de host; E ignora limites de capacidade e pontos de falha mesmo em hipervisores tipo 1.",
+      "section": "3. Alta disponibilidade, virtualização, consolidação e RAID",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Linux falha ao abrir um arquivo. As permissões tradicionais permitem acesso ao usuário do processo, mas o SELinux está em enforcing e o log indica negação. Qual interpretação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A permissão Unix autoriza automaticamente o acesso, anulando a decisão do SELinux.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A negação demonstra que o firewall de rede substituiu o controle de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Em enforcing, o SELinux apenas registra violações, como se estivesse em permissive.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O controle obrigatório SELinux pode negar acesso apesar da permissão Unix favorável.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A instalação de Yum reescreve permissões para contornar toda regra de segurança.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. SELinux em enforcing aplica política MAC adicional ao controle discricionário Unix e pode negar operação autorizada por bits tradicionais. A presume que DAC prevalece sobre MAC; B confunde firewall e arquivo local; C troca enforcing por permissive; E atribui ao gestor de pacotes uma capacidade genérica de contornar controles.",
+      "section": "4. Red Hat Enterprise Linux e serviços fundamentais de rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário externo acessa portal HTTPS com Nginx que repassa para Tomcat em porta interna. O navegador recebe 502, mas o DNS e o certificado estão corretos. Qual investigação inicial é mais específica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A estrutura das OUs do AD, pois 502 identifica herança de GPO inválida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O WSUS da rede, pois 502 representa atualização ainda não aprovada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O protocolo SMTP, pois 502 em HTTPS indica falha de transporte de e-mails.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A testemunha de quórum, pois 502 é emitido somente por clusters sem maioria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A conexão e a resposta do upstream Tomcat, incluindo porta e logs do Nginx.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. O 502 Bad Gateway em um proxy frequentemente indica falha ao obter resposta válida do backend; examine conectividade, porta, processo e logs. A atribui código HTTP à estrutura de AD; B associa código de gateway à aprovação de patches; C transfere erro de aplicação web ao SMTP; D confunde situação de cluster com diagnóstico exclusivo do protocolo HTTP.",
+      "section": "5. Servidores web, proxy reverso e servidores de aplicação",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao criar uma OU chamada Projetos dentro de um domínio existente, o administrador pode nela organizar contas e delegar administração, sem instituir um novo domínio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Unidades organizacionais são contêineres internos à estrutura do domínio e podem receber objetos e delegações administrativas. A criação da OU não cria uma floresta, não altera o esquema do AD e tampouco institui uma nova partição de domínio.",
+      "section": "1. Active Directory, identidade, LDAP e políticas de grupo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao iniciar o serviço sshd em um servidor RHEL 7 com `systemctl start sshd`, o administrador garante, pelo mesmo comando, que o serviço será iniciado em todos os boots seguintes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `systemctl start` inicia uma unidade no momento, mas não define sua habilitação persistente na inicialização. Para configurar o serviço sshd para iniciar no boot utiliza-se `systemctl enable sshd`, observadas as dependências e a disponibilidade do serviço.",
+      "section": "4. Red Hat Enterprise Linux e serviços fundamentais de rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma filial com relógios divergentes entre servidores pode usar NTP para sincronizar horários, medida relevante também para a operação normal de autenticação baseada em Kerberos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O NTP é empregado na sincronização de relógios, normalmente por UDP 123. Kerberos utiliza tíquetes sujeitos a verificações temporais; assim, diferenças significativas de horário podem prejudicar autenticação, ainda que DNS e credenciais estejam corretos.",
+      "section": "4. Red Hat Enterprise Linux e serviços fundamentais de rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arranjo RAID 0 com três unidades de armazenamento permanece operacional, sem perda de dados, após a falha completa de qualquer uma dessas unidades.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. RAID 0 distribui blocos entre as unidades para desempenho e capacidade, mas não produz espelho nem paridade. A falha de uma unidade normalmente compromete os dados do volume. Tolerância a falhas aparece em outros níveis, como RAID 1 e RAID 5.",
+      "section": "3. Alta disponibilidade, virtualização, consolidação e RAID",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa que disponibiliza desktop remoto por RDP e outra que fornece acesso à rede por VPN empregam mecanismos com finalidades técnicas distintas, ainda que possam ser combinados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. VPN estabelece conectividade de rede por túnel, enquanto RDP permite interação com uma sessão gráfica remota. É possível acessar o serviço RDP após estabelecer a VPN, mas isso não transforma o túnel em protocolo de desktop.",
+      "section": "2. Windows Server, PowerShell, atualizações e acesso remoto",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Nginx empregado como proxy reverso, a diretiva `server_name` é a responsável por encaminhar requisições recebidas a um backend HTTP definido em uma URL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `server_name` identifica nomes de servidor para seleção de blocos de configuração; o encaminhamento HTTP ao backend é realizado pela diretiva `proxy_pass`, tipicamente em um bloco `location`. Confundir seleção do servidor virtual com repasse ao upstream compromete o diagnóstico.",
+      "section": "5. Servidores web, proxy reverso e servidores de aplicação",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma floresta do AD com dois domínios, o catálogo global permite localizar informações sobre objetos pertencentes a ambos, conforme os atributos que disponibiliza.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O catálogo global provê pesquisa de objetos da floresta, permitindo procurar identidades sem restringir a consulta ao próprio domínio. Isso não significa que ele substitua integralmente cada controlador de domínio ou reproduza todos os atributos de todos os objetos.",
+      "section": "1. Active Directory, identidade, LDAP e políticas de grupo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma OU estiver com Block Inheritance, as configurações de uma GPO superior com vínculo Enforced serão necessariamente descartadas na OU, independentemente do restante da configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Block Inheritance interrompe herança ordinária, mas vínculos marcados como Enforced resistem ao bloqueio e podem continuar aplicáveis. A verificação ainda exige considerar escopo do vínculo e filtros; não se pode declarar descarte automático de política imposta.",
+      "section": "1. Active Directory, identidade, LDAP e políticas de grupo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma implantação de RDS pode usar RD Session Host para hospedar sessões e RD Connection Broker para encaminhar usuários à sessão ativa, inclusive quando houve desconexão anterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Host de Sessão executa os desktops e aplicativos com base em sessões; o Broker gerencia conexões e reconexões na coleção de hosts. A função do Broker não substitui o Host, assim como o Gateway RD possui papel distinto no acesso externo.",
+      "section": "2. Windows Server, PowerShell, atualizações e acesso remoto",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor WSUS upstream foi escolhido para administração centralizada. Mesmo em modo de réplica, o servidor downstream pode alterar localmente aprovações de atualizações sem afetar sua condição de réplica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O servidor WSUS downstream configurado em modo de réplica herda aprovações e grupos do upstream, em vez de administrá-los independentemente. Para deliberação local, a topologia deve empregar gerenciamento distribuído, conforme as regras do WSUS.",
+      "section": "2. Windows Server, PowerShell, atualizações e acesso remoto",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cluster com dois nós votantes e uma testemunha que também vota, a disponibilidade de dois votos representa maioria no modelo simples de três votos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Mais da metade de três votos requer dois votos ativos. Uma testemunha pode permitir que o nó sobrevivente mantenha a maioria em certas falhas; isso não dispensa verificar armazenamento, rede e requisitos do serviço nem substituir mecanismos de backup.",
+      "section": "3. Alta disponibilidade, virtualização, consolidação e RAID",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VM protegida por RAID no próprio host físico dispensa cópias de segurança, porque o arranjo preservará versões anteriores dos arquivos após exclusões acidentais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. RAID protege disponibilidade contra certas falhas de unidades, não mantém automaticamente histórico independente de versões. Exclusões e corrupção lógica podem alcançar o volume inteiro. Backup testado e independente é controle distinto da redundância de discos.",
+      "section": "3. Alta disponibilidade, virtualização, consolidação e RAID",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em RHEL 7, uma negativa de acesso pelo SELinux em modo enforcing pode ocorrer mesmo quando permissões tradicionais de usuário e grupo autorizam a leitura do arquivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O SELinux fornece controle obrigatório de acesso, complementar às permissões discricionárias do Unix. No modo enforcing, regras de contexto e política podem bloquear operações aparentemente permitidas pelos bits convencionais de leitura e escrita.",
+      "section": "4. Red Hat Enterprise Linux e serviços fundamentais de rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação legada que importa `javax.servlet` poderá ser movida para Tomcat 10 sem ajustes de código ou bibliotecas apenas porque os dois produtos são servidores HTTP de aplicações Java.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A passagem para Tomcat 10 traz mudança relevante de namespace para `jakarta.servlet`; bibliotecas e aplicações compiladas contra APIs antigas podem necessitar conversão ou recompilação. Suportar HTTP não assegura compatibilidade binária de APIs Java.",
+      "section": "5. Servidores web, proxy reverso e servidores de aplicação",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador utiliza `ProxyPassReverse` no Apache HTTP Server para ajustar cabeçalhos de redirecionamento recebidos do backend e evitar exposição de endereços internos nesses cabeçalhos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A diretiva atua sobre cabeçalhos como Location e Content-Location em respostas de proxy, alinhando redirecionamentos ao endereço externo. Ela não reescreve automaticamente todos os links dentro do corpo HTML e não substitui `ProxyPass` no mapeamento de requisições.",
+      "section": "5. Servidores web, proxy reverso e servidores de aplicação",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como JBoss EAP 7 possui opção managed domain, a instância configurada nesse modo se torna controladora do domínio Active Directory utilizado pelos usuários do aplicativo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Managed domain é modo de administração coordenada de instâncias do JBoss EAP; seu controlador de domínio é componente de gerenciamento da plataforma. O domínio AD DS tem finalidade distinta, envolvendo objetos de diretório e autenticação centralizada da rede.",
+      "section": "5. Servidores web, proxy reverso e servidores de aplicação",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma floresta com vários domínios, os sites do AD podem representar sub-redes e orientar o tráfego de replicação, independentemente da estrutura lógica em OUs e domínios.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Sites refletem aspectos físicos de conectividade e ajudam a otimizar localização de controladores e replicação. OUs e domínios refletem a organização lógica e administrativa, de modo que as divisões por site não precisam coincidir com as fronteiras de domínio.",
+      "section": "1. Active Directory, identidade, LDAP e políticas de grupo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de RDS com RD Gateway elimina a necessidade de RD Session Host em uma arquitetura que fornece sessões de aplicativos instalados em servidores Windows.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O RD Gateway estabelece acesso remoto protegido aos recursos RDS, enquanto o RD Session Host executa as sessões e os aplicativos publicados. O gateway não assume o papel de hospedagem de processos e interfaces do usuário; as funções se complementam.",
+      "section": "2. Windows Server, PowerShell, atualizações e acesso remoto",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estratégia que consolida dez servidores físicos em VMs pode reduzir o número de hosts, mas deve considerar a concentração de falhas e a disputa de recursos compartilhados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Consolidação virtual utiliza recursos físicos com maior densidade, reduzindo máquinas subutilizadas; porém CPU, memória, armazenamento e rede continuam compartilhados. Sem redundância e capacidade planejadas, a falha de um host pode afetar várias cargas de trabalho simultaneamente.",
+      "section": "3. Alta disponibilidade, virtualização, consolidação e RAID",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um servidor RHEL 7 com SELinux em permissive, a política MAC impede efetivamente todo acesso violador e descarta registros de negação para reduzir o volume de logs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O modo permissive não bloqueia as operações apenas pela política SELinux, embora registre eventos que teriam sido negados em enforcing. A afirmação troca os comportamentos dos modos; outras barreiras, como permissões Unix e firewall, continuam atuando independentemente.",
+      "section": "4. Red Hat Enterprise Linux e serviços fundamentais de rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Active Directory Domain Services overview",
+      "publisher": "Microsoft Learn",
+      "reference": "AD DS, objetos, replicação e catálogo global",
+      "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/get-started/virtual-dc/active-directory-domain-services-overview",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Understanding the Active Directory Logical Model",
+      "publisher": "Microsoft Learn",
+      "reference": "Floresta, domínios e unidades organizacionais",
+      "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/understanding-the-active-directory-logical-model",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Group Policy processing",
+      "publisher": "Microsoft Learn",
+      "reference": "Sequência LSDOU, Enforced e Block Inheritance",
+      "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/group-policy/group-policy-processing",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Remote Desktop Services roles",
+      "publisher": "Microsoft Learn",
+      "reference": "RD Session Host, Connection Broker, Gateway, Web Access e Licensing",
+      "url": "https://learn.microsoft.com/en-us/windows-server/remote/remote-desktop-services/rds-roles",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What is a failover cluster quorum witness?",
+      "publisher": "Microsoft Learn",
+      "reference": "Votos, maioria e testemunhas de quórum",
+      "url": "https://learn.microsoft.com/en-us/windows-server/failover-clustering/what-is-quorum-witness",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Plan your WSUS deployment",
+      "publisher": "Microsoft Learn",
+      "reference": "WSUS upstream, downstream e modo de réplica",
+      "url": "https://learn.microsoft.com/pt-br/windows-server/administration/windows-server-update-services/plan/plan-your-wsus-deployment",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Deploy updates using Windows Server Update Services",
+      "publisher": "Microsoft Learn",
+      "reference": "Aprovação, GPO e condição atual de recurso descontinuado",
+      "url": "https://learn.microsoft.com/en/windows/deployment/update/waas-manage-updates-wsus",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Running remote commands",
+      "publisher": "Microsoft Learn",
+      "reference": "Invoke-Command e Enter-PSSession",
+      "url": "https://learn.microsoft.com/en-us/powershell/scripting/learn/remoting/running-remote-commands?view=powershell-7.3&viewFallbackFrom=powershell-7.1",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Windows Server 2012 lifecycle",
+      "publisher": "Microsoft Learn",
+      "reference": "Fim do suporte estendido e ESU",
+      "url": "https://learn.microsoft.com/en-us/lifecycle/products/windows-server-2012",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Windows Server 2016 lifecycle",
+      "publisher": "Microsoft Learn",
+      "reference": "Fim do suporte estendido em janeiro de 2027",
+      "url": "https://learn.microsoft.com/en-us/lifecycle/products/windows-server-2016",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Red Hat Enterprise Linux 7 System Administrator’s Guide",
+      "publisher": "Red Hat",
+      "reference": "systemd, Yum, firewalld e SELinux",
+      "url": "https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/7/html-single/system_administrators_guide/index",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Tomcat 10 Migration Guide",
+      "publisher": "Apache Software Foundation",
+      "reference": "Migração de javax para jakarta",
+      "url": "https://tomcat.apache.org/migration-10",
+      "accessedAt": "2026-10-09"
+    }
+  ]
+}

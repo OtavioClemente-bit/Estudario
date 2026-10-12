@@ -1,0 +1,1826 @@
+{
+  "id": "informatica.microsservicos-api-gateway-mensageria",
+  "subject": "Informática",
+  "title": "Microsserviços, API gateway e mensageria (PDPJ-Br)",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Microsserviços, API gateway e mensageria (PDPJ-Br)"
+  ],
+  "scope": {
+    "covers": "Arquitetura distribuída e DDD, microsserviços e persistência por serviço, REST/HTTP e JSON, gateway e APIs de retorno, Eureka/discovery, configuração centralizada, Spring, SSO/OIDC, resiliência, observabilidade, deploy e CI/CD, eventos e RabbitMQ, webhooks, JPA/Hibernate, Envers, Flyway, H2 e MapStruct segundo o contexto da PDPJ-Br.",
+    "excludes": "Programação Java integral, implantação guiada de clusters, exploração de vulnerabilidades, operação avançada de bancos e desenvolvimento de interfaces de usuário."
+  },
+  "theoryTitle": "Microsserviços, APIs, integração e mensageria na PDPJ-Br: teoria completa para provas",
+  "chapters": [
+    {
+      "title": "1. Fundamentos de microsserviços e padrões arquiteturais",
+      "markdown": "## Decomposição por capacidade de negócio\nUm **microsserviço** encapsula uma capacidade de negócio, suas regras e um contrato de integração. Considere uma plataforma que registra solicitações, calcula cobranças e envia notificações. Em vez de um único processo com todas as regras, podem existir serviços de **solicitações**, **cobrança** e **notificações**, implantáveis separadamente. A separação física de pacotes ou a existência de várias APIs, isoladamente, não transforma um sistema em microsserviços: importa a autonomia para evoluir o domínio, executar, escalar e publicar uma funcionalidade sem exigir a atualização sincronizada de todo o sistema.\n\nNo **monólito modular**, os módulos podem ter fronteiras lógicas excelentes, porém são implantados como uma aplicação. Microsserviços envolvem processos ou unidades de implantação independentes e introduzem falhas de rede, latência, autenticação entre serviços, versionamento de contratos e consistência distribuída. Portanto, não são superiores em qualquer cenário: para domínio pequeno, equipe reduzida e baixa necessidade de escalabilidade independente, a simplicidade do monólito modular pode ser uma vantagem.\n\n### Contextos delimitados e propriedade dos dados\nEm *Domain-Driven Design* (DDD), o **bounded context** estabelece onde determinado modelo de domínio tem significado. A expressão 'situação da solicitação' pode ser *recebida* em um serviço e *liquidada* em outro, sem que exista uma única tabela universal que defina a semântica de ambos. A decomposição segue responsabilidades de negócio, e não uma divisão mecânica em 'serviço de controlador', 'serviço de banco' e 'serviço de tela'. **Alta coesão e baixo acoplamento** significam manter regras relacionadas próximas e evitar que uma alteração local force várias implantações simultâneas.\n\nA regra de **persistência por serviço** é de propriedade: cada serviço controla o esquema e a evolução dos seus dados. Podem existir bancos físicos distintos ou isolamento lógico suficiente, mas outro serviço não deve atualizar diretamente as tabelas internas do primeiro. Por exemplo, o serviço de relatórios lê um evento `SolicitacaoRegistrada` ou consulta uma API pública, e não executa `UPDATE solicitacoes` na base do serviço de solicitações. Compartilhar o mesmo SGBD não é prova de que há um único serviço; compartilhar tabelas como contrato costuma comprometer a autonomia.\n\n### Coreografia, orquestração e consistência\nNa **coreografia**, serviços reagem a eventos e decidem localmente o próximo passo: `PagamentoConfirmado` pode disparar emissão de comprovante e atualização de projeção, sem um controlador ditar cada chamada. Na **orquestração**, um componente coordenador manda executar etapas, acompanha estados e decide compensações. A PDPJ-Br estabelece, em seu modelo arquitetural, microsserviços preferencialmente estruturados por DDD, com **coreografia** e interação por serviço centralizado de mensageria; a existência de um broker central não equivale à existência de uma lógica central de negócio.\n\nUma saga coordena **transações locais** em serviços diferentes: reservar recurso → confirmar pagamento → finalizar pedido. Se o pagamento falhar, pode-se disparar uma **ação compensatória**, como cancelar a reserva. A compensação é operação negocial posterior, não `ROLLBACK` atômico distribuído de tudo que já foi confirmado. Consequentemente, uma consulta pode observar por instantes a reserva efetuada e o pagamento pendente: isso é **consistência eventual**. Sistemas distribuídos demandam decisão consciente sobre o ponto em que consistência forte realmente é imprescindível.\n\n| Arquitetura | Unidade de implantação | Integração predominante | Risco típico |\n| --- | --- | --- | --- |\n| Monólito modular | Aplicação inteira | Chamadas locais entre módulos | Implantação acoplada |\n| Microsserviços | Serviço independente | API e eventos pela rede | Latência e falhas parciais |\n| Coreografia | Decisão em cada participante | Eventos de domínio | Difícil visualizar o fluxo completo |\n| Orquestração | Coordenação explícita | Comandos e respostas | Coordenador concentrar lógica |\n\n> **Reconhecimento em prova:** a necessidade de escalar somente o processamento de notificações indica autonomia de implantação; a necessidade de cancelar uma reserva após falha posterior indica compensação de saga, não transação única entre bancos. Um broker de mensagens é infraestrutura compartilhada, mas as decisões sobre eventos permanecem nos domínios."
+    },
+    {
+      "title": "2. APIs RESTful, JSON, gateway e descoberta de serviços",
+      "markdown": "## REST, HTTP e contratos explícitos\nUma **API RESTful** expõe recursos identificados por URI e utiliza a semântica de HTTP. Exemplo: `GET /solicitacoes/42` consulta a representação da solicitação 42; `POST /solicitacoes` pede a criação de recurso; `PUT /solicitacoes/42` substitui a representação do recurso indicado; `PATCH /solicitacoes/42` aplica uma alteração parcial, cujo formato precisa ser definido; `DELETE /solicitacoes/42` solicita exclusão. O fato de a URI conter um verbo não faz dela, por si só, uma boa API orientada a recursos. **Stateless** refere-se à autossuficiência contextual de cada requisição: o servidor não depende de uma sessão conversacional anterior para compreendê-la, mas pode consultar e modificar dados persistidos.\n\n**Segurança e idempotência HTTP são conceitos distintos.** `GET` é método seguro e idempotente na semântica do protocolo; `PUT` e `DELETE` são idempotentes, embora possam alterar estado; `POST` geralmente não tem garantia de idempotência. `PATCH` pode ser idempotente dependendo da operação: substituir `status` por `aprovado` difere de incrementar `tentativas` em 1. `201 Created` representa criação concluída; `202 Accepted` representa aceitação para processamento posterior, **sem** afirmar que o processamento terminou; `204 No Content` significa sucesso sem corpo. `404` indica recurso não encontrado; `409`, conflito com o estado atual; `503`, indisponibilidade temporária. Não se deve converter toda exceção em `200`.\n\n### JSON e evolução contratual\n**JSON** possui objetos (`{}`), arrays (`[]`), strings entre aspas duplas, números, `true`, `false` e `null`. Exemplo válido: `{\"id\":42,\"etapas\":[\"triagem\",\"analise\"],\"ativo\":true,\"prazo\":null}`. Não há suporte sintático padrão a comentários, aspas simples para strings ou vírgula terminal. `\"42\"` é string; `42` é número; `null` não equivale a campo omitido. O cabeçalho `Content-Type: application/json` declara o formato da representação; JSON não define por si só autenticação, persistência nem transporte obrigatório. APIs maduras documentam recursos, esquemas, respostas e erros com **OpenAPI**; Swagger é um conjunto de ferramentas associado a esse ecossistema, não sinônimo exato da especificação.\n\nAlterar um campo de obrigatório para opcional costuma facilitar a evolução de consumidores, mas a compatibilidade depende do contrato completo. Por exemplo, remover `valorTotal` quebra um cliente que exige essa propriedade; acrescentar campo desconhecido pode ser compatível com clientes tolerantes, não com todo validador estrito. Versionar API e usar testes de contrato evita alterações silenciosas entre serviços.\n\n## API Gateway e proxy reverso\nUm **API Gateway** recebe requisições dos clientes e escolhe o serviço de destino; pode autenticar, aplicar limite de taxa, observabilidade, transformação de cabeçalhos, políticas e roteamento. Exemplo: `/api/pagamentos/**` é encaminhado ao conjunto de instâncias do serviço de pagamentos. **Proxy reverso** é a posição arquitetural de um intermediário que representa servidores de origem perante clientes; um gateway pode atuar como proxy reverso, com responsabilidades adicionais de política e gestão de APIs. O termo **APIs reversas** em materiais de integração pode designar interfaces de retorno/callback expostas pelo integrador; não é um método HTTP formal nem definição intercambiável com proxy reverso.\n\n**Zuul** é um produto de roteamento de borda citado em arquiteturas históricas; **Spring Cloud Gateway** fornece mecanismo atual de rotas, predicados e filtros. Eles não são o registro de serviços. O gateway pode consultar o discovery para resolver `pagamentos` em uma instância concreta; a implementação exata e o balanceamento dependem da configuração.\n\n### Service discovery e configuração\nO **service discovery** resolve um nome lógico de serviço para instâncias disponíveis. Em um registro como **Eureka**, a aplicação registra metadados, endereço e disponibilidade, e clientes podem consultar as instâncias. Se `consulta` sobe de duas para cinco réplicas, o catálogo muda sem impor cinco endereços fixos em cada consumidor. Registro e **balanceamento de carga** são funções diferentes: o registro informa *onde* as instâncias estão; outro componente usa as informações para decidir *qual* será chamada. Heartbeats e expiração do registro ajudam a retirar instâncias indisponíveis, mas não substituem políticas de saúde e tolerância a falhas.\n\n**Configuração centralizada** mantém parâmetros por aplicação, perfil e ambiente em um lugar controlado, por exemplo com Spring Cloud Config. Ela reduz divergências entre réplicas, mas não dispensa controle de acesso, proteção dos segredos e estratégia para falha do servidor de configuração. A mudança de propriedade não implica atualização instantânea e automática de todos os processos: a propagação depende do mecanismo de recarga adotado.\n\n| Componente | Pergunta respondida | Exemplo |\n| --- | --- | --- |\n| Gateway | Por qual entrada e rota a requisição passa? | `/api/solicitacoes/**` → serviço de solicitações |\n| Discovery | Onde está cada instância? | `solicitacoes` → endereços A e B |\n| Balanceador | Qual instância receberá esta chamada? | Selecionar endereço B |\n| Config Server | Qual parâmetro vale neste ambiente? | `timeout=2s` para produção |\n\n> **Reconhecimento em prova:** registrar réplicas no Eureka não publica uma API ao cliente; publicar uma rota no gateway não descobre automaticamente instâncias caso o mecanismo de descoberta não tenha sido integrado."
+    },
+    {
+      "title": "3. Spring, segurança, resiliência e operação distribuída",
+      "markdown": "## Ecossistema Spring sem confundir responsabilidades\nO **Spring Framework** fornece inversão de controle, injeção de dependências, gerenciamento de componentes e suporte a tecnologias de acesso a dados e web. **Spring Boot** simplifica criação e inicialização de aplicações, com autoconfiguração, dependências iniciais e possibilidade de servidor embutido. **Spring Cloud** reúne projetos voltados a problemas distribuídos, como descoberta, configuração e roteamento. Um `@RestController` expõe endpoints HTTP; isso não torna automaticamente a aplicação descoberta, resiliente ou autenticada.\n\nHistoricamente aparecem **Eureka**, **Zuul** e **Hystrix** juntos em descrições de plataformas baseadas em Spring Cloud Netflix. É preciso distinguir **tecnologia citada na pilha histórica** de **opção recomendada em versões recentes**: a documentação atual de Spring Cloud Netflix enfatiza Eureka; soluções de gateway e circuit breaker têm projetos próprios, como Spring Cloud Gateway e Spring Cloud Circuit Breaker. Misturar instruções de versões diferentes pode gerar dependências incompatíveis. A compatibilidade deve seguir a matriz de versões do conjunto de projetos adotado.\n\n### Identidade federada, SSO e autorização\n**Single sign-on (SSO)** permite ao usuário autenticar-se em um provedor de identidade e acessar aplicações integradas sem repetir credenciais a cada entrada, respeitadas sessões, políticas e consentimentos. Em cenários de **Keycloak** com **OpenID Connect (OIDC)**, o `id_token` representa informações de autenticação destinadas ao cliente; o `access_token` destina-se ao acesso a recursos protegidos, conforme emissor, audiência, escopos e validações. **OAuth 2.0** é uma estrutura de delegação de autorização; **OIDC** adiciona uma camada de identidade sobre ela. Não basta encontrar um JWT bem formado: é preciso validar assinatura segundo a configuração do emissor, expiração, audiência e permissões adequadas à API.\n\nExemplo: o cliente recebe credencial para consultar registros, mas tenta executar `DELETE /registros/8`. Estar autenticado via SSO não implica ter a permissão de exclusão; o serviço continua responsável pela **autorização**. Gateways podem aplicar políticas iniciais, mas decisões vinculadas ao recurso precisam ser preservadas nos serviços. A PDPJ-Br incorpora SSO e autenticação federada em sua documentação arquitetural.\n\n## Resiliência: falhas parciais existem\nEm uma requisição que atravessa gateway, serviço A e serviço B, é possível A funcionar e B não responder. **Timeout** limita o tempo de espera; **retry** refaz tentativa transitória, com limite e *backoff*, idealmente *jitter* para não sincronizar todos os clientes; **circuit breaker** abre após critérios de falhas e evita insistir num destino provavelmente indisponível; **bulkhead** limita consumo compartilhado de recursos para isolar sobrecargas. Nenhum desses mecanismos corrige sozinho o efeito duplicado de uma operação de negócio.\n\nImagine `POST /cobrancas` processado com sucesso, mas cuja resposta se perdeu. Um retry ingênuo cria duas cobranças. O cliente pode enviar uma **chave de idempotência**, e o servidor registrar o resultado vinculado a ela; a repetição devolve o mesmo resultado lógico sem refazer o efeito. A chave deve ter escopo, validação de conteúdo e retenção definidos pelo serviço. Em casos apropriados, uma restrição de unicidade no banco fortalece a regra.\n\n| Mecanismo | Problema tratado | Limite importante |\n| --- | --- | --- |\n| Timeout | Espera indefinida por resposta | Não cancela automaticamente efeito já realizado |\n| Retry | Falha transitória | Pode duplicar efeito não idempotente |\n| Circuit breaker | Erros reiterados a jusante | Não substitui retentativa criteriosa |\n| Bulkhead | Saturação de pool e recursos | Não corrige contrato de negócio |\n| Idempotência | Reprocessamento da mesma operação | Exige identificação estável da operação |\n\n### Observabilidade e deploy\n**Logs** registram eventos e detalhes; **métricas** indicam taxas, latências e erros; **traces** correlacionam etapas de uma execução distribuída por meio de identificadores e spans. Se uma chamada sai do gateway, atravessa dois serviços e gera evento no broker, um contexto de rastreamento propagado ajuda a compreender o fluxo. Logs de serviços isolados, sem correlação, raramente bastam. É recomendável retirar dados pessoais sensíveis e segredos de logs e atributos de telemetria.\n\n**Deploy** é disponibilizar uma versão executável no ambiente. Containers empacotam aplicação e dependências; um orquestrador como **Kubernetes** gerencia réplicas, reinícios, serviços e atualizações. **CI** integra e testa alterações; **CD** automatiza entrega e, conforme a prática adotada, implantação. Um teste aprovado no pipeline não garante ausência de regressões. Atualização gradual precisa considerar compatibilidade entre versões que coexistem, migrações de banco e retorno controlado à versão anterior.\n\n> **Reconhecimento em prova:** perda de resposta após gravação remete a idempotência; dezenas de chamadas penduradas em serviço lento exigem timeout e isolamento; dificuldade em seguir uma requisição entre réplicas pede tracing distribuído."
+    },
+    {
+      "title": "4. Mensageria, RabbitMQ, eventos e webhooks",
+      "markdown": "## Comunicação assíncrona e evento negocial\nUma chamada **HTTP síncrona** normalmente pressupõe resposta imediata do serviço consultado. Na **mensageria**, o produtor entrega mensagem à infraestrutura e o consumidor pode processá-la depois. A separação temporal melhora absorção de picos e desacoplamento, mas impõe desenho explícito de confirmação, reentrega, ordem e observabilidade. **Evento negocial** registra algo que ocorreu no domínio, como `PagamentoConfirmado`, preferencialmente com identificador, tipo, versão, momento e referência do agregado. Um **comando** como `ConfirmarPagamento` expressa intenção de executar uma ação; não deve ser rotulado como evento concluído antes de sua confirmação.\n\nA arquitetura de mensageria da PDPJ-Br usa um **message broker** e integra eventos a notificações, inclusive com destinos de webhook. Um broker recebe, roteia e disponibiliza mensagens para consumidores; não é, por definição, o banco relacional de cada microsserviço. Uma projeção de leitura atualizada por eventos pode apresentar atraso tolerável em relação ao serviço emissor.\n\n### RabbitMQ: exchange, binding e fila\nNo **RabbitMQ** com AMQP 0-9-1, o produtor geralmente publica em um **exchange**, que roteia para **queues** segundo *bindings*. O consumidor recebe de uma fila. Em `direct`, a routing key deve corresponder exatamente à chave do binding; em `topic`, padrões `*` e `#` permitem correspondência por palavras separadas por ponto (`*`: exatamente uma palavra; `#`: zero ou mais); em `fanout`, o exchange distribui às filas vinculadas, sem usar a routing key no critério de roteamento. Uma única fila com dois consumidores concorrentes distribui entregas entre eles; **duas filas distintas vinculadas ao mesmo fanout** permitem que cada grupo receba uma cópia da publicação.\n\n**Durabilidade da fila** e **persistência da mensagem** são dimensões distintas; usar uma sem a outra não oferece garantia geral contra perda em reinício. **Publisher confirms** indicam que o broker assumiu responsabilidade por uma publicação; não provam que o consumidor executou a regra de negócio. **Consumer acknowledgements** (`basic.ack`) sinalizam tratamento de uma entrega pelo consumidor; em modo manual, só devem ocorrer após o efeito necessário ter sido efetivado. `basic.nack` ou `basic.reject` permitem tratamento negativo com política de requeue quando cabível. `prefetch` limita entregas não confirmadas por consumidor/canal segundo as condições da configuração, reduzindo sobrecarga.\n\n### Reentrega, duplicação e filas de falha\nSe o consumidor persiste uma alteração e cai antes do `ack`, a mensagem pode voltar, embora o primeiro efeito já tenha ocorrido. Portanto, **at-least-once** requer consumidores **idempotentes**, por exemplo tabela `processed_events(event_id)` com unicidade e registro transacional do processamento. `at-most-once` aceita a possibilidade de perda; 'exactly once' de efeito negocial não é uma consequência automática do broker. Uma **dead-letter exchange (DLX)** pode receber mensagens rejeitadas sem requeue, expiradas ou sujeitas a outras condições documentadas, desde que a fila esteja configurada. É necessária estratégia de investigação, retenção e eventual reprocessamento; reenfileirar indefinidamente uma mensagem inválida gera loop.\n\n**Ordem de entrega** também depende do arranjo: múltiplos consumidores, tentativas e requeue podem mudar a ordem efetiva de processamento, mesmo que exista ordem de publicação em um canal. Para eventos por agregado, uma versão sequencial (`versao=7`) pode orientar rejeição de atualizações obsoletas. O **outbox transacional** registra mudança de negócio e intenção de publicar evento na mesma transação local; processo posterior envia ao broker. Isso reduz a janela de inconsistência entre `COMMIT` no banco e envio, mas não dispensa deduplicação de publicação/consumo.\n\n## Webhook e API de retorno\n**Webhook** é entrega de notificação por chamada HTTP iniciada por quem detectou o evento para uma URL previamente registrada pelo assinante. Exemplo: ao concluir processamento, o emissor envia `POST https://cliente.exemplo/eventos` com JSON, identificador do evento e assinatura. O receptor valida origem/autenticidade, responde rapidamente com código apropriado e pode processar assíncronamente. Ao receber falha ou timeout, o emissor precisa de política documentada de nova tentativa, expiração e deduplicação. Entrega HTTP não prova que a aplicação de destino consumiu o fato até o fim.\n\n**Polling** é o cliente consultar repetidamente `GET /situacao/42`; **webhook** inverte quem inicia a comunicação. O termo **API reversa** pode aparecer na prática como endpoint do sistema externo destinado a receber retornos, mas não constitui categoria padronizada de método HTTP. A documentação de notificações da PDPJ-Br distingue formatos como dados originais, alertas e documentos ao tratar da entrega de eventos.\n\n| Recurso | Quem inicia | Canal | Cenário |\n| --- | --- | --- | --- |\n| API REST chamada diretamente | Cliente | HTTP requisição-resposta | Consultar status agora |\n| Mensagem no broker | Produtor, depois consumidor | Fila/exchange | Processar evento desacoplado |\n| Webhook | Emissor do evento | HTTP para endpoint cadastrado | Notificar sistema integrado |\n| Polling | Interessado no resultado | HTTP periódico | Consultar se trabalho terminou |\n\n> **Reconhecimento em prova:** `publisher confirm` não substitui `consumer ack`; exchange `fanout` com duas filas não equivale a dois consumidores da mesma fila; webhook não é uma fila RabbitMQ, embora possa ser acionado por mensagem recebida dela."
+    },
+    {
+      "title": "5. Persistência, auditoria, migrações e integração de ponta a ponta",
+      "markdown": "## JPA, Hibernate e camadas de persistência\n**JPA 2.0** define uma especificação de persistência de entidades Java; **Hibernate ORM** é uma implementação de mecanismos de mapeamento objeto-relacional, utilizável como provedor JPA. `@Entity` marca classe persistente; `@Id` indica identificação; `EntityManager.persist(obj)` torna uma entidade nova gerenciada no contexto de persistência, e o SQL pode ser executado posteriormente no *flush* ou *commit*. `merge(obj)` copia estado de objeto destacado para uma instância gerenciada e retorna essa instância: não é equivalente a simplesmente reanexar o objeto original. `@Transactional` delimita transações no ambiente configurado, mas não estende magicamente um único `COMMIT` entre vários microsserviços com bancos autônomos.\n\nHibernate 4.3 ou superior pode aparecer como requisito mínimo **histórico**. A versão do ORM e a versão da especificação JPA devem ser combinadas com as dependências e a configuração reais: dizer que 'Hibernate é a especificação JPA' inverte a relação. **Lazy loading** posterga carregamento de associação, sujeito ao contexto de persistência; acesso fora de sessão apropriada pode falhar. O problema **N+1** surge quando uma lista de entidades gera uma consulta inicial e outras N consultas para relações; projeções, *fetch joins* e estratégias de carregamento adequadas podem mitigá-lo, considerando cardinalidade e paginação.\n\n### MapStruct, DTOs e fronteira de serviços\n**MapStruct** é gerador de implementações de mapeamento Java durante a **compilação**. Uma interface `@Mapper` pode transformar `SolicitacaoEntity` em `SolicitacaoDTO`; campos com nomes iguais podem ser mapeados por convenção, e nomes diferentes requerem mapeamento explícito apropriado. Não é SGBD, ORM ou serializador JSON por definição. Usar DTOs nos contratos evita expor diretamente entidades e facilita controlar o que entra e sai de uma API. A geração em tempo de compilação permite detectar incompatibilidades de mapeamento antes da execução, conforme a política de propriedades não mapeadas.\n\n## Hibernate Envers e Flyway resolvem problemas diferentes\n**Hibernate Envers** fornece trilha de **revisões de entidades** auditadas. Com `@Audited`, alterações elegíveis geram dados históricos em tabelas de auditoria (sufixo `_AUD` por padrão em configurações clássicas) e referências a revisões. Isso responde 'qual era o valor antes desta atualização?'. Não serve para criar ou versionar o esquema de banco ao longo dos deployments.\n\n**Flyway** controla **migrações de estrutura e dados** com scripts versionados: `V1__criar_solicitacoes.sql`, `V2__adicionar_status.sql`. Executadas as migrações versionadas, seu histórico e checksum permitem detectar mudanças indevidas; se `V1` já foi aplicada, a correção normal é nova migração `V3`, não alterar o conteúdo histórico de `V1`. Migrações **repeatable** usam convenções e critérios próprios, podendo ser reaplicadas quando o checksum muda. `validate` verifica compatibilidade entre arquivos locais e histórico; `migrate` aplica migrações pendentes. Rollback de aplicação não significa rollback automático de toda modificação do banco.\n\n### PostgreSQL e H2 Database\n**PostgreSQL** é um SGBD relacional frequentemente utilizado para persistência operacional. **H2** é banco Java que pode operar em memória (`jdbc:h2:mem:teste`) ou com dados em arquivo (`jdbc:h2:file:...`). Banco **em memória** perde seu estado segundo o ciclo de vida da instância; isso não torna todo H2 necessariamente efêmero. H2 facilita testes e desenvolvimento, mas diferenças em SQL, tipos, concorrência e transações não permitem concluir que uma suíte verde em H2 substitui testes de integração no banco de produção.\n\n| Ferramenta | Responsabilidade | Uso concreto | Equívoco a evitar |\n| --- | --- | --- | --- |\n| JPA | Contrato de persistência Java | `EntityManager`, `@Entity` | Confundir com banco físico |\n| Hibernate ORM | Provedor de mapeamento | SQL e ciclo de entidades | Confundir com JPA especificação |\n| Envers | Histórico de alterações | `@Audited`, revisões | Confundir com migração SQL |\n| Flyway | Evolução controlada do esquema | `V2__adicionar_coluna.sql` | Editar migração aplicada |\n| MapStruct | Conversão entre objetos | Entidade → DTO | Confundir com ORM |\n| H2 | SGBD Java | Banco em memória para teste | Supor paridade total com PostgreSQL |\n\n## Fechamento ponta a ponta\nConsidere a operação `POST /solicitacoes`: (1) o gateway valida políticas e encaminha à instância descoberta; (2) o serviço valida autorização, converte DTO e persiste a solicitação via JPA/Hibernate; (3) na mesma transação local, grava registro de outbox; (4) um publicador envia `SolicitacaoRegistrada` ao RabbitMQ e recebe *publisher confirm*; (5) consumidor deduplica o evento, registra seu efeito e emite *consumer ack*; (6) um componente de notificações pode fazer webhook ao destino inscrito; (7) logs, métricas e tracing tornam todo o percurso observável. O outbox minimiza divergência entre banco e publicação, mas **não transforma a cadeia inteira em transação ACID única**.\n\nEm deploy, scripts Flyway devem ser compatíveis com versões coexistentes da aplicação, como na expansão de esquema antes da remoção posterior de coluna antiga. Envers registra revisões das entidades onde configurado; não audita automaticamente todos os bancos e serviços da arquitetura.\n\n### Como o tema costuma ser cobrado\nA prova apresenta um incidente e pede o componente correto: instância mudou de endereço → discovery; URL pública com autenticação e roteamento → gateway; repetição após perda de resposta → idempotência; mensagem redespachada após queda antes do ack → deduplicação; aviso HTTP para assinante → webhook; troca de coluna em deploy → Flyway; consulta do valor anterior de entidade → Envers; teste com `jdbc:h2:mem:` → H2 em memória. Desconfie das equivalências fáceis: API não é broker, confirm não é ack do consumidor, SSO não substitui autorização, JPA não é Hibernate, e deploy independente não elimina consistência distribuída."
+    }
+  ],
+  "summary": "## Mapa de revisão\n**Microsserviço** = contexto de negócio com contrato e implantação autônomos; diferenças principais para monólito modular são comunicação remota e falhas parciais. A propriedade dos dados cabe ao serviço; tabelas compartilhadas como contrato reduzem independência. **DDD** ajuda a definir fronteiras; **coreografia** reage a eventos, **orquestração** delega decisões a um coordenador. **Saga** usa transações locais e compensações, não transação ACID única.\n\n**RESTful** descreve recursos e semântica de HTTP: `GET` consulta; `PUT` substitui recurso e é idempotente; `PATCH` altera parcialmente e pode ou não ser idempotente; `POST` geralmente não o é; `202` significa aceito, não concluído. **JSON**: strings entre aspas duplas, booleanos em minúsculas e `null`, sem comentários e sem vírgulas terminais. **Gateway** recebe e roteia; **Eureka** registra/descobre instâncias; **balanceador** escolhe instância; **Config Server** compartilha propriedades. **Zuul** representa ferramenta clássica de borda; Spring Cloud Gateway é alternativa de projeto atual.\n\n**Spring Framework** fornece infraestrutura de componentes; **Boot** simplifica execução; **Cloud** cuida de padrões distribuídos. **SSO** reduz autenticações repetidas; **OAuth 2.0** foca autorização delegada; **OIDC** adiciona identidade; autenticar não significa autorizar. **Timeout** limita espera; **retry** recupera falha transitória, mas pode repetir efeitos; **circuit breaker** limita chamadas a dependência em falha; **bulkhead** isola consumo de recursos; **idempotência** impede repetição lógica. Observabilidade combina logs, métricas e traces.\n\n**RabbitMQ**: produtor → exchange → bindings → filas → consumidores. `direct`: chave exata; `topic`: `*` uma palavra e `#` zero ou mais; `fanout`: cópias para filas vinculadas. **Publisher confirm** cobre produtor→broker; **consumer ack** cobre consumidor→broker; nenhum garante sozinho execução exatamente uma vez. Deduplique eventos, monitore DLX e prefira outbox quando gravação e publicação precisam ser coordenadas. **Webhook** é HTTP iniciado pelo emissor para URL assinada; **polling** é consulta periódica iniciada pelo interessado.\n\n**JPA** especifica persistência; **Hibernate ORM** implementa; **MapStruct** gera mapeadores Java em compilação; **Envers** guarda histórico de entidades; **Flyway** versiona alterações de esquema com checksum; **H2** pode ser em memória ou arquivo. Na PDPJ-Br, normas e documentação favorecem DDD, eventos por broker, APIs REST, borda de gateway e notificações por webhook. A arquitetura não dispensa controle de acesso, migração segura, idempotência nem telemetria.",
+  "flashcards": [
+    {
+      "front": "Microsserviço é só uma API?",
+      "back": "Não. Exige delimitação de responsabilidade e autonomia de implantação e evolução, com comunicação entre serviços."
+    },
+    {
+      "front": "O que é bounded context?",
+      "back": "Limite no qual um modelo de domínio e seus termos mantêm significado consistente."
+    },
+    {
+      "front": "O que é coreografia?",
+      "back": "Serviços reagem a eventos e conduzem suas ações locais sem controlador central do fluxo."
+    },
+    {
+      "front": "O que uma saga compensa?",
+      "back": "Efeitos de transações locais já concluídas; não desfaz magicamente commits em bancos distintos."
+    },
+    {
+      "front": "A propriedade dos dados exige banco físico exclusivo?",
+      "back": "Não necessariamente: o essencial é cada serviço controlar seu esquema e não expor tabelas internas como contrato."
+    },
+    {
+      "front": "GET é seguro?",
+      "back": "Sim, pela semântica HTTP, pois sua intenção é recuperação sem mudança de estado requisitada pelo cliente."
+    },
+    {
+      "front": "PUT é idempotente?",
+      "back": "Sim. Repetir o mesmo PUT deve manter o mesmo efeito pretendido sobre o recurso."
+    },
+    {
+      "front": "O que indica HTTP 202?",
+      "back": "A requisição foi aceita para processamento, mas a conclusão ainda não está assegurada."
+    },
+    {
+      "front": "Qual o papel do API Gateway?",
+      "back": "Receber requisições externas e aplicar roteamento e políticas de entrada."
+    },
+    {
+      "front": "Qual o papel do Eureka?",
+      "back": "Manter um registro de instâncias de serviço e viabilizar sua descoberta por nomes lógicos."
+    },
+    {
+      "front": "O que faz o Spring Cloud Config?",
+      "back": "Centraliza a disponibilização de propriedades externas por aplicação e ambiente."
+    },
+    {
+      "front": "SSO equivale a autorização?",
+      "back": "Não. SSO concentra autenticação; cada operação protegida ainda exige avaliação de permissão."
+    },
+    {
+      "front": "Que risco existe no retry?",
+      "back": "A duplicação de efeitos quando a primeira tentativa foi concluída e apenas a resposta se perdeu."
+    },
+    {
+      "front": "O que correlaciona traces?",
+      "back": "Identificadores de trace e spans que associam operações distribuídas a um mesmo fluxo."
+    },
+    {
+      "front": "O que faz exchange fanout?",
+      "back": "Encaminha publicações às filas vinculadas, ignorando a routing key para o roteamento."
+    },
+    {
+      "front": "Direct e topic diferem como?",
+      "back": "Direct usa correspondência exata de routing key; topic usa padrões por palavras com * e #."
+    },
+    {
+      "front": "Confirmação de publicação prova consumo?",
+      "back": "Não. Publisher confirm cobre aceitação pelo broker, independentemente do consumidor."
+    },
+    {
+      "front": "Por que deduplicar evento?",
+      "back": "Porque falhas e reentregas podem provocar processamento repetido, mesmo com acknowledgements."
+    },
+    {
+      "front": "Webhook é iniciado por quem?",
+      "back": "Pelo emissor do evento, que chama uma URL previamente cadastrada pelo assinante."
+    },
+    {
+      "front": "O que faz o MapStruct?",
+      "back": "Gera em compilação implementações de mapeamento entre objetos Java, como entidade e DTO."
+    },
+    {
+      "front": "JPA é igual ao Hibernate?",
+      "back": "Não. JPA é especificação; Hibernate ORM é um provedor que pode implementá-la."
+    },
+    {
+      "front": "Envers serve para quê?",
+      "back": "Registrar revisões e histórico de entidades auditadas."
+    },
+    {
+      "front": "Flyway serve para quê?",
+      "back": "Gerenciar migrações de banco com versões, histórico e verificações de integridade."
+    },
+    {
+      "front": "Todo banco H2 é volátil?",
+      "back": "Não. H2 aceita base em memória ou persistida em arquivo, conforme a URL e o modo."
+    }
+  ],
+  "tips": [
+    "Separe no rascunho três responsabilidades: gateway decide rota, registry localiza serviço e balanceador seleciona instância.",
+    "Para distinguir métodos HTTP, teste a repetição: PUT no mesmo recurso mantém estado; POST criador pode duplicar sem chave idempotente.",
+    "Desenhe o fluxo RabbitMQ com cinco elementos: produtor → exchange → binding → fila → consumidor.",
+    "Sempre pergunte de qual lado veio a confirmação: publisher confirm não substitui consumer ack.",
+    "Em incidentes com resposta perdida, confira se o efeito foi gravado antes de habilitar retry.",
+    "Use uma tabela de duas colunas para memorizar Envers (revisão de dados) e Flyway (evolução do esquema).",
+    "Ao ler webhook, procure URL de retorno cadastrada e POST iniciado por quem publicou o evento.",
+    "Compare no deploy os contratos e o esquema entre versões coexistentes antes de remover uma coluna."
+  ],
+  "traps": [
+    "**Enunciado:** “O Eureka distribui diretamente chamadas HTTP pelo melhor servidor.” **Erro:** registry localiza instâncias; seleção e encaminhamento dependem de um balanceador/cliente/gateway. **Correto:** o Eureka é catálogo de serviços.",
+    "**Enunciado:** “O gateway substitui as regras de autorização de negócio.” **Erro:** filtrar no perímetro não decide permissões ligadas a cada recurso. **Correto:** serviços preservam autorização contextual.",
+    "**Enunciado:** “Confirm da publicação demonstra que o consumidor concluiu.” **Erro:** confirmação cobre aceitação no broker. **Correto:** conclusão de processamento exige protocolo e estado do consumidor.",
+    "**Enunciado:** “Duas instâncias na mesma fila fanout recebem cada uma a mensagem.” **Erro:** são consumidoras concorrentes da mesma fila. **Correto:** criar filas separadas para cada assinatura do evento.",
+    "**Enunciado:** “Webhook é o endpoint que o cliente consulta até finalizar.” **Erro:** isso é polling. **Correto:** o emissor envia HTTP ao endpoint previamente informado pelo assinante.",
+    "**Enunciado:** “Envers executa V2__alterar.sql.” **Erro:** Envers rastreia revisões de entidades. **Correto:** Flyway aplica migrações versionadas.",
+    "**Enunciado:** “H2 é sempre temporário.” **Erro:** há modo persistente em arquivo. **Correto:** URL de conexão distingue `mem:` de `file:`.",
+    "**Enunciado:** “SSO significa permissão irrestrita depois do primeiro login.” **Erro:** sessão autenticada e autorização são verificações distintas. **Correto:** a API deve validar o acesso à operação."
+  ],
+  "activeRecall": [
+    {
+      "question": "Por que dividir uma aplicação em várias APIs não basta para chamá-la de microsserviços?",
+      "answer": "Porque autonomia de domínio, implantação, propriedade dos dados e evolução dos contratos importam; endpoints distintos no mesmo deploy continuam podendo formar um monólito."
+    },
+    {
+      "question": "O que separa gateway, discovery e balanceador?",
+      "answer": "Gateway é a entrada que aplica rotas e políticas; discovery informa instâncias; balanceador escolhe o destino entre elas."
+    },
+    {
+      "question": "Qual é a diferença entre POST com 202 e criação concluída com 201?",
+      "answer": "202 informa aceitação para processamento ainda pendente; 201 indica que recurso foi criado com sucesso."
+    },
+    {
+      "question": "O que distingue fanout de duas filas e dois consumidores numa só fila?",
+      "answer": "No fanout com duas filas vinculadas cada fila recebe uma cópia; dois consumidores competem pelas entregas de uma fila."
+    },
+    {
+      "question": "Por que publisher confirm não prova processamento de evento?",
+      "answer": "Porque confirma a etapa de publicação/aceitação no broker; o consumidor pode ainda não ter recebido ou efetivado o evento."
+    },
+    {
+      "question": "Quando webhook é preferível a polling?",
+      "answer": "Quando o emissor deve avisar a ocorrência de eventos a endpoints cadastrados, evitando que o interessado faça consultas repetidas."
+    },
+    {
+      "question": "Que problema o outbox transacional diminui?",
+      "answer": "A janela em que a transação de negócio confirma e o evento correspondente deixa de ser publicado; gravam-se estado e outbox na mesma transação local."
+    },
+    {
+      "question": "Qual ferramenta usar para reconstruir valor anterior de entidade e qual para aplicar nova coluna?",
+      "answer": "Envers registra revisões de entidades auditadas; Flyway executa e rastreia migrações SQL."
+    },
+    {
+      "question": "Como evitar duplicação ao repetir operação após perda de resposta HTTP?",
+      "answer": "Associação da operação a uma chave de idempotência, com persistência/consulta do resultado anterior e verificações de unicidade adequadas."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Autonomia versus mera fragmentação",
+      "summary": "Microsserviços são limites de negócio e implantação independente; divisão de controllers ou tabelas não garante autonomia. Coreografia usa decisões locais em resposta a eventos."
+    },
+    {
+      "key": "e2",
+      "title": "Gateway, registry e configuração",
+      "summary": "Gateway recebe e roteia chamadas; discovery registra/localiza instâncias; balanceamento seleciona destino; Config Server entrega configurações. São responsabilidades relacionadas, porém não equivalentes."
+    },
+    {
+      "key": "e3",
+      "title": "Identidade e resiliência",
+      "summary": "SSO/autenticação não autorizam toda operação; timeout, retry, circuit breaker e idempotência tratam problemas diferentes e precisam de combinação coerente."
+    },
+    {
+      "key": "e4",
+      "title": "Publicação, consumo e roteamento RabbitMQ",
+      "summary": "Exchanges roteiam para filas, e fila entrega a consumidores. Publisher confirm e consumer ack cobrem elos diferentes; múltiplas entregas exigem deduplicação."
+    },
+    {
+      "key": "e5",
+      "title": "Webhook e comunicação reversa",
+      "summary": "Webhook é chamada HTTP iniciada pelo produtor do evento a endpoint inscrito; polling é requisição reiterada do cliente. API reversa não designa método HTTP padronizado."
+    },
+    {
+      "key": "e6",
+      "title": "JPA, Envers, Flyway e H2",
+      "summary": "JPA é especificação; Hibernate é provedor ORM; Envers faz auditoria de revisões; Flyway versiona migrações de esquema; H2 pode persistir em memória ou arquivo; MapStruct converte objetos."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma aplicação separou módulos de atendimento, cobrança e avisos em processos implantáveis sem exigir a atualização dos demais. Qual característica melhor justifica chamar essa solução de microsserviços?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A existência de controladores HTTP distintos mesmo num único processo de publicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A autonomia de implantação vinculada a capacidades de negócio com contratos definidos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A substituição da persistência relacional por arquivos temporários em todos os módulos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A centralização das regras negociais num serviço único para impedir divergências.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A distribuição de cada classe Java em um endereço de rede administrado separadamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. As fronteiras descritas combinam negócio, contratos e publicação independente. A usa quantidade de endpoints como critério, embora eles possam pertencer ao mesmo monólito; C confunde estilo arquitetural com tecnologia de armazenamento; D reúne decisões e reduz autonomia; E transforma granularidade de classe em serviço, ampliando acoplamento e custo de rede.",
+      "section": "1. Fundamentos de microsserviços e padrões arquiteturais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de relatórios precisa exibir os dados de pagamentos mantidos por outro serviço. Qual opção preserva melhor a propriedade dos dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Abrir permissão de escrita ao esquema de pagamentos para atualizar valores de relatórios.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reutilizar a entidade JPA do outro serviço como contrato único de acesso ao banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar consultas SQL diretamente nas tabelas internas sempre que houver uma dúvida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Consumir a API pública ou os eventos publicados pelo serviço responsável pelos pagamentos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Replicar as tabelas físicas e permitir que os dois serviços alterem os mesmos registros.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. O proprietário dos dados define como expô-los por API ou eventos, preservando seu esquema interno. A permite escrita indevida por outro domínio; B faz a entidade de persistência virar contrato público; C acopla o relatório à estrutura física; E cria múltiplos escritores e conflitos na manutenção da verdade do pagamento.",
+      "section": "1. Fundamentos de microsserviços e padrões arquiteturais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após o evento `CadastroValidado`, um serviço envia aviso e outro cria uma projeção local, cada qual usando suas próprias regras. Que padrão de coordenação aparece no exemplo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Coreografia orientada por eventos, com reação autônoma de cada serviço interessado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Orquestração por controlador, que determina centralmente toda a sequência de passos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Transação distribuída única, que confirma as alterações locais em um só commit.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Balanceamento de carga, que decide quais regras de negócio precisam ser executadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Chamada bloqueante em cadeia, com resposta obrigatória de todos os participantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Cada serviço reage ao fato publicado sem receber instrução detalhada de um coordenador, que é o núcleo da coreografia. B descreve controle explícito do fluxo; C presume commit global não demonstrado; D seleciona instâncias de processamento, não ações negociais; E pressupõe dependência síncrona ausente no caso.",
+      "section": "1. Fundamentos de microsserviços e padrões arquiteturais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma reserva foi confirmada localmente; depois, o serviço de pagamento recusou a cobrança. Numa saga, qual providência representa a recuperação adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acionar um rollback da mesma transação ACID em todos os bancos que participaram.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apagar as mensagens publicadas para fazer o serviço de reserva desfazer a operação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Encerrar o fluxo deixando a reserva ocupada até que outro pedido substitua o anterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Solicitar ao gateway que reverta os commits por meio de novo roteamento automático.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar a compensação de cancelamento da reserva já realizada em transação local.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A compensação desfaz o efeito do ponto de vista de negócio mediante nova operação local. A supõe uma transação global que a saga dispensa; B confunde remoção de mensagens com reversão de dados; C mantém recursos reservados indevidamente; D atribui ao gateway poderes transacionais que pertencem aos serviços.",
+      "section": "1. Fundamentos de microsserviços e padrões arquiteturais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação possui módulos bem delimitados, com chamadas locais, porém todos são entregues em um mesmo executável. A classificação mais ajustada é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Arquitetura de microsserviços, pois o isolamento de pacotes garante publicação independente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sistema orientado a eventos, pois o mesmo executável pressupõe um message broker interno.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Monólito modular, pois os módulos estão separados logicamente mas têm deploy conjunto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Arquitetura de coreografia, pois as regras locais dispensam um coordenador externo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Plataforma serverless, pois a comunicação local elimina servidores e implantação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Módulos podem ter boa divisão de responsabilidades sem constituírem unidades de deploy independentes. A confunde pacotes com processos; B infere mensageria inexistente; D confunde modularização com reação a eventos; E relaciona incorretamente comunicação local com execução serverless.",
+      "section": "1. Fundamentos de microsserviços e padrões arquiteturais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente deseja consultar o estado da solicitação 42 sem pedir alteração do recurso. Qual requisição melhor respeita a semântica HTTP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "POST /solicitacoes/42 com criação implícita de uma nova representação persistida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PATCH /solicitacoes/42 com corpo vazio para forçar resposta sem atualização de estado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "GET /solicitacoes/42 para obter a representação atual do recurso identificado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "PUT /solicitacoes/42 para substituir o recurso por sua representação consultada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DELETE /solicitacoes/42 com parâmetro que informa operação somente de leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. GET recupera uma representação sem solicitar alteração de estado ao recurso. A associa consulta a criação; B escolhe método de mudança parcial sem operação pertinente; D utiliza substituição de representação; E descreve exclusão e tenta mudar sua semântica com um parâmetro.",
+      "section": "2. APIs RESTful, JSON, gateway e descoberta de serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API aceitou um arquivo para verificação assíncrona, criou uma tarefa e ainda não concluiu a análise. Qual resposta comunica precisamente essa situação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "202 Accepted, indicando recebimento da solicitação sem garantir término do processamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "201 Created, afirmando que a análise do arquivo já ocorreu e está disponível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "204 No Content, confirmando que as validações foram processadas integralmente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "409 Conflict, indicando que a tarefa foi recebida e será processada em fila.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "503 Service Unavailable, indicando admissão de trabalho ainda não concluído.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. 202 informa aceitação para processamento posterior e não assegura conclusão. B interpreta 201 como resultado final da análise, embora apenas uma tarefa possa ter sido criada; C afirma término que não ocorreu; D é conflito com estado atual, não agendamento; E significa indisponibilidade, não aceitação da requisição.",
+      "section": "2. APIs RESTful, JSON, gateway e descoberta de serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação recebe documentos no formato JSON e recusa entradas fora da gramática. Qual conteúdo isolado é JSON válido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "{'id': 7, 'ativo': true, 'rotulos': ['novo']}",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "{id:7,\"ativo\":true,\"rotulos\":[\"novo\"]}",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "{\"id\":7,\"ativo\":true,\"rotulos\":[\"novo\",]}",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "{\"id\":7,/*registro*/\"ativo\":true,\"rotulos\":[]}",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "{\"id\":7,\"ativo\":true,\"rotulos\":[\"novo\"]}",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A última opção usa aspas duplas, `true` em minúsculas e array sem vírgula terminal. A utiliza aspas simples não aceitas para strings JSON; B deixa a chave id sem aspas, como em objeto literal de JavaScript; C deixa vírgula depois do último item; D insere comentário, ausente na sintaxe JSON padronizada.",
+      "section": "2. APIs RESTful, JSON, gateway e descoberta de serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente chama `/api/cobrancas/10`; o serviço de cobranças possui três instâncias com IPs variáveis. Como distribuir responsabilidades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Eureka decide a autorização do cliente e substitui o gateway na exposição da URL pública.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O gateway encaminha a rota; o discovery informa instâncias e o balanceador escolhe uma delas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O balanceador armazena a configuração de banco; o gateway apenas mantém a lista de usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Config Server faz roteamento por URI e o registro de serviços realiza a persistência do pedido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O gateway opera como entidade JPA e consulta o cadastro das instâncias no banco relacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. A entrada é tarefa do gateway; a descoberta devolve destinos possíveis e o balanceamento decide a instância. A confunde registro com autorização; C desloca configuração e identidade para o balanceador; D troca as funções de Config Server, roteamento e persistência; E interpreta gateway como camada ORM, embora seja intermediário de requisições.",
+      "section": "2. APIs RESTful, JSON, gateway e descoberta de serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma integração fornece uma URL para receber POST quando o processamento remoto terminar. Em documentação, essa URL é descrita como API de retorno. Qual leitura técnica é mais cuidadosa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É um proxy reverso obrigatório, que realiza consultas permanentes para capturar respostas do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É um recurso REST específico do método REVERSE, associado à semântica oficial do HTTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É uma conexão de banco reversa, pela qual o provedor altera diretamente a tabela do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É um endpoint de callback/webhook; o termo API reversa depende do contexto e não cria método HTTP.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "É o registro Eureka, que devolve automaticamente mensagens aos aplicativos assinantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A URL recebe uma chamada iniciada pelo emissor do evento: trata-se de callback HTTP, frequentemente webhook. A confunde callback com proxy e polling; B inventa método REVERSE; C ignora contrato HTTP e sugere escrita direta no banco; E atribui ao discovery o papel de entrega de notificações.",
+      "section": "2. APIs RESTful, JSON, gateway e descoberta de serviços",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quatro réplicas devem carregar propriedades distintas para homologação e produção sem duplicar arquivos em cada imagem. Qual componente atende melhor à necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Spring Eureka, que transforma metadados de registro em valores SQL de migração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Hibernate Envers, que registra cada alteração das propriedades em revisões auditadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MapStruct, que gera conversores de instâncias para configurações durante a compilação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RabbitMQ, que garante entrega de segredos por mensagens sem controle de acesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Spring Cloud Config, que disponibiliza configuração externa por aplicação e ambiente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. O Config Server centraliza propriedades externas e oferece seleção por aplicação/perfil, com cuidados de segurança e recarga. A localiza serviços, não distribui a configuração de implantação; B audita entidades; C mapeia objetos Java; D trata mensageria, e não substitui gestão controlada de parâmetros e segredos.",
+      "section": "3. Spring, segurança, resiliência e operação distribuída",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após autenticação centralizada, um usuário tenta excluir um registro cuja leitura foi autorizada. Qual conduta mantém separadas identidade e permissão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autorizar a exclusão, pois o SSO confirma identidade suficiente para qualquer operação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Validar autenticação e verificar se há permissão específica para excluir o registro do usuário.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar apenas a estrutura sintática do JWT, ignorando audiência, expiração e assinatura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o token de acesso por um token de identidade em todas as chamadas de recurso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir a exclusão enquanto a sessão de login existir, sem consultar políticas da API.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. SSO autentica o sujeito, mas a API deve aplicar política de autorização para exclusão. A e E fazem da sessão um privilégio irrestrito; C considera a simples forma de JWT suficiente sem validações criptográficas e de contexto; D confunde id_token do fluxo de identidade com access_token destinado ao recurso protegido.",
+      "section": "3. Spring, segurança, resiliência e operação distribuída",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O serviço externo começa a falhar repetidamente; novos pedidos ao mesmo destino agravam a saturação. Que mecanismo interrompe temporariamente novas chamadas depois de critérios de falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gerador MapStruct, que produz DTOs alternativos para evitar consulta ao destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Injeção de dependência, que instancia o serviço externo outra vez a cada erro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Controle Flyway, que reexecuta migrações para reparar a conectividade de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Circuit breaker, que pode abrir o circuito e deixar de chamar uma dependência instável.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Cache do Eureka, que executa compensações em transações de negócio já concluídas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. O circuit breaker decide, conforme política de estado e erros, não encaminhar chamadas a dependência doente. A fala de transformação de objetos, B de construção de componentes, C de esquema de banco e E de registro de instâncias; nenhum desempenha a função de abrir um circuito diante de falhas sucessivas.",
+      "section": "3. Spring, segurança, resiliência e operação distribuída",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um POST cria cobrança no banco, mas o cliente perde a resposta e repete a requisição. Qual desenho evita que a nova tentativa gere uma segunda cobrança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reduzir o timeout do cliente e presumir que qualquer ausência de resposta cancela a transação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ativar o discovery para rejeitar chamadas repetidas vindas de um mesmo endereço IP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Persistir chave de idempotência e resultado, devolvendo o efeito já confirmado na repetição.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Substituir toda chamada por GET e fazer o servidor modificar o banco durante a consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Colocar o gateway em fanout para que cada réplica crie sua própria cobrança de segurança.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. A perda de resposta não prova falha de gravação; guardar resultado associado à mesma operação previne duplicação. A confunde espera da rede com desfazimento do commit; B atribui deduplicação ao registro de serviços; D viola a semântica de leitura do GET; E aumenta a quantidade de gravações ao espalhar a solicitação por réplicas.",
+      "section": "3. Spring, segurança, resiliência e operação distribuída",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma requisição percorre gateway e três serviços, mas os logs locais não mostram onde se concentrou o tempo. Qual instrumentação ajuda a localizar a etapa lenta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tracing distribuído com identificação de fluxo e spans para as operações executadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Arquivo SQL de versão única contendo o tempo médio configurado de cada tabela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exclusão dos logs detalhados para evitar que serviços registrem a mesma solicitação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apenas monitoramento de CPU total do cluster, sem vínculo com requisições individuais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registro de endpoints HTTP em um banco H2 volátil, sem relação com chamadas reais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Spans ligados a um mesmo trace revelam a trajetória e duração de operações, inclusive entre serviços. B representa artefato de migração, não telemetria; C remove evidências necessárias; D mede uso agregado, sem identificar o elo lento; E guarda metadados de URLs sem observar o fluxo.",
+      "section": "3. Spring, segurança, resiliência e operação distribuída",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um exchange `fanout` possui duas filas vinculadas, cada uma com seu próprio consumidor. Após uma publicação, o que se espera do roteamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O broker escolhe uma das duas filas, mantendo a outra vazia para balancear consumo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O produtor precisa definir routing key diferente para que ambas as filas recebam a mensagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A mensagem só é entregue ao consumidor que tiver registrado a primeira assinatura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma cópia é encaminhada a cada fila vinculada, sem usar routing key para essa escolha.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Cada consumidor recebe várias cópias na mesma fila porque o exchange é do tipo fanout.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Fanout encaminha a publicação a todas as filas vinculadas, independentemente da chave de roteamento. A descreve uma única fila de trabalho; B introduz correspondência por chave inadequada ao fanout; C aplica arbitrariamente precedência de assinatura; E troca multiplicação de filas por multiplicação de entrega ao consumidor.",
+      "section": "4. Mensageria, RabbitMQ, eventos e webhooks",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um exchange do tipo `topic` possui binding `solicitacao.*.concluida`. Qual routing key corresponde a esse padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`solicitacao.concluida`, porque o asterisco representa ausência opcional de uma palavra.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`solicitacao.42.fase.concluida`, porque o asterisco cobre quantas palavras forem necessárias.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`solicitacao.42.concluida`, pois o asterisco ocupa uma palavra intermediária.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`solicitacao.42.#.concluida`, porque o curinga # completa qualquer sufixo da chave.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`solicitacao.42.pendente`, porque o prefixo determina sozinho o encaixe do padrão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O asterisco exige exatamente uma palavra delimitada por pontos, representada por `42`. A omite a palavra intermediária; B acrescenta duas palavras onde só uma cabe; D contém duas palavras intermediárias, `42` e `#`, e ainda confunde padrão de binding com routing key; E não corresponde ao segmento final `concluida`.",
+      "section": "4. Mensageria, RabbitMQ, eventos e webhooks",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um produtor recebeu `publisher confirm`; minutos depois, uma mensagem foi reentregue porque o consumidor caiu antes de enviar `basic.ack`. Qual inferência é válida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O publisher confirm informa que o negócio foi concluído e permite eliminar duplicações no consumidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O confirm cobre aceitação pelo broker; o consumidor ainda precisa confirmar e tratar reentregas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O basic.ack emitido pelo consumidor antecede obrigatoriamente a confirmação ao publicador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O RabbitMQ invalida o confirm anterior sempre que ocorre interrupção na conexão do consumidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A reentrega comprova que a publicação inicial foi recusada, mesmo após confirm positivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Confirmação de publicação e reconhecimento de entrega são mecanismos independentes. A equipara broker a conclusão de negócio; C estabelece uma ordem obrigatória inexistente entre produtores e consumidores; D presume revogação retroativa do confirm; E interpreta reentrega como prova de falha na publicação, embora ela decorra da ausência de ack do consumidor.",
+      "section": "4. Mensageria, RabbitMQ, eventos e webhooks",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um consumidor encontra repetidamente um evento com esquema inválido, falha e retorna a mensagem à mesma fila. Qual estratégia reduz o ciclo infinito e permite análise posterior?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir limite de tentativas e encaminhar falhas persistentes a uma fila de tratamento via DLX.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confirmar automaticamente qualquer entrega antes da validação, descartando toda possibilidade de erro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter a fila em exchange fanout para criar consumidores ilimitados de mensagens defeituosas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar o registro de auditoria toda vez que a mesma mensagem causar a exceção de leitura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o prefetch sem limite até que o consumidor consiga aceitar todos os eventos inválidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Uma política de retentativas seguida de dead-lettering permite inspecionar a mensagem problemática sem requeue permanente. B pode perder dados antes de analisá-los; C altera o roteamento e propaga o problema; D destrói evidência útil; E eleva pressão de memória sem corrigir a incompatibilidade do payload.",
+      "section": "4. Mensageria, RabbitMQ, eventos e webhooks",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um receptor de webhook grava a notificação, mas a resposta HTTP se perde. O emissor reenvia o mesmo evento conforme sua política. Qual implementação evita lançar o efeito duas vezes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gerar um novo identificador de evento para cada tentativa recebida antes de persistir o efeito.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tratar qualquer POST recebido como comando inédito e nunca consultar entregas anteriores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar a chave de roteamento RabbitMQ ao cabeçalho HTTP sem registrar identidade do evento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Recorrer apenas ao código HTTP de sucesso, que impede fisicamente qualquer nova entrega.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validar a autenticidade e deduplicar pelo identificador estável do evento já processado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A mesma ocorrência pode chegar mais de uma vez; identificação persistida e validação de origem impedem efeitos repetidos ou falsificados. A destrói a estabilidade do identificador; B converte reenvio em nova ação; C confunde chave de roteamento do broker com controle de idempotência HTTP; D supõe que uma resposta perdida impede o emissor de tentar de novo.",
+      "section": "4. Mensageria, RabbitMQ, eventos e webhooks",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço confirma o pedido no banco, mas o envio do evento falha depois do commit local. Que abordagem diminui essa lacuna sem transação global com o broker?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gravar pedido e entrada de outbox na mesma transação local e publicar posteriormente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Enviar primeiro o evento e dispensar qualquer controle de gravação local do pedido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o gateway como gerenciador de commit das tabelas e das filas de todos os serviços.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar o método HTTP de POST para GET, preservando o envio de evento após consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar uma migração Flyway a cada tentativa de publicação para restaurar o evento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O registro de outbox acompanha atomicamente o pedido no mesmo banco; um publicador posterior envia o evento, com deduplicação para reenvios. B cria o problema inverso, evento sem dado confirmado; C inventa commit global no gateway; D troca semântica HTTP sem coordenar persistência; E usa migração de esquema para uma falha operacional de publicação.",
+      "section": "5. Persistência, auditoria, migrações e integração de ponta a ponta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "É preciso recuperar o valor anterior do campo `status` de uma entidade após sucessivas alterações persistidas. Qual ferramenta responde diretamente a essa necessidade quando a entidade foi configurada para auditoria?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Flyway, reexecutando versões de migração para reconstruir automaticamente todos os estados antigos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Eureka, recuperando as revisões a partir do catálogo de instâncias registradas pelo serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MapStruct, preservando objetos antigos no código Java gerado durante cada compilação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "H2, mantendo por padrão todas as versões das entidades em uma fila de notificações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Hibernate Envers, consultando as revisões históricas registradas para a entidade auditada.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Envers mantém histórico de revisões de entidades marcadas para auditoria. A confunde histórico do esquema com histórico de valores; B é descoberta de instâncias; C gera mapeamento entre tipos e não armazena versões; D presume um mecanismo de auditoria padrão e uma fila que não definem o H2.",
+      "section": "5. Persistência, auditoria, migrações e integração de ponta a ponta",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em produção, `V1__criar_tabela.sql` já foi aplicada. Uma pessoa altera o SQL de V1 para adicionar uma coluna e o comando de validação detecta divergência. Qual ação segue o controle versionado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reiniciar o discovery, pois ele sincroniza automaticamente os checksums das migrações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar o Envers para converter a diferença de arquivo em uma revisão de entidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Restaurar V1 aplicada e criar nova migração versionada com o comando de alteração.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Repetir a alteração manual em cada serviço e apagar a tabela de histórico do Flyway.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o arquivo de V1 novamente até produzir o mesmo nome, ignorando seu conteúdo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. V1 aplicada integra o histórico e seu checksum denuncia alterações; a evolução regular é uma nova versão, como V2. A não envolve migração; B registra dados auditados, não altera esquema histórico; D destrói rastreabilidade; E supõe que igualdade de nome basta, desconsiderando a verificação do conteúdo.",
+      "section": "5. Persistência, auditoria, migrações e integração de ponta a ponta",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Testes locais usam `jdbc:h2:mem:teste`, enquanto o serviço de produção utiliza PostgreSQL. Qual conclusão técnica evita extrapolação indevida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O H2 replica integralmente o mecanismo de concorrência do PostgreSQL quando roda no mesmo sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O H2 em memória preserva dados entre reinícios da aplicação como se fosse um banco em arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A compatibilidade de SQL e transações é total, dispensando testes no banco real de produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "H2 nessa URL é base em memória; diferenças de dialeto e comportamento exigem testes adicionais.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O prefixo mem indica que o H2 armazena todas as tabelas permanentemente no disco de produção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. `jdbc:h2:mem:teste` caracteriza base em memória, útil nos testes, mas não substitui validação no SGBD-alvo. A presume mecanismos de concorrência idênticos; B e E confundem `mem` com modo persistido em arquivo; C afirma paridade de dialeto e transações que não existe como garantia geral.",
+      "section": "5. Persistência, auditoria, migrações e integração de ponta a ponta",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API precisa expor DTOs sem vazar diretamente entidades persistidas, e a equipe pretende gerar conversões seguras durante o build. Qual associação de tecnologias é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "MapStruct para transações JPA e Envers para roteamento HTTP dos objetos convertidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MapStruct para gerar mappers de entidade/DTO; JPA/Hibernate para persistência das entidades.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Flyway para converter DTO em objeto Java e Eureka para gravar os dados em tabelas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RabbitMQ para implementar interfaces de mapper e H2 para autenticar os usuários de API.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Spring Zuul para compilar entidades JPA e Envers para declarar os contratos OpenAPI.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. MapStruct gera em compilação conversões entre objetos Java; JPA/Hibernate cuida do ciclo persistente da entidade. A troca mapeamento, transações e auditoria; C transforma Flyway em gerador de objetos e Eureka em ORM; D atribui mapeamento e autenticação a componentes errados; E associa roteamento de borda e auditoria a tarefas de compilação e documentação.",
+      "section": "5. Persistência, auditoria, migrações e integração de ponta a ponta",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura orientada por DDD, o contexto delimitado estabelece o alcance em que um vocabulário e as regras do domínio têm significado consistente; sua fronteira ajuda a orientar a decomposição em serviços.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um bounded context define limites de modelo e de responsabilidade, úteis para escolher serviços coesos. A divisão não deve ser feita somente pelo número de classes ou de tabelas existentes; esses artefatos podem atravessar capacidades de negócio.",
+      "section": "1. Fundamentos de microsserviços e padrões arquiteturais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma aplicação possui dez controladores REST distribuídos em pacotes diferentes, ela já pode ser considerada uma arquitetura de microsserviços, ainda que todos sejam publicados obrigatoriamente num único executável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O número de endpoints não prova independência operacional. O executável único caracteriza uma unidade de implantação, embora sua estrutura interna seja modular. Microsserviços se distinguem pela autonomia e pela comunicação entre unidades implantáveis.",
+      "section": "1. Fundamentos de microsserviços e padrões arquiteturais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Numa saga, o cancelamento de uma reserva depois da falha de pagamento pode ser modelado como transação compensatória, pois não existe necessariamente uma transação ACID abrangendo os bancos dos dois serviços.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma reserva já confirmada localmente requer uma nova ação negocial de reversão, como liberar o recurso. A compensação não apaga o fato de que a reserva esteve registrada; consiste em operação própria e deve ser confiável e observável.",
+      "section": "1. Fundamentos de microsserviços e padrões arquiteturais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A propriedade dos dados em microsserviços somente é respeitada quando cada serviço utiliza uma instância física separada de SGBD, mesmo que as tabelas de um serviço não sejam acessadas pelos demais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O princípio relevante é o controle do modelo e do esquema por um domínio, sem acesso direto indiscriminado de outros serviços. O isolamento pode ser lógico ou físico; o requisito não prescreve uma máquina de banco diferente para cada serviço.",
+      "section": "1. Fundamentos de microsserviços e padrões arquiteturais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na semântica HTTP, GET destina-se à obtenção de representação e é considerado método seguro e idempotente, diferentemente de uma operação de criação usual por POST.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Segurança significa que o cliente não solicita mudança de estado ao recurso; idempotência refere-se ao efeito pretendido de repetir o método. Eventos internos como registros de acesso não transformam GET em operação mutadora solicitada pelo cliente.",
+      "section": "2. APIs RESTful, JSON, gateway e descoberta de serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao responder 202 Accepted, a API assegura ao cliente que todos os efeitos negociais já foram persistidos com sucesso e que nenhuma etapa adicional de processamento permanece pendente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. 202 sinaliza recepção e aceitação para processamento, sem compromisso de que a execução já terminou ou terminará com sucesso. Para representar conclusão pode ser necessário consultar o estado da tarefa ou receber notificação posterior.",
+      "section": "2. APIs RESTful, JSON, gateway e descoberta de serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No JSON, `{\"ativo\":true,\"lotes\":[1,2],\"observacao\":null}` constitui um objeto válido, porque utiliza aspas duplas nos nomes, valores booleanos em minúsculas, array e valor nulo padronizados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A expressão segue os tipos e os delimitadores da gramática JSON. Seria inválida se usasse `True`, aspas simples nos nomes, comentários entre atributos ou vírgula depois do último elemento do array.",
+      "section": "2. APIs RESTful, JSON, gateway e descoberta de serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O registry Eureka deve executar sozinho a autorização de cada operação exposta ao cliente e escolher o destino HTTP final, pois a descoberta de serviços substitui gateway e balanceamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Eureka mantém informações sobre instâncias disponíveis. Gateway é o ponto de entrada e pode executar controles de perímetro; balanceamento escolhe um destino entre instâncias. Autorização de negócio permanece na API apropriada.",
+      "section": "2. APIs RESTful, JSON, gateway e descoberta de serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Spring Boot simplifica a inicialização e configuração de aplicações do ecossistema Spring, mas sua utilização, isoladamente, não estabelece automaticamente registro em discovery, roteamento central e tolerância a falhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Boot fornece inicialização e autoconfiguração, ao passo que as capacidades distribuídas exigem dependências, componentes e políticas específicas. Ter um servidor HTTP embutido não significa possuir Eureka ou um gateway configurado.",
+      "section": "3. Spring, segurança, resiliência e operação distribuída",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "OAuth 2.0 e OpenID Connect são especificações idênticas de autenticação: por isso um access token recebido por uma API contém obrigatoriamente todos os dados de identidade exigidos para SSO.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. OAuth 2.0 trata delegação de autorização; OIDC acrescenta camada de autenticação e identidade. Tokens possuem finalidades e reivindicações distintas, e um access token não é substituto universal de id_token ou de verificação de autorização do recurso.",
+      "section": "3. Spring, segurança, resiliência e operação distribuída",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema que aplica retry após timeout em operação de escrita deve considerar que o servidor pode ter concluído a primeira tentativa, razão pela qual a idempotência precisa ser planejada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A ausência de resposta não informa se ocorreu commit. Repetir indiscriminadamente uma cobrança pode duplicá-la; identificadores estáveis de operação e restrições transacionais ajudam a devolver o resultado original em vez de criar novo efeito.",
+      "section": "3. Spring, segurança, resiliência e operação distribuída",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A coleta de logs isolados, sem propagação de contexto, substitui integralmente o tracing distribuído e identifica a ordem exata e a duração das etapas de uma requisição entre todos os microsserviços.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Traces conectam spans com contexto propagado de uma execução distribuída; logs podem existir sem identificação comum. Métricas resumem indicadores e os logs detalham ocorrências, mas nenhum dos dois fornece automaticamente o encadeamento dos spans.",
+      "section": "3. Spring, segurança, resiliência e operação distribuída",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No RabbitMQ, um exchange fanout encaminha cada publicação para as filas a ele vinculadas; isso é diferente de colocar dois consumidores concorrendo por mensagens de uma só fila.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Filas distintas permitem assinaturas independentes do mesmo evento, ao passo que consumidores da mesma fila dividem entregas. O fanout ignora a routing key na escolha das filas, conforme a semântica do tipo de exchange.",
+      "section": "4. Mensageria, RabbitMQ, eventos e webhooks",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O publisher confirm do RabbitMQ equivale ao consumer acknowledgement e somente é emitido depois que a regra negocial do consumidor tiver sido executada e confirmada no banco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Publisher confirms e acknowledgements do consumidor são independentes. O primeiro trata de a publicação ter sido aceita sob responsabilidade do broker; o segundo declara tratamento da entrega pelo consumidor, sem exigir ordem causal fixa entre ambos.",
+      "section": "4. Mensageria, RabbitMQ, eventos e webhooks",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O padrão outbox registra, na mesma transação local, os dados de negócio e a intenção de publicar evento; ele reduz a inconsistência entre persistência e publicação, mas continua exigindo idempotência para reenvios.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A gravação conjunta impede confirmar a mudança sem manter evidência do evento a enviar. Porém o publicador pode cair após transmitir e antes de marcar a outbox como enviada, ocasionando novo envio e necessidade de deduplicação a jusante.",
+      "section": "5. Persistência, auditoria, migrações e integração de ponta a ponta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num binding de exchange topic, o curinga `*` corresponde a zero ou mais palavras separadas por ponto e o curinga `#` corresponde exatamente a uma palavra, inclusive quando falta um segmento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A regra foi invertida: `*` corresponde a exatamente uma palavra; `#`, a zero ou mais palavras. Assim `pedido.*.criado` admite `pedido.7.criado`, enquanto `pedido.#` também pode alcançar caminhos com vários segmentos finais.",
+      "section": "4. Mensageria, RabbitMQ, eventos e webhooks",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o endpoint de webhook receber novamente o mesmo evento porque a resposta da primeira entrega se perdeu, o receptor pode identificar o evento e evitar repetição de seus efeitos persistidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Webhooks podem ser reenviados após falha ou timeout. Registrar identidade estável do evento processado permite reconhecer reentregas; convém igualmente autenticar o emissor e separar o recebimento HTTP do processamento demorado.",
+      "section": "4. Mensageria, RabbitMQ, eventos e webhooks",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A biblioteca Flyway acompanha automaticamente todas as versões anteriores dos valores de cada entidade JPA marcada com `@Audited`, enquanto o Hibernate Envers gerencia migrações como `V3__adicionar_coluna.sql`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. As atribuições estão trocadas: Flyway versiona e valida mudanças de esquema/dados por scripts de migração; Envers registra revisões históricas de entidades auditadas. Um checksum de migração não equivale a versão anterior do campo de uma entidade.",
+      "section": "5. Persistência, auditoria, migrações e integração de ponta a ponta",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando o Hibernate Envers audita determinada entidade, é possível manter registros de revisões de alterações; isso não significa que o mecanismo execute migrações SQL versionadas do esquema da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A trilha de Envers trata estados de entidades auditadas e pode usar tabelas como `ENTIDADE_AUD`; seu objetivo é histórico de dados. Para implantar alterações versionadas de tabelas e colunas recorre-se a uma ferramenta como Flyway.",
+      "section": "5. Persistência, auditoria, migrações e integração de ponta a ponta",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Todo banco H2 é necessariamente armazenado apenas em arquivo e conserva as tabelas depois de um reinício, de modo que a URL `jdbc:h2:mem:teste` indica uma base persistida em disco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O prefixo `mem:` designa base em memória, sujeita ao ciclo de vida do banco e do processo; URLs `file:` ou equivalentes selecionam persistência em arquivo. H2 admite ambos os modos, com diferenças em retenção de dados e contexto de uso.",
+      "section": "5. Persistência, auditoria, migrações e integração de ponta a ponta",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Arquitetura e Mensageria da PDPJ-Br",
+      "publisher": "Documentação PDPJ-Br",
+      "reference": "Arquitetura; tecnologias; mensageria e webhooks",
+      "url": "https://docs.pdpj.jus.br/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Resolução nº 335/2020 — instituição da PDPJ-Br",
+      "publisher": "Conselho Nacional de Justiça",
+      "reference": "Instituição e governança da plataforma",
+      "url": "https://atos.cnj.jus.br/atos/detalhar/3496",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Portaria nº 253/2020 — diretrizes técnicas da PDPJ-Br",
+      "publisher": "Conselho Nacional de Justiça",
+      "reference": "Art. 6º: DDD e coreografia; arts. 15 a 18: APIs, broker e gateway",
+      "url": "https://atos.cnj.jus.br/atos/detalhar/3582",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Portaria nº 274/2024 — integração por eventos e webhooks",
+      "publisher": "Conselho Nacional de Justiça",
+      "reference": "Art. 1º, I e II: mensageria RabbitMQ e notificações webhook",
+      "url": "https://atos.cnj.jus.br/atos/detalhar/5714",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Portaria — conteúdos técnicos da arquitetura PDPJ-Br",
+      "publisher": "Conselho Nacional de Justiça",
+      "reference": "Art. 1º, II: microsserviços, Spring, persistência e mensageria",
+      "url": "https://atos.cnj.jus.br/atos/detalhar/4682",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Informações gerais — notificações",
+      "publisher": "Documentação PDPJ-Br",
+      "reference": "Webhook e formatos de eventos",
+      "url": "https://docs.pdpj.jus.br/servicos-estruturantes/notificacoes/informacoes-gerais/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Service Registration and Discovery",
+      "publisher": "Spring",
+      "reference": "Guia de Eureka e discovery",
+      "url": "https://spring.io/guides/gs/service-registration-and-discovery/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Cloud Config",
+      "publisher": "Spring",
+      "reference": "Configuração distribuída e Config Server",
+      "url": "https://docs.spring.io/spring-cloud-config/reference/index.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Cloud Gateway",
+      "publisher": "Spring",
+      "reference": "Roteamento, filtros, integração com discovery",
+      "url": "https://docs.spring.io/spring-cloud-gateway/reference/index.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Consumer Acknowledgements and Publisher Confirms",
+      "publisher": "RabbitMQ",
+      "reference": "Confirmações do produtor e do consumidor",
+      "url": "https://www.rabbitmq.com/docs/confirms",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RabbitMQ Publish/Subscribe",
+      "publisher": "RabbitMQ",
+      "reference": "Exchanges fanout, bindings e filas",
+      "url": "https://www.rabbitmq.com/tutorials/tutorial-three-python",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Versioned migrations",
+      "publisher": "Redgate Flyway",
+      "reference": "Migrations versionadas e checksum",
+      "url": "https://documentation.red-gate.com/fd/versioned-migrations-273973333.html",
+      "accessedAt": "2026-10-09"
+    }
+  ]
+}

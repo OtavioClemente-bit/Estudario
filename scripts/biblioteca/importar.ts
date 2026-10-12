@@ -280,17 +280,19 @@ for (let i = 0; i < stale.length; i += 50) {
 // Só os recortes escritos aqui (MANUAL) são refeitos; os automáticos ficam, salvo quando um
 // recorte revisado da mesma banca os substitui (upsert abaixo).
 await rest("library_board_notes?origin=eq.MANUAL", "DELETE");
-if (notes.length > 0) {
-  await rest("library_board_notes?on_conflict=topic_id,board_norm,role_norm", "POST", notes.map((n) => ({
-    topic_id: n.topic,
-    board_norm: n.boardNorm,
-    role_norm: n.roleNorm,
-    board: n.value.board,
-    role: n.value.role ?? null,
-    version: n.value.version,
-    note: n.value,
-    origin: "MANUAL",
-  })), "resolution=merge-duplicates,return=minimal");
+// Em lotes: milhares de recortes num POST só estouram o tempo do banco.
+const noteRows = notes.map((n) => ({
+  topic_id: n.topic,
+  board_norm: n.boardNorm,
+  role_norm: n.roleNorm,
+  board: n.value.board,
+  role: n.value.role ?? null,
+  version: n.value.version,
+  note: n.value,
+  origin: "MANUAL",
+}));
+for (let i = 0; i < noteRows.length; i += 200) {
+  await rest("library_board_notes?on_conflict=topic_id,board_norm,role_norm", "POST", noteRows.slice(i, i + 200), "resolution=merge-duplicates,return=minimal");
 }
 // O catálogo também espelha o repositório: edital que saiu de conteudo/editais sai do app.
 for (let i = 0; i < catalogRows.length; i += 20) {

@@ -1,0 +1,1822 @@
+{
+  "id": "informatica.java-ee-spring",
+  "subject": "Informática",
+  "title": "Java EE/Jakarta EE e Spring",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Java EE/Jakarta EE e Spring"
+  ],
+  "scope": {
+    "covers": "Arquitetura Java EE/Jakarta EE 8, padrões em aplicações web, servidor web e contêiner/servidor de aplicações, servlets, JSP, JSF, Ajax, JBoss Seam, JDBC, JPA 2.0 e 2.2, Hibernate, Envers, Flyway, IoC/DI, Spring Framework, Spring Boot, Spring Cloud, Eureka, Zuul, MapStruct, Swagger/OpenAPI e Maven.",
+    "excludes": "Sintaxe geral da linguagem Java, implementação integral de sistemas, configuração detalhada de clusters e tópicos avançados de segurança, além de versões ou produtos alheios ao escopo."
+  },
+  "theoryTitle": "Java EE/Jakarta EE e Spring: arquitetura, desenvolvimento web, persistência e ecossistema",
+  "chapters": [
+    {
+      "title": "1. Plataforma Java EE/Jakarta EE e arquitetura de aplicações web",
+      "markdown": "## Da aplicação monolítica ao contêiner\n**Java EE** designa o conjunto histórico de especificações empresariais Java; **Jakarta EE** é sua continuidade sob a Eclipse Foundation. Uma especificação define o contrato das APIs; uma implementação compatível fornece o comportamento em execução. **Jakarta EE 8** é compatível com Java EE 8 e ainda emprega o espaço de nomes `javax.*` em suas APIs, como `javax.servlet` e `javax.persistence`. A mudança de pacote para `jakarta.*` ocorre na geração Jakarta EE 9, não na 8. Em enunciado que associa Jakarta EE 8 a importações `jakarta.servlet.*`, identifique a confusão cronológica.\n\nO **Java SE** fornece linguagem e bibliotecas básicas; a plataforma empresarial agrega contratos para componentes web, persistência, transações, segurança, mensagens, injeção e outras capacidades de execução. Jakarta EE 8 inclui, entre outras, Servlet 4.0, Server Pages 2.3, Server Faces 2.3, Persistence 2.2, CDI 2.0, RESTful Web Services 2.1 e Bean Validation 2.0. A referência a **JPA 2.0** em um sistema antigo é válida: é uma versão anterior da especificação, não sinônimo de Hibernate.\n\n## Camadas e responsabilidades\nUma aplicação web recebe HTTP na borda, processa regras e acessa dados. Separar **apresentação**, **serviço/domínio** e **persistência** facilita testes e manutenção. No padrão **MVC**, o controlador recebe a ação e coordena o caso de uso, o modelo representa dados/regras e a visão renderiza a resposta. Exemplo: `/pedidos/42` chega ao controlador; o serviço consulta o pedido via repositório; o resultado é transformado em HTML ou JSON. MVC não exige um banco particular nem uma tecnologia única de visão. **DAO** concentra operações de acesso a dados; **DTO** transporta dados entre camadas ou pela API; **Factory** encapsula criação de objetos; **Front Controller** centraliza entrada/requisições e despacho. Não confunda um DTO com entidade JPA automaticamente gerenciada.\n\n| Papel | Função principal | Exemplo |\n| --- | --- | --- |\n| Servidor web | Receber conexões HTTP, servir estáticos, terminar TLS e/ou atuar como proxy | Apache HTTP Server, Nginx |\n| Contêiner de servlets | Executar servlets, filtros e ciclo de vida web | Tomcat |\n| Servidor de aplicações | Disponibilizar conjunto mais abrangente de serviços empresariais, conforme produto/perfil | WildFly, Payara, GlassFish |\n| Proxy reverso | Encaminhar pedidos a processos internos, balancear ou aplicar regras de borda | Nginx na frente de uma aplicação Java |\n\nA distinção é **funcional**, não uma proibição de sobreposição: Tomcat é servidor HTTP e contêiner web, mas não uma implementação completa de todas as APIs de Jakarta EE; um servidor de aplicações já dispõe de contêiner web. Nginx pode encaminhar `/api/**` a um serviço e entregar `/assets/**` diretamente. A prova costuma inverter esses papéis, atribuindo a Nginx o gerenciamento de `HttpServlet` ou a JSP a terminação TLS.\n\n## Contêiner, implantação e configuração\nO **contêiner** gerencia ciclo de vida, dependências e serviços de componentes que hospeda. Arquivos `WAR` costumam empacotar aplicações web tradicionais; `EAR` pode agrupar módulos empresariais. Um projeto Spring Boot pode distribuir um `JAR` executável com servidor incorporado, não precisando obrigatoriamente de servidor externo. Uma aplicação empacotada como `WAR` pode, em outro cenário, ser implantada em contêiner externo: o artefato escolhido acompanha a topologia.\n\n**JNDI** oferece mecanismo de nomes para localizar recursos, como `DataSource` administrado pelo contêiner. Um `DataSource` permite obter conexões e frequentemente participa de um pool; ele não é a API de mapeamento objeto-relacional. **JTA** cuida de contratos de transação, inclusive integração com serviços gerenciados; não substitui a persistência. **CDI** oferece injeção de dependências e escopos no ecossistema empresarial; a injeção do Spring pertence a outro contêiner, ainda que os conceitos de inversão de controle sejam semelhantes.\n\nEm um problema de infraestrutura, verifique quatro perguntas: quem recebe HTTP, quem executa componentes Java, quem fornece transações/recursos e onde está a regra de negócio? Se a descrição fala em 'contêiner gerenciando servlet', a resposta se refere ao nível web. Se descreve um conjunto completo de serviços empresariais, trata-se de servidor de aplicações; se fala de proxy e arquivos estáticos, a função principal é de servidor web. A existência de múltiplas funções no mesmo produto não invalida as definições.\n"
+    },
+    {
+      "title": "2. Servlets, JSP, JSF, Ajax e JBoss Seam",
+      "markdown": "## Servlets e ciclo de vida\nUm **servlet** é um componente Java executado por contêiner web para atender requisições. No `HttpServlet`, `service()` despacha métodos HTTP, normalmente para `doGet()`, `doPost()`, `doPut()` etc. O contêiner instancia o servlet, chama `init()` para inicialização, atende chamadas a `service()` e executa `destroy()` no encerramento. Não espere `init()` em cada GET: ele normalmente é chamado uma vez para a instância. A mesma instância pode atender várias requisições em threads distintas; um campo mutável de instância usado como variável temporária por requisição pode gerar condição de corrida. Dados locais ao método e componentes preparados para concorrência são soluções mais seguras.\n\nO mapeamento por `@WebServlet(\"/consulta\")` associa URL ao servlet. Um **filtro** (`Filter`) intercepta requisição e/ou resposta na cadeia, por exemplo para logging ou autenticação; um **listener** observa eventos de ciclo de vida, como criação de sessão. O encaminhamento por `RequestDispatcher.forward()` ocorre no servidor e preserva a mesma requisição; `sendRedirect()` instrui o navegador a fazer outra requisição, normalmente com alteração de URL. O **escopo de request** dura a requisição; **session** permite associar estado a visitas do mesmo cliente; **application** corresponde a atributos compartilhados no `ServletContext`. A sessão não é um campo particular de um servlet nem equivale automaticamente a transação de banco.\n\n| Operação | Efeito na navegação | Requisição |\n| --- | --- | --- |\n| `forward()` | Despacho interno para outro recurso | Preserva a requisição corrente |\n| `sendRedirect()` | Resposta HTTP orienta o navegador a acessar outra URL | Provoca nova requisição |\n| `getSession()` | Obtém ou cria sessão, conforme sobrecarga e argumento | Não redireciona nem envia HTML por si |\n\n## JSP, JSF e Ajax\n**JSP (JavaServer Pages)** oferece uma forma de gerar conteúdo de resposta por páginas: o contêiner traduz/compila uma JSP para servlet. Uma JSP pode usar EL (`${pedido.total}`) e bibliotecas de tags para acessar valores sem inserir lógica de negócio na página. A tradução não transforma a JSP em uma linguagem executada no navegador; processamento JSP ocorre no servidor. Deixar consultas SQL dentro de scriptlets JSP mistura responsabilidades e dificulta manutenção.\n\n**JSF (JavaServer Faces, em Jakarta EE 8: Server Faces 2.3)** é framework web de interface orientado a componentes e ciclo de vida. A navegação e o estado de componentes passam por fases, como restaurar visão, aplicar valores de requisição, validar, atualizar modelo, invocar aplicação e renderizar resposta. Em uma tela com `h:inputText`, erro de conversão ou validação impede, em regra, atualização normal do modelo para aquele fluxo; a interface pode ser reexibida com mensagens. O backing bean vincula dados/ações à tela; não é a mesma coisa que `HttpServlet` escrito diretamente nem garante ausência de tráfego HTTP.\n\n**Ajax** é técnica de requisições assíncronas para atualizar partes de uma página sem recarga completa. Usa mecanismos do navegador, frequentemente `fetch()` ou `XMLHttpRequest`; os dados podem vir em JSON, XML ou HTML. Em JSF, `f:ajax` é um modo de acionar processamento parcial, mas Ajax também existe sem JSF. 'Assíncrono' não significa que o servidor dispensou HTTP nem que cada operação Ajax requer WebSocket. Uma busca com digitação e sugestão incremental ilustra Ajax; uma navegação com refresh integral não é exigência da técnica.\n\n## Seam e integração de tecnologias\n**JBoss Seam 2** é framework histórico de integração de componentes, especialmente JSF e EJB, com gerenciamento de contextos, conversação e outras facilidades. O **escopo de conversação** modela uma interação que pode abranger várias requisições, como um cadastro em etapas; difere do escopo request, encerrado ao fim de uma única requisição, e do escopo session, normalmente mais amplo. Seam não é o sucessor oficial de JSF, não é a especificação JPA e não corresponde ao Spring Cloud. É importante reconhecer o produto como tecnologia legada em alguns sistemas, sem presumir integração nativa com versões modernas de bibliotecas sem análise de compatibilidade.\n\n## Cenários e fronteiras\nNo envio de formulário: navegador transmite POST; filtro pode executar verificação; servlet/controlador recebe parâmetros; serviço valida regras; persistência registra os dados; JSP ou JSF apresenta resultado. Na submissão Ajax o navegador continua fazendo requisição HTTP, mas o cliente altera parte da página após obter a resposta. Em uma tela JSF, a validação de componentes ocorre no ciclo de vida do framework; em uma API de servlet puro, a validação precisará ser provida pelo código e bibliotecas adotadas. A prova gosta de deslocar processamento de servidor para navegador e de equiparar sessão HTTP a escopo de conversação.\n"
+    },
+    {
+      "title": "3. Persistência: JDBC, JPA, Hibernate, Envers e Flyway",
+      "markdown": "## JDBC: acesso relacional por comandos\n**JDBC** é a API Java de interação com banco relacional por conexões, instruções SQL e resultados. Uma aplicação obtém `Connection` de `DataSource` (ou `DriverManager`), executa `PreparedStatement`/`Statement` e percorre `ResultSet`. Para `SELECT nome FROM pessoa WHERE id = ?`, a instrução preparada recebe `setLong(1, id)` e usa parâmetros, evitando a concatenação direta de valores controlados pelo usuário. A preparação favorece separação entre SQL e dados e protege contra as formas usuais de injeção em posições parametrizáveis; nomes de tabelas e colunas, em geral, não são valores parametrizáveis. Não confunda prevenção de SQL injection com validação das regras de negócio.\n\n`executeQuery()` normalmente é usado para consultas que produzem `ResultSet`; `executeUpdate()` retorna contagem de linhas afetadas para DML e pode ser usado para comandos SQL apropriados. Com auto-commit habilitado, a conclusão de cada instrução é tipicamente confirmada automaticamente. Para duas alterações que devem ser atômicas, a transação pode exigir `setAutoCommit(false)`, `commit()` e `rollback()` sob controle adequado e fechamento de recursos (`try-with-resources`). O pool de conexões gerenciado por `DataSource` reaproveita conexões físicas; sua existência não cria transações distribuídas por si.\n\n## JPA: contrato de mapeamento\n**JPA** (Java Persistence API, posteriormente Jakarta Persistence) define uma **especificação ORM**: entidades identificadas por `@Entity`, chave primária `@Id`, relacionamentos `@OneToMany`, `@ManyToOne`, queries JPQL e interface `EntityManager`. O **Hibernate ORM** é uma implementação/provedor que também oferece recursos próprios; JPA não é 'um módulo interno obrigatório do Hibernate'. Hibernate pode ser usado como provedor JPA ou via APIs nativas. A especificação JPA **2.0** inclui, por exemplo, Criteria API e melhorias de mapeamento; Jakarta EE 8 padroniza Persistence **2.2**, ainda em `javax.persistence.*`.\n\nEm `Pedido` com `@ManyToOne Cliente cliente`, o vínculo representa associação entre entidades; o mecanismo de carga varia com estratégias de fetch e consulta. No padrão JPA, `@ManyToOne` é `EAGER` por omissão e `@OneToMany` é `LAZY` por omissão. Esses padrões não garantem número fixo de SQLs nem tornam a execução imune a **N+1**. Se uma busca carrega 50 pedidos e depois acessa, um a um, associações não previamente carregadas, consultas adicionais podem ocorrer. `JOIN FETCH` ou um entity graph adequado pode otimizar um caso, mas coleções e paginação merecem cuidado.\n\n## Estados, persistência e transação\nUma entidade pode estar **transient/new** (ainda não persistida), **managed** (associada ao contexto), **detached** (fora dele) ou **removed**. `persist(nova)` torna uma nova instância gerenciada; `find(Tipo.class, chave)` localiza pelo identificador; `remove(gerenciada)` programa sua exclusão; `detach(gerenciada)` deixa de monitorá-la; `merge(destacada)` **copia o estado** para uma instância gerenciada e **retorna essa instância**, sem prometer que o objeto recebido passe a ser gerenciado. `clear()` desassocia todas as entidades gerenciadas do contexto. Identidade de entidade no contexto é diferente da identidade da referência Java que o cliente guarda após `merge`.\n\n`flush()` sincroniza alterações pendentes do contexto com o banco; **não equivale a `commit()`**. Um INSERT enviado no flush ainda pode ser revertido pelo rollback da transação. `refresh()` relê o estado do banco e pode sobrescrever alterações em memória; não é a operação para anexar uma entidade detached. `@Version` habilita controle de versão otimista do mapeamento; conflito pode ser detectado quando duas transações tentam confirmar atualizações concorrentes sobre a mesma versão. JPA tem níveis de abstração diferentes de JDBC: ORM pode gerar SQL usando JDBC, mas isso não elimina a API de baixo nível.\n\n| Recurso | Propósito | Não confundir com |\n| --- | --- | --- |\n| JPA | Especificação de persistência e contexto de entidades | Driver JDBC |\n| Hibernate ORM | Implementação ORM com extensões próprias | Linguagem SQL |\n| Hibernate Envers | Histórico/auditoria de revisões de entidades auditadas | Migração de schema |\n| Flyway | Versionamento e execução de mudanças de banco | Auditoria do estado de cada entidade |\n\n## Envers e Flyway\n**Hibernate Envers** permite auditar alterações de entidades/campos anotados com `@Audited`, armazenando revisões e possibilitando recuperar estados históricos por interfaces como `AuditReader`. Exemplo: alterações de endereço de cliente auditado aparecem em revisões mesmo que o esquema relacional não tenha mudado. Envers não substitui logs de segurança, trilha de acesso a recursos externos ou versionamento dos scripts DDL.\n\n**Flyway** executa **migrations** do banco. `V1__criar_tabela.sql` e `V2__indice.sql` são scripts versionados, normalmente aplicados uma vez por versão ao banco-alvo e registrados em `flyway_schema_history`, com checksum. Modificar `V1` já aplicada pode provocar falha de validação; o caminho esperado é criar uma nova versão para evoluir o schema. Scripts repetíveis, como `R__views.sql`, não possuem versão e podem ser reaplicados quando o checksum muda; são úteis para views ou procedures com definição substituível. O comando `migrate` aplica mudanças pendentes; `validate` compara histórico e artefatos disponíveis. Uma entidade marcada `@Audited` não gera, por essa anotação, migrações Flyway.\n"
+    },
+    {
+      "title": "4. Spring Framework e Spring Boot",
+      "markdown": "## Spring Core e inversão de controle\nO **Spring Framework** disponibiliza um contêiner **IoC** que cria, configura e relaciona **beans**. Em injeção de dependência, uma classe declara o que precisa e recebe uma implementação, em vez de procurar globalmente ou construir sozinha toda a árvore de objetos. Exemplo: `PedidoService(PedidoRepository repo)` recebe o repositório pelo construtor; nos testes, pode receber uma implementação simulada. A injeção por **construtor** é indicada para dependências obrigatórias e facilita campos finais; por **setter**, pode atender dependências opcionais configuráveis. Injeção não significa que qualquer objeto criado com `new` seja bean do contêiner.\n\n`@Component` habilita registro por varredura de componentes; `@Service` e `@Repository` são especializações de papel. `@Configuration` e métodos `@Bean` descrevem explicitamente objetos construídos pelo contêiner. `@Autowired` solicita resolução de dependências; quando há várias candidatas do mesmo tipo, pode ser preciso `@Qualifier` ou `@Primary`. Em um componente com um único construtor, nas configurações usuais modernas, não é necessário escrever `@Autowired` nele. Ter interface não obriga injetar por setter, tampouco dispensa configuração de beans.\n\nOs **escopos** Spring incluem `singleton` (padrão por contêiner e nome de bean) e `prototype` (nova instância a cada solicitação ao contêiner); `request` e `session` dependem de contexto web. `singleton` não equivale ao padrão GoF de uma instância única em toda a JVM, pois pode haver múltiplos contextos. Um bean `singleton` com lista mutável que armazena temporariamente dados de cada requisição precisa de cuidado concorrencial. Injetar um bean `prototype` em um `singleton` normalmente resolve a dependência no momento da criação desse singleton: não cria automaticamente novo prototype a cada chamada ao método; para obtenção dinâmica, podem ser usados provedores.\n\n## Camada web e transações\nNo **Spring MVC**, `DispatcherServlet` atua como **Front Controller**; `@Controller` pode retornar uma view e `@RestController` é conveniente para respostas como JSON, equivalendo conceitualmente a controlador com `@ResponseBody` nos métodos. `@GetMapping(\"/pedidos/{id}\")` mapeia GET; `@PathVariable` extrai parâmetro do caminho; `@RequestBody` associa o corpo HTTP a um objeto com conversores configurados. Uma anotação `@RestController` não converte o serviço em cliente HTTP nem substitui autenticação, validação ou serialização apropriada.\n\n`@Transactional` define limites transacionais sob a infraestrutura Spring, normalmente por **proxy AOP**. Na configuração baseada em proxies, chamada externa por referência proxyificada pode acionar interceptação; **autoinvocação** (`this.outroMetodo()`) dentro do mesmo objeto contorna o proxy e não inicia nova regra transacional somente por anotação no método chamado. Rollback padrão do mecanismo Spring declarativo costuma ocorrer para exceções não verificadas (`RuntimeException`) e `Error`; exceções verificadas exigem configuração, como `rollbackFor`, quando se deseja rollback. Não atribua esse detalhe genericamente a todas as transações JTA/JPA.\n\n## Spring Boot: convenção e automação\n**Spring Boot** complementa Spring com **starters**, configuração automática, convenções e execução conveniente. `@SpringBootApplication` compõe, em linhas gerais, configuração Spring, component scan e auto-configuração. Ao adicionar dependência `spring-boot-starter-web` compatível, o classpath oferece elementos com os quais Boot pode configurar um serviço web; um projeto pode gerar `JAR` com contêiner HTTP embutido. O starter é um agrupador de dependências, não substitui a implementação de controladores.\n\nA **auto-configuração** usa condições: presença de classes, propriedades e ausência/presença de beans. Com uma configuração que cria `DataSource` própria, a configuração automática padrão de `DataSource` pode recuar; portanto Boot **não sobrescreve indiscriminadamente** decisões explícitas da aplicação. É possível excluir auto-configurações. `application.properties` ou `application.yml` definem propriedades; perfis permitem variar configuração por ambiente, como `application-dev.yml`. Perfis não fazem migrações de banco sozinhos; para isso, um migrador como Flyway precisa ser incluído e configurado.\n\n## Comparação do ecossistema\n| Conceito | Spring Framework | Spring Boot |\n| --- | --- | --- |\n| Foco | IoC, DI, AOP, MVC, integração transacional | Inicialização e configuração opinionada de apps Spring |\n| Registros | Anotações, Java config, XML quando adotado | Usa as formas Spring e aplica auto-configuração condicional |\n| Infraestrutura | Pode rodar em contêiner externo | Pode operar com servidor incorporado ou WAR adequado |\n\n**Spring Cloud** será a camada complementar para problemas distribuídos: descoberta, roteamento e configuração; não é substituto do contêiner IoC. **CDI** e Spring DI são conceitos próximos, mas fazem parte de ecossistemas e APIs diferentes. Ao resolver a questão, separe 'quem cria bean', 'quem atende HTTP', 'quem governa transação' e 'quem configura automaticamente'.\n"
+    },
+    {
+      "title": "5. Spring Cloud, Eureka, Zuul, MapStruct, Swagger e Maven",
+      "markdown": "## Descoberta e roteamento em microsserviços\n**Spring Cloud** reúne integrações para sistemas distribuídos, incluindo descoberta de serviços e soluções de gateway, configuração e comunicação. Em microsserviços, endereço físico de instâncias muda com replicação e escalonamento; **service discovery** permite resolver nome lógico, como `catalogo`, em uma ou mais instâncias. **Eureka Server** mantém registro; um **Eureka Client** se registra com metadados como host e porta, envia heartbeats e pode consultar o registro. Se os heartbeats cessarem, instâncias podem ser removidas conforme configuração e mecanismos de proteção; descoberta não garante que cada instância esteja respondendo instantaneamente a toda requisição.\n\nNo Spring Cloud Netflix, `spring-cloud-starter-netflix-eureka-client` é dependência para clientes. A propriedade `eureka.client.serviceUrl.defaultZone` informa o endpoint de registro; **`defaultZone` é sensível a maiúsculas/minúsculas e não deve virar `default-zone`**. Exemplo YAML: `eureka: { client: { serviceUrl: { defaultZone: 'http://localhost:8761/eureka/' } } }`. `spring.application.name` normalmente identifica o serviço. O registro de serviços não é, por si, um balanceador de carga nem um gateway.\n\n**Zuul** é o gateway/proxy legado do conjunto Netflix integrado por versões antigas do Spring Cloud Netflix. Nele, regras como `zuul.routes.users: /usuarios/**` podem encaminhar solicitações para um serviço identificado por `users`; filtros `pre`, `route`, `post` e `error` permitem tratar a passagem. Em configurações históricas, `@EnableZuulProxy` ativa proxy e integração de rotas. **Zuul não é o servidor de descoberta**: o Eureka fornece registro; Zuul encaminha tráfego. A documentação atual de Spring Cloud Netflix concentra-se em Eureka, e o gateway moderno do ecossistema é o **Spring Cloud Gateway**; a prova que mostra uma configuração Zuul está examinando a integração legada, não uma funcionalidade que se deve presumir presente nas versões atuais.\n\n| Elemento | Problema resolvido | Exemplo de função |\n| --- | --- | --- |\n| Eureka | Descoberta/registro de instâncias | `catalogo` aponta a endereços disponíveis |\n| Zuul (legado) | Roteamento e filtros de borda | `/usuarios/**` é encaminhado a um serviço |\n| Spring Cloud Gateway | Gateway reativo ou MVC conforme modalidade, nas linhas atuais | Regras de rota e filtros |\n| Spring Boot | Inicialização e auto-configuração de app Spring | Subir processo web com servidor incorporado |\n\n## MapStruct e Swagger/OpenAPI\n**MapStruct** é **processador de anotações em tempo de compilação** para criar implementações de mapeamento Java entre tipos, frequentemente entidades e DTOs. `@Mapper(componentModel = \"spring\")` orienta a geração de um mapper registrável como bean Spring; `@Mapping(source = \"nome\", target = \"nomeCompleto\")` atende campos de nomes diferentes. Um processo de build precisa executar o annotation processor pertinente. MapStruct **não** é provedor JPA, não consulta tabelas e, por padrão, não é um mecanismo de conversão via reflexão em cada requisição. Exemplo: `Usuario -> UsuarioResumoDTO` copia campos de objeto, mas a estratégia de carregamento de associações lazy continua sendo assunto do ORM.\n\n**OpenAPI** descreve o contrato de uma API HTTP: caminhos, métodos, parâmetros, corpos, respostas e esquemas em JSON ou YAML. **Swagger** nomeia ferramentas do ecossistema, entre elas **Swagger UI**, que exibe documentação interativa a partir da descrição OpenAPI. Um contrato com `GET /pedidos/{id}` e resposta 200 com esquema `PedidoDTO` documenta a operação, mas não a implementa nem torna a autorização automática. Não confunda Swagger UI com serviço de descoberta ou gerenciador de dependências.\n\n## Maven e ciclo de build\n**Maven** usa o `pom.xml` para declarar coordenadas (`groupId`, `artifactId`, `version`), dependências, plugins e fases. O ciclo padrão segue uma ordem, entre outras: `validate` → `compile` → `test` → `package` → `verify` → `install` → `deploy`. Executar `mvn package` processa fases anteriores relevantes; executar `mvn install` também executa o necessário até `install`. `install` coloca o artefato no **repositório local**, ao passo que `deploy` o publica no repositório remoto configurado. Um `WAR` usa empacotamento específico; um aplicativo Boot normalmente usa construção e empacotamento compatíveis com sua forma de execução.\n\nOs escopos Maven merecem atenção: `compile` é o padrão; `provided` usa biblioteca no momento de compilar, esperando que a infraestrutura a forneça em execução (caso típico: API Servlet no WAR para contêiner); `runtime` indica necessidade em execução e testes, mas não no classpath de compilação principal; `test` restringe ao contexto de testes. `dependencyManagement` controla versões e configurações de dependências sem necessariamente adicioná-las ao projeto consumidor; declarar dependência efetiva em `dependencies` é ato diferente. **Plugin** executa objetivos de build, enquanto **dependency** oferece classes/bibliotecas. Flyway pode ter plugin Maven para execução de migrações, sem deixar de ser uma ferramenta de banco.\n\n## Como o tema costuma ser cobrado\nO enunciado costuma misturar conceitos de **camadas diferentes**: chama Eureka de proxy, Zuul de registro, MapStruct de ORM, Swagger de servidor HTTP ou `install` de publicação remota. Outros casos exploram a distinção **versão histórica × versão atual** (`javax.*` em Jakarta EE 8; Zuul em Spring Cloud Netflix legado), **compilação × execução** (annotation processor MapStruct; escopo Maven `provided`) e **mudança de dados × mudança de schema** (Envers versus Flyway). Para resolver, encontre a ação concreta — 'descobrir instância', 'encaminhar requisição', 'gerar mapeador', 'documentar API', 'empacotar artefato' — e associe-a ao componente responsável.\n"
+    }
+  ],
+  "summary": "## Revisão estruturada\n**Plataforma:** Java EE passou à evolução Jakarta EE. **Jakarta EE 8 mantém APIs `javax.*`**, com Servlet 4.0, Faces 2.3 e Persistence 2.2; a migração geral para `jakarta.*` começa em Jakarta EE 9. Servidor web atende HTTP, conteúdos estáticos e/ou proxy; contêiner executa servlets; servidor de aplicações fornece serviços empresariais mais amplos. Em MVC, controlador coordena entrada, modelo expressa domínio, visão apresenta resultado. DAO acessa dados; DTO transporta dados.\n\n**Web:** servlet: `init()` → `service()` → `destroy()` na vida da instância; `doGet()`/`doPost()` atendem métodos HTTP, e campos mutáveis de instância podem competir entre threads. `forward()` preserva a requisição e opera internamente; `sendRedirect()` induz outra chamada do navegador. JSP gera saída no servidor a partir de página traduzida em servlet. JSF oferece componentes e ciclo de conversão, validação, atualização de modelo e renderização. Ajax permite atualização parcial por requisições HTTP; JBoss Seam 2 é framework legado que integrou JSF e EJB com contexto de conversação.\n\n**Dados:** JDBC executa SQL por `Connection` e `PreparedStatement`; parâmetros substituem valores, não identificadores SQL. JPA especifica o ORM; Hibernate é uma implementação. `persist()` gerencia nova entidade; `merge()` copia estado e **retorna instância gerenciada**; `remove()` atua em entidade gerenciada; `flush()` sincroniza, mas não confirma transação. Envers (`@Audited`) preserva revisões de entidades; Flyway aplica scripts de evolução do schema, controla versões/checksums e pode reaplicar migrations repetíveis quando modificadas.\n\n**Spring:** IoC entrega dependências a beans, preferencialmente por construtor para obrigações. `@Component`, `@Service`, `@Repository`, `@Configuration` e `@Bean` registram configurações/componentes. Singleton é escopo padrão do contêiner Spring, não garantia de thread safety. Spring MVC usa `DispatcherServlet`; `@RestController` escreve o corpo da resposta. `@Transactional` baseado em proxy não intercepta autoinvocação; exceções não verificadas levam normalmente a rollback por padrão. Spring Boot oferece starters, perfis, servidor embarcado opcional e auto-configuração condicional, sem obrigar todas as implementações.\n\n**Nuvem, mapeamento e build:** Eureka registra/descobre serviços; `defaultZone` preserva camel case. Zuul faz gateway/roteamento em versões legadas; não o confunda com Eureka ou com o Spring Cloud Gateway atual. MapStruct gera mapeadores Java na compilação, podendo registrá-los como beans Spring. OpenAPI descreve contrato da API; Swagger UI apresenta documentação interativa. Maven usa `pom.xml`: `package` empacota, `install` grava no repositório local, `deploy` publica no remoto; `provided` pressupõe dependência disponível no ambiente de execução.\n",
+  "flashcards": [
+    {
+      "front": "Jakarta EE 8 usa `javax` ou `jakarta`?",
+      "back": "As APIs ainda usam predominantemente `javax.*`. A transição geral para `jakarta.*` ocorreu a partir da versão 9."
+    },
+    {
+      "front": "Servidor web x contêiner de servlet?",
+      "back": "O servidor web recebe HTTP, serve estáticos e/ou faz proxy; o contêiner executa servlets e gere seu ciclo de vida. Um produto pode cumprir ambos os papéis."
+    },
+    {
+      "front": "O que faz o padrão Front Controller?",
+      "back": "Centraliza a entrada e o despacho de requisições. `DispatcherServlet` cumpre esse papel no Spring MVC."
+    },
+    {
+      "front": "Quais são as fases essenciais do servlet?",
+      "back": "O contêiner inicializa com `init()`, atende por `service()` e finaliza com `destroy()`. `doGet()` e `doPost()` atendem métodos HTTP via `HttpServlet`."
+    },
+    {
+      "front": "`forward` x `redirect`?",
+      "back": "`forward` encaminha internamente mantendo a requisição. `sendRedirect` faz o cliente iniciar outra requisição."
+    },
+    {
+      "front": "JSP é executada em qual lado?",
+      "back": "No servidor: a página é traduzida/compilada como servlet, que produz a resposta."
+    },
+    {
+      "front": "O que muda com Ajax?",
+      "back": "O navegador pode enviar uma requisição HTTP e atualizar parte da interface sem recarregar a página inteira."
+    },
+    {
+      "front": "Como reconhecer JSF?",
+      "back": "Componentes de interface e ciclo de vida com restauração, conversão, validação, atualização do modelo e renderização."
+    },
+    {
+      "front": "Para que servia o Seam 2?",
+      "back": "Integração histórica, sobretudo de JSF e EJB, com contextos como conversação entre várias requisições."
+    },
+    {
+      "front": "JDBC x JPA?",
+      "back": "JDBC oferece execução de SQL via conexão e comandos. JPA especifica o mapeamento de entidades e o gerenciamento do contexto de persistência."
+    },
+    {
+      "front": "`persist` x `merge`?",
+      "back": "`persist` torna uma nova entidade gerenciada; `merge` copia o estado para outra instância gerenciada e a devolve."
+    },
+    {
+      "front": "`flush()` confirma transação?",
+      "back": "Não. Sincroniza estado com o banco, mas `rollback` ainda pode desfazer as alterações."
+    },
+    {
+      "front": "Envers x Flyway?",
+      "back": "Envers armazena versões do estado das entidades auditadas. Flyway versiona e aplica mudanças de estrutura/dados por scripts."
+    },
+    {
+      "front": "O que é um bean Spring?",
+      "back": "Objeto criado, configurado ou gerido pelo contêiner IoC Spring, disponível para injeção conforme escopo e configuração."
+    },
+    {
+      "front": "Quando preferir injeção por construtor?",
+      "back": "Quando a dependência é obrigatória. O objeto fica completo na criação e pode manter campos finais."
+    },
+    {
+      "front": "Como funciona a autoconfiguração Boot?",
+      "back": "Configura componentes com base em dependências e condições. Beans explícitos podem fazer a configuração automática recuar."
+    },
+    {
+      "front": "Por que autoinvocação afeta `@Transactional`?",
+      "back": "Com interceptação por proxy, `this.metodo()` não atravessa o proxy e não aplica a configuração transacional desse método por si."
+    },
+    {
+      "front": "O que faz o Eureka?",
+      "back": "Registra instâncias e permite descobrir endereços por identificador lógico; não encaminha o tráfego de gateway."
+    },
+    {
+      "front": "Qual é o papel do Zuul?",
+      "back": "Nas integrações legadas, roteia requisições e aplica filtros como gateway/proxy; não é o registro de instâncias."
+    },
+    {
+      "front": "MapStruct opera em que momento?",
+      "back": "Gera implementação de mapper em tempo de compilação por processamento de anotações."
+    },
+    {
+      "front": "OpenAPI x Swagger UI?",
+      "back": "OpenAPI especifica o contrato de operações da API. Swagger UI renderiza esse contrato como documentação interativa."
+    },
+    {
+      "front": "`install` x `deploy` no Maven?",
+      "back": "`install` coloca artefato no repositório local; `deploy` publica no remoto configurado."
+    }
+  ],
+  "tips": [
+    "Quando o caso falar de JSP ou Servlet, identifique onde o processamento ocorre: lógica de servidor não passa a executar no navegador só porque HTML foi enviado.",
+    "Marque no enunciado o verbo decisivo: registrar e descobrir (Eureka), rotear (Zuul/Gateway), mapear objetos (MapStruct), documentar (OpenAPI), migrar schema (Flyway).",
+    "Para questões sobre JPA, desenhe os estados new, managed e detached; lembre que o retorno de `merge()` é o objeto gerenciado.",
+    "Se aparecer Jakarta EE 8 com `jakarta.persistence.*`, verifique a versão: a plataforma 8 ainda usava `javax.persistence.*`.",
+    "No Maven, associe `package` a artefato, `install` a repositório local e `deploy` a repositório remoto; escopo `provided` não empacota a API provida pelo contêiner.",
+    "Em Spring, pergunte se o objeto passou pelo proxy; chamadas `this.metodo()` geralmente não passam por interceptação transacional em modo proxy.",
+    "Antes de escolher estratégia para ORM, separe auditoria histórica (Envers), persistência de entidades (JPA/Hibernate) e evolução da estrutura do banco (Flyway).",
+    "Em casos de MapStruct, procure o mapper gerado no build e anotações `@Mapper`/`@Mapping` em vez de imaginar reflexão em produção."
+  ],
+  "traps": [
+    "**A prova escreve:** 'Jakarta EE 8 substituiu todas as importações `javax` por `jakarta`.' **Erro:** a troca de espaço de nomes ocorreu na versão 9. **Correto:** Jakarta EE 8 preserva as APIs `javax.*`.",
+    "**A prova escreve:** 'Executar `forward` envia um 302 e inicia nova requisição.' **Erro:** o despacho é interno. **Correto:** `sendRedirect()` orienta uma nova requisição do cliente.",
+    "**A prova escreve:** '`merge` reconecta o mesmo objeto detached.' **Erro:** o estado é copiado. **Correto:** a instância devolvida por `merge()` é a que se deve utilizar como gerenciada.",
+    "**A prova escreve:** '`flush()` efetiva definitivamente os dados.' **Erro:** ainda pode haver rollback. **Correto:** `commit()` confirma a transação.",
+    "**A prova escreve:** 'Flyway armazena versões anteriores dos objetos JPA.' **Erro:** Flyway controla migrations do banco. **Correto:** Envers acompanha revisões de entidades auditadas.",
+    "**A prova escreve:** 'Autoinvocação ativa uma transação nova porque há `@Transactional` no método interno.' **Erro:** em AOP por proxy não há interceptação dessa chamada interna. **Correto:** a chamada deve atravessar um proxy apropriado ou outra configuração transacional.",
+    "**A prova escreve:** 'Eureka distribui requisições HTTP como gateway e Zuul registra instâncias.' **Erro:** funções invertidas. **Correto:** Eureka descobre; Zuul encaminha.",
+    "**A prova escreve:** '`mvn install` envia o artefato para a equipe em repositório remoto.' **Erro:** install usa repositório local. **Correto:** deploy publica no repositório remoto configurado."
+  ],
+  "activeRecall": [
+    {
+      "question": "Por que Tomcat não deve ser automaticamente classificado como servidor Jakarta EE completo?",
+      "answer": "Ele implementa contêiner web/servlet e funcionalidades HTTP, mas não disponibiliza por si todas as APIs exigidas pela plataforma empresarial completa."
+    },
+    {
+      "question": "O que muda entre uma JSP e uma aplicação JSF com validação de formulário?",
+      "answer": "JSP é tecnologia de geração de páginas; JSF é framework de componentes com ciclo de vida próprio, no qual conversão e validação antecedem atualização normal do modelo."
+    },
+    {
+      "question": "Por que guardar dados da requisição em campo de instância de servlet é perigoso?",
+      "answer": "A mesma instância costuma atender concorrência de várias threads; um campo mutável pode ser sobrescrito por requisições simultâneas."
+    },
+    {
+      "question": "Como diferenciar `persist()`, `merge()` e `refresh()` em JPA?",
+      "answer": "`persist` torna nova entidade gerenciada; `merge` transfere estado para entidade gerenciada e a retorna; `refresh` descarta alterações em memória e relê do banco."
+    },
+    {
+      "question": "Como reagir quando o checksum Flyway de uma migration já aplicada diverge?",
+      "answer": "Investigar a alteração e preferir nova migration para evoluir o banco; editar scripts aplicados causa divergência de histórico e pode falhar na validação."
+    },
+    {
+      "question": "Qual o papel do `@Qualifier` quando há duas implementações injetáveis da mesma interface?",
+      "answer": "Especificar a candidata desejada para eliminar ambiguidade na resolução de dependência pelo contêiner."
+    },
+    {
+      "question": "Por que um serviço com `@Transactional` pode não abrir transação ao chamar método interno?",
+      "answer": "No mecanismo padrão baseado em proxy, o método chamado por `this` não é interceptado; a anotação isolada não muda isso."
+    },
+    {
+      "question": "Qual a diferença entre Eureka, Zuul e Spring Cloud Gateway?",
+      "answer": "Eureka registra e descobre instâncias; Zuul é roteador/proxy em integração histórica; Spring Cloud Gateway é solução de gateway do ecossistema atual."
+    },
+    {
+      "question": "Como MapStruct e OpenAPI participam de uma API que devolve DTO?",
+      "answer": "MapStruct pode gerar código de transformação entidade→DTO no build; OpenAPI descreve o endpoint e o esquema do DTO, que Swagger UI exibe."
+    },
+    {
+      "question": "O que os comandos `mvn package`, `install` e `deploy` fazem de diferente?",
+      "answer": "O primeiro empacota após fases precedentes; install também grava artefato no repositório local; deploy o publica em repositório remoto configurado."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Versões e camadas confundidas",
+      "summary": "Distinguir Jakarta EE 8 (`javax.*`) de Jakarta EE 9 (`jakarta.*`) e separar servidor web, contêiner web e servidor de aplicações."
+    },
+    {
+      "key": "e2",
+      "title": "Fluxo e escopos web confundidos",
+      "summary": "Forward mantém requisição; redirect cria outra. Servlets são compartilháveis entre threads; JSF valida componentes; Ajax não dispensa HTTP; conversação Seam não é sessão inteira."
+    },
+    {
+      "key": "e3",
+      "title": "Persistência, transação e migração confundidas",
+      "summary": "`merge` devolve gerenciada e `flush` não confirma transação; Hibernate implementa ORM; Envers audita entidades e Flyway versiona alterações do banco."
+    },
+    {
+      "key": "e4",
+      "title": "Contêiner e interceptação Spring",
+      "summary": "Injeção depende de bean gerenciado; escopo singleton não garante thread safety; auto-configuração respeita condições; `@Transactional` via proxy não intercepta chamada interna."
+    },
+    {
+      "key": "e5",
+      "title": "Descoberta versus gateway",
+      "summary": "Eureka registra/descobre instâncias; Zuul antigo e Spring Cloud Gateway encaminham requisições. `defaultZone` preserva camel case."
+    },
+    {
+      "key": "e6",
+      "title": "Build, conversão e documentação",
+      "summary": "MapStruct gera mappers na compilação; OpenAPI documenta contratos e Swagger UI os exibe; Maven install usa repositório local, deploy publica no remoto."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe mantém uma aplicação web Java que precisa executar servlets e aproveitar recursos empresariais como transações gerenciadas e mensageria em uma implantação compatível com a plataforma completa. Qual descrição distingue corretamente os componentes de infraestrutura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor web executa integralmente JPA e mensageria, enquanto o servidor de aplicações limita-se a arquivos estáticos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O servidor de aplicações pode prover serviços empresariais e contêiner web, enquanto o servidor web pode atuar na borda HTTP.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O contêiner de servlets define obrigatoriamente o pool JDBC e a plataforma completa, enquanto Nginx hospeda EJBs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O servidor de aplicações é um tipo de navegador HTTP, enquanto o servidor web oferece o contexto de persistência JPA.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O proxy reverso substitui o contêiner de servlets para executar Java, enquanto o servidor de aplicações apenas autentica usuários.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Um servidor de aplicações compatível pode combinar contêiner web com transações, mensagens e outras APIs empresariais; o servidor web frequentemente atende estáticos ou opera como proxy. A erra ao atribuir a execução da plataforma ao servidor de borda; C confunde um contêiner web com toda a plataforma e dá EJB ao Nginx; D atribui funções de navegador e JPA aos componentes errados; E trata proxy como executor de servlets, o que ele não é.",
+      "section": "1. Plataforma Java EE/Jakarta EE e arquitetura de aplicações web",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto foi construído especificamente sobre Jakarta EE 8 e utiliza a API de persistência fornecida por essa geração. Qual importação e versão são compatíveis com o cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`jakarta.persistence.EntityManager`, pois o namespace Jakarta foi introduzido integralmente na plataforma 8.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`javax.persistence.EntityManager`, porque a plataforma 8 trouxe pela primeira vez a especificação JPA 1.0.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`jakarta.persistence.EntityManager`, já que Persistence 2.2 migrou seus pacotes durante o lançamento da plataforma 8.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`javax.persistence.EntityManager`, pois Jakarta EE 8 ainda preserva esse namespace e utiliza Persistence 2.2.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`javax.servlet.EntityManager`, porque as classes JPA são disponibilizadas diretamente pelo módulo de servlets 4.0.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Jakarta EE 8 manteve os pacotes `javax.*`, incluindo `javax.persistence`, e padronizou Persistence 2.2. A e C antecipam a migração de nomes que ocorreu na geração 9; B erra ao situar JPA 1.0 na plataforma 8; E confunde os pacotes de servlet e persistência, que são especificações diferentes.",
+      "section": "1. Plataforma Java EE/Jakarta EE e arquitetura de aplicações web",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação de consultas de pedidos, uma classe recebe HTTP, outra verifica descontos comerciais e outra executa consultas ao banco. Qual arranjo respeita a separação de responsabilidades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Controlador recebe a requisição, serviço aplica descontos e DAO ou repositório concentra o acesso aos dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DAO valida a rota HTTP, serviço monta a resposta HTML e controlador executa diretamente toda a persistência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Visão calcula descontos, DTO executa consultas SQL e DAO controla o roteamento inicial das requisições.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Controlador grava todas as tabelas, visão inicia transações e o modelo existe apenas para escolher o endereço HTTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Repositório gera páginas JSP, controlador implementa o driver JDBC e serviço apenas declara objetos de transporte.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O controlador coordena a entrada, o serviço executa regra de negócio e o DAO/repositório trata persistência. B coloca roteamento no DAO e armazenamento no controlador; C transforma DTO em executor SQL e a visão em serviço; D atribui transações à apresentação e esvazia o modelo; E troca responsabilidades de renderização, driver e serviço.",
+      "section": "1. Plataforma Java EE/Jakarta EE e arquitetura de aplicações web",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servlet de consulta foi mapeado para `/consulta` e atende milhares de chamadas GET após a implantação. Como o contêiner normalmente opera o ciclo de vida da instância?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executa `destroy()` antes de cada `doGet()` para liberar a conexão, e `init()` após enviar a resposta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Invoca `init()` para cada requisição GET e destrói a instância ao terminar cada método `service()`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Chama `service()` uma vez no deployment e processa as demais requisições diretamente no navegador cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Constrói obrigatoriamente uma instância exclusiva por cliente e invoca `init()` quando a sessão expira.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Inicializa com `init()`, processa solicitações via `service()` e encerra o ciclo com `destroy()`.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. No ciclo normal o contêiner inicializa a instância, chama service para processar solicitações e destrói o servlet ao retirá-lo de serviço. A inverte a ordem e usa destroy por requisição; B confunde inicialização de instância com chamada HTTP; C desloca execução do servlet ao cliente; D inventa um servlet por sessão, quando uma instância pode atender muitos clientes.",
+      "section": "2. Servlets, JSP, JSF, Ajax e JBoss Seam",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tela institucional usa páginas JSP para exibir uma listagem construída no servidor. Qual descrição corresponde ao processamento de uma JSP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A JSP é transformada em JavaScript e executada pelo navegador como controlador primário de cada requisição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A JSP é interpretada pelo driver JDBC, que devolve HTML sem necessidade de processamento no servidor web.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A página JSP é traduzida para servlet no ambiente servidor e participa da geração da resposta HTTP.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A página JSP é uma entidade ORM com ciclo de persistência controlado pelo `EntityManager` do serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A JSP substitui a camada de aplicação e oferece nativamente todos os contratos de transações JTA.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Uma JSP é processada no servidor por tradução e compilação em servlet, que produz a resposta. A a confunde com JavaScript do cliente; B atribui geração HTML ao driver JDBC; D transforma página em entidade JPA; E confunde tecnologia de apresentação com infraestrutura transacional JTA.",
+      "section": "2. Servlets, JSP, JSF, Ajax e JBoss Seam",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface de pesquisa deve mostrar sugestões de nomes enquanto a pessoa digita, preservando o restante da página. Qual solução descreve corretamente a técnica Ajax?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar requisições HTTP pelo navegador e atualizar seletivamente o conteúdo com as respostas recebidas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Atualizar o banco diretamente pelo DOM da página sem requisição nem processamento do serviço Java.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir cada ação por recarga integral, porque respostas parciais são incompatíveis com comunicação HTTP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exigir sessão WebSocket permanente para toda digitação, já que Ajax não opera com requisições HTTP comuns.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compilar páginas JSP em código executável no navegador, dispensando o endpoint que responde à pesquisa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Ajax possibilita que código do navegador faça requisições HTTP e atualize trechos da interface conforme a resposta. B ignora a comunicação com o serviço para obter dados; C caracteriza recarga integral, não atualização parcial; D confunde Ajax com WebSocket; E pressupõe execução de JSP no cliente, embora a JSP seja processada no servidor.",
+      "section": "2. Servlets, JSP, JSF, Ajax e JBoss Seam",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após validar um formulário, o servlet precisa apresentar uma JSP de resultado usando os atributos da requisição atual, sem provocar uma segunda chamada do navegador. Qual recurso é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`sendRedirect()` para a JSP, pois o redirecionamento mantém os atributos da requisição original.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`HttpSession.invalidate()`, pois invalidar sessão transfere o request atual para a página JSP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`RequestDispatcher.forward()`, que encaminha internamente e preserva os atributos da requisição.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`HttpServletResponse.sendError()`, que processa a JSP normalmente e conserva os dados do formulário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`ServletContext.destroy()`, que transfere o controle de apresentação sem devolver resposta ao cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. `forward()` executa um despacho interno no servidor preservando o request e seus atributos. A envia instrução de redirecionamento e causa nova requisição; B invalida a sessão HTTP; D comunica condição de erro, não é encaminhamento de visão comum; E nem constitui mecanismo de despacho, pois destroy pertence a ciclo de vida e não ao roteamento apresentado.",
+      "section": "2. Servlets, JSP, JSF, Ajax e JBoss Seam",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema antigo utiliza JBoss Seam 2 para manter dados de um formulário distribuído em três páginas, sem estender necessariamente esses dados a toda a sessão HTTP. Qual recurso explica esse comportamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O escopo request, que conserva automaticamente a mesma instância de dados durante múltiplas requisições.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A unidade de persistência JPA, que representa exclusivamente a sequência de páginas do usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O ciclo de servlet, que mantém um objeto específico e isolado para cada formulário do navegador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O contexto application, que restringe cada conjunto de dados ao usuário e ao processo de cadastro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O escopo de conversação, que permite manter estado de uma interação atravessando várias requisições.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Seam 2 trabalha com contexto de conversação, útil para interações de várias requisições como um assistente de cadastro. A limita request a uma única requisição; B confunde contexto conversacional com unidade JPA; C assume servlet individual por formulário; D usa escopo global da aplicação para dados que deveriam estar isolados por interação.",
+      "section": "2. Servlets, JSP, JSF, Ajax e JBoss Seam",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma biblioteca Java construída com Maven precisa ser utilizada como dependência por outros projetos na mesma estação, sem publicar arquivo em servidor remoto. Qual fase executada atende essa finalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`test`, que copia o artefato compilado para o repositório local ao encerrar os testes unitários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`install`, que percorre fases anteriores e grava o artefato compilado no repositório Maven local.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`verify`, que publica a biblioteca no repositório local como função obrigatória de verificação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`deploy`, que grava a biblioteca somente na máquina atual, sem comunicação com repositório remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`validate`, que empacota e instala a dependência antes de compilar os respectivos fontes Java.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. A fase install instala o artefato no repositório local após as etapas anteriores do ciclo. A executa testes sem instalação local como objetivo; C verifica requisitos e resultados de teste, mas não é a fase de instalação; D publica no remoto configurado; E valida o projeto antes da compilação e não empacota a biblioteca.",
+      "section": "5. Spring Cloud, Eureka, Zuul, MapStruct, Swagger e Maven",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação `WAR` será implantada em contêiner externo que já fornece a API Servlet. No Maven, qual escopo expressa adequadamente que a API é necessária para compilar, mas virá do contêiner em execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`runtime`, incluindo a API apenas na execução e dispensando-a do classpath principal de compilação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`test`, pois a aplicação web precisa das classes Servlet exclusivamente ao executar testes automatizados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`compile`, para determinar explicitamente que a biblioteca externa será excluída do pacote da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`provided`, mantendo a API na compilação e esperando seu fornecimento pelo contêiner em execução.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`import`, que injeta a API diretamente no contêiner HTTP sem adicioná-la às dependências do projeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. `provided` mantém dependência disponível para compilação e espera a biblioteca no ambiente de execução; é exemplo clássico para Servlet API em WAR externo. A inverte a necessidade de compilação; B restringe indevidamente ao teste; C não expressa a expectativa de fornecimento externo e pode resultar em empacotamento; E é escopo específico para importação de POM em dependencyManagement, não injeção no contêiner.",
+      "section": "5. Spring Cloud, Eureka, Zuul, MapStruct, Swagger e Maven",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint JDBC recebe um identificador informado pelo usuário e precisa consultar `SELECT nome FROM cliente WHERE id = ?`. A equipe quer reduzir o risco de injeção por valores e manter parâmetros tipados. Qual abordagem é a correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar `Statement` com concatenação do identificador e aplicar `escape` apenas aos caracteres de espaço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Montar SQL concatenando parâmetros após validar o JSON de entrada, sem utilizar o marcador `?`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar `PreparedStatement` com marcador `?` e associar `setLong(1, id)` ao primeiro parâmetro antes de executar.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Empregar `CallableStatement` com o nome da tabela como parâmetro, tratando a consulta como procedimento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar SQL com `Statement` contendo a expressão literal do parâmetro e filtrar caracteres após a consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. JDBC oferece `PreparedStatement` com placeholder para valores; `setLong(1, id)` vincula o primeiro parâmetro sem concatenar a entrada ao SQL. A preserva concatenação insegura, e remover espaços não cobre injeção; B valida formato JSON, mas não parametriza SQL; D troca a consulta por chamada de procedimento e tenta parametrizar identificador SQL; E filtra depois da execução, tarde demais para impedir a interpretação do SQL injetado.",
+      "section": "3. Persistência: JDBC, JPA, Hibernate, Envers e Flyway",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entidade `Cliente` foi carregada por um `EntityManager` já encerrado, sofreu alterações em memória e precisa atualizar o banco em novo contexto de persistência. Qual uso de JPA respeita a semântica de entidades detached?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `persist(cliente)` como operação específica de atualização de detached e descartar seu retorno.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Invocar `Cliente gerenciado = em.merge(cliente)` e trabalhar com a instância retornada pelo contexto.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar `em.remove(cliente)` para aplicar as modificações e em seguida consultar a entidade novamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Chamar `em.refresh(cliente)` diretamente em detached para copiar todas as mudanças ao banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar `em.detach(cliente)` antes de `flush()` para reanexar automaticamente o objeto ao contexto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. `merge` copia o estado da entidade destacada para instância gerenciada e devolve esta referência. A associa `persist` a atualização de detached, finalidade que não lhe corresponde; C marca remoção e ainda opera sobre objeto não gerenciado; D usa refresh ao contrário, pois ele busca estado do banco e exige instância apropriada; E detach remove acompanhamento do contexto, não reanexa.",
+      "section": "3. Persistência: JDBC, JPA, Hibernate, Envers e Flyway",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação JPA insere um registro e chama `em.flush()`; logo depois, uma falha de regra de negócio obriga `rollback`. Qual consequência descreve corretamente `flush` nesse fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O flush confirmou a transação e tornou impossível desfazer o INSERT, mesmo com rollback posterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O flush removeu as entidades do contexto, impedindo qualquer SQL antes de uma chamada a `merge()`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O flush abriu uma transação separada que permanece confirmada quando a transação principal reverte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O flush sincronizou comandos com o banco, mas o rollback ainda pode reverter a transação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O flush apenas limpou caches de segundo nível e não pode enviar instruções SQL ao banco de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. `EntityManager.flush()` sincroniza o contexto com o banco dentro das condições transacionais, sem efetuar commit. A o confunde com confirmação; B descreve `clear()` ou detach, não flush; C inventa transação autônoma; E nega justamente a sincronização SQL que caracteriza flush. O rollback pode desfazer o INSERT enviado.",
+      "section": "3. Persistência: JDBC, JPA, Hibernate, Envers e Flyway",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um módulo antigo é descrito como baseado em JPA 2.0, enquanto outro segue Jakarta EE 8. Qual relação entre as especificações é tecnicamente consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "JPA 2.0 é versão anterior do padrão ORM; Jakarta EE 8 adota Persistence 2.2 em `javax.persistence`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "JPA 2.0 designa Hibernate Envers; Jakarta EE 8 inclui Flyway como substituto obrigatório dessa API.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JPA 2.0 é biblioteca JDBC de gerenciamento de conexões; Jakarta EE 8 a renomeou para `jakarta.sql`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "JPA 2.0 utiliza exclusivamente classes `jakarta.persistence`, enquanto Jakarta EE 8 voltou aos pacotes `javax`.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "JPA 2.0 é o servidor de aplicações da Eclipse Foundation, e Persistence 2.2 é um padrão apenas para HTTP.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. JPA 2.0 é geração anterior do contrato ORM, e Jakarta EE 8 incorpora Persistence 2.2 com `javax.persistence`. B troca especificação JPA por Envers e inventa Flyway obrigatório; C a reduz erroneamente a API JDBC; D desloca o namespace `jakarta` a uma versão antiga; E confunde padrão de persistência com servidor e protocolo web.",
+      "section": "3. Persistência: JDBC, JPA, Hibernate, Envers e Flyway",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe seleciona Hibernate ORM para implementar persistência JPA, preservando o uso da API padrão `EntityManager` em grande parte do código. Qual afirmação explica esse arranjo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Hibernate é o protocolo de rede utilizado por JDBC para traduzir SQL em respostas HTTP da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Hibernate é o framework de páginas JSP responsável por compilar views e administrar o ciclo JSF.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Hibernate é a própria versão Java SE da JPA, de modo que outros provedores não podem implementá-la.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Hibernate é ferramenta exclusiva de migration SQL e atua somente antes da implantação dos objetos Java.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Hibernate é provedor ORM que implementa JPA e pode oferecer extensões próprias de mapeamento.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Hibernate ORM implementa interfaces JPA como `EntityManager` e pode oferecer extensões de mapeamento e consulta. A confunde ORM com protocolo JDBC/HTTP; B lhe atribui renderização JSP e ciclo JSF; C o transforma em especificação exclusiva e impede outros provedores; D descreve a finalidade de ferramenta de migrations como Flyway, não de um ORM em execução.",
+      "section": "3. Persistência: JDBC, JPA, Hibernate, Envers e Flyway",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um requisito pede consultar o valor anterior de um campo de entidade `Contrato` em determinada revisão histórica, sem tratar de alterações DDL. Qual tecnologia e configuração atendem diretamente a necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Flyway com `V2__contrato.sql`, pois scripts versionados preservam automaticamente todos os valores anteriores das entidades.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "JDBC `PreparedStatement`, pois a parametrização armazena snapshots históricos de objetos a cada commit.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JPA `@Version`, pois o controle otimista mantém cópias de cada coluna em tabela de auditoria histórica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Hibernate Envers com `@Audited`, permitindo recuperar valores passados de entidades por suas revisões.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "MapStruct com `@Mapper`, pois código de mapeamento gerado persiste versões anteriores no banco relacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Envers audita mudanças de entidades marcadas `@Audited` e permite consultas a revisões históricas. A versiona esquema/scripts, não snapshots de cada entidade; B previne problemas de parametrização e executa SQL, sem auditoria automática; C `@Version` detecta conflitos otimistas, não registra o histórico completo; E converte objetos e não mantém histórico persistente.",
+      "section": "3. Persistência: JDBC, JPA, Hibernate, Envers e Flyway",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script Flyway `V3__adicionar_indice.sql` já foi aplicado em produção. Alguém altera seu conteúdo e a validação passa a acusar divergência de checksum. Qual ação segue a disciplina de migrations versionadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar `migrate` novamente, que reaplica `V3` a cada boot independentemente do histórico de execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir `V3` por `R__indice.sql`, preservando sua versão e aplicando a nova definição como migration original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Excluir o registro de auditoria Envers, pois o checksum divergente se refere às revisões de entidades JPA.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar a versão de `V3` no arquivo local para uma menor, pois Flyway ignora checksums de versões antigas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Restaurar o script original aplicado e introduzir a alteração desejada em uma nova migration versionada.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Migrations Flyway versionadas são tratadas como imutáveis após aplicação; checksum detecta mudanças, e a evolução deve ser registrada por nova versão. A confunde scripts versionados com repetíveis; B troca nomenclatura sem preservar um histórico coerente; C envolve Envers sem relação com o controle do Flyway; D não resolve a discrepância e altera a identidade histórica da migration.",
+      "section": "3. Persistência: JDBC, JPA, Hibernate, Envers e Flyway",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta JPA retorna quarenta registros `Pedido`; em seguida, a apresentação acessa uma associação não carregada de cada pedido, provocando dezenas de consultas adicionais. Qual medida é pertinente ao problema descrito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Chamar `EntityManager.flush()` após cada pedido, porque isso transforma automaticamente associações lazy em eager.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Revisar o plano de carregamento e usar `JOIN FETCH` ou entity graph apropriado para reduzir o padrão N+1.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Anotar a entidade com `@Audited`, para que revisões históricas substituam as consultas adicionais da associação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declarar a conexão JDBC com auto-commit desligado, pois isso elimina consultas ORM emitidas ao acessar relações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar script Flyway repetível para a entidade, pois toda relação lazy será então carregada em lote automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O padrão N+1 decorre de acesso repetido a associações cujo plano de fetch provoca consultas adicionais; `JOIN FETCH` ou entity graph pode carregar dados necessários em estratégia melhor. A usa flush, que sincroniza escrita e não muda fetch; C configura auditoria, irrelevante para carregamento; D trata confirmação de transação JDBC; E trata migração de esquema, não plano de consulta ORM.",
+      "section": "3. Persistência: JDBC, JPA, Hibernate, Envers e Flyway",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Há duas implementações Spring de `Notificador`, ambas registradas como beans; `AlertaService` possui um único construtor que exige `Notificador`. Sem indicação de preferência, o contêiner encontra ambiguidade. Qual alteração é adequada mantendo injeção por construtor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar `@Transactional` ao construtor para que a transação determine qual implementação deve ser injetada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar o construtor por campo estático com `@Autowired`, pois campos estáticos são resolvidos antes da escolha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Utilizar `@Qualifier` pertinente na dependência ou `@Primary` em uma implementação para orientar a seleção.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Substituir as implementações por dois métodos `@Bean` de mesmo tipo, sem nomes nem indicação adicional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar `@RestController` às implementações, pois controladores HTTP passam a ter prioridade na injeção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Havendo múltiplos beans do mesmo tipo, `@Qualifier` pode identificar a implementação desejada ou `@Primary` preferir uma delas. A confunde transações com resolução de injeção; B sugere campo estático e não elimina ambiguidade; D mantém duas candidatas sem desambiguação; E especializa papel web e não resolve automaticamente a escolha do `Notificador`.",
+      "section": "4. Spring Framework e Spring Boot",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em configuração Spring padrão baseada em proxy, um método público `processar()` de bean Spring chama `this.gravar()`; apenas `gravar()` está marcado com `@Transactional(propagation = REQUIRES_NEW)`. Qual análise está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A autoinvocação não passa pelo proxy e, por si só, não ativa a interceptação transacional declarada em `gravar()`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A anotação cria nova transação por compilação, inclusive na chamada `this.gravar()`, antes de qualquer interceptor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Spring converte a autoinvocação em requisição HTTP ao DispatcherServlet, que impõe `REQUIRES_NEW` ao método.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A chamada interna passa pelo proxy apenas porque o método é público, iniciando transação independente da referência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`REQUIRES_NEW` faz com que `gravar()` seja registrado como bean distinto e seja instanciado a cada execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. No modo de AOP por proxy, `this.gravar()` é invocação dentro do objeto e não atravessa o interceptor responsável por `@Transactional`; a propagação só seria aplicada quando interceptada. B trata a anotação como transformação de compilação; C inventa passagem por HTTP; D toma visibilidade pública como garantia de interceptação; E confunde propagação transacional com definição/escopo de beans.",
+      "section": "4. Spring Framework e Spring Boot",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Spring Boot tem auto-configuração de `DataSource` disponível no classpath. Depois, o projeto define explicitamente um bean `DataSource` próprio e válido. O que é esperado da auto-configuração padrão correspondente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela obrigatoriamente substitui o bean declarado pelo projeto para preservar o comportamento padronizado do Boot.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela deixa de operar em toda a aplicação, inclusive nos componentes web e nas configurações não relacionadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela realiza automaticamente uma migration Flyway para sincronizar a estrutura física com as entidades JPA.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela registra outro bean de mesmo nome e inicia dois contextos de aplicação independentes para os DataSources.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela pode recuar pela condição de ausência de bean, preservando a configuração de `DataSource` do projeto.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A configuração automática do Spring Boot emprega condições como `@ConditionalOnMissingBean`, recuando quando a aplicação já declara seu próprio recurso. A ignora o recuo condicional; B amplia indevidamente a consequência para todas as auto-configurações; C confunde ajuste de bean com migração de esquema; D inventa duplicação obrigatória de nomes e contextos.",
+      "section": "4. Spring Framework e Spring Boot",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um singleton Spring `PedidoService` recebe no construtor um bean declarado como `prototype`. Espera-se um novo objeto prototype a cada chamada a `pedidoService.executar()`, sem alterar o serviço. Qual raciocínio é correto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A dependência prototype costuma ser resolvida ao criar o singleton; novos objetos por chamada exigem provedor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O contêiner refaz obrigatoriamente toda a árvore de dependências prototype antes de cada método público do singleton.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O escopo prototype é sinônimo de request, portanto produz objeto novo apenas quando há solicitação HTTP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O singleton recebe automaticamente uma proxy de sessão HTTP e seleciona prototype com base no cookie do cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A anotação `@Autowired` converte o próprio `PedidoService` em prototype depois da primeira execução do método.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Uma dependência prototype injetada normalmente é criada quando o singleton é construído; para instâncias por uso deve-se solicitar objetos dinamicamente, por exemplo via `ObjectProvider`. B imagina reinjeção por chamada de método; C confunde prototype com request; D atribui proxy de sessão que não decorre da declaração; E diz que autowiring muda escopo do bean consumidor, o que não acontece.",
+      "section": "4. Spring Framework e Spring Boot",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe Spring MVC expõe `@GetMapping(\"/itens/{id}\")` e devolve um objeto `ItemDTO` diretamente no corpo JSON. Qual arranjo responde corretamente pela entrada HTTP e serialização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`@Service` habilita o roteamento HTTP, e `@Repository` transforma o DTO em JSON antes da chamada do servlet.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`@Component` oferece sozinho negociação HTTP e grava o DTO na sessão para o navegador o serializar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`DispatcherServlet` despacha para um `@RestController`, cujo retorno é serializado por conversor adequado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`@Entity` torna o DTO uma view JSP, e o `EntityManager` executa o método GET solicitado pelo navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`@Configuration` publica automaticamente cada método Java como endpoint, sem mapeamento ou conversor de mensagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. No Spring MVC, `DispatcherServlet` despacha requisições; `@RestController` facilita escrita do corpo via conversores de mensagem, como um serializador JSON disponível. A atribui roteamento a serviços e serialização a repositórios; B não descreve o processamento de uma resposta HTTP; D mistura JPA, JSP e roteamento; E confunde configuração de beans com publicação automática de métodos como endpoints.",
+      "section": "4. Spring Framework e Spring Boot",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No `application.yml` de um cliente Eureka, o endereço do registro deve ser `http://localhost:8761/eureka/`. A configuração precisa observar o nome exato da chave de fallback esperada pelo cliente Spring Cloud Netflix. Qual alternativa está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`eureka.client.service-url.default-zone`, pois a chave interna aceita apenas a padronização de hífens.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`eureka.server.serviceUrl.defaultZone`, porque a URL do registro é propriedade do processo servidor, não do cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`spring.cloud.gateway.routes.defaultZone`, pois a URL do Eureka é obtida do roteamento HTTP do gateway.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`eureka.client.serviceUrl.defaultZone`, preservando o camel case da chave `defaultZone` no mapa de URLs.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`spring.application.name.defaultZone`, porque o identificador da aplicação incorpora a URL de descoberta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A documentação do cliente Eureka exige `eureka.client.serviceUrl.defaultZone`; `defaultZone` é chave de mapa com sensibilidade a caixa, não se transforma automaticamente em `default-zone`. A aplica relaxed binding onde a chave do mapa não admite a alteração indicada; B desloca para o servidor; C confunde discovery com gateway; E usa o nome lógico da aplicação para finalidade de endereço.",
+      "section": "5. Spring Cloud, Eureka, Zuul, MapStruct, Swagger e Maven",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação legada Spring Cloud Netflix, a configuração `zuul.routes.users: /usuarios/**` foi utilizada junto com Eureka. Qual alternativa descreve corretamente o comportamento e a separação de papéis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Eureka recebe `/usuarios/**` e aplica filtros HTTP; Zuul mantém os heartbeats das instâncias registradas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Zuul roteia requisições ao serviço `users`, e Eureka oferece informações de instâncias descobertas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Zuul migra a tabela de serviços no banco; Eureka converte automaticamente cada entidade em DTO.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eureka é o conversor de mensagens JSON, enquanto Zuul funciona como repositório Maven dos serviços.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Zuul é o framework de componentes JSF, e Eureka representa a camada de persistência da aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Nas integrações históricas, Zuul é proxy/gateway que pode rotear caminho para nome de serviço; Eureka fornece discovery das instâncias que oferecem esse serviço. A inverte roteamento e registro; C mistura migration e mapeamento de objetos; D atribui serialização e repositório de dependências aos produtos; E desloca ambos ao domínio de interface/persistência, sem relação com suas responsabilidades.",
+      "section": "5. Spring Cloud, Eureka, Zuul, MapStruct, Swagger e Maven",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um `HttpServlet` mantém o último identificador consultado em campo mutável de instância. Como o mesmo servlet pode atender chamadas concorrentes, dois clientes podem interferir nesse valor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O contêiner pode usar threads distintas sobre a mesma instância de servlet. Guardar dado transitório de requisição em campo compartilhado cria possibilidade de corrida; variável local ao método ou gestão de estado apropriada evita essa exposição.",
+      "section": "2. Servlets, JSP, JSF, Ajax e JBoss Seam",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Numa tela JSF, falha de conversão do valor digitado dispensa a fase de validação e faz o framework atualizar normalmente o modelo com o valor inválido, antes de renderizar mensagens de erro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Em JSF, a conversão e a validação fazem parte do ciclo de processamento; falhas impedem a atualização normal do modelo para os componentes problemáticos e levam à renderização de mensagens. O framework não deve transportar um valor inválido como atualização regular do backing bean.",
+      "section": "2. Servlets, JSP, JSF, Ajax e JBoss Seam",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma página JSP pode usar Expression Language para apresentar a propriedade `nome` de um objeto exposto como atributo da requisição, sem que a página seja executada como JavaScript no navegador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. EL permite acessar atributos e suas propriedades na camada de apresentação, enquanto a JSP é processada no servidor e traduzida em servlet. O HTML gerado é enviado ao cliente; isso não significa executar código JSP no browser.",
+      "section": "2. Servlets, JSP, JSF, Ajax e JBoss Seam",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca incremental feita com Ajax exige comunicação WebSocket, pois requisições HTTP iniciadas pelo navegador não podem devolver dados suficientes para atualizar apenas parte da página.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Ajax pode operar sobre HTTP usando `fetch()` ou `XMLHttpRequest` e atualizar um trecho do DOM com a resposta obtida. WebSocket é outra tecnologia de comunicação, útil em certos casos, mas não requisito para atualização parcial por Ajax.",
+      "section": "2. Servlets, JSP, JSF, Ajax e JBoss Seam",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao executar `mvn package` em projeto Maven convencional, as fases precedentes pertinentes do ciclo padrão, incluindo `compile` e `test`, são percorridas antes do empacotamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No ciclo default do Maven, solicitar uma fase implica executar as etapas anteriores pertinentes em ordem. `package` sucede `compile` e `test` e produz o artefato distribuível, com o comportamento específico ditado pelos plugins e pelo empacotamento.",
+      "section": "5. Spring Cloud, Eureka, Zuul, MapStruct, Swagger e Maven",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entidade de faturamento recebeu `@Version` na JPA. A anotação passa então a fornecer, sozinha, consulta às versões históricas completas de cada campo como faria o Hibernate Envers.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `@Version` suporta controle otimista de concorrência e detecção de alterações conflitantes. Ela não configura automaticamente tabelas de auditoria com snapshots de campos; para histórico de revisões de entidade Hibernate pode usar Envers com configuração como `@Audited`.",
+      "section": "3. Persistência: JDBC, JPA, Hibernate, Envers e Flyway",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um projeto Flyway, `R__recriar_views.sql` pode ser executado novamente quando seu checksum muda, enquanto uma migration versionada aplicada normalmente não é reaplicada só por alteração do arquivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Migrations repetíveis não possuem versão numérica e são reexecutáveis após mudança do conteúdo detectada por checksum. As versionadas ficam registradas por versão no histórico; editá-las após aplicação provoca inconsistência de validação, não execução automática da nova redação.",
+      "section": "3. Persistência: JDBC, JPA, Hibernate, Envers e Flyway",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto Spring Boot com dependências web deve necessariamente ser empacotado como WAR e implantado em servidor de aplicações externo, pois Boot não admite contêiner HTTP incorporado a um JAR executável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Spring Boot pode iniciar aplicações web com contêiner incorporado, frequentemente distribuídas como JAR executável. A implantação como WAR em ambiente externo é possível conforme projeto, mas não requisito universal de execução das aplicações Boot.",
+      "section": "4. Spring Framework e Spring Boot",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao usar `@Mapper(componentModel = \"spring\")` em um mapper MapStruct e configurar o processador de anotações no build, é possível obter implementação gerada apta a ser registrada como bean Spring.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. MapStruct produz classe implementadora de interface de mapeamento em tempo de compilação; com componentModel Spring, a implementação gerada é preparada para integração ao contêiner IoC. Isso exige processamento de anotações efetivo no processo de compilação.",
+      "section": "5. Spring Cloud, Eureka, Zuul, MapStruct, Swagger e Maven",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao exibir uma definição OpenAPI com Swagger UI, a ferramenta passa a implementar os serviços de negócio descritos, de modo que endpoints não precisam existir na aplicação web.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Swagger UI renderiza documentação interativa derivada de uma descrição OpenAPI; pode permitir experimentação de chamadas, mas não cria a implementação do endpoint de negócio. Um `POST /pedidos` documentado ainda precisa existir no serviço ou em implementação equivalente.",
+      "section": "5. Spring Cloud, Eureka, Zuul, MapStruct, Swagger e Maven",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em aplicação Spring que utiliza gestão transacional declarativa padrão, uma `RuntimeException` lançada para fora de método transacional interceptado normalmente é motivo de rollback sem configuração adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A infraestrutura transacional declarativa Spring aplica por padrão rollback para exceções não verificadas e `Error` quando o método é interceptado. Exceções verificadas não recebem a mesma regra padrão, mas podem ser incluídas com `rollbackFor` ou ajustes equivalentes.",
+      "section": "4. Spring Framework e Spring Boot",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe Java anotada com CDI `@Inject` é gerenciada automaticamente pelo mesmo contêiner que cria beans Spring, ainda que a aplicação não configure qualquer integração entre os dois ecossistemas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. CDI é a especificação de injeção da plataforma empresarial e Spring possui contêiner próprio de IoC. Recursos e anotações podem ser integrados em certas configurações, mas a presença de `@Inject` não demonstra, por si só, que os dois contêineres sejam a mesma implementação.",
+      "section": "1. Plataforma Java EE/Jakarta EE e arquitetura de aplicações web",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente Eureka registra o nome lógico do serviço, host e porta no servidor de descoberta e envia heartbeats; a ausência desses sinais pode levar ao vencimento do registro, conforme os mecanismos e configurações do Eureka.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Eureka trabalha com metadados de instâncias registradas e renovações periódicas; uma instância sem renovação pode expirar segundo os limites configurados, ressalvados mecanismos como autopreservação. O registro oferece descoberta de endereços, não garantia imediata de saúde em cada chamada.",
+      "section": "5. Spring Cloud, Eureka, Zuul, MapStruct, Swagger e Maven",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O MapStruct evita o problema de inicialização lazy do Hibernate porque o mapper gerado substitui o contexto JPA e consulta associações não carregadas sem precisar de sessão ou estratégia de busca.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. MapStruct gera código Java para copiar propriedades de um objeto a outro; quando acessa propriedades de associações lazy, a regra de carregamento continua a ser do Hibernate/JPA. Um mapper não substitui o contexto de persistência nem oferece acesso mágico a associações fora de sessão adequada.",
+      "section": "5. Spring Cloud, Eureka, Zuul, MapStruct, Swagger e Maven",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "De acordo com a API JPA 2.2, chamar `EntityManager.remove()` diretamente com uma instância detached, e não gerenciada por aquele contexto, pode resultar em `IllegalArgumentException`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação de `EntityManager.remove()` prevê `IllegalArgumentException` para instância não entidade ou detached; para remover uma entidade previamente destacada, é preciso obter referência gerenciada no contexto e observar os requisitos transacionais. `merge()` tem outra semântica: copia estado e devolve referência gerenciada.",
+      "section": "3. Persistência: JDBC, JPA, Hibernate, Envers e Flyway",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A dependência Maven declarada com escopo `provided` é propagada como dependência transitiva de produção aos projetos consumidores, porque a biblioteca deve estar presente no servidor de execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O escopo `provided` serve para compilar e testar no projeto declarador, esperando a biblioteca no ambiente final, e não é propagado transitivamente da forma descrita. A obrigação de o ambiente fornecer a biblioteca não altera a regra de transitividade do escopo Maven.",
+      "section": "5. Spring Cloud, Eureka, Zuul, MapStruct, Swagger e Maven",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação legada de Jakarta EE 8 pode utilizar `javax.servlet.http.HttpServlet` e `javax.persistence.EntityManager` sem deixar de pertencer à geração Jakarta EE 8, embora versões posteriores tenham migrado namespaces.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Jakarta EE 8 republicou o conjunto de especificações Java EE 8 preservando APIs `javax.*`, incluindo Servlet e Persistence. A alteração geral para pacotes `jakarta.*` caracteriza Jakarta EE 9; nome da plataforma e namespace de APIs não devem ser equiparados sem observar a versão.",
+      "section": "1. Plataforma Java EE/Jakarta EE e arquitetura de aplicações web",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O escopo padrão `singleton` de um bean Spring assegura uma única instância dessa classe na JVM inteira, mesmo com dois `ApplicationContext` independentes, e torna seus campos mutáveis seguros para concorrência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O singleton Spring é definido por bean e contêiner; dois contextos distintos podem ter suas respectivas instâncias. Escopo singleton também não fornece sincronização ou imutabilidade para campos mutáveis, de modo que chamadas concorrentes continuam a requerer desenho seguro.",
+      "section": "4. Spring Framework e Spring Boot",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao analisar uma configuração histórica com `@EnableZuulProxy` e rotas por `serviceId`, é apropriado identificar Zuul como solução de roteamento do antigo Spring Cloud Netflix, sem assumir sua presença no conjunto atual centrado em Eureka.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação histórica de Spring Cloud Netflix descreve `@EnableZuulProxy` e rotas ligadas a nomes de serviços. A documentação atual desse módulo mantém como foco a integração com Eureka; para um gateway moderno, o ecossistema utiliza Spring Cloud Gateway. Isso evita aplicar automaticamente configuração legada a versões recentes.",
+      "section": "5. Spring Cloud, Eureka, Zuul, MapStruct, Swagger e Maven",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em `pom.xml`, declarar a versão de uma biblioteca apenas na seção `dependencyManagement` faz o Maven incluí-la obrigatoriamente no classpath de compilação, mesmo sem referência a essa biblioteca em `dependencies`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `dependencyManagement` centraliza versões e outras informações a serem aplicadas quando uma dependência é efetivamente incluída; não adiciona, por si, todas as bibliotecas gerenciadas ao projeto. A inclusão acontece por dependência declarada ou mecanismo de resolução pertinente, não pela mera gestão de versão.",
+      "section": "5. Spring Cloud, Eureka, Zuul, MapStruct, Swagger e Maven",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Jakarta EE Platform 8",
+      "publisher": "Eclipse Foundation — Jakarta EE",
+      "reference": "Jakarta EE 8 Platform Specification; compatibilidade Java EE 8 e APIs incluídas",
+      "url": "https://jakarta.ee/specifications/platform/8/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jakarta Server Faces 2.3",
+      "publisher": "Eclipse Foundation — Jakarta EE",
+      "reference": "Especificação JSF 2.3 da plataforma 8",
+      "url": "https://jakarta.ee/specifications/faces/2.3/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "EntityManager — Jakarta Persistence API 2.2",
+      "publisher": "Eclipse Foundation — Jakarta EE",
+      "reference": "Javadoc `javax.persistence.EntityManager`: persist, merge, remove, detach e flush",
+      "url": "https://jakarta.ee/specifications/persistence/2.2/apidocs/javax/persistence/entitymanager",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Framework — Dependency Injection",
+      "publisher": "Spring",
+      "reference": "IoC, injeção por construtor e setter",
+      "url": "https://docs.spring.io/spring-framework/reference/core/beans/dependencies/factory-collaborators.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Framework — Proxying Mechanisms",
+      "publisher": "Spring",
+      "reference": "Semântica de proxy AOP e self-invocation",
+      "url": "https://docs.spring.io/spring-framework/reference/core/aop/proxying.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Framework — Rolling Back a Declarative Transaction",
+      "publisher": "Spring",
+      "reference": "Rollback padrão e regras de exceção",
+      "url": "https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/rolling-back.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Boot — Auto-configuration",
+      "publisher": "Spring",
+      "reference": "Autoconfiguração por classpath e condições; recuo diante de bean explícito",
+      "url": "https://docs.spring.io/spring-boot/reference/using/auto-configuration.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Cloud Netflix Features",
+      "publisher": "Spring",
+      "reference": "Eureka Client, registro de serviços e `defaultZone`",
+      "url": "https://docs.spring.io/spring-cloud-netflix/reference/spring-cloud-netflix.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Router and Filter: Zuul",
+      "publisher": "Spring Cloud — documentação histórica",
+      "reference": "Rotas, filtros e integração Zuul com descoberta no legado Spring Cloud Netflix",
+      "url": "https://cloud.spring.io/spring-cloud-netflix/multi/multi__router_and_filter_zuul.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Cloud Gateway — Route Predicate Factories",
+      "publisher": "Spring",
+      "reference": "Roteamento por predicados na linha atual Gateway WebFlux",
+      "url": "https://docs.spring.io/spring-cloud-gateway/reference/spring-cloud-gateway-server-webflux/request-predicates-factories.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Hibernate Envers",
+      "publisher": "Hibernate",
+      "reference": "Auditoria de revisões, `@Audited` e consultas históricas",
+      "url": "https://hibernate.org/orm/envers/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Flyway — Versioned migrations",
+      "publisher": "Redgate",
+      "reference": "Versões imutáveis e checksums no histórico",
+      "url": "https://documentation.red-gate.com/fd/versioned-migrations-273973333.html",
+      "accessedAt": "2026-10-09"
+    }
+  ]
+}

@@ -1,0 +1,1804 @@
+{
+  "id": "informatica.programacao-sistemas-embarcados",
+  "subject": "Informática",
+  "title": "Programação para sistemas embarcados: C, C++ e Rust",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Programação para sistemas embarcados: C, C++ e Rust"
+  ],
+  "scope": {
+    "covers": "Desenvolvimento embarcado com C17, biblioteca padrão de C e a referência não identificada a libo; C++17 e STL; Rust, ownership, borrowing e no_std; Qt 6; OpenSSL 3; libcurl; gerenciamento de memória, interfaces com hardware, concorrência, segurança e integração.",
+    "excludes": "Projeto eletrônico de circuitos, programação detalhada de registradores de um microcontrolador específico, drivers de sistemas operacionais em profundidade e protocolos industriais específicos."
+  },
+  "theoryTitle": "Programação para sistemas embarcados: linguagens, bibliotecas e integração segura",
+  "chapters": [
+    {
+      "title": "1. Fundamentos embarcados, C17 e controle de memória",
+      "markdown": "## Ambientes e restrições\nUm **sistema embarcado** executa uma função delimitada em equipamento específico. Pode ser um microcontrolador sem sistema operacional, com RAM e armazenamento reduzidos, ou um computador industrial que executa Linux. Essa distinção altera o conjunto de bibliotecas disponível: possuir processador capaz de executar C não implica possuir sistema de arquivos, sockets ou alocador de memória. Em firmware sem sistema operacional, a inicialização, o mapa de memória, a pilha, as interrupções e o *linker script* tornam-se parte da arquitetura. Em ambientes com sistema operacional, processos, threads, bibliotecas compartilhadas e serviços de rede podem estar disponíveis.\n\n| Aspecto | Sem sistema operacional | Com sistema operacional |\n|---|---|---|\n| Inicialização | Código de partida e hardware | Carregador e ambiente do sistema |\n| Acesso a periféricos | Registradores e drivers próprios | Drivers e interfaces do sistema |\n| Memória | Pilha, estáticos, heap opcional | Memória virtual ou física gerenciada |\n| Bibliotecas | Subconjunto viável conforme plataforma | Bibliotecas dependentes da plataforma |\n\n**Determinismo** significa reduzir a variabilidade do tempo de resposta, não somente executar rapidamente. Um algoritmo veloz em média pode ser inadequado para uma interrupção com prazo rígido se ocasionalmente bloqueia ou aloca memória. O tempo de pior caso, as prioridades, a latência de interrupção e a possibilidade de inversão de prioridade precisam ser examinados em conjunto.\n\n## C17 e seus tipos\nC17 designa a revisão ISO/IEC 9899:2018, também chamada C18, focada em correções ao C11. A macro `__STDC_VERSION__` tem valor `201710L` quando a implementação anuncia C17. Não é correto atribuir a C17 recursos introduzidos no C23. Tipos com largura exata, quando oferecidos pela implementação, estão em `<stdint.h>`: `uint8_t`, `uint16_t` e `uint32_t` são úteis ao interpretar campos de protocolo. A disponibilidade de tipos de largura exata depende da implementação; `sizeof(char)` é 1 em unidades de byte C, mas um byte C não precisa conter oito bits. Para uma comunicação de exatamente oito bits, confirme `CHAR_BIT == 8` e a presença de `uint8_t`.\n\nO padrão distingue **duração automática**, **estática**, **alocada** e a duração vinculada à thread nas implementações aplicáveis. Uma variável automática local costuma ocupar a pilha; um objeto `static` possui duração por toda a execução; `malloc` solicita armazenamento dinâmico e `free` o libera. A linguagem não obriga `malloc` a funcionar em qualquer firmware. A leitura de armazenamento após `free`, o acesso fora do limite de um vetor e a leitura de variável não inicializada em situações que geram comportamento indefinido comprometem a segurança. Em `uint8_t dados[4]`, os índices válidos são 0, 1, 2 e 3. `dados[4]` não é o quinto elemento válido.\n\n## Qualificadores e interface com hardware\n`const` impede modificar o objeto por meio daquele acesso qualificado; não significa, por si só, que o objeto reside em ROM. `volatile` exige observar os acessos relevantes ao objeto segundo as regras da linguagem, útil para registradores mapeados e certas variáveis alteradas por dispositivos. Entretanto, **`volatile` não fornece exclusão mútua, atomicidade nem ordenação entre threads equivalente à sincronização**. Para concorrência entre threads, C11/C17 oferece `<stdatomic.h>` quando suportado, além dos mecanismos apropriados do ambiente. Um contador compartilhado entre interrupção e execução normal pode exigir seção crítica ou operação atômica apropriada à plataforma. `restrict` expressa compromisso de não sobreposição relevante entre acessos a objetos, viabilizando otimizações; usá-lo com ponteiros que violam esse compromisso invalida a premissa.\n\nExemplo: `volatile uint32_t *reg = endereco;` representa intenção de acessar um registrador, mas o endereço, o alinhamento e a semântica desse periférico dependem da documentação do hardware. Não se deve tratar a expressão como código portátil. Máscaras como `valor & 0x0F` isolam os quatro bits menos significativos; `valor | 0x01` coloca o bit zero em 1. Em registradores com bits de limpeza por escrita, a operação de ler, modificar e escrever pode ter efeitos indesejados: é preciso consultar a especificação.\n\n## Biblioteca C e a indicação libo\n`<string.h>` fornece funções para manipulação de memória e sequências de caracteres, como `memcpy`, `memmove` e `strlen`. Quando áreas de origem e destino se sobrepõem, `memmove` é a escolha especificada; `memcpy` exige não sobreposição. `snprintf` permite limitar o número total de bytes escritos no buffer, incluindo o terminador quando há espaço. `<stdio.h>` não garante uma saída física disponível em todo microcontrolador. `<stdlib.h>` reúne rotinas como `malloc`, `free` e conversões, mas seu uso depende do ambiente.\n\nO programa solicitado registra a expressão **C17 e libo**. As fontes técnicas verificadas não identificam de forma inequívoca `libo` como parte padronizada de C17 ou como uma biblioteca única. Portanto, não é correto atribuir a esse nome uma API ou função específica sem referência adicional. Ela não deve ser confundida automaticamente com `libc`, `libio` ou outra biblioteca de nome parecido.\n\n> **Ponto de prova:** a sintaxe C pode ser portátil, mas a interação com registradores, interrupções, endereços fixos e periféricos é dependente de arquitetura e plataforma."
+    },
+    {
+      "title": "2. C++17, STL, RAII e gerenciamento de recursos",
+      "markdown": "## C++17 e recursos da linguagem\nC++17 corresponde à edição ISO/IEC 14882:2017, embora já existam edições posteriores da linguagem. A prova que fixa C++17 exige julgar a disponibilidade **naquela versão**, e não no C++ mais recente. Entre os recursos de C++17 estão as *structured bindings*, as condições com inicialização em `if`, `if constexpr` e a dedução de argumentos de template de classe em situações permitidas. `std::optional`, `std::variant`, `std::any`, `std::string_view` e `std::filesystem` são componentes da biblioteca introduzidos nessa edição. `std::span`, por sua vez, ingressou na biblioteca padrão em C++20; sua presença em biblioteca externa não o transforma em recurso padrão de C++17.\n\n`auto [codigo, temperatura] = leitura;` ilustra uma decomposição de objeto compatível. `if constexpr` permite selecionar ramos de template em tempo de compilação com as regras pertinentes; não equivale a um `if` comum que avalia ambos os caminhos em tempo de execução. Em sistemas de recursos escassos, escolher recursos de linguagem não basta: a implementação da biblioteca padrão, o suporte a exceções, o RTTI e a política de alocação precisam ser considerados.\n\n## Contêineres, iteradores e algoritmos\nA STL reúne contêineres, iteradores, algoritmos e adaptadores. `std::array<int, 4>` tem extensão conhecida na compilação e armazena os quatro elementos dentro do próprio objeto, sem requerer heap apenas por ser um `std::array`. `std::vector<int>` oferece armazenamento contíguo e tamanho variável, podendo realocar seu buffer à medida que cresce. `std::list` é uma sequência encadeada bidirecional; ela não oferece acesso aleatório constante como um vetor. `std::map` organiza chaves ordenadas com operações de busca tipicamente logarítmicas, enquanto `std::unordered_map` usa dispersão, com desempenho médio diferente e sem a mesma ordenação de chaves.\n\n| Estrutura | Propriedade útil | Risco comum na prova |\n|---|---|---|\n| `std::array` | Comprimento fixo | Confundi-lo com `vector` redimensionável |\n| `std::vector` | Elementos contíguos | Desconsiderar invalidação de iteradores após realocação |\n| `std::list` | Inserções com nós estáveis em muitos casos | Supor acesso pelo operador `[]` |\n| `std::map` | Chaves em ordem de comparação | Confundi-lo com tabela hash |\n| `std::unordered_map` | Busca média eficiente por hash | Pressupor ordem crescente de iteração |\n\n`std::sort` exige iteradores de acesso aleatório; funciona com iteradores de `vector`, mas não diretamente com os de `list`. A lista dispõe de `list::sort`. Uma chamada a `reserve(100)` sobre `vector` solicita capacidade para pelo menos 100 elementos, **sem criar 100 elementos**; `resize(100)` altera o tamanho para 100. O operador `[]` em `vector` não verifica limites como a função `at()` verifica. Em aplicações críticas, testes de fronteira devem documentar tamanho, capacidade e validade dos iteradores.\n\n## RAII, ownership e memória\n**RAII** vincula aquisição e liberação de um recurso ao tempo de vida de um objeto. Um objeto local que gerencia um arquivo, uma trava ou memória encerra o recurso em seu destrutor ao sair do escopo. `std::unique_ptr<T>` expressa posse exclusiva; mover a posse deixa a origem sem o recurso gerenciado. `std::shared_ptr<T>` administra posse compartilhada mediante contagem de referências, o que pode introduzir custo e ciclos quando referências compartilhadas formam uma cadeia circular. `std::weak_ptr<T>` permite observar o objeto sem manter referência proprietária, contribuindo para quebrar esses ciclos.\n\n`std::move` é uma conversão que habilita a seleção de operações de movimento, não uma ordem que copie bytes ou mova recursos automaticamente. O resultado depende do construtor ou atribuição escolhido. Ao retornar uma estrutura, otimizações de cópia e elisão previstas em C++17 também importam. `std::string_view` não possui a memória à qual aponta: armazenar uma visão para uma `std::string` temporária que já morreu produz acesso inválido. `std::optional<int>` modela valor presente ou ausente; não é ponteiro e pode armazenar o valor diretamente.\n\n## Threads e condições de execução\nA biblioteca fornece `std::thread`, `std::mutex`, `std::lock_guard` e `std::atomic`, conforme implementação. Um `lock_guard` libera a trava no fim do escopo, inclusive durante desenrolamento por exceção. O uso de `atomic` não torna operações compostas, envolvendo vários estados, automaticamente transacionais. `std::thread` ainda associada a uma thread de execução deve ser finalizada por `join()` ou desvinculada por `detach()` antes da destruição do objeto; caso contrário, ocorre `std::terminate`. A simultaneidade tem custo em pilha, escalonamento e latência que pode ser significativo no firmware. Caso a plataforma não ofereça suporte adequado, a arquitetura precisa ajustar sua estratégia de concorrência.\n\n> **Diagnóstico rápido:** pergunte quem possui o recurso, quando ele é liberado, se a operação realoca e se a API depende de funcionalidades oferecidas pelo sistema operacional."
+    },
+    {
+      "title": "3. Rust: propriedade, empréstimos e execução sem std",
+      "markdown": "## Ownership como contrato de memória\nEm Rust, a regra central de **ownership** associa cada valor a um proprietário por vez, ressalvados os modelos explícitos de compartilhamento. Quando o proprietário sai do escopo, o valor é descartado por meio de `Drop` quando aplicável. Uma atribuição de uma `String` a outra variável normalmente move sua propriedade; usar o nome antigo como proprietário depois do movimento é rejeitado pela verificação do compilador. Tipos que implementam `Copy`, como muitos inteiros, podem ser copiados implicitamente. Isso não é coletor de lixo: o compilador verifica regras e o gerenciamento do recurso decorre da semântica do tipo.\n\nO **borrowing** permite referência compartilhada `&T` ou referência mutável `&mut T`. Durante intervalos de validade sobrepostos, pode haver múltiplos empréstimos compartilhados ou um empréstimo mutável exclusivo; a combinação de um mutável com outros acessos conflitantes é rejeitada. A análise moderna considera o último uso da referência, e não apenas o fim textual do bloco. Lifetimes descrevem relações de validade; uma anotação de lifetime não prolonga fisicamente a vida do dado. Por isso, retornar referência a uma variável local destruída ao final da função é inválido, mesmo com uma anotação arbitrária.\n\n| Tipo ou expressão | Significado | Cuidados |\n|---|---|---|\n| `&T` | Empréstimo compartilhado | Não permite mutação comum do referente |\n| `&mut T` | Empréstimo exclusivo mutável | Evita aliasing conflitante durante o uso |\n| `Option<T>` | `Some(T)` ou `None` | Modela ausência sem valor sentinela improvisado |\n| `Result<T,E>` | `Ok(T)` ou `Err(E)` | Força tratamento explícito dos caminhos de erro |\n| `Box<T>` | Posse de valor alocado | Depende de suporte a alocação apropriado |\n\nExemplo conceitual: um firmware que lê um sensor pode usar `Result<u16, ErroLeitura>`. `Ok(38)` é uma leitura bem-sucedida; `Err(ErroLeitura::Timeout)` é falha que não deve ser confundida com medição zero. O operador `?` propaga um erro compatível dentro de função com tipo de retorno apropriado. O uso de `unwrap()` em erro ou ausência resulta em *panic*, tornando-o inadequado em trajetos críticos sem política deliberada de falha.\n\n## no_std, core e alloc\nO atributo de crate `#![no_std]` evita vincular automaticamente a biblioteca `std` e disponibiliza `core`, que fornece tipos básicos, slices, `Option`, `Result` e outras abstrações independentes do sistema operacional. Isso é apropriado ao **bare metal**. `no_std` não equivale a proibir heap: a crate `alloc` permite, por exemplo, `Vec` e `Box` quando um alocador apropriado existe e foi configurado. Sem alocador, essas coleções não podem ser empregadas normalmente. Binários bare metal também precisam de inicialização adequada, ponto de entrada e política de `panic`; com frequência são usados `#![no_main]`, uma função de entrada específica da plataforma e `#[panic_handler]`.\n\nAcessar endereços de periféricos, configurar interrupções e interagir com hardware demanda abstrações adequadas, muitas vezes fornecidas por PACs e HALs do ecossistema embarcado. Uma HAL padroniza operações para uma família de placas, enquanto a PAC costuma representar registradores de um periférico em maior proximidade com o hardware. Uma HAL não faz o código totalmente independente do dispositivo.\n\n## Unsafe, concorrência e interfaces estrangeiras\nUm bloco `unsafe` autoriza operações adicionais que o compilador não consegue validar totalmente, como desreferenciar ponteiro bruto ou chamar certas funções estrangeiras. Ele **não desativa o verificador de empréstimos para todo o programa** e não transforma automaticamente uma operação em correta. O programador precisa sustentar invariantes de memória, alinhamento, validade e concorrência. `Send` indica segurança para transferir um valor entre threads nos termos do traço; `Sync` indica segurança para compartilhar referências entre threads. `Arc<T>` compartilha posse com contagem atômica, mas não torna mutável e sincronizado o conteúdo por si só: `Arc<Mutex<T>>` combina compartilhamento com proteção de mutação.\n\nIntegrações C/Rust usam `extern` e ABI apropriada. Uma função C que armazena ponteiro recebido pode exigir garantia explícita de vida útil e estabilidade do objeto Rust. A dupla liberação surge quando os dois lados acreditam possuir o mesmo recurso; um acordo de ownership, com rotinas correspondentes de liberação, evita esse erro. Regras de conversão de strings também importam: uma sequência `&str` não é automaticamente uma cadeia C terminada em NUL.\n\n> **Ponto decisivo:** Rust reduz classes de erros de memória no código seguro, mas a correção de firmware ainda depende de hardware, políticas de interrupção, prazos de execução e contratos de código `unsafe`."
+    },
+    {
+      "title": "4. Qt 6: objetos, eventos, sinais e comunicação",
+      "markdown": "## Estrutura do Qt 6\nQt 6 é um conjunto modular de bibliotecas C++ para aplicações gráficas e não gráficas. `Qt Core` oferece infraestrutura de objetos, eventos, contêineres e utilitários; `Qt Network` fornece classes de rede; `Qt Widgets` e `Qt Quick` atendem modelos diferentes de interface gráfica. A existência de Qt no projeto não significa que uma plataforma bare metal limitada possua todas essas capacidades: dependências, requisitos de memória, suporte do sistema operacional e módulos compilados determinam a viabilidade. Em um painel de controle industrial com Linux, Qt pode oferecer interface para um dispositivo; num microcontrolador com poucos quilobytes de RAM, a implementação convencional pode não ser apropriada.\n\n`QObject` é a base do modelo de objetos e de **signals e slots**. Sinais informam que ocorreu um evento ou mudança; slots são funções chamadas por conexões. A conexão é feita com `QObject::connect`; conectores com ponteiros para membros oferecem checagem de tipos em compilação em casos apropriados. Uma conexão não é uma chamada de rede e não exige, por si só, processos diferentes. Também é possível associar funções e lambdas a sinais, observadas as regras de contexto e vida útil.\n\n## Ownership pelo pai e tempo de vida\nQuando um `QObject` recebe outro como filho, o pai passa a administrar sua destruição: destruir o pai destrói seus filhos. Isso facilita organizar árvores de objetos, mas exige atenção a objetos locais automáticos cuja ordem de destruição se tornou inadequada ou a objetos que também seriam liberados manualmente. Um `QObject` pai e seu filho devem ter afinidade com a mesma thread. `moveToThread()` altera a afinidade de um objeto elegível e dos filhos; a movimentação falha quando o objeto tem pai. É incorreto deduzir que um `QThread` executa automaticamente todos os slots definidos nele dentro da thread gerenciada.\n\n## Event loop e conexões\nO **event loop** processa eventos pendentes, temporizadores e chamadas enfileiradas. `QCoreApplication::exec()` inicia o loop principal; loops adicionais podem existir em threads específicas. Uma chamada de trabalho longa realizada na thread da interface impede o atendimento ágil de eventos nessa thread, produzindo travamento aparente da aplicação. Para processamento pesado, um trabalhador pode executar em outra thread e devolver o resultado por signal/slot enfileirado.\n\n| Modo | Efeito essencial | Atenção |\n|---|---|---|\n| `Qt::DirectConnection` | Invoca o slot imediatamente na thread emissora | Pode acessar receptor de outra thread de modo inseguro |\n| `Qt::QueuedConnection` | Agenda o slot no loop da thread do receptor | Depende de loop de eventos funcionando |\n| `Qt::AutoConnection` | Seleciona direto ou enfileirado conforme a thread emissora e a afinidade do receptor | Não depende simplesmente de onde foi criado o emissor |\n| `Qt::BlockingQueuedConnection` | Enfileira e bloqueia o chamador até conclusão | Usado na mesma thread pode causar deadlock |\n\nEm `Qt::QueuedConnection`, o slot não roda no momento da emissão do sinal; precisa ser despachado pelo loop do receptor. A conexão automática, quando a emissão ocorre na thread de afinidade do receptor, comporta-se como direta; caso contrário, como enfileirada. Uma thread que não executa loop pode não receber sinais enfileirados. Essa distinção cai quando uma leitura de sensor é feita em uma thread e uma janela gráfica precisa ser atualizada em outra.\n\n## Redes, temporizadores e integração\n`QTimer` depende do mecanismo de eventos da thread na qual opera. Se a thread não possui loop ativo, o temporizador não produzirá os disparos esperados. `QTcpSocket` oferece uma interface orientada a eventos para redes TCP; seu uso não elimina a necessidade de tratar desconexão, leitura parcial, temporização e estados assíncronos. Protocolos de aplicação podem fragmentar mensagens: receber um bloco de bytes não significa ter recebido uma mensagem lógica inteira. Para comunicação segura, considere `QSslSocket` quando o módulo e a infraestrutura de TLS estão disponíveis, ou uma integração cuidadosamente projetada com OpenSSL.\n\nEm hardware com atualização periódica de valores, a aplicação pode manter a leitura física em um serviço e emitir sinal com uma medição validada. A tela recebe o valor pelo loop gráfico, sem acessar um `QObject` pertencente a outra thread de maneira improvisada. Assim, desacopla-se a interface do ritmo do periférico e diminui-se o risco de bloqueios por E/S.\n\n> **Armadilha:** afinidade, thread efetiva da emissão, conexão e existência de event loop são variáveis diferentes; trocá-las altera o resultado da questão."
+    },
+    {
+      "title": "5. OpenSSL 3, libcurl e segurança de integração",
+      "markdown": "## OpenSSL 3: criptografia e TLS\nOpenSSL 3 reúne interfaces criptográficas e componentes para TLS. A versão 3 introduziu a arquitetura de **providers**: implementações de algoritmos podem ser fornecidas por módulos, como *default*, *base*, *legacy* e opções voltadas a validações específicas. A presença de um algoritmo num provider não significa que sua escolha seja adequada ou esteja permitida pela política de segurança. O provider *legacy* disponibiliza algoritmos legados para compatibilidade, não uma recomendação de seu uso em novos projetos. APIs EVP permitem trabalhar em nível mais alto, separando a operação pretendida da implementação concreta.\n\nPara um resumo criptográfico, a sequência típica utiliza contexto `EVP_MD_CTX`, inicialização, atualização com dados e finalização, verificando os retornos e liberando o contexto. Um hash como SHA-256 permite verificar integridade quando comparado a valor confiável, mas não autentica a origem por si só. Uma assinatura digital envolve chave privada na geração e chave pública na verificação; HMAC usa uma chave secreta compartilhada. Criptografia de dados fornece confidencialidade conforme modo e uso corretos, mas não deve ser tomada automaticamente como garantia de autenticidade.\n\n## Contexto TLS e autenticação do par\n`SSL_CTX` concentra configurações reutilizáveis da conexão TLS; `SSL` representa uma sessão/conexão específica. Em clientes, não basta ativar uma conexão criptografada: deve-se verificar a cadeia de certificados e a identidade do servidor esperado, conforme a configuração da API. Uma conexão cifrada com certificado de origem não validada pode continuar vulnerável a intermediários maliciosos. A configuração de versões, algoritmos, confiança e nomes de servidor precisa ser apropriada. Acesso a hora confiável, fonte de entropia e armazenamento de segredos são desafios reais de um equipamento embarcado sem relógio ou hardware de segurança.\n\n| Biblioteca ou camada | Função predominante | O que não faz sozinha |\n|---|---|---|\n| OpenSSL EVP | Operações criptográficas de alto nível | Não decide políticas adequadas para cada negócio |\n| OpenSSL libssl | Estabelecimento e uso de TLS | Não corrige validação desativada pelo aplicativo |\n| libcurl | Transferências por URL e protocolos suportados | Não garante sucesso HTTP apenas com transporte concluído |\n| Qt Network | Redes e eventos integrados ao Qt | Não dispensa tratamento de erros e certificados |\n\n## libcurl: easy, multi e callbacks\n`libcurl` é biblioteca cliente para transferências por URL. Na interface **easy**, a aplicação obtém um `CURL*` com `curl_easy_init`, configura opções via `curl_easy_setopt`, executa `curl_easy_perform` e libera o handle com `curl_easy_cleanup`. `CURLOPT_URL` identifica a URL de destino; um callback `CURLOPT_WRITEFUNCTION` pode receber dados em blocos, exigindo lógica de acumulação e limites de memória. Um retorno `CURLE_OK` confirma sucesso da operação do ponto de vista da libcurl, mas uma resposta HTTP 404 pode ocorrer sem erro de transferência; consulte o código HTTP com `curl_easy_getinfo` usando `CURLINFO_RESPONSE_CODE`.\n\nA interface easy é **síncrona** na chamada de execução. A interface **multi** permite conduzir múltiplas transferências por um modelo de eventos sem precisar de uma thread por requisição. Reaproveitar um easy handle preserva opções configuradas até sua alteração ou reinicialização. `CURLOPT_TIMEOUT_MS` define um limite de tempo para a transferência, enquanto `CURLOPT_CONNECTTIMEOUT_MS` se refere ao estabelecimento de conexão; confundi-los resulta em diagnóstico errado de timeout. Trate código de retorno, tamanho do corpo, limites de escrita e encerramento parcial da comunicação.\n\n## Integração segura e eficiência\nConsidere equipamento que envia telemetria a servidor HTTPS. O programa coleta dados, serializa com checagem de limites, cria ou reutiliza conexão, valida a identidade do servidor, transmite e confirma o resultado de aplicação. Se a comunicação falha, uma fila limitada pode conservar amostras; se o armazenamento acabar, uma política explícita decide perda, prioridade ou retentativa. Retentativas precisam evitar sobrecarga e repetição indevida de comandos não idempotentes. Um dispositivo cuja energia pode falhar a qualquer instante também deve preservar consistência de dados persistidos.\n\nEm aplicações com Qt, chamadas `curl_easy_perform` realizadas diretamente na thread gráfica podem bloqueá-la. O mesmo vale para criptografia demorada executada dentro de um slot chamado diretamente. O projeto deve escolher entre Qt Network assíncrono, operações enfileiradas e workers, sem presumir que callbacks da libcurl possuem afinidade automática com a interface. Certificados, chaves e atualizações de firmware devem receber política própria de segurança; TLS protege trânsito, não substitui autenticação de comandos e gestão de chaves.\n\n### Como o tema costuma ser cobrado\nA prova apresenta uma aplicação de dispositivo conectado e pede identificar **qual camada é responsável** por acesso a memória, vida útil, gerenciamento de evento, criptografia, transporte e validação do servidor. Os erros mais frequentes são confundir `volatile` com `atomic`, `vector::reserve` com `resize`, empréstimo com transferência de ownership, `no_std` com ausência absoluta de heap, sinal enfileirado com chamada imediata, provider com algoritmo e `CURLE_OK` com HTTP 200. A solução é acompanhar o tempo de vida dos recursos e o contrato exato de cada API."
+    }
+  ],
+  "summary": "## Visão geral\n**C17:** a revisão ISO/IEC 9899:2018 mantém os fundamentos de C11 e corrige defeitos; `volatile` não oferece sincronização; `memmove` suporta sobreposição; acesso além do vetor é indefinido; confira a plataforma antes de usar heap e E/S. A expressão `libo` consta do pedido, mas não identifica inequivocamente uma biblioteca.\n\n**C++17 e STL:** `std::array` possui tamanho fixo; `std::vector` pode realocar, `reserve` altera capacidade e `resize` altera tamanho. `std::optional`, `std::variant`, `std::string_view` e `std::filesystem` estão no padrão C++17; `std::span` não. RAII libera recursos por destrutores; `unique_ptr` representa posse exclusiva; `shared_ptr`, posse compartilhada; `weak_ptr`, referência não proprietária.\n\n**Rust:** ownership, borrowing e lifetimes são mecanismos de segurança. `&T` é compartilhado; `&mut T`, exclusivo durante empréstimo pertinente. `Result<T,E>` representa sucesso ou erro; `Option<T>`, presença ou ausência. `#![no_std]` usa `core`; `alloc` pode permitir heap se existir alocador. `unsafe` impõe responsabilidade ao programador.\n\n**Qt 6:** signals/slots conectam objetos; `QObject` tem relação pai-filho; affinity e event loop determinam entrega de chamadas enfileiradas. `Qt::DirectConnection` chama imediatamente; `Qt::QueuedConnection` agenda execução na thread do receptor. Evite bloquear a thread gráfica.\n\n**OpenSSL 3:** providers implementam algoritmos e EVP oferece APIs de alto nível. TLS exige validação de certificados e identidade do servidor, além da cifragem.\n\n**libcurl:** easy interface com `curl_easy_init`, `curl_easy_setopt`, `curl_easy_perform`, `curl_easy_cleanup`; multi interface baseada em eventos. `CURLE_OK` não significa, necessariamente, código HTTP 200. Procure o estado HTTP separadamente.",
+  "flashcards": [
+    {
+      "front": "O que é C17?",
+      "back": "É a revisão ISO/IEC 9899:2018 de C, centrada em correções do C11. A macro de versão é `201710L`."
+    },
+    {
+      "front": "`volatile` sincroniza threads?",
+      "back": "Não. É útil para acessos observáveis, mas não substitui operações atômicas ou exclusão mútua."
+    },
+    {
+      "front": "`memcpy` ou `memmove` com sobreposição?",
+      "back": "Use `memmove` se origem e destino podem se sobrepor."
+    },
+    {
+      "front": "Qual a função de `<stdint.h>`?",
+      "back": "Disponibiliza tipos inteiros como `uint32_t` e, quando existem, tipos de largura exata como `uint8_t`."
+    },
+    {
+      "front": "O que significa `libo` no pedido?",
+      "back": "O nome consta do conteúdo programático, mas não foi identificado de modo inequívoco como biblioteca padrão ou API específica."
+    },
+    {
+      "front": "`std::array` aloca heap por definição?",
+      "back": "Não. É um contêiner de tamanho fixo e seus elementos integram o objeto."
+    },
+    {
+      "front": "Diferença entre `reserve` e `resize`?",
+      "back": "`reserve` ajusta capacidade mínima; `resize` altera a quantidade de elementos."
+    },
+    {
+      "front": "O que RAII garante?",
+      "back": "Associa a liberação de recursos ao destrutor do objeto responsável, respeitando seu tempo de vida."
+    },
+    {
+      "front": "`unique_ptr` e `shared_ptr`?",
+      "back": "O primeiro representa posse exclusiva; o segundo permite múltiplos proprietários por contagem de referências."
+    },
+    {
+      "front": "`std::string_view` possui os bytes?",
+      "back": "Não. É uma visão não proprietária de uma sequência e exige atenção à vida útil dos dados."
+    },
+    {
+      "front": "`std::span` é C++17?",
+      "back": "Não na biblioteca padrão; `std::span` é de C++20."
+    },
+    {
+      "front": "O que é ownership em Rust?",
+      "back": "É o modelo em que valores têm proprietário responsável pelo seu tempo de vida, com movimentos e empréstimos regulados."
+    },
+    {
+      "front": "Quando usar `&mut T`?",
+      "back": "Para empréstimo mutável exclusivo no intervalo relevante, sem aliases conflitantes."
+    },
+    {
+      "front": "O que `Option<T>` expressa?",
+      "back": "Expressa `Some(T)` ou `None`, separando valor presente de ausência."
+    },
+    {
+      "front": "O que `Result<T,E>` expressa?",
+      "back": "`Ok(T)` corresponde a sucesso; `Err(E)` corresponde a falha."
+    },
+    {
+      "front": "`no_std` elimina qualquer heap?",
+      "back": "Não. `core` dispensa `std`, e `alloc` pode fornecer alocações quando existe alocador."
+    },
+    {
+      "front": "`unsafe` desliga a segurança toda?",
+      "back": "Não. Autoriza certas operações cuja correção depende de invariantes garantidas pelo programador."
+    },
+    {
+      "front": "Para que serve `QObject`?",
+      "back": "É a base do modelo de objetos Qt e sustenta sinais, slots e relações pai-filho."
+    },
+    {
+      "front": "Quando o slot enfileirado executa?",
+      "back": "Quando o event loop da thread do receptor despacha a chamada."
+    },
+    {
+      "front": "O que são providers do OpenSSL 3?",
+      "back": "São componentes que fornecem implementações de operações e algoritmos criptográficos."
+    },
+    {
+      "front": "Para que serve a interface easy do libcurl?",
+      "back": "Executar uma transferência síncrona configurada em um easy handle."
+    },
+    {
+      "front": "`CURLE_OK` significa HTTP 200?",
+      "back": "Não. A operação de transporte pode terminar bem com resposta HTTP de erro; consulte o status HTTP à parte."
+    }
+  ],
+  "tips": [
+    "Desenhe a linha do tempo do objeto: criação, empréstimo, realocação e destruição antes de resolver erros de memória.",
+    "Quando aparecer C17, diferencie a linguagem da existência efetiva de APIs de sistema operacional.",
+    "Em STL, identifique se a função modifica capacidade, tamanho ou invalida iteradores.",
+    "Em Rust, procure o proprietário e verifique a sobreposição de empréstimos mutáveis e compartilhados.",
+    "Em Qt, marque a thread que emite, a afinidade do receptor e a existência do event loop.",
+    "Para TLS, verifique tanto o estabelecimento da conexão quanto a autenticação do servidor.",
+    "Em libcurl, examine separadamente CURLcode, status HTTP e retorno do callback de escrita."
+  ],
+  "traps": [
+    "A prova escreve que `volatile` torna o incremento de contador compartilhado atômico. Está errado: visibilidade de acesso e atomicidade são propriedades diferentes.",
+    "A prova sugere que `vector.reserve(50)` cria 50 elementos. Não cria: aumenta a capacidade disponível, mas preserva o tamanho.",
+    "A prova afirma que `std::span` foi padronizado em C++17. O componente pertence ao padrão C++20.",
+    "A prova diz que `no_std` proíbe qualquer alocação dinâmica. Pode-se usar `alloc` com alocador apropriado.",
+    "A prova equipara `Qt::QueuedConnection` a chamada imediata do slot. A execução ocorre pelo loop de eventos do receptor.",
+    "A prova trata o provider legacy do OpenSSL como recomendação de segurança atual. Sua finalidade é compatibilidade com implementações legadas.",
+    "A prova interpreta `CURLE_OK` como aprovação do pedido pelo servidor HTTP. O status HTTP deve ser consultado independentemente."
+  ],
+  "activeRecall": [
+    {
+      "question": "Por que uma variável `volatile` pode continuar apresentando condição de corrida?",
+      "answer": "Porque `volatile` não impõe atomicidade de operações compostas nem exclusão mútua entre contextos concorrentes."
+    },
+    {
+      "question": "Quando `memmove` deve ser preferida a `memcpy`?",
+      "answer": "Quando os intervalos de origem e destino podem se sobrepor."
+    },
+    {
+      "question": "Qual alteração `reserve` produz em um `std::vector`?",
+      "answer": "Solicita capacidade para um número mínimo de elementos, preservando o tamanho atual."
+    },
+    {
+      "question": "Que risco existe ao retornar um `string_view` para uma string temporária?",
+      "answer": "A visão fica pendurada após a destruição do armazenamento da string."
+    },
+    {
+      "question": "Por que `no_std` e uso de heap não são incompatíveis em termos absolutos?",
+      "answer": "Porque a crate `alloc` pode fornecer coleções alocadas quando existe um alocador adequado."
+    },
+    {
+      "question": "Como distinguir ligação direta e enfileirada no Qt?",
+      "answer": "A ligação direta executa imediatamente na thread que emite; a enfileirada agenda execução na thread de afinidade do receptor."
+    },
+    {
+      "question": "Qual a diferença entre criptografia de transporte e identidade confiável do servidor?",
+      "answer": "TLS cifra a comunicação, mas a autenticação exige verificar cadeia de certificados e nome esperado."
+    },
+    {
+      "question": "Que checagens fazer após `curl_easy_perform` em uma chamada HTTP?",
+      "answer": "Examinar o CURLcode, consultar o status HTTP e validar o corpo conforme as regras da aplicação."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Volatilidade confundida com sincronização",
+      "summary": "`volatile` é relevante para certos acessos observáveis, mas não garante operação atômica nem elimina corridas. Considere atomicidade, seções críticas e modelo de execução."
+    },
+    {
+      "key": "e2",
+      "title": "Tamanho confundido com capacidade e vida útil",
+      "summary": "`vector::reserve` não cria elementos. Cuidado com invalidação de referências após realocação, `string_view` pendurada e destruição de recursos."
+    },
+    {
+      "key": "e3",
+      "title": "Ownership e no_std interpretados de modo absoluto",
+      "summary": "Rust permite empréstimos e movimentos sob regras específicas; `no_std` usa core e pode combinar-se com alloc quando houver alocador."
+    },
+    {
+      "key": "e4",
+      "title": "Afinidade de objetos Qt ignorada",
+      "summary": "Execução de slots depende do tipo de conexão, thread emissora, afinidade do receptor e event loop ativo. Pai e filho QObject devem compartilhar afinidade."
+    },
+    {
+      "key": "e5",
+      "title": "Criptografia confundida com autenticação",
+      "summary": "Uma conexão TLS cifrada não torna confiável uma identidade não verificada; provider não é política de segurança e hash não é assinatura."
+    },
+    {
+      "key": "e6",
+      "title": "Transporte confundido com sucesso de aplicação",
+      "summary": "`CURLE_OK` significa conclusão bem-sucedida da operação para a libcurl, mas a resposta HTTP pode indicar erro. Easy e multi também têm modelos de execução distintos."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma placa lê um registrador de estado que pode mudar sem intervenção do código C. O programador usa um ponteiro qualificado com `volatile`. Qual conclusão é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O qualificador faz cada leitura e escrita ocorrer como transação atômica entre threads.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O qualificador preserva acessos observáveis, mas não substitui sincronização concorrente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O qualificador permite ao compilador manter o registrador em cache entre leituras.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O qualificador determina a largura do registrador independentemente do tipo usado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O qualificador torna válidos endereços físicos ainda não mapeados no dispositivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Em C17, `volatile` é usado para preservar os efeitos observáveis de certos acessos, como os de registradores. A inventa atomicidade; C sugere justamente a eliminação de acessos que se quer observar; D confunde qualificador com tipo; E supõe que o qualificador valida um endereço de hardware.",
+      "section": "1. Fundamentos embarcados, C17 e controle de memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um buffer de oito bytes precisa deslocar seus quatro primeiros bytes duas posições para a direita, dentro do próprio buffer. Qual função C é adequada para a cópia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`strcpy`, pois conhece os limites de qualquer área binária de oito bytes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`strlen`, pois determina a região sobreposta antes de copiar os dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`memcpy`, pois sua garantia inclui regiões de memória que se sobrepõem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`memmove`, pois permite origem e destino parcialmente sobrepostos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`memcmp`, pois compara e desloca os quatro bytes de uma única vez.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. `memmove` tem semântica apropriada para intervalos sobrepostos. A depende de strings terminadas em NUL e não serve a bytes arbitrários; B mede comprimento de string; C requer ausência de sobreposição para a cópia definida; E apenas compara regiões, sem movê-las.",
+      "section": "1. Fundamentos embarcados, C17 e controle de memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O firmware em C++17 guarda quatro amostras inteiras cujo número não muda. Qual característica de `std::array<int,4>` melhor descreve esse armazenamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Possui quatro elementos integrados ao objeto, com tamanho fixado em compilação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aloca obrigatoriamente quatro elementos no heap ao construir o contêiner.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumenta automaticamente para cinco elementos quando um valor é inserido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Organiza quatro elementos em nós com ponteiros para vizinhos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permite mudar o parâmetro de tamanho por chamada de `resize`.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. `std::array` é agregado com extensão definida no tipo e armazena seus elementos diretamente. B confunde `array` com alocação dinâmica; C e E tratam-no como vetor redimensionável; D descreve uma estrutura encadeada, incompatível com seu armazenamento contíguo.",
+      "section": "2. C++17, STL, RAII e gerenciamento de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um `std::vector<int>` contém cinco amostras. A aplicação executa `reserve(100)` para evitar realocações futuras. Qual resultado imediato deve esperar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O tamanho passa a cem e os novos elementos recebem zero.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O tamanho é preservado e a capacidade passa exatamente a cinco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O tamanho continua cinco, com capacidade de pelo menos cem elementos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O tamanho diminui para zero enquanto a capacidade passa a cem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O tamanho passa a cem e a capacidade permanece inicialmente cinco.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. `reserve(100)` solicita capacidade mínima de cem sem alterar os cinco elementos existentes. A troca `reserve` por `resize`; B nega o aumento solicitado; D inventa descarte de elementos; E combina redimensionamento com capacidade menor que o tamanho, o que contraria o contêiner.",
+      "section": "2. C++17, STL, RAII e gerenciamento de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um módulo C++17 recebe a responsabilidade única de liberar dinamicamente um objeto quando seu dono sair de escopo. Qual tipo expressa melhor essa intenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`std::weak_ptr`, porque mantém a única referência proprietária ao recurso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`std::shared_ptr`, porque impede a existência de outros proprietários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`std::string_view`, porque administra destruição do objeto observado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`std::optional`, porque necessariamente aloca o objeto no heap.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`std::unique_ptr`, porque gerencia uma posse exclusiva por RAII.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. `unique_ptr` representa posse exclusiva e libera o recurso por seu destrutor. A não é dona do objeto; B gerencia posse compartilhada; C é visão não proprietária de caracteres; D pode conter valor diretamente e não é o gerenciador exclusivo de uma alocação indicado no cenário.",
+      "section": "2. C++17, STL, RAII e gerenciamento de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Rust, um programa move uma `String` da variável `origem` para `destino` e tenta imprimir `origem` em seguida. O que ocorre em código seguro comum?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O compilador duplica automaticamente o buffer e conserva as duas proprietárias.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O compilador permite o uso porque `String` implementa o traço `Copy`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O compilador rejeita o uso posterior da variável cujo valor foi movido.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O compilador aplica coleta de lixo antes de imprimir a variável antiga.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O compilador cria um empréstimo mutável automático para a variável antiga.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. `String` normalmente transfere ownership na atribuição e não implementa `Copy`, de modo que o uso do valor movido é inválido. A inventa cópia profunda implícita; B atribui `Copy` ao tipo errado; D insere coletor de lixo inexistente nessa regra; E confunde movimento com empréstimo.",
+      "section": "3. Rust: propriedade, empréstimos e execução sem std",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um microcontrolador executará código Rust sem sistema operacional. O projeto usa o atributo `#![no_std]`. Qual biblioteca fica disponível para tipos essenciais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`core`, que reúne abstrações independentes dos serviços do sistema operacional.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`std`, que mantém todas as funcionalidades usuais de arquivos e threads.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`Qt Core`, que fornece automaticamente o runtime básico de Rust.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`libcurl`, que substitui as operações fundamentais da linguagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`alloc`, que passa a criar um alocador por padrão em qualquer placa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. `#![no_std]` utiliza a crate `core`, adequada a operações independentes de serviços externos. B ignora a desativação de `std`; C e D confundem bibliotecas C++/C com runtime Rust; E supõe um alocador automático, mas `alloc` precisa de suporte adequado para realizar alocações.",
+      "section": "3. Rust: propriedade, empréstimos e execução sem std",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um `QObject` receptor pertence à thread de interface e recebe um sinal por `Qt::QueuedConnection` emitido por uma thread de trabalho. Onde o slot é executado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Na thread emissora, logo no instante em que o sinal é emitido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Na thread de trabalho, depois de terminar a função emissora.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Na thread em que `QObject::connect` foi originalmente chamado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Na primeira thread que consultar a fila de sinais pendentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Na thread de afinidade do receptor, quando seu loop despachar o evento.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Uma conexão enfileirada direciona a execução ao event loop da thread de afinidade do receptor. A descreve conexão direta; B associa a execução ao emissor; C confunde o local de registrar a conexão com a entrega; D ignora a afinidade específica mantida pelo QObject.",
+      "section": "4. Qt 6: objetos, eventos, sinais e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação C enviará telemetria HTTP por meio da interface easy da libcurl. Qual chamada realiza a transferência após a configuração do handle?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`curl_easy_init`, que também envia a requisição com URL padrão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`curl_easy_cleanup`, que transmite dados ao liberar o handle.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`curl_easy_getinfo`, que inicia a conexão ao consultar o status.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`curl_easy_perform`, que executa a transferência configurada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`curl_easy_reset`, que confirma e transmite todas as opções.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. `curl_easy_perform` conduz a transferência do easy handle configurado. A apenas cria o handle; B libera recursos; C consulta informações da operação; E restaura opções padrão, o contrário de iniciar uma requisição com parâmetros previamente definidos.",
+      "section": "5. OpenSSL 3, libcurl e segurança de integração",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função C++17 devolve `std::string_view` construída a partir de uma `std::string` local temporária, destruída ao retornar. Qual o principal defeito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A visão copia os caracteres automaticamente e duplica o consumo de memória.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A visão não possui o armazenamento e passa a apontar para dados inválidos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A visão exige alocação por `new` mesmo quando o texto é pequeno.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A visão converte o resultado em uma `std::string` com referência compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A visão impede a destruição da string local até o fim do programa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. `string_view` guarda uma visão não proprietária dos caracteres; após a destruição da string local, a referência fica pendurada. A e D inventam cópia ou posse; C presume alocação obrigatória; E atribui à visão uma capacidade de prolongar a vida do objeto que ela não possui.",
+      "section": "2. C++17, STL, RAII e gerenciamento de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um driver Rust converte a leitura do sensor em `Result<u16, Falha>`, distinguindo medição válida e timeout. Qual retorno sinaliza erro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`Some(Falha::Timeout)`, pois `Result` reutiliza os construtores de `Option`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`None`, pois toda leitura incorreta deve ser representada como ausência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`Ok(Falha::Timeout)`, pois o tipo à direita representa êxito.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`false`, pois `Result` converte o erro automaticamente em booleano.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`Err(Falha::Timeout)`, pois `Err` contém o valor do ramo de falha.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. `Result<T,E>` usa `Ok(T)` para sucesso e `Err(E)` para falha. A e B pertencem à ideia de `Option`; C confunde o lado do sucesso com o tipo de erro; D imagina conversão automática para booleano, que não é o contrato de `Result`.",
+      "section": "3. Rust: propriedade, empréstimos e execução sem std",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Qt 6, uma conexão `Qt::AutoConnection` é acionada por sinal emitido na mesma thread de afinidade do objeto receptor. Qual comportamento ocorre?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O slot fica enfileirado por regra, mesmo com receptor na thread emissora.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A execução é direta, já que a emissão ocorre na thread do receptor.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A execução migra para a thread em que o emissor foi construído.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A conexão bloqueia o emissor até terminar o próximo evento do receptor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sinal é descartado se não foi registrado como evento de temporizador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Na conexão automática, a decisão depende da thread que emite em relação à afinidade do receptor; aqui equivale a uma conexão direta. A descreve fila indevida; C usa a criação do emissor como critério; D aproxima da modalidade bloqueante; E inventa exigência de temporizador.",
+      "section": "4. Qt 6: objetos, eventos, sinais e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo migra para OpenSSL 3 e precisa selecionar implementações de algoritmos criptográficos. Qual é o papel dos providers introduzidos nessa versão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher automaticamente o algoritmo mais seguro para qualquer finalidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir a negociação TLS pela serialização dos certificados digitais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter apenas funções para gerar valores aleatórios e hashes simples.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Disponibilizar implementações de operações criptográficas à arquitetura OpenSSL.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Executar autenticação de servidores sem política de confiança configurada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Providers disponibilizam implementações de operações como digest, cifra, assinatura e derivação. A atribui a eles a escolha de política da aplicação; B confunde arquitetura criptográfica com protocolo TLS; C limita indevidamente suas operações; E confunde implementação com validação de identidade.",
+      "section": "5. OpenSSL 3, libcurl e segurança de integração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um equipamento informa que o compilador está no modo C17. Qual afirmação sobre essa edição de C e sua biblioteca é tecnicamente correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "C17 revisa C11, reúne correções e pode anunciar `__STDC_VERSION__` igual a `201710L`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "C17 introduz o tipo padrão `std::optional` para ausência de leituras.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "C17 passa a exigir oito bits em todos os `char` e em qualquer arquitetura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "C17 adiciona `std::span` como representação padrão de buffers de bytes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "C17 obriga a disponibilidade de sockets POSIX em microcontroladores bare metal.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. C17 é a atualização ISO/IEC 9899:2018, ligada a correções do C11, com macro de versão `201710L`. B usa componente C++17; C confunde byte da linguagem com octeto; D menciona recurso C++20; E mistura padrão C com APIs POSIX e requisitos de sistema operacional.",
+      "section": "1. Fundamentos embarcados, C17 e controle de memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas threads incrementam uma contagem em memória. O código em C17 emprega `volatile int`, mas observa perdas de incremento. Qual alteração enfrenta o problema específico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar `volatile` por `const`, pois o compilador impedirá a condição de corrida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Adicionar `restrict` ao endereço, pois isso impõe exclusão de escrita entre threads.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar objeto atômico e uma operação atômica de incremento apropriada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Declarar a contagem como `static`, pois a duração elimina perda de atualização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir o inteiro por `uint32_t`, pois largura fixa garante sincronização.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. A operação de leitura-modificação-escrita concorrente deve ser sincronizada; atômicos apropriados resolvem a corrida desse contador. A torna o objeto imutável; B trata aliasing, não threads; D altera duração de armazenamento; E escolhe representação numérica, sem assegurar atomicidade.",
+      "section": "1. Fundamentos embarcados, C17 e controle de memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa compilar estritamente como C++17 e representar um valor que pode estar ausente. Qual tipo da biblioteca padrão é compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`std::span<int>`, pois a visualização de intervalos foi introduzida em C++17.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`std::expected<int,Erro>`, pois foi incorporado à biblioteca em C++17.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`std::generator<int>`, pois sua corrotina já integra a biblioteca C++17.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`std::optional<int>`, pois pode guardar um inteiro ou representar ausência.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`std::ranges::view`, pois a biblioteca de ranges integra C++17.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. `std::optional` foi introduzido na biblioteca C++17 e representa valor ou ausência. A cita `span` de C++20; B cita `expected`, padronizado mais tarde; C utiliza `generator` de edição posterior; E atribui o namespace de ranges padronizado em C++20 à edição incorreta.",
+      "section": "2. C++17, STL, RAII e gerenciamento de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina conserva um ponteiro para `vector.data()` e depois adiciona elementos ao vetor até ocorrer realocação. Como tratar o ponteiro guardado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permanece válido, porque a STL mantém endereços anteriores de vetores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Passa a apontar para os nós antigos que o vetor converte em lista.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fica inválido após a realocação e deve ser novamente obtido do vetor.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Passa a apontar para a nova região automaticamente como ponteiro inteligente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permanece válido se o vetor receber mais um `reserve` logo após a realocação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. A realocação de `vector` desloca o armazenamento e invalida ponteiros e referências ao buffer antigo. A ignora a invalidação; B confunde armazenamento contíguo com lista; D atribui atualização automática a ponteiro bruto; E não revalida o endereço antigo, podendo provocar outra realocação.",
+      "section": "2. C++17, STL, RAII e gerenciamento de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente TLS em firmware aceita uma conexão cifrada mesmo quando não valida a cadeia de certificados nem o nome do servidor. Qual análise é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A integridade criptográfica do canal confirma a identidade do servidor por si só.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A cifragem pode funcionar, mas a autenticação do servidor não está assegurada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma biblioteca EVP ativa automaticamente a validação de nome sem configuração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A presença de TLS transfere a conferência de certificados para a libcurl.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O handshake passa a equivaler a uma assinatura digital de toda a aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Cifrar o transporte sem verificar a identidade do par deixa margem à conexão com destino indevido. A mistura confidencialidade com autenticação; C presume ação da API EVP; D desloca responsabilidade entre bibliotecas sem contrato; E confunde handshake TLS com assinatura dos dados de negócio.",
+      "section": "5. OpenSSL 3, libcurl e segurança de integração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente libcurl recebe uma resposta HTTP 404 integralmente e `curl_easy_perform` devolve `CURLE_OK`. Qual interpretação atende à API sem opções adicionais de falha por status?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A biblioteca converteu a resposta HTTP em êxito de negócio e deve persistir os dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O servidor necessariamente devolveu código HTTP 200 apesar do cabeçalho 404.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O estado `CURLE_OK` indica ausência de resposta HTTP e requer repetir o request.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A execução easy rejeita códigos 4xx apenas quando existe um callback de escrita.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A transferência terminou sem erro de transporte, mas o status HTTP indica falha.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. `CURLE_OK` caracteriza êxito da transferência conforme a libcurl, enquanto HTTP 404 é estado da aplicação; pode-se consultar `CURLINFO_RESPONSE_CODE`. A confunde sucesso técnico com negócio; B contradiz o código observado; C nega resposta existente; D inventa dependência de callback para tratar HTTP 4xx.",
+      "section": "5. OpenSSL 3, libcurl e segurança de integração",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um `QObject` filho possui pai e uma equipe tenta migrá-lo isoladamente para outra thread com `moveToThread`. Qual conduta respeita a estrutura de afinidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover corretamente a relação de parentalidade antes da migração, se viável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Migrar apenas o filho, mantendo o pai na thread anterior por padrão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Chamar `moveToThread` sobre o filho de qualquer thread que possua o ponteiro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar temporariamente o event loop para permitir migração com pai.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter a conexão de sinais para direta, tornando a migração permitida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Um QObject com pai não pode ser deslocado separadamente por `moveToThread`; remover legitimamente o vínculo permite reavaliar a migração dentro das regras da API. B viola afinidade pai-filho; C ignora restrições da chamada; D e E alteram entrega de eventos, não a regra estrutural da parentalidade.",
+      "section": "4. Qt 6: objetos, eventos, sinais e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em C17, uma aplicação manipula um registrador cujo bit zero limpa uma interrupção quando recebe 1 na escrita. Qual cuidado técnico é importante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar a semântica de escrita do registrador antes de usar ler-modificar-escrever.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aplicar `const` ao registrador para garantir que o bit nunca seja modificado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `memmove` no registrador para preservar seus bits de confirmação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir a máscara binária por `strlen` para descobrir bits ativos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transformar o acesso em `restrict` para desabilitar efeitos colaterais da escrita.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Registradores com bits *write-one-to-clear* podem reagir de forma inesperada a operações de ler-modificar-escrever, pois a escrita de 1 limpa estados. B impede modificação útil; C trata cópia de memória; D calcula comprimento de string; E lida com aliasing e não muda semântica elétrica.",
+      "section": "1. Fundamentos embarcados, C17 e controle de memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto Rust `no_std` precisa de `Vec<u8>` para armazenar mensagens de tamanho variável. Qual requisito adicional torna isso viável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Importar `std::vec::Vec`, pois `no_std` mantém o runtime normal disponível.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `core::vec::Vec`, cuja memória dinâmica é reservada automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Invocar `unsafe`, que fornece um heap funcional sem infraestrutura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir `Vec` por `Option`, que aloca buffers de tamanho variável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Disponibilizar `alloc` e um alocador compatível com a plataforma usada.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. `Vec` em `no_std` pode vir de `alloc`, mas exige alocador para obter armazenamento dinâmico. A contradiz a ausência de `std`; B atribui `Vec` a `core`; C confunde autorização para operações inseguras com infraestrutura de memória; D troca uma coleção por um enum de presença.",
+      "section": "3. Rust: propriedade, empréstimos e execução sem std",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um objeto `std::thread` em C++17 ainda está associado a uma thread executável quando seu destrutor é invocado. Qual consequência resulta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O destrutor chama `join()` implicitamente e aguarda terminar a execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O destrutor solicita parada cooperativa como faz `std::jthread` posterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O destrutor chama `std::terminate` se a thread ainda for joinable.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O destrutor converte a execução em thread destacada sem aviso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O destrutor bloqueia apenas quando o programa tiver exceções habilitadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O destrutor de `std::thread` chama `std::terminate` quando `joinable()` continua verdadeiro. A inventa junção automática; B descreve semântica associada a `jthread`, não disponível em C++17; D inventa detach automático; E faz a regra depender equivocadamente de suporte a exceções.",
+      "section": "2. C++17, STL, RAII e gerenciamento de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação usa OpenSSL 3 para obter SHA-256 e avalia carregar o provider `legacy`. Qual escolha conceitual é mais apropriada para código novo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Preferir `legacy`, pois algoritmos legados recebem validação FIPS automática.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Selecionar implementação adequada via EVP e provider disponível, sem exigir `legacy`.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Implementar SHA-256 manualmente, porque OpenSSL 3 retirou os digests do EVP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar SHA-256 por MD5, pois o provider legacy oferece maior força criptográfica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar providers, porque OpenSSL 3 executa EVP apenas em modo monolítico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. OpenSSL 3 oferece implementações de digest via providers e interface EVP; `legacy` é voltado a compatibilidade, não requisito para SHA-256. A associa indevidamente legacy a FIPS; C nega a API EVP; D supõe força superior do MD5; E desconhece a arquitetura introduzida na versão 3.",
+      "section": "5. OpenSSL 3, libcurl e segurança de integração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um trabalhador Qt recebe sinais com `Qt::QueuedConnection`, mas sua thread não executa event loop. Qual efeito deve ser investigado antes de culpar a origem do sinal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O sinal é promovido a conexão direta, mesmo com receptor de outra thread.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O slot é executado no emissor, pois a falta de loop cria fallback síncrono.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O receptor é migrado para a thread principal assim que o sinal é emitido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A chamada enfileirada pode não ser entregue enquanto faltar o loop do receptor.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O slot passa a rodar ao destruir o objeto pai, independentemente de eventos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Slots enfileirados dependem do processamento de eventos da thread à qual pertence o receptor. A e B inventam fallback direto; C presume alteração automática de afinidade; E associa a execução do slot ao destrutor do pai em vez do mecanismo de despacho.",
+      "section": "4. Qt 6: objetos, eventos, sinais e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao copiar uma mensagem binária para região parcialmente sobreposta do mesmo buffer, um programador C17 prefere `memmove` a `memcpy`, pois a primeira tem comportamento especificado para a sobreposição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A biblioteca C distingue as duas rotinas. `memmove` atende ao cenário de faixas sobrepostas, ao passo que `memcpy` pressupõe intervalos sem essa sobreposição. A distinção importa em deslocamentos de mensagens e compactação de buffers usados por firmware.",
+      "section": "1. Fundamentos embarcados, C17 e controle de memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina C17 que declara `volatile uint32_t contador` pode incrementar essa variável de duas threads sem risco de atualização perdida, porque o qualificador torna `contador++` atômico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `contador++` é uma operação composta de leitura, cálculo e gravação; `volatile` não a transforma em transação atômica. Com duas threads, as atualizações podem se perder. Para esse caso, use mecanismos de sincronização ou atômicos suportados pela plataforma.",
+      "section": "1. Fundamentos embarcados, C17 e controle de memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto usa `std::unique_ptr` para representar posse exclusiva de objeto alocado; seu destrutor pode liberar automaticamente o recurso ao sair de escopo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `unique_ptr` implementa administração de recurso por RAII, na qual o objeto proprietário libera o que gerencia na destruição, salvo mudança explícita de posse ou liberação. Isso diminui vazamentos em retornos antecipados e trajetos com exceções.",
+      "section": "2. C++17, STL, RAII e gerenciamento de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação em C++17 utiliza `std::vector::reserve(64)` e passa a ter 64 elementos válidos para acesso pelo operador `[]`, mesmo sem chamar `resize` ou inserir novos valores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `reserve` ajusta a capacidade mínima, mas não constrói elementos adicionais nem muda `size`. Acesso pelo operador `[]` fora do tamanho continua inválido. `resize` e operações de inserção são caminhos distintos para aumentar a quantidade de elementos.",
+      "section": "2. C++17, STL, RAII e gerenciamento de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um módulo Rust, `Option<u16>` pode representar `Some(25)` quando há medição e `None` quando o sensor ainda não forneceu valor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `Option<T>` distingue um valor presente de sua ausência sem recorrer a número sentinela, como zero ou 65535, que podem integrar o domínio de medidas válidas. Quando a operação possui falhas específicas, `Result<T,E>` costuma representar melhor o erro.",
+      "section": "3. Rust: propriedade, empréstimos e execução sem std",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num cliente HTTP com libcurl, o resultado `CURLE_OK` permite concluir que a API remota respondeu com o código HTTP 200 e aceitou o conteúdo transmitido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `CURLE_OK` sinaliza ausência de erro na transferência segundo a biblioteca, mas o servidor pode retornar 400, 404 ou 500. O código HTTP deve ser obtido separadamente e interpretado segundo o protocolo e as condições de negócio da aplicação.",
+      "section": "5. OpenSSL 3, libcurl e segurança de integração",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma aplicação C17, a existência de `uint8_t` permite representar precisamente oito bits sem sinal; ainda assim, não se deve presumir esse tipo em toda implementação C possível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `<stdint.h>` fornece tipos de largura exata quando a implementação oferece essa representação. `uint8_t`, quando disponível, tem oito bits de valor e não utiliza bits de preenchimento. A linguagem C não exige que todas as arquiteturas forneçam esse tipo.",
+      "section": "1. Fundamentos embarcados, C17 e controle de memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em C++17, `std::string_view` mantém a `std::string` observada viva até a destruição da visão, mesmo quando a string original é uma variável local já encerrada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `string_view` não é proprietário dos caracteres nem prolonga a vida útil da string que fornece os bytes. Se o armazenamento termina antes da visão, seu uso produz referência pendurada. É necessário garantir duração adequada do objeto observado.",
+      "section": "2. C++17, STL, RAII e gerenciamento de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um firmware Rust com `#![no_std]` pode utilizar `Option` e `Result` por meio de `core`, ainda que não possua serviços de arquivos e rede fornecidos por sistema operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O atributo `no_std` mantém os recursos fundamentais de `core`, inclusive `Option` e `Result`, sem exigir serviços de um sistema operacional. Isso é diferente de usar `std`, que fornece abstrações adicionais dependentes de integração com o ambiente.",
+      "section": "3. Rust: propriedade, empréstimos e execução sem std",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao utilizar `Qt::QueuedConnection` para enviar dados de uma thread a um `QObject` receptor, o slot executa imediatamente na thread emissora, independentemente do loop de eventos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A conexão enfileirada agenda a execução na thread de afinidade do receptor e depende do processamento dos eventos nela. A execução imediata na thread que emite corresponde à conexão direta, com cuidados próprios quando os objetos pertencem a threads distintas.",
+      "section": "4. Qt 6: objetos, eventos, sinais e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao migrar uma aplicação para OpenSSL 3, os providers passam a oferecer implementações de operações como digest e cifragem, que podem ser acessadas por APIs de nível mais alto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A arquitetura de providers introduzida no OpenSSL 3 disponibiliza implementações de operações criptográficas. APIs EVP permitem utilizá-las de modo mais abstrato. A existência de um provider não define, sozinha, a política de algoritmos seguros da aplicação.",
+      "section": "5. OpenSSL 3, libcurl e segurança de integração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma aplicação configura `CURLOPT_CONNECTTIMEOUT_MS`, a libcurl passa a limitar a duração total da transferência, inclusive todo o corpo recebido, ao valor definido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `CURLOPT_CONNECTTIMEOUT_MS` trata do tempo de estabelecimento de conexão, enquanto `CURLOPT_TIMEOUT_MS` é opção relativa ao limite de tempo total da transferência. A confusão pode ocultar uma leitura de corpo excessivamente demorada após conectar.",
+      "section": "5. OpenSSL 3, libcurl e segurança de integração",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um firmware C++17 usa `std::lock_guard<std::mutex>` para proteger trecho crítico. O destrutor do guard libera a trava ao sair do escopo, inclusive por desenrolamento decorrente de exceção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `lock_guard` implementa RAII para mutex, mantendo a trava enquanto o guard existe e liberando-a no destrutor. Essa propriedade ajuda a preservar o desbloqueio em saídas antecipadas e exceções; não dispensa análise de deadlocks entre múltiplas travas.",
+      "section": "2. C++17, STL, RAII e gerenciamento de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em C17, uma leitura de `volatile uint32_t` em endereço arbitrário fixado pelo programador é necessariamente válida, porque `volatile` garante mapeamento e alinhamento do periférico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `volatile` influencia a semântica de acessos observáveis, mas não estabelece mapeamento físico, endereço correto, alinhamento nem compatibilidade com o barramento do dispositivo. Tais condições são definidas pela arquitetura, pelo mapa de memória e pelas interfaces de hardware.",
+      "section": "1. Fundamentos embarcados, C17 e controle de memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Rust seguro, um empréstimo mutável pode ser criado depois do último uso de empréstimos compartilhados do mesmo valor, mesmo se o bloco textual das referências compartilhadas ainda não terminou.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A análise de empréstimos considera seus intervalos efetivos de uso: referências compartilhadas cujo último uso já ocorreu podem deixar de conflitar com empréstimo mutável posterior. Isso não autoriza duas referências mutáveis simultâneas ou aliasing incompatível no mesmo intervalo.",
+      "section": "3. Rust: propriedade, empréstimos e execução sem std",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada `unsafe` em Rust torna desnecessária a verificação manual de validade de ponteiros provenientes de C, pois a palavra-chave instrui o compilador a garantir seu alinhamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `unsafe` permite certas operações cujas pré-condições não são verificadas integralmente pelo compilador, mas transfere ao programador a responsabilidade pelas invariantes. Ponteiros FFI precisam ter validade, alinhamento, vida útil e condições de acesso verificadas pelo contrato da integração.",
+      "section": "3. Rust: propriedade, empréstimos e execução sem std",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Qt 6, um `QObject` com pai não pode ser movido isoladamente para outra thread por `moveToThread`, pois a relação pai-filho impõe restrições de afinidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `QObject` deve possuir afinidade compatível com seu pai; o movimento de objeto com pai por `moveToThread` é recusado. É possível planejar uma migração legítima de uma árvore elegível ou revisar a parentalidade, respeitando as restrições de chamada da API.",
+      "section": "4. Qt 6: objetos, eventos, sinais e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O hash SHA-256 de um pacote, transmitido junto ao próprio pacote por canal não autenticado, assegura sozinho a identidade de quem o enviou, ainda que um invasor possa alterar ambos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um invasor capaz de alterar dados e hash também pode recomputar o resumo; o hash isolado não autentica remetente. São necessários mecanismos apropriados, como assinatura digital ou MAC com segredo protegido, conforme as necessidades e o modelo de ameaças.",
+      "section": "5. OpenSSL 3, libcurl e segurança de integração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma integração com a interface multi de libcurl permite conduzir várias transferências com controle orientado a eventos, sem obrigar a criar uma thread distinta para cada requisição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A interface multi foi projetada para controlar progresso de múltiplas transferências em um modelo não bloqueante orientado a eventos, inclusive em uma única thread. Isso se diferencia da chamada síncrona `curl_easy_perform`, que conduz sua transferência até concluir ou falhar.",
+      "section": "5. OpenSSL 3, libcurl e segurança de integração",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma biblioteca `no_std` em Rust pode usar `Vec` apenas por acrescentar `extern crate alloc`; independentemente do alvo, a importação instala e configura o alocador global exigido para reservar memória.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A crate `alloc` fornece coleções e abstrações para memória dinâmica, mas não cria automaticamente um alocador apropriado a cada plataforma. O sistema precisa disponibilizar configuração e implementação compatíveis; sem isso, a mera importação não torna as alocações executáveis.",
+      "section": "3. Rust: propriedade, empréstimos e execução sem std",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "ISO/IEC 14882:2017 — Programming languages — C++",
+      "publisher": "ISO",
+      "reference": "Edição C++17 e especificação da linguagem",
+      "url": "https://www.iso.org/standard/68564.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Rust Programming Language — Understanding Ownership",
+      "publisher": "Rust Project",
+      "reference": "Ownership, borrowing e tempos de vida",
+      "url": "https://doc.rust-lang.org/stable/book/ch04-00-understanding-ownership.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Embedded Rust Book — A no_std Rust Environment",
+      "publisher": "Rust Embedded Working Group",
+      "reference": "Ambientes hosted, bare metal, core e alloc",
+      "url": "https://doc.rust-lang.org/embedded-book/intro/no-std.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Qt 6 — QObject Class",
+      "publisher": "The Qt Company",
+      "reference": "Signals, slots, parentalidade e thread affinity",
+      "url": "https://doc.qt.io/qt-6/qobject.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Qt 6 — Threads and QObjects",
+      "publisher": "The Qt Company",
+      "reference": "Event loops e conexões entre threads",
+      "url": "https://doc.qt.io/qt-6/threads-qobject.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenSSL 3 — Providers",
+      "publisher": "OpenSSL Project",
+      "reference": "Arquitetura de providers e operações criptográficas",
+      "url": "https://docs.openssl.org/3.0/man7/provider/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenSSL 3 — SSL_CTX_new",
+      "publisher": "OpenSSL Project",
+      "reference": "Contextos de conexão TLS",
+      "url": "https://docs.openssl.org/3.0/man3/SSL_CTX_new/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "libcurl — Easy interface overview",
+      "publisher": "curl Project",
+      "reference": "Inicialização, opções, transferência e limpeza",
+      "url": "https://curl.se/libcurl/c/libcurl-easy.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "libcurl — API overview",
+      "publisher": "curl Project",
+      "reference": "Comparação entre interfaces easy e multi",
+      "url": "https://curl.se/libcurl/c/libcurl.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "C17 — Reference",
+      "publisher": "cppreference",
+      "reference": "ISO/IEC 9899:2018 e alterações em C17",
+      "url": "https://en.cppreference.com/c/17",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "C++17 — Language and library features",
+      "publisher": "cppreference",
+      "reference": "STL, optional, string_view, filesystem e evolução de C++17",
+      "url": "https://en.cppreference.com/cpp/17",
+      "accessedAt": "2026-10-09"
+    }
+  ]
+}

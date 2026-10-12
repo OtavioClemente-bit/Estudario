@@ -1,0 +1,1774 @@
+{
+  "id": "informatica.engenharia-dados-ingestao-qualidade",
+  "subject": "Informática",
+  "title": "Engenharia de dados: ingestão, pipelines, ETL e qualidade",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Engenharia de dados: ingestão, pipelines, ETL e qualidade"
+  ],
+  "scope": {
+    "covers": "Pipelines e ETL/ELT; ingestão estruturada, semiestruturada e não estruturada; Oracle e SQL Server; conectores, CSV, JSON, XML e Parquet; batch, streaming, full, incremental e CDC; qualidade, integridade, segurança, governança, limpeza e preparação analítica; monitoramento e serviços Azure.",
+    "excludes": "Administração interna e otimização avançada de produtos de banco de dados, implementação completa de algoritmos de aprendizado de máquina, infraestrutura de redes, desenvolvimento detalhado de microsserviços e análise jurídica exaustiva da proteção de dados."
+  },
+  "theoryTitle": "Engenharia de dados: arquitetura de ingestão, transformações, qualidade e operação confiável",
+  "chapters": [
+    {
+      "title": "1. Fundamentos, fontes e formatos de ingestão",
+      "markdown": "## Papel da engenharia de dados\nEngenharia de dados transforma informações de fontes diferentes em conjuntos utilizáveis, documentados e confiáveis. Um **pipeline** é o encadeamento organizado de coleta, transporte, validação, transformação, armazenamento e publicação. Um desenho típico contém fonte, ingestão, zona bruta, zona tratada, zona curada e consumo. A **zona bruta** guarda o dado recebido com metadados de proveniência para reprodução e auditoria; a **zona curada** aplica regras de identidade, qualidade e negócio. Armazenar o original não dispensa autorização, criptografia e retenção controlada.\n\nUma fonte **estruturada** apresenta esquema tabular conhecido, como uma tabela relacional; uma fonte **semiestruturada** traz campos, marcadores ou objetos flexíveis, como JSON e XML; uma fonte **não estruturada** inclui documentos de texto livre, áudio e imagem. Uma mensagem JSON pode ser recebida por streaming ou em lote: estrutura do conteúdo e frequência de coleta são dimensões independentes. Documentos sem estrutura tabular podem ser ingeridos com metadados e posteriormente ter entidades extraídas, mas a extração não torna o conteúdo original automaticamente exato.\n\n## Relacionais e conectores\n**Oracle Database** e **Microsoft SQL Server** são SGBDs relacionais, com tabelas, consultas SQL, transações e mecanismos para observar mudanças. Um **conector** faz a comunicação técnica entre fonte e pipeline: utiliza protocolos, drivers, credenciais, esquema e regras de paginação, limites e autenticação. Não basta configurar uma conexão de leitura; é necessário verificar permissões mínimas, consistência da extração, mapeamento dos tipos, codificação e precisão. Um número decimal monetário não deve virar ponto flutuante binário indiscriminadamente. Timestamp exige definição de fuso, precisão e semântica. A leitura de tabelas alteradas durante uma carga pode produzir fotografia inconsistente; snapshot, isolamento transacional ou marcações de mudança podem ser necessários, conforme a fonte.\n\n## Formatos e consequências\n| Formato | Organização | Risco comum |\n| --- | --- | --- |\n| CSV | Texto em linhas e campos delimitados | Aspas, separador, codificação e zeros iniciais |\n| JSON | Objetos, listas e campos opcionais | Campo ausente não é necessariamente null |\n| XML | Elementos, atributos e hierarquia | Namespaces, tipos e contrato de validação |\n| Parquet | Binário orientado a colunas | Evolução de esquema e compatibilidade de leitores |\n\nO CSV não contém um esquema forte de tipos: `00125` pode ser código válido, e lê-lo como inteiro elimina zeros. JSON e XML transportam estruturas aninhadas; são diferentes de uma tabela delimitada. **Apache Parquet** é formato colunar que favorece leituras seletivas de colunas, codificação e compressão para análises. Não significa que cada arquivo Parquet é ideal para gravar eventos unitários de latência mínima. Ao transportar múltiplos formatos, o pipeline precisa declarar schema, campos obrigatórios, regras de nulidade e versionamento.\n\n## Contratos, evolução e integridade\nUm contrato descreve nomes, tipos, domínios, granularidade, identificadores, frequência e comportamento diante de campo ausente ou inválido. Campo adicional opcional costuma ser mais fácil de integrar do que remover um campo obrigatório. Compatibilidade deve ser avaliada do ponto de vista do consumidor: um novo produtor que renomeia `id_cliente` pode quebrar leitores existentes. A validação básica identifica erros e encaminha registros problemáticos à quarentena, preservando referência à execução e causa. **Chave primária** identifica registros da origem; quando não há chave confiável, é preciso formalizar a regra de identidade em vez de considerar linhas visualmente parecidas como iguais.\n\nExemplo: um conector recebe `valor=12,50` em texto e o destino espera decimal. Uma transformação explícita com localidade conhecida e tratamento de erro resolve; converter silenciosamente qualquer texto em número cria corrupção. A prova frequentemente troca formato físico, semântica dos campos, ritmo de chegada e ferramenta de ingestão: esses aspectos precisam ser julgados separadamente."
+    },
+    {
+      "title": "2. Pipelines, ETL/ELT, lotes, streaming e CDC",
+      "markdown": "## Fluxo de transformação\nEm **ETL** (extract, transform, load), os dados são extraídos, transformados e então carregados ao destino. Em **ELT** (extract, load, transform), ingressam no repositório de destino antes das transformações principais. A distinção é a posição da transformação, não o produto escolhido nem a velocidade: ambos podem processar lotes ou fluxos. É possível conservar uma zona bruta em ETL e aplicar validações leves antes de uma carga ELT. Operações típicas incluem conversão de tipos, filtros, padronização, enriquecimento, junções, cálculos agregados e validação antes de publicar. Cada etapa deve permitir verificar quantitativos, entradas e saídas.\n\n## Carga full, incremental e CDC\n**Batch** reúne dados em conjuntos processados em momentos definidos, como um fechamento diário; **streaming** processa eventos conforme a chegada, inclusive via micro-lotes. **Full** copia o conjunto completo estabelecido; **incremental** copia somente novidades e mudanças detectáveis desde um marco. Um incremental por `updated_at` busca linhas novas ou atualizadas, mas pode perder exclusões físicas. **Change Data Capture (CDC)** é captura de operações de mudança e pode fornecer inclusões, atualizações e exclusões. No SQL Server, os recursos CDC e change tracking são distintos; CDC expõe informações de operações confirmadas, com posição de sequência de log (LSN). Na integração com Oracle, a estratégia concreta depende dos recursos de captura e conectores efetivamente suportados.\n\nUma sincronização confiável normalmente começa por snapshot full consistente, guarda um marco de CDC e prossegue na sequência das alterações. Se o snapshot e o marco não forem coordenados, uma transação pode ser omitida ou reaplicada. Posição de leitura precisa ficar persistida; se o CDC já eliminou eventos antigos pela política de retenção, retomar de posição vencida não recupera mudanças perdidas e pode exigir nova carga completa. Assim, dizer que todo incremental é CDC é uma generalização falsa.\n\n## Buffers, backpressure e ordenação\nUm **buffer** absorve diferenças transitórias de ritmo entre produtores e consumidores. Se a taxa de entrada continua superior à capacidade de saída, há acúmulo: surge **backpressure**, aumento de atraso, descarte ou falha conforme a política. Diminuir a frequência de leitura, particionar processamento e controlar filas são estratégias possíveis, com limites de recursos. Em sistemas particionados, a garantia de ordenação frequentemente vale **por chave ou partição**, não globalmente. Os eventos de um cliente podem ser mantidos na mesma partição, mas dados de clientes distintos não são necessariamente ordenados entre si.\n\n**Tempo de evento** é quando a ação ocorreu na origem; **tempo de processamento** é quando o pipeline a tratou. Uma janela por tempo de evento precisa decidir como aceitar atrasos e quando emitir ou corrigir resultados. Um watermark de tempo pode representar progresso presumido da chegada; difere do marcador de extração incremental de banco, embora ambos sejam chamados watermark em contextos distintos. Eventos com versão 105 recebidos antes da versão 104 não devem fazer o estado regredir: aplique sequência confiável da origem em operações de upsert.\n\n## Garantias de entrega e checkpoints\n**At-most-once** pode perder eventos; **at-least-once** admite reentrega e exige tratamento de duplicidade; **exactly-once** depende da fronteira observada e da coordenação entre origem, estado e destino. A confirmação de uma mensagem, isoladamente, não garante que escrita externa ocorrerá uma única vez. **Idempotência** significa que repetir operação com a mesma chave e versão não altera indevidamente o resultado. Checkpoints registram posição e estado para reinício, mas devem ser duráveis e coerentes com o commit da saída.\n\nExemplo: gravar um pedido e falhar antes de confirmar leitura provoca retry. Se o destino apenas executa INSERT, duplica o pedido; um upsert baseado em identificador de evento e regra de versão permite processar a repetição sem duplicar o resultado. A prova costuma tratar exatamente uma vez como característica automática do consumidor, mas o comportamento do destino também deve ser examinado."
+    },
+    {
+      "title": "3. Qualidade, integridade, governança e segurança",
+      "markdown": "## Dimensões e medição\nQualidade é adequação dos dados ao uso definido. Dimensões amplamente adotadas na gestão de dados, inclusive na abordagem associada ao DMBOK, incluem **completude** (presença do requerido), **validade** (conformidade a domínio, formato ou regra), **exatidão** (correspondência ao fato real), **consistência** (ausência de contradições), **unicidade** (ausência de duplicatas indevidas) e **tempestividade** (atualização e disponibilidade no momento necessário). São dimensões diferentes: um registro preenchido pode ser inválido ou falso. Se 92 de 100 linhas têm e-mail obrigatório, a completude nesse recorte é 92%; não se conclui que esses e-mails existem nem que pertencem aos titulares.\n\n**Integridade referencial** verifica relações entre chaves: uma referência de pedido a cliente precisa apontar para cliente válido segundo as restrições estabelecidas. Integridade de domínio verifica que uma quantidade não seja negativa quando a regra o proíbe. Conferir soma de valores, quantidade de linhas e hashes após transferência ajuda na reconciliação técnica, mas não prova que a fonte registrou a realidade corretamente. Uma política de qualidade define métrica, denominador, tolerância, responsáveis, periodicidade e ação para falhas.\n\n## Profiling, matching e tratamento\n**Data profiling** inspeciona distribuições, nulos, formatos, frequências, amplitude, tipos e duplicatas antes de alterar dados. **Matching** compara registros para estimar se representam uma entidade; pode usar igualdade exata ou similaridade. **Deduplicação** aplica regras de identidade e precedência aos candidatos. Nomes iguais podem identificar pessoas diferentes; grafias distintas podem referir-se à mesma pessoa. **Data cleansing** corrige, padroniza ou isola defeitos com justificativa e rastreabilidade. **Enriquecimento** adiciona atributos derivados ou obtidos de fontes externas, exigindo controle de origem, atualização e qualidade da fonte adicional.\n\nUma boa prática é manter registro bruto e versão tratada, definir critérios de sucesso e quarentena, medir tendência de falhas e executar testes de regressão do contrato. Uma validação bloqueante pode suspender a publicação financeira quando há chave duplicada; em um painel exploratório pode ser adequado publicar dados válidos e sinalizar incompletude. A diferença decorre do risco e do requisito, não de uma regra fixa para todos os pipelines.\n\n## Governança e metadados\n**Metadados técnicos** descrevem esquema, formato, localização, versão, timestamp de carga e partições; **metadados de negócio** descrevem conceitos, finalidade, dono e regras de uso. Um **glossário de dados** define termos, como receita líquida e cliente ativo, para evitar interpretações divergentes. **Linhagem** registra fontes e transformações que produziram cada campo ou conjunto; auxilia auditoria, impacto de mudanças e reconstrução. Catálogo facilita descoberta, mas não certifica qualidade por mera inscrição. Políticas de acesso devem distinguir leitura, escrita, publicação e administração segundo menor privilégio.\n\n## Segurança na captação e desidentificação\n**TLS**, quando corretamente aplicado e validado, protege a comunicação em trânsito; criptografia no armazenamento é controle distinto. **Autenticação** identifica quem se conecta; **autorização** determina o que pode fazer. Use identidade de serviço com permissões mínimas, segredos protegidos, rotação de credenciais e logs sem informações pessoais desnecessárias. **Mascaramento** oculta ou substitui dados na visualização ou no fluxo, sem significar destruição da identificação original. **Pseudonimização** troca identificadores por tokens e pode permitir reidentificação mediante informação adicional. **Anonimização efetiva** exige avaliar risco residual, inclusive cruzamento de quase-identificadores. A orientação NIST SP 800-188 destaca avaliação da finalidade e do risco de divulgação.\n\nExemplo: remover o nome mas conservar data de nascimento, cidade pequena e histórico raro pode permitir identificar alguém; o dado não fica automaticamente anônimo. A prova também costuma trocar integridade de transporte por autenticidade da origem ou confidencialidade: cada controle enfrenta ameaça diferente."
+    },
+    {
+      "title": "4. Limpeza, transformação e preparo analítico",
+      "markdown": "## Normalização numérica e padronização\nO **min-max** converte um valor para intervalo [0,1] pela expressão `(x − mínimo)/(máximo − mínimo)`, se o denominador for diferente de zero. Com mínimo 10, máximo 30 e x=15, o resultado é `5/20=0,25`. A padronização **z-score** usa `(x − média)/desvio-padrão`, se o desvio for positivo; não limita os valores a [0,1]. Não confunda essas técnicas de transformação numérica com **normalização relacional**, dedicada às dependências entre atributos e à organização das tabelas. Parâmetros numéricos devem ser aprendidos no conjunto de treinamento e reaplicados a validação e teste, para evitar vazamento de informações.\n\n## Ausentes e outliers\nZero, string vazia, campo ausente e null podem ter significados diferentes. Falha de captação, dado não aplicável e recusa de resposta são causas distintas de ausência. Estratégias incluem descartar observação quando justificável, preencher com mediana, média ou categoria, criar indicador de ausência ou usar método específico; nenhuma recupera automaticamente o valor real. A média é sensível a extremos. Em base onde renda alta tende a não ser declarada, imputação indiscriminada pode introduzir viés.\n\nUm **outlier** é valor atípico, não sinônimo de erro. A regra comum do intervalo interquartil marca candidatos fora de `[Q1−1,5×IQR, Q3+1,5×IQR]`, com `IQR=Q3−Q1`; a escolha do tratamento depende do contexto. Pico de temperatura de um sensor pode representar defeito ou incidente real. Corrigir, excluir, sinalizar ou limitar o valor sem justificativa destrói informação relevante. Os limites são convenção exploratória, não prova definitiva de invalidade.\n\n## Discretização e agregação\n**Discretização** transforma variável contínua em faixas, por exemplo 0 a 17 anos, 18 a 59 e 60 ou mais. Deve declarar limites inclusivos e pode perder informação original. **Agregação** soma, conta ou resume registros por grupo, período e unidade de análise; depende da **granularidade**. Se o total da venda está no cabeçalho do pedido e o join com itens gera uma linha para cada item, somar o total após a junção pode duplicar valores. Imagine pedidos de R$ 50 com dois itens e de R$ 80 com um item: somar os totais após o join resulta em R$ 180, quando o faturamento correto por pedido é R$ 130. A solução é agregar em granularidade coerente e revisar a cardinalidade das junções.\n\nEm eventos com atraso, uma agregação por janela precisa definir uso do tempo de evento ou do processamento, horário de fechamento e política de revisões. Agregar por dia de chegada não equivale a agregar por dia de ocorrência quando há atraso de rede. Deduplicar previamente pelo identificador correto evita contar reenvios como vendas adicionais.\n\n## Dados desbalanceados e avaliação\nUma base de classificação tem 980 casos negativos e 20 positivos. Prever tudo como negativo gera **98% de acurácia**, mas revocação zero dos positivos. **Superamostragem** aumenta a representação da classe minoritária por repetição ou geração sintética apropriada. **Subamostragem** reduz a maioria, podendo descartar exemplos úteis. As técnicas devem operar somente no treinamento e após separação cuidadosa de grupos e tempo, mantendo validação e teste representativos para impedir vazamento. Precisão, revocação, F1 e curva precisão-revocação ajudam a avaliar eventos raros. A escolha exige considerar o custo dos falsos negativos e falsos positivos, não apenas a acurácia."
+    },
+    {
+      "title": "5. Operação confiável, serviços gerenciados e casos integrados",
+      "markdown": "## Falhas, repetição e recuperação\nEm produção, pipelines enfrentam interrupção de rede, sobrecarga, mudança de schema, evento malformado e destino indisponível. **Retry** lida com falha transitória e deve ter número limitado de tentativas, espera progressiva e, quando adequado, variação aleatória para evitar sincronização de chamadas. Repetir erro determinístico de schema não corrige o conteúdo. **Checkpoint** guarda progresso e eventualmente estado, para permitir retomada; sua perda pode exigir reconstrução. Uma **dead-letter queue** conserva eventos que não puderam ser processados após a política de tentativas. A **quarentena** permite separar linhas inválidas, mantendo rastreabilidade da origem e motivo da rejeição.\n\n**Idempotência** é crucial: se houve gravação mas ocorreu falha antes de confirmar progresso, a reexecução deve resultar no mesmo estado lógico. Uma chave de evento estável, constraint de unicidade e upsert com versão são técnicas possíveis. Exactly-once na fonte isoladamente não elimina efeitos repetidos em destino externo. Monitorar throughput, atraso ponta a ponta, tamanho de fila, incidentes, qualidade e posição de checkpoint permite identificar problemas antes de afetar consumidores. Um log de execução não substitui um alerta baseado em limites objetivos.\n\n## Versionamento, logging, auditoria e CI/CD\nVersione código de transformações, contratos de schemas, consultas, infraestrutura declarativa e testes. **Logging** registra eventos técnicos, duração e erros; **auditoria** assegura trilha de atividades e mudanças com identidade, tempo e integridade apropriados. Registros úteis incluem identificador da execução, versão, origem, período extraído, contagem lida, rejeitada e persistida, evitando armazenar segredos ou documentos pessoais em claro. Em **CI**, execute verificações de sintaxe, testes de transformação, contratos e qualidade; em **CD**, promova versões entre ambientes com revisão, controle de parâmetros, segredos separados e plano de reversão. Migração que remove campo exigido por consumidores anteriores deve coordenar versões e compatibilidade.\n\n## Serviços e responsabilidade\n| Serviço | Função típica | Cuidado |\n| --- | --- | --- |\n| **Azure Data Factory** | Orquestra pipelines e movimenta dados por conectores e atividades | Configurar corretamente a conectividade e o integration runtime |\n| **Azure Databricks** | Executa processamento distribuído, ETL/ELT e streaming com Spark | Estado e escrita ainda exigem consistência |\n| **Azure Service Fabric** | Hospeda e gerencia microsserviços, inclusive serviços com estado | Não é substituto direto para um conector ETL |\n\nA atividade **Copy** do Data Factory lê a fonte e grava o destino, oferecendo mapeamentos e conversões suportadas. Um **integration runtime auto-hospedado** permite atingir determinados recursos locais ou privados. O Auto Loader no Databricks acompanha arquivos descobertos e mantém progresso em checkpoint persistente; apagar a localização do checkpoint pode danificar a retomada. O Service Fabric gerencia serviços sem estado e com estado, partições e réplicas; pode hospedar parte de um sistema de ingestão, mas a sua função é distinta da orquestração de dados.\n\n## Arquitetura completa de exemplo\nUm sistema combina primeira carga consistente do SQL Server, CDC subsequente, arquivos JSON recebidos de parceiros e relatórios diários em Parquet. O fluxo registra origem e versão, valida contratos, separa rejeições, ordena mudanças por sequência confiável, transforma tipos e realiza upsert idempotente. Depois agrega por granularidade de negócio e aplica permissão diferente à zona bruta e à curada. Se o consumidor sofrer falha após gravar, a reentrega é controlada por chave; se a origem perder sua janela de CDC, avalia-se nova sincronização. Alertas cobrem atraso, falha de contrato e rejeições crescentes.\n\n### Como o tema costuma ser cobrado\nA prova apresenta casos concretos para distinguir ETL de ELT, batch de streaming, carga incremental de CDC, formato de arquivo de estilo de ingestão e dimensão de qualidade de mecanismo de segurança. Também explora contas de completude, min-max e agregação, consequências de um join um-para-muitos, riscos de balancear antes do teste e limites das promessas de exactly-once, checkpoint e serviços gerenciados. A resposta defensável resolve o requisito efetivo, sem pressupor capacidades que não foram configuradas."
+    }
+  ],
+  "summary": "## Essenciais\n- **Pipeline:** coleta, valida, transforma e publica dados; mantenha rastreabilidade e regras de qualidade.\n- **ETL/ELT:** distinguem a ordem da transformação e carga, não batch/streaming.\n- **Full/incremental/CDC:** full copia conjunto inteiro; incremental detecta diferenças; CDC registra operações de mudança, podendo incluir exclusões.\n- **Streaming:** eventos podem chegar atrasados e fora de ordem; buffer, partição, backpressure e watermark controlam processamento.\n- **Formatos:** CSV é texto tabular; JSON/XML são hierárquicos; Parquet é binário colunar analítico.\n- **Dimensões:** completude, validade, exatidão, consistência, unicidade e tempestividade não são intercambiáveis.\n- **Governança:** contratos, glossary, metadados, linhagem, permissões e auditoria.\n- **Segurança:** TLS em trânsito, autenticação, autorização, gestão de segredos e desidentificação com análise de reidentificação.\n- **Tratamento:** min-max `(x−mín)/(máx−mín)`; z-score `(x−média)/desvio`; ausência, extremos e agregação exigem regras explícitas.\n- **Desbalanceamento:** super/subamostragem somente no treinamento; avaliações não podem receber vazamento.\n- **Confiabilidade:** retries limitados, checkpoints, idempotência e contagem de rejeições; exactly-once exige coerência da saída.\n- **Serviços:** Data Factory orquestra e copia; Databricks processa; Service Fabric hospeda microsserviços.",
+  "flashcards": [
+    {
+      "front": "Qual a função do pipeline?",
+      "back": "Conduzir dados da fonte ao consumo com etapas controladas de movimentação, validação e transformação."
+    },
+    {
+      "front": "ETL ou ELT?",
+      "back": "ETL transforma antes da carga; ELT carrega primeiro e transforma no destino."
+    },
+    {
+      "front": "O que caracteriza batch?",
+      "back": "Processamento de conjuntos delimitados, como uma carga diária, em vez de consumo contínuo dos eventos."
+    },
+    {
+      "front": "Full difere de incremental?",
+      "back": "Full lê o conjunto definido por inteiro; incremental seleciona alterações ou novidades desde um marco."
+    },
+    {
+      "front": "CDC pode incluir exclusões?",
+      "back": "Sim, quando a captura registra operações de inserção, atualização e exclusão da origem."
+    },
+    {
+      "front": "O que é snapshot consistente?",
+      "back": "Visão da origem que preserva um estado logicamente coerente durante a extração."
+    },
+    {
+      "front": "Qual a vantagem do Parquet?",
+      "back": "Organização colunar e codificação apropriadas para acesso analítico e compressão."
+    },
+    {
+      "front": "CSV contém esquema de tipos?",
+      "back": "Não de forma nativa; tipos, codificação e delimitadores exigem interpretação definida no contrato."
+    },
+    {
+      "front": "JSON é formato tabular?",
+      "back": "Não obrigatoriamente. Suporta objetos e listas hierárquicas com esquema flexível."
+    },
+    {
+      "front": "Completude mede quê?",
+      "back": "Se os valores exigidos estão presentes no recorte observado."
+    },
+    {
+      "front": "Qual é a validade?",
+      "back": "Conformidade aos tipos, domínios e regras estabelecidos para o dado."
+    },
+    {
+      "front": "Exatidão é presença?",
+      "back": "Não. Exatidão é correspondência com o fato real, e presença é completude."
+    },
+    {
+      "front": "Profiling serve a quê?",
+      "back": "Descrever estatísticas e padrões, como nulos, duplicatas e valores extremos, antes da correção."
+    },
+    {
+      "front": "Matching e deduplicação?",
+      "back": "Matching identifica prováveis correspondências; deduplicação decide e trata duplicatas por regra de identidade."
+    },
+    {
+      "front": "TLS protege qual etapa?",
+      "back": "O tráfego em trânsito, quando aplicado e validado corretamente; armazenamento exige medidas próprias."
+    },
+    {
+      "front": "Pseudonimização garante anonimato?",
+      "back": "Não. Informação adicional e cruzamentos podem permitir reidentificação."
+    },
+    {
+      "front": "Min-max de 15 entre 10 e 30?",
+      "back": "(15−10)/(30−10)=0,25, no intervalo de 0 a 1."
+    },
+    {
+      "front": "Z-score fica entre zero e um?",
+      "back": "Não. Mede desvios-padrão em relação à média e pode ter qualquer sinal."
+    },
+    {
+      "front": "Que é backpressure?",
+      "back": "Pressão pelo descompasso persistente entre entrada e capacidade de processamento de eventos."
+    },
+    {
+      "front": "Retry garante não duplicar?",
+      "back": "Não. O destino precisa lidar com reentregas, por exemplo por escrita idempotente."
+    },
+    {
+      "front": "Para que serve Databricks?",
+      "back": "Processamento distribuído de dados, incluindo transformações Spark e streaming."
+    },
+    {
+      "front": "O que faz Azure Service Fabric?",
+      "back": "Gerencia implantação e ciclo de vida de microsserviços e contêineres, inclusive serviços com estado."
+    }
+  ],
+  "tips": [
+    "Separe formato, modo de ingestão e ordem ETL/ELT: são três perguntas diferentes.",
+    "Em contas de completude, identifique o denominador e a população antes de calcular porcentagem.",
+    "Se o caso inclui exclusões físicas, desconfie de incremental baseado apenas em coluna de atualização.",
+    "Após falha e retry, verifique chave de idempotência e momento do commit do progresso.",
+    "Em streaming, distinga tempo do evento, tempo do processamento e garantias por partição.",
+    "Na normalização, use parâmetros derivados apenas dos dados de treinamento.",
+    "Antes de somar após um join, verifique a granularidade dos registros e cardinalidade da junção.",
+    "Não confunda os papéis de Azure Data Factory, Azure Databricks e Azure Service Fabric."
+  ],
+  "traps": [
+    "A prova diz que ELT exige streaming. Errado: ELT significa carregar antes de transformar; também pode operar em lote.",
+    "A prova afirma que coluna updated_at captura exclusões físicas. Errado: é preciso mecanismo de exclusão/CDC adequado.",
+    "A prova define Parquet como texto delimitado. Errado: é formato binário orientado a colunas.",
+    "A prova conclui que dado não nulo está correto. Errado: completude não implica validade nem exatidão.",
+    "A prova equipara pseudonimização a anonimato definitivo. Errado: pode persistir risco de reidentificação.",
+    "A prova atribui exactly-once universal ao checkpoint. Errado: o destino e a confirmação também importam.",
+    "A prova recomenda excluir qualquer outlier. Errado: um extremo pode ser evento real e relevante.",
+    "A prova equilibra toda a base antes da divisão treino/teste. Errado: pode contaminar a avaliação."
+  ],
+  "activeRecall": [
+    {
+      "question": "Por que updated_at não equivale a CDC?",
+      "answer": "Pode localizar inserções e atualizações, mas não necessariamente exclusões físicas e ordem transacional."
+    },
+    {
+      "question": "Distinga validade, completude e exatidão.",
+      "answer": "Validade: regra de formato/domínio; completude: presença; exatidão: correspondência ao fato real."
+    },
+    {
+      "question": "Como limitar duplicatas após retry?",
+      "answer": "Use identificadores estáveis, upsert idempotente e checkpoint coerente com o commit da saída."
+    },
+    {
+      "question": "Por que a ordem de chegada pode falhar em CDC?",
+      "answer": "Transporte e partições podem reordenar mensagens; utilize versão ou sequência confiável de origem."
+    },
+    {
+      "question": "Qual o risco do join de pedidos com itens?",
+      "answer": "Multiplica cabeçalhos quando há vários itens, causando dupla contagem de totais agregados."
+    },
+    {
+      "question": "Calcule min-max de 40 no intervalo original 20 a 60.",
+      "answer": "(40−20)/(60−20)=0,5."
+    },
+    {
+      "question": "Onde aplicar superamostragem e escalas aprendidas?",
+      "answer": "Ajuste nos dados de treinamento; mantenha validação e teste separados e representativos."
+    },
+    {
+      "question": "Qual o papel dos três serviços Azure citados?",
+      "answer": "Data Factory integra e orquestra; Databricks transforma e processa; Service Fabric hospeda serviços."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir ETL/ELT com periodicidade",
+      "summary": "ETL/ELT dizem respeito à ordem da transformação e carga, enquanto batch/streaming caracterizam a cadência de processamento."
+    },
+    {
+      "key": "e2",
+      "title": "Confundir CDC com marca temporal",
+      "summary": "Extração por timestamp pode deixar exclusões de fora; CDC adequado registra operações e posições de mudança."
+    },
+    {
+      "key": "e3",
+      "title": "Misturar dimensões de qualidade",
+      "summary": "Presença, conformidade, realidade, consistência e unicidade exigem testes separados."
+    },
+    {
+      "key": "e4",
+      "title": "Ignorar granularidade e vazamento",
+      "summary": "Joins um-para-muitos inflam somas; técnicas aprendidas fora do treino contaminam avaliação."
+    },
+    {
+      "key": "e5",
+      "title": "Supor exactly-once só pelo checkpoint",
+      "summary": "Retomar a leitura não elimina efeitos repetidos em escrita externa sem coordenação ou idempotência."
+    },
+    {
+      "key": "e6",
+      "title": "Equiparar segurança, anonimização e serviços",
+      "summary": "TLS cobre trânsito, pseudonimização não assegura anonimização, e os serviços Azure têm papéis distintos."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe integra pedidos de diversas fontes, valida registros, mantém cópia bruta e publica tabelas para relatórios. Qual termo descreve o conjunto coordenado dessas etapas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pipeline de dados com estágios de ingestão, validação, transformação e publicação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Glossário de negócios com conceitos, descrições de indicadores e seus responsáveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Catálogo técnico com esquemas, locais de armazenamento e donos dos conjuntos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Contrato de dados com tipos, nulidades e domínios permitidos pelos produtores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Perfilamento de dados com estatísticas, padrões e frequências de valores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Pipeline encadeia a movimentação e a preparação descritas. B define o vocabulário comum, sem executar etapas; C facilita descoberta e descrição; D fixa expectativas sobre dados; E examina padrões e anomalias. Todos são componentes úteis, mas nenhum dos quatro substitui o fluxo operacional apresentado.",
+      "section": "1. Fundamentos, fontes e formatos de ingestão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto extrai registros, aplica conversões no ambiente de integração e somente depois grava os dados tratados no repositório analítico. Qual arquitetura predomina?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ELT, porque a transformação é executada antes de gravar o dado no destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ETL, porque as transformações principais antecedem a carga no destino.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "CDC, porque a ordem das etapas permite reconhecer alterações em logs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Streaming, porque a transformação prévia determina entrega em tempo real.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Carga full, porque todas as linhas são necessariamente extraídas a cada vez.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. ETL corresponde à sequência extrair, transformar, carregar. A inverte a ordem característica do ELT; C trata de captura de modificações, não da posição da transformação; D confunde arquitetura e cadência; E pressupõe extração completa, detalhe não informado. A escolha de ETL não determina se a extração é full ou incremental.",
+      "section": "2. Pipelines, ETL/ELT, lotes, streaming e CDC",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao importar um arquivo CSV, códigos de produto como 00042 passaram a aparecer como 42. Que medida preserva a identidade originalmente representada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratar todo campo numérico aparente como inteiro, conservando o valor aritmético.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter os códigos em decimais fixos e eliminar zeros à esquerda do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir a coluna de código como texto e validar o tamanho e os caracteres.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Converter o CSV para JSON e inferir automaticamente os tipos da coluna.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar normalização min-max ao identificador e conservar quatro casas decimais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Identificadores podem conter zeros semanticamente significativos e devem ser lidos como texto. A e B preservam quantidades, não a representação da chave; D troca o contêiner mas não impede inferência incorreta; E usa transformação quantitativa imprópria para identificadores. Um contrato de tipos evita a perda antes de carregar.",
+      "section": "1. Fundamentos, fontes e formatos de ingestão",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um repositório analítico consulta poucas colunas em milhões de registros e procura reduzir leitura e armazenamento. Qual formato é especialmente indicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CSV, pois organiza colunas fisicamente e inclui compressão colunar padronizada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "XML, pois utiliza armazenamento binário por coluna e índices automáticos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JSON, pois seus objetos são armazenados obrigatoriamente em blocos colunares.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Parquet, pois é binário colunar e favorece leitura seletiva e compressão.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "CSV, pois conserva tipos declarados no arquivo e blocos estatísticos por coluna.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. O Apache Parquet foi desenhado para armazenamento colunar eficiente. A e E atribuem ao CSV propriedades que seu formato textual não fornece nativamente; B confunde estrutura hierárquica XML com coluna física; C faz o mesmo com JSON. Os quatro formatos podem transportar dados, mas não oferecem a mesma organização de leitura.",
+      "section": "1. Fundamentos, fontes e formatos de ingestão",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma carga lê tabelas Oracle e SQL Server por conectores. Há diferenças de precisão temporal e tipos decimais. Qual prática reduz conversões incorretas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter números e datas em texto livre e deixar o destino inferir os significados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Presumir equivalência integral entre tipos SQL semelhantes nos dois produtos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uniformizar todas as datas pelo horário local do servidor sem documentar fuso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar validações da conexão para evitar rejeição de campos conflitantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Documentar mapeamentos de tipo, precisão e fuso, validando conversões na carga.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A integração segura exige contrato explícito para tipos, precisão e horários. A posterga a ambiguidade para a inferência; B ignora diferenças concretas entre sistemas; C confunde fuso do servidor com semântica temporal; D reduz observabilidade e qualidade. O conector resolve comunicação, não o sentido de cada atributo.",
+      "section": "1. Fundamentos, fontes e formatos de ingestão",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fonte libera arquivos de vendas no fim do dia, e outro sistema envia transações continuamente. Qual classificação de ingestão corresponde aos dois fluxos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Primeiro em lote e segundo em streaming, independentemente do formato recebido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Primeiro ELT e segundo ETL, pois o ritmo define a ordem das transformações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Primeiro full e segundo CDC, porque arquivos são sempre extrações completas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Primeiro transacional e segundo colunar, conforme o intervalo de entrega.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Primeiro semiestruturado e segundo estruturado, conforme a frequência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Arquivos acumulados e processados ao final do dia representam batch; eventos continuamente disponibilizados são streaming. B troca cadência por ETL/ELT; C presume conteúdo completo e mecanismo de captura sem evidência; D mistura padrão de armazenamento; E confunde organização do dado com tempo de chegada.",
+      "section": "2. Pipelines, ETL/ELT, lotes, streaming e CDC",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema precisa construir uma cópia inicial de clientes e, diariamente, trazer apenas registros modificados desde o último processamento confiável. Qual sequência atende ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fazer cargas full diariamente, evitando guardar qualquer marca de progresso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar uma carga full inicial e depois extrações incrementais controladas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar streaming inicial e depois cargas full de todos os clientes alterados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar ELT na primeira etapa e ETL depois, sem controlar os dados já copiados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir a carga inicial por deduplicação de linhas ainda não recebidas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. A cópia inicial estabelece a base e a estratégia incremental atualiza mudanças detectáveis. A reextrai tudo sem necessidade; C mistura streaming com seleção de registros; D confunde a ordem de transformação com rastreamento de progresso; E pretende deduplicar dados inexistentes. O marco incremental deve sobreviver a reinícios.",
+      "section": "2. Pipelines, ETL/ELT, lotes, streaming e CDC",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sincronização usa apenas WHERE updated_at > último_horário. Um registro é excluído fisicamente na origem. Que problema pode ocorrer no destino?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A exclusão é transmitida pelo timestamp, pois mudanças sempre atualizam a linha removida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O destino apaga o registro, pois a consulta incremental identifica ausência por definição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O registro excluído pode permanecer, pois não há linha que reporte a operação de delete.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O mecanismo retorna obrigatoriamente o estado anterior com indicação de exclusão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A captura de exclusões depende apenas do formato escolhido no armazenamento final.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Filtro em tabela atualizada não revela necessariamente uma linha que deixou de existir; CDC ou estratégia própria de reconciliação detecta delete. A presume atualização em linha já eliminada; B atribui comparação integral a uma consulta por horário; D confunde filtro com captura de log; E liga indevidamente exclusões ao formato do destino.",
+      "section": "2. Pipelines, ETL/ELT, lotes, streaming e CDC",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dos 200 registros importados, 170 apresentam um telefone preenchido, ainda sem verificação de formato ou veracidade. Qual indicador foi diretamente medido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exatidão de 85%, pois o telefone corresponde necessariamente ao titular cadastrado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Validade de 85%, pois toda sequência não vazia obedece às regras de telefone.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Unicidade de 85%, pois cada telefone preenchido identifica uma pessoa distinta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Completude de 85%, pois 170 dos 200 registros possuem valor presente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Consistência de 85%, pois preenchimento elimina divergência entre as fontes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. O percentual 170/200 = 85% mede presença do campo, isto é, completude. A exige confronto com fato real; B requer validar sintaxe e domínio; C depende de identidade e duplicação; E envolve ausência de contradições. Um campo preenchido pode conter informação inválida, incorreta ou repetida.",
+      "section": "3. Qualidade, integridade, governança e segurança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pipeline rejeita o CEP 'AB123' por violar a regra de cinco dígitos definida no contrato, sem consultar endereço externo. Qual dimensão está sendo verificada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exatidão, porque o sistema comprovou o endereço físico correspondente ao registro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Completude, porque a regra avaliou somente se o campo estava preenchido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Unicidade, porque o contrato determinou que o código não pode se repetir.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tempestividade, porque a regra rejeitou o registro por atraso da informação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validade, porque o conteúdo não obedeceu ao domínio e ao formato definidos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Violação da expressão ou domínio contratado é falha de validade. A pressupõe comparação com realidade externa; B ignora que havia conteúdo; C requer teste de duplicação; D exige análise temporal. Mesmo um CEP sintaticamente válido pode não existir, mostrando por que validade não garante exatidão.",
+      "section": "3. Qualidade, integridade, governança e segurança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após inspeção de 250 registros, 230 têm data de nascimento não nula. A regra de qualidade é 'campo obrigatório presente'. Qual a completude observada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "92%, obtidos dividindo 230 campos preenchidos por 250 registros avaliados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "90%, pois os vinte ausentes correspondem a uma taxa fixa de dez por cento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "95%, pois o cálculo deve usar apenas os registros inicialmente aceitos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "88%, pois registros ausentes precisam ser contados duas vezes na diferença.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "100%, pois presença obrigatória é regra de contrato, mesmo quando violada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. A completude é 230/250 = 0,92, ou 92%; a taxa de ausência é 20/250 = 8%. B calcula percentagem incorreta; C altera o denominador sem base; D duplamente penaliza valores ausentes; E confunde requisito desejado com resultado efetivamente observado. O indicador não comprova que as datas estão corretas.",
+      "section": "3. Qualidade, integridade, governança e segurança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada grava a venda 78 no destino, mas a confirmação de leitura falha. O evento chega outra vez. Que implementação preserva o total de vendas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar novo identificador para cada retry e inserir a venda como evento independente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar chave estável da venda e operação idempotente que não multiplique efeitos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Confirmar previamente a leitura, mesmo que a gravação no destino não ocorra.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o tamanho do buffer, pois isso elimina reentregas após confirmação perdida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar auditoria das gravações e aceitar contagem maior durante a recuperação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Chave estável e upsert ou deduplicação idempotente permitem retry sem contabilizar uma nova venda. A cria duplicata; C troca possível duplicação por perda definitiva após falha; D não altera a semântica de commit; E mascara o problema em vez de resolvê-lo. O destino precisa participar da estratégia de entrega confiável.",
+      "section": "5. Operação confiável, serviços gerenciados e casos integrados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma ingestão, os produtores enviam 600 eventos por segundo e os consumidores tratam 450 por segundo durante dez minutos. Que fenômeno deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O buffer esvazia 150 eventos por segundo, reduzindo progressivamente a fila.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A entrada é naturalmente bloqueada por não haver diferença entre as duas taxas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A fila cresce em cerca de 90 mil eventos, se não houver perda nem limitação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O sistema alcança exactly-once porque todo evento é mantido temporariamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ordenação global dos eventos passa a ser garantida pelo maior volume de entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. A diferença é 600−450=150 eventos/s; em 600 s, acumula 90.000 eventos se não houver descarte nem controle de fluxo. A inverte o sinal; B ignora a sobrecarga; D atribui semântica de entrega ao tamanho da fila; E confunde taxa com ordenação. Esse descompasso exige backpressure ou aumento de capacidade.",
+      "section": "2. Pipelines, ETL/ELT, lotes, streaming e CDC",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois eventos referentes à mesma conta são enviados com versões 31 e 32, mas a versão 32 chega primeiro. Qual regra protege a atualização de estado contra regressão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar todo evento na ordem em que chega, pois a rede preserva causalidade da origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ordenar por horário de processamento, que traduz a sequência original das mudanças.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Descartar a versão 32, pois versões maiores podem chegar somente depois da menor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter a maior versão confiável por conta, ignorando atualizações anteriores a ela.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aplicar a última mensagem recebida, mesmo quando traz versão comprovadamente antiga.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A versão confiável é critério para evitar que 31 sobrescreva o estado já atualizado por 32. A e E confundem chegada com causalidade; B usa relógio do processamento, que não reconstrói a ordem da origem; C descarta justamente a mudança mais recente. Em fluxos particionados, a garantia de ordem precisa ser analisada por chave.",
+      "section": "2. Pipelines, ETL/ELT, lotes, streaming e CDC",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma base remove nomes e troca CPF por códigos recuperáveis com uma tabela separada de correspondência. Que afirmação caracteriza corretamente o tratamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Houve anonimização irreversível, pois os nomes já não aparecem nos registros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O banco passou a ser público, pois todos os identificadores diretos sumiram.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "TLS tornou desnecessária qualquer avaliação de risco de reidentificação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O mascaramento garantiu que nenhum cruzamento externo revelará indivíduos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Há pseudonimização, com possibilidade de reidentificação pela tabela auxiliar.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Códigos reversíveis mediante tabela de correspondência caracterizam pseudonimização; medidas de proteção continuam necessárias. A atribui irreversibilidade inexistente; B confunde técnica com autorização de divulgação; C trata criptografia de tráfego como privacidade do conteúdo; D promete proteção absoluta que mascaramento não fornece.",
+      "section": "3. Qualidade, integridade, governança e segurança",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um conjunto, os valores mínimo e máximo de uma variável são 10 e 30. Qual é o resultado da normalização min-max para o valor 15 no intervalo [0,1]?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,25, pois a diferença 15−10 é dividida pela amplitude 30−10.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "0,50, pois a diferença 15−10 é dividida pelo limite mínimo de 10.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "0,75, pois o valor é dividido pela diferença entre máximo e mínimo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "1,50, pois a transformação divide o valor de entrada diretamente por 10.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "0,17, pois a distância até o máximo determina sozinha o resultado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. A fórmula min-max é (x−mínimo)/(máximo−mínimo); (15−10)/(30−10)=5/20=0,25. B troca a amplitude pelo mínimo; C não corresponde à substituição correta; D desconsidera a subtração do mínimo; E usa raciocínio de distância invertida. O cálculo exige máximo diferente do mínimo.",
+      "section": "4. Limpeza, transformação e preparo analítico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável tem média 100 e desvio-padrão 20. Um registro apresenta valor 140. Qual resultado corresponde ao escore z e o que ele representa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,40, porque o registro representa quarenta por cento da média observada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "2, porque o registro está dois desvios-padrão acima da média do conjunto.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "1, porque a diferença de quarenta unidades corresponde a uma unidade z.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "7, porque a padronização resulta da divisão de 140 pelo desvio de vinte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "0,70, porque o resultado da padronização deve estar sempre abaixo de um.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. z=(140−100)/20=2, isto é, dois desvios-padrão acima da média. A divide indevidamente pela média; C erra a escala; D ignora a centralização; E aplica a restrição de [0,1] do min-max ao z-score, que não está limitado a esse intervalo.",
+      "section": "4. Limpeza, transformação e preparo analítico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe migra uma tabela com carga inicial e depois passa a consumir CDC. Uma atualização é confirmada na origem durante o snapshot. Que desenho evita lacuna ou duplicidade incoerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Começar a ler CDC depois do snapshot sem guardar posição, usando o horário do destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desligar o CDC durante a carga inicial e ignorar mudanças que ocorrerem nesse intervalo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Coordenar snapshot consistente com marco de CDC e aplicar mudanças por chave e sequência.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Repetir apenas linhas com datas recentes, supondo que exclusões físicas aparecerão nelas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ordenar alterações pelo momento da entrega, sem examinar versões ou sequência da fonte.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. A transição entre fotografia inicial e log deve preservar posição consistente e lógica de aplicação idempotente. A perde referência de origem; B cria janela de perda; D não resolve exclusões e pode falhar em datas; E usa uma ordem de entrega que pode divergir da ordem transacional. A solução depende dos recursos realmente suportados na fonte.",
+      "section": "2. Pipelines, ETL/ELT, lotes, streaming e CDC",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Pedidos têm cabeçalhos: pedido 1 total 50 com dois itens, pedido 2 total 80 com um item. Após juntar cabeçalhos a itens, um analista soma o campo total do pedido em cada linha. Qual diagnóstico está correto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A soma será 130, porque o join conserva automaticamente uma linha por pedido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A soma será 100, porque a junção considera somente os dois itens do pedido 1.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A soma será 160, porque o total do segundo pedido será duplicado pela junção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A soma será 180, porque o cabeçalho de 50 aparece duas vezes; deve-se rever a granularidade.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A soma será 210, porque a junção multiplica todos os totais pelo número de pedidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A junção com itens produz duas linhas contendo 50 e uma com 80: 50+50+80=180, embora o correto por pedido seja 130. A ignora cardinalidade um-para-muitos; B descarta pedido 2; C duplica o cabeçalho errado; E pressupõe multiplicação global que não ocorre. A correção exige agregar no nível de fato apropriado.",
+      "section": "4. Limpeza, transformação e preparo analítico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Antes de dividir a base entre treino e teste, uma equipe calcula a média global e gera observações sintéticas da classe rara em toda a base. Qual risco metodológico principal surgiu?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ausência de dimensionalidade, pois padronização exige sempre redução de atributos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Falha de integridade referencial, pois valores sintéticos sempre removem chaves.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mudança de formato, pois a superamostragem converte obrigatoriamente tudo em CSV.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Perda de streaming, pois qualquer etapa estatística converte a ingestão em lote.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Vazamento de informação e contaminação da avaliação por transformações pré-divisão.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Estatísticas globais e amostras derivadas antes do split podem levar informação de teste ao treinamento e inflar métricas. A confunde escalonamento com redução dimensional; B inventa violação de chaves; C associa reamostragem ao formato físico; D troca preparação analítica pela cadência de ingestão. O adequado é ajustar técnicas apenas no treino.",
+      "section": "4. Limpeza, transformação e preparo analítico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um consumidor guarda offsets em checkpoint, mas, após gravar no banco externo, cai antes de confirmar o progresso. O banco aceita INSERT duplicado. O que se pode concluir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Há risco de efeito duplicado no destino; checkpoint sozinho não fornece exactly-once externo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O checkpoint impede nova leitura, porque gravação e confirmação são uma operação única.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O banco elimina a duplicata automaticamente, porque a origem possui offsets monotônicos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A escrita será descartada ao reiniciar, porque toda falha desfaz operações confirmadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O retry respeitará exatamente uma vez se os eventos estiverem no mesmo arquivo físico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Se a confirmação não avançou, o evento pode ser reentregue e causar novo INSERT no destino. B pressupõe atomicidade não informada; C confunde offset da origem com unicidade no banco; D assume rollback de gravação já confirmada; E usa disposição física irrelevante. Resolva com escrita idempotente ou coordenação transacional apropriada.",
+      "section": "5. Operação confiável, serviços gerenciados e casos integrados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pipeline Azure precisa copiar tabelas de um SQL Server acessível apenas na rede interna para armazenamento em nuvem. Qual componente resolve a execução e a conectividade previstas no Data Factory?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um cluster Service Fabric, porque toda atividade Copy depende de microsserviços próprios.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um integration runtime auto-hospedado com acesso à fonte e ao destino necessários.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um glossário de dados no catálogo, porque ele cria túneis seguros de rede automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma tabela Parquet local, pois o formato define roteamento para redes privadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um notebook de discretização, pois operações estatísticas substituem a conectividade.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. No Azure Data Factory, o integration runtime auto-hospedado viabiliza a execução/conectividade da atividade Copy para certos recursos locais ou privados. A troca ferramenta de orquestração por hospedagem de serviços; C descreve metadados, não rede; D é formato de arquivo; E é transformação de valores, incapaz de substituir conectividade.",
+      "section": "5. Operação confiável, serviços gerenciados e casos integrados",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura precisa hospedar microsserviços com estado replicado, mas utiliza outro serviço para organizar as cargas de dados. Qual papel corresponde ao Azure Service Fabric?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Processar arquivos Parquet como substituto necessário das transformações Spark.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir dimensões de qualidade e substituir o catálogo de metadados empresariais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Implantar e gerenciar serviços com e sem estado, incluindo partições e réplicas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Criar automaticamente captura de logs transacionais em todo banco relacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar diretamente toda atividade Copy de conectores do Azure Data Factory.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Service Fabric organiza ciclo de vida e disponibilidade de microsserviços e pode gerenciar estado por partições e réplicas. A atribui-lhe computação de Databricks; B confunde plataforma de execução com gestão da qualidade; D supõe captura automática de bancos; E o toma como runtime obrigatório de Data Factory. As funções são complementares, não idênticas.",
+      "section": "5. Operação confiável, serviços gerenciados e casos integrados",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe remove coluna obrigatória do evento e faz deploy sem testar os consumidores antigos. O pipeline permanece disponível, mas falha ao processar mensagens novas. Qual medida teria tratado o risco mais diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ampliar indefinidamente o buffer, impedindo falhas de compatibilidade de schema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar a rede TLS por conexão simples para evitar rejeição do formato do payload.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar min-max aos campos restantes e preservar uma faixa numérica comum.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Versionar o contrato e executar testes de compatibilidade na integração contínua.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Reexecutar o evento com retry exponencial, mesmo que a coluna tenha sido removida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Alterações incompatíveis de contrato devem ser avaliadas antes da publicação, com versionamento e testes em CI. A não recupera campo excluído; B enfraquece segurança e não corrige payload; C transforma números, não contratos; E repete uma falha determinística. Uma implantação em etapas com consumidores compatíveis reduz a indisponibilidade.",
+      "section": "5. Operação confiável, serviços gerenciados e casos integrados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em classificação de eventos raros, existem 980 casos comuns e 20 raros. Um modelo prevê apenas casos comuns e obtém 98% de acurácia. Qual avaliação e correção são mais adequadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aceitar o modelo, pois acurácia de 98% comprova boa detecção de eventos raros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Superamostrar toda a base antes da divisão e usar a mesma distribuição no teste.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Subamostrar os casos raros, porque reduzir a minoria é a forma de equilibrar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar a acurácia excluindo positivos e negativos de validação sem documentar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Medir revocação/precisão da classe rara e reamostrar somente dados de treino.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. O classificador tem revocação zero para a classe rara apesar de 98% de acurácia. A ignora o erro relevante; B contamina avaliação e altera distribuição de teste; C reduz ainda mais a classe minoritária; D invalida o protocolo experimental. Super ou subamostragem pode ajudar no treino, e a avaliação deve refletir a distribuição real.",
+      "section": "4. Limpeza, transformação e preparo analítico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa extrai dados de um banco relacional em arquivo diário e recebe eventos de sensores continuamente. O mesmo pipeline pode combinar etapas em lote e em streaming, conforme os requisitos de cada fonte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Batch define processamento de conjuntos delimitados, enquanto streaming acompanha eventos à medida que chegam. Uma solução pode orquestrar ambos e integrar resultados em camadas comuns. O fato de existir uma parte em tempo contínuo não obriga a fonte diária a transmitir registros evento a evento.",
+      "section": "2. Pipelines, ETL/ELT, lotes, streaming e CDC",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo JSON com objetos aninhados é necessariamente uma tabela relacional e dispensa a definição de esquema e validação de campos ao ser ingerido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. JSON pode representar objetos, arrays e campos opcionais; trata-se de formato semiestruturado, não de tabela relacional obrigatória. O pipeline ainda precisa validar tipos, nulidades, identidade e versões do contrato, especialmente quando produtores alteram a estrutura dos objetos.",
+      "section": "1. Fundamentos, fontes e formatos de ingestão",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois que uma coluna de receita mudou de definição, consultar a linhagem dos dados pode ajudar a localizar conjuntos e relatórios derivados que precisam ser reavaliados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Linhagem documenta a proveniência e as transformações entre fonte e consumo; por isso serve para análise de impacto após alteração de schema ou regra de negócio. Um glossário complementa essa análise com definições, mas sozinho não reconstitui todas as dependências técnicas.",
+      "section": "3. Qualidade, integridade, governança e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma extração que usa TLS corretamente configurado já mantém os arquivos recebidos criptografados em repouso, dispensando qualquer controle específico de armazenamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TLS fornece proteção à comunicação em trânsito, e não uma garantia automática para os dados já gravados em disco ou nuvem. A proteção em repouso exige políticas e mecanismos próprios, associados a autorização, gestão de chaves, retenção e monitoramento de acesso.",
+      "section": "3. Qualidade, integridade, governança e segurança",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Antes de definir uma regra de deduplicação de clientes, uma equipe calcula quantidades de nulos, valores frequentes e padrões de grafia; essa análise inicial caracteriza data profiling.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Perfilamento ou profiling examina propriedades observadas da base, incluindo frequências, valores ausentes e possíveis anomalias. Isso orienta regras posteriores de matching e deduplicação. Medir a frequência de nomes iguais não equivale a decidir que pessoas homônimas são a mesma entidade.",
+      "section": "3. Qualidade, integridade, governança e segurança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No cadastro importado, um e-mail preenchido é considerado exato apenas porque possui o caractere @ e passa na validação sintática estabelecida pelo contrato.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A verificação sintática mede validade frente ao padrão escolhido; não comprova que a caixa postal existe ou pertence à pessoa cadastrada. O campo preenchido indica completude, enquanto exatidão depende de correspondência com o fato real, por outros mecanismos de verificação.",
+      "section": "3. Qualidade, integridade, governança e segurança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma integração Oracle–SQL Server define explicitamente conversões decimais e fusos de datas, pois conectividade técnica entre os produtos não implica equivalência semântica de todos os tipos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O conector permite comunicar os sistemas, mas o mapeamento precisa preservar precisão, escala, zona temporal e significado de cada campo. Sem contrato e testes de conversão, valores válidos na origem podem chegar alterados ao destino, mesmo que a conexão termine sem erro.",
+      "section": "1. Fundamentos, fontes e formatos de ingestão",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao carregar registros brutos em um ambiente analítico e executar as transformações principais nesse ambiente depois da carga, um projeto adota ETL, e não ELT.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A ordem extrair, carregar e depois transformar caracteriza ELT. ETL exige transformação principal antes da carga no destino. A existência de verificações preliminares de segurança ou schema não altera a classificação predominante quando a transformação relevante ocorre após a persistência.",
+      "section": "2. Pipelines, ETL/ELT, lotes, streaming e CDC",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma tabela SQL Server configurada para CDC, as informações capturadas podem distinguir operações de inserção, atualização e exclusão para aplicação correspondente no destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O mecanismo de captura de alterações do SQL Server registra a atividade DML rastreada e metadados de operação e posição, úteis para replicar mudanças. É diferente de uma consulta limitada a linhas cujo timestamp de atualização aumentou, que pode não fornecer qualquer registro da exclusão.",
+      "section": "2. Pipelines, ETL/ELT, lotes, streaming e CDC",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como Parquet é colunar, cada linha adicionada por evento em tempo real é obrigatoriamente mais eficiente nesse formato do que em qualquer representação orientada a registros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Parquet é especialmente vantajoso para leitura analítica em colunas e compressão de conjuntos de dados, não uma garantia de eficiência superior em escrita unitária. O custo de criação de arquivos pequenos, metadados e frequência de escrita deve entrar na avaliação do pipeline.",
+      "section": "1. Fundamentos, fontes e formatos de ingestão",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma distribuição de salários com poucos valores extremamente altos, substituir ausentes pela mediana pode ser mais robusto que usar a média, embora ainda exija justificativa e avaliação de viés.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A mediana é menos sensível a extremos do que a média e pode evitar imputações artificialmente elevadas. Isso não prova que o valor faltante corresponda à mediana nem elimina vieses quando a ausência depende do próprio atributo. A estratégia deve ser documentada e testada.",
+      "section": "4. Limpeza, transformação e preparo analítico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao receber dois cadastros com nomes idênticos, a etapa de matching pode classificá-los como a mesma pessoa sem outra regra de identidade, e a deduplicação é tecnicamente certa em todos os casos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Nome idêntico é indício fraco de identidade: pessoas distintas podem ser homônimas. Matching estima correspondência usando atributos e critérios definidos, enquanto a deduplicação decide como consolidar duplicatas. Sem validação e precedência, é possível fundir indevidamente registros legítimos.",
+      "section": "3. Qualidade, integridade, governança e segurança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um buffer de ingestão cresce continuamente quando chegam 900 mensagens por segundo e são processadas 700; escalabilidade ou controle de fluxo são respostas possíveis ao backpressure.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A diferença sustentada de 200 mensagens/s aumenta a fila enquanto não houver perda ou limitação da entrada. O buffer absorve picos transitórios, mas não resolve sobrecarga permanente. Backpressure, particionamento e expansão de capacidade podem controlar o problema dentro dos limites do sistema.",
+      "section": "2. Pipelines, ETL/ELT, lotes, streaming e CDC",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em sincronização por timestamp, uma exclusão física de registro é sempre extraída na próxima carga incremental, mesmo sem tombstone, log de alteração ou comparação integral de conjuntos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma consulta por atualização retorna linhas existentes que atendem ao filtro; uma linha fisicamente excluída deixa de ser consultável. Detectar o delete depende de tombstone, log CDC, comparação de snapshots ou mecanismo equivalente. Ignorar esse ponto produz registros obsoletos no destino.",
+      "section": "2. Pipelines, ETL/ELT, lotes, streaming e CDC",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No streaming com janelas por tempo de evento, a definição de atraso permitido pode exigir que resultados já publicados sejam atualizados, conforme a política de tratamento dos eventos tardios.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Dados podem chegar depois do horário em que ocorreram, e o processamento precisa definir janelas, watermarks e se emite correções ou descarta eventos tardios. A publicação não impõe por si só imutabilidade a qualquer resultado: isso depende do contrato do consumidor e da política de janela.",
+      "section": "2. Pipelines, ETL/ELT, lotes, streaming e CDC",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela pseudonimizada por códigos reversíveis pode ser tratada como anônima para qualquer divulgação, porque retirar nome e documento elimina o risco de cruzamento com fontes externas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um código reversível mediante informação adicional preserva possibilidade de reidentificação, e quase-identificadores podem ser cruzados com bases externas. As orientações sobre desidentificação recomendam analisar finalidade, contexto e risco residual; anonimato não decorre automaticamente da supressão de campos diretos.",
+      "section": "3. Qualidade, integridade, governança e segurança",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao registrar versão do código, período extraído, contagens, rejeições e identificador da execução, um pipeline melhora rastreabilidade, mas precisa restringir dados pessoais e segredos presentes nos logs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Metadados operacionais permitem investigar falhas, reconciliar quantidades e vincular resultados à versão publicada. A auditoria deve proteger a própria trilha contra acesso ou alteração indevidos. Colocar tokens, senhas e dados sensíveis em logs criaria uma nova superfície de exposição.",
+      "section": "5. Operação confiável, serviços gerenciados e casos integrados",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o checkpoint do consumidor guarda o offset de uma mensagem, qualquer escrita em banco externo ocorre exatamente uma vez, mesmo quando a confirmação falha depois da gravação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A gravação pode ser concluída no banco e a falha ocorrer antes do avanço do checkpoint, levando à reentrega e a nova escrita. Exactly-once precisa delimitar a garantia e tratar o efeito externo, com atomicidade ou idempotência. Offset da fonte não equivale a unicidade no destino.",
+      "section": "5. Operação confiável, serviços gerenciados e casos integrados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma solução pode usar Azure Data Factory para orquestrar cópias, Azure Databricks para processamento distribuído e Azure Service Fabric para hospedar um serviço complementar com estado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os três componentes exercem papéis diferentes e podem coexistir: orquestração e movimentação, processamento distribuído de dados e gestão de microsserviços, respectivamente. A escolha depende de requisitos técnicos e custo; não se deve chamar Service Fabric de conector ETL nem Databricks de runtime obrigatório da atividade Copy.",
+      "section": "5. Operação confiável, serviços gerenciados e casos integrados",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao somar valores de pedidos depois de juntar cada cabeçalho à sua lista de itens, o resultado permanece correto sem considerar a cardinalidade, porque a operação de agregação elimina automaticamente cabeçalhos repetidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma junção um-para-muitos replica dados do cabeçalho em cada item; a agregação posterior pode somar o mesmo total mais de uma vez. A correção depende de identificar granularidade e chave do fato, agregando por pedido ou usando corretamente valores de itens antes da junção.",
+      "section": "4. Limpeza, transformação e preparo analítico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Parquet Overview",
+      "publisher": "Apache Software Foundation",
+      "reference": "Descrição do formato de arquivo colunar Parquet",
+      "url": "https://parquet.apache.org/docs/overview/",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Atividade Copy no Azure Data Factory",
+      "publisher": "Microsoft Learn",
+      "reference": "Atividade Copy, fontes, destinos e integration runtime",
+      "url": "https://learn.microsoft.com/pt-br/azure/data-factory/copy-activity-overview",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Incrementally copy data from a source data store to a destination data store",
+      "publisher": "Microsoft Learn",
+      "reference": "Extração incremental, watermark e change tracking",
+      "url": "https://learn.microsoft.com/en-us/azure/data-factory/tutorial-incremental-copy-overview",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Change Data Capture Functions (Transact-SQL)",
+      "publisher": "Microsoft Learn",
+      "reference": "Captura de inserts, updates, deletes e metadados de posição no SQL Server",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/system-functions/change-data-capture-functions-transact-sql?view=sql-server-ver17",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Auto Loader best practices",
+      "publisher": "Microsoft Learn — Azure Databricks",
+      "reference": "Checkpoints, estado e ingestão incremental de arquivos",
+      "url": "https://learn.microsoft.com/en-us/azure/databricks/ingestion/cloud-object-storage/auto-loader/best-practices",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Learn more about Azure Service Fabric",
+      "publisher": "Microsoft Learn",
+      "reference": "Serviços com e sem estado, partições, réplicas e ciclo de vida",
+      "url": "https://learn.microsoft.com/en-us/azure/service-fabric/service-fabric-content-roadmap",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NIST SP 800-188 — De-Identifying Government Datasets: Techniques and Governance",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "Desidentificação de dados, riscos e governança",
+      "url": "https://csrc.nist.gov/pubs/sp/800/188/final",
+      "accessedAt": "2026-10-10"
+    }
+  ]
+}
