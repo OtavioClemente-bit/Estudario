@@ -184,8 +184,9 @@ fun rememberQuestionBatchLimit(): QuestionBatchLimit {
     LaunchedEffect(Unit) {
         val app = context.applicationContext as? EstudarioApplication ?: return@LaunchedEffect
         val summary = (app.aiPlanRepository.load() as? AiPlanLoadResult.Available)?.summary ?: return@LaunchedEffect
-        val perRequest = summary.plans.firstOrNull { it.planTier == summary.planTier }
-            ?.limits?.firstOrNull { it.feature == "QUESTION_BATCH" }?.maxPerRequest
+        val perRequest = summary.questionBatchLimits?.maxPerRequest
+            ?: summary.plans.firstOrNull { it.planTier == summary.planTier }
+                ?.limits?.firstOrNull { it.feature == "QUESTION_BATCH" }?.maxPerRequest
         if (perRequest != null && perRequest >= GenerationLimits.MIN_QUESTIONS) {
             limit = QuestionBatchLimit(perRequest, planDisplayName(summary.planTier))
         }
