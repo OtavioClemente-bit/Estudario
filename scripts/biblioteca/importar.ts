@@ -291,8 +291,8 @@ const noteRows = notes.map((n) => ({
   note: n.value,
   origin: "MANUAL",
 }));
-for (let i = 0; i < noteRows.length; i += 200) {
-  await rest("library_board_notes?on_conflict=topic_id,board_norm,role_norm", "POST", noteRows.slice(i, i + 200), "resolution=merge-duplicates,return=minimal");
+for (let i = 0; i < noteRows.length; i += 25) {
+  await rest("library_board_notes?on_conflict=topic_id,board_norm,role_norm", "POST", noteRows.slice(i, i + 25), "resolution=merge-duplicates,return=minimal");
 }
 // Rotas revisadas (conteudo/pedidos/rotas.json): tópico amplo de edital servido por 2 ou 3 matérias
 // juntas. Gravadas com o tamanho atual do catálogo, para o app não refazer a rota com IA.
