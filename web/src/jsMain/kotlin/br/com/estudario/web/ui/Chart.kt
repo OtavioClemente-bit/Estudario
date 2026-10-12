@@ -456,9 +456,13 @@ object WebChart {
         val centroid = all.sumOf { it.first } / all.size to all.sumOf { it.second } / all.size
         fun label(text: String, ax: Double, ay: Double, dx: Double, dy: Double, fill: String, italic: Boolean, weight: String) {
             val w = textWidth(text, 13.0)
-            val reach = 12 + max(w, 13.0) / 2
-            val cx = (ax + dx * reach).coerceIn(w / 2, width - w / 2)
-            val cy = (ay + dy * reach).coerceIn(8.0, height - 8)
+            // Distância até a borda da caixa do texto na direção pedida, para o rótulo não encostar na linha.
+            val reach = 10 + abs(dx) * w / 2 + abs(dy) * 8
+            fun fits(sx: Double, sy: Double) = ax + sx * reach in w / 2..width - w / 2 && ay + sy * reach in 8.0..height - 8
+            // Se do lado pedido o texto sairia da figura (e seria empurrado para cima da linha), usa o lado oposto.
+            val (ux, uy) = if (fits(dx, dy) || !fits(-dx, -dy)) dx to dy else -dx to -dy
+            val cx = (ax + ux * reach).coerceIn(w / 2, width - w / 2)
+            val cy = (ay + uy * reach).coerceIn(8.0, height - 8)
             svg.text(cx, cy, text, 13.0, fill, "middle", weight, italic)
         }
         fun outward(ax: Double, ay: Double, bx: Double, by: Double): Pair<Double, Double> {
