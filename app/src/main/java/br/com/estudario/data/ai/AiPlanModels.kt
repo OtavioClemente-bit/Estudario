@@ -9,6 +9,8 @@ data class AiPlanSummary(
     val planTier: String,
     val planRenewsAt: String? = null,
     val betaAccess: Boolean = false,
+    /** Limite efetivo de questões desta conta (inclui exceções individuais do servidor). */
+    val questionBatchLimits: AiQuestionBatchLimits? = null,
     val plans: List<AiPlanCatalogEntry> = emptyList(),
     val usage: List<AiPlanUsage> = emptyList(),
     /** Nome, frase e preço de cada plano (tabela plan_catalog). */
@@ -17,6 +19,12 @@ data class AiPlanSummary(
 ) {
     fun pricingOf(tier: String): AiPlanPricing? = pricing.firstOrNull { it.planTier == tier }
 }
+
+@Serializable
+data class AiQuestionBatchLimits(
+    val maxPerRequest: Int? = null,
+    val maxPerTopicMonth: Int? = null,
+)
 
 @Serializable
 data class AiPlanCatalogEntry(

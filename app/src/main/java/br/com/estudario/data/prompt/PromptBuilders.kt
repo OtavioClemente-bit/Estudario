@@ -222,7 +222,8 @@ object PromptDelivery {
 object GenerationLimits {
     const val MIN_QUESTIONS = 1
     const val FREE_MAX_QUESTIONS = 10
-    fun maxQuestions(): Int = FREE_MAX_QUESTIONS
+    const val ABSOLUTE_MAX_QUESTIONS = 30
+    fun maxQuestions(accountLimit: Int = FREE_MAX_QUESTIONS): Int = accountLimit.coerceIn(MIN_QUESTIONS, ABSOLUTE_MAX_QUESTIONS)
 }
 
 enum class QuestionDifficulty(val label: String) { MIXED("Mista"), EASY("Fácil"), MEDIUM("Média"), HARD("Difícil") }
@@ -309,6 +310,7 @@ object ContentPromptBuilder {
         o: ContentPromptOptions,
         existingQuestions: List<ExistingQuestionReference> = emptyList(),
         additionalQuestionBatchId: String? = null,
+        maxQuestions: Int = GenerationLimits.FREE_MAX_QUESTIONS,
     ): String {
         val targets = topics.filter { it.id in targetTopicIds }.sortedWith(compareBy({ depthOf(it, topics) }, { it.position }))
         val single = targets.size == 1
@@ -317,7 +319,7 @@ object ContentPromptBuilder {
             o.blocks.isEmpty() -> setOf(ContentBlock.SUMMARY)
             else -> o.blocks
         }
-        val questions = if (ContentBlock.QUESTIONS in blocks) o.questionCount.coerceIn(1, GenerationLimits.maxQuestions()) else 0
+        val questions = if (ContentBlock.QUESTIONS in blocks) o.questionCount.coerceIn(1, GenerationLimits.maxQuestions(maxQuestions)) else 0
         val batchSuffix = additionalQuestionBatchId?.let { "-lote-${PromptIds.slug(it)}" }.orEmpty()
         val targetSlug = if (single) PromptIds.slug(PromptIds.topic(targets.first())) else "lote-" + targets.joinToString("-") { it.id.toString() }.take(40)
         val packageId = "conteudo-${PromptIds.slug(PromptIds.subject(subject))}-$targetSlug$batchSuffix"

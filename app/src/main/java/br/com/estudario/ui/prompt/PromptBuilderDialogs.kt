@@ -288,15 +288,15 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
 
     if (subject == null || competition == null) { LaunchedEffect(Unit) { onDismiss() }; return }
     val selectedIds = selected.toSet()
-    val prompt = remember(options, selectedIds, topics, subject, competition) {
+    val questionLimit = rememberQuestionBatchLimit()
+    val prompt = remember(options, selectedIds, topics, subject, competition, questionLimit.max) {
         // O órgão decide qual estatuto/lei vale; em vez de perguntar, usa o próprio concurso.
-        if (selectedIds.isEmpty()) "" else ContentPromptBuilder.build(competition, subject, topics, selectedIds, options.copy(agency = options.agency.ifBlank { competition.name }))
+        if (selectedIds.isEmpty()) "" else ContentPromptBuilder.build(competition, subject, topics, selectedIds, options.copy(agency = options.agency.ifBlank { competition.name }), maxQuestions = questionLimit.max)
     }
 
     val wholeSubject = !singleTopicMode && ordered.isNotEmpty() && selectedIds.size == ordered.size
     val singleTopic = topics.firstOrNull { it.id in selectedIds }.takeIf { selectedIds.size == 1 }
 
-    val questionLimit = rememberQuestionBatchLimit()
     val steps = buildList {
         if (!singleTopicMode) add(WizardStep(
             "Abrangência",
@@ -603,7 +603,8 @@ fun AdditionalQuestionPromptBuilderDialog(
         return
     }
 
-    val prompt = remember(options, competition, subject, subjectTopics, topic, existingQuestions, batchId) {
+    val questionLimit = rememberQuestionBatchLimit()
+    val prompt = remember(options, competition, subject, subjectTopics, topic, existingQuestions, batchId, questionLimit.max) {
         ContentPromptBuilder.build(
             competition = competition,
             subject = subject,
@@ -612,10 +613,10 @@ fun AdditionalQuestionPromptBuilderDialog(
             o = options.copy(blocks = setOf(ContentBlock.QUESTIONS)),
             existingQuestions = existingQuestions,
             additionalQuestionBatchId = batchId,
+            maxQuestions = questionLimit.max,
         )
     }
 
-    val questionLimit = rememberQuestionBatchLimit()
     val steps = listOf(
         WizardStep(
             "Quantidade",
