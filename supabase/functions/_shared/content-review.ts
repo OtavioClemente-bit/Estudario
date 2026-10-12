@@ -207,6 +207,8 @@ export interface ReviewRunOptions {
   jobId: string;
   model: string;
   context: string;
+  /** Distingue uma segunda revisão do mesmo job (ex.: das questões repostas em partes). */
+  part?: string;
   /** Revisão concluída numa tentativa anterior do mesmo job: é reaproveitada em vez de paga de novo. */
   previousReviewId?: () => Promise<string | null>;
   /** Tempo máximo esperando o revisor dentro do lease do worker. */
@@ -235,7 +237,7 @@ export async function runContentReview(content: Json, options: ReviewRunOptions)
     let response: ProviderResponse = await options.provider.start({
       jobId: options.jobId,
       // Mesma chave em nova tentativa do job: o provedor não cobra a revisão duas vezes.
-      idempotencyKey: `${options.jobId}:review`,
+      idempotencyKey: `${options.jobId}:review${options.part ? `-${options.part}` : ""}`,
       feature: "CONTENT_REVIEW",
       schemaName: `content_review_v${REVIEW_SCHEMA_VERSION}`,
       tools: [{ type: "web_search", search_context_size: "low" }],

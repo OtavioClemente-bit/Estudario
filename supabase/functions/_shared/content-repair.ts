@@ -43,7 +43,18 @@ function validUrl(value: unknown): boolean {
  * Explicação em que o próprio modelo admite que a questão está errada ("com a correção da
  * alternativa A", "a alternativa correta deveria refletir"): o gabarito não é confiável.
  */
-const DRAFT_EXPLANATION = /deve(?:ria)? ser corrigid|com a corre[cç][aã]o d[ao]|deveria refletir|observando as op[cç][oõ]es|gabarito (?:deve|precisa) ser|alternativa .{0,20}precisa ser ajustad/i;
+const DRAFT_EXPLANATION = /deve(?:ria)? ser corrigid|com a corre[cç][aã]o d[ao]|deveria refletir|observando as op[cç][oõ]es|gabarito (?:deve|precisa) ser|alternativa .{0,20}precisa ser ajustad|corre[cç][aã]o do gabarito|sem alternativa correta|n[aã]o (?:tem|h[aá]) (?:resposta|alternativa) correta|n[aã]o consta(?:m)? (?:das|nas|entre as) (?:op[cç]|alternativ)|n[aã]o aparece(?:m)? nas (?:op[cç]|alternativ)|nenhuma (?:das )?(?:op[cç][aã]o|op[cç][oõ]es|alternativas?) (?:apresenta|traz|cont[eé]m)|deve ser substitu[ií]d|seria correta se estivesse/i;
+
+/** Certo/Errado cuja explicação abre com o veredito oposto ao gabarito marcado. */
+function contradictsTrueFalseKey(q: Record<string, unknown>): boolean {
+  if (q.format !== "TRUE_FALSE" || typeof q.explanation !== "string" || !Array.isArray(q.options)) return false;
+  const verdict = /^\s*(certo|correto|errado|incorreto)\b/i.exec(q.explanation)?.[1].toLowerCase();
+  if (!verdict) return false;
+  const marked = (q.options as Record<string, unknown>[]).find((o) => o?.correct === true);
+  if (!marked) return false;
+  const markedTrue = String(marked.key).toUpperCase() === "C";
+  return markedTrue !== (verdict === "certo" || verdict === "correto");
+}
 
 export function hasDraftExplanation(question: Record<string, unknown>): boolean {
   return typeof question.explanation === "string" && DRAFT_EXPLANATION.test(question.explanation);
@@ -124,6 +135,7 @@ function brokenQuestion(q: Json, statements: Set<string>, options: ContentGenera
   if (statements.has(statement)) return "DUPLICATE";
   if (!text(q.explanation)) return "NO_EXPLANATION";
   if (hasDraftExplanation(q)) return "DRAFT_EXPLANATION";
+  if (contradictsTrueFalseKey(q)) return "DRAFT_EXPLANATION";
   const answers = Array.isArray(q.options) ? q.options.filter(isObject) : [];
   const keys = answers.map((option) => String(option.key)).join();
   const expected = q.format === "TRUE_FALSE" ? "C,E" : options.questionStyle === "FOUR_OPTIONS" ? "A,B,C,D" : "A,B,C,D,E";
@@ -196,6 +208,8 @@ export function repairTopicContent(
       const realIsComplete = q.sourceType === "REAL" && validUrl(q.sourceUrl) && text(q.board).length > 0 &&
         typeof q.year === "number" && q.year >= 1980 && q.year <= 2100;
       if (!realIsComplete) Object.assign(q, { sourceType: "AUTHORIAL", sourceUrl: null, board: null, agency: null, year: null });
+      // Rastro da pesquisa do modelo no fim da explicação ("Padrão de cobrança: BANCA 2021, órgão…; link").
+      if (typeof q.explanation === "string") q.explanation = q.explanation.replace(/\s*Padr[aã]o de cobran[cç]a\s*:[\s\S]*$/i, "").replace(/\s*https?:\/\/\S+/g, "").trim();
       return q;
     }).filter((q) => {
       // Questão sem conserto seguro sai; a reserva cobre o lugar dela.

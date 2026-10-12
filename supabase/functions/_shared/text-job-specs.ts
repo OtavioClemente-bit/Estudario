@@ -32,6 +32,7 @@ import { ensureBoardNote } from "./board-notes.ts";
 import { type DropReason, hasDraftExplanation, repairTopicContent } from "./content-repair.ts";
 import type { QuestionDrop } from "../ai-syllabus-worker/index.ts";
 import { runQuestionTopUp } from "./question-topup.ts";
+import { QUESTION_CHUNK } from "./prompts/text-jobs-v1.ts";
 import {
   AI_SIMULATION_SCHEMA,
   parseSimulationJobInput,
@@ -252,21 +253,51 @@ async function completeQuestions(
   const current = Array.isArray(content.questions) ? content.questions as Record<string, unknown>[] : [];
   const missing = input.options.questionCount - current.length;
   if (missing <= 0) return content;
-  const extra = await runQuestionTopUp(
-    {
-      content,
-      missing,
-      questionStyle: input.options.questionStyle,
-      difficulty: input.options.difficulty,
-      context: [input.competitionName, input.role, input.board ? `banca ${input.board}` : null, input.subjectName, input.topicPath.join(" › ")].filter(Boolean).join(" · "),
-    },
-    {
-      provider: dependencies.provider,
-      jobId: job.id,
-      model: resolveOpenAiModel(dependencies.modelForJob?.(job) ?? dependencies.model),
-      onFinished: (response) => meterCost(dependencies, job, "TOPUP", response),
-    },
-  );
+  const context = [input.competitionName, input.role, input.board ? `banca ${input.board}` : null, input.subjectName, input.topicPath.join(" › ")].filter(Boolean).join(" · ");
+  const model = resolveOpenAiModel(dependencies.modelForJob?.(job) ?? dependencies.model);
+  // Pedido grande (20 ou 30): o que falta sai em partes de até QUESTION_CHUNK, todas ao mesmo tempo.
+  const parts = Math.ceil(missing / QUESTION_CHUNK);
+  const batches = await Promise.all(Array.from({ length: parts }, (_, i) =>
+    runQuestionTopUp(
+      {
+        content,
+        missing: Math.min(QUESTION_CHUNK, missing - i * QUESTION_CHUNK),
+        questionStyle: input.options.questionStyle,
+        difficulty: input.options.difficulty,
+        context: parts > 1 ? `${context} · parte ${i + 1} de ${parts}: cubra pontos e casos diferentes das outras partes` : context,
+      },
+      {
+        provider: dependencies.provider,
+        jobId: job.id,
+        model,
+        // A primeira parte mantém a chave antiga: nova tentativa do job não paga de novo.
+        part: i === 0 ? undefined : String(i + 1),
+        onFinished: (response) => meterCost(dependencies, job, "TOPUP", response),
+      },
+    )
+  ));
+  let extra = batches.flat();
+  if (extra.length === 0) return content;
+  // As repostas também passam pelo revisor (só elas), como as da primeira chamada.
+  if (Deno.env.get("CONTENT_REVIEW_ENABLED") !== "false" && extra.length >= 3) {
+    try {
+      const onlyExtra = JSON.parse(repairTopicContent(JSON.stringify({ ...content, questions: extra }), input.options, 0, onDrop)) as Record<string, unknown>;
+      const review = await runContentReview(onlyExtra, {
+        provider: dependencies.provider,
+        jobId: job.id,
+        model,
+        part: "extra",
+        context,
+        onFinished: (response) => meterCost(dependencies, job, "REVIEW", response),
+      });
+      if (review) {
+        const { content: applied } = applyReview(onlyExtra, review);
+        extra = (applied.questions as Record<string, unknown>[]).filter((q) => !hasDraftExplanation(q));
+      }
+    } catch {
+      // Sem a segunda revisão, seguem as repostas já consertadas pela validação abaixo.
+    }
+  }
   if (extra.length === 0) return content;
   try {
     const merged = repairTopicContent(JSON.stringify({ ...content, questions: [...current, ...extra] }), input.options, 0, onDrop);

@@ -53,6 +53,8 @@ export interface TopUpOptions {
   provider: OpenAiProvider;
   jobId: string;
   model: string;
+  /** Distingue chamadas paralelas do mesmo job (cada parte tem a sua chave de idempotência). */
+  part?: string;
   budgetMs?: number;
   pollMs?: number;
   sleep?: (ms: number) => Promise<void>;
@@ -69,7 +71,7 @@ export async function runQuestionTopUp(request: TopUpRequest, options: TopUpOpti
   try {
     let response = await options.provider.start({
       jobId: options.jobId,
-      idempotencyKey: `${options.jobId}:topup`,
+      idempotencyKey: `${options.jobId}:topup${options.part ? `-${options.part}` : ""}`,
       feature: "CONTENT_TOPUP",
       schemaName: "content_topup_v1",
       systemPrompt: CONTENT_SYSTEM_PROMPT,
