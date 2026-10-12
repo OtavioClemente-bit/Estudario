@@ -61,6 +61,7 @@ export interface AccessDataSource {
   ): Promise<QuotaUsageRecord | null>;
   listPlanLimits(planTier?: PlanTier): Promise<PlanLimitRecord[]>;
   findQuestionBatchLimitOverrides?(userId: string): Promise<QuestionBatchLimitOverrides | null>;
+  findUserQuotaOverride?(userId: string, feature: AiFeature): Promise<number | null>;
 }
 
 export interface AccessPolicyOptions {
@@ -162,6 +163,18 @@ export class SupabaseAccessDataSource implements AccessDataSource {
       maxPerRequest: nullableIntegerField(row, "max_per_request"),
       maxPerTopicMonth: nullableIntegerField(row, "max_per_topic_month"),
     }));
+  }
+
+  async findUserQuotaOverride(userId: string, feature: AiFeature): Promise<number | null> {
+    this.assertOwner(userId);
+    const rows = await this.select("ai_user_quota_overrides", {
+      select: "quota_limit",
+      user_id: `eq.${this.environment.authenticatedUserId}`,
+      feature: `eq.${feature}`,
+      limit: "1",
+    });
+    if (rows.length === 0) return null;
+    return integerField(rows[0], "quota_limit");
   }
 
   async findQuestionBatchLimitOverrides(userId: string): Promise<QuestionBatchLimitOverrides | null> {
@@ -399,7 +412,10 @@ export class ClosedBetaAiPolicy {
         const periodStart = quotaPeriodStart(periodKind, now, tier, profile?.testCycleStart ?? null);
         const record = await this.dataSource.findQuotaUsage(userId, feature, periodStart);
         const used = (record?.successfulCount ?? 0) + (record?.reservedCount ?? 0);
-        const limit = row?.quotaLimit ?? 0;
+        const baseLimit = row?.quotaLimit ?? 0;
+        const limit = tier === "TESTE"
+          ? ((await this.dataSource.findUserQuotaOverride?.(userId, feature)) ?? baseLimit)
+          : baseLimit;
         return {
           feature,
           periodKind,
@@ -448,7 +464,10 @@ export class ClosedBetaAiPolicy {
     const periodKind = limitRow?.periodKind ?? null;
     const periodStart = quotaPeriodStart(periodKind, now, tier, profile?.testCycleStart ?? null);
     // Sem configuração o recurso fica fechado, igual a public.ai_quota_limit.
-    const limit = limitRow?.quotaLimit ?? 0;
+    const baseLimit = limitRow?.quotaLimit ?? 0;
+    const limit = tier === "TESTE"
+      ? ((await this.dataSource.findUserQuotaOverride?.(userId, feature)) ?? baseLimit)
+      : baseLimit;
     const usage = await this.dataSource.findQuotaUsage(userId, feature, periodStart);
     const flagMap = new Map(flags.map((flag) => [flag.flagKey, flag.enabled]));
     const betaAccess = profile?.betaAccess === true;
