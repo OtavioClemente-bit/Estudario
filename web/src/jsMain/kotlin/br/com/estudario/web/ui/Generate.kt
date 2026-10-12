@@ -95,6 +95,8 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
     fun start() {
         Generation.start(topicId, AiContent.Options(blocks = blocks, depth = depth, questionCount = count, style = style, difficulty = difficulty, board = board, avoid = if (questionsOnly) avoidFor(topicId) else emptyList()))
     }
+    // Reaberta pela faixa do canto, a janela vem sem o pedido: o tipo fica guardado em Generation.
+    val showQuestions = questionsOnly || Generation.questionsOnly[topicId] == true
     val title = if (questionsOnly) "Mais questões" else "Gerar material"
     val close = { if (progress is AiContent.Progress.Done || progress is AiContent.Progress.Failed) Generation.clear(topicId); onClose() }
 
@@ -156,14 +158,16 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
             is AiContent.Progress.Done -> Div({ classes("stack", "pop-in"); attr("style", "align-items:center;text-align:center;padding:8px 0") }) {
                 Div({ classes("celebrate") }) { Folha("happy", 140) }
                 org.jetbrains.compose.web.dom.H2 { Text("Prontinho!") }
-                P({ classes("muted") }) { Text("Seu material está salvo em “${topic?.title ?: "neste tópico"}”: teoria, flashcards e questões esperando por você.") }
-                Btn("Ver material", { Generation.clear(topicId); onClose(); Router.go(Route.Topic(topicId)) }, style = "primary", size = "lg", icon = "menu_book")
+                P({ classes("muted") }) { Text(if (showQuestions) "As novas questões já estão em “${topic?.title ?: "neste tópico"}”, prontas para treinar." else "Seu material está salvo em “${topic?.title ?: "neste tópico"}”: teoria, flashcards e questões esperando por você.") }
+                if (showQuestions) Btn("Treinar agora", { Generation.clear(topicId); onClose(); Router.go(Route.Quiz("topico-$topicId")) }, style = "primary", size = "lg", icon = "play_arrow")
+                else Btn("Ver material", { Generation.clear(topicId); onClose(); Router.go(Route.Topic(topicId)) }, style = "primary", size = "lg", icon = "menu_book")
             }
             else -> {
                 ProcessView(
-                    title = "Preparando o seu material",
+                    title = if (showQuestions) "Preparando as suas questões" else "Preparando o seu material",
                     eyebrow = topic?.title?.take(60),
-                    stages = listOf("Conferindo a segurança", "Enviando o pedido", "Lendo o tópico e a banca", "Escrevendo a teoria", "Montando flashcards e questões", "Revisando tudo"),
+                    stages = if (showQuestions) listOf("Conferindo a segurança", "Enviando o pedido", "Separando as que você ainda não viu", "Buscando questões no estilo da banca", "Conferindo gabaritos e explicações")
+                    else listOf("Conferindo a segurança", "Enviando o pedido", "Lendo o tópico e a banca", "Escrevendo a teoria", "Montando flashcards e questões", "Revisando tudo"),
                     stageIndex = when (p) {
                         AiContent.Progress.Checking -> 0
                         AiContent.Progress.Sending -> 1

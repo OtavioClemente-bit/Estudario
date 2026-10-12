@@ -24,6 +24,8 @@ import org.jetbrains.compose.web.dom.Text
  */
 object Generation {
     val state = mutableStateMapOf<Long, AiContent.Progress>()
+    /** Tópicos cujo pedido em curso é só de questões ("mais questões"), para os textos falarem de questões. */
+    val questionsOnly = mutableStateMapOf<Long, Boolean>()
     private val scope = MainScope()
 
     fun running(topicId: Long): Boolean = state[topicId].let { it != null && it !is AiContent.Progress.Done && it !is AiContent.Progress.Failed }
@@ -33,13 +35,15 @@ object Generation {
     fun start(topicId: Long, options: AiContent.Options) {
         if (running(topicId)) return
         state[topicId] = AiContent.Progress.Checking
+        val onlyQuestions = options.blocks == setOf("QUESTIONS")
+        questionsOnly[topicId] = onlyQuestions
         scope.launch {
             val result = AiContent.generate(Store.data, topicId, options) { state[topicId] = it }
             if (result is AiContent.Progress.Done) Store.update { AiContent.apply(it, topicId, result.proposal) }
             state[topicId] = result
             val title = Store.data.topics.firstOrNull { it.id == topicId }?.title ?: "seu tópico"
-            if (result is AiContent.Progress.Done) Notify.materialReady(title, topicId)
-            else if (result is AiContent.Progress.Failed) Toast.show("Não deu para gerar o material de $title.")
+            if (result is AiContent.Progress.Done) Notify.materialReady(title, topicId, onlyQuestions)
+            else if (result is AiContent.Progress.Failed) Toast.show(if (onlyQuestions) "Não deu para gerar as questões de $title." else "Não deu para gerar o material de $title.")
         }
     }
 
@@ -65,19 +69,19 @@ object Notify {
 
     private var baseTitle: String? = null
 
-    fun materialReady(topicTitle: String, topicId: Long) {
-        Toast.show("Material pronto: $topicTitle")
+    fun materialReady(topicTitle: String, topicId: Long, onlyQuestions: Boolean = false) {
+        Toast.show(if (onlyQuestions) "Questões prontas: $topicTitle" else "Material pronto: $topicTitle")
         if (!materialReadyOn) return
         val hidden = document.asDynamic().hidden == true || !document.hasFocus()
-        if (hidden) flashTitle("Material pronto · Estudário")
+        if (hidden) flashTitle(if (onlyQuestions) "Questões prontas · Estudário" else "Material pronto · Estudário")
         if (permission() == "granted" && hidden) {
             runCatching {
                 val options = js("({})")
-                options.body = "\"$topicTitle\" já tem teoria, flashcards e questões. Clique para estudar."
+                options.body = if (onlyQuestions) "Novas questões de \"$topicTitle\" prontas para treinar. Clique para abrir." else "\"$topicTitle\" já tem teoria, flashcards e questões. Clique para estudar."
                 options.icon = "icon.png"
                 options.tag = "material-$topicId"
                 val make = js("(function (t, o) { return new Notification(t, o); })")
-                val notification = make("Seu material está pronto", options)
+                val notification = make(if (onlyQuestions) "Suas questões estão prontas" else "Seu material está pronto", options)
                 notification.onclick = {
                     window.focus()
                     Router.go(Route.Topic(topicId))
@@ -114,7 +118,7 @@ fun GenerationBanner() {
                 val title = Store.data.topics.firstOrNull { it.id == id }?.title ?: "Tópico"
                 Button({ classes("gen-pill", "busy"); onClick { Router.go(Route.Topic(id)) } }) {
                     Folha("thinking", 34)
-                    Span({ classes("grow") }) { B { Text("Gerando material…") }; Span({ classes("xs", "clamp-2") }) { Text(title) } }
+                    Span({ classes("grow") }) { B { Text(if (Generation.questionsOnly[id] == true) "Gerando questões…" else "Gerando material…") }; Span({ classes("xs", "clamp-2") }) { Text(title) } }
                     Span({ classes("dots") }) { Span(); Span(); Span() }
                 }
             }
