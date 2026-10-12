@@ -683,8 +683,9 @@ function runtimeDependencies(request: Request): AiSyllabusJobsDependencies {
       const data = new SupabaseAccessDataSource({ supabaseUrl, authenticatedUserId: userId, accessToken, publishableKey });
       const tier = effectivePlanTier(await data.findProfile(userId), new Date());
       const row = (await data.listPlanLimits(tier)).find((limit) => limit.feature === "QUESTION_BATCH");
-      // Sem linha configurada, fica fechado no mínimo do Grátis em vez de liberar o teto.
-      return row?.maxPerRequest ?? 10;
+      // A exceção vale somente para contas TESTE; os outros planos usam seu próprio limite.
+      const override = tier === "TESTE" ? await data.findQuestionBatchLimitOverrides(userId) : null;
+      return override?.maxPerRequest ?? row?.maxPerRequest ?? 10;
     },
     deviceQuota: serviceDeviceQuota(supabaseUrl, serviceRoleKey),
     networkQuota: serviceNetworkQuota(supabaseUrl, serviceRoleKey),
