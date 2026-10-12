@@ -33,6 +33,11 @@ export interface PlanLimitRecord {
   maxPerTopicMonth: number | null;
 }
 
+export interface QuestionBatchLimitOverrides {
+  maxPerRequest: number | null;
+  maxPerTopicMonth: number | null;
+}
+
 export interface FeatureFlagRecord {
   flagKey: string;
   enabled: boolean;
@@ -55,6 +60,7 @@ export interface AccessDataSource {
     periodStart: string,
   ): Promise<QuotaUsageRecord | null>;
   listPlanLimits(planTier?: PlanTier): Promise<PlanLimitRecord[]>;
+  findQuestionBatchLimitOverrides?(userId: string): Promise<QuestionBatchLimitOverrides | null>;
 }
 
 export interface AccessPolicyOptions {
@@ -156,6 +162,23 @@ export class SupabaseAccessDataSource implements AccessDataSource {
       maxPerRequest: nullableIntegerField(row, "max_per_request"),
       maxPerTopicMonth: nullableIntegerField(row, "max_per_topic_month"),
     }));
+  }
+
+  async findQuestionBatchLimitOverrides(userId: string): Promise<QuestionBatchLimitOverrides | null> {
+    this.assertOwner(userId);
+    const rows = await this.select("ai_user_quota_overrides", {
+      select: "max_per_request,max_per_topic_month",
+      user_id: `eq.${this.environment.authenticatedUserId}`,
+      feature: "eq.QUESTION_BATCH",
+      limit: "1",
+    });
+    const row = rows[0];
+    return row
+      ? {
+        maxPerRequest: nullableIntegerField(row, "max_per_request"),
+        maxPerTopicMonth: nullableIntegerField(row, "max_per_topic_month"),
+      }
+      : null;
   }
 
   private async select(
@@ -321,6 +344,7 @@ export interface PlanSummary {
   planTier: PlanTier;
   planRenewsAt: string | null;
   betaAccess: boolean;
+  questionBatchLimits: QuestionBatchLimitOverrides;
   plans: {
     planTier: PlanTier;
     limits: {
@@ -360,6 +384,14 @@ export class ClosedBetaAiPolicy {
       this.dataSource.listPlanLimits(),
     ]);
     const tier = effectivePlanTier(profile, now);
+    const questionRow = quotaLimitRow(limits, tier, "QUESTION_BATCH");
+    const questionOverride = tier === "TESTE"
+      ? await this.dataSource.findQuestionBatchLimitOverrides?.(userId)
+      : null;
+    const questionBatchLimits = {
+      maxPerRequest: questionOverride?.maxPerRequest ?? questionRow?.maxPerRequest ?? 10,
+      maxPerTopicMonth: questionOverride?.maxPerTopicMonth ?? questionRow?.maxPerTopicMonth ?? null,
+    };
     const usage = await Promise.all(
       SERVER_FEATURES.map(async (feature) => {
         const row = quotaLimitRow(limits, tier, feature);
@@ -383,6 +415,7 @@ export class ClosedBetaAiPolicy {
       planTier: tier,
       planRenewsAt: tier === "FREE" ? null : profile?.planRenewsAt ?? null,
       betaAccess: profile?.betaAccess === true,
+      questionBatchLimits,
       plans: VISIBLE_PLAN_TIERS.map((planTier) => ({
         planTier,
         limits: limits
