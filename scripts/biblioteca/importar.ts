@@ -294,6 +294,19 @@ const noteRows = notes.map((n) => ({
 for (let i = 0; i < noteRows.length; i += 200) {
   await rest("library_board_notes?on_conflict=topic_id,board_norm,role_norm", "POST", noteRows.slice(i, i + 200), "resolution=merge-duplicates,return=minimal");
 }
+// Rotas revisadas (conteudo/pedidos/rotas.json): tópico amplo de edital servido por 2 ou 3 matérias
+// juntas. Gravadas com o tamanho atual do catálogo, para o app não refazer a rota com IA.
+try {
+  const routes = JSON.parse(await Deno.readTextFile("conteudo/pedidos/rotas.json")) as { texto: string; ids: string[] }[];
+  const routeRows = routes
+    .filter((r) => r.ids.length > 0 && r.ids.every((id) => materials.has(id)))
+    .map((r) => ({ topic_norm: normalizeAlias(r.texto), subject_norm: "", topic_ids: r.ids, coverage: "FULL", catalog_size: materials.size, updated_at: new Date().toISOString() }));
+  for (let i = 0; i < routeRows.length; i += 200) {
+    await rest("library_topic_routes?on_conflict=topic_norm", "POST", routeRows.slice(i, i + 200), "resolution=merge-duplicates,return=minimal");
+  }
+} catch (error) {
+  if (!(error instanceof Deno.errors.NotFound)) throw error;
+}
 // O catálogo também espelha o repositório: edital que saiu de conteudo/editais sai do app.
 for (let i = 0; i < catalogRows.length; i += 20) {
   await rest("exam_catalog?on_conflict=id", "POST", catalogRows.slice(i, i + 20), "resolution=merge-duplicates,return=minimal");
