@@ -84,3 +84,38 @@ Deno.test("plan summary lists catalog and usage", async () => {
   assertEquals(summary.plans.map((plan) => plan.planTier), ["FREE", "ESSENCIAL", "PRO"]);
   assertEquals(summary.usage.find((row) => row.feature === "CONTENT_GENERATION")?.remaining, 10);
 });
+
+Deno.test("question batch limits use individual TESTE override without changing any generation quota", async () => {
+  const baseProfile: ProfileRecord = { userId: "account-a", betaAccess: true, planTier: "TESTE", testCycleStart: "2026-10-08" };
+  const testLimits: PlanLimitRecord[] = [
+    ...LIMITS,
+    { planTier: "TESTE", feature: "QUESTION_BATCH", periodKind: "LIFETIME", quotaLimit: 5, maxPerRequest: 20, maxPerTopicMonth: 60 },
+    { planTier: "TESTE", feature: "CONTENT_GENERATION", periodKind: "LIFETIME", quotaLimit: 10, maxPerRequest: null, maxPerTopicMonth: null },
+  ];
+
+  const owner = source(baseProfile);
+  owner.listPlanLimits = (tier) => Promise.resolve(tier ? testLimits.filter((row) => row.planTier === tier) : testLimits);
+  owner.findQuestionBatchLimitOverrides = (userId) =>
+    Promise.resolve(userId === "account-a" ? { maxPerRequest: 30, maxPerTopicMonth: 120 } : null);
+  const a = await new ClosedBetaAiPolicy(owner, { now: () => NOW }).getPlanSummary("account-a");
+  assertEquals(a.questionBatchLimits, { maxPerRequest: 30, maxPerTopicMonth: 120 });
+  assertEquals(a.usage.find((row) => row.feature === "CONTENT_GENERATION")?.limit, 10);
+  assertEquals(a.planTier, "TESTE");
+
+  const other = source({ ...baseProfile, userId: "account-b" });
+  other.listPlanLimits = owner.listPlanLimits;
+  other.findQuestionBatchLimitOverrides = () => Promise.resolve(null);
+  const b = await new ClosedBetaAiPolicy(other, { now: () => NOW }).getPlanSummary("account-b");
+  assertEquals(b.questionBatchLimits, { maxPerRequest: 20, maxPerTopicMonth: 60 });
+
+  const paid = source({ userId: "account-c", betaAccess: true, planTier: "PRO" });
+  paid.listPlanLimits = () => Promise.resolve([
+    ...testLimits,
+    { planTier: "PRO", feature: "QUESTION_BATCH", periodKind: "MONTHLY", quotaLimit: 20, maxPerRequest: 30, maxPerTopicMonth: 120 },
+  ]);
+  paid.findQuestionBatchLimitOverrides = () => {
+    throw Error("Paid plans should never query TESTE overrides");
+  };
+  const pro = await new ClosedBetaAiPolicy(paid, { now: () => NOW }).getPlanSummary("account-c");
+  assertEquals(pro.questionBatchLimits, { maxPerRequest: 30, maxPerTopicMonth: 120 });
+});
