@@ -29,7 +29,8 @@ export interface ContentJobInput {
   avoidStatements: string[];
 }
 
-export const MAX_AVOID_STATEMENTS = 60;
+/** A biblioteca compara com todas; a IA recebe só as 60 primeiras (as mais recentes). */
+export const MAX_AVOID_STATEMENTS = 400;
 
 export const CONTENT_BLOCKS = [
   "THEORY", "SUMMARY", "QUICK_REVIEW", "TIPS_TRAPS", "ACTIVE_RECALL", "QUESTIONS", "ERROR_CONCEPTS",

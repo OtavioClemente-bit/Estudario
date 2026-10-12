@@ -546,15 +546,21 @@ export function assembleFromLibrary(
 ): Json | null {
   const options = input.options;
   const wants = (block: string) => options.blocks.includes(block as never);
-  // O app manda no máximo 300 caracteres de cada enunciado; compara por esse começo.
-  const avoidKey = (statement: unknown) => String(statement).replace(/\p{Cc}/gu, " ").trim().slice(0, 300).toLowerCase();
-  const avoid = new Set(input.avoidStatements.map(avoidKey));
+  // O app manda até 300 caracteres de cada enunciado: o site, começo + fim (itens agrupados repetem o
+  // mesmo texto longo no início); o app Android, só o começo. Compara pelas duas formas.
+  const clean = (statement: unknown) => String(statement).replace(/\p{Cc}/gu, " ").trim().toLowerCase();
+  const headTail = (text: string) => text.length <= 300 ? text : text.slice(0, 150) + text.slice(-150);
+  const avoid = new Set(input.avoidStatements.map(clean));
+  const seen = (statement: unknown) => {
+    const text = clean(statement);
+    return avoid.has(headTail(text)) || avoid.has(text.slice(0, 300));
+  };
   const wanted = DIFFICULTY[options.difficulty];
   // Primeiro as do nível pedido; se não bastarem, completa com o nível mais próximo (difícil →
   // médio → fácil). Assim um pedido "difícil" sai da biblioteca em vez de ir inteiro para a IA.
   const nearest: Record<string, string[]> = { FACIL: ["FACIL", "MEDIA", "DIFICIL"], MEDIA: ["MEDIA", "DIFICIL", "FACIL"], DIFICIL: ["DIFICIL", "MEDIA", "FACIL"] };
   const usable = (pool: Json[]) =>
-    pool.filter((q) => fitsStyle(q, options.questionStyle) && !avoid.has(avoidKey(q.statement)));
+    pool.filter((q) => fitsStyle(q, options.questionStyle) && !seen(q.statement));
   const boardPool = usable((note?.questions as Json[] | undefined) ?? []);
   const topicPool = usable(material.questions as Json[]);
   // Em cada nível, as questões do recorte da banca vêm antes das da matéria.

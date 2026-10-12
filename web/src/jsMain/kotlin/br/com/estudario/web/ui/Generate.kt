@@ -190,4 +190,4 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
 
 /** Enunciados das questões que a pessoa já tem neste tópico (as mais recentes primeiro), para não repetir. */
 private fun avoidFor(topicId: Long): List<String> =
-    Store.data.questions.filter { it.topicId == topicId }.asReversed().map { it.statement }.filter { it.isNotBlank() }.take(60)
+    Store.data.questions.filter { it.topicId == topicId }.asReversed().map { it.statement }.filter { it.isNotBlank() }.take(400)
