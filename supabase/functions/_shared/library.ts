@@ -546,13 +546,15 @@ export function assembleFromLibrary(
 ): Json | null {
   const options = input.options;
   const wants = (block: string) => options.blocks.includes(block as never);
-  const avoid = new Set(input.avoidStatements.map((statement) => statement.trim().toLowerCase()));
+  // O app manda no máximo 300 caracteres de cada enunciado; compara por esse começo.
+  const avoidKey = (statement: unknown) => String(statement).replace(/\p{Cc}/gu, " ").trim().slice(0, 300).toLowerCase();
+  const avoid = new Set(input.avoidStatements.map(avoidKey));
   const wanted = DIFFICULTY[options.difficulty];
   // Primeiro as do nível pedido; se não bastarem, completa com o nível mais próximo (difícil →
   // médio → fácil). Assim um pedido "difícil" sai da biblioteca em vez de ir inteiro para a IA.
   const nearest: Record<string, string[]> = { FACIL: ["FACIL", "MEDIA", "DIFICIL"], MEDIA: ["MEDIA", "DIFICIL", "FACIL"], DIFICIL: ["DIFICIL", "MEDIA", "FACIL"] };
   const usable = (pool: Json[]) =>
-    pool.filter((q) => fitsStyle(q, options.questionStyle) && !avoid.has(String(q.statement).trim().toLowerCase()));
+    pool.filter((q) => fitsStyle(q, options.questionStyle) && !avoid.has(avoidKey(q.statement)));
   const boardPool = usable((note?.questions as Json[] | undefined) ?? []);
   const topicPool = usable(material.questions as Json[]);
   // Em cada nível, as questões do recorte da banca vêm antes das da matéria.
@@ -581,7 +583,10 @@ export function assembleFromLibrary(
   const questions = ordered
     .slice(0, options.questionCount)
     .map((question) => deliverQuestion(question, options.questionStyle, seed));
-  if (questions.length < options.questionCount) return null;
+  // "Mais questões" (só o bloco de questões): entrega as inéditas que a biblioteca ainda tem, mesmo
+  // que sejam menos que o pedido; a IA só entra quando não sobrou nenhuma.
+  const questionsOnly = options.blocks.length === 1 && wants("QUESTIONS");
+  if (questions.length === 0 || (questions.length < options.questionCount && !questionsOnly)) return null;
   // As que completaram a cota vêm de nível vizinho; o app espera o nível pedido em todas, como na
   // geração por IA (content-repair faz o mesmo).
   if (wanted !== null) for (const question of questions) question.difficulty = wanted;

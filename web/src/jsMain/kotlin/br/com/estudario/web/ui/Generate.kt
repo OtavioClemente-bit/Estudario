@@ -72,10 +72,10 @@ private fun ChoiceCards(items: List<Choice>, isOn: (String) -> Boolean, cols: In
 
 /** Gerar material com o Estudário, em passos com o Folha perguntando, como no app. */
 @Composable
-fun GenerateDialog(topicId: Long, onClose: () -> Unit) {
+fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () -> Unit) {
 
     var step by remember { mutableStateOf(0) }
-    var blocks by remember { mutableStateOf(blockChoices.map { it.key }.toSet()) }
+    var blocks by remember { mutableStateOf(if (questionsOnly) setOf("QUESTIONS") else blockChoices.map { it.key }.toSet()) }
     var depth by remember { mutableStateOf("DEEP") }
     var count by remember { mutableStateOf(MAX_QUESTIONS) }
     var style by remember { mutableStateOf("MIXED") }
@@ -85,19 +85,20 @@ fun GenerateDialog(topicId: Long, onClose: () -> Unit) {
     val progress = Generation.state[topicId]
     val topic = Store.data.topics.firstOrNull { it.id == topicId }
     val hasQuestions = "QUESTIONS" in blocks
-    val steps = listOfNotNull("blocks", if ("THEORY" in blocks || "SUMMARY" in blocks) "depth" else null, if (hasQuestions) "questions" else null, if (hasQuestions) "level" else null)
+    val steps = listOfNotNull(if (questionsOnly) null else "blocks", if ("THEORY" in blocks || "SUMMARY" in blocks) "depth" else null, if (hasQuestions) "questions" else null, if (hasQuestions) "level" else null)
     val current = steps[step.coerceIn(0, steps.lastIndex)]
 
     fun start() {
-        Generation.start(topicId, AiContent.Options(blocks = blocks, depth = depth, questionCount = count, style = style, difficulty = difficulty, board = board))
+        Generation.start(topicId, AiContent.Options(blocks = blocks, depth = depth, questionCount = count, style = style, difficulty = difficulty, board = board, avoid = if (questionsOnly) avoidFor(topicId) else emptyList()))
     }
+    val title = if (questionsOnly) "Mais questões" else "Gerar material"
     val close = { if (progress is AiContent.Progress.Done || progress is AiContent.Progress.Failed) Generation.clear(topicId); onClose() }
 
     Modal(onDismiss = close, wide = progress != null && progress !is AiContent.Progress.Failed) {
         when (val p = progress) {
             null, is AiContent.Progress.Failed -> {
                 Div({ classes("row", "between") }) {
-                    Span({ classes("xs", "muted") }) { Text("Gerar material · passo ${step + 1} de ${steps.size}") }
+                    Span({ classes("xs", "muted") }) { Text("$title · passo ${step + 1} de ${steps.size}") }
                     IconButton("close", "Fechar", onClose)
                 }
                 Div({ classes("wizard-dots") }) { steps.indices.forEach { i -> Span({ classes(*listOfNotNull(if (i <= step) "on" else null).toTypedArray()) }) } }
@@ -145,7 +146,7 @@ fun GenerateDialog(topicId: Long, onClose: () -> Unit) {
                 Div({ classes("row", "between"); attr("style", "margin-top:4px") }) {
                     if (step > 0) Btn("Voltar", { step-- }, style = "ghost", icon = "arrow_back") else Btn("Cancelar", onClose, style = "ghost")
                     if (step < steps.lastIndex) Btn("Continuar", { step++ }, style = "primary", enabled = blocks.isNotEmpty())
-                    else Btn("Gerar material", { start() }, style = "primary", icon = "auto_awesome", enabled = blocks.isNotEmpty())
+                    else Btn(if (questionsOnly) "Gerar questões" else "Gerar material", { start() }, style = "primary", icon = "auto_awesome", enabled = blocks.isNotEmpty())
                 }
             }
             is AiContent.Progress.Done -> Div({ classes("stack", "pop-in"); attr("style", "align-items:center;text-align:center;padding:8px 0") }) {
@@ -178,3 +179,7 @@ fun GenerateDialog(topicId: Long, onClose: () -> Unit) {
         }
     }
 }
+
+/** Enunciados das questões que a pessoa já tem neste tópico (as mais recentes primeiro), para não repetir. */
+private fun avoidFor(topicId: Long): List<String> =
+    Store.data.questions.filter { it.topicId == topicId }.asReversed().map { it.statement }.filter { it.isNotBlank() }.take(60)

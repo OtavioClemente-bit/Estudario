@@ -37,6 +37,8 @@ object AiContent {
         val style: String = "MIXED",
         val difficulty: String = "HARD",
         val board: String = "",
+        /** Enunciados que a pessoa já tem: "mais questões" sai da biblioteca sem repetir. */
+        val avoid: List<String> = emptyList(),
     )
 
     sealed interface Progress {
@@ -83,6 +85,7 @@ object AiContent {
                 if (options.board.isNotBlank()) put("board", options.board.trim().take(80)) else put("board", JsonNull)
                 put("agency", competition.name.take(160))
                 put("subjectName", subject.name.take(300))
+                if (options.avoid.isNotEmpty()) put("avoidStatements", buildJsonArray { options.avoid.take(60).forEach { add(JsonPrimitive(it.take(300))) } })
                 put("topicPath", buildJsonArray { topicPath(data, topic).forEach { add(JsonPrimitive(it)) } })
                 put("options", buildJsonObject {
                     put("blocks", buildJsonArray { listOf("THEORY", "SUMMARY", "QUICK_REVIEW", "TIPS_TRAPS", "ACTIVE_RECALL", "QUESTIONS", "ERROR_CONCEPTS").filter { it in blocks }.forEach { add(JsonPrimitive(it)) } })

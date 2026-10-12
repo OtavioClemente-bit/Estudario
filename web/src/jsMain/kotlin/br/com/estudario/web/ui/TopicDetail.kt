@@ -180,6 +180,7 @@ fun TopicScreen(topicId: Long) {
 
     var tab by remember(topicId) { mutableStateOf(0) }
     var generating by remember(topicId) { mutableStateOf(false) }
+    var generatingQuestions by remember(topicId) { mutableStateOf(false) }
     var menuOpen by remember(topicId) { mutableStateOf(false) }
     var finishAsk by remember(topicId) { mutableStateOf(false) }
     val focusHere = TopicFocus.topicId == topicId
@@ -266,6 +267,7 @@ fun TopicScreen(topicId: Long) {
         }
     }
     if (generating) GenerateDialog(topicId) { generating = false }
+    if (generatingQuestions) GenerateDialog(topicId, questionsOnly = true) { generatingQuestions = false }
 
     // ---------------------------------------------------------------- abas
     val counts = listOf(theories.size, summaries.size + recall.size, tips.size, questions.size, concepts.size, 0)
@@ -315,7 +317,7 @@ fun TopicScreen(topicId: Long) {
                 P({ classes("small", "muted"); attr("style", "margin:-6px 0 12px") }) {
                     Text(if (subjectCount == 0) "Questões inéditas no estilo da banca, com explicação de cada alternativa." else "O Estudário compara com as $subjectCount questões que você já tem nesta matéria para não repetir.")
                 }
-                Button({ classes("btn", "outline", "block"); onClick { generating = true } }) { Folha("talking", 26); Text("Gerar com o Estudário") }
+                Button({ classes("btn", "outline", "block"); onClick { generatingQuestions = true } }) { Folha("talking", 26); Text("Gerar questões") }
             }
         }
         4 -> if (concepts.isEmpty()) Card { Empty("task_alt", "Nenhum erro por aqui", "Quando você errar uma questão deste tópico, o conceito por trás do erro aparece aqui, para atacar o padrão e não só a questão.") }
