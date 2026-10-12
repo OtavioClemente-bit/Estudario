@@ -1,6 +1,7 @@
 import { assert, assertEquals, assertThrows } from "jsr:@std/assert@1";
 import {
   assembleFromLibrary,
+  deliverQuestion,
   LibraryValidationError,
   lookupAliases,
   normalizeAlias,
@@ -187,4 +188,27 @@ Deno.test("dificuldade pedida sem questões suficientes completa com o nível ma
   assertEquals(picked.slice(0, hard).every((s) => hardStatements.has(s)), true);
   assertEquals(picked.slice(hard).some((s) => hardStatements.has(s)), false);
   assertEquals((out.questions as Json[]).every((q) => q.difficulty === "DIFICIL"), true);
+});
+
+Deno.test("questão do banco vira A–D tirando uma errada e leva comentários e pegadinha à explicação", () => {
+  const bank = {
+    statement: "Enunciado de banco com cinco alternativas comentadas para virar A a D.",
+    format: "MULTIPLE_CHOICE",
+    difficulty: "MEDIA",
+    estilo: "FGV",
+    topico: "Tópico do edital",
+    pegadinha: "Confundir o prazo com o da outra fase.",
+    explanation: "Explicação geral sem citar letras, com a regra que resolve a questão.",
+    options: ["A", "B", "C", "D", "E"].map((key) => ({ key, text: `Texto ${key}`, correct: key === "C", comentario: `Comentário ${key}` })),
+  };
+  const four = deliverQuestion(bank, "FOUR_OPTIONS", "semente");
+  const options = four.options as Json[];
+  assertEquals(options.map((o) => o.key).join(""), "ABCD");
+  assertEquals(options.filter((o) => o.correct).length, 1);
+  assert(options.every((o) => !("comentario" in o)));
+  assert(!("pegadinha" in four) && !("estilo" in four) && !("topico" in four));
+  assert(String(four.explanation).includes("**Pegadinha:**"));
+  assertEquals(String(four.explanation).match(/^[A-D]\) /gm)?.length, 4);
+  const five = deliverQuestion(bank, "FIVE_OPTIONS", "semente");
+  assertEquals((five.options as Json[]).length, 5);
 });

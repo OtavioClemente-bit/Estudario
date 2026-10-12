@@ -384,7 +384,8 @@ export function validateBoardNote(note: Json, material: Json): Json {
   c.strings(note.traps, "traps", 0, 8);
   const chapterTitles = new Set((material.chapters as Json[]).map((chapter) => String(chapter.title).trim()));
   const conceptKeys = new Set((material.errorConcepts as Json[]).map((concept) => String(concept.key)));
-  const questions = c.list(note.questions ?? [], "questions", 0, 100);
+  // Até 250: o recorte da banca guarda também o banco de questões daquela banca.
+  const questions = c.list(note.questions ?? [], "questions", 0, 250);
   questions.forEach((question, index) => checkQuestion(c, question, `questions[${index}]`, chapterTitles, conceptKeys));
   checkStatementsUnique(c, questions, "questions", checkStatementsUnique(new Checker(), material.questions as Json[], "material"));
   if (c.problems.length > 0) throw new LibraryValidationError(c.problems);
@@ -415,11 +416,45 @@ function shuffled<T>(items: T[], seed: string): T[] {
   return copy;
 }
 
+/** Questão do banco: cada alternativa tem "comentario" e a explicação não cita letras. */
+function hasOptionComments(question: Json): boolean {
+  return (question.options as Json[]).every((option) => typeof option.comentario === "string" && option.comentario.trim() !== "");
+}
+
 function fitsStyle(question: Json, style: ContentJobInput["options"]["questionStyle"]): boolean {
   const optionCount = (question.options as unknown[]).length;
   if (question.format === "TRUE_FALSE") return style === "TRUE_FALSE" || style === "MIXED";
   if (optionCount === 4) return style === "FOUR_OPTIONS";
+  // A–E com comentário por alternativa vira A–D tirando uma errada (deliverQuestion).
+  if (style === "FOUR_OPTIONS") return optionCount === 5 && hasOptionComments(question);
   return style === "FIVE_OPTIONS" || style === "MIXED";
+}
+
+/**
+ * Formato que o app conhece: tira os campos do banco ("comentario", "pegadinha", "estilo",
+ * "topico") e os leva para a explicação. Em A–D, descarta uma alternativa errada (escolhida pela
+ * semente) e refaz as letras; por isso só vale para questão com comentário em cada alternativa.
+ */
+export function deliverQuestion(question: Json, style: ContentJobInput["options"]["questionStyle"], seed: string): Json {
+  const q = structuredClone(question);
+  let options = q.options as Json[];
+  const commented = q.format === "MULTIPLE_CHOICE" && hasOptionComments(q);
+  if (commented && style === "FOUR_OPTIONS" && options.length === 5) {
+    const wrong = options.map((option, index) => ({ option, index })).filter(({ option }) => option.correct !== true);
+    let hash = 2166136261;
+    for (const char of `${seed}:${q.statement}`) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+    const drop = wrong[(hash >>> 0) % wrong.length].index;
+    options = options.filter((_, index) => index !== drop).map((option, index) => ({ ...option, key: "ABCD"[index] }));
+  }
+  let explanation = String(q.explanation ?? "");
+  if (commented) explanation += `\n\n${options.map((option) => `${option.key}) ${String(option.comentario).trim()}`).join("\n")}`;
+  if (typeof q.pegadinha === "string" && q.pegadinha.trim() !== "") explanation += `\n\n**Pegadinha:** ${q.pegadinha.trim()}`;
+  q.options = options.map(({ comentario: _comentario, ...option }) => option);
+  q.explanation = explanation;
+  delete q.pegadinha;
+  delete q.estilo;
+  delete q.topico;
+  return q;
 }
 
 const DIFFICULTY = { EASY: "FACIL", MEDIUM: "MEDIA", HARD: "DIFICIL", MIXED: null } as const;
@@ -545,7 +580,7 @@ export function assembleFromLibrary(
   }
   const questions = ordered
     .slice(0, options.questionCount)
-    .map((question) => structuredClone(question));
+    .map((question) => deliverQuestion(question, options.questionStyle, seed));
   if (questions.length < options.questionCount) return null;
   // As que completaram a cota vêm de nível vizinho; o app espera o nível pedido em todas, como na
   // geração por IA (content-repair faz o mesmo).
