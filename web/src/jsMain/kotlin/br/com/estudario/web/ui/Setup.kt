@@ -87,10 +87,10 @@ internal fun PdfEditalDialog(onClose: () -> Unit, onDone: (String, String, List<
                         onChange { event -> file = (event.target.asDynamic().files?.item(0)) as? org.w3c.files.File }
                     }
                 }
-                Div({ classes("field") }) { org.jetbrains.compose.web.dom.Label { Text("Nome do concurso") }; Input(InputType.Text) { classes("input"); value(name); placeholder("Ex.: TJSP Escrevente 2026"); onInput { name = it.value } } }
+                Div({ classes("field") }) { org.jetbrains.compose.web.dom.Label { Text("Nome do concurso") }; Input(InputType.Text) { classes("input"); value(name); placeholder("Ex.: TJSP Escrevente 2026"); attr("maxlength", "120"); onInput { name = it.value } } }
                 Div({ classes("grid", "cols-2") }) {
-                    Div({ classes("field") }) { org.jetbrains.compose.web.dom.Label { Text("Cargo (opcional)") }; Input(InputType.Text) { classes("input"); value(role); onInput { role = it.value } } }
-                    Div({ classes("field") }) { org.jetbrains.compose.web.dom.Label { Text("Banca (opcional)") }; Input(InputType.Text) { classes("input"); value(board); onInput { board = it.value } } }
+                    Div({ classes("field") }) { org.jetbrains.compose.web.dom.Label { Text("Cargo (opcional)") }; Input(InputType.Text) { classes("input"); value(role); attr("maxlength", "120"); onInput { role = it.value } } }
+                    Div({ classes("field") }) { org.jetbrains.compose.web.dom.Label { Text("Banca (opcional)") }; Input(InputType.Text) { classes("input"); value(board); attr("maxlength", "40"); onInput { board = it.value } } }
                 }
                 error?.let {
             Div({ classes("banner", "error") }) { Text(it) }

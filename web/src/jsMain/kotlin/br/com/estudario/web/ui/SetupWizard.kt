@@ -295,8 +295,14 @@ fun SetupScreen() {
                 error = null
                 building = true
                 scope.launch {
-                    delay(1600) // tempo do Folha "montando", como no app
-                    try { preview = build(Store.data) } catch (e: Throwable) { error = e.message ?: "Não deu para montar o plano."; building = false }
+                    // O plano fica pronto em instantes; a tela mostra todas as etapas, uma a uma, antes da prévia.
+                    val started = kotlin.js.Date.now()
+                    val built = try { build(Store.data) } catch (e: Throwable) { error = e.message ?: "Não deu para montar o plano."; building = false; null }
+                    if (built != null) {
+                        val total = PLAN_STAGES.size * PLAN_STAGE_MILLIS + 600L
+                        delay((total - (kotlin.js.Date.now() - started)).toLong().coerceAtLeast(0))
+                        preview = built
+                    }
                 }
             }
         }
@@ -323,6 +329,17 @@ private fun EditalSubjectRow(number: Int, name: String, topics: List<String>) {
     }
 }
 
+/** Etapas da montagem do plano: aparecem todas, uma a uma, antes da prévia. */
+private val PLAN_STAGES = listOf(
+    "Lendo o seu edital",
+    "Pesando cada matéria pelo edital e pelo seu nível",
+    "Distribuindo as matérias pelos seus dias",
+    "Encaixando revisões espaçadas",
+    "Reservando tempo para questões e simulados",
+    "Conferindo a primeira semana",
+)
+private const val PLAN_STAGE_MILLIS = 1_300L
+
 /** O Folha montando o plano e, em seguida, a prévia da primeira semana antes de abrir. */
 @Composable
 private fun PlanPreview(result: Pair<Snapshot, String>?, onBack: () -> Unit, onOpen: () -> Unit) {
@@ -331,8 +348,8 @@ private fun PlanPreview(result: Pair<Snapshot, String>?, onBack: () -> Unit, onO
             ProcessView(
                 title = "Montando o seu plano",
                 eyebrow = "Quase lá",
-                stages = listOf("Lendo o seu edital", "Distribuindo as matérias pelos seus dias", "Encaixando revisões e questões", "Conferindo a primeira semana"),
-                stageMillis = 1_400,
+                stages = PLAN_STAGES,
+                stageMillis = PLAN_STAGE_MILLIS,
             )
         }
         return

@@ -139,7 +139,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                         Div({ classes("field") }) {
                             Label { Text("Banca (opcional)") }
                             Input(InputType.Text) {
-                                classes("input"); value(board); attr("placeholder", "Ex.: Cebraspe, FGV, FCC"); attr("maxlength", "80")
+                                classes("input"); value(board); attr("placeholder", "Ex.: Cebraspe, FGV, FCC"); attr("maxlength", "40")
                                 onInput { board = it.value }
                             }
                             Span({ classes("xs", "muted") }) { Text("Em branco, as questões seguem o estilo das provas anteriores deste concurso.") }

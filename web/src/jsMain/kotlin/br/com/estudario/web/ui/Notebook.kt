@@ -139,6 +139,7 @@ private fun NotesTab(notes: List<Triple<Long, Long?, String>>, topics: List<Pair
             topics.forEach { (id, title) -> Option("$id", { if (topicId == id) selected() }) { Text(title) } }
         }
         TextArea(text, {
+            attr("maxlength", "4000")
             classes("input"); attr("rows", "4"); attr("placeholder", "Escreva o que quer lembrar…")
             attr("style", "margin-top:8px;width:100%")
             onInput { text = it.value }

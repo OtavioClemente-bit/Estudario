@@ -89,7 +89,10 @@ export function parseSyllabusGenerationOptions(
   const record = value as Record<string, unknown>;
   const competitionName = cleanText(record.competitionName, 120);
   const role = cleanText(record.role, 160);
-  const board = cleanText(record.board, 80);
+  // Banca é nome curto (até 40 caracteres e 6 palavras); frase escrita no campo é ignorada.
+  const rawBoard = cleanText(record.board, 80);
+  const board = rawBoard === null ? null
+    : rawBoard.length <= 40 && rawBoard.split(" ").length <= 6 && /^[\p{L}\p{N} ./()&ºª-]*$/u.test(rawBoard) ? rawBoard : "";
   const year = cleanText(record.year, 4);
   if (
     competitionName === null || role === null || board === null || year === null

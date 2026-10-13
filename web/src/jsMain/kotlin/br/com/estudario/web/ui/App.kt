@@ -203,8 +203,18 @@ private fun SidebarContent(section: Route) {
     }
     Nav({ attr("aria-label", "Menu") }) {
         menu.forEach { group ->
-            Div({ classes("nav-label") }) { Text(group.title) }
-            group.entries.forEach { entry -> NavLink(entry, entry.route == section) }
+            // Seção recolhível: a da página atual fica sempre aberta; a escolha fica guardada no navegador.
+            val holdsCurrent = group.entries.any { it.route == section }
+            val open = holdsCurrent || (navOpen[group.title] ?: (group.title == menu.first().title))
+            Button({
+                classes("nav-label", "nav-toggle")
+                attr("aria-expanded", open.toString())
+                onClick { if (!holdsCurrent) setNavOpen(group.title, !open) }
+            }) {
+                Span({ classes("grow") }) { Text(group.title) }
+                if (!holdsCurrent) Icon(if (open) "expand_less" else "expand_more", extraClass = "faint")
+            }
+            if (open) group.entries.forEach { entry -> NavLink(entry, entry.route == section) }
         }
     }
     Div({ classes("sidebar-foot") }) {
@@ -222,6 +232,19 @@ fun initials(name: String?): String {
         parts.size == 1 -> parts[0].take(2).uppercase()
         else -> "${parts.first().first()}${parts.last().first()}".uppercase()
     }
+}
+
+/** Seções do menu abertas ou recolhidas (título → aberta), lembradas neste navegador. */
+private val navOpen = androidx.compose.runtime.mutableStateMapOf<String, Boolean>().apply {
+    runCatching { kotlinx.browser.localStorage.getItem("estudario.nav") }.getOrNull()?.split(";")?.forEach { part ->
+        val (title, value) = part.split("=").takeIf { it.size == 2 } ?: return@forEach
+        put(title, value == "1")
+    }
+}
+
+private fun setNavOpen(title: String, open: Boolean) {
+    navOpen[title] = open
+    runCatching { kotlinx.browser.localStorage.setItem("estudario.nav", navOpen.entries.joinToString(";") { "${it.key}=${if (it.value) 1 else 0}" }) }
 }
 
 @Composable

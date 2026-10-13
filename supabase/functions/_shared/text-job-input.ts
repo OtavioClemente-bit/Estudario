@@ -117,19 +117,42 @@ export function oneOf<T extends string>(value: unknown, field: string, allowed: 
   return value as T;
 }
 
+/**
+ * Campo curto que entra no prompt (concurso, cargo, órgão): limpa como text() e corta no limite em vez
+ * de recusar, para nomes longos do catálogo não travarem a geração e um pedido escrito no campo não
+ * caber inteiro.
+ */
+function clipped(value: unknown, field: string, max: number, required: boolean): string | null {
+  if (!required && (value === undefined || value === null || value === "")) return null;
+  const clean = text(value, field, 5_000);
+  return clean.length > max ? clean.slice(0, max).trim() : clean;
+}
+
+/**
+ * Banca: nome curto (até 40 caracteres e 6 palavras, letras, números e / ( ) - .). Qualquer outra
+ * coisa, como uma frase pedindo outro conteúdo, é ignorada: vale o estilo geral das provas.
+ */
+export function boardName(value: unknown): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string") throw new TextJobInputError("board");
+  const clean = value.replace(/\s+/g, " ").trim();
+  if (clean.length === 0 || clean.length > 40 || clean.split(" ").length > 6) return null;
+  return /^[\p{L}\p{N} ./()&ºª-]+$/u.test(clean) ? clean : null;
+}
+
 export function parseContentJobInput(value: unknown): ContentJobInput {
   if (!isRecord(value)) throw new TextJobInputError("input");
   const path = value.topicPath;
   if (!Array.isArray(path) || path.length === 0 || path.length > 6) throw new TextJobInputError("topicPath");
   return {
-    competitionName: text(value.competitionName, "competitionName"),
-    role: optionalText(value.role, "role"),
-    board: optionalText(value.board, "board", 80),
-    agency: optionalText(value.agency, "agency", 160),
+    competitionName: clipped(value.competitionName, "competitionName", 150, true)!,
+    role: clipped(value.role, "role", 120, false),
+    board: boardName(value.board),
+    agency: clipped(value.agency, "agency", 120, false),
     sphere: value.sphere === undefined || value.sphere === null
       ? null
       : oneOf(value.sphere, "sphere", ["FEDERAL", "ESTADUAL", "MUNICIPAL"] as const),
-    subjectName: text(value.subjectName, "subjectName"),
+    subjectName: clipped(value.subjectName, "subjectName", 150, true)!,
     topicPath: path.map((item, index) => text(item, `topicPath.${index}`, SYLLABUS_SOURCE_TITLE_LIMIT)),
     scopeCovers: optionalText(value.scopeCovers, "scopeCovers", MAX_LONG_TEXT),
     scopeExcludes: optionalText(value.scopeExcludes, "scopeExcludes", MAX_LONG_TEXT),

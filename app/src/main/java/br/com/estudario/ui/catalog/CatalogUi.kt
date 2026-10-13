@@ -252,8 +252,8 @@ fun CatalogSubmitDialog(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Depois da aprovação, quem buscar este concurso recebe as ${own.size} matérias e ${ownTopics.size} tópicos na hora. Vai só a estrutura, sem suas anotações nem seu progresso.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(name, { name = it }, label = { Text("Concurso (ex.: PMMG)") }, singleLine = true)
-                OutlinedTextField(role, { role = it }, label = { Text("Cargo (ex.: Soldado)") }, singleLine = true)
-                OutlinedTextField(board, { board = it }, label = { Text("Banca (opcional)") }, singleLine = true)
+                OutlinedTextField(role, { role = it.take(120) }, label = { Text("Cargo (ex.: Soldado)") }, singleLine = true)
+                OutlinedTextField(board, { board = it.take(40) }, label = { Text("Banca (opcional)") }, singleLine = true)
                 OutlinedTextField(year, { year = it.filter(Char::isDigit).take(4) }, label = { Text("Ano do edital") }, singleLine = true)
                 OutlinedTextField(link, { link = it }, label = { Text("Link do edital oficial (opcional)") }, singleLine = true)
             }

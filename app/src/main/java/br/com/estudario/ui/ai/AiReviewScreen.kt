@@ -851,9 +851,9 @@ private fun AiSyllabusPreferencesForm(value: AiSyllabusPreferences, onChange: (A
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         OptionSection("1. Concurso", required = true) {
             OutlinedTextField(value.competitionName, { onChange(value.copy(competitionName = it)) }, Modifier.fillMaxWidth().testTag("ai_pref_competition"), singleLine = true, label = { Text("Nome do concurso *") }, placeholder = { Text("Ex.: Polícia Federal") })
-            OutlinedTextField(value.role, { onChange(value.copy(role = it)) }, Modifier.fillMaxWidth().testTag("ai_pref_role"), singleLine = true, label = { Text("Cargo ou área *") }, placeholder = { Text("Ex.: Agente de Polícia") }, supportingText = { Text("É por ele que achamos as suas matérias no edital.") })
+            OutlinedTextField(value.role, { onChange(value.copy(role = it.take(120))) }, Modifier.fillMaxWidth().testTag("ai_pref_role"), singleLine = true, label = { Text("Cargo ou área *") }, placeholder = { Text("Ex.: Agente de Polícia") }, supportingText = { Text("É por ele que achamos as suas matérias no edital.") })
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value.board, { onChange(value.copy(board = it)) }, Modifier.weight(1f), singleLine = true, label = { Text("Banca") })
+                OutlinedTextField(value.board, { onChange(value.copy(board = it.take(40))) }, Modifier.weight(1f), singleLine = true, label = { Text("Banca") })
                 OutlinedTextField(value.year, { onChange(value.copy(year = it.filter(Char::isDigit).take(4))) }, Modifier.weight(0.6f), singleLine = true, label = { Text("Ano") })
             }
         }

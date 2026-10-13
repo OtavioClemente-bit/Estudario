@@ -592,7 +592,7 @@ private fun CompetitionStep(
             }
             OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nome do concurso") }, placeholder = { Text("Ex.: Polícia Federal") }, singleLine = true)
             Spacer(Modifier.height(10.dp))
-            OutlinedTextField(role, { role = it }, Modifier.fillMaxWidth(), label = { Text("Cargo ou área") }, placeholder = { Text("Ex.: Agente de Polícia") }, supportingText = { Text("Muitos editais têm vários cargos: é por ele que achamos as suas matérias.") }, singleLine = true)
+            OutlinedTextField(role, { role = it.take(120) }, Modifier.fillMaxWidth(), label = { Text("Cargo ou área") }, placeholder = { Text("Ex.: Agente de Polícia") }, supportingText = { Text("Muitos editais têm vários cargos: é por ele que achamos as suas matérias.") }, singleLine = true)
             if (selected != null && selected.name.equals(name.trim(), true)) {
                 Spacer(Modifier.height(12.dp))
                 AssistChip(onClick = { }, label = { Text("Concurso já salvo neste aparelho") }, leadingIcon = { Icon(Icons.Outlined.CheckCircle, null) })

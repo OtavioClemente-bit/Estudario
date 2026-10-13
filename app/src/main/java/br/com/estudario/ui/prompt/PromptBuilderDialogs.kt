@@ -160,9 +160,9 @@ fun EditalPromptBuilderDialog(viewModel: AppViewModel, selectedCompetitionId: Lo
             if (target == null) {
                 OutlinedTextField(options.competitionName, { options = options.copy(competitionName = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Nome do concurso *") }, placeholder = { Text("Ex.: Polícia Federal") })
             }
-            OutlinedTextField(options.role, { options = options.copy(role = it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cargo ou área *") }, placeholder = { Text("Ex.: Analista Judiciário, Área Administrativa") })
+            OutlinedTextField(options.role, { options = options.copy(role = it.take(120)) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cargo ou área *") }, placeholder = { Text("Ex.: Analista Judiciário, Área Administrativa") })
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(options.board, { options = options.copy(board = it) }, Modifier.weight(1f), singleLine = true, label = { Text("Banca") })
+                OutlinedTextField(options.board, { options = options.copy(board = it.take(40)) }, Modifier.weight(1f), singleLine = true, label = { Text("Banca") })
                 OutlinedTextField(options.year, { value -> options = options.copy(year = value.filter(Char::isDigit).take(4)) }, Modifier.width(110.dp), singleLine = true, label = { Text("Ano") })
             }
         },
@@ -365,7 +365,7 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
             QuestionCountSelector(options.questionCount, questionLimit, perTopic = selectedIds.size > 1) { options = options.copy(questionCount = it) }
             OptionSection("Dificuldade") { DifficultySelector(options.difficulty) { options = options.copy(difficulty = it) } }
             OptionSection("Formato") { ChoiceCards(QuestionStyle.entries, options.style, ::styleTitle, { options = options.copy(style = it) }, description = ::styleDescription) }
-            BoardField(options.board) { options = options.copy(board = it) }
+            BoardField(options.board) { options = options.copy(board = it.take(40)) }
         })
     }
     fun stepOf(title: String) = steps.indexOfFirst { it.title == title }.coerceAtLeast(0)
@@ -643,7 +643,7 @@ fun AdditionalQuestionPromptBuilderDialog(
             answer = listOf(options.difficulty.label, options.board).filter(String::isNotBlank).joinToString(" · "),
         ) {
             DifficultySelector(options.difficulty) { options = options.copy(difficulty = it) }
-            BoardField(options.board) { options = options.copy(board = it) }
+            BoardField(options.board) { options = options.copy(board = it.take(40)) }
             Text(
                 if (existingQuestions.isEmpty()) "Ainda não há questões cadastradas nesta matéria para comparar."
                 else "${existingQuestions.size} questão(ões) já cadastradas vão junto só para evitar repetição, sem gabaritos nem desempenho.",

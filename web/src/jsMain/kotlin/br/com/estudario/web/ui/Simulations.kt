@@ -177,7 +177,7 @@ private fun ProfileDialog(competitionId: Long, board: String?, target: Int, onCl
         H2 { Text("Banca e meta") }
         Div({ classes("field") }) {
             org.jetbrains.compose.web.dom.Label { Text("Banca do concurso") }
-            Input(InputType.Text) { classes("input"); value(name); placeholder("Ex.: Cebraspe, FGV, FCC, Vunesp"); onInput { name = it.value } }
+            Input(InputType.Text) { classes("input"); value(name); placeholder("Ex.: Cebraspe, FGV, FCC, Vunesp"); attr("maxlength", "40"); onInput { name = it.value } }
             Span({ classes("xs", "muted") }) { Text("Formato das questões: ${BoardStyle.styleLabel(BoardStyle.styleFor(name.ifBlank { null }))}") }
         }
         Div({ classes("day-row") }) {

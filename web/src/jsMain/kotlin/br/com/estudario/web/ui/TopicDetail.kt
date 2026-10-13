@@ -521,7 +521,7 @@ private fun TopicNotes(topicId: Long) {
         if (editing == null) Btn("Nova", { editing = 0L; text = "" }, style = "ghost", small = true, icon = "add")
     }
     if (editing != null) Card {
-        TextArea(text, { classes("input"); attr("rows", "4"); attr("placeholder", "Escreva com suas palavras o que precisa lembrar…"); attr("style", "width:100%"); onInput { text = it.value } })
+        TextArea(text, { classes("input"); attr("rows", "4"); attr("maxlength", "4000"); attr("placeholder", "Escreva com suas palavras o que precisa lembrar…"); attr("style", "width:100%"); onInput { text = it.value } })
         Div({ classes("row"); attr("style", "margin-top:8px;justify-content:flex-end") }) {
             if (editing != 0L) Btn("Apagar", { val id = editing!!; Store.update { Actions.deleteNote(it, id) }; editing = null }, style = "ghost", small = true, icon = "delete")
             Btn("Cancelar", { editing = null }, style = "ghost", small = true)

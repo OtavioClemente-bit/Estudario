@@ -198,6 +198,8 @@ fun QuizScreen(scope: String) {
     var selected by remember(scope) { mutableStateOf<String?>(null) }
     var revealed by remember(scope) { mutableStateOf(false) }
     var results by remember(scope) { mutableStateOf(listOf<Boolean>()) }
+    // Alternativas riscadas, como na prova de papel ("id da questão:letra"). Só ajuda a pensar.
+    val crossedOut = remember(scope) { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
     var saved by remember(scope) { mutableStateOf(false) }
     val explainNow = remember { Prefs.explanationRightAway }
 
@@ -298,13 +300,27 @@ fun QuizScreen(scope: String) {
                             option.key == selected -> "chosen"
                             else -> null
                         }
-                        Button({
-                            classes(*listOfNotNull("option", state).toTypedArray())
-                            if (answered) attr("disabled", "")
-                            onClick { choose(option.key) }
-                        }) {
-                            Span({ classes("key") }) { Text(option.key) }
-                            Span { Inline(option.text) }
+                        val crossKey = "${question.id}:${option.key}"
+                        val crossed = crossedOut[crossKey] == true && !answered
+                        fun toggleCross() { crossedOut[crossKey] = crossedOut[crossKey] != true }
+                        Div({ classes("option-row") }) {
+                            Button({
+                                classes(*listOfNotNull("option", state, if (crossed) "crossed" else null).toTypedArray())
+                                if (answered) attr("disabled", "")
+                                // Riscada: clicar desfaz o risco em vez de marcar, para não marcar sem querer.
+                                onClick { if (crossed) toggleCross() else choose(option.key) }
+                                // Botão direito também risca, como no app (deslizar para o lado).
+                                addEventListener("contextmenu") { event -> if (!answered) { event.preventDefault(); toggleCross() } }
+                            }) {
+                                Span({ classes("key") }) { Text(option.key) }
+                                Span { Inline(option.text) }
+                            }
+                            if (!answered) Button({
+                                classes("strike-btn", *listOfNotNull(if (crossed) "on" else null).toTypedArray())
+                                attr("title", if (crossed) "Desfazer risco" else "Riscar alternativa")
+                                attr("aria-label", if (crossed) "Desfazer risco da alternativa ${option.key}" else "Riscar alternativa ${option.key}")
+                                onClick { toggleCross() }
+                            }) { Icon("strikethrough_s") }
                         }
                     }
                 }
@@ -314,10 +330,7 @@ fun QuizScreen(scope: String) {
     if (answered) {
         if (showResult) {
             val right = selected == correctKey
-            Div({ classes("banner", if (right) "ok" else "error") }) {
-                Icon(if (right) "check_circle" else "cancel", filled = true)
-                Text(if (right) "Resposta certa!" else "Resposta certa: $correctKey. A questão foi para o caderno de erros.")
-            }
+            AnswerReaction(right, correctKey, question.id, results)
             if (question.explanation.isNotBlank()) Card {
                 CardHead("Explicação")
                 Markdown(question.explanation)
@@ -332,5 +345,52 @@ fun QuizScreen(scope: String) {
         }
     } else {
         P({ classes("small", "faint"); attr("style", "text-align:center") }) { Text("Dica: use as teclas A, B, C, D, E para responder e Enter para avançar.") }
+    }
+}
+
+
+/** O que o Folha fala ao acertar e errar (FolhaLines do app); a semente é a questão, para não trocar a cada tela. */
+private val RIGHT_LINES = listOf(
+    "Isso! Mandou muito bem.",
+    "Acertou! Esse conteúdo já é seu.",
+    "Na mosca! Banca nenhuma te pega nessa.",
+    "Boa! É assim que a vaga vai chegando.",
+    "Perfeito. Pode marcar esse ponto no placar.",
+    "Acertou e com estilo. Próxima!",
+)
+private val WRONG_LINES = listOf(
+    "Errar aqui é melhor que errar na prova. Lê a explicação comigo?",
+    "Tudo bem! Essa volta pro seu caderno de erros e na próxima é sua.",
+    "Quase! Esse é exatamente o tipo de pegadinha que a banca adora.",
+    "Respira. Cada erro agora é um ponto a mais no dia da prova.",
+    "Faz parte. Entendendo o porquê, você não erra mais essa.",
+    "Opa, essa enganou. Bora entender e virar o jogo?",
+)
+
+/** Emblemas da sequência de acertos na bateria: aparecem ao chegar em cada marca. */
+private val STREAK_BADGES = listOf(3 to "Aquecendo", 5 to "Em chamas", 10 to "Imparável", 15 to "Lenda da bateria", 20 to "Gabaritando")
+
+/**
+ * A reação do Folha à resposta, como no app: comemora o acerto, consola no erro, mostra a
+ * sequência de acertos seguidos e, ao bater uma marca (3, 5, 10, 15, 20), o emblema.
+ */
+@Composable
+private fun AnswerReaction(right: Boolean, correctKey: String?, questionId: Long, results: List<Boolean>) {
+    val streak = results.asReversed().takeWhile { it }.size
+    val badge = if (right) STREAK_BADGES.lastOrNull { it.first == streak } else null
+    val line = (if (right) RIGHT_LINES else WRONG_LINES).let { it[((questionId % it.size + it.size) % it.size).toInt()] }
+    Div({ classes("answer-reaction", if (right) "ok" else "bad", "pop-in") }) {
+        Div({ classes(if (right) "folha-cheer" else "folha-shake") }) { Folha(if (right) "happy" else "sad", 72) }
+        Div({ classes("grow") }) {
+            B({ classes("reaction-title") }) { Text(if (right) "Mandou bem!" else "Não foi dessa vez") }
+            P({ classes("small") }) { Text(line) }
+            if (!right) P({ classes("xs", "muted") }) { Text("Resposta certa: ${correctKey ?: "?"}. A questão foi para o caderno de erros.") }
+            if (right && streak >= 2) Span({ classes("streak-chip") }) { Icon("local_fire_department", filled = true); Text("$streak seguidas") }
+        }
+        if (badge != null) Div({ classes("badge-pop") }) {
+            Icon("military_tech", filled = true)
+            Span({ classes("xs") }) { Text("Emblema") }
+            B { Text(badge.second) }
+        }
     }
 }
