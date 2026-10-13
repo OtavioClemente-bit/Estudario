@@ -56,6 +56,8 @@ export interface AccessDataSource {
     periodStart: string,
   ): Promise<QuotaUsageRecord | null>;
   listPlanLimits(planTier?: PlanTier): Promise<PlanLimitRecord[]>;
+  /** Ajuste individual de cota (ai_user_quota_overrides), que o banco aplica às contas TESTE. */
+  listQuotaOverrides?(userId: string): Promise<Record<string, number>>;
 }
 
 export interface AccessPolicyOptions {
@@ -141,6 +143,15 @@ export class SupabaseAccessDataSource implements AccessDataSource {
       reservedCount: integerField(row, "reserved_count"),
       periodStart: stringField(row, "period_start"),
     };
+  }
+
+  async listQuotaOverrides(userId: string): Promise<Record<string, number>> {
+    this.assertOwner(userId);
+    const rows = await this.select("ai_user_quota_overrides", {
+      select: "feature,quota_limit",
+      user_id: `eq.${this.environment.authenticatedUserId}`,
+    });
+    return Object.fromEntries(rows.map((row) => [stringField(row, "feature"), integerField(row, "quota_limit")]));
   }
 
   async listPlanLimits(planTier?: PlanTier): Promise<PlanLimitRecord[]> {
@@ -362,6 +373,7 @@ export class ClosedBetaAiPolicy {
       this.dataSource.listPlanLimits(),
     ]);
     const tier = effectivePlanTier(profile, now);
+    const overrides = tier === "TESTE" ? await this.dataSource.listQuotaOverrides?.(userId).catch(() => ({} as Record<string, number>)) ?? {} : {};
     const usage = await Promise.all(
       SERVER_FEATURES.map(async (feature) => {
         const row = quotaLimitRow(limits, tier, feature);
@@ -369,7 +381,7 @@ export class ClosedBetaAiPolicy {
         const periodStart = quotaPeriodStart(periodKind, now, tier, profile?.testCycleStart ?? null);
         const record = await this.dataSource.findQuotaUsage(userId, feature, periodStart);
         const used = (record?.successfulCount ?? 0) + (record?.reservedCount ?? 0);
-        const limit = row?.quotaLimit ?? 0;
+        const limit = overrides[feature] ?? row?.quotaLimit ?? 0;
         return {
           feature,
           periodKind,
@@ -418,8 +430,10 @@ export class ClosedBetaAiPolicy {
     const limitRow = quotaLimitRow(await this.dataSource.listPlanLimits(tier), tier, feature);
     const periodKind = limitRow?.periodKind ?? null;
     const periodStart = quotaPeriodStart(periodKind, now, tier, profile?.testCycleStart ?? null);
-    // Sem configuração o recurso fica fechado, igual a public.ai_quota_limit.
-    const limit = limitRow?.quotaLimit ?? 0;
+    // Sem configuração o recurso fica fechado, igual a public.ai_quota_limit (que, na conta TESTE,
+    // usa o ajuste individual quando existe).
+    const override = tier === "TESTE" ? (await this.dataSource.listQuotaOverrides?.(userId).catch(() => ({} as Record<string, number>)))?.[feature] : undefined;
+    const limit = override ?? limitRow?.quotaLimit ?? 0;
     const usage = await this.dataSource.findQuotaUsage(userId, feature, periodStart);
     const flagMap = new Map(flags.map((flag) => [flag.flagKey, flag.enabled]));
     const betaAccess = profile?.betaAccess === true;
