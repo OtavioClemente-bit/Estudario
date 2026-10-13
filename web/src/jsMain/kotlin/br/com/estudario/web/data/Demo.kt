@@ -60,7 +60,7 @@ object Demo {
                         "block" to 50, "weeklyQuestions" to 100, "topicQuestions" to 15, "simulations" to 2, "discursives" to 0, "interleave" to true, "dailyShare" to 60,
                     ),
                 ),
-                Keys.AVAILABILITY to (1..7).map { day -> jsonOf("planId" to planId, "day" to day, "minutes" to if (day == 7) 0 else if (day == 6) 180 else 120, "unavailable" to (day == 7), "mode" to "FIXED") },
+                Keys.AVAILABILITY to (1..7).map { day -> jsonOf("planId" to planId, "day" to day, "minutes" to if (day == 7) 0 else if (day == 6) 180 else 120, "unavailable" to (day == 7), "mode" to "SIMPLE") },
                 Keys.PLAN_SUBJECTS to data.subjects.mapIndexed { index, subject -> jsonOf("planId" to planId, "subjectId" to subject.id, "name" to subject.name, "priority" to "MEDIUM", "paused" to false, "maintenance" to 0, "weight" to null, "position" to index, "personalDifficulty" to "NORMAL", "initialKnowledge" to "NONE") },
             ),
         )

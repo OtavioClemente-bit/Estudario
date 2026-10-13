@@ -176,7 +176,7 @@ data class TaskExecution(
 )
 
 @Serializable
-data class Availability(val planId: String, val day: Int, val minutes: Int, val unavailable: Boolean = false, val mode: String = "FIXED")
+data class Availability(val planId: String, val day: Int, val minutes: Int, val unavailable: Boolean = false, val mode: String = "SIMPLE")
 
 @Serializable
 data class PlanSubject(

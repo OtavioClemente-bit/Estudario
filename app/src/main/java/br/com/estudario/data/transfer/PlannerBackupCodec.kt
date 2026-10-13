@@ -33,11 +33,11 @@ internal object PlannerBackupCodec {
         val d = db.plannerDao()
         root.a("studyPlans").forEach { x -> d.insertPlan(StudyPlanEntity(x.s("id"),x.l("competitionId"),x.s("name"),x.s("objective"),x.l("start"),x.nl("exam"),x.b("active"),x.b("master"),x.b("archived"),x.l("revision"),x.l("createdAt"),x.l("updatedAt"),x.ns("profile") ?: "DO_ZERO",x.ni("block") ?: 50,x.ni("weeklyQuestions") ?: 100,x.ni("topicQuestions") ?: 15,x.ni("simulations") ?: 2,x.ni("discursives") ?: 0,x.optBoolean("interleave", true),x.ni("dailyShare") ?: 60)) }
         root.a("studyPlanRevisions").forEach { x -> d.insertRevision(StudyPlanRevisionEntity(x.s("planId"),x.l("revision"),x.l("base"),x.s("reason"),x.ns("proposalId"),x.s("summary"),x.l("createdAt"))) }
-        d.upsertAvailability(root.a("studyAvailability").map { x -> StudyAvailabilityEntity(x.s("planId"),x.i("day"),x.i("minutes"),x.b("unavailable"),AvailabilityMode.valueOf(x.s("mode"))) })
+        d.upsertAvailability(root.a("studyAvailability").map { x -> StudyAvailabilityEntity(x.s("planId"),x.i("day"),x.i("minutes"),x.b("unavailable"),safeEnum(x.s("mode"), AvailabilityMode.SIMPLE)) })
         root.a("studyDayOverrides").forEach { x -> d.upsertDayOverride(StudyDayOverrideEntity(x.s("planId"),x.l("day"),x.ni("minutes"),x.b("unavailable"),x.b("locked"))) }
         // Backup antigo não tem os dois eixos pessoais: a ausência cai no padrão neutro em vez de
         // explodir, que é o mesmo que um plano criado antes do Smart Planner já faz.
-        d.upsertPlanSubjects(root.a("planSubjects").map { x -> PlanSubjectEntity(x.s("planId"),x.l("subjectId"),x.s("name"),PlanPriority.valueOf(x.s("priority")),x.b("paused"),x.i("maintenance"),x.ni("weight"),x.i("position"),x.personalDifficulty("personalDifficulty"),x.initialKnowledge("initialKnowledge")) })
+        d.upsertPlanSubjects(root.a("planSubjects").map { x -> PlanSubjectEntity(x.s("planId"),x.l("subjectId"),x.s("name"),safeEnum(x.s("priority"), PlanPriority.MEDIUM),x.b("paused"),x.i("maintenance"),x.ni("weight"),x.i("position"),x.personalDifficulty("personalDifficulty"),x.initialKnowledge("initialKnowledge")) })
         d.insertAnnualPhases(root.a("annualPhases").map { x -> AnnualPhaseEntity(x.s("id"),x.s("planId"),x.i("position"),x.s("name"),x.s("objective"),x.s("criteria"),x.l("start"),x.l("end"),x.i("minutes"),x.i("questions"),x.i("discursives"),x.i("percent"),x.l("fromRevision"),x.nl("untilRevision")) })
         d.insertMonthlyPlans(root.a("monthlyPlans").map { x -> MonthlyPlanEntity(x.s("id"),x.s("planId"),x.s("yearMonth"),x.s("focus"),x.i("minutes"),x.i("questions"),x.i("discursives"),x.i("percent"),x.l("fromRevision"),x.nl("untilRevision")) })
         d.insertWeeklyPlans(root.a("weeklyPlans").map { x -> WeeklyPlanEntity(x.s("id"),x.s("planId"),x.l("weekStart"),x.s("objective"),x.i("minutes"),x.i("questions"),x.i("discursives"),x.l("fromRevision"),x.nl("untilRevision")) })
@@ -45,9 +45,9 @@ internal object PlannerBackupCodec {
         d.insertAnnualPhaseTopics(root.a("annualPhaseTopics").map { AnnualPhaseTopicEntity(it.s("phaseId"),it.l("topicId")) })
         d.insertMonthlyPlanSubjects(root.a("monthlyPlanSubjects").map { MonthlyPlanSubjectEntity(it.s("monthlyPlanId"),it.l("subjectId"),it.b("maintenance")) })
         d.insertMonthlyPlanTopics(root.a("monthlyPlanTopics").map { MonthlyPlanTopicEntity(it.s("monthlyPlanId"),it.l("topicId")) })
-        d.insertTasks(root.a("planTasks").map { x -> PlanTaskEntity(x.s("id"),x.s("planId"),x.l("competitionId"),x.ns("annualPhaseId"),x.ns("monthlyPlanId"),x.ns("weeklyPlanId"),x.nl("subjectId"),x.nl("topicId"),x.s("subjectName"),x.ns("topicName"),x.l("day"),PlanTaskType.valueOf(x.s("type")),x.i("minutes"),x.i("questions"),PlanPriority.valueOf(x.s("priority")),PlanTaskStatus.valueOf(x.s("status")),PlanOrigin.valueOf(x.s("origin")),x.s("notes"),x.b("locked"),x.s("progressNote"),x.ns("replannedFrom"),x.l("createdRevision"),x.l("updatedRevision"),x.l("createdAt"),x.l("updatedAt"),sequence = x.ni("sequence") ?: 0) })
+        d.insertTasks(root.a("planTasks").map { x -> PlanTaskEntity(x.s("id"),x.s("planId"),x.l("competitionId"),x.ns("annualPhaseId"),x.ns("monthlyPlanId"),x.ns("weeklyPlanId"),x.nl("subjectId"),x.nl("topicId"),x.s("subjectName"),x.ns("topicName"),x.l("day"),safeEnum(x.s("type"), PlanTaskType.THEORY),x.i("minutes"),x.i("questions"),safeEnum(x.s("priority"), PlanPriority.MEDIUM),safeEnum(x.s("status"), PlanTaskStatus.PLANEJADA),safeEnum(x.s("origin"), PlanOrigin.ENGINE),x.s("notes"),x.b("locked"),x.s("progressNote"),x.ns("replannedFrom"),x.l("createdRevision"),x.l("updatedRevision"),x.l("createdAt"),x.l("updatedAt"),sequence = x.ni("sequence") ?: 0) })
         d.insertDependencies(root.a("planTaskDependencies").map { PlanTaskDependencyEntity(it.s("taskId"),it.s("dependsOn")) })
-        root.a("studyTaskExecutions").forEach { x -> d.insertExecution(StudyTaskExecutionEntity(x.s("id"),x.s("planId"),x.ns("taskId"),x.l("competitionId"),x.nl("subjectId"),x.nl("topicId"),x.l("startedAt"),x.l("completedAt"),x.i("minutes"),x.i("questions"),x.i("correct"),x.s("notes"),PerceivedDifficulty.valueOf(x.s("difficulty")),x.l("createdAt"))) }
+        root.a("studyTaskExecutions").forEach { x -> d.insertExecution(StudyTaskExecutionEntity(x.s("id"),x.s("planId"),x.ns("taskId"),x.l("competitionId"),x.nl("subjectId"),x.nl("topicId"),x.l("startedAt"),x.l("completedAt"),x.i("minutes"),x.i("questions"),x.i("correct"),x.s("notes"),safeEnum(x.s("difficulty"), PerceivedDifficulty.NORMAL),x.l("createdAt"))) }
     }
 
     private fun <T> rows(values: List<T>, transform: (T) -> JSONObject) = JSONArray(values.map(transform))
@@ -65,3 +65,7 @@ internal object PlannerBackupCodec {
     private fun JSONObject.initialKnowledge(k: String): InitialKnowledge =
         ns(k)?.let { raw -> runCatching { InitialKnowledge.valueOf(raw) }.getOrNull() } ?: InitialKnowledge.NONE
 }
+
+/** Valor desconhecido (gravado por outra versão do app ou pelo site) vira o padrão, em vez de travar a sincronização. */
+private inline fun <reified T : Enum<T>> safeEnum(value: String?, fallback: T): T =
+    value?.let { v -> enumValues<T>().firstOrNull { it.name == v } } ?: fallback

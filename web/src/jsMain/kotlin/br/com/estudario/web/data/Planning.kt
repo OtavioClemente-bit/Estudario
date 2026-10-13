@@ -90,7 +90,7 @@ object Planning {
                     ),
                     Keys.PLAN_REVISIONS to listOf(jsonOf("planId" to id, "revision" to 0, "base" to 0, "reason" to "CREATED", "proposalId" to null, "summary" to "Plano criado.", "createdAt" to at)),
                     Keys.AVAILABILITY to input.weeklyMinutes.mapIndexed { index, minutes ->
-                        jsonOf("planId" to id, "day" to index + 1, "minutes" to minutes.coerceAtLeast(0), "unavailable" to (minutes <= 0), "mode" to "FIXED")
+                        jsonOf("planId" to id, "day" to index + 1, "minutes" to minutes.coerceAtLeast(0), "unavailable" to (minutes <= 0), "mode" to "SIMPLE")
                     },
                     Keys.PLAN_SUBJECTS to input.subjects.mapIndexed { index, subject ->
                         jsonOf(
@@ -260,7 +260,7 @@ object Planning {
     /** StudyPlanApplicationService.updateAvailability: horas por dia (segunda = índice 0) e replanejamento. */
     fun updateAvailability(data: Snapshot, planId: String, weeklyMinutes: List<Int>): Snapshot {
         require(weeklyMinutes.any { it > 0 }) { "Mantenha pelo menos um dia disponível." }
-        val rows = weeklyMinutes.mapIndexed { index, minutes -> jsonOf("planId" to planId, "day" to index + 1, "minutes" to minutes.coerceAtLeast(0), "unavailable" to (minutes <= 0), "mode" to "FIXED") }
+        val rows = weeklyMinutes.mapIndexed { index, minutes -> jsonOf("planId" to planId, "day" to index + 1, "minutes" to minutes.coerceAtLeast(0), "unavailable" to (minutes <= 0), "mode" to "SIMPLE") }
         val without = data.edit(Keys.AVAILABILITY) { if (it.str("planId") == planId) null else it }.appendAll(mapOf(Keys.AVAILABILITY to rows))
         return replan(bumpRevision(without, planId, "AVAILABILITY_CHANGED", "Disponibilidade semanal atualizada."), planId, ReplanReason.AVAILABILITY_CHANGED)
     }
