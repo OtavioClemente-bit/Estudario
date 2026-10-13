@@ -303,6 +303,10 @@ object Actions {
 
     fun deleteTheoryMark(data: Snapshot, id: Long): Snapshot = data.edit("theoryMarks") { if (it.idIs(id)) null else it }
 
+    /** Grifo de um trecho da teoria (o mesmo registro do app): vai para o Caderno de estudo. */
+    fun addTheoryMark(data: Snapshot, theoryId: Long, blockIndex: Int, quote: String, note: String = ""): Snapshot =
+        data.append("theoryMarks", jsonOf("id" to data.nextId("theoryMarks"), "theoryId" to theoryId, "blockIndex" to blockIndex, "quote" to quote.trim().take(1200), "note" to note.trim().take(1000), "color" to 0, "createdAt" to now()))
+
     /** Até onde a teoria foi lida (lastReadBlock do app): só avança, e vai junto para o celular. */
     fun setLastReadBlock(data: Snapshot, theoryId: Long, block: Int): Snapshot =
         data.edit(Keys.THEORIES) {

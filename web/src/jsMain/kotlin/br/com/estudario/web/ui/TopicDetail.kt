@@ -421,6 +421,50 @@ private fun TheoryReader(theory: Theory) {
         flashBlock = -1
     }
 
+    // Grifos pintados de amarelo no próprio texto (highlight.js), como no app.
+    LaunchedEffect(theory.id, theoryMarks, blocks.size) {
+        delay(200)
+        val list = theoryMarks.map { m ->
+            val o: dynamic = js("({})")
+            o.block = TheoryJump.blockOf(blocks, m.quote, m.blockIndex)
+            o.quote = m.quote
+            o
+        }.toTypedArray()
+        window.asDynamic().estudarioHighlight?.invoke(theory.id, list)
+    }
+    // Selecionar um trecho mostra a barrinha "Grifar" logo acima dele.
+    var picked by remember(theory.id) { mutableStateOf<TextPick?>(null) }
+    var noteFor by remember(theory.id) { mutableStateOf<TextPick?>(null) }
+    DisposableEffect(theory.id) {
+        val check: (org.w3c.dom.events.Event) -> Unit = {
+            window.setTimeout({
+                val s = window.asDynamic().estudarioSelection?.invoke()
+                picked = if (s == null || s == undefined || (s.theoryId as Number).toLong() != theory.id) null
+                else TextPick((s.block as Number).toInt(), s.quote as String, (s.x as Number).toDouble(), (s.y as Number).toDouble())
+            }, 0)
+        }
+        val hide: (org.w3c.dom.events.Event) -> Unit = { picked = null }
+        document.addEventListener("mouseup", check)
+        document.addEventListener("keyup", check)
+        document.addEventListener("touchend", check)
+        window.addEventListener("scroll", hide)
+        onDispose {
+            document.removeEventListener("mouseup", check)
+            document.removeEventListener("keyup", check)
+            document.removeEventListener("touchend", check)
+            window.removeEventListener("scroll", hide)
+        }
+    }
+    fun saveMark(p: TextPick, note: String) {
+        if (Store.demo) Toast.show("Entre com sua conta para grifar e guardar no Caderno.")
+        else {
+            Store.update { Actions.addTheoryMark(it, theory.id, p.block, p.quote, note) }
+            Toast.show("Grifo salvo no Caderno de estudo")
+        }
+        window.asDynamic().getSelection()?.removeAllRanges()
+        picked = null
+    }
+
     // Conta como lido o bloco que já passou pela tela (o leitor do app grava o mesmo número).
     DisposableEffect(theory.id, blocks.size) {
         val listener: (org.w3c.dom.events.Event) -> Unit = {
@@ -484,7 +528,33 @@ private fun TheoryReader(theory: Theory) {
             Span({ classes("small", "muted") }) { Text(if (percent >= 100) "Você leu tudo! Hora de revisar e treinar questões." else "Role até o fim para completar a leitura. O progresso vai para o celular.") }
         }
     }
+    picked?.let { p ->
+        Div({
+            classes("grifo-bar")
+            attr("style", "left:${p.x}px;top:${(p.y - 54).coerceAtLeast(8.0)}px")
+            // Clicar na barra não pode desfazer a seleção antes de salvar.
+            addEventListener("mousedown") { it.preventDefault() }
+        }) {
+            Button({ classes("grifo-btn"); onClick { saveMark(p, "") } }) { Icon("format_ink_highlighter"); Text("Grifar") }
+            Button({ classes("grifo-btn"); onClick { noteFor = p; picked = null } }) { Icon("edit_note"); Text("Grifar com nota") }
+        }
+    }
+    noteFor?.let { p ->
+        var note by remember(p) { mutableStateOf("") }
+        Modal(onDismiss = { noteFor = null }) {
+            H2 { Text("Grifar com nota") }
+            Div({ classes("grifo-quote") }) { Text("“${p.quote.take(400)}${if (p.quote.length > 400) "…" else ""}”") }
+            TextArea(note, { classes("input"); attr("rows", "3"); attr("maxlength", "1000"); attr("placeholder", "Por que esse trecho importa? (opcional)"); attr("style", "width:100%"); onInput { note = it.value } })
+            Div({ classes("row", "end") }) {
+                Btn("Cancelar", { noteFor = null }, style = "ghost")
+                Btn("Salvar grifo", { saveMark(p, note); noteFor = null }, style = "primary", icon = "format_ink_highlighter")
+            }
+        }
+    }
 }
+
+/** Trecho selecionado na teoria: bloco, texto e onde a barrinha "Grifar" aparece (coordenadas da tela). */
+private data class TextPick(val block: Int, val quote: String, val x: Double, val y: Double)
 
 @Composable
 private fun TopicSources(topicId: Long) {

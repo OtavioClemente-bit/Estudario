@@ -209,7 +209,24 @@ fun PlanScreen() {
                             attr("title", if (list.isEmpty()) "Livre" else "${list.size} tarefa(s) · ${Queries.minutesLabel(minutes)}")
                             onClick { dayOffset = (epoch - todayEpoch).toInt(); view = PlanView.TODAY }
                         }) {
-                            Span({ classes("n") }) { Text("${LocalDate.fromEpochDays(epoch).day}") }
+                            Div({ classes("mhead") }) {
+                                Span({ classes("n") }) { Text("${LocalDate.fromEpochDays(epoch).day}") }
+                                if (list.isNotEmpty()) Span({ classes("mmin") }) { Text(Queries.minutesLabel(minutes)) }
+                            }
+                            // As matérias do dia direto no quadrado (sem precisar clicar), na cor de cada uma;
+                            // riscada quando todas as tarefas dela no dia já foram feitas.
+                            val subjects = list.groupBy { it.subjectName.ifBlank { "Revisão" } }.entries.sortedByDescending { e -> e.value.sumOf { it.minutes } }
+                            if (subjects.isNotEmpty()) Div({ classes("msubjects") }) {
+                                subjects.take(3).forEach { (name, tasks) ->
+                                    val done = tasks.all { it.status == "CONCLUIDA" }
+                                    Span({
+                                        classes(*listOfNotNull("mchip", if (done) "done" else null).toTypedArray())
+                                        attr("style", "--c:${subjectColor(name)}")
+                                        attr("title", "$name · ${Queries.minutesLabel(tasks.sumOf { it.minutes })}")
+                                    }) { Text(name) }
+                                }
+                                if (subjects.size > 3) Span({ classes("mchip", "more") }) { Text("+${subjects.size - 3}") }
+                            }
                             if (list.isNotEmpty()) Div({ classes(*listOfNotNull("load", if (allDone) "done" else null).toTypedArray()) }) {
                                 Span({ attr("style", "width:${(minutes * 100 / maxMinutes).coerceIn(8, 100)}%") })
                             }

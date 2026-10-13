@@ -30,7 +30,15 @@ fun FocusBar() {
     var confirmStop by remember { mutableStateOf(false) }
 
     if (hidden) {
-        Button({ classes("focus-mini"); attr("title", "Mostrar o foco"); onClick { setHidden(false) } }) { Icon("timer", filled = true); Text(TopicFocus.clock()) }
+        // Escondido: sem contagem na tela (o tempo distrai); só o selo de que o foco segue ativo.
+        Button({
+            classes(*listOfNotNull("focus-mini", if (!TopicFocus.running) "paused" else null).toTypedArray())
+            attr("title", "Mostrar o cronômetro"); attr("aria-label", "Foco ativo. Mostrar o cronômetro")
+            onClick { setHidden(false) }
+        }) {
+            Span({ classes("focus-dot") })
+            Text(if (TopicFocus.running) "Em foco" else "Pausado")
+        }
     } else {
         Div({ classes(*listOfNotNull("focus-bar", if (!TopicFocus.running) "paused" else null).toTypedArray()) }) {
             Icon("timer", filled = true)
