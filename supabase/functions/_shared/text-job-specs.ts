@@ -272,6 +272,8 @@ async function completeQuestions(
         model,
         // A primeira parte mantém a chave antiga: nova tentativa do job não paga de novo.
         part: i === 0 ? undefined : String(i + 1),
+        // Falha da parte fica registrada junto das questões descartadas, para saber o porquê.
+        onError: (message) => onDrop?.("TOPUP_FAILED" as DropReason, { statement: `parte ${i + 1}: ${message}` }),
         onFinished: (response) => meterCost(dependencies, job, "TOPUP", response),
       },
     )

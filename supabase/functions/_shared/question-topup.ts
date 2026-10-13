@@ -55,6 +55,8 @@ export interface TopUpOptions {
   model: string;
   /** Distingue chamadas paralelas do mesmo job (cada parte tem a sua chave de idempotência). */
   part?: string;
+  /** Motivo quando a parte não rende questão (erro do provedor, tempo, resposta vazia). */
+  onError?: (message: string) => void;
   budgetMs?: number;
   pollMs?: number;
   sleep?: (ms: number) => Promise<void>;
@@ -87,18 +89,23 @@ export async function runQuestionTopUp(request: TopUpRequest, options: TopUpOpti
     while (response.status === "queued" || response.status === "in_progress") {
       if (now() >= deadline) {
         await options.provider.cancel(response.id).catch(() => undefined);
+        options.onError?.("TIMEOUT");
         return [];
       }
       await sleep(options.pollMs ?? 4_000);
       response = await options.provider.retrieve(response.id);
     }
     await options.onFinished?.(response).catch(() => undefined);
-    if (response.status !== "completed" || !response.outputText) return [];
+    if (response.status !== "completed" || !response.outputText) {
+      options.onError?.(`STATUS ${response.status}`);
+      return [];
+    }
     const parsed = JSON.parse(response.outputText) as { questions?: unknown };
     return Array.isArray(parsed.questions)
       ? parsed.questions.filter((q): q is Json => q !== null && typeof q === "object" && !Array.isArray(q)).slice(0, request.missing)
       : [];
-  } catch {
+  } catch (error) {
+    options.onError?.(String(error instanceof Error ? error.message : error).slice(0, 280));
     return [];
   }
 }

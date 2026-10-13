@@ -62,8 +62,16 @@ export function hasDraftExplanation(question: Record<string, unknown>): boolean 
 
 const CHART_FENCE = /```[ \t]*(gr[aá]fico|geometria|figura|fun[cç][aã]o|pizza|barras|linha|chart)[ \t]*\n/gi;
 
+// Fórmula com \( \) ou \[ \]: o app e o site desenham $$ $$; nas alternativas a outra forma aparecia crua.
+const PAREN_MATH = /\\\(([\s\S]+?)\\\)/g;
+const BRACKET_MATH = /\\\[([\s\S]+?)\\\]/g;
+
 function renameChartFences(value: unknown): unknown {
-  if (typeof value === "string") return value.replace(CHART_FENCE, "```grafico\n");
+  if (typeof value === "string") {
+    return value.replace(CHART_FENCE, "```grafico\n")
+      .replace(BRACKET_MATH, (_, tex: string) => `$$${tex.trim()}$$`)
+      .replace(PAREN_MATH, (_, tex: string) => `$$${tex.trim()}$$`);
+  }
   if (Array.isArray(value)) return value.map(renameChartFences);
   if (isObject(value)) return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, renameChartFences(item)]));
   return value;

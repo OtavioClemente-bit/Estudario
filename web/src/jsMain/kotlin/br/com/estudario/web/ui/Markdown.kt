@@ -165,7 +165,9 @@ private fun RenderBlock(block: Block) {
  * endereço inteiro nunca aparece no meio do estudo (com a URL crua o texto ficava ilegível).
  */
 @Composable
-fun Inline(text: String) {
+fun Inline(raw: String) {
+    // Alternativas e enunciados não passam pelo Markdown: aqui também \( \) e \[ \] viram fórmula.
+    val text = MathText.inline(raw)
     val pattern = Regex("(\\\$\\\$[^\\n]+?\\\$\\\$|!?\\[[^\\]]*\\]\\([^)\\s]+\\)|<?https?://[^\\s<>)]+>?|\\*\\*[^*]+\\*\\*|__[^_]+__|`[^`]+`|\\*[^*\\s][^*]*\\*|(?<![\\w/])_[^_\\s][^_]*_(?!\\w))")
     var last = 0
     pattern.findAll(text).forEach { match ->
@@ -218,6 +220,11 @@ object MathText {
 
     /** Fórmula sozinha numa linha: vira fórmula de bloco, centralizada, como num livro. */
     val lone = Regex("^${BS}$D${BS}$D([^$D]+)${BS}$D${BS}$D$")
+
+    /** Só para uma linha de texto (alternativa, enunciado): fórmula com \( \) ou \[ \] vira $$ $$. */
+    fun inline(text: String): String = if (!text.contains(BS)) text else text
+        .replace(displayBrackets) { "$D$D${it.groupValues[1].trim()}$D$D" }
+        .replace(inlineParens) { "$D$D${it.groupValues[1].trim()}$D$D" }
 
     fun normalize(markdown: String): String = markdown
         .replace("\r\n", "\n")
