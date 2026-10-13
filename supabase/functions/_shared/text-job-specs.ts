@@ -164,11 +164,66 @@ async function libraryContent(
   }
   const fresh = input.avoidStatements.length === 0;
   const servedKey = `lib:${found.topicId}@${found.version}:${await contentCacheKey(input)}`;
-  const content = assembleFromLibrary(found.material, found.note, input, `${job.id}:${job.userId}`, found.focus ?? null);
+  const content = assembleFromLibrary(found.material, found.note, input, `${job.id}:${job.userId}`, found.focus ?? null, true);
   if (!content) return null;
+  // A biblioteca não tinha todas (ex.: 25 de 30): a IA escreve só as que faltam (até 10), em cima
+  // da teoria pronta, em vez de refazer o material inteiro.
+  const have = Array.isArray(content.questions) ? (content.questions as unknown[]).length : 0;
+  if (have < input.options.questionCount) {
+    const extra = await libraryTopUp(content, Math.min(input.options.questionCount - have, QUESTION_CHUNK), input, job, dependencies);
+    content.questions = [...(content.questions as unknown[]), ...extra];
+  }
   if (fresh) await store.markServed?.(servedKey, job.userId).catch(() => undefined);
   await store.recordLibraryHit?.(found.topicId).catch(() => undefined);
   return content as unknown as WorkerProposal;
+}
+
+/**
+ * Questões que faltam num material da biblioteca: uma chamada curta, sem pesquisa, a partir dos
+ * capítulos prontos; passam pelo conserto e (3 ou mais) pelo revisor. Se der errado, nada é somado.
+ */
+async function libraryTopUp(
+  content: Record<string, unknown>,
+  missing: number,
+  input: ContentJobInput,
+  job: SyllabusWorkerJob,
+  dependencies: Parameters<NonNullable<AiJobSpec["cached"]>>[1],
+): Promise<Record<string, unknown>[]> {
+  if (missing <= 0 || !dependencies.provider) return [];
+  const context = [input.competitionName, input.role, input.board ? `banca ${input.board}` : null, input.subjectName, input.topicPath.join(" › ")].filter(Boolean).join(" · ");
+  const model = resolveOpenAiModel(dependencies.modelForJob?.(job) ?? dependencies.model);
+  const raw = await runQuestionTopUp(
+    { content, missing, questionStyle: input.options.questionStyle, difficulty: input.options.difficulty, context },
+    {
+      provider: dependencies.provider,
+      jobId: job.id,
+      model,
+      part: "biblioteca",
+      onFinished: (response) => meterCost(dependencies, job, "TOPUP", response),
+    },
+  );
+  if (raw.length === 0) return [];
+  try {
+    const repaired = JSON.parse(repairTopicContent(JSON.stringify({ ...content, questions: raw }), { ...input.options, questionCount: missing }, 0)) as Record<string, unknown>;
+    let extra = (repaired.questions as Record<string, unknown>[]) ?? [];
+    if (extra.length >= 3 && Deno.env.get("CONTENT_REVIEW_ENABLED") !== "false") {
+      const review = await runContentReview({ ...repaired, questions: extra }, {
+        provider: dependencies.provider,
+        jobId: job.id,
+        model,
+        part: "biblioteca",
+        context,
+        onFinished: (response) => meterCost(dependencies, job, "REVIEW", response),
+      }).catch(() => null);
+      if (review) {
+        const { content: applied } = applyReview({ ...repaired, questions: extra }, review);
+        extra = (applied.questions as Record<string, unknown>[]).filter((q) => !hasDraftExplanation(q));
+      }
+    }
+    return extra.slice(0, missing);
+  } catch {
+    return [];
+  }
 }
 
 /**

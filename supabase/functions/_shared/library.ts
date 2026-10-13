@@ -543,6 +543,8 @@ export function assembleFromLibrary(
   input: Pick<ContentJobInput, "board" | "options" | "avoidStatements">,
   seed: string,
   focus: LibraryFocus | null = null,
+  /** Entrega o material mesmo com menos questões que o pedido (quem chama completa as que faltam). */
+  partial = false,
 ): Json | null {
   const options = input.options;
   const wants = (block: string) => options.blocks.includes(block as never);
@@ -592,7 +594,7 @@ export function assembleFromLibrary(
   // "Mais questões" (só o bloco de questões): entrega as inéditas que a biblioteca ainda tem, mesmo
   // que sejam menos que o pedido; a IA só entra quando não sobrou nenhuma.
   const questionsOnly = options.blocks.length === 1 && wants("QUESTIONS");
-  if (questions.length === 0 || (questions.length < options.questionCount && !questionsOnly)) return null;
+  if (questions.length === 0 || (questions.length < options.questionCount && !questionsOnly && !partial)) return null;
   // As que completaram a cota vêm de nível vizinho; o app espera o nível pedido em todas, como na
   // geração por IA (content-repair faz o mesmo).
   if (wanted !== null) for (const question of questions) question.difficulty = wanted;
