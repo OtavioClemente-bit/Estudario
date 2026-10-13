@@ -172,26 +172,46 @@ private fun NotesTab(notes: List<Triple<Long, Long?, String>>, topics: List<Pair
     }
 }
 
-/** Agrupa por tópico, com o nome da matéria, para o Caderno não virar uma lista solta. */
+/**
+ * Agrupa por tópico, com o nome da matéria, para o Caderno não virar uma lista solta. Com mais de um
+ * grupo, todos começam recolhidos (só o cabeçalho com a quantidade): a página não vira um rolo
+ * gigante e a pessoa abre o tópico que quer, ou todos de uma vez.
+ */
 @Composable
 fun <T> ByTopic(groups: Map<*, List<T>>, item: @Composable (T) -> Unit) {
     val data = Store.data
     val topics = data.topics.associateBy { it.id }
     val subjects = data.subjects.associateBy { it.id }
+    val many = groups.size > 1
+    val opened = remember { androidx.compose.runtime.mutableStateMapOf<Long, Boolean>() }
+    fun isOpen(id: Long) = opened[id] ?: !many
+    val ids = groups.keys.map { (it as Long?) ?: -1L }
     Div({ classes("stack") }) {
+        if (many) Div({ classes("row", "between") }) {
+            Span({ classes("small", "muted") }) { Text("${groups.size} tópicos · ${groups.values.sumOf { it.size }} itens") }
+            val allOpen = ids.all { isOpen(it) }
+            Btn(if (allOpen) "Recolher todos" else "Abrir todos", { ids.forEach { opened[it] = !allOpen } }, style = "ghost", small = true, icon = if (allOpen) "unfold_less" else "unfold_more")
+        }
         groups.entries.map { (it.key as Long?) to it.value }.sortedBy { e -> e.first?.let { topics[it]?.title } ?: "~" }.forEach { (topicId, list) ->
             key(topicId ?: -1L) {
                 val topic = topicId?.let { topics[it] }
-                Div({ classes("topic-group") }) {
-                    Div({ classes("topic-group-head") }) {
+                val id = topicId ?: -1L
+                val open = isOpen(id)
+                Div({ classes(*listOfNotNull("topic-group", if (open) null else "collapsed").toTypedArray()) }) {
+                    Div({
+                        classes("topic-group-head", "clickable")
+                        attr("role", "button"); attr("tabindex", "0"); attr("aria-expanded", open.toString())
+                        onClick { opened[id] = !open }
+                    }) {
+                        Icon(if (open) "expand_less" else "expand_more", extraClass = "faint")
                         Div({ classes("grow"); attr("style", "min-width:0") }) {
                             Div({ classes("crumb") }) { Text(topic?.let { subjects[it.subjectId]?.name }?.uppercase() ?: "GERAL") }
                             B { Text(topic?.title ?: "Sem tópico") }
                         }
                         Span({ classes("count-pill") }) { Text("${list.size}") }
-                        if (topic != null) IconButton("arrow_forward", "Abrir tópico") { Router.go(Route.Topic(topic.id)) }
+                        if (topic != null) Span({ onClick { it.stopPropagation() } }) { IconButton("arrow_forward", "Abrir tópico") { Router.go(Route.Topic(topic.id)) } }
                     }
-                    Div({ classes("topic-group-body") }) { list.forEach { item(it) } }
+                    if (open) Div({ classes("topic-group-body") }) { list.forEach { item(it) } }
                 }
             }
         }

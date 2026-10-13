@@ -320,6 +320,8 @@
       const sc = (0.82 + 0.18 * e) * breath;
       this._folha.style.transform = `perspective(600px) rotateY(${(1 - e) * 88}deg) scale(${sc})`;
       this._folha.style.opacity = String(0.2 + 0.8 * e);
+      // Uma folha chega a cada FLIGHT / 5 s; logo depois da chegada ele abre a boca e "engole".
+      this._folha.gulp = still ? 0 : Math.min(1, Math.max(0, 1 - (t % (FLIGHT / 5)) / 0.38));
       if (still) live.delete(this);
     }
   }

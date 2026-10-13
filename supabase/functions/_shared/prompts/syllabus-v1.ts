@@ -98,6 +98,8 @@ export function parseSyllabusGenerationOptions(
     competitionName === null || role === null || board === null || year === null
   ) return null;
   if (competitionName.length === 0 || role.length === 0) return null;
+  // Cargo é nome curto; pedido escrito no campo ("pesquise...", "faça um quiz?") recusa o pedido.
+  if (role.length > 80 || !/^[\p{L}\p{N} ,./()&ºª–—-]+$/u.test(role)) return null;
   if (year.length > 0 && !/^\d{4}$/.test(year)) return null;
   const scope = record.scope ?? "FULL";
   const detail = record.detail ?? "DIDACTIC";

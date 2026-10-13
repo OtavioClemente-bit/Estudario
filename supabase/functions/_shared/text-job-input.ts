@@ -140,13 +140,25 @@ export function boardName(value: unknown): string | null {
   return /^[\p{L}\p{N} ./()&ºª-]+$/u.test(clean) ? clean : null;
 }
 
+/**
+ * Cargo: nome curto (até 80 caracteres e 12 palavras; letras, números, espaço e , . / ( ) – -).
+ * Pedido escrito no campo ("pesquise...", "faça um quiz?") é ignorado, como na banca.
+ */
+export function roleName(value: unknown): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string") throw new TextJobInputError("role");
+  const clean = value.replace(/\s+/g, " ").trim();
+  if (clean.length === 0 || clean.length > 80 || clean.split(" ").length > 12) return null;
+  return /^[\p{L}\p{N} ,./()&ºª–—-]+$/u.test(clean) ? clean : null;
+}
+
 export function parseContentJobInput(value: unknown): ContentJobInput {
   if (!isRecord(value)) throw new TextJobInputError("input");
   const path = value.topicPath;
   if (!Array.isArray(path) || path.length === 0 || path.length > 6) throw new TextJobInputError("topicPath");
   return {
     competitionName: clipped(value.competitionName, "competitionName", 150, true)!,
-    role: clipped(value.role, "role", 120, false),
+    role: roleName(value.role),
     board: boardName(value.board),
     agency: clipped(value.agency, "agency", 120, false),
     sphere: value.sphere === undefined || value.sphere === null

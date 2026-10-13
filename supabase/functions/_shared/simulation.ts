@@ -1,7 +1,7 @@
 import type { JsonSchema } from "./schema.ts";
 import { ProposalValidationError } from "./proposal-validator.ts";
 import type { ExpectedVersions } from "./text-job-validators.ts";
-import { boardName, integer, isRecord, oneOf, optionalText, text, TextJobInputError } from "./text-job-input.ts";
+import { boardName, integer, roleName, isRecord, oneOf, optionalText, text, TextJobInputError } from "./text-job-input.ts";
 
 // Simulado: uma PARTE de até 30 questões inéditas, montada pela planta da prova que o app calcula
 // (quantas questões por matéria e tópico, dificuldade, formato da banca). O servidor só aceita a
@@ -104,7 +104,7 @@ export function parseSimulationJobInput(value: unknown): SimulationJobInput {
   };
   return {
     competitionName: text(value.competitionName, "competitionName"),
-    role: optionalText(value.role, "role", 120),
+    role: roleName(value.role),
     board: boardName(value.board),
     agency: optionalText(value.agency, "agency", 160),
     sphere: value.sphere === undefined || value.sphere === null
