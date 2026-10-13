@@ -22,6 +22,7 @@ import br.com.estudario.web.data.Catalog
 import br.com.estudario.web.data.CatalogEntry
 import br.com.estudario.web.data.CatalogSubject
 import br.com.estudario.web.data.EditalAi
+import br.com.estudario.web.data.Entitlements
 import br.com.estudario.web.data.Planning
 import br.com.estudario.web.data.Queries
 import br.com.estudario.web.data.Snapshot
@@ -83,9 +84,11 @@ fun SetupScreen() {
     var preview by remember { mutableStateOf<Pair<Snapshot, String>?>(null) }
     var building by remember { mutableStateOf(false) }
 
+    var limits by remember { mutableStateOf(Entitlements.current) }
     LaunchedEffect(Unit) {
         try { entries = Catalog.entries() } catch (e: Throwable) { error = e.message }
     }
+    LaunchedEffect(Unit) { limits = Entitlements.load() }
 
     // O edital escolhido, num formato só: (matéria, tópicos).
     val edital: List<Pair<String, List<String>>> = aiEdital?.third?.map { it.name to flatten(it.topics) } ?: subjects.map { it.name to it.topics }
@@ -95,6 +98,12 @@ fun SetupScreen() {
         val entry = chosen
         val ai = aiEdital
         val (withEdital, competitionId) = if (entry != null) Catalog.apply(data, entry, subjects) else EditalAi.apply(data, ai!!.first, ai.third)
+        // Sem direito a plano novo (Grátis já tem o seu): o concurso entra no plano que existe.
+        val existing = data.plans.firstOrNull { it.active } ?: data.plans.firstOrNull()
+        if (existing != null && !Entitlements.canCreatePlan(data)) {
+            val competitions = Planning.competitionsOf(withEdital, existing.id) + competitionId
+            return Planning.setCompetitions(withEdital, existing.id, competitions) to existing.id
+        }
         val choices = withEdital.subjects.filter { it.competitionId == competitionId }.sortedBy { it.position }.map { s ->
             val a = axes[s.name] ?: SubjectAxes()
             Planning.SubjectChoice(s.id, s.name, priority = a.priority, personalDifficulty = a.difficulty, initialKnowledge = a.knowledge)
@@ -112,6 +121,21 @@ fun SetupScreen() {
                 method = StudyMethodConfig.forProfile(profile),
             ),
         )
+    }
+
+    // Editais salvos no limite do plano: em vez do assistente, a oferta de assinatura.
+    if (limits != null && !Store.demo && !Entitlements.canAddEdital(Store.data)) {
+        var upgrade by remember { mutableStateOf(false) }
+        Card {
+            FolhaSays("thinking", 72) { B { Text("Você já tem ${Store.data.competitions.size} editais salvos, o máximo do seu plano.") } }
+            P({ classes("muted") }) { Text("Para começar outro concurso, exclua um dos editais na tela do edital ou assine um plano com mais espaço.") }
+            Div({ classes("row") }) {
+                Btn("Ver planos", { upgrade = true }, style = "primary", icon = "workspace_premium")
+                Btn("Voltar", { Router.go(Route.Edital) }, style = "ghost")
+            }
+        }
+        if (upgrade) UpgradeModal(UpgradeReason.EDITAIS) { upgrade = false }
+        return
     }
 
     // Tela final: o Folha montando e a prévia do plano.

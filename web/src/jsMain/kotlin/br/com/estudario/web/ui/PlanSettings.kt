@@ -1,6 +1,7 @@
 package br.com.estudario.web.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -72,6 +73,9 @@ fun PlanSettingsScreen() {
     var error by remember { mutableStateOf<String?>(null) }
 
     var deleting by remember { mutableStateOf(false) }
+    var planUpgrade by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { br.com.estudario.web.data.Entitlements.load() }
+    if (planUpgrade) UpgradeModal(UpgradeReason.PLANS) { planUpgrade = false }
     if (deleting) ConfirmDeleteModal(
         title = "Excluir o plano ${plan.name}?",
         body = "Saem as tarefas, as horas e o histórico de replanejamento deste plano. O que você estudou (tópicos, questões, revisões) continua. Isso vale no celular também.",
@@ -85,7 +89,7 @@ fun PlanSettingsScreen() {
     }
     Div({ classes("row", "between") }) {
         Btn("Plano", { Router.go(Route.Plan) }, style = "ghost", small = true, icon = "arrow_back")
-        if (!Store.demo) Btn("Excluir plano", { deleting = true }, style = "ghost", small = true, icon = "delete")
+        if (!Store.demo) Btn("Excluir plano", { if (br.com.estudario.web.data.Entitlements.canDeletePlan()) deleting = true else planUpgrade = true }, style = "ghost", small = true, icon = "delete")
     }
     PageHead("Ajustar plano", "Mudou a rotina? O plano se reorganiza com as novas horas, sem perder o que você já fez.")
     error?.let { Div({ classes("banner", "error") }) { Text(it) } }

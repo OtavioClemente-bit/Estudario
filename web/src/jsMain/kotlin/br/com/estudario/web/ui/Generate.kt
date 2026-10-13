@@ -149,7 +149,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                 if (p is AiContent.Progress.Failed) {
                     Div({ classes("banner", "error") }) { Icon("error"); Text(p.message) }
                     var upgradeSeen by remember(p) { mutableStateOf(false) }
-                    if (isQuotaMessage(p.message) && !upgradeSeen) UpgradeModal(UpgradeReason.CONTENT) { upgradeSeen = true }
+                    if (isQuotaMessage(p.message) && !upgradeSeen) UpgradeModal(if (questionsOnly) UpgradeReason.QUESTIONS else UpgradeReason.CONTENT) { upgradeSeen = true }
                 }
                 Div({ classes("row", "between"); attr("style", "margin-top:4px") }) {
                     if (step > 0) Btn("Voltar", { step-- }, style = "ghost", icon = "arrow_back") else Btn("Cancelar", onClose, style = "ghost")

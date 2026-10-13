@@ -69,6 +69,8 @@ export interface AiSyllabusJobsDependencies {
   planRules?: (userId: string) => Promise<PlanRules>;
   /** Lotes extras já pedidos (e não falhos) para o mesmo tópico, em toda a vida da conta. */
   topicBatchCount?: (userId: string, topicPath: readonly string[]) => Promise<number>;
+  /** Lotes que ainda faltam para completar a última matéria do tópico (que saiu com menos questões que o pedido). */
+  owedBatches?: (userId: string, topicPath: readonly string[]) => Promise<number>;
   /** Saldo grátis somado por aparelho (todas as contas do celular). Ausente = não confere (testes). */
   deviceQuota?: DeviceQuota;
   /** Saldo grátis somado por rede (hash do IP): app web e pedidos sem aparelho. Ausente = não confere. */
@@ -536,6 +538,12 @@ async function createTextJob(
       return safeError("PLAN_FEATURE_LOCKED", 403);
     }
   }
+  // Matéria que saiu com menos questões que o pedido (a IA entrega até 10): os lotes até completar
+  // não gastam cota. O worker devolve a cota quando o lote marcado dá certo.
+  let compensated = false;
+  if (feature === "QUESTION_BATCH" && dependencies.owedBatches) {
+    compensated = await dependencies.owedBatches(user.userId, (input as ContentJobInput).topicPath).then((owed) => owed > 0).catch(() => false);
+  }
   // O app já limita a régua ao plano; aqui é a garantia, antes de reservar cota.
   const questionCount = feature === "CONTENT_GENERATION" && !dependencies.planRules ? (input as ContentJobInput).options.questionCount : 0;
   if (questionCount > 0 && dependencies.questionLimit) {
@@ -547,7 +555,7 @@ async function createTextJob(
     }
     if (questionCount > limit) return safeError("QUESTION_LIMIT_EXCEEDED", 403);
   }
-  const payload = { feature, input } satisfies Record<string, unknown>;
+  const payload = { feature, input, ...(compensated ? { compensated: true } : {}) } satisfies Record<string, unknown>;
   const fingerprint = await requestFingerprint(payload);
   let created;
   try {
@@ -767,6 +775,30 @@ function runtimeDependencies(request: Request): AiSyllabusJobsDependencies {
       const rows = await response.json() as { topic?: unknown }[];
       const key = JSON.stringify(topicPath);
       return rows.filter((row) => JSON.stringify(row.topic) === key).length;
+    },
+    owedBatches: async (userId, topicPath) => {
+      const headers = { apikey: serviceRoleKey, authorization: `Bearer ${serviceRoleKey}` };
+      const get = async <T>(query: string): Promise<T> => {
+        const response = await fetch(`${supabaseUrl}/rest/v1/${query}`, { headers });
+        if (!response.ok) throw new Error("OWED_BATCHES_FAILED");
+        return await response.json() as T;
+      };
+      const user = encodeURIComponent(userId);
+      const key = JSON.stringify(topicPath);
+      const materials = await get<{ id: string; created_at: string; topic: unknown; asked: number | null }[]>(
+        `ai_jobs?select=id,created_at,topic:request_payload->input->topicPath,asked:request_payload->input->options->questionCount` +
+          `&user_id=eq.${user}&feature=eq.CONTENT_GENERATION&status=eq.SUCCEEDED&order=created_at.desc&limit=200`,
+      );
+      const material = materials.find((row) => JSON.stringify(row.topic) === key);
+      if (!material || !material.asked) return 0;
+      const [delivered] = await get<{ questions: unknown[] | null }[]>(`ai_jobs?select=questions:proposal->questions&id=eq.${material.id}`);
+      const owed = Math.ceil(Math.max(0, material.asked - (delivered?.questions?.length ?? 0)) / QUESTION_BATCH_SIZE);
+      if (owed === 0) return 0;
+      const batches = await get<{ topic: unknown; compensated: unknown }[]>(
+        `ai_jobs?select=topic:request_payload->input->topicPath,compensated:request_payload->compensated` +
+          `&user_id=eq.${user}&feature=eq.QUESTION_BATCH&status=not.in.(FAILED,EXPIRED,CANCELLED)&created_at=gt.${encodeURIComponent(material.created_at)}&limit=200`,
+      );
+      return owed - batches.filter((row) => row.compensated === true && JSON.stringify(row.topic) === key).length;
     },
     deviceQuota: serviceDeviceQuota(supabaseUrl, serviceRoleKey),
     networkQuota: serviceNetworkQuota(supabaseUrl, serviceRoleKey),

@@ -189,6 +189,8 @@ export interface SyllabusWorkerStore {
   recordQuestionDrops?(jobId: string, drops: QuestionDrop[]): Promise<void>;
   /** Plano efetivo da conta e quantas matérias a IA já escreveu para ela neste mês (as da biblioteca não contam). */
   aiMaterialsThisMonth?(userId: string): Promise<{ tier: string; used: number }>;
+  /** Devolve 1 da cota de um lote de compensação que deu certo (uma vez só; ver ai_refund_job_quota). */
+  refundJobQuota?(jobId: string): Promise<void>;
   /** Revisão já concluída deste job (nova tentativa não paga o revisor de novo). */
   completedReviewId?(jobId: string): Promise<string | null>;
   captureUsage(
@@ -504,6 +506,12 @@ async function cleanupBestEffort(
   } catch { /* cleanup store persists a retryable pending record */ }
 }
 
+/** Lote marcado como compensação (matéria que saiu com menos questões que o pedido): a cota volta. */
+async function refundCompensation(dependencies: SyllabusWorkerDependencies, job: SyllabusWorkerJob): Promise<void> {
+  if (job.requestPayload?.compensated !== true || !dependencies.jobs.refundJobQuota) return;
+  await dependencies.jobs.refundJobQuota(job.id).catch(() => undefined);
+}
+
 async function finalizeFailure(
   dependencies: SyllabusWorkerDependencies,
   job: SyllabusWorkerJob,
@@ -669,6 +677,7 @@ async function processResponse(
     proposal.warnings,
     response.id,
   );
+  await refundCompensation(dependencies, job);
   await emitTerminalTelemetry(
     dependencies,
     job,
@@ -841,6 +850,7 @@ export async function processSyllabusJob(
       const cached = spec.cached ? await spec.cached(job, dependencies).catch(() => null) : null;
       if (cached) {
         await dependencies.jobs.finalizeSuccess(job.id, lease, cached, cached.warnings, null);
+        await refundCompensation(dependencies, job);
         return true;
       }
       // Ex.: Grátis que já usou as matérias pela IA do mês. A IA nem é chamada; a cota volta.
@@ -1366,6 +1376,10 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
     );
     if (!jobs.ok) throw new Error("JOBS_UNAVAILABLE");
     return { tier, used: ((await jobs.json()) as unknown[]).length };
+  }
+  async refundJobQuota(jobId: string): Promise<void> {
+    const response = await this.rest("rpc/ai_refund_job_quota", { method: "POST", body: JSON.stringify({ p_job_id: jobId }) });
+    await response.body?.cancel().catch(() => {});
   }
   async recordQuestionDrops(jobId: string, drops: QuestionDrop[]): Promise<void> {
     const response = await this.rest("ai_question_drops", {
