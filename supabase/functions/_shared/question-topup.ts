@@ -71,7 +71,7 @@ export async function runQuestionTopUp(request: TopUpRequest, options: TopUpOpti
   const now = options.now ?? Date.now;
   const deadline = now() + (options.budgetMs ?? 120_000);
   try {
-    let response = await options.provider.start({
+    const startRequest = () => options.provider.start({
       jobId: options.jobId,
       idempotencyKey: `${options.jobId}:topup${options.part ? `-${options.part}` : ""}`,
       feature: "CONTENT_TOPUP",
@@ -86,6 +86,18 @@ export async function runQuestionTopUp(request: TopUpRequest, options: TopUpOpti
       store: true,
       maxOutputTokens: 8_000,
     });
+    // Limite por minuto da conta (as partes saem juntas, logo depois da revisão): espera e tenta de novo.
+    let response;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        response = await startRequest();
+        break;
+      } catch (error) {
+        const limited = (error as { code?: string }).code === "OPENAI_RATE_LIMITED";
+        if (!limited || attempt >= 2 || now() + 15_000 >= deadline) throw error;
+        await sleep(10_000 * (attempt + 1));
+      }
+    }
     while (response.status === "queued" || response.status === "in_progress") {
       if (now() >= deadline) {
         await options.provider.cancel(response.id).catch(() => undefined);
@@ -105,7 +117,9 @@ export async function runQuestionTopUp(request: TopUpRequest, options: TopUpOpti
       ? parsed.questions.filter((q): q is Json => q !== null && typeof q === "object" && !Array.isArray(q)).slice(0, request.missing)
       : [];
   } catch (error) {
-    options.onError?.(String(error instanceof Error ? error.message : error).slice(0, 280));
+    const e = error as { code?: string; outcome?: string; diagnostics?: { status?: number; code?: string | null; message?: string } };
+    const detail = [e.code, e.outcome, e.diagnostics?.status, e.diagnostics?.code, e.diagnostics?.message].filter((v) => v !== undefined && v !== null).join(" | ");
+    options.onError?.((detail || String(error instanceof Error ? error.message : error)).slice(0, 280));
     return [];
   }
 }
