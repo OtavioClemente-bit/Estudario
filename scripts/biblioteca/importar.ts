@@ -323,6 +323,18 @@ try {
 for (let i = 0; i < catalogRows.length; i += 20) {
   await rest("exam_catalog?on_conflict=id", "POST", catalogRows.slice(i, i + 20), "resolution=merge-duplicates,return=minimal");
 }
-const keepIds = catalogRows.map((row) => `"${row.id}"`).join(",");
-await rest(keepIds ? `exam_catalog?id=not.in.(${encodeURIComponent(keepIds)})` : "exam_catalog?id=not.is.null", "DELETE");
+// Apaga só os que saíram, em lotes: a lista inteira de ids no "not.in" estoura o tamanho da URL.
+const keepSet = new Set(catalogRows.map((row) => row.id as string));
+const staleCatalog: string[] = [];
+for (let from = 0; ; from += 1000) {
+  const page = await fetch(`${url}/rest/v1/exam_catalog?select=id&order=id`, {
+    headers: { apikey: key!, authorization: `Bearer ${key}`, range: `${from}-${from + 999}` },
+  }).then((r) => r.json()) as { id: string }[];
+  for (const r of page) if (!keepSet.has(r.id)) staleCatalog.push(r.id);
+  if (page.length < 1000) break;
+}
+for (let i = 0; i < staleCatalog.length; i += 50) {
+  const list = staleCatalog.slice(i, i + 50).map((id) => `"${id}"`).join(",");
+  await rest(`exam_catalog?id=in.(${encodeURIComponent(list)})`, "DELETE");
+}
 console.log(`Publicado: ${materials.size} matéria(s), ${aliasOwner.size} apelido(s), ${notes.length} recorte(s), ${catalogRows.length} edital(is) no catálogo.`);
