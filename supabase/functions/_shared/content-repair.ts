@@ -126,7 +126,7 @@ export function balanceAnswerKeys(questions: Json[]): Json[] {
 /** Por que uma questão saiu do material; fica registrado para saber o que o modelo mais erra. */
 export type DropReason =
   | "EMPTY_STATEMENT" | "DUPLICATE" | "NO_EXPLANATION" | "DRAFT_EXPLANATION" | "WRONG_OPTION_KEYS"
-  | "NOT_ONE_CORRECT" | "EMPTY_OPTION" | "MIXED_UNITS" | "REVIEW_REMOVED" | "REVIEW_DRAFT";
+  | "NOT_ONE_CORRECT" | "EMPTY_OPTION" | "DUPLICATE_OPTIONS" | "MIXED_UNITS" | "REVIEW_REMOVED" | "REVIEW_DRAFT" | "TOPUP_FAILED";
 
 // Unidade no fim de uma alternativa numérica ("26 m", "52 m²", "4800 N").
 const TRAILING_UNIT = /\d\s*(km|cm|mm|m|m²|cm²|mm²|km²|m³|cm³|kg|g|mg|kPa|Pa|kN|N|mA|A|kV|V|kΩ|Ω|kW|W|kJ|J|kWh|L|mL|s|min|h|%)\.?$/;
@@ -150,6 +150,9 @@ function brokenQuestion(q: Json, statements: Set<string>, options: ContentGenera
   if (keys !== expected) return "WRONG_OPTION_KEYS";
   if (answers.filter((option) => option.correct === true).length !== 1) return "NOT_ONE_CORRECT";
   if (answers.some((option) => !text(option.text))) return "EMPTY_OPTION";
+  // Duas alternativas iguais (muitas vezes a certa repetida): quem marca a "outra" erra tendo acertado.
+  const optionTexts = answers.map((option) => text(option.text).toLowerCase().replace(/[\s.$]+/g, ""));
+  if (new Set(optionTexts).size !== optionTexts.length) return "DUPLICATE_OPTIONS";
   if (mixedUnits(answers.map((option) => text(option.text)))) return "MIXED_UNITS";
   return null;
 }
