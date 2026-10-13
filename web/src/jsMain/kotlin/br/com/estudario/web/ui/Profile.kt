@@ -415,10 +415,11 @@ private class PlanInfo(val tier: String, val renewsAt: String?, val plans: List<
 private fun brl(cents: Int): String = "R$ " + (cents / 100).toString().reversed().chunked(3).joinToString(".").reversed() + "," + (cents % 100).toString().padStart(2, '0')
 
 private fun featureLabel(feature: String) = when (feature) {
-    "SYLLABUS_GENERATION" -> "Editais organizados"
+    "SYLLABUS_GENERATION" -> "Edital pelo seu PDF"
     "PLAN_GENERATION" -> "Planos de estudo"
-    "CONTENT_GENERATION" -> "Materiais completos"
-    "QUESTION_BATCH" -> "Lotes de questões extras"
+    "CONTENT_GENERATION" -> "Matérias"
+    "QUESTION_BATCH" -> "Lotes de 10 questões extras"
+    "SAVED_EDITAIS" -> "Editais salvos"
     "AD_REWARD" -> "Bônus por anúncio"
     "SIMULATION_GENERATION" -> "Simulados no estilo da banca"
     else -> feature
@@ -430,20 +431,30 @@ private fun featureIcon(feature: String) = when (feature) {
     "QUESTION_BATCH" -> "quiz"
     "SIMULATION_GENERATION" -> "workspace_premium"
     "AD_REWARD" -> "ondemand_video"
+    "SAVED_EDITAIS" -> "bookmarks"
+    "PLAN_GENERATION" -> "event_note"
     else -> "auto_awesome"
 }
 
-private val visibleFeatures = listOf("CONTENT_GENERATION", "SYLLABUS_GENERATION", "SIMULATION_GENERATION", "QUESTION_BATCH")
+private val visibleFeatures = listOf("CONTENT_GENERATION", "QUESTION_BATCH", "SIMULATION_GENERATION", "SAVED_EDITAIS", "PLAN_GENERATION", "SYLLABUS_GENERATION")
 private fun planName(tier: String) = when (tier) { "ESSENCIAL" -> "Essencial"; "PRO" -> "Pro"; else -> "Grátis" }
 private fun planTagline(tier: String) = when (tier) {
     "ESSENCIAL" -> "Para estudar todo dia, matéria por matéria"
     "PRO" -> "Para a reta final, com folga para estudar tudo"
     else -> "Para conhecer o Estudário"
 }
-private fun limitCopy(l: PlanLimit) = listOfNotNull(
-    when (l.periodKind) { "LIFETIME" -> "${l.quota} no total"; "DAILY" -> "${l.quota} por dia"; else -> "${l.quota} por mês" },
-    l.maxPerRequest?.let { "até $it questões por lote" },
-).joinToString(" · ")
+private fun limitCopy(l: PlanLimit): String {
+    if (l.feature == "SAVED_EDITAIS") return if (l.quota >= 1000) "sem limite" else "até ${l.quota}"
+    if (l.quota == 0) return "não incluso"
+    return listOfNotNull(
+        when (l.periodKind) { "LIFETIME" -> if (l.feature == "SIMULATION_GENERATION" || l.feature == "PLAN_GENERATION") "${l.quota} (uma vez)" else "${l.quota} no total"; "DAILY" -> "${l.quota} por dia"; else -> "${l.quota} por mês" },
+        when (l.feature) {
+            "CONTENT_GENERATION" -> l.maxPerRequest?.let { "até $it questões ao criar" }
+            "QUESTION_BATCH" -> if (l.periodKind == "MONTHLY" && l.quota <= 3) "1 por matéria" else null
+            else -> null
+        },
+    ).joinToString(" · ")
+}
 private fun shortIso(iso: String?) = iso?.takeIf { it.length >= 10 }?.let { "${it.substring(8, 10)}/${it.substring(5, 7)}" }
 
 private fun parsePlan(body: String): PlanInfo {
