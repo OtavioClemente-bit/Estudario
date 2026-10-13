@@ -430,7 +430,9 @@ private fun TheoryReader(theory: Theory) {
             o.quote = m.quote
             o
         }.toTypedArray()
-        window.asDynamic().estudarioHighlight?.invoke(theory.id, list)
+        // Em dynamic, "?.invoke()" vira chamada ao método invoke (inexistente) e derruba a tela: chamar direto.
+        val highlight = window.asDynamic().estudarioHighlight
+        if (highlight != null && highlight != undefined) highlight(theory.id, list)
     }
     // Selecionar um trecho mostra a barrinha "Grifar" logo acima dele.
     var picked by remember(theory.id) { mutableStateOf<TextPick?>(null) }
@@ -438,7 +440,8 @@ private fun TheoryReader(theory: Theory) {
     DisposableEffect(theory.id) {
         val check: (org.w3c.dom.events.Event) -> Unit = {
             window.setTimeout({
-                val s = window.asDynamic().estudarioSelection?.invoke()
+                val selection = window.asDynamic().estudarioSelection
+                val s = if (selection != null && selection != undefined) selection() else null
                 picked = if (s == null || s == undefined || (s.theoryId as Number).toLong() != theory.id) null
                 else TextPick((s.block as Number).toInt(), s.quote as String, (s.x as Number).toDouble(), (s.y as Number).toDouble())
             }, 0)
