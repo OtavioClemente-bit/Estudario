@@ -26,6 +26,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -179,8 +180,16 @@ private fun outward(mid: Offset, a: Offset, b: Offset, centroid: Offset): Offset
 
 private fun DrawScope.drawLabelNear(measurer: TextMeasurer, text: String, anchor: Offset, direction: Offset, style: TextStyle) {
     val layout = measurer.measure(text, style, softWrap = false, maxLines = 1)
-    val gap = 12.dp.toPx()
-    val center = anchor + direction * (gap + max(layout.size.width, layout.size.height) / 2f)
+    // Distância até a borda da caixa do texto na direção pedida, para o rótulo não encostar na linha.
+    val reach = 10.dp.toPx() + abs(direction.x) * layout.size.width / 2f + abs(direction.y) * layout.size.height / 2f
+    fun fits(d: Offset): Boolean {
+        val c = anchor + d * reach
+        return c.x - layout.size.width / 2f >= 0f && c.x + layout.size.width / 2f <= size.width &&
+            c.y - layout.size.height / 2f >= 0f && c.y + layout.size.height / 2f <= size.height
+    }
+    // Se do lado pedido o texto sairia da figura (e seria empurrado para cima da linha), usa o lado oposto.
+    val side = if (fits(direction) || !fits(-direction)) direction else -direction
+    val center = anchor + side * reach
     val topLeft = Offset(
         (center.x - layout.size.width / 2f).coerceIn(0f, (size.width - layout.size.width).coerceAtLeast(0f)),
         (center.y - layout.size.height / 2f).coerceIn(0f, (size.height - layout.size.height).coerceAtLeast(0f)),

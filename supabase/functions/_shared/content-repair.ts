@@ -56,6 +56,17 @@ function contradictsTrueFalseKey(q: Record<string, unknown>): boolean {
   return markedTrue !== (verdict === "certo" || verdict === "correto");
 }
 
+/**
+ * Assertivas na mesma linha ("Avalie: I. ... II. ... III. ..."): um parágrafo por item e o comando
+ * final ("Assinale...") separado, para o app e o site mostrarem como na prova.
+ */
+export function breakAssertivas(statement: string): string {
+  if (!/(^|\s)I[.)]\s/.test(statement) || !/\sII[.)]\s/.test(statement) || statement.includes("\nII")) return statement;
+  return statement
+    .replace(/\s+(?=(?:I|II|III|IV|V|VI)[.)]\s)/g, "\n\n")
+    .replace(/\s+(?=(?:Assinale|Est[áa] correto|[ÉE] correto|Est[ãa]o corretos|S[ãa]o corretas?|Indique|Marque)\b)/, "\n\n");
+}
+
 export function hasDraftExplanation(question: Record<string, unknown>): boolean {
   return typeof question.explanation === "string" && DRAFT_EXPLANATION.test(question.explanation);
 }
@@ -219,6 +230,7 @@ export function repairTopicContent(
       const realIsComplete = q.sourceType === "REAL" && validUrl(q.sourceUrl) && text(q.board).length > 0 &&
         typeof q.year === "number" && q.year >= 1980 && q.year <= 2100;
       if (!realIsComplete) Object.assign(q, { sourceType: "AUTHORIAL", sourceUrl: null, board: null, agency: null, year: null });
+      if (typeof q.statement === "string") q.statement = breakAssertivas(q.statement);
       // Rastro da pesquisa do modelo no fim da explicação ("Padrão de cobrança: BANCA 2021, órgão…; link").
       if (typeof q.explanation === "string") q.explanation = q.explanation.replace(/\s*Padr[aã]o de cobran[cç]a\s*:[\s\S]*$/i, "").replace(/\s*https?:\/\/\S+/g, "").trim();
       return q;

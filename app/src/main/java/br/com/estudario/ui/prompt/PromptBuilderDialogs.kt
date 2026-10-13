@@ -296,7 +296,7 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
     val wholeSubject = !singleTopicMode && ordered.isNotEmpty() && selectedIds.size == ordered.size
     val singleTopic = topics.firstOrNull { it.id in selectedIds }.takeIf { selectedIds.size == 1 }
 
-    val questionLimit = rememberQuestionBatchLimit()
+    val questionLimit = rememberQuestionBatchLimit(batch = false)
     val steps = buildList {
         if (!singleTopicMode) add(WizardStep(
             "Abrangência",
@@ -455,6 +455,14 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
  */
 private const val CONTENT_STAGE_MILLIS = 14_000L
 
+/** Etapas do pedido de mais questões (sem teoria nem flashcards). */
+private val QuestionGenerationStages = listOf(
+    "Separando as questões que você ainda não viu",
+    "Buscando questões no estilo da banca",
+    "Escrevendo as que faltam",
+    "Conferindo gabaritos e explicações",
+)
+
 private val ContentGenerationStages = listOf(
     "Lendo o que o edital pede neste tópico",
     "Pesquisando em fontes oficiais",
@@ -478,7 +486,8 @@ private val ContentCommitments = listOf(
  * edital). Ao terminar, entrega o pacote para a revisão de importação; se falhar, explica e volta.
  */
 @Composable
-private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, onDone: (String) -> Unit, onBackground: () -> Unit, onClose: () -> Unit) {
+private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, onDone: (String) -> Unit, onBackground: () -> Unit, onClose: () -> Unit, questionsOnly: Boolean = false) {
+    val stages = if (questionsOnly) QuestionGenerationStages else ContentGenerationStages
     val tasks by br.com.estudario.ui.ai.BackgroundAiTasks.tasks.collectAsState()
     val status = tasks.firstOrNull { it.id == taskId }?.status
     // Material pronto rápido (vindo da biblioteca) não pula direto para o resultado: a tela termina
@@ -487,10 +496,10 @@ private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, on
     var finishingStage by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(status) {
         val ready = status as? br.com.estudario.ui.ai.BackgroundAiTasks.Status.Ready ?: return@LaunchedEffect
-        val reached = ((System.currentTimeMillis() - startedAt) / CONTENT_STAGE_MILLIS).toInt().coerceIn(0, ContentGenerationStages.lastIndex)
-        for (stage in reached..ContentGenerationStages.size) {
+        val reached = ((System.currentTimeMillis() - startedAt) / CONTENT_STAGE_MILLIS).toInt().coerceIn(0, stages.lastIndex)
+        for (stage in reached..stages.size) {
             finishingStage = stage
-            kotlinx.coroutines.delay(if (stage == ContentGenerationStages.size) 900 else 650)
+            kotlinx.coroutines.delay(if (stage == stages.size) 900 else 650)
         }
         onDone(ready.result)
     }
@@ -520,17 +529,17 @@ private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, on
             ) {
                 if (failed == null) {
                     br.com.estudario.ui.components.EstudarioProcessView(
-                        title = "Preparando seu material",
+                        title = if (questionsOnly) "Preparando suas questões" else "Preparando seu material",
                         eyebrow = topicTitle,
-                        stages = ContentGenerationStages,
+                        stages = stages,
                         stageMillis = CONTENT_STAGE_MILLIS,
                         stageIndex = finishingStage,
-                        progressValue = finishingStage?.let { (it + 1f) / (ContentGenerationStages.size + 1) },
-                        doneLabel = "Material pronto",
+                        progressValue = finishingStage?.let { (it + 1f) / (stages.size + 1) },
+                        doneLabel = if (questionsOnly) "Questões prontas" else "Material pronto",
                         footer = {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                ContentCommitmentsCard()
-                                Text("Leva em média de 2 a 4 minutos, porque as fontes são consultadas e conferidas. Você pode continuar usando o app: avisaremos assim que o material estiver pronto para revisão.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                if (!questionsOnly) ContentCommitmentsCard()
+                                Text(if (questionsOnly) "Se o tópico tiver questões prontas, chegam em segundos; as que faltarem são escritas e conferidas na hora. Você pode continuar usando o app." else "Leva em média de 2 a 4 minutos, porque as fontes são consultadas e conferidas. Você pode continuar usando o app: avisaremos assim que o material estiver pronto para revisão.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                                 br.com.estudario.ui.brand.OutlinedButton(onClick = onBackground) { Text("Continuar em segundo plano") }
                                 TextButton(onClick = onClose) { Text("Cancelar geração", color = MaterialTheme.colorScheme.error) }
                             }
@@ -615,7 +624,7 @@ fun AdditionalQuestionPromptBuilderDialog(
         )
     }
 
-    val questionLimit = rememberQuestionBatchLimit()
+    val questionLimit = rememberQuestionBatchLimit(batch = true)
     val steps = listOf(
         WizardStep(
             "Quantidade",
@@ -683,7 +692,7 @@ fun AdditionalQuestionPromptBuilderDialog(
             br.com.estudario.ui.ai.BackgroundAiTasks.start(taskId, topic.title, "Questões", competition.id) {
                 var result: String? = null
                 // Só as do próprio tópico: são as que o lote novo não pode repetir.
-                val avoid = questions.filter { it.question.topicId == topic.id && !it.question.isHidden }.map { it.question.statement }
+                val avoid = questions.filter { it.question.topicId == topic.id && !it.question.isHidden }.map { it.question.statement }.asReversed()
                 application.aiContentGenerator.generate(competition, subject, subjectTopics, topic, questionOptions, avoid).collect { value ->
                     when (value) {
                         is AiContentProgress.Done -> result = value.estudo
@@ -699,7 +708,8 @@ fun AdditionalQuestionPromptBuilderDialog(
             taskId = taskId,
             onDone = { estudo -> generating = false; br.com.estudario.ui.ai.BackgroundAiTasks.dismiss(taskId); onDismiss(); viewModel.openIncomingText(estudo, competition.id) },
             onBackground = { br.com.estudario.ui.ai.BackgroundAiTasks.sendToBackground(taskId); generating = false; onDismiss() },
-            onClose = { br.com.estudario.ui.ai.BackgroundAiTasks.dismiss(taskId); generating = false },
+            onClose = { br.com.estudario.ui.ai.BackgroundAiTasks.dismiss(taskId); generating = false },,
+            questionsOnly = true
         )
     }
 }

@@ -178,14 +178,16 @@ fun BigValueSlider(
 data class QuestionBatchLimit(val max: Int, val planName: String)
 
 @Composable
-fun rememberQuestionBatchLimit(): QuestionBatchLimit {
+fun rememberQuestionBatchLimit(batch: Boolean = false): QuestionBatchLimit {
     val context = LocalContext.current
     var limit by remember { mutableStateOf(QuestionBatchLimit(GenerationLimits.FREE_MAX_QUESTIONS, "Grátis")) }
     LaunchedEffect(Unit) {
         val app = context.applicationContext as? EstudarioApplication ?: return@LaunchedEffect
         val summary = (app.aiPlanRepository.load() as? AiPlanLoadResult.Available)?.summary ?: return@LaunchedEffect
-        val perRequest = summary.plans.firstOrNull { it.planTier == summary.planTier }
-            ?.limits?.firstOrNull { it.feature == "QUESTION_BATCH" }?.maxPerRequest
+        // Lote extra é sempre de até 10 em qualquer plano; ao criar a matéria vale o teto do plano
+        // (max_per_request de CONTENT_GENERATION: 10, 20 ou 30).
+        val perRequest = if (batch) GenerationLimits.FREE_MAX_QUESTIONS else summary.plans.firstOrNull { it.planTier == summary.planTier }
+            ?.limits?.firstOrNull { it.feature == "CONTENT_GENERATION" }?.maxPerRequest
         if (perRequest != null && perRequest >= GenerationLimits.MIN_QUESTIONS) {
             limit = QuestionBatchLimit(perRequest, planDisplayName(summary.planTier))
         }

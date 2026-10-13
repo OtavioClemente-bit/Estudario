@@ -88,6 +88,10 @@ fun SimulationResultScreen(
     val personalRight = personal.count { answers[it.question.id] == correctKey(it) }
     val wrong = questions.count { it.question.id in answers && answers[it.question.id] != correctKey(it) }
     val blank = questions.count { it.question.id !in answers }
+    // Regra Cebraspe nos itens Certo/Errado: certo +1, errado −1, em branco 0.
+    val ceItems = questions.filter { row -> row.options.map { it.key }.toSet() == setOf("C", "E") }
+    val ceRight = ceItems.count { answers[it.question.id] == correctKey(it) }
+    val ceWrong = ceItems.count { it.question.id in answers && answers[it.question.id] != correctKey(it) }
     val shown = questions.withIndex().filter { (_, row) ->
         when (filter) {
             CorrectionFilter.ALL -> true
@@ -132,6 +136,11 @@ fun SimulationResultScreen(
                             color = if (delta >= 0) estudarioColors().completed else MaterialTheme.colorScheme.error,
                         )
                     }
+                    if (ceItems.isNotEmpty()) Text(
+                        "Na regra Cebraspe (certo +1, errado −1, branco 0): ${ceRight - ceWrong} ponto(s) líquido(s) em ${ceItems.size} itens. Cada erro anula um acerto: na dúvida real, deixar em branco pode valer mais.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                     val minutes = current.elapsedSeconds / 60
                     Text(
                         "Tempo: $minutes de ${current.timeLimitMinutes} min${if (minutes > current.timeLimitMinutes) " (passou do tempo da prova)" else ""} · $wrong erradas · $blank em branco",

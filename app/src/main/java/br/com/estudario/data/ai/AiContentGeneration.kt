@@ -56,7 +56,8 @@ class AiContentGenerator(
         val body = JSONObject()
             .put("feature", "CONTENT_GENERATION")
             .put("input", AiContentRequest.input(competition, subject, topics, target, options).apply {
-                if (avoidStatements.isNotEmpty()) put("avoidStatements", JSONArray(avoidStatements.take(60).map { it.take(300) }))
+                // Até 400; o servidor compara com todas. Começo + fim: itens agrupados repetem o texto longo do início.
+                if (avoidStatements.isNotEmpty()) put("avoidStatements", JSONArray(avoidStatements.take(400).map { s -> s.trim().let { t -> if (t.length <= 300) t else t.take(150) + t.takeLast(150) } }))
             })
             .toString()
         val created = try {

@@ -220,7 +220,8 @@ fun SimulationExamScreen(simulationId: Long, onExit: () -> Unit, onFinished: (Lo
             text = {
                 Text(buildString {
                     append("Você respondeu ${answers.size} de ${questions.size}.")
-                    if (blank > 0) append(" $blank ficaram em branco e contam como erro.")
+                    val allTrueFalse = questions.isNotEmpty() && questions.all { row -> row.options.map { it.key }.toSet() == setOf("C", "E") }
+                    if (blank > 0) append(if (allTrueFalse) " $blank ficaram em branco: na regra Cebraspe não somam nem tiram ponto." else " $blank ficaram em branco e contam como erro.")
                     if (toReview > 0) append(" $toReview estão marcadas para revisar.")
                     append(" Depois de entregar, o gabarito aparece e não dá para mudar as respostas.")
                 })

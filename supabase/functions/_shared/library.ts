@@ -2,6 +2,7 @@ import type { ContentJobInput } from "./text-job-input.ts";
 import { AI_TOPIC_CONTENT_SCHEMA_VERSION } from "./schemas/ai-text-jobs-v1.ts";
 import { CONTENT_PROMPT_VERSION } from "./prompts/text-jobs-v1.ts";
 import { validateTopicContent } from "./text-job-validators.ts";
+import { breakAssertivas } from "./content-repair.ts";
 
 // Biblioteca de matérias prontas (conteudo/ no repositório, tabelas library_* no banco).
 //
@@ -437,6 +438,7 @@ function fitsStyle(question: Json, style: ContentJobInput["options"]["questionSt
  */
 export function deliverQuestion(question: Json, style: ContentJobInput["options"]["questionStyle"], seed: string): Json {
   const q = structuredClone(question);
+  if (typeof q.statement === "string") q.statement = breakAssertivas(q.statement);
   let options = q.options as Json[];
   const commented = q.format === "MULTIPLE_CHOICE" && hasOptionComments(q);
   if (commented && style === "FOUR_OPTIONS" && options.length === 5) {
@@ -550,12 +552,14 @@ export function assembleFromLibrary(
   const wants = (block: string) => options.blocks.includes(block as never);
   // O app manda até 300 caracteres de cada enunciado: o site, começo + fim (itens agrupados repetem o
   // mesmo texto longo no início); o app Android, só o começo. Compara pelas duas formas.
-  const clean = (statement: unknown) => String(statement).replace(/\p{Cc}/gu, " ").trim().toLowerCase();
+  // O app pode ter guardado o enunciado com as assertivas quebradas em parágrafos (breakAssertivas):
+  // compara a forma original e a quebrada, sem espaços, nos dois recortes (começo + fim e começo).
+  const squash = (text: string) => text.replace(/\s+/g, "").toLowerCase();
   const headTail = (text: string) => text.length <= 300 ? text : text.slice(0, 150) + text.slice(-150);
-  const avoid = new Set(input.avoidStatements.map(clean));
+  const avoid = new Set(input.avoidStatements.map((statement) => squash(String(statement))));
   const seen = (statement: unknown) => {
-    const text = clean(statement);
-    return avoid.has(headTail(text)) || avoid.has(text.slice(0, 300));
+    const raw = String(statement).trim();
+    return [raw, breakAssertivas(raw)].some((form) => avoid.has(squash(headTail(form))) || avoid.has(squash(form.slice(0, 300))));
   };
   const wanted = DIFFICULTY[options.difficulty];
   // Primeiro as do nível pedido; se não bastarem, completa com o nível mais próximo (difícil →
