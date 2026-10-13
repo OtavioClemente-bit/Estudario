@@ -37,7 +37,10 @@ fun FocusScreen() {
         Div({ classes("focus-wrap") }) {
             Div({ classes("timer", "count-up") }) {
                 Div({ classes("center") }) {
-                    Span({ classes("clock") }) { Text(if (TopicFocus.active) TopicFocus.clock() else "00:00") }
+                    Span({ classes("clock") }) { Text(when { !TopicFocus.active -> "00:00"; TopicFocus.clockHidden -> "••:••"; else -> TopicFocus.clock() }) }
+                    if (TopicFocus.active) Button({ classes("btn", "ghost", "small"); onClick { TopicFocus.setClockHidden(!TopicFocus.clockHidden) } }) {
+                        Text(if (TopicFocus.clockHidden) "Mostrar contagem" else "Ocultar contagem")
+                    }
                     Span({ classes("small", "muted", "strong") }) {
                         Text(when { !TopicFocus.active -> "pronto para começar"; TopicFocus.running -> "focado"; else -> "pausado" })
                     }

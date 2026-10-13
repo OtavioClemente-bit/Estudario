@@ -229,7 +229,7 @@ fun TopicScreen(topicId: Long) {
     }
     Btn(label, action, style = "primary", icon = icon, block = true)
     Div({ classes("grid", "cols-2"); attr("style", "gap:10px") }) {
-        if (focusHere) Btn("Encerrar foco · ${TopicFocus.clock()}", { TopicFocus.stop() }, style = "primary", icon = "timer", block = true)
+        if (focusHere) Btn(if (TopicFocus.clockHidden) "Encerrar foco" else "Encerrar foco · ${TopicFocus.clock()}", { TopicFocus.stop() }, style = "primary", icon = "timer", block = true)
         else Btn("Modo foco", {
             if (TopicFocus.topicId != null) TopicFocus.stop()
             TopicFocus.start(topicId, topic.title)
@@ -260,7 +260,7 @@ fun TopicScreen(topicId: Long) {
             Btn("Cancelar", { finishAsk = false }, style = "ghost")
             Btn("Confirmar", {
                 if (focusHere) TopicFocus.stop()
-                Store.update { Actions.completeStudy(it, topicId) }
+                Store.update { Actions.completeStudyWithPlan(it, topicId) }
                 finishAsk = false
                 Toast.show("Estudo registrado. Revisões D+1, D+7 e D+30 na agenda.")
             }, style = "primary", icon = "check")
@@ -630,7 +630,7 @@ private fun ReviewTab(summaries: List<Summary>, recall: List<br.com.estudario.we
                 Button({
                     classes("icon-btn", "on-primary"); attr("title", if (deck.favorite) "Tirar baralho do Caderno" else "Salvar baralho no Caderno")
                     onClick { e -> e.stopPropagation(); Store.update { Actions.toggleSummaryFavorite(it, deck.id) }; Toast.show(if (deck.favorite) "Baralho tirado do Caderno" else "Baralho salvo no Caderno") }
-                }) { Icon(if (deck.favorite) "bookmark" else "bookmark_border", filled = deck.favorite) }
+                }) { if (deck.favorite) Icon("bookmark", filled = true, plain = true) else Icon("bookmark_border", plain = true) }
                 Icon("play_circle", filled = true, extraClass = "deck-play")
             }
         }
@@ -675,7 +675,8 @@ private fun RecallCard(id: Long, question: String, answer: String?, favorite: Bo
 private fun StarButton(on: Boolean, onToggle: () -> Unit) {
     val latest = rememberUpdatedState(onToggle)
     Button({ classes("fav-star", *listOfNotNull(if (on) "on" else null).toTypedArray()); attr("title", if (on) "Tirar do Caderno" else "Guardar no Caderno"); onClick { latest.value(); Toast.show(if (on) "Tirado do Caderno" else "Guardado no Caderno") } }) {
-        Icon("star", filled = on)
+        // Guardada: a estrela desenhada, cheia. Fora do Caderno: só o contorno, para a diferença saltar aos olhos.
+        if (on) Icon("star") else Icon("star", plain = true)
     }
 }
 

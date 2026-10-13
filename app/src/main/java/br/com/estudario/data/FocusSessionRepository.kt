@@ -11,4 +11,6 @@ class FocusSessionRepository(private val dao: AppDao) {
     /** Retorna false quando esta sessão já foi gravada. */
     suspend fun recordOnce(session: FocusSessionEntity): Boolean =
         dao.insertFocusSessionIfAbsent(session) != -1L
+
+    suspend fun delete(id: String) = dao.deleteFocusSession(id)
 }

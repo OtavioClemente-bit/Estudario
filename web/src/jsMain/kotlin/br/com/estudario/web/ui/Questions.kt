@@ -196,6 +196,8 @@ fun QuizScreen(scope: String) {
     val startedAt = remember(scope) { Date.now().toLong() }
     var index by remember(scope) { mutableStateOf(0) }
     var selected by remember(scope) { mutableStateOf<String?>(null) }
+    // Como no app: clicar só marca a alternativa; a resposta vale ao confirmar.
+    var marked by remember(scope) { mutableStateOf<String?>(null) }
     var revealed by remember(scope) { mutableStateOf(false) }
     var results by remember(scope) { mutableStateOf(listOf<Boolean>()) }
     // Alternativas riscadas, como na prova de papel ("id da questão:letra"). Só ajuda a pensar.
@@ -250,10 +252,13 @@ fun QuizScreen(scope: String) {
         Store.update { snapshot -> Actions.answer(snapshot, question.id, key, sessionId).also { ok = it.second }.first }
         results = results + ok
     }
-    fun next() { selected = null; revealed = false; index++ }
+    fun mark(key: String) { if (selected == null) marked = if (marked == key) null else key }
+    fun confirm() { marked?.let { choose(it) } }
+    fun next() { selected = null; marked = null; revealed = false; index++ }
 
     // Teclado: A–E escolhem, Enter avança.
-    val latestChoose = androidx.compose.runtime.rememberUpdatedState(::choose)
+    val latestChoose = androidx.compose.runtime.rememberUpdatedState(::mark)
+    val latestConfirm = androidx.compose.runtime.rememberUpdatedState(::confirm)
     val latestNext = androidx.compose.runtime.rememberUpdatedState(::next)
     val latestState = androidx.compose.runtime.rememberUpdatedState(Triple(answered, options.map { it.key }, showResult))
     DisposableEffect(scope) {
@@ -262,6 +267,7 @@ fun QuizScreen(scope: String) {
             val (isAnswered, keys, shown) = latestState.value
             when {
                 !isAnswered && key in keys -> latestChoose.value(key)
+                !isAnswered && key == "ENTER" -> latestConfirm.value()
                 isAnswered && (key == "ENTER" || key == "ARROWRIGHT") && shown -> latestNext.value()
             }
         }
@@ -299,7 +305,7 @@ fun QuizScreen(scope: String) {
                             showResult && option.key == selected -> "wrong"
                             option.key == selected -> "chosen"
                             else -> null
-                        }
+                        } ?: if (!answered && option.key == marked) "marked" else null
                         val crossKey = "${question.id}:${option.key}"
                         val crossed = crossedOut[crossKey] == true && !answered
                         fun toggleCross() { crossedOut[crossKey] = crossedOut[crossKey] != true }
@@ -308,7 +314,7 @@ fun QuizScreen(scope: String) {
                                 classes(*listOfNotNull("option", state, if (crossed) "crossed" else null).toTypedArray())
                                 if (answered) attr("disabled", "")
                                 // Riscada: clicar desfaz o risco em vez de marcar, para não marcar sem querer.
-                                onClick { if (crossed) toggleCross() else choose(option.key) }
+                                onClick { if (crossed) toggleCross() else mark(option.key) }
                                 // Botão direito também risca, como no app (deslizar para o lado).
                                 addEventListener("contextmenu") { event -> if (!answered) { event.preventDefault(); toggleCross() } }
                             }) {
@@ -344,7 +350,8 @@ fun QuizScreen(scope: String) {
             }
         }
     } else {
-        P({ classes("small", "faint"); attr("style", "text-align:center") }) { Text("Dica: use as teclas A, B, C, D, E para responder e Enter para avançar.") }
+        Btn("Confirmar resposta", { confirm() }, block = true, icon = "check", enabled = marked != null)
+        P({ classes("small", "faint"); attr("style", "text-align:center") }) { Text("Dica: as teclas A a E marcam a alternativa e Enter confirma.") }
     }
 }
 

@@ -110,7 +110,8 @@ class BackupService(private val db: AppDatabase) {
                 completedAt = item.getLong("completedAt"),
                 durationSeconds = item.getLong("durationSeconds"),
                 subjectIdsText = item.optString("subjectIds"),
-                origin = FocusSessionOrigin.valueOf(item.getString("origin")),
+                // Valor desconhecido (o site gravava "TOPICO") não pode derrubar a restauração inteira.
+                origin = when (val raw = item.optString("origin")) { "TOPICO" -> FocusSessionOrigin.MATERIA; else -> FocusSessionOrigin.entries.firstOrNull { it.name == raw } ?: FocusSessionOrigin.LIVRE },
                 topicId = item.optLongOrNull("topicId"),
                 taskId = item.optNullableString("taskId"),
             )

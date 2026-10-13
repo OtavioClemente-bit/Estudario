@@ -413,7 +413,7 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
             },
             onGenerate = { if (application.supabaseAuthRepository.accessToken() == null) loginFor = singleTopic else serverTarget = singleTopic },
         ),
-        tutorial = TutorialVideo.CONTENT,
+        // O vídeo de ajuda antigo mostrava a interface de antes; sem vídeo novo, o balão de ajuda sai.
         externalWarning = MULTI_TOPIC_WARNING.takeIf { selectedIds.size > 1 },
     )
     loginFor?.let { pending ->

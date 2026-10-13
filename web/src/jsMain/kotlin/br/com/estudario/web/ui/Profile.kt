@@ -342,7 +342,15 @@ fun FocusHistoryScreen() {
                                 B({ classes("small", "clamp-2") }) { Text(s.title.ifBlank { s.topicId?.let { topics[it]?.title } ?: "Foco livre" }) }
                                 Div({ classes("xs", "muted") }) { Text(Queries.dayLabel(Queries.dateOf(s.startedAt))) }
                             }
-                            Chip(Queries.minutesLabel((s.durationSeconds / 60).toInt()), icon = "timer")
+                            Div({ classes("row"); attr("style", "gap:4px;flex:none") }) {
+                                Chip(Queries.minutesLabel((s.durationSeconds / 60).toInt()), icon = "timer")
+                                IconButton("delete", "Excluir esta sessão de foco") {
+                                    if (window.confirm("Excluir esta sessão de foco do histórico? Isso vale no celular também.")) {
+                                        Store.update { snapshot -> br.com.estudario.web.data.Actions.deleteFocusSession(snapshot, s.id) }
+                                        Toast.show("Sessão excluída")
+                                    }
+                                }
+                            }
                         }
                     }
                 }

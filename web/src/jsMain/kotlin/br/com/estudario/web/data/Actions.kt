@@ -84,6 +84,24 @@ object Actions {
             .append(Keys.PLAN_REVISIONS, jsonOf("planId" to plan.id, "revision" to nextRevision, "base" to plan.revision, "reason" to "TASK_SKIPPED", "proposalId" to null, "summary" to task.id, "createdAt" to at))
     }
 
+    /**
+     * StudyPlanViewModel.matchingPendingTask + completeFromTopic do app: concluir o tópico pelo Edital
+     * fecha também a tarefa pendente dele no plano ativo (a de hoje, senão a mais próxima), com o XP.
+     */
+    fun completeStudyWithPlan(data: Snapshot, topicId: Long, startedAt: Long = now()): Snapshot {
+        var next = completeStudy(data, topicId, startedAt)
+        val plan = Queries.activePlan(next) ?: return next
+        val today = Queries.todayEpoch()
+        val task = next.tasks
+            .filter { it.planId == plan.id && it.topicId == topicId && it.status in setOf("PLANEJADA", "EM_ANDAMENTO") }
+            .minByOrNull { if (it.day == today) Long.MIN_VALUE else it.day } ?: return next
+        next = completeTask(next, task.id, task.minutes)
+        return runCatching { Planning.replan(next, plan.id, br.com.estudario.domain.planner.ReplanReason.TASK_COMPLETED) }.getOrDefault(next)
+    }
+
+    /** Tira uma sessão do histórico do foco (vale no celular também, pela sincronização). */
+    fun deleteFocusSession(data: Snapshot, id: String): Snapshot = data.edit(Keys.FOCUS_SESSIONS) { if (it.idIs(id)) null else it }
+
     // ------------------------------------------------------------------ tópicos
 
     /** StudyRepository.completeStudy: conclui o tópico, registra a 1ª sessão e agenda as revisões. */
@@ -335,14 +353,14 @@ object Actions {
     private fun JsonObject.longOf(key: String): Long? = (this[key] as? JsonPrimitive)?.content?.toLongOrNull()
     private fun JsonObject.textOf(key: String): String? = (this[key] as? JsonPrimitive)?.content
 
-    /** Apaga a matéria e tudo que pende dela: tópicos, material, questões, respostas, erros, revisões, notas e tarefas do plano. */
+    /** Apaga a matéria e tudo que pende dela: tópicos, material, fontes, questões, respostas, erros, revisões, notas e tarefas do plano. */
     fun deleteSubject(data: Snapshot, subjectId: Long): Snapshot {
         val topicIds = data.topics.filter { it.subjectId == subjectId }.mapTo(hashSetOf()) { it.id }
         val questionIds = data.questions.filter { it.topicId in topicIds }.mapTo(hashSetOf()) { it.id }
         val theoryIds = data.theories.filter { it.topicId in topicIds }.mapTo(hashSetOf()) { it.id }
         var next = data
         fun dropWhere(key: String, pick: (JsonObject) -> Boolean) { next = next.edit(key) { if (pick(it)) null else it } }
-        listOf(Keys.THEORIES, Keys.SUMMARIES, Keys.SNIPPETS, Keys.QUESTIONS, Keys.REVIEWS, Keys.REVIEW_HISTORY, Keys.REVIEW_SESSIONS, Keys.ERROR_CONCEPTS, "notes")
+        listOf(Keys.THEORIES, Keys.SUMMARIES, Keys.SNIPPETS, Keys.QUESTIONS, Keys.REVIEWS, Keys.REVIEW_HISTORY, Keys.REVIEW_SESSIONS, Keys.ERROR_CONCEPTS, "notes", "contentSources", "queue")
             .forEach { key -> dropWhere(key) { it.longOf("topicId") in topicIds } }
         dropWhere("theoryMarks") { it.longOf("theoryId") in theoryIds }
         listOf(Keys.ATTEMPTS, Keys.ERRORS, Keys.ERROR_CONCEPT_ENTRIES).forEach { key -> dropWhere(key) { it.longOf("questionId") in questionIds } }

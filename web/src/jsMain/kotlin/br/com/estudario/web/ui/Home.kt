@@ -488,7 +488,9 @@ fun CompleteTaskDialog(task: PlanTask, onClose: () -> Unit) {
             Btn("Cancelar", onClose, style = "ghost")
             Btn("Concluir", {
                 Store.update { data ->
-                    val done = Actions.completeTask(data, task.id, minutes, questions, correct.coerceIn(0, questions))
+                    val worked = Actions.completeTask(data, task.id, minutes, questions, correct.coerceIn(0, questions))
+                    // Teoria concluída no plano também marca o tópico como estudado (e agenda as revisões).
+                    val done = if (task.type == "THEORY" && task.topicId != null && minutes >= task.minutes) Actions.completeStudy(worked, task.topicId) else worked
                     // Como no app: concluir reorganiza o plano.
                     runCatching { Planning.replan(done, task.planId, ReplanReason.TASK_COMPLETED) }.getOrDefault(done)
                 }

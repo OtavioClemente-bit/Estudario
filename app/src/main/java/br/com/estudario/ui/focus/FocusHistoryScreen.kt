@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Timer
 import br.com.estudario.ui.brand.Card
@@ -176,11 +177,24 @@ fun FocusHistoryScreen(viewModel: AppViewModel) {
         } else {
             item { Text("Sessões", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             items(filtered, key = { it.id }) { session ->
-                Column {
-                    FocusHistoryRow(session, namesById)
-                    // O que estava sendo estudado: o tópico aberto quando o foco começou.
-                    session.topicId?.let(topicTitleById::get)?.let { topicTitle ->
-                        Text("Tópico: $topicTitle", Modifier.padding(start = 50.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                var confirmDelete by remember { androidx.compose.runtime.mutableStateOf(false) }
+                if (confirmDelete) androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { confirmDelete = false },
+                    title = { Text("Excluir sessão?") },
+                    text = { Text("Ela sai do histórico do foco aqui e no site.") },
+                    confirmButton = { androidx.compose.material3.TextButton(onClick = { confirmDelete = false; viewModel.deleteFocusSession(session.id) }) { Text("Excluir") } },
+                    dismissButton = { androidx.compose.material3.TextButton(onClick = { confirmDelete = false }) { Text("Cancelar") } },
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        FocusHistoryRow(session, namesById)
+                        // O que estava sendo estudado: o tópico aberto quando o foco começou.
+                        session.topicId?.let(topicTitleById::get)?.let { topicTitle ->
+                            Text("Tópico: $topicTitle", Modifier.padding(start = 50.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    androidx.compose.material3.IconButton(onClick = { confirmDelete = true }) {
+                        androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.Delete, "Excluir sessão", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

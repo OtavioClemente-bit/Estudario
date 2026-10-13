@@ -123,7 +123,7 @@ fun tourSteps(id: TourId): List<TourStep> = when (id) {
     )
     TourId.CONTENT -> listOf(
         TourStep("syllabus", null, "Edital importado", "Gere teoria, resumos e questões para um tópico por vez. Essa abordagem preserva o detalhamento e reduz o risco de informações imprecisas. Revise o material antes de estudar."),
-        TourStep("syllabus", TourKey.SUBJECT_AI, "Gere o tópico atual", "Toque em gerar na matéria, escolha o tópico e selecione o conteúdo desejado, como teoria, resumo ou questões. Depois, toque em Gerar com o Estudário.", TutorialVideo.CONTENT),
+        TourStep("syllabus", TourKey.SUBJECT_AI, "Gere o tópico atual", "Toque em gerar na matéria, escolha o tópico e selecione o conteúdo desejado, como teoria, resumo ou questões. Depois, toque em Gerar com o Estudário."),
         TourStep("syllabus", null, "Acesso rápido no tópico", "Dentro do tópico, o botão de gerar abre o gerador com o assunto já selecionado. Repita o processo para cada novo tópico."),
         TourStep("syllabus", null, "Revisões espaçadas", "Ao marcar um tópico como estudado, o app agenda revisões em D+1, D+7 e D+30, ou segue o ciclo intensivo. Os intervalos aumentam com a consolidação e diminuem quando há dificuldade. As revisões aparecem no Início e em Mais, na seção Revisões espaçadas."),
         TourStep("syllabus", null, "Fila de estudos", "No menu ⋮ de cada tópico, selecione “Adicionar à fila”. O próximo item ficará em destaque no Início até a conclusão do bloco."),

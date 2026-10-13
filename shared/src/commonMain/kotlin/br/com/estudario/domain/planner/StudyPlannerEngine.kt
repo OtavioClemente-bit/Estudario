@@ -38,6 +38,15 @@ class StudyPlannerEngine(
         val replanCandidates = if (reason == ReplanReason.INITIAL) emptyList() else snapshot.tasks.filter { task ->
             task !in fixedTasks && task.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO)
         }
+        // Concluir, pular ou fazer parte de uma tarefa não traz matéria nova para hoje: o dia fica com
+        // o que já estava nele. Sem isso, cada conclusão abria espaço e o plano puxava as de amanhã,
+        // e o estudo do dia não acabava nunca.
+        if (reason in dayKeepingReasons && snapshot.today in freeByDate) {
+            val pendingToday = replanCandidates.filter { it.date == snapshot.today }.sumOf { task ->
+                (task.plannedMinutes - executionsByTask[task.id].orEmpty().sumOf { it.minutes }).coerceAtLeast(0)
+            }
+            freeByDate[snapshot.today] = minOf(freeByDate.getValue(snapshot.today), pendingToday)
+        }
         val derivedDemands = replanCandidates.mapNotNull { task ->
             val executedMinutes = executionsByTask[task.id].orEmpty().sumOf { it.minutes }
             val executedQuestions = executionsByTask[task.id].orEmpty().sumOf { it.questions }
@@ -287,6 +296,7 @@ class StudyPlannerEngine(
     }
 
     private companion object {
+        val dayKeepingReasons = setOf(ReplanReason.TASK_COMPLETED, ReplanReason.TASK_PARTIAL, ReplanReason.TASK_SKIPPED)
         val terminalInactiveStatuses = setOf(
             PlanTaskStatus.CONCLUIDA,
             PlanTaskStatus.REPROGRAMADA,

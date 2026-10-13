@@ -102,8 +102,9 @@ class StudyPlannerEngineReplanTest {
         val pending = TaskDemand("pending", 10L, 200L, PlanTaskType.THEORY, 600, priority = PlanPriority.CRITICAL)
         val proposal = engine.plan(snapshot(today = monday, dailyMinutes = 120, tasks = listOf(done), demands = listOf(pending)), ReplanReason.TASK_COMPLETED)
 
-        // 120 min no dia, 90 já feitos: só cabem 30 novos hoje, o resto fica para os outros dias.
-        assertEquals(30, proposal.newTasks.filter { it.date == monday }.sumOf { it.plannedMinutes })
+        // Concluir não traz matéria nova para hoje, mesmo sobrando tempo no dia: o resto fica para amanhã em diante.
+        assertEquals(0, proposal.newTasks.filter { it.date == monday }.sumOf { it.plannedMinutes })
+        assertTrue(proposal.newTasks.isNotEmpty())
     }
 
     @Test
@@ -116,7 +117,18 @@ class StudyPlannerEngineReplanTest {
             ReplanReason.TASK_PARTIAL,
         )
 
-        assertEquals(80, proposal.newTasks.filter { it.date == monday }.sumOf { it.plannedMinutes })
+        // Hoje fica só o que falta da tarefa começada (60 - 40 = 20); a pendente não é puxada para hoje.
+        assertEquals(20, proposal.newTasks.filter { it.date == monday }.sumOf { it.plannedMinutes })
+    }
+
+    @Test
+    fun `finishing every task of the day keeps the day finished`() {
+        val first = task("first", monday, 60, PlanTaskStatus.CONCLUIDA)
+        val second = task("second", monday, 30, PlanTaskStatus.CONCLUIDA)
+        val tomorrow = task("tomorrow", monday.plusDays(1), 60)
+        val proposal = engine.plan(snapshot(today = monday, dailyMinutes = 240, tasks = listOf(first, second, tomorrow)), ReplanReason.TASK_COMPLETED)
+
+        assertTrue(proposal.newTasks.none { it.date == monday })
     }
 
     private fun snapshot(

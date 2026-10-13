@@ -328,9 +328,27 @@ private fun MonthPlanView(
         .groupBy { it.entity.subjectNameSnapshot }
         .map { (name, tasks) -> name to tasks.sumOf { it.entity.plannedMinutes } }
         .sortedByDescending { it.second }
+    var selectedDay by remember { mutableStateOf<LocalDate?>(null) }
+    val selectedTasks = selectedDay?.let { day -> monthTasks.filter { it.entity.scheduledEpochDay == day.toEpochDay() }.sortedBy { it.entity.status.ordinal } }
 
     PlanList(header) {
         item { Text("$monthLabel de ${state.today.year}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+        item(key = "month-grid") {
+            MonthCalendar(month = state.today, today = state.today, tasks = monthTasks, selected = selectedDay) { day ->
+                selectedDay = if (selectedDay == day) null else day
+            }
+        }
+        if (selectedTasks != null) {
+            item(key = "month-day-title") {
+                Text(dayLabelPtBr(selectedDay!!, state.today).replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            }
+            if (selectedTasks.isEmpty()) item(key = "month-day-empty") {
+                Text("Nada planejado neste dia.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            items(selectedTasks, key = { "day_${it.entity.id}" }) { taskUi ->
+                MissionCard(taskUi = taskUi, onStart = { onFocus(taskUi) }, onReprogram = { onReprogram(taskUi) }, onSkip = { onSkip(taskUi) })
+            }
+        }
         item { PlannerSummary(plannedMinutes = plannedMinutes, actualMinutes = actualMinutes, completionPercent = completionPercent, plannedLabel = "planejadas no mês", periodTitle = "Progresso do mês") }
         if (bySubject.isNotEmpty()) {
             item { Text("Distribuição por matéria", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
@@ -347,7 +365,8 @@ private fun MonthPlanView(
                 }
             }
         }
-        if (upcoming.isEmpty()) {
+        if (selectedTasks != null) Unit
+        else if (upcoming.isEmpty()) {
             item { EmptyState("Nada planejado à frente", "Não há tarefas futuras neste mês.", "Gerar planejamento", onGenerate) }
         } else {
             item { Text("Próximas missões do mês", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }

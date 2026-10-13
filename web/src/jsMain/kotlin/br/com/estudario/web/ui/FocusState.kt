@@ -27,6 +27,15 @@ object TopicFocus {
     /** Minutos previstos (tarefa do plano ou aviso escolhido); null = sem aviso. */
     var plannedMinutes by mutableStateOf<Int?>(null)
     var now by mutableStateOf(0L)
+
+    /** Contagem escondida (o tempo distrai): some da barra, do título da aba, do tópico e do Modo foco. Fica neste navegador. */
+    var clockHidden by mutableStateOf(runCatching { window.localStorage.getItem("estudario.focusbar.hidden") == "1" }.getOrDefault(false))
+        private set
+    fun setClockHidden(value: Boolean) {
+        clockHidden = value
+        runCatching { window.localStorage.setItem("estudario.focusbar.hidden", if (value) "1" else "0") }
+        if (active) document.title = if (value) "Foco · Estudário" else "${clock()} · Foco · Estudário"
+    }
     var timeUpSeen by mutableStateOf(false)
     private var ticker: Int? = null
 
@@ -49,7 +58,7 @@ object TopicFocus {
         pausedTotal = 0L
         timeUpSeen = false
         ticker?.let { window.clearInterval(it) }
-        ticker = window.setInterval({ now = Date.now().toLong(); document.title = "${clock()} · Foco · Estudário" }, 1000)
+        ticker = window.setInterval({ now = Date.now().toLong(); document.title = if (clockHidden) "Foco · Estudário" else "${clock()} · Foco · Estudário" }, 1000)
     }
 
     /** Compatível com a chamada antiga do tópico. */
@@ -79,7 +88,8 @@ object TopicFocus {
                 jsonOf(
                     "id" to Actions.newSessionId(), "title" to savedTitle.ifBlank { "Sessão de foco" }, "startedAt" to savedStart, "completedAt" to end,
                     "durationSeconds" to seconds, "subjectIds" to (savedSubject?.toString() ?: ""),
-                    "origin" to when { savedTask != null -> "PLANO"; id != null -> "TOPICO"; else -> "LIVRE" },
+                    // Os mesmos valores do app (FocusSessionOrigin: LIVRE, MATERIA, PLANO); outro valor quebrava a restauração lá.
+                    "origin" to when { savedTask != null -> "PLANO"; id != null -> "MATERIA"; else -> "LIVRE" },
                     "topicId" to id, "taskId" to savedTask,
                 ),
             )

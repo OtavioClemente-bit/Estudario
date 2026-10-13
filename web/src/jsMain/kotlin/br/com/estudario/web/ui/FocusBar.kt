@@ -7,7 +7,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import br.com.estudario.web.Route
 import br.com.estudario.web.Router
-import kotlinx.browser.localStorage
 import org.jetbrains.compose.web.dom.B
 import org.jetbrains.compose.web.dom.Button
 import org.jetbrains.compose.web.dom.Div
@@ -16,7 +15,6 @@ import org.jetbrains.compose.web.dom.P
 import org.jetbrains.compose.web.dom.Span
 import org.jetbrains.compose.web.dom.Text
 
-private const val HIDDEN_KEY = "estudario.focusbar.hidden"
 
 /**
  * O cronômetro do foco no topo do site (como a faixa do app): o tempo subindo, o nome do que está
@@ -25,8 +23,8 @@ private const val HIDDEN_KEY = "estudario.focusbar.hidden"
 @Composable
 fun FocusBar() {
     if (!TopicFocus.active) return
-    var hidden by remember { mutableStateOf(localStorage.getItem(HIDDEN_KEY) == "1") }
-    fun setHidden(value: Boolean) { hidden = value; localStorage.setItem(HIDDEN_KEY, if (value) "1" else "0") }
+    val hidden = TopicFocus.clockHidden
+    fun setHidden(value: Boolean) = TopicFocus.setClockHidden(value)
     var confirmStop by remember { mutableStateOf(false) }
 
     if (hidden) {

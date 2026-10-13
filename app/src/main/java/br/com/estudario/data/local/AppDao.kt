@@ -191,6 +191,7 @@ interface AppDao {
     @Query("SELECT * FROM focus_sessions ORDER BY completedAt DESC") fun focusSessions(): Flow<List<FocusSessionEntity>>
     @Query("SELECT * FROM focus_sessions ORDER BY completedAt DESC") suspend fun focusSessionsOnce(): List<FocusSessionEntity>
     @Query("DELETE FROM focus_sessions") suspend fun clearFocusSessions()
+    @Query("DELETE FROM focus_sessions WHERE id = :id") suspend fun deleteFocusSession(id: String)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun restoreFocusSessions(values: List<FocusSessionEntity>)
     @Insert suspend fun insertQueueEvent(value: QueueEventEntity): Long
     @Query("SELECT * FROM queue_events ORDER BY occurredAt DESC") fun queueEvents(): Flow<List<QueueEventEntity>>

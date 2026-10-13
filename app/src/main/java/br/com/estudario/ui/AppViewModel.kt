@@ -161,6 +161,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val queueEvents = repository.queueEvents.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val studySessions = repository.studySessions.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val focusSessions = app.focusSessionRepository.sessions.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Tira uma sessão do histórico do foco; a sincronização leva a exclusão para o site. */
+    fun deleteFocusSession(id: String) = viewModelScope.launch {
+        app.focusSessionRepository.delete(id)
+        br.com.estudario.data.sync.CloudSyncWorker.syncSoon(app)
+    }
     val questionSessions = repository.questionSessions.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val darkTheme = app.preferences.darkTheme.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val editalPrompt = app.preferences.editalPrompt.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), br.com.estudario.data.preferences.PromptTemplates.EDITAL)
