@@ -225,7 +225,19 @@ if (!url || !key) {
   Deno.exit(1);
 }
 
+// Banco recém-reiniciado ou ocupado devolve 500/503/504 por tempo: tenta de novo com pausa crescente.
 async function rest(path: string, method: string, body?: unknown, prefer = "return=minimal") {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await restOnce(path, method, body, prefer);
+    } catch (error) {
+      if (attempt >= 6 || !/: (500|502|503|504) /.test(String(error))) throw error;
+      await new Promise((r) => setTimeout(r, attempt * 5000));
+    }
+  }
+}
+
+async function restOnce(path: string, method: string, body?: unknown, prefer = "return=minimal") {
   const response = await fetch(`${url}/rest/v1/${path}`, {
     method,
     headers: { apikey: key!, authorization: `Bearer ${key}`, "content-type": "application/json", prefer },
@@ -247,8 +259,8 @@ const topicRows = [...materials.values()].map((m) => ({
   question_count: (m.questions as unknown[]).length,
   updated_at: new Date().toISOString(),
 }));
-for (let i = 0; i < topicRows.length; i += 20) {
-  await rest("library_topics?on_conflict=id", "POST", topicRows.slice(i, i + 20), "resolution=merge-duplicates,return=minimal");
+for (let i = 0; i < topicRows.length; i += 10) {
+  await rest("library_topics?on_conflict=id", "POST", topicRows.slice(i, i + 10), "resolution=merge-duplicates,return=minimal");
 }
 
 // Apelidos e recortes espelham o repositório: o que saiu daqui sai do banco.
@@ -262,8 +274,8 @@ if (!hasFocusColumn && focusByAlias.size > 0) console.log("Aviso: o banco ainda 
 // envio único estoura o tempo do banco, e apagar tudo antes deixaria a biblioteca sem apelidos.
 const aliasRows = [...aliasOwner].map(([alias_norm, topic_id]) =>
   hasFocusColumn ? { alias_norm, topic_id, focus: focusByAlias.get(alias_norm) ?? null } : { alias_norm, topic_id });
-for (let i = 0; i < aliasRows.length; i += 1000) {
-  await rest("library_topic_aliases?on_conflict=alias_norm", "POST", aliasRows.slice(i, i + 1000), "resolution=merge-duplicates,return=minimal");
+for (let i = 0; i < aliasRows.length; i += 250) {
+  await rest("library_topic_aliases?on_conflict=alias_norm", "POST", aliasRows.slice(i, i + 250), "resolution=merge-duplicates,return=minimal");
 }
 const stale: string[] = [];
 for (let from = 0; ; from += 1000) {
