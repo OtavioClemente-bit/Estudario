@@ -26,6 +26,9 @@ object Generation {
     val state = mutableStateMapOf<Long, AiContent.Progress>()
     /** Tópicos cujo pedido em curso é só de questões ("mais questões"), para os textos falarem de questões. */
     val questionsOnly = mutableStateMapOf<Long, Boolean>()
+    /** Questões pedidas e entregues no último pedido do tópico (a IA entrega até 10). */
+    val requested = mutableStateMapOf<Long, Int>()
+    val delivered = mutableStateMapOf<Long, Int>()
     private val scope = MainScope()
 
     fun running(topicId: Long): Boolean = state[topicId].let { it != null && it !is AiContent.Progress.Done && it !is AiContent.Progress.Failed }
@@ -37,9 +40,13 @@ object Generation {
         state[topicId] = AiContent.Progress.Checking
         val onlyQuestions = options.blocks == setOf("QUESTIONS")
         questionsOnly[topicId] = onlyQuestions
+        requested[topicId] = if ("QUESTIONS" in options.blocks) options.questionCount else 0
         scope.launch {
             val result = AiContent.generate(Store.data, topicId, options) { state[topicId] = it }
-            if (result is AiContent.Progress.Done) Store.update { AiContent.apply(it, topicId, result.proposal) }
+            if (result is AiContent.Progress.Done) {
+                delivered[topicId] = (result.proposal["questions"] as? kotlinx.serialization.json.JsonArray)?.size ?: 0
+                Store.update { AiContent.apply(it, topicId, result.proposal) }
+            }
             state[topicId] = result
             val title = Store.data.topics.firstOrNull { it.id == topicId }?.title ?: "seu tópico"
             if (result is AiContent.Progress.Done) Notify.materialReady(title, topicId, onlyQuestions)

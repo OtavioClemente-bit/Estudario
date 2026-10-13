@@ -14,7 +14,7 @@ import { textSpecFor } from "../_shared/text-job-specs.ts";
 // texto. Chamado pelo agendador com o token do worker, igual ao do edital.
 
 function modelFor(feature: string | undefined): string {
-  const specific = feature === "CONTENT_GENERATION"
+  const specific = feature === "CONTENT_GENERATION" || feature === "QUESTION_BATCH"
     ? Deno.env.get("CONTENT_AI_MODEL")
     : feature === "PLAN_GENERATION"
     ? Deno.env.get("PLAN_AI_MODEL")

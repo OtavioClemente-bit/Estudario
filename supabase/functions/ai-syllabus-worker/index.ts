@@ -187,6 +187,8 @@ export interface SyllabusWorkerStore {
   libraryMaterials?(ids: string[]): Promise<Record<string, unknown>[]>;
   libraryBoardNote?(topicId: string, boardNorm: string, roleNorm: string): Promise<Record<string, unknown> | null>;
   recordQuestionDrops?(jobId: string, drops: QuestionDrop[]): Promise<void>;
+  /** Plano efetivo da conta e quantas matérias a IA já escreveu para ela neste mês (as da biblioteca não contam). */
+  aiMaterialsThisMonth?(userId: string): Promise<{ tier: string; used: number }>;
   /** Revisão já concluída deste job (nova tentativa não paga o revisor de novo). */
   completedReviewId?(jobId: string): Promise<string | null>;
   captureUsage(
@@ -277,6 +279,11 @@ export interface AiJobSpec {
   reasoningEffort?(job: SyllabusWorkerJob): "low" | "medium" | "high" | undefined;
   /** Material pronto que dispensa a chamada ao provedor (reaproveitado de outro pedido igual). */
   cached?(job: SyllabusWorkerJob, dependencies: SyllabusWorkerDependencies): Promise<WorkerProposal | null>;
+  /**
+   * Conferência antes de chamar a IA (depois que a biblioteca e o cache não serviram): devolve um
+   * código de erro para encerrar o job sem custo, com a cota devolvida, ou null para seguir.
+   */
+  beforeProvider?(job: SyllabusWorkerJob, dependencies: SyllabusWorkerDependencies): Promise<string | null>;
   validate(
     raw: string,
     expected: ExpectedVersions,
@@ -836,6 +843,12 @@ export async function processSyllabusJob(
         await dependencies.jobs.finalizeSuccess(job.id, lease, cached, cached.warnings, null);
         return true;
       }
+      // Ex.: Grátis que já usou as matérias pela IA do mês. A IA nem é chamada; a cota volta.
+      const blocked = spec.beforeProvider ? await spec.beforeProvider(job, dependencies).catch(() => null) : null;
+      if (blocked) {
+        await finalizeFailure(dependencies, job, lease, blocked, "FAILED", false);
+        return true;
+      }
       if (dependencies.jobs.markProviderStarted) {
         await dependencies.jobs.markProviderStarted(job.id, lease);
       }
@@ -1335,6 +1348,24 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
     });
     await saved.body?.cancel().catch(() => {});
     await this.markServed(key, userId);
+  }
+  async aiMaterialsThisMonth(userId: string): Promise<{ tier: string; used: number }> {
+    const user = encodeURIComponent(userId);
+    const profile = await this.rest(`profiles?select=plan_tier,plan_renews_at&user_id=eq.${user}&limit=1`);
+    if (!profile.ok) throw new Error("PROFILE_UNAVAILABLE");
+    const row = ((await profile.json()) as { plan_tier?: string; plan_renews_at?: string | null }[])[0];
+    // Mesma regra de effectivePlanTier: plano pago vencido vale como Grátis.
+    const paidActive = row?.plan_tier && row.plan_tier !== "FREE" && (!row.plan_renews_at || Date.parse(row.plan_renews_at) > Date.now());
+    const tier = paidActive ? row!.plan_tier! : "FREE";
+    // Início do mês no horário de Brasília (UTC−3).
+    const now = new Date(Date.now() - 3 * 3_600_000);
+    const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 3)).toISOString();
+    const jobs = await this.rest(
+      `ai_jobs?select=id&user_id=eq.${user}&feature=eq.CONTENT_GENERATION&status=eq.SUCCEEDED` +
+        `&model_version=neq.biblioteca&created_at=gte.${encodeURIComponent(since)}&limit=100`,
+    );
+    if (!jobs.ok) throw new Error("JOBS_UNAVAILABLE");
+    return { tier, used: ((await jobs.json()) as unknown[]).length };
   }
   async recordQuestionDrops(jobId: string, drops: QuestionDrop[]): Promise<void> {
     const response = await this.rest("ai_question_drops", {

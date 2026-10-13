@@ -77,6 +77,13 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
     const level = Deno.env.get("PORTUGUESE_REASONING_EFFORT")?.trim() || "medium";
     return level === "low" || level === "medium" || level === "high" ? level : undefined;
   },
+  // Grátis: das matérias do mês, no máximo FREE_AI_MATERIALS escritas pela IA (as da biblioteca
+  // não contam). Lote extra não entra aqui: tem cota própria e é pequeno.
+  beforeProvider: async (job, dependencies) => {
+    if (job.feature !== "CONTENT_GENERATION" || !dependencies.jobs.aiMaterialsThisMonth) return null;
+    const { tier, used } = await dependencies.jobs.aiMaterialsThisMonth(job.userId);
+    return tier === "FREE" && used >= FREE_AI_MATERIALS ? "PLAN_AI_MATERIAL_LIMIT" : null;
+  },
   cached: async (job, dependencies) => {
     const store = dependencies.jobs;
     const input = inputOf<ContentJobInput>(job, parseContentJobInput);
@@ -251,7 +258,9 @@ async function completeQuestions(
   onDrop?: (reason: DropReason, question: Record<string, unknown>) => void,
 ): Promise<Record<string, unknown>> {
   const current = Array.isArray(content.questions) ? content.questions as Record<string, unknown>[] : [];
-  const missing = input.options.questionCount - current.length;
+  // Pela IA, no máximo QUESTION_CHUNK questões por pedido (acima disso o modelo erra mais); a
+  // reposição só cobre as que o revisor tirou. O resto a pessoa pede em lotes de 10.
+  const missing = Math.min(input.options.questionCount, QUESTION_CHUNK) - current.length;
   if (missing <= 0) return content;
   const context = [input.competitionName, input.role, input.board ? `banca ${input.board}` : null, input.subjectName, input.topicPath.join(" › ")].filter(Boolean).join(" · ");
   const model = resolveOpenAiModel(dependencies.modelForJob?.(job) ?? dependencies.model);
@@ -312,6 +321,9 @@ async function completeQuestions(
 
 /** Questões pedidas a mais, de reserva: as que o revisor remover são repostas por elas. */
 export const RESERVE_QUESTIONS = 2;
+
+/** No Grátis, matérias por mês que a IA pode escrever (as da biblioteca não contam). */
+export const FREE_AI_MATERIALS = 2;
 
 /** Aceita de 1 a N + reserva questões; fora disso vale o número pedido (e a validação recusa). */
 function questionsDelivered(raw: string, requested: number): number {
@@ -442,7 +454,8 @@ export function withSimulationReview(
 }
 
 export function textSpecFor(job: SyllabusWorkerJob): AiJobSpec {
-  if (job.feature === "CONTENT_GENERATION") return CONTENT_JOB_SPEC;
+  // Lote extra de questões é um pedido de conteúdo só com o bloco QUESTIONS, com cota própria.
+  if (job.feature === "CONTENT_GENERATION" || job.feature === "QUESTION_BATCH") return CONTENT_JOB_SPEC;
   if (job.feature === "PLAN_GENERATION") return PLAN_JOB_SPEC;
   if (job.feature === "SIMULATION_GENERATION") return SIMULATION_JOB_SPEC;
   // A fila de texto só entrega esses três; qualquer outro é dado corrompido.

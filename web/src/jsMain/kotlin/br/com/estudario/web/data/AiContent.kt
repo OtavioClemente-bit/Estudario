@@ -123,7 +123,11 @@ object AiContent {
                     val proposal = job["proposal"] as? JsonObject ?: return Progress.Failed("O material ficou pronto, mas não chegou aqui. Tente de novo.")
                     return Progress.Done(proposal)
                 }
-                "FAILED", "EXPIRED", "CANCELLED" -> return Progress.Failed("Não consegui gerar um material confiável desta vez. Sua cota não foi usada; tente de novo.")
+                "FAILED", "EXPIRED", "CANCELLED" -> return Progress.Failed(
+                    // Limite do plano barrado no servidor (cota devolvida): a mensagem abre a janela de assinatura.
+                    if (job.str("errorCode") == "PLAN_AI_MATERIAL_LIMIT") AiJobs.message("PLAN_AI_MATERIAL_LIMIT")
+                    else "Não consegui gerar um material confiável desta vez. Sua cota não foi usada; tente de novo.",
+                )
             }
         }
         return Progress.Failed("A geração está demorando mais que o normal. Ela continua no servidor; tente de novo em alguns minutos.")
@@ -136,6 +140,9 @@ object AiContent {
             "QUOTA_EXHAUSTED", "AI_QUOTA_EXHAUSTED" -> "Você usou todas as gerações de conteúdo do seu plano neste mês."
             "QUOTA_RESERVED" -> "Já tem uma geração em andamento. Espere ela terminar."
             "QUESTION_LIMIT_EXCEEDED" -> "Essa quantidade de questões passa do limite do seu plano."
+            "TOPIC_BATCH_LIMIT" -> "No plano grátis, cada matéria tem 1 lote extra de questões. Assine para pedir mais: o lote extra é do seu plano pago."
+            "PLAN_FEATURE_LOCKED" -> "No plano grátis, o simulado é só o diagnóstico. Os outros simulados são do seu plano pago."
+            "PLAN_AI_MATERIAL_LIMIT" -> "Este tópico ainda não tem material pronto, e as matérias escritas na hora pela IA do seu plano grátis acabaram neste mês."
             "DEVICE_QUOTA_EXHAUSTED" -> "O saldo grátis de gerações já foi usado neste navegador ou nesta rede."
             "AI_RATE_LIMIT_EXCEEDED" -> "Muitas tentativas em pouco tempo. Tente de novo em alguns minutos."
             "TURNSTILE_FAILED", "TURNSTILE_UNAVAILABLE" -> "A verificação de segurança não passou. Recarregue a página e tente de novo."

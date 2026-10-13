@@ -37,7 +37,18 @@ import { effectivePlanTier, SupabaseAccessDataSource } from "../_shared/access-p
 import { parseSimulationJobInput } from "../_shared/simulation.ts";
 
 const SYLLABUS_FEATURE: AiFeature = "SYLLABUS_GENERATION";
-const TEXT_FEATURES: ReadonlySet<string> = new Set(["CONTENT_GENERATION", "PLAN_GENERATION", "SIMULATION_GENERATION"]);
+const TEXT_FEATURES: ReadonlySet<string> = new Set(["CONTENT_GENERATION", "PLAN_GENERATION", "SIMULATION_GENERATION", "QUESTION_BATCH"]);
+/** Lote extra ("mais questões"): sempre até 10, em qualquer plano. */
+const QUESTION_BATCH_SIZE = 10;
+
+/** Regras do plano da conta que valem na criação do pedido. */
+export interface PlanRules {
+  tier: string;
+  /** Questões ao criar a matéria (max_per_request de CONTENT_GENERATION). */
+  materialMaxQuestions: number;
+  /** Lotes extras por matéria (max_per_topic_month de QUESTION_BATCH; contado na vida). null = livre. */
+  batchesPerTopic: number | null;
+}
 const DEFAULT_LIMITS: StorageSourceLimits = {
   maxBytes: 50 * 1024 * 1024,
   maxPages: 500,
@@ -54,6 +65,10 @@ export interface AiSyllabusJobsDependencies {
   integrity?: IntegrityVerifier;
   /** Máximo de questões por geração no plano da conta. Ausente = só o teto absoluto (testes). */
   questionLimit?: (userId: string) => Promise<number>;
+  /** Regras do plano (teto da matéria, lote por matéria, simulado do Grátis). Ausente = não confere. */
+  planRules?: (userId: string) => Promise<PlanRules>;
+  /** Lotes extras já pedidos (e não falhos) para o mesmo tópico, em toda a vida da conta. */
+  topicBatchCount?: (userId: string, topicPath: readonly string[]) => Promise<number>;
   /** Saldo grátis somado por aparelho (todas as contas do celular). Ausente = não confere (testes). */
   deviceQuota?: DeviceQuota;
   /** Saldo grátis somado por rede (hash do IP): app web e pedidos sem aparelho. Ausente = não confere. */
@@ -201,6 +216,8 @@ function safeError(code: string, status: number, retryAfterSeconds?: number): Re
     INTEGRITY_FAILED: "Use the app installed from Google Play",
     INTEGRITY_UNAVAILABLE: "Integrity check is temporarily unavailable",
     QUESTION_LIMIT_EXCEEDED: "Question count is above the plan limit",
+    TOPIC_BATCH_LIMIT: "No plano grátis, cada matéria tem 1 lote extra de questões. Assine para pedir mais.",
+    PLAN_FEATURE_LOCKED: "No plano grátis, o simulado é só o diagnóstico. Assine para montar outros simulados.",
     DEVICE_QUOTA_EXHAUSTED: "The free allowance of this device has been used",
     DEVICE_REQUIRED: "Device identification is required",
     TURNSTILE_FAILED: "Human verification failed; reload the page",
@@ -473,7 +490,7 @@ async function createTextJob(
 ): Promise<Response> {
   let input: unknown;
   try {
-    input = feature === "CONTENT_GENERATION"
+    input = feature === "CONTENT_GENERATION" || feature === "QUESTION_BATCH"
       ? parseContentJobInput(rawInput)
       : feature === "SIMULATION_GENERATION"
       ? parseSimulationJobInput(rawInput)
@@ -482,8 +499,45 @@ async function createTextJob(
     if (error instanceof TextJobInputError) return safeError("INVALID_REQUEST", 400);
     throw error;
   }
+  // Pedido só de questões é lote extra: cota própria (QUESTION_BATCH) e sempre até 10 questões. O app
+  // e o site mandam CONTENT_GENERATION nos dois casos; quem decide é o servidor.
+  if (feature === "CONTENT_GENERATION" || feature === "QUESTION_BATCH") {
+    const content = input as ContentJobInput;
+    const questionsOnly = content.options.blocks.length === 1 && content.options.blocks[0] === "QUESTIONS";
+    feature = questionsOnly ? "QUESTION_BATCH" : "CONTENT_GENERATION";
+    if (questionsOnly && content.options.questionCount > QUESTION_BATCH_SIZE) {
+      input = { ...content, options: { ...content.options, questionCount: QUESTION_BATCH_SIZE } };
+    }
+  }
+  if (dependencies.planRules) {
+    let rules: PlanRules;
+    try {
+      rules = await dependencies.planRules(user.userId);
+    } catch {
+      return safeError("AI_JOB_DATA_UNAVAILABLE", 503);
+    }
+    if (feature === "CONTENT_GENERATION") {
+      // Acima do teto do plano não recusa: entrega o teto (a régua do app antigo ia até o limite antigo).
+      const content = input as ContentJobInput;
+      if (content.options.questionCount > rules.materialMaxQuestions) {
+        input = { ...content, options: { ...content.options, questionCount: rules.materialMaxQuestions } };
+      }
+    }
+    if (feature === "QUESTION_BATCH" && rules.batchesPerTopic !== null && dependencies.topicBatchCount) {
+      let used: number;
+      try {
+        used = await dependencies.topicBatchCount(user.userId, (input as ContentJobInput).topicPath);
+      } catch {
+        return safeError("AI_JOB_DATA_UNAVAILABLE", 503);
+      }
+      if (used >= rules.batchesPerTopic) return safeError("TOPIC_BATCH_LIMIT", 403);
+    }
+    if (feature === "SIMULATION_GENERATION" && rules.tier === "FREE" && (input as { mode?: string }).mode !== "DIAGNOSTIC") {
+      return safeError("PLAN_FEATURE_LOCKED", 403);
+    }
+  }
   // O app já limita a régua ao plano; aqui é a garantia, antes de reservar cota.
-  const questionCount = feature === "CONTENT_GENERATION" ? (input as ContentJobInput).options.questionCount : 0;
+  const questionCount = feature === "CONTENT_GENERATION" && !dependencies.planRules ? (input as ContentJobInput).options.questionCount : 0;
   if (questionCount > 0 && dependencies.questionLimit) {
     let limit: number;
     try {
@@ -524,14 +578,19 @@ async function createTextJob(
       return error instanceof JobStoreError ? safeError(error.code, error.status) : safeError("AI_JOB_DATA_UNAVAILABLE", 503);
     }
   }
-  return jsonResponse({ jobId: job.id, feature, status: job.status }, created.reused ? 200 : 201);
+  return jsonResponse({ jobId: job.id, feature: publicFeature(feature), status: job.status }, created.reused ? 200 : 201);
+}
+
+/** O app até a 3.3.20 só conhece os quatro recursos antigos: o lote extra aparece como conteúdo. */
+function publicFeature(feature: AiFeature): AiFeature {
+  return feature === "QUESTION_BATCH" ? "CONTENT_GENERATION" : feature;
 }
 
 /** Visão pública de um job de texto: o resultado já foi validado pelo worker antes de ser salvo. */
 function publicTextJob(job: AiJobRecord): Record<string, unknown> {
   return {
     jobId: job.id,
-    feature: job.feature,
+    feature: publicFeature(job.feature),
     status: job.status,
     schemaVersion: job.schemaVersion,
     promptVersion: job.promptVersion,
@@ -685,6 +744,29 @@ function runtimeDependencies(request: Request): AiSyllabusJobsDependencies {
       const row = (await data.listPlanLimits(tier)).find((limit) => limit.feature === "QUESTION_BATCH");
       // Sem linha configurada, fica fechado no mínimo do Grátis em vez de liberar o teto.
       return row?.maxPerRequest ?? 10;
+    },
+    planRules: async (userId) => {
+      const data = new SupabaseAccessDataSource({ supabaseUrl, authenticatedUserId: userId, accessToken, publishableKey });
+      const tier = effectivePlanTier(await data.findProfile(userId), new Date());
+      const limits = await data.listPlanLimits(tier);
+      const content = limits.find((limit) => limit.feature === "CONTENT_GENERATION");
+      const batch = limits.find((limit) => limit.feature === "QUESTION_BATCH");
+      return {
+        tier,
+        // Sem linha configurada, fica no mínimo do Grátis em vez de liberar o teto.
+        materialMaxQuestions: content?.maxPerRequest ?? 10,
+        batchesPerTopic: batch?.maxPerTopicMonth ?? null,
+      };
+    },
+    topicBatchCount: async (userId, topicPath) => {
+      // Os pedidos da própria conta (até 1000 lotes); compara o caminho do tópico aqui.
+      const url = `${supabaseUrl}/rest/v1/ai_jobs?select=topic:request_payload->input->topicPath` +
+        `&user_id=eq.${encodeURIComponent(userId)}&feature=eq.QUESTION_BATCH&status=not.in.(FAILED,EXPIRED,CANCELLED)&limit=1000`;
+      const response = await fetch(url, { headers: { apikey: serviceRoleKey, authorization: `Bearer ${serviceRoleKey}` } });
+      if (!response.ok) throw new Error("TOPIC_BATCH_COUNT_FAILED");
+      const rows = await response.json() as { topic?: unknown }[];
+      const key = JSON.stringify(topicPath);
+      return rows.filter((row) => JSON.stringify(row.topic) === key).length;
     },
     deviceQuota: serviceDeviceQuota(supabaseUrl, serviceRoleKey),
     networkQuota: serviceNetworkQuota(supabaseUrl, serviceRoleKey),

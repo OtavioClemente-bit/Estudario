@@ -55,6 +55,8 @@ private val difficultyChoices = listOf(
 /** Máximo de questões por pedido no plano grátis (GenerationLimits do app). */
 /** Limite do Grátis, usado enquanto o plano da conta carrega; o servidor é quem aplica o limite de verdade. */
 private const val FREE_MAX_QUESTIONS = 10
+/** Lote extra ("mais questões"): sempre até 10, em qualquer plano. */
+private const val BATCH_QUESTIONS = 10
 
 @Composable
 private fun ChoiceCards(items: List<Choice>, isOn: (String) -> Boolean, cols: Int = 2, onToggle: (String) -> Unit) {
@@ -81,7 +83,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
     var depth by remember { mutableStateOf("DEEP") }
     var maxQuestions by remember { mutableStateOf(FREE_MAX_QUESTIONS) }
     var count by remember { mutableStateOf(FREE_MAX_QUESTIONS) }
-    LaunchedEffect(Unit) { questionBatchLimit()?.takeIf { it >= 1 }?.let { maxQuestions = it } }
+    LaunchedEffect(Unit) { if (!questionsOnly) materialQuestionLimit()?.takeIf { it >= 1 }?.let { maxQuestions = it } }
     var style by remember { mutableStateOf("MIXED") }
     var difficulty by remember { mutableStateOf("MEDIUM") }
     var board by remember { mutableStateOf("") }
@@ -123,11 +125,11 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                     "questions" -> {
                         FolhaSays("point", 64) {
                             B { Text("Quantas questões e em qual formato?") }
-                            P({ classes("small", "muted") }) { Text("No seu plano, até $maxQuestions questões por pedido.") }
+                            P({ classes("small", "muted") }) { Text(if (questionsOnly) "Cada lote traz até $BATCH_QUESTIONS questões novas." else "No seu plano, até $maxQuestions questões ao criar a matéria.") }
                         }
                         Div({ classes("day-row") }) {
                             Div({ classes("grow") }) { Div({ classes("name") }) { Text("Quantidade") }; Div({ classes("hint") }) { Text("$count questões") } }
-                            Stepper(count, { count = it }, min = 1, max = maxQuestions, label = "Quantidade de questões")
+                            Stepper(count, { count = it }, min = 1, max = if (questionsOnly) BATCH_QUESTIONS else maxQuestions, label = "Quantidade de questões")
                         }
                         ChoiceCards(styleChoices, { it == style }) { style = it }
                     }
@@ -159,6 +161,11 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                 Div({ classes("celebrate") }) { Folha("happy", 140) }
                 org.jetbrains.compose.web.dom.H2 { Text("Prontinho!") }
                 P({ classes("muted") }) { Text(if (showQuestions) "As novas questões já estão em “${topic?.title ?: "neste tópico"}”, prontas para treinar." else "Seu material está salvo em “${topic?.title ?: "neste tópico"}”: teoria, flashcards e questões esperando por você.") }
+                val asked = Generation.requested[topicId] ?: 0
+                val got = Generation.delivered[topicId] ?: 0
+                if (got in 1 until asked) P({ classes("small", "muted") }) {
+                    Text("Este tópico ainda não tinha questões prontas: vieram $got inéditas, escritas agora. Quando terminar, peça mais em lotes de 10.")
+                }
                 if (showQuestions) Btn("Treinar agora", { Generation.clear(topicId); onClose(); Router.go(Route.Quiz("topico-$topicId")) }, style = "primary", size = "lg", icon = "play_arrow")
                 else Btn("Ver material", { Generation.clear(topicId); onClose(); Router.go(Route.Topic(topicId)) }, style = "primary", size = "lg", icon = "menu_book")
             }
