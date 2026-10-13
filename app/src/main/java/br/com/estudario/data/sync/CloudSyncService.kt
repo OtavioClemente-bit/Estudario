@@ -89,11 +89,22 @@ class CloudSyncService(
     suspend fun sync(choice: ConflictChoice? = null): CloudSyncStatus = mutex.withLock {
         if (!config.isConfigured) return@withLock CloudSyncStatus.Failed("Sincronização indisponível nesta versão.").also { _status.value = it }
         if (auth.accessToken() == null && !auth.refreshSession()) return@withLock CloudSyncStatus.SignedOut.also { _status.value = it }
+        val before = _status.value
         _status.value = CloudSyncStatus.Running
         val result = runCatching { runSync(choice) }.getOrElse { error ->
+            // Tarefa cancelada (app fechado ou trocado de tela no meio): não é falha, volta ao estado
+            // de antes e a próxima rodada sincroniza. Antes aparecia "Job was cancelled" na tela.
+            if (error is kotlinx.coroutines.CancellationException) {
+                _status.value = if (before is CloudSyncStatus.Running) CloudSyncStatus.Idle else before
+                throw error
+            }
+            // O erro técnico vai para o log (adb logcat -s EstudarioSync); a tela mostra uma frase legível.
+            android.util.Log.w("EstudarioSync", "Falha na sincronização", error)
             when (error) {
                 is SyncConflictException -> CloudSyncStatus.Conflict(error.remoteDevice, error.remoteUpdatedAt)
                 is SyncAuthException -> CloudSyncStatus.SignedOut
+                is java.io.IOException -> CloudSyncStatus.Failed("Sem conexão com o servidor agora. Tentamos de novo sozinhos.")
+                is IllegalArgumentException -> CloudSyncStatus.Failed("Alguns dados vindos do site não foram reconhecidos por esta versão do app. Atualize o app pela Google Play.")
                 else -> CloudSyncStatus.Failed(error.message?.take(200) ?: "Falha na sincronização.")
             }
         }
