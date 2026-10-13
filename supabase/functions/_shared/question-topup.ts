@@ -14,8 +14,15 @@ const questionsSchema = (AI_TOPIC_CONTENT_SCHEMA as { properties: Record<string,
 export const TOPUP_SCHEMA: JsonSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["questions"],
-  properties: { questions: questionsSchema },
+  // O provedor fixa schemaVersion/promptVersion/modelVersion em todo formato; sem eles aqui a OpenAI
+  // recusava o formato ("required ... Missing 'schemaVersion'") e nenhuma questão era reposta.
+  required: ["schemaVersion", "promptVersion", "modelVersion", "questions"],
+  properties: {
+    schemaVersion: { type: "integer" },
+    promptVersion: { type: "string" },
+    modelVersion: { type: "string" },
+    questions: questionsSchema,
+  },
 };
 
 const STYLE = { MIXED: "MISTO", FIVE_OPTIONS: "MÚLTIPLA_A_E", FOUR_OPTIONS: "MÚLTIPLA_A_D", TRUE_FALSE: "CERTO_ERRADO" } as const;
