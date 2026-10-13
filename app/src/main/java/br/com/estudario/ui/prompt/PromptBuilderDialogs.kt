@@ -708,7 +708,7 @@ fun AdditionalQuestionPromptBuilderDialog(
             taskId = taskId,
             onDone = { estudo -> generating = false; br.com.estudario.ui.ai.BackgroundAiTasks.dismiss(taskId); onDismiss(); viewModel.openIncomingText(estudo, competition.id) },
             onBackground = { br.com.estudario.ui.ai.BackgroundAiTasks.sendToBackground(taskId); generating = false; onDismiss() },
-            onClose = { br.com.estudario.ui.ai.BackgroundAiTasks.dismiss(taskId); generating = false },,
+            onClose = { br.com.estudario.ui.ai.BackgroundAiTasks.dismiss(taskId); generating = false },
             questionsOnly = true
         )
     }

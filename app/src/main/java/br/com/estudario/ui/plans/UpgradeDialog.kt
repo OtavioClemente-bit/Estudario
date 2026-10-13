@@ -34,29 +34,39 @@ import br.com.estudario.ui.brand.Surface
 /** Qual limite estourou: muda o título e o que a janela promete. */
 enum class UpgradeReason(val title: String, val body: String, val perks: List<String>) {
     CONTENT(
-        "Seus materiais deste mês acabaram",
-        "No Essencial são 25 materiais completos por mês, teoria, flashcards, dicas e questões no estilo da sua banca. No Pro, 50.",
-        listOf("25 ou 50 materiais por mês", "Lotes de questões extras", "Simulados no estilo da banca", "Seu próprio edital em PDF"),
+        "Suas matérias deste mês acabaram",
+        "No Essencial são 25 matérias por mês, com teoria, flashcards, dicas e até 20 questões no estilo da sua banca. No Pro, 40, com até 30 questões.",
+        listOf("25 ou 40 matérias por mês", "Lotes de 10 questões extras sem limite por matéria", "Simulados completos no estilo da banca", "Seu próprio edital em PDF"),
     ),
     SYLLABUS(
         "Edital pelo seu PDF é dos planos pagos",
-        "No Grátis você usa os editais do catálogo. Para mandar o PDF do seu concurso e ter as matérias e tópicos na ordem exata do edital, assine.",
-        listOf("Seu edital em PDF, organizado em minutos", "25 ou 50 materiais por mês", "Simulados no estilo da banca", "Lotes de questões extras"),
+        "No Grátis você usa os editais do catálogo. Para mandar o PDF do seu concurso, assine: 2 por mês no Essencial, 5 no Pro.",
+        listOf("25 ou 40 matérias por mês", "Lotes de 10 questões extras sem limite por matéria", "Simulados completos no estilo da banca", "Seu próprio edital em PDF"),
     ),
     SIMULATION(
-        "Seus simulados acabaram",
-        "No Essencial são 2 simulados por mês no estilo da sua banca, com nota por matéria. No Pro, 4.",
-        listOf("2 ou 4 simulados por mês", "25 ou 50 materiais por mês", "Lotes de questões extras", "Seu próprio edital em PDF"),
+        "Simulados completos são dos planos pagos",
+        "No Grátis você faz o simulado diagnóstico. No Essencial são 3 simulados por mês no estilo da sua banca; no Pro, 6.",
+        listOf("25 ou 40 matérias por mês", "Lotes de 10 questões extras sem limite por matéria", "Simulados completos no estilo da banca", "Seu próprio edital em PDF"),
     ),
     QUESTIONS(
         "Seus lotes de questões acabaram",
-        "No Essencial são 10 lotes por mês, com até 20 questões cada. No Pro, 20 lotes de até 30.",
-        listOf("10 ou 20 lotes por mês", "25 ou 50 materiais por mês", "Simulados no estilo da banca", "Seu próprio edital em PDF"),
+        "No Grátis cada matéria tem 1 lote extra. No Essencial são 10 lotes de 10 questões por mês; no Pro, 25, sem limite por matéria.",
+        listOf("25 ou 40 matérias por mês", "Lotes de 10 questões extras sem limite por matéria", "Simulados completos no estilo da banca", "Seu próprio edital em PDF"),
+    ),
+    EDITAIS(
+        "Você chegou ao limite de editais salvos",
+        "No Grátis você guarda até 5 editais. No Essencial são 15 e no Pro não há limite.",
+        listOf("25 ou 40 matérias por mês", "Lotes de 10 questões extras sem limite por matéria", "Simulados completos no estilo da banca", "Seu próprio edital em PDF"),
+    ),
+    PLANS(
+        "Novos planos de estudo são dos planos pagos",
+        "No Grátis você tem um plano de estudo e pode ajustá-lo quando quiser. No Essencial dá para criar 3 planos por mês, e no Pro, 10.",
+        listOf("25 ou 40 matérias por mês", "Lotes de 10 questões extras sem limite por matéria", "Simulados completos no estilo da banca", "Seu próprio edital em PDF"),
     ),
     GENERIC(
         "Seu plano chegou no limite",
-        "Os planos pagos liberam mais materiais, questões, simulados e o seu próprio edital em PDF.",
-        listOf("25 ou 50 materiais por mês", "Lotes de questões extras", "Simulados no estilo da banca", "Seu próprio edital em PDF"),
+        "Os planos pagos liberam mais matérias, lotes de questões, simulados e o seu próprio edital em PDF.",
+        listOf("25 ou 40 matérias por mês", "Lotes de 10 questões extras sem limite por matéria", "Simulados completos no estilo da banca", "Seu próprio edital em PDF"),
     );
 
     companion object {

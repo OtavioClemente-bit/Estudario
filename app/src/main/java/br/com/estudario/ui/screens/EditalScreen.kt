@@ -66,6 +66,9 @@ import kotlinx.coroutines.withContext
 @Composable
 fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () -> Unit = {}) {
     val competitions by viewModel.competitions.collectAsState()
+    val entitlements = br.com.estudario.ui.plans.rememberEntitlements()
+    var editaisUpgrade by remember { mutableStateOf(false) }
+    if (editaisUpgrade) br.com.estudario.ui.plans.UpgradeDialog(br.com.estudario.ui.plans.UpgradeReason.EDITAIS, onDismiss = { editaisUpgrade = false })
     val subjects by viewModel.subjects.collectAsState()
     val topics by viewModel.topics.collectAsState()
     val theories by viewModel.theories.collectAsState()
@@ -122,7 +125,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
     LaunchedEffect(addCompetition) {
         if (addCompetition) {
             addCompetition = false
-            viewModel.startNewCompetitionSetup()
+            if (entitlements?.canAddEdital(competitions.size) == false) editaisUpgrade = true else viewModel.startNewCompetitionSetup()
         }
     }
     competitionMenu?.let { competition ->

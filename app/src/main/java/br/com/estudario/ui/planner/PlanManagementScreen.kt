@@ -98,6 +98,9 @@ fun PlanManagementScreen(
     androidx.activity.compose.BackHandler(onBack = onBack)
 
     var excluir by remember { mutableStateOf<StudyPlanEntity?>(null) }
+    val entitlements = br.com.estudario.ui.plans.rememberEntitlements()
+    var planUpgrade by remember { mutableStateOf(false) }
+    if (planUpgrade) br.com.estudario.ui.plans.UpgradeDialog(br.com.estudario.ui.plans.UpgradeReason.PLANS, onDismiss = { planUpgrade = false })
     var execucoes by remember { mutableStateOf<Int?>(null) }
     var planMenu by remember { mutableStateOf<StudyPlanEntity?>(null) }
     var subjectPriority by remember { mutableStateOf<Long?>(null) }
@@ -120,10 +123,10 @@ fun PlanManagementScreen(
             actions = buildList {
                 if (!plan.archived && !plan.active) add(SheetAction(Icons.Outlined.PlayCircle, "Ativar este plano", "O ativo atual é desativado, sem apagar o histórico") { confirm = "O plano ativo atual será desativado, sem apagar o histórico." to { onActivate(plan.id) } })
                 if (!plan.archived && !plan.masterPlan) add(SheetAction(Icons.Outlined.Star, "Tornar Plano Mestre", "O plano de referência para o ano todo") { confirm = "O Plano Mestre anterior será desmarcado, preservando todos os dados." to { onMaster(plan.id) } })
-                add(SheetAction(Icons.Outlined.ContentCopy, "Duplicar", "Uma cópia para testar outra estratégia") { onDuplicate(plan.id, "${plan.name}, cópia") })
+                add(SheetAction(Icons.Outlined.ContentCopy, "Duplicar", "Uma cópia para testar outra estratégia") { if (entitlements?.canCreatePlan(state.allPlans.map { it.createdAt }) == false) planUpgrade = true else onDuplicate(plan.id, "${plan.name}, cópia") })
                 if (!plan.archived) add(SheetAction(Icons.Outlined.Archive, "Arquivar", "Sai de Hoje/Semana/Mês/Ano; o histórico fica") { confirm = "O plano ficará consultável, mas deixará de alimentar Hoje/Semana/Mês/Ano." to { onArchive(plan.id) } })
                 else add(SheetAction(Icons.Outlined.Unarchive, "Restaurar") { onRestore(plan.id) })
-                add(SheetAction(Icons.Outlined.DeleteOutline, "Excluir plano", "Apaga o cronograma e as tarefas dele", destructive = true) { excluir = plan })
+                add(SheetAction(Icons.Outlined.DeleteOutline, "Excluir plano", "Apaga o cronograma e as tarefas dele", destructive = true) { if (entitlements?.canDeletePlan == false) planUpgrade = true else excluir = plan })
             },
             onDismiss = { planMenu = null },
         )

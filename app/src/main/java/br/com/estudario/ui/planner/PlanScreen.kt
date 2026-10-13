@@ -57,6 +57,9 @@ import java.time.LocalDate
 @Composable
 fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpenTopic: (Long) -> Unit, onOpenTopicTask: (Long, String) -> Unit = { id, _ -> onOpenTopic(id) }, onOpenErrors: () -> Unit = {}, onFocus: () -> Unit = {}, onHelp: () -> Unit = {}, onStartQuestions: (PlanTaskEntity, Int) -> Unit = { _, _ -> }) {
     val state by viewModel.state.collectAsState()
+    val entitlements = br.com.estudario.ui.plans.rememberEntitlements()
+    var planUpgrade by remember { mutableStateOf(false) }
+    if (planUpgrade) br.com.estudario.ui.plans.UpgradeDialog(br.com.estudario.ui.plans.UpgradeReason.PLANS, onDismiss = { planUpgrade = false })
     val transfer by viewModel.transfer.collectAsState()
     val busy by viewModel.busy.collectAsState()
     val competitions by viewModel.competitions.collectAsState()
@@ -149,7 +152,7 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
                                 .tourTarget(TourKey.PLAN_MANAGE, tourStep?.key) { appViewModel.reportTourTargetBounds(TourKey.PLAN_MANAGE, it) },
                         ) { Icon(Icons.Outlined.MoreVert, "Mais opções do plano") }
                         DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
-                            DropdownMenuItem(text = { Text("Novo plano") }, leadingIcon = { Icon(Icons.Outlined.Add, null) }, onClick = { more = false; appViewModel.startPlanSetup((competitions.firstOrNull { it.isPrimary } ?: competitions.firstOrNull())?.id) })
+                            DropdownMenuItem(text = { Text("Novo plano") }, leadingIcon = { Icon(Icons.Outlined.Add, null) }, onClick = { more = false; if (entitlements?.canCreatePlan(state.allPlans.map { it.createdAt }) == false) { planUpgrade = true; return@DropdownMenuItem }; appViewModel.startPlanSetup((competitions.firstOrNull { it.isPrimary } ?: competitions.firstOrNull())?.id) })
                             DropdownMenuItem(text = { Text("Meus planos e ajustes") }, leadingIcon = { Icon(Icons.Outlined.Tune, null) }, onClick = { more = false; management = true })
                         }
                     }
