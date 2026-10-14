@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Estudário — painel da Play Store</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=block" rel="stylesheet">
+<style>
+  /* Painel contínuo de 6 telas (6 × 1080 × 1920): o caderno à noite atravessa todas, a turma do Folha
+     passa de uma para a outra. ?s=0..5 mostra uma tela; sem ?s, o painel inteiro reduzido. */
+  :root { --night: #120F2B; --ink: #26234A; --hl: #FFD23F; --violet: #7B6BFF; --mint: #7EE0B8; }
+  html, body { margin: 0; background: var(--night); overflow: hidden; }
+  #wrap { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; overflow: hidden; }
+  #canvas { position: absolute; left: 0; top: 0; width: 6480px; height: 1920px; font-family: "Nunito", system-ui, sans-serif; color: #fff;
+    background-color: var(--night);
+    background-image:
+      radial-gradient(rgba(255, 255, 255, .085) 2.2px, transparent 2.6px),
+      radial-gradient(1100px 900px at 560px 1250px, rgba(91, 75, 245, .55), transparent 70%),
+      radial-gradient(900px 800px at 1700px 1500px, rgba(255, 123, 176, .20), transparent 70%),
+      radial-gradient(1000px 900px at 2700px 1250px, rgba(34, 194, 123, .22), transparent 70%),
+      radial-gradient(1000px 900px at 3800px 1300px, rgba(91, 75, 245, .50), transparent 70%),
+      radial-gradient(1000px 900px at 4900px 1250px, rgba(255, 180, 33, .20), transparent 70%),
+      radial-gradient(1000px 900px at 5950px 1300px, rgba(149, 99, 255, .45), transparent 70%);
+    background-size: 44px 44px, auto, auto, auto, auto, auto, auto; }
+  /* a linha de marca-texto que costura as seis telas */
+  #ribbon { position: absolute; left: 0; top: 0; width: 6480px; height: 1920px; pointer-events: none; }
+
+  .panel { position: absolute; top: 0; width: 1080px; height: 1920px; }
+  .head { position: absolute; left: 84px; right: 84px; top: 128px; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 16px; font-weight: 900; font-size: 30px; letter-spacing: 6px; text-transform: uppercase; color: var(--mint); }
+  .eyebrow i { width: 52px; height: 8px; border-radius: 4px; background: currentColor; display: block; }
+  h1 { margin: 26px 0 0; font-weight: 900; font-size: 112px; line-height: .98; letter-spacing: -4.5px; }
+  h1 mark { color: var(--hl); background: linear-gradient(transparent 58%, rgba(123, 107, 255, .75) 58%, rgba(123, 107, 255, .75) 92%, transparent 92%);
+    padding: 0 8px; margin: 0 -4px; border-radius: 6px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+  .sub { margin-top: 30px; font-size: 42px; line-height: 1.28; font-weight: 700; color: #CFCBF2; max-width: 880px; }
+
+  /* celular adesivo: tela real do Estudário, contorno branco e aba de profundidade como os ícones */
+  .phone { position: absolute; width: 640px; border-radius: 92px; padding: 18px; background: #191637;
+    box-shadow: 0 0 0 12px #fff, 0 34px 0 12px #3E2FC9, 0 80px 140px rgba(4, 2, 24, .7); }
+  .phone img { display: block; width: 100%; border-radius: 76px; }
+  /* sem furo de câmera: a tela capturada já começa abaixo da barra de status */
+
+  /* a turma: personagens grandes, alguns atravessando a divisa entre uma tela e outra */
+  .char { position: absolute; filter: drop-shadow(0 24px 30px rgba(4, 2, 24, .55)); }
+  .char svg { width: 100%; height: 100%; display: block; overflow: visible; }
+  .bubble { position: absolute; background: #fff; color: var(--ink); font-weight: 900; font-size: 40px; line-height: 1.15; padding: 24px 36px; border-radius: 44px;
+    box-shadow: 0 0 0 6px var(--ink), 0 16px 0 6px var(--ink), 0 40px 60px rgba(4, 2, 24, .5); white-space: nowrap; }
+  .bubble::after { content: ""; position: absolute; width: 38px; height: 38px; background: #fff; transform: rotate(45deg); bottom: -16px; border-right: 6px solid var(--ink); border-bottom: 6px solid var(--ink); }
+  .bubble.l::after { left: 64px; } .bubble.r::after { right: 64px; }
+  .chip { position: absolute; display: flex; align-items: center; gap: 16px; background: #fff; color: var(--ink); border-radius: 999px; padding: 18px 30px 18px 18px;
+    font-weight: 900; font-size: 36px; box-shadow: 0 0 0 6px var(--ink), 0 14px 0 6px var(--ink), 0 30px 50px rgba(4, 2, 24, .45); white-space: nowrap; }
+  .chip .ic { width: 64px; height: 64px; }
+  .chip .ic svg { width: 100%; height: 100%; }
+  .wm { font-weight: 900; font-size: 92px; letter-spacing: -4px; line-height: 1; color: #fff; padding: 0 10px;
+    background: linear-gradient(transparent 58%, rgba(255, 210, 63, .9) 58%, rgba(255, 210, 63, .9) 92%, transparent 92%); }
+  .wm em { font-style: normal; color: var(--hl); }
+  .wm.dark em { color: #E08A00; }
+  .folha-big { position: absolute; }
+  .cta { position: absolute; display: inline-flex; align-items: center; gap: 18px; background: #5B4BF5; color: #fff; font-weight: 900; font-size: 46px;
+    padding: 30px 54px; border-radius: 999px; box-shadow: 0 0 0 8px #fff, 0 22px 0 8px #3E2FC9, 0 40px 70px rgba(4, 2, 24, .6); }
+</style>
+<script src="../../../web/src/jsMain/resources/folha.js"></script>
+<script src="../../../web/src/jsMain/resources/folha-live.js"></script>
+<script src="../../../web/src/jsMain/resources/turma.js"></script>
+</head>
+<body>
+<div id="wrap"><div id="canvas">
+  <svg id="ribbon" viewBox="0 0 6480 1920" fill="none">
+    <path d="M-40 1060 C 300 900, 520 1220, 900 1080 S 1500 820, 1900 1000 S 2600 1300, 3000 1080 S 3700 820, 4100 1020 S 4800 1320, 5200 1100 S 5900 860, 6520 1040"
+      stroke="rgba(123,107,255,.32)" stroke-width="150" stroke-linecap="round"/>
+    <path d="M-40 1060 C 300 900, 520 1220, 900 1080 S 1500 820, 1900 1000 S 2600 1300, 3000 1080 S 3700 820, 4100 1020 S 4800 1320, 5200 1100 S 5900 860, 6520 1040"
+      stroke="rgba(255,210,63,.55)" stroke-width="10" stroke-linecap="round" stroke-dasharray="2 34"/>
+  </svg>
+
+  <!-- 1 · abertura -->
+  <section class="panel" style="left:0">
+    <div class="head">
+      <div class="eyebrow"><i></i>para concurseiros</div>
+      <h1>Do edital à <mark>aprovação</mark>.</h1>
+      <div class="sub">Seu concurso organizado, com o Folha estudando junto todo dia.</div>
+    </div>
+    <div class="phone" style="left:360px;top:760px;transform:rotate(4deg)"><img src="telas/home.png"></div>
+    <div class="folha-big" style="left:10px;top:1170px"><estudario-folha mood="happy" size="460"></estudario-folha></div>
+    <div class="bubble l" style="left:70px;top:1010px">Bora estudar?</div>
+  </section>
+
+  <!-- 2 · material -->
+  <section class="panel" style="left:1080px">
+    <div class="head">
+      <div class="eyebrow"><i></i>material completo</div>
+      <h1>Toda matéria <mark>mastigada</mark>.</h1>
+      <div class="sub">Teoria em capítulos, revisão, dicas e as pegadinhas da banca.</div>
+    </div>
+    <div class="phone" style="left:220px;top:780px;transform:rotate(-3deg)"><img src="telas/materia.png"></div>
+    <div class="chip" style="left:560px;top:1320px"><span class="ic" data-g="lightbulb"></span>Dicas</div>
+    <div class="chip" style="left:40px;top:1560px"><span class="ic" data-g="pest_control_rodent"></span>Pegadinhas</div>
+  </section>
+
+  <!-- 3 · questões -->
+  <section class="panel" style="left:2160px">
+    <div class="head">
+      <div class="eyebrow"><i></i>questões</div>
+      <h1>No estilo da <mark>sua banca</mark>.</h1>
+      <div class="sub">Explicação em cada resposta e o Folha comemorando cada acerto.</div>
+    </div>
+    <div class="phone" style="left:220px;top:780px;transform:rotate(3deg)"><img src="telas/quizok.png"></div>
+    <div class="bubble r" style="left:560px;top:690px">Na mosca!</div>
+  </section>
+
+  <!-- 4 · plano -->
+  <section class="panel" style="left:3240px">
+    <div class="head">
+      <div class="eyebrow"><i></i>plano de estudos</div>
+      <h1>Plano que cabe na <mark>sua rotina</mark>.</h1>
+      <div class="sub">Montado com o seu edital, o seu tempo e a data da prova.</div>
+    </div>
+    <div class="phone" style="left:220px;top:880px;transform:rotate(-3deg)"><img src="telas/plano.png"></div>
+    <div class="chip" style="left:560px;top:1780px"><span class="ic" data-g="timer"></span>Modo foco</div>
+  </section>
+
+  <!-- 5 · desempenho -->
+  <section class="panel" style="left:4320px">
+    <div class="head">
+      <div class="eyebrow"><i></i>desempenho</div>
+      <h1>Veja você <mark>evoluir</mark>.</h1>
+      <div class="sub">Acerto, horas estudadas, sequência e conquistas, num relance.</div>
+    </div>
+    <div class="phone" style="left:220px;top:760px;transform:rotate(3deg)"><img src="telas/desempenho.png"></div>
+    <div class="chip" style="left:40px;top:1380px"><span class="ic" data-g="local_fire_department"></span>3 dias seguidos</div>
+  </section>
+
+  <!-- 6 · treino e fechamento -->
+  <section class="panel" style="left:5400px">
+    <div class="head">
+      <div class="eyebrow"><i></i>treino</div>
+      <h1>Treine <mark>do seu jeito</mark>.</h1>
+      <div class="sub">Erradas, favoritas, por matéria, banca e dificuldade.</div>
+    </div>
+    <div class="phone" style="left:220px;top:760px;transform:rotate(-3deg)"><img src="telas/treinar.png"></div>
+    <div class="cta" style="left:250px;top:1700px">Comece grátis →</div>
+  </section>
+
+  <!-- a turma, atravessando as divisas -->
+  <div class="char" data-g="local_fire_department" style="left:960px;top:620px;width:240px;height:240px;transform:rotate(-8deg)"></div>
+  <div class="char" data-g="auto_stories" style="left:2040px;top:1180px;width:250px;height:250px;transform:rotate(6deg)"></div>
+  <div class="char" data-g="emoji_events" style="left:3110px;top:700px;width:270px;height:270px;transform:rotate(-6deg)"></div>
+  <div class="char" data-g="calendar_month" style="left:4190px;top:1180px;width:250px;height:250px;transform:rotate(7deg)"></div>
+  <div class="char" data-g="bolt" style="left:5280px;top:620px;width:240px;height:240px;transform:rotate(-10deg)"></div>
+  <div class="char" data-g="gps_fixed" style="left:2860px;top:1560px;width:220px;height:220px;transform:rotate(-4deg)"></div>
+  <div class="char" data-g="query_stats" style="left:4900px;top:1560px;width:230px;height:230px;transform:rotate(5deg)"></div>
+  <div class="char" data-g="school" style="left:6180px;top:1330px;width:240px;height:240px;transform:rotate(8deg)"></div>
+  <div class="char" data-g="star" style="left:1880px;top:600px;width:130px;height:130px;transform:rotate(12deg)"></div>
+  <div class="char" data-g="favorite" style="left:3980px;top:640px;width:120px;height:120px;transform:rotate(-12deg)"></div>
+</div></div>
+<script>
+  // Personagens da turma (os mesmos do app) nos lugares marcados com data-g.
+  document.querySelectorAll("[data-g]").forEach((el) => { el.innerHTML = window.estudarioGlyph(el.dataset.g) || ""; });
+  const s = new URLSearchParams(location.search).get("s");
+  const canvas = document.getElementById("canvas"), wrap = document.getElementById("wrap");
+  if (s !== null) canvas.style.left = (-1080 * Number(s)) + "px";
+  else { wrap.style.width = "6480px"; wrap.style.transform = "scale(.2)"; wrap.style.transformOrigin = "0 0"; }
+</script>
+</body>
+</html>
