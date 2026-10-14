@@ -30,8 +30,9 @@ sealed interface AiTextJobState {
     data object NeedsLogin : AiTextJobState
     data class Unavailable(val message: String) : AiTextJobState
     /** Cota do dia usada; [resetLabel] diz quando volta ("amanhã às 00:00"). */
-    data class QuotaUsed(val resetLabel: String?) : AiTextJobState
-    data class Ready(val quotaLabel: String) : AiTextJobState
+    data class QuotaUsed(val resetLabel: String?, val feature: String? = null) : AiTextJobState
+    /** Pronto para gerar, com o saldo real do plano ([remaining] de [limit] no período). */
+    data class Ready(val quotaLabel: String, val remaining: Int? = null, val limit: Int? = null, val monthly: Boolean = true, val resetLabel: String? = null) : AiTextJobState
     data object Generating : AiTextJobState
     data class Failed(val message: String, val canRetry: Boolean) : AiTextJobState
     /** [context] é o que foi guardado junto com o pedido (ex.: a tabela de ids curtos do plano). */
@@ -78,9 +79,17 @@ class AiTextJobViewModel(
                     val access = result.access
                     when {
                         !access.authenticated -> AiTextJobState.NeedsLogin
-                        access.canUse -> AiTextJobState.Ready("1 geração disponível hoje")
+                        access.canUse -> access.quota.let { quota ->
+                            AiTextJobState.Ready(
+                                quotaLabel = quota?.let { "${it.remaining} de ${it.limit}" } ?: "Disponível",
+                                remaining = quota?.remaining,
+                                limit = quota?.limit,
+                                monthly = quota?.resetAt != null,
+                                resetLabel = resetLabel(quota?.resetAt),
+                            )
+                        }
                         access.reasonCode == "QUOTA_EXHAUSTED" || access.reasonCode == "QUOTA_RESERVED" ->
-                            AiTextJobState.QuotaUsed(resetLabel(access.quota?.resetAt))
+                            AiTextJobState.QuotaUsed(resetLabel(access.quota?.resetAt), feature.name)
                         access.reasonCode == "BETA_ACCESS_REQUIRED" || access.reasonCode == "BETA_DISABLED" ->
                             AiTextJobState.Unavailable("Sua conta ainda não tem acesso à geração pelo Estudário.")
                         else -> AiTextJobState.Unavailable("Este recurso está temporariamente desativado.")
@@ -164,7 +173,7 @@ class AiTextJobViewModel(
     private fun failureMessage(error: Throwable): AiTextJobState = when {
         error is AiAuthenticationRequiredException -> AiTextJobState.NeedsLogin
         error is AiApiException && error.code == "DEVICE_QUOTA_EXHAUSTED" -> AiTextJobState.Failed(br.com.estudario.data.ai.DEVICE_QUOTA_MESSAGE, canRetry = false)
-        error is AiApiException && error.code.contains("QUOTA") -> AiTextJobState.QuotaUsed(null)
+        error is AiApiException && error.code.contains("QUOTA") -> AiTextJobState.QuotaUsed(null, feature.name)
         error is AiApiException && error.status == 401 -> AiTextJobState.NeedsLogin
         error is AiApiException && (error.code == "NETWORK_UNAVAILABLE" || error.code == "HTTP_TIMEOUT") ->
             AiTextJobState.Failed("Sem conexão com o Estudário agora. Confira a internet e tente de novo.", canRetry = true)

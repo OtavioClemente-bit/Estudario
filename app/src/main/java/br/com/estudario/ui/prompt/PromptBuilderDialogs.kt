@@ -202,7 +202,7 @@ fun EditalPromptBuilderDialog(viewModel: AppViewModel, selectedCompetitionId: Lo
         WizardSummaryItem("Edital", if (options.source == EditalSource.PASTE_TEXT) "Sem PDF" else attachment?.name ?: "Sem PDF anexado", 2),
     )
     val server = ServerGenerationOption(
-        description = "Lê o PDF oficial, extrai matérias e tópicos e mostra tudo para você revisar antes de salvar. Usa 1 geração de edital do seu plano.",
+        description = "Lê o PDF oficial, extrai matérias e tópicos e mostra tudo para você revisar antes de salvar. Usa 1 edital pelo PDF do seu plano.",
         enabled = target != null && options.source == EditalSource.ATTACH_PDF,
         disabledReason = when {
             target == null -> "Disponível para concursos já criados no app. Crie o concurso primeiro, na aba Concursos."
@@ -405,7 +405,7 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         returnFileLabel = "Abrir arquivo .estudo",
         attachment = attachment.takeIf { options.source == MaterialSource.ATTACHED },
         server = ServerGenerationOption(
-            description = "Pesquisa em fontes oficiais, confere a versão vigente das leis, escreve o material do tópico e mostra tudo, com as fontes, para você revisar antes de salvar. Usa 1 geração de conteúdo do seu plano.",
+            description = "Pesquisa em fontes oficiais, confere a versão vigente das leis, escreve o material do tópico e mostra tudo, com as fontes, para você revisar antes de salvar. Usa 1 material do seu plano.",
             enabled = singleTopic != null && options.source != MaterialSource.ATTACHED,
             disabledReason = when {
                 singleTopic == null -> "O Estudário gera um tópico por vez. Escolha um tópico."
@@ -673,7 +673,7 @@ fun AdditionalQuestionPromptBuilderDialog(
         onPickFile = { onDismiss(); onPickFile() },
         returnFileLabel = "Abrir arquivo .estudo",
         server = ServerGenerationOption(
-            description = "Escreve ${options.questionCount} questões novas no estilo da banca, com explicação de cada alternativa, e mostra para você revisar antes de salvar. Usa 1 geração de conteúdo do seu plano.",
+            description = "Escreve ${options.questionCount} questões novas no estilo da banca, com explicação de cada alternativa, e mostra para você revisar antes de salvar. Usa 1 lote de questões do seu plano.",
             enabled = true,
             disabledReason = null,
             onGenerate = { if (application.supabaseAuthRepository.accessToken() == null) askLogin = true else generating = true },
@@ -933,7 +933,7 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
         onPickFile = { onDismiss(); onPickFile() },
         returnFileLabel = "Abrir arquivo .plano",
         server = ServerGenerationOption(
-            description = "Monta o plano com as respostas desta conversa e mostra tudo para você conferir antes de salvar. Usa 1 geração de plano do seu plano.",
+            description = "Monta o plano com as respostas desta conversa e mostra tudo para você conferir antes de salvar. Usa 1 plano de estudo do seu saldo.",
             enabled = competition != null && competitionSubjects.isNotEmpty() && datesValid && dayMinutes.any { it > 0 },
             disabledReason = "Responda às etapas acima para liberar.".takeIf { competition == null || competitionSubjects.isEmpty() || !datesValid || dayMinutes.none { it > 0 } },
             onGenerate = { studioPlan = true },

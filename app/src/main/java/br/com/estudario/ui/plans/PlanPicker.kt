@@ -93,7 +93,7 @@ internal data class TierLook(val color: Color, val deep: Color, val accent: Colo
 internal fun tierLook(tier: String): TierLook = when (tier) {
     "PRO" -> TierLook(Color(0xFF7C3AED), Color(0xFF4C1D95), Color(0xFFF5B83D), Glyph.Gem, "Reta final? O Pro tem folga para gerar tudo o que você precisar, sem contar material.")
     "ESSENCIAL" -> TierLook(Color(0xFF4F46E5), Color(0xFF2E2799), Color(0xFF22C59A), Glyph.Star, "O Essencial dá conta de um tópico novo por dia, com questões e simulados todo mês.")
-    else -> TierLook(Color(0xFF16A37F), Color(0xFF0B6B53), Color(0xFFF5B83D), Glyph.Books, "Começando? O Grátis já tem plano, revisões e treino. A IA entra aos poucos.")
+    else -> TierLook(Color(0xFF16A37F), Color(0xFF0B6B53), Color(0xFFF5B83D), Glyph.Books, "Começando? O Grátis já tem seu plano de estudo, revisões, treino e 10 materiais por mês.")
 }
 
 /** Ordem do carrossel: do grátis ao mais completo. */
@@ -322,6 +322,7 @@ internal fun PlanCompare(plan: AiPlanCatalogEntry, all: List<AiPlanCatalogEntry>
         "QUESTION_BATCH" to "Lotes de questões",
         "SIMULATION_GENERATION" to "Simulados",
         "SYLLABUS_GENERATION" to "Edital pelo PDF",
+        "PLAN_GENERATION" to "Planos de estudo",
     )
     val tone by animateColorAsState(look.color, tween(450), label = "tone")
     Column(

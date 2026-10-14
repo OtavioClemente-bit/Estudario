@@ -134,7 +134,7 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
         message?.let { text ->
             item {
                 Text(text, color = MaterialTheme.colorScheme.error)
-                if ("plano" in text || "grátis" in text) br.com.estudario.ui.plans.UpgradeCta(br.com.estudario.ui.plans.UpgradeReason.SIMULATION, Modifier.padding(top = 8.dp))
+                if ("plano" in text || "grátis" in text) br.com.estudario.ui.plans.UpgradeCta(br.com.estudario.ui.plans.UpgradeReason.SIMULATION, Modifier.padding(top = 8.dp), openAtStart = true)
             }
         }
         items(active, key = { "active-${it.id}" }) { simulation ->

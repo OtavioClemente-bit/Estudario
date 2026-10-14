@@ -318,9 +318,6 @@ private fun ProfileContent(
                     onSignOut = onEstudarioSignOut,
                 )
             }
-            if (aiAccessState != null) {
-                item { Spacer(Modifier.height(EstudarioSpacing.small)); AiAccessSummary(aiAccessState) }
-            }
             item { Divider() }
 
             // Backup só pelo Google Drive (na conta); o backup em arquivo no celular saiu.
@@ -715,8 +712,7 @@ private fun AccountBand(
                 }
             }
             HorizontalDivider(Modifier.padding(vertical = EstudarioSpacing.small), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            BackupRow(Icons.Outlined.WorkspacePremium, "Plano e gerações", "Seu plano, o saldo de gerações e a comparação dos planos", onPlans)
-            HorizontalDivider(Modifier.padding(vertical = EstudarioSpacing.small), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            // A conta cuida só de entrar, sair e do backup; os planos ficam no menu, em Planos e assinatura.
             BackupRow(
                 Icons.Outlined.CloudUpload,
                 "Fazer backup no Google Drive",

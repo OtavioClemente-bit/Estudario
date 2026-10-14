@@ -117,11 +117,11 @@ private fun featureIcon(feature: String): ImageVector = when (feature) {
     else -> Icons.Outlined.AutoAwesome
 }
 
-/** O plano de estudo é feito pelo app (sem IA), então não aparece como recurso com limite. */
-private val VISIBLE_FEATURES = setOf("SYLLABUS_GENERATION", "CONTENT_GENERATION", "SIMULATION_GENERATION", "QUESTION_BATCH", "AD_REWARD")
+/** O que o saldo mostra, inclusive os planos de estudo (o Grátis tem um; os pagos, novos todo mês). */
+private val VISIBLE_FEATURES = setOf("SYLLABUS_GENERATION", "CONTENT_GENERATION", "SIMULATION_GENERATION", "QUESTION_BATCH", "PLAN_GENERATION", "AD_REWARD")
 
 private fun featureOrder(feature: String): Int = listOf(
-    "CONTENT_GENERATION", "SYLLABUS_GENERATION", "SIMULATION_GENERATION", "QUESTION_BATCH", "AD_REWARD",
+    "CONTENT_GENERATION", "PLAN_GENERATION", "SYLLABUS_GENERATION", "SIMULATION_GENERATION", "QUESTION_BATCH", "AD_REWARD",
 ).indexOf(feature).let { if (it < 0) Int.MAX_VALUE else it }
 
 private fun formatDate(iso: String?): String? = iso?.let { runCatching { dateFormat.format(Instant.parse(it)) }.getOrNull() }
@@ -227,7 +227,6 @@ fun PlansDialog(onDismiss: () -> Unit, onSignIn: (() -> Unit)? = null) {
                             )
                             UsageSection(current.summary.usage)
                             EveryPlanHas()
-                            HowQuotaWorks()
                         }
                     }
                     // Espaço para o botão fixo embaixo não cobrir o fim da lista.
@@ -485,7 +484,12 @@ private fun PlanPickerSection(
     LaunchedEffect(selected.planTier) { onSelected(selected.planTier) }
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
         SectionTitle("Escolha seu plano", "Arraste ou toque. O conteúdo é o mesmo em todos; muda quanto você pode gerar.")
-        SlidingPeriodToggle(yearly, onYearly, tierLook(selected.planTier).color)
+        // No Grátis não há preço: a chave mensal/anual some (com animação) e volta nos pagos.
+        androidx.compose.animation.AnimatedVisibility(
+            visible = summary.pricingOf(selected.planTier)?.isPaid == true,
+            enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
+        ) { SlidingPeriodToggle(yearly, onYearly, tierLook(selected.planTier).color) }
     }
     PlanCarousel(
         plans = plans,
@@ -512,7 +516,7 @@ private fun Benefit(title: String, detail: String) {
     }
 }
 
-/** O que vem em qualquer plano, inclusive o grátis: o app não é só a IA. */
+/** O que vem em qualquer plano, inclusive o grátis. */
 @Composable
 private fun EveryPlanHas() {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -536,24 +540,5 @@ private fun Perk(icon: ImageVector, title: String, detail: String) {
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-    }
-}
-
-@Composable
-private fun HowQuotaWorks() {
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        SectionTitle("Como o saldo funciona")
-        listOf(
-            Triple(Icons.Outlined.MenuBook, "1 pedido concluído, 1 unidade", "Um edital, o material de um tópico, um lote de questões ou uma parte de simulado."),
-            Triple(Icons.Outlined.Shield, "Falhou? Não desconta", "Se a geração falhar ou for cancelada antes do resultado, o saldo volta."),
-            Triple(Icons.Outlined.Replay, "Sem cobrança em dobro", "Repetir o mesmo pedido depois de um erro técnico não cobra de novo."),
-        ).forEach { (icon, title, detail) -> Perk(icon, title, detail) }
-        Text(
-            "A cobrança é feita pela Google Play, na sua conta Google. Para cancelar: Google Play › Assinaturas.",
-            Modifier.fillMaxWidth(),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
     }
 }

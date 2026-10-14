@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -162,13 +163,15 @@ private fun StatusCard(
                     OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(16.dp)) { Text("Tentar de novo") }
                 }
                 is AiTextJobState.QuotaUsed -> {
-                    GateStatus(Icons.Outlined.HourglassTop, "Seus materiais deste mês acabaram", state.resetLabel ?: "O saldo renova no próximo mês. Os planos pagos liberam mais agora.", StatusTone(scheme.tertiaryContainer, scheme.onTertiaryContainer))
-                    br.com.estudario.ui.plans.UpgradeCta(br.com.estudario.ui.plans.UpgradeReason.CONTENT, onSignIn = onLogin)
+                    val reason = br.com.estudario.ui.plans.UpgradeReason.forFeature(state.feature)
+                    QuotaMeter(remaining = 0, limit = null, noun = quotaNoun(state.feature), resetLabel = state.resetLabel)
+                    // Acabou o saldo: a oferta de plano abre sozinha (e o botão a reabre).
+                    br.com.estudario.ui.plans.UpgradeCta(reason, label = "Ver planos", onSignIn = onLogin, openAtStart = true)
                 }
                 is AiTextJobState.Ready -> {
-                    StatusPill(state.quotaLabel, StatusTone(scheme.secondaryContainer, estudarioColors().completed))
+                    QuotaMeter(remaining = state.remaining, limit = state.limit, noun = quotaNoun(copyFeature(copy)), resetLabel = state.resetLabel)
                     PrimaryAction(copy.generateLabel, onGenerate, Icons.Outlined.AutoAwesome)
-                    Text("Você revisa antes de salvar. Se algo falhar, a geração volta para o seu saldo.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+                    Text("Você confere tudo antes de salvar.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
                 }
                 is AiTextJobState.Failed -> {
                     InlineError(state.message)
@@ -179,4 +182,57 @@ private fun StatusCard(
         }
     }
     Spacer(Modifier.height(4.dp))
+}
+
+
+/** Como chamar o que o saldo conta, para o medidor ("materiais", "planos de estudo"...). */
+private fun quotaNoun(feature: String?): String = when (feature) {
+    "PLAN_GENERATION" -> "planos de estudo"
+    "SIMULATION_GENERATION" -> "simulados"
+    "SYLLABUS_GENERATION" -> "editais pelo PDF"
+    else -> "materiais"
+}
+
+/** A tela de geração serve ao material e ao plano; o título diz qual. */
+private fun copyFeature(copy: AiGenerationCopy): String = if (copy.screenTitle.contains("plano", ignoreCase = true)) "PLAN_GENERATION" else "CONTENT_GENERATION"
+
+/**
+ * O saldo do plano, como um painel: o número grande do que resta, a barra do que já foi usado e
+ * quando renova. Zerado, a barra fica vazia e a cor vira a de atenção.
+ */
+@Composable
+private fun QuotaMeter(remaining: Int?, limit: Int?, noun: String, resetLabel: String?) {
+    val scheme = MaterialTheme.colorScheme
+    val empty = remaining == 0
+    val tone = if (empty) scheme.tertiary else scheme.primary
+    val fraction = if (remaining == null || limit == null || limit <= 0) 1f else (remaining.toFloat() / limit).coerceIn(0f, 1f)
+    val shown by androidx.compose.animation.core.animateFloatAsState(fraction, androidx.compose.animation.core.tween(900), label = "quota")
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(22.dp))
+            .background(scheme.surfaceContainerLow)
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(remaining?.toString() ?: "✓", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = tone)
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.padding(bottom = 6.dp)) {
+                Text(
+                    when {
+                        empty -> "$noun no seu plano agora"
+                        limit != null -> "$noun de $limit no seu plano"
+                        else -> "$noun disponíveis"
+                    },
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                resetLabel?.let { Text(it.replaceFirst("Volta", "Renova"), style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant) }
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(10.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(50)).background(tone.copy(alpha = 0.14f))) {
+            Box(Modifier.fillMaxWidth(shown).height(10.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(50)).background(tone))
+        }
+    }
 }

@@ -481,7 +481,8 @@ private fun AiGate(
                         OutlinedButton(onClick = onFallback, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
                             Text("Montar manualmente")
                         }
-                        if (paywall) br.com.estudario.ui.plans.UpgradeCta(br.com.estudario.ui.plans.UpgradeReason.SYLLABUS, onSignIn = onLogin)
+                        // Tentou mandar o PDF no Grátis: a oferta abre sozinha (e o botão a reabre).
+                        if (paywall) br.com.estudario.ui.plans.UpgradeCta(br.com.estudario.ui.plans.UpgradeReason.SYLLABUS, onSignIn = onLogin, openAtStart = true)
                     }
                     AiReviewAccessKind.READY -> {
                         GateStatus(Icons.Outlined.CheckCircle, "Pronto para analisar o edital", "Escolha o PDF oficial. Prefira a versão com o conteúdo programático completo.", StatusTone(MaterialTheme.colorScheme.secondaryContainer, estudarioColors().completed))
