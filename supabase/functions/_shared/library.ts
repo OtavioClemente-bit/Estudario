@@ -661,6 +661,8 @@ export function assembleFromLibrary(
   // trazer CSS, HTTP e APIs junto.
   const focused = focusChapters.length > 0 ? allChapters.filter((_, i) => focusChapters.includes(i)) : allChapters;
   // Um capítulo só não fecha uma matéria (o app pede de 2 a 6): ele vira capítulos pelas seções dele.
+  // Um capítulo sem seções não se divide: aí vai a matéria inteira (e o título geral).
+  const delivered = focused.length === 1 ? splitChapter(focused[0]) ? focused : allChapters : focused;
   const chapters = !wants("THEORY") ? [] : structuredClone(focused.length === 1 ? splitChapter(focused[0]) ?? allChapters : focused);
   // A seção de cada questão tem que ser um capítulo da teoria entregue (o recorte pode ter mudado os títulos).
   if (chapters.length > 0) {
@@ -684,7 +686,11 @@ export function assembleFromLibrary(
     promptVersion: CONTENT_PROMPT_VERSION,
     modelVersion: LIBRARY_MODEL_VERSION,
     scope: structuredClone(material.scope),
-    theoryTitle: material.theoryTitle,
+    // Com recorte, o título geral ("HTML5, CSS3, HTTP, APIs...") prometia o que a teoria não traz:
+    // o título passa a ser o dos capítulos entregues.
+    theoryTitle: focused.length < allChapters.length
+      ? focused.map((chapter) => String(chapter.title).replace(/^\d+\.\s*/, "")).join(" / ").slice(0, 200)
+      : material.theoryTitle,
     chapters,
     summary,
     flashcards: wants("QUICK_REVIEW") ? (material.flashcards as Json[]).slice(0, 30) : [],

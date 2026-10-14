@@ -228,3 +228,17 @@ Deno.test("tópico estreito sem recorte traz só os capítulos que ele cita", as
   assertEquals(inferFocus(web, "HTML, CSS, HTTP e APIs REST"), null);
   assertEquals(inferFocus(web, "Desenvolvimento web"), null);
 });
+
+Deno.test("foco: o título da teoria acompanha os capítulos recortados", () => {
+  const base = material();
+  base.chapters = [
+    { title: "Definição", markdown: "### Forma\n" + long("A função afim tem a forma f(x) = ax + b com a diferente de zero", 1_700) + "\n\n### Coeficientes\n" + long("O coeficiente a é a taxa de variação da função afim", 1_700) },
+    { title: "Gráfico", markdown: long("O gráfico é uma reta cuja inclinação depende do coeficiente a", 3_200) },
+  ];
+  base.theoryTitle = "Função do 1º grau: definição, gráfico, raiz e sinal";
+  const m = validateLibraryMaterial(base);
+  const focused = assembleFromLibrary(m, null, { board: null, options: { ...ALL, questionCount: 5 }, avoidStatements: [] }, "s", { capitulos: [0] }, true)!;
+  assertEquals(focused.theoryTitle, "Definição");
+  const plain = assembleFromLibrary(m, null, { board: null, options: ALL, avoidStatements: [] }, "s", null)!;
+  assertEquals(plain.theoryTitle, "Função do 1º grau: definição, gráfico, raiz e sinal");
+});
