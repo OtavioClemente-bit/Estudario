@@ -31,7 +31,7 @@ import kotlin.math.max
 import kotlin.math.sin
 
 /**
- * A turma do Folha se mexe quando a pessoa toca no botão, item ou cartão que tem o personagem — o
+ * A turma do Folha se mexe quando a pessoa toca no botão, item ou cartão que tem o personagem - o
  * mesmo movimento do site ao passar o mouse (chama tremula, troféu comemora, sino toca...).
  *
  * A raiz do app ([turmaTouchRoot]) ouve os toques sem consumi-los; cada personagem guarda onde está na

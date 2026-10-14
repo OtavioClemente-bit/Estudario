@@ -23,7 +23,7 @@ import org.json.JSONObject
  * Os ícones do Estudário: a turma do Folha. Cada ícone é um personagem com o rosto do mascote (olhos
  * ovais com brilho, bochecha, boquinha) num adesivo de caderno (recorte branco, traço de caneta, aba de
  * profundidade embaixo). O desenho vem de design/turma/turma.js, gerado em resources/turma.json por
- * scripts/icones/gerar.ts — o mesmo arquivo gera o turma.js do site, então app e site são idênticos.
+ * scripts/icones/gerar.ts - o mesmo arquivo gera o turma.js do site, então app e site são idênticos.
  *
  * As cores são fixas e não mudam com o tema; sem cor (desligado, bloqueado, aba fora de foco) o
  * personagem fica em cinza. Abaixo de 36 dp o rosto se simplifica, para não virar borrão.
