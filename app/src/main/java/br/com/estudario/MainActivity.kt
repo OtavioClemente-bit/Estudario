@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import br.com.estudario.ui.brand.turmaTouchRoot
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.core.content.IntentCompat
@@ -109,7 +110,7 @@ class MainActivity : ComponentActivity() {
                 br.com.estudario.ui.components.BadgeShowcase()
                 return@setContent
             }
-            Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().turmaTouchRoot()) {
                 if (mountApp) EstudarioApp(viewModel)
                 if (showSplash) androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalTextStyle provides androidx.compose.ui.text.TextStyle(fontFamily = br.com.estudario.ui.theme.Nunito)) {
                     BrandSplash(ready = onboarding != null && tours != null, onFinished = { showSplash = false })

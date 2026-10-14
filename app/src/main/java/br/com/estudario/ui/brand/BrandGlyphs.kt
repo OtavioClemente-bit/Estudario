@@ -36,7 +36,7 @@ enum class Glyph {
 
 @Composable
 fun BrandIcon(glyph: Glyph, modifier: Modifier = Modifier, size: Dp = 28.dp, muted: Boolean = false) {
-    Canvas(modifier.size(size)) { drawGlyph(glyph, muted) }
+    Canvas(modifier.size(size).turmaMotion(glyph, enabled = !muted)) { drawGlyph(glyph, muted) }
 }
 
 /** Desenha o personagem ocupando a área atual, centralizado. */

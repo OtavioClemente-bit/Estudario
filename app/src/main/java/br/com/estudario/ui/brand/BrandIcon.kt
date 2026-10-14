@@ -50,7 +50,7 @@ fun Icon(
     val semantics = if (contentDescription != null) {
         Modifier.semantics { this.contentDescription = contentDescription; role = Role.Image }
     } else Modifier
-    Canvas(modifier.then(semantics).size(24.dp)) { drawGlyph(glyph, muted) }
+    Canvas(modifier.then(semantics).size(24.dp).turmaMotion(glyph, enabled = !muted)) { drawGlyph(glyph, muted) }
 }
 
 @Composable

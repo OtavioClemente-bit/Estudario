@@ -96,7 +96,7 @@ const css = `
 .tu.a-ring g,.tu.a-sway g{transform-origin:50px 6px}
 @keyframes tu-hop{0%,100%{transform:none}35%{transform:translateY(-14px) scale(1.04,.97)}60%{transform:translateY(0) scale(1.06,.92)}80%{transform:translateY(-3px)}}
 @keyframes tu-wiggle{0%,100%{transform:none}20%{transform:rotate(-10deg)}40%{transform:rotate(9deg)}60%{transform:rotate(-6deg)}80%{transform:rotate(3deg)}}
-@keyframes tu-spin{0%{transform:none}70%{transform:rotate(200deg) scale(1.08)}100%{transform:rotate(180deg)}}
+@keyframes tu-spin{0%{transform:none}75%{transform:rotate(380deg) scale(1.08)}100%{transform:rotate(360deg)}}
 @keyframes tu-flicker{0%,100%{transform:none}20%{transform:scale(.94,1.12)}40%{transform:scale(1.06,.94)}60%{transform:scale(.97,1.08) skewX(-3deg)}80%{transform:scale(1.02,.98) skewX(2deg)}}
 @keyframes tu-cheer{0%,100%{transform:none}25%{transform:translateY(-16px) rotate(-8deg)}50%{transform:translateY(-12px) rotate(8deg)}75%{transform:translateY(-4px) rotate(-3deg)}}
 @keyframes tu-pulse{0%,100%{transform:none}25%{transform:scale(1.16)}45%{transform:scale(.96)}65%{transform:scale(1.1)}}
@@ -107,7 +107,7 @@ const css = `
 @keyframes tu-ring{0%,100%{transform:none}15%{transform:rotate(16deg)}30%{transform:rotate(-14deg)}45%{transform:rotate(10deg)}60%{transform:rotate(-6deg)}75%{transform:rotate(3deg)}}
 @keyframes tu-roll{0%{transform:none}60%{transform:rotate(380deg) translateY(-6px)}100%{transform:rotate(360deg)}}
 @keyframes tu-peek{0%,100%{transform:none}40%{transform:translateY(-10px) rotate(-4deg)}70%{transform:translateY(-2px) rotate(2deg)}}
-@keyframes tu-flip{0%{transform:none}55%{transform:rotate(190deg)}100%{transform:rotate(180deg)}}
+@keyframes tu-flip{0%{transform:none}45%{transform:rotate(180deg) scale(.92)}80%{transform:rotate(370deg)}100%{transform:rotate(360deg)}}
 @keyframes tu-blink{0%,100%{transform:none}50%{transform:scaleY(.15)}}
 @keyframes tu-fx{0%{opacity:0;transform:translateY(8px) scale(.6)}35%{opacity:1;transform:translateY(-4px) scale(1.1)}100%{opacity:0;transform:translateY(-14px) scale(1)}}
 `.trim();
