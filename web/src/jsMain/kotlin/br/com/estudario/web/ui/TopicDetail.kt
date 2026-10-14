@@ -368,6 +368,38 @@ private fun dateTime(millis: Long): String {
     return "${two(d.getDate())}/${two(d.getMonth() + 1)}/${d.getFullYear()} · ${two(d.getHours())}:${two(d.getMinutes())}"
 }
 
+/**
+ * O sumário da leitura, na margem do caderno: o anel de quanto já foi lido, os capítulos numerados
+ * numa trilha que se preenche, o capítulo da tela com marca-texto e os já lidos com visto.
+ */
+@Composable
+private fun TheoryToc(theoryId: Long, chapters: List<Pair<Int, String>>, blockCount: Int, shown: Int, active: Int, percent: Int, marks: Int, onPick: () -> Unit) {
+    Div({ classes("toc-head") }) {
+        Div({ classes("toc-ring"); attr("style", "--p:$percent") }) { B { Text("$percent%") } }
+        Div {
+            Span({ classes("toc-eyebrow") }) { Text("NESTE TEXTO") }
+            Div({ classes("toc-meta") }) { Text(listOfNotNull("${chapters.size} capítulos", if (marks > 0) "$marks grifo${if (marks == 1) "" else "s"}" else null).joinToString(" · ")) }
+        }
+    }
+    // A trilha: preenchida até o capítulo da tela.
+    val fill = if (chapters.size <= 1) 0 else active * 100 / (chapters.size - 1)
+    Div({ classes("toc-list"); attr("style", "--fill:$fill%") }) {
+        chapters.forEachIndexed { pos, (blockIndex, title) ->
+            val done = shown >= (chapters.getOrNull(pos + 1)?.first ?: blockCount) - 1
+            val state = when { pos == active -> "on"; done -> "done"; else -> null }
+            Button({
+                classes(*listOfNotNull("toc-item", state).toTypedArray())
+                if (pos == active) attr("aria-current", "location")
+                onClick { scrollToBlock(theoryId, blockIndex); onPick() }
+            }) {
+                Span({ classes("toc-dot") }) { if (done && pos != active) Text("✓") else Text("${pos + 1}") }
+                Span({ classes("toc-title") }) { Text(title) }
+            }
+        }
+    }
+    Button({ classes("toc-top"); onClick { window.scrollTo(js("({top:0,behavior:'smooth'})")); onPick() } }) { Icon("arrow_upward"); Text("Voltar ao topo") }
+}
+
 private fun scrollToBlock(theoryId: Long, block: Int) {
     window.setTimeout({ document.getElementById("tb-$theoryId-$block")?.asDynamic()?.scrollIntoView(js("({behavior:'smooth',block:'start'})")) }, 60)
 }
@@ -483,6 +515,23 @@ private fun TheoryReader(theory: Theory) {
         val first = window.setTimeout({ listener(org.w3c.dom.events.Event("scroll")) }, 400)
         onDispose { window.clearTimeout(first); window.removeEventListener("scroll", listener) }
     }
+    // O capítulo na tela agora (o sumário lateral acompanha a rolagem, para cima e para baixo).
+    var activeChapter by remember(theory.id) { mutableStateOf(0) }
+    var tocOpen by remember(theory.id) { mutableStateOf(false) }
+    DisposableEffect(theory.id, chapters) {
+        val listener: (org.w3c.dom.events.Event) -> Unit = {
+            val line = window.innerHeight * 0.35
+            var at = 0
+            chapters.forEachIndexed { pos, (blockIndex, _) ->
+                val el = document.getElementById("tb-${theory.id}-$blockIndex")
+                if (el != null && el.getBoundingClientRect().top < line) at = pos
+            }
+            activeChapter = at
+        }
+        window.addEventListener("scroll", listener)
+        val first = window.setTimeout({ listener(org.w3c.dom.events.Event("scroll")) }, 450)
+        onDispose { window.clearTimeout(first); window.removeEventListener("scroll", listener) }
+    }
     LaunchedEffect(readUpTo) {
         if (readUpTo > theory.lastReadBlock && !Store.demo) {
             delay(1500)
@@ -513,6 +562,7 @@ private fun TheoryReader(theory: Theory) {
     // Fontes citadas no meio dos parágrafos saem do texto e vão, numeradas, para o fim da teoria.
     // Citações da busca no meio do texto saem; as fontes ficam só em "Sobre este conteúdo".
     val extracted = remember(blocks) { blocks.map { InlineSources.extract(it) } }
+    Div({ classes(*listOfNotNull("theory-layout", if (chapters.size > 1) "has-toc" else null).toTypedArray()) }) {
     Div({ classes("theory-text") }) {
         extracted.map { it.first }.forEachIndexed { i, block ->
             val trap = calloutTrap(block)
@@ -529,6 +579,24 @@ private fun TheoryReader(theory: Theory) {
         Div({ classes("theory-end") }) {
             Folha(if (percent >= 100) "happy" else "point", 64)
             Span({ classes("small", "muted") }) { Text(if (percent >= 100) "Você leu tudo! Hora de revisar e treinar questões." else "Role até o fim para completar a leitura. O progresso vai para o celular.") }
+        }
+    }
+    if (chapters.size > 1) {
+        org.jetbrains.compose.web.dom.Aside({ classes("theory-toc"); attr("aria-label", "Sumário da leitura") }) {
+            TheoryToc(theory.id, chapters, blocks.size, shown, activeChapter, percent, marks) { }
+        }
+    }
+    }
+    // Tela menor: o sumário vem num botão flutuante.
+    if (chapters.size > 1) {
+        Button({ classes("toc-fab"); attr("aria-label", "Capítulos"); onClick { tocOpen = !tocOpen } }) {
+            Icon(if (tocOpen) "close" else "toc"); Span { Text("${activeChapter + 1}/${chapters.size}") }
+        }
+        if (tocOpen) {
+            Div({ classes("toc-scrim"); onClick { tocOpen = false } })
+            Div({ classes("toc-sheet"); attr("role", "dialog"); attr("aria-label", "Capítulos") }) {
+                TheoryToc(theory.id, chapters, blocks.size, shown, activeChapter, percent, marks) { tocOpen = false }
+            }
         }
     }
     picked?.let { p ->

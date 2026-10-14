@@ -110,6 +110,7 @@ private fun MarkdownTextView(markdown: String, modifier: Modifier, textSizeSp: F
 private fun studyMarkwon(context: Context, colors: ColorScheme, textSizeSp: Float, density: Float, ink: androidx.compose.ui.graphics.Color): Markwon {
     fun dp(value: Int) = (value * density).roundToInt()
     val onSurface = ink.toArgb()
+    val night = androidx.core.graphics.ColorUtils.calculateLuminance(colors.background.toArgb()) < 0.5
     return Markwon.builder(context)
         .usePlugin(MarkwonInlineParserPlugin.create())
         .usePlugin(StrikethroughPlugin.create())
@@ -146,8 +147,9 @@ private fun studyMarkwon(context: Context, colors: ColorScheme, textSizeSp: Floa
                     .blockMargin(dp(20))
                     .listItemColor(colors.primary.toArgb())
                     .bulletWidth(dp(6))
-                    .codeTextColor(colors.onSurface.toArgb())
-                    .codeBackgroundColor(colors.surfaceVariant.toArgb())
+                    // Código no meio do texto com cor própria, como no site: roxo no claro, lilás no escuro.
+                    .codeTextColor(if (night) 0xFFC9C2FF.toInt() else 0xFF4A3BD8.toInt())
+                    .codeBackgroundColor(if (night) 0x24ABA2FF else 0x1A5B4BF5)
                     .codeBlockTextColor(colors.onSurface.toArgb())
                     .codeBlockBackgroundColor(colors.surfaceVariant.toArgb())
                     .codeBlockMargin(dp(12))
