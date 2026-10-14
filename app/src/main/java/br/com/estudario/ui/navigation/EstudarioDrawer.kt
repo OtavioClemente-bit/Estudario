@@ -50,6 +50,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -283,8 +284,21 @@ fun EstudarioTopBar(
         ) {
             // O menu com a cara do Estudário (adesivo de caderno), não os três tracinhos do Android.
             br.com.estudario.ui.brand.BrandMenuMark(size = 30.dp)
-            EstudarioGlyph(size = 30.dp)
-            if (!compactBrand) Text("Estudário", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+            // A assinatura: o nome com um traço dourado à mão embaixo, a cor do capelo do Folha.
+            if (!compactBrand) Text(
+                "Estudário",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.drawBehind {
+                    val y = size.height - 1.dp.toPx()
+                    val path = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(size.width * 0.02f, y)
+                        quadraticTo(size.width * 0.5f, y + 4.dp.toPx(), size.width * 0.98f, y - 2.dp.toPx())
+                    }
+                    drawPath(path, androidx.compose.ui.graphics.Color(0xFFF5B83D), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                },
+            )
         }
         if (title != null) {
             Text(
