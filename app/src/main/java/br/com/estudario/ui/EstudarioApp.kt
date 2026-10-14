@@ -1,5 +1,6 @@
 package br.com.estudario.ui
 
+import br.com.estudario.ui.brand.dottedPaper
 import br.com.estudario.ui.components.AlertDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -366,6 +367,9 @@ private fun MainNavigation(viewModel: AppViewModel) {
             },
         ) {
         Scaffold(
+            // O papel de caderno pontilhado atrás de todas as telas, como no site.
+            modifier = Modifier.dottedPaper(),
+            containerColor = androidx.compose.ui.graphics.Color.Transparent,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = { Column {
                 if (currentRoute != null) EstudarioTopBar(

@@ -1,5 +1,6 @@
 package br.com.estudario.ui.library
 
+import br.com.estudario.ui.brand.marker
 import br.com.estudario.ui.components.AlertDialog
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -34,7 +35,7 @@ fun MySyllabiScreen(viewModel: MySyllabiViewModel) {
     var confirmRemoteDeletion by remember { mutableStateOf<String?>(null) }
 
     Column(Modifier.fillMaxSize().testTag("my-syllabi-screen")) {
-        Text("Meus concursos", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(16.dp))
+        Text("Editais salvos na conta", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(16.dp).marker())
         AiAccessPanel()
         if (state.remoteUnavailable) {
             Text(

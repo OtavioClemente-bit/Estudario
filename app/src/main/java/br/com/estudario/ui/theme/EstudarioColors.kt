@@ -6,17 +6,17 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 // ---------------------------------------------------------------------------------------------
-// Paleta base: tinta e papel. As cores saem do próprio Folha: a tinta índigo do traço, o dourado do
-// capelo e o verde-menta da folha. No claro, o fundo é um papel com um sopro de índigo (não o bege
-// acinzentado de antes, que não era de ninguém) e os cartões ficam brancos por cima; no escuro, o
-// fundo é a tinta azul-noite do capelo, não preto. Cada papel do Material 3 é definido explicitamente.
+// Paleta base: "caderno vivo", a mesma do site. No claro, papel creme de caderno (pontilhado ao
+// fundo, em EstudarioApp) com cartões quase brancos; no escuro, o caderno fica azul-noite índigo, a
+// cor em que a turma do Folha foi desenhada. Dourado do capelo e verde-menta como destaques.
+// Mudou aqui, muda em web/src/jsMain/resources/styles.css (bloco CADERNO VIVO).
 // ---------------------------------------------------------------------------------------------
 
 val EstudarioLightColorScheme = lightColorScheme(
-    primary = Color(0xFF4F46E5),
+    primary = Color(0xFF5B4BF5),
     onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFE3E0FF),
-    onPrimaryContainer = Color(0xFF1B1464),
+    primaryContainer = Color(0xFFE7E3FF),
+    onPrimaryContainer = Color(0xFF241A8F),
     inversePrimary = Color(0xFFB9B3FF),
 
     secondary = Color(0xFF0E8F66),
@@ -34,33 +34,33 @@ val EstudarioLightColorScheme = lightColorScheme(
     errorContainer = Color(0xFFFFDAD7),
     onErrorContainer = Color(0xFF410004),
 
-    background = Color(0xFFF5F4FC),
-    onBackground = Color(0xFF16142E),
-    surface = Color(0xFFF5F4FC),
-    onSurface = Color(0xFF16142E),
-    surfaceVariant = Color(0xFFE2E0F2),
-    onSurfaceVariant = Color(0xFF4A4769),
+    background = Color(0xFFF7F3E9),
+    onBackground = Color(0xFF26234A),
+    surface = Color(0xFFF7F3E9),
+    onSurface = Color(0xFF26234A),
+    surfaceVariant = Color(0xFFE9E3D3),
+    onSurfaceVariant = Color(0xFF4E4B6B),
 
-    outline = Color(0xFF79769A),
-    outlineVariant = Color(0xFFCCC9E2),
+    outline = Color(0xFF7D7A93),
+    outlineVariant = Color(0xFFCFC5B0),
     scrim = Color(0xFF0B0A1F),
 
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFEFEDFA),
-    surfaceContainer = Color(0xFFE9E7F7),
-    surfaceContainerHigh = Color(0xFFE3E1F3),
-    surfaceContainerHighest = Color(0xFFDCDAEE),
-    surfaceDim = Color(0xFFD6D4E8),
-    surfaceBright = Color(0xFFF5F4FC),
+    surfaceContainerLowest = Color(0xFFFFFDF8),
+    surfaceContainerLow = Color(0xFFF1ECDF),
+    surfaceContainer = Color(0xFFECE6D8),
+    surfaceContainerHigh = Color(0xFFE9E3D3),
+    surfaceContainerHighest = Color(0xFFE4DCCB),
+    surfaceDim = Color(0xFFDDD5C3),
+    surfaceBright = Color(0xFFF7F3E9),
 
     inverseSurface = Color(0xFF26215C),
     inverseOnSurface = Color(0xFFF1EFFF),
 )
 
 val EstudarioDarkColorScheme = darkColorScheme(
-    primary = Color(0xFFB9B3FF),
-    onPrimary = Color(0xFF1E1868),
-    primaryContainer = Color(0xFF3A33A3),
+    primary = Color(0xFFABA2FF),
+    onPrimary = Color(0xFF1D1670),
+    primaryContainer = Color(0xFF2F2A78),
     onPrimaryContainer = Color(0xFFE6E3FF),
     inversePrimary = Color(0xFF4F46E5),
 
@@ -79,24 +79,24 @@ val EstudarioDarkColorScheme = darkColorScheme(
     errorContainer = Color(0xFF93000F),
     onErrorContainer = Color(0xFFFFDAD7),
 
-    background = Color(0xFF0E0C24),
-    onBackground = Color(0xFFECEAFF),
-    surface = Color(0xFF0E0C24),
-    onSurface = Color(0xFFECEAFF),
-    surfaceVariant = Color(0xFF2B275B),
-    onSurfaceVariant = Color(0xFFBDB9E0),
+    background = Color(0xFF110F26),
+    onBackground = Color(0xFFEDEBFF),
+    surface = Color(0xFF110F26),
+    onSurface = Color(0xFFEDEBFF),
+    surfaceVariant = Color(0xFF27235A),
+    onSurfaceVariant = Color(0xFFC3BFE6),
 
-    outline = Color(0xFF8C88B3),
-    outlineVariant = Color(0xFF39346E),
+    outline = Color(0xFF8F8AB8),
+    outlineVariant = Color(0xFF3D3878),
     scrim = Color(0xFF000000),
 
-    surfaceContainerLowest = Color(0xFF090818),
-    surfaceContainerLow = Color(0xFF151236),
-    surfaceContainer = Color(0xFF1A1740),
-    surfaceContainerHigh = Color(0xFF221E4D),
-    surfaceContainerHighest = Color(0xFF2B275B),
-    surfaceDim = Color(0xFF0E0C24),
-    surfaceBright = Color(0xFF332E66),
+    surfaceContainerLowest = Color(0xFF0B0A1C),
+    surfaceContainerLow = Color(0xFF17143A),
+    surfaceContainer = Color(0xFF1B1838),
+    surfaceContainerHigh = Color(0xFF27235A),
+    surfaceContainerHighest = Color(0xFF2F2A68),
+    surfaceDim = Color(0xFF110F26),
+    surfaceBright = Color(0xFF37317A),
 
     inverseSurface = Color(0xFFECEAFF),
     inverseOnSurface = Color(0xFF26215C),

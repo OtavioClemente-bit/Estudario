@@ -1,5 +1,6 @@
 package br.com.estudario.ui.components
 
+import br.com.estudario.ui.brand.marker
 import br.com.estudario.ui.theme.EstudarioLayout
 import br.com.estudario.ui.theme.estudarioLayout
 import android.os.SystemClock
@@ -51,7 +52,8 @@ fun ScreenTitle(
         Column(modifier) {
             // Uma linha cada, com reticências: com fonte grande ou tela estreita o título dividia o
             // espaço com os botões de ação e quebrava letra por letra, empurrando a tela para baixo.
-            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // A passada de marca-texto do caderno, como nos títulos do site.
+            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 3.dp).marker())
             if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = if (action == null) 2 else 1, overflow = TextOverflow.Ellipsis)
         }
     }

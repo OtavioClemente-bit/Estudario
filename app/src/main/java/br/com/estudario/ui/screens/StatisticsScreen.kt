@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.brand.marker
 import kotlinx.datetime.toJavaDayOfWeek
 import br.com.estudario.time.monthValue
 import androidx.compose.animation.core.Animatable
@@ -117,7 +118,7 @@ fun StatisticsScreen(viewModel: AppViewModel, onBack: () -> Unit, showInlineBack
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (showInlineBack) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Voltar") }
                 Column(Modifier.weight(1f)) {
-                    Text("Desempenho", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text("Desempenho", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 3.dp).marker())
                     Text("Como você está, num relance", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }

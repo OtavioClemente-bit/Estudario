@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.brand.marker
 import br.com.estudario.ui.components.AlertDialog
 import br.com.estudario.ui.theme.screenPadding
 import android.content.Context
@@ -191,7 +192,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Meus concursos", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text("Meus concursos", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 3.dp).marker())
                     Text("Cada tópico vira material de estudo", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 FilledTonalButton(onClick = { addCompetition = true }, shape = RoundedCornerShape(14.dp)) {
