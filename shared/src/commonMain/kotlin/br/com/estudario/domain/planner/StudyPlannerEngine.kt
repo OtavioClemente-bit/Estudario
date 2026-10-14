@@ -51,7 +51,9 @@ class StudyPlannerEngine(
             val executedMinutes = executionsByTask[task.id].orEmpty().sumOf { it.minutes }
             val executedQuestions = executionsByTask[task.id].orEmpty().sumOf { it.questions }
             val remainingMinutes = (task.plannedMinutes - executedMinutes).coerceAtLeast(0)
-            remainingMinutes.takeIf { it > 0 }?.let {
+            // Feita quase toda (falta menos que um bloco mínimo): não volta como caco de poucos minutos.
+            val leftover = executedMinutes > 0 && remainingMinutes < snapshot.policy.minimumBlockMinutes
+            remainingMinutes.takeIf { it > 0 && !leftover }?.let {
                 TaskDemand(
                     id = "replan:${task.id}",
                     subjectId = task.subjectId ?: return@mapNotNull null,
@@ -66,6 +68,9 @@ class StudyPlannerEngine(
                     replannedFromTaskId = task.id,
                     // O que ficou para trás volta na frente: colocar em dia vem antes de avançar.
                     order = -1,
+                    // Tarefa de um dia que ainda não chegou nunca é adiantada pelo replanejamento: fica no
+                    // dia dela ou depois. Sem isso, concluir hoje puxava as tarefas de amanhã para hoje.
+                    anchorDate = task.date.takeIf { it > snapshot.today },
                 )
             }
         }
@@ -109,10 +114,18 @@ class StudyPlannerEngine(
             while (left > 0) {
                 val date = dateFor(demand, respectShare) ?: break
                 val free = freeByDate.getValue(date)
-                var chunk = minOf(left, free, snapshot.policy.preferredBlockMinutes.coerceAtLeast(snapshot.policy.minimumBlockMinutes))
-                // Sobra menor que um bloco mínimo vai junto, se o dia comporta: nada de "Teoria · 5 min".
+                val minimum = snapshot.policy.minimumBlockMinutes
+                var chunk = minOf(left, free, snapshot.policy.preferredBlockMinutes.coerceAtLeast(minimum))
+                // Nunca deixa um caco para outro dia ("Java · 2 min"): a sobra menor que um bloco mínimo
+                // vai junto, mesmo passando um pouco do dia (até um bloco mínimo); se nem assim cabe, o
+                // corte vem antes, para o pedaço seguinte ter ao menos um bloco mínimo.
                 val rest = left - chunk
-                if (rest in 1 until snapshot.policy.minimumBlockMinutes && free >= left) chunk = left
+                if (rest in 1 until minimum) {
+                    when {
+                        left - free <= minimum && left <= snapshot.policy.preferredBlockMinutes + minimum -> chunk = left
+                        chunk - (minimum - rest) >= minimum -> chunk -= (minimum - rest)
+                    }
+                }
                 if (chunk < snapshot.policy.minimumBlockMinutes && left >= snapshot.policy.minimumBlockMinutes) {
                     freeByDate[date] = 0
                     continue
@@ -151,7 +164,7 @@ class StudyPlannerEngine(
                         sequence = position,
                     )
                 }
-                freeByDate[date] = free - chunk
+                freeByDate[date] = (free - chunk).coerceAtLeast(0)
                 usedBySubjectPerDate[date to demand.subjectId] = usedBySubjectPerDate.getOrElse(date to demand.subjectId) { 0 } + chunk
                 remaining[demand.id] = minuteLeftBefore - chunk
                 remainingQuestions[demand.id] = questionLeft - chunkQuestions

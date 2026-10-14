@@ -46,7 +46,8 @@ class StudyPlannerEngineOrderTest {
         val sequences = proposal.newTasks.map { it.sequence }
         assertEquals(sequences.size, sequences.toSet().size)
         proposal.newTasks.groupBy { it.date }.forEach { (date, tasks) ->
-            assertTrue(tasks.sumOf { it.plannedMinutes } <= proposal.capacity.availableByDate.getValue(date))
+            // Até um bloco mínimo além do dia, para não deixar caco de poucos minutos para o dia seguinte.
+            assertTrue(tasks.sumOf { it.plannedMinutes } <= proposal.capacity.availableByDate.getValue(date) + PlannerPolicy().minimumBlockMinutes)
         }
     }
 
