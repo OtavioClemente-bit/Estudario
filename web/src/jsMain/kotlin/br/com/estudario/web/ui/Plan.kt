@@ -281,7 +281,7 @@ private fun PlanProgressHeader(plan: br.com.estudario.web.data.StudyPlan, tasks:
         }
         // A semana em bolinhas: cheia quando o dia foi feito, contornada quando tem estudo, apagada na folga.
         val monday = todayEpoch - (LocalDate.fromEpochDays(todayEpoch.toInt()).dayOfWeek.ordinal)
-        Div({ classes("week-dots") }) {
+        Div({ classes("week-dots", "week-track") }) {
             listOf("S", "T", "Q", "Q", "S", "S", "D").forEachIndexed { i, label ->
                 val day = monday + i
                 val dayTasks = load.filter { it.day == day }
@@ -299,22 +299,39 @@ private fun PlanProgressHeader(plan: br.com.estudario.web.data.StudyPlan, tasks:
                 }
             }
         }
-        Div({ classes("hh-mission", "note") }) {
-            Div({ classes("grow") }) {
-                B { Text("Missão de hoje") }
-                P({ classes("small") }) {
+        // A missão de hoje: anel com as atividades feitas, o tempo do dia e a barra de minutos.
+        val plannedMin = today.sumOf { it.minutes }
+        val doneMin = today.filter { it.status == "CONCLUIDA" }.sumOf { it.minutes }
+        val finished = today.isNotEmpty() && todayDone == today.size
+        Div({ classes(*listOfNotNull("plan-mission", if (finished) "ok" else null).toTypedArray()) }) {
+            val ring = if (today.isEmpty()) 0 else todayDone * 100 / today.size
+            Div({ classes("pm-ring"); attr("style", "--p:$ring") }) {
+                if (finished) Icon("check") else if (today.isEmpty()) Icon("bedtime") else B { Text("$todayDone/${today.size}") }
+            }
+            Div({ classes("pm-text") }) {
+                Span({ classes("pm-eyebrow") }) { Text("MISSÃO DE HOJE") }
+                B({ classes("pm-title") }) {
                     Text(
                         when {
-                            today.isEmpty() && next != null -> "Folga hoje. Próximo estudo: ${dayTitle(next, todayEpoch).lowercase()} · ${load.count { it.day == next }} atividade(s)"
-                            today.isEmpty() -> "Dia livre no plano."
-                            todayDone == today.size -> "Concluída. Amanhã o plano continua."
-                            else -> "$todayDone de ${today.size} atividades · ${Queries.minutesLabel(today.filter { it.status == "CONCLUIDA" }.sumOf { it.minutes })} de ${Queries.minutesLabel(today.sumOf { it.minutes })}"
+                            today.isEmpty() -> "Folga no plano"
+                            finished -> "Missão cumprida"
+                            else -> "${today.size - todayDone} atividade${if (today.size - todayDone == 1) "" else "s"} · ${Queries.minutesLabel(plannedMin - doneMin)}"
                         },
                     )
                 }
+                Span({ classes("pm-sub") }) {
+                    Text(
+                        when {
+                            today.isEmpty() && next != null -> "Próximo estudo: ${dayTitle(next, todayEpoch).lowercase()}, ${load.count { it.day == next }} atividade(s)."
+                            today.isEmpty() -> "Dia livre. Aproveite para descansar."
+                            finished -> "Tudo feito hoje. Amanhã o plano continua."
+                            else -> "${Queries.minutesLabel(doneMin)} de ${Queries.minutesLabel(plannedMin)} estudados hoje"
+                        },
+                    )
+                }
+                if (today.isNotEmpty() && !finished) Div({ classes("pm-bar") }) { Span({ attr("style", "width:${(if (plannedMin == 0) 0 else doneMin * 100 / plannedMin).coerceAtLeast(3)}%") }) }
             }
-            if (overdue > 0) Span({ classes("late-pill") }) { Text("$overdue atrasada(s)") }
-            else if (today.isNotEmpty() && todayDone == today.size) Icon("check_circle")
+            if (overdue > 0) Span({ classes("late-pill") }) { Text("$overdue atrasada${if (overdue == 1) "" else "s"}") }
         }
     }
 }
