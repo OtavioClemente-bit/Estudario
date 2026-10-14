@@ -44,6 +44,7 @@ fun RecallCard(
     answer: String?,
     modifier: Modifier = Modifier,
     revealKey: Any = question,
+    showIcon: Boolean = true,
     trailing: @Composable (() -> Unit)? = null,
 ) {
     var showBack by rememberSaveable(revealKey) { mutableStateOf(false) }
@@ -71,8 +72,11 @@ fun RecallCard(
         if (!showBack) {
             Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 14.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.Top) {
-                    BrandIcon(Glyph.Brain, size = 40.dp)
-                    Spacer(Modifier.width(12.dp))
+                    // Numa lista com cabeçalho (RecallGroupHeader) o cérebro aparece uma vez só, lá em cima.
+                    if (showIcon) {
+                        BrandIcon(Glyph.Brain, size = 40.dp)
+                        Spacer(Modifier.width(12.dp))
+                    }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("TENTE LEMBRAR", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f))
                         StudyInlineText(question, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
@@ -104,6 +108,31 @@ fun RecallCard(
                     else -> Text("Sem problema. Leia de novo com calma e tente mais tarde.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 TextButton(onClick = { flip(false) }) { Text("Esconder a resposta") }
+            }
+        }
+    }
+}
+
+/**
+ * Cabeçalho do grupo de memorização, no mesmo formato das dicas e das pegadinhas (TipGroupHeader): o
+ * personagem aparece uma vez só, aqui, e as perguntas vêm embaixo sem repetir o desenho.
+ */
+@Composable
+fun RecallGroupHeader(count: Int, modifier: Modifier = Modifier) {
+    val dark = MaterialTheme.colorScheme.background.red < 0.5f
+    val face = if (dark) androidx.compose.ui.graphics.Color(0xFF3A1F33) else androidx.compose.ui.graphics.Color(0xFFFFF0F6)
+    val ink = if (dark) androidx.compose.ui.graphics.Color(0xFFFFB3D2) else androidx.compose.ui.graphics.Color(0xFFA3285F)
+    androidx.compose.material3.Card(modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = face)) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            BrandIcon(Glyph.Brain, size = 52.dp)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text("MEMORIZAÇÃO ATIVA", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = ink)
+                Text(
+                    "$count ${if (count == 1) "pergunta" else "perguntas"} para responder de cabeça e depois conferir",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

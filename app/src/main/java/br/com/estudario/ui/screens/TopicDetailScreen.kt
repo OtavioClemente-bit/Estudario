@@ -753,10 +753,10 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                     }
                 }
                 if (recallSnippets.isNotEmpty()) {
-                    item(key = "recall-header") { SectionHeader("Memorização ativa", "Responda de cabeça, depois confira. ★ guarda no Caderno.") }
+                    item(key = "recall-header") { br.com.estudario.ui.components.RecallGroupHeader(recallSnippets.size) }
                     recallSnippets.forEach { snippet ->
                         item(key = "recall-${snippet.id}") {
-                            RecallCard(snippet.text, snippet.answer, revealKey = snippet.id) {
+                            RecallCard(snippet.text, snippet.answer, revealKey = snippet.id, showIcon = false) {
                                 IconButton(onClick = { viewModel.saveSnippet(snippet.copy(isFavorite = !snippet.isFavorite)) }) {
                                     Icon(if (snippet.isFavorite) Icons.Outlined.Star else Icons.Outlined.StarBorder, if (snippet.isFavorite) "Tirar do Caderno" else "Guardar no Caderno", tint = if (snippet.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                                 }

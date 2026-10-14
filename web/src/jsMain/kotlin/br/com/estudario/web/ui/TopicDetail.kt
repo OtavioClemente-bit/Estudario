@@ -653,7 +653,14 @@ private fun ReviewTab(summaries: List<Summary>, recall: List<br.com.estudario.we
         }
     }
     if (recall.isNotEmpty()) {
-        SectionHeader("Memorização ativa", "Responda de cabeça, depois confira. ★ guarda no Caderno.")
+        // Mesmo formato das dicas e pegadinhas: o personagem uma vez só, no cabeçalho do grupo.
+        Div({ classes("tip-head", "recall") }) {
+            Span({ classes("tip-ic") }) { Icon("psychology", filled = true) }
+            Div {
+                B { Text("MEMORIZAÇÃO ATIVA") }
+                Div({ classes("small", "muted") }) { Text("${recall.size} ${if (recall.size == 1) "pergunta" else "perguntas"} para responder de cabeça e depois conferir. ★ guarda no Caderno.") }
+            }
+        }
         recall.forEach { s -> key("r${s.id}") { RecallCard(s.id, s.text, s.answer, s.favorite) } }
     }
     practicing?.let { deck -> DeckDialog(deck) { practicing = null } }
@@ -719,7 +726,7 @@ private fun TipsTab(tips: List<br.com.estudario.web.data.Snippet>, onGenerate: (
     listOf(false, true).map { t -> t to tips.filter { (it.kind == "PEGADINHA") == t } }.filter { it.second.isNotEmpty() }.forEach { (trap, group) ->
         key("g$trap") {
             Div({ classes("tip-head", if (trap) "trap" else "tip") }) {
-                Span({ classes("tip-ic") }) { Icon(if (trap) "warning" else "lightbulb", filled = true) }
+                Span({ classes("tip-ic") }) { Icon(if (trap) "pest_control_rodent" else "lightbulb", filled = true) }
                 Div {
                     B { Text(if (trap) "PEGADINHAS DA BANCA" else "DICAS QUE DECIDEM QUESTÃO") }
                     Div({ classes("small", "muted") }) { Text(if (trap) "${group.size} ${if (group.size == 1) "armadilha" else "armadilhas"} que a banca costuma armar" else "${group.size} ${if (group.size == 1) "dica" else "dicas"} para acertar mais rápido") }

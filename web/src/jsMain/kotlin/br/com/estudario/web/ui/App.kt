@@ -158,6 +158,10 @@ private fun Shell(content: @Composable () -> Unit) {
         Div({ classes("main") }) {
             Div({ classes("topbar") }) {
                 Button({ classes("icon-btn", "menu-btn"); attr("aria-label", "Abrir menu"); onClick { drawerOpen = true } }) { Icon("menu") }
+                // No celular o menu lateral some: a marca vem para o topo.
+                A(href = "#/inicio", { classes("brand-mini"); attr("aria-label", "Estudário, início") }) { Wordmark(small = true) }
+                // O personagem da seção ao lado do título: cada página tem a cara da turma do Folha.
+                (menu.flatMap { it.entries } + tabs).firstOrNull { it.route == section }?.let { Span({ classes("title-ic") }) { Icon(it.icon) } }
                 Span({ classes("title") }) { Text(titleOf(route)) }
                 Div({ classes("spacer") })
                 FocusBar()
@@ -189,6 +193,11 @@ private fun Shell(content: @Composable () -> Unit) {
 private fun SidebarContent(section: Route) {
     val session = Store.session
     val progress = Progress.of(Store.data).progress
+    // A marca no alto do menu, como nos sites grandes: o Folha e o nome.
+    A(href = "#/inicio", { classes("brand-mark"); onClick { drawerOpen = false } }) {
+        Span({ classes("brand-folha") }) { Folha("happy", 42) }
+        Div { Wordmark(); Span({ classes("brand-tag") }) { Text("do edital à aprovação") } }
+    }
     // Cabeçalho do menu: o perfil, com nível e XP (como no app).
     A(href = "#/perfil", { classes("drawer-profile"); onClick { drawerOpen = false } }) {
         Span({ classes("avatar"); attr("style", "width:44px;height:44px;font-size:16px") }) {
@@ -218,10 +227,15 @@ private fun SidebarContent(section: Route) {
         }
     }
     Div({ classes("sidebar-foot") }) {
-        A(href = "#/inicio", { classes("brand"); attr("style", "padding:8px 12px 0;font-size:15px") }) {
-            Img(src = "icon.png", alt = "", attrs = { attr("style", "width:24px;height:24px;border-radius:7px") })
-            Text("estudário")
-        }
+        Span({ classes("xs", "faint"); attr("style", "padding:0 12px") }) { Text("Estudário · seu estudo no rumo certo") }
+    }
+}
+
+/** O nome da marca: "estudário" com o acento em âmbar e uma passada de marca-texto embaixo. */
+@Composable
+internal fun Wordmark(small: Boolean = false) {
+    Span({ classes(*listOfNotNull("wordmark", if (small) "sm" else null).toTypedArray()) }) {
+        Text("estud"); org.jetbrains.compose.web.dom.Em { Text("á") }; Text("rio")
     }
 }
 
