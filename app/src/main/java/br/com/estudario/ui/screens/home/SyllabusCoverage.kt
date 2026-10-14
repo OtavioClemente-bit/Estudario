@@ -2,6 +2,8 @@ package br.com.estudario.ui.screens.home
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import br.com.estudario.ui.brand.marker
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,19 +51,33 @@ fun SyllabusCoverage(
     onOpenSyllabus: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var showAll by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(4.dp))
-            .clickable(onClick = onOpenSyllabus),
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .border(1.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(24.dp))
+            .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.small),
     ) {
-        Text(
-            "Seu edital",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Seu edital",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(start = 3.dp).marker(),
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                "${coverage.subjects.size} matérias · ${coverage.totalTopics} tópicos",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+        }
         // Dois números, cada um com o que significa: ter passado pelo tópico não é saber o tópico.
         Row(horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
             CoverageStat("${coverage.percent}%", "estudado", "${coverage.studiedTopics} de ${coverage.totalTopics} tópicos vistos", Modifier.weight(1f))
@@ -71,18 +88,33 @@ fun SyllabusCoverage(
 
         if (coverage.subjects.isNotEmpty()) {
             // Só o que pede ação agora: as matérias em andamento e as próximas a começar.
-            val shown = coverage.subjects
-                .sortedWith(compareBy<SubjectCoverageUi>({ it.fraction >= 1f }, { it.fraction <= 0f }, { -it.fraction }))
-                .take(4)
-            Column(verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight)) {
+            // Fechado: as que pedem ação agora. Aberto: todas, na ordem do edital.
+            val ordered = coverage.subjects.sortedWith(compareBy<SubjectCoverageUi>({ it.fraction >= 1f }, { it.fraction <= 0f }, { -it.fraction }))
+            val shown = if (showAll) coverage.subjects.sortedBy { it.position } else ordered.take(4)
+            Column(Modifier.padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 shown.forEach { subject -> SubjectCoverageRow(subject) }
             }
-            if (coverage.subjects.size > shown.size) Text(
-                "Ver as ${coverage.subjects.size} matérias",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-            )
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (coverage.subjects.size > 4) Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.primaryContainer)
+                        .clickable { showAll = !showAll }.padding(vertical = 11.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        if (showAll) "Mostrar menos" else "Ver todas as ${coverage.subjects.size} matérias",
+                        style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                }
+                Box(
+                    Modifier.then(if (coverage.subjects.size > 4) Modifier else Modifier.weight(1f)).clip(RoundedCornerShape(14.dp))
+                        .border(1.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
+                        .clickable(onClick = onOpenSyllabus).padding(horizontal = 16.dp, vertical = 11.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("Abrir o edital", style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                }
+            }
         }
     }
 }
@@ -140,47 +172,54 @@ internal fun SegmentedCoverageBar(subjects: List<SubjectCoverageUi>) {
 private fun SubjectCoverageRow(subject: SubjectCoverageUi) {
     val palette = estudarioColors().subjectPalette
     val color = subjectAccentColor(subject.name, palette)
-    Column(
+    val (stateLabel, stateColor) = when {
+        subject.fraction >= 1f -> "Concluída" to androidx.compose.ui.graphics.Color(0xFF2FBF8A)
+        subject.fraction > 0f -> "Em andamento" to MaterialTheme.colorScheme.primary
+        else -> "A começar" to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Row(
         Modifier
             .fillMaxWidth()
             .semantics { contentDescription = "${subject.name}: ${subject.percent}% do conteúdo estudado" },
-        verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.hairline),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small),
+        // O selo da matéria: a inicial na cor dela, como uma etiqueta de caderno.
+        Box(
+            Modifier.width(38.dp).height(38.dp).clip(RoundedCornerShape(12.dp)).background(color.copy(alpha = 0.18f)),
+            contentAlignment = Alignment.Center,
         ) {
             Text(
-                subject.name,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                "${subject.percent}%",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.End,
-                modifier = Modifier.width(42.dp),
+                subject.name.substringAfter(" – ").trim().replace(Regex("^[^\\p{L}]+"), "").take(1).uppercase().ifBlank { "•" },
+                style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = color,
             )
         }
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(6.dp)
-                .clip(RoundedCornerShape(50))
-                .background(color.copy(alpha = 0.18f)),
-        ) {
-            Box(
-                Modifier
-                    .fillMaxWidth(subject.fraction)
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(color),
-            )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    subject.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    "${subject.percent}%",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.End,
+                )
+            }
+            Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.18f))) {
+                Box(Modifier.fillMaxWidth(subject.fraction).height(6.dp).clip(RoundedCornerShape(50)).background(color))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("${subject.studiedTopics} de ${subject.totalTopics} tópicos", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                Text(stateLabel, style = MaterialTheme.typography.labelSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = stateColor)
+            }
         }
     }
 }

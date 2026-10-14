@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import br.com.estudario.ui.components.EmptyState
 import br.com.estudario.ui.components.MissionCard
 import br.com.estudario.ui.theme.estudarioLayout
+import br.com.estudario.domain.planner.PlanTaskStatus
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
@@ -80,7 +81,10 @@ private fun DayPlanView(
     val capacity = state.availability.firstOrNull { it.dayOfWeek == selectedDate.dayOfWeek.value }?.let { if (it.unavailable) 0 else it.availableMinutes } ?: 0
     val isDayLocked = state.dayOverrides.firstOrNull { it.epochDay == selectedDate.toEpochDay() }?.locked == true
 
-    val taskDates = state.tasks.plannedLoadTasks().map { LocalDate.ofEpochDay(it.entity.scheduledEpochDay) }.toSet()
+    val loadByDate = state.tasks.plannedLoadTasks().groupBy { LocalDate.ofEpochDay(it.entity.scheduledEpochDay) }
+    val taskDates = loadByDate.keys
+    val minutesByDate = loadByDate.mapValues { (_, tasks) -> tasks.plannedLoadMinutes() }
+    val doneDates = loadByDate.filterValues { tasks -> tasks.all { it.entity.status == PlanTaskStatus.CONCLUIDA } }.keys
 
     PlanList(header) {
         // Calendário Interativo
@@ -90,7 +94,9 @@ private fun DayPlanView(
                     selectedDate = selectedDate,
                     onDateSelected = { selectedDate = it },
                     taskDates = taskDates,
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier.padding(16.dp),
+                    minutesByDate = minutesByDate,
+                    doneDates = doneDates,
                 )
             }
         }
@@ -208,7 +214,7 @@ private fun DayPlanView(
         } else {
             item {
                 Text(
-                    text = "Atividades Planejadas",
+                    text = "Atividades do dia · ${tasksForSelectedDate.count { it.entity.status == PlanTaskStatus.CONCLUIDA }} de ${tasksForSelectedDate.size} feitas",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(top = 8.dp)

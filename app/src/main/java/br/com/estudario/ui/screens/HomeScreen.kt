@@ -357,17 +357,12 @@ fun HomeScreen(
                     standing = standingUi(streak, progress),
                     onOpenStatistics = onStatistics,
                     onOpenProfile = onProfile,
+                    // Nível e constância moram no perfil; aqui fica só o desempenho.
+                    showStanding = false,
                 )
             }
         }
 
-        item { Spacer(Modifier.height(EstudarioSpacing.large)) }
-
-        item {
-            Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
-                LevelRow(standing = standingUi(streak, progress), onOpenProfile = onProfile)
-            }
-        }
 
         item { Spacer(Modifier.height(EstudarioSpacing.large)) }
 

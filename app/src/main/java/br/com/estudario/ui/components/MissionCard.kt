@@ -1,5 +1,7 @@
 package br.com.estudario.ui.components
 
+import androidx.compose.ui.draw.drawBehind
+
 import br.com.estudario.ui.planner.taskTitlePtBr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -67,8 +69,18 @@ fun MissionCard(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
+        // A margem do caderno: uma faixa com a cor do estado (dourada planejada, roxa em andamento,
+        // verde concluída, vermelha atrasada).
+        val accent = when {
+            task.status == PlanTaskStatus.CONCLUIDA -> Color(0xFF2FBF8A)
+            isOverdue -> MaterialTheme.colorScheme.error
+            task.status == PlanTaskStatus.EM_ANDAMENTO -> MaterialTheme.colorScheme.primary
+            else -> Color(0xFFF5B83D)
+        }
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .drawBehind { drawRect(accent, size = androidx.compose.ui.geometry.Size(5.dp.toPx(), size.height)) }
+                .padding(start = 20.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
@@ -110,7 +122,8 @@ fun MissionCard(
                 Text(
                     text = task.taskTitlePtBr(),
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Black,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 
                 // FlowRow: "45 min • 20 qts • Prioridade alta" não cabe numa linha em tela estreita

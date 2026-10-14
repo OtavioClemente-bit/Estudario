@@ -370,6 +370,9 @@ private fun MainNavigation(viewModel: AppViewModel) {
             // O papel de caderno pontilhado atrás de todas as telas, como no site.
             modifier = Modifier.dottedPaper(),
             containerColor = androidx.compose.ui.graphics.Color.Transparent,
+            // Fundo transparente não diz a cor do texto: sem isto, todo texto sem cor própria (os
+            // títulos) saía preto, ilegível no tema escuro.
+            contentColor = MaterialTheme.colorScheme.onBackground,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = { Column {
                 if (currentRoute != null) EstudarioTopBar(

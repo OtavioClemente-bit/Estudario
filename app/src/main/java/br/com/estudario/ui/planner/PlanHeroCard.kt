@@ -53,7 +53,7 @@ private val weekdayInitials = listOf("S", "T", "Q", "Q", "S", "S", "D")
 /**
  * O plano em uma olhada, com a cara do Estudário: o cartão de tinta índigo com a pauta do caderno,
  * o objetivo inteiro, os dias até a prova num ingresso dourado, o quanto do plano já foi num anel, a
- * semana em bolinhas (feita, marcada, folga, hoje) e a missão de hoje num bilhete colado com fita.
+ * semana em bolinhas (feita, marcada, folga, hoje) e a missão de hoje num cartão reto com anel.
  */
 @Composable
 fun PlanProgressHeader(state: ActivePlanUiState, modifier: Modifier = Modifier) {
@@ -110,21 +110,33 @@ fun PlanProgressHeader(state: ActivePlanUiState, modifier: Modifier = Modifier) 
                     )
                 }
             }
-            WeekDots(state)
-            Spacer(Modifier.height(54.dp)) // o bilhete de hoje fica por cima do fim do cartão
+            // A semana numa trilha clara, como no site.
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(white.copy(alpha = 0.06f))
+                    .border(1.dp, white.copy(alpha = 0.10f), RoundedCornerShape(16.dp)).padding(horizontal = 10.dp, vertical = 10.dp),
+            ) { WeekDots(state) }
+            val finished = today.isNotEmpty() && todayDone == today.size
+            val left = today.size - todayDone
+            TodayMission(
+                done = todayDone,
+                total = today.size,
+                title = when {
+                    today.isEmpty() -> "Folga no plano"
+                    finished -> "Missão cumprida"
+                    else -> "$left atividade${if (left == 1) "" else "s"} · ${minutesLabelPtBr((state.todayPlannedMinutes - state.todayActualMinutes).coerceAtLeast(0))}"
+                },
+                subtitle = when {
+                    today.isEmpty() && state.nextStudyDay != null -> "Próximo estudo ${dayLabelPtBr(state.nextStudyDay!!, state.today)}: ${state.nextDayTasks.size} atividade(s)."
+                    today.isEmpty() -> "Dia livre. Aproveite para descansar."
+                    finished -> "Tudo feito hoje. Amanhã o plano continua."
+                    else -> "${minutesLabelPtBr(state.todayActualMinutes)} de ${minutesLabelPtBr(state.todayPlannedMinutes)} estudados hoje"
+                },
+                progress = if (state.todayPlannedMinutes <= 0) 0f else (state.todayActualMinutes.toFloat() / state.todayPlannedMinutes).coerceIn(0f, 1f),
+                overdue = state.overdueTasks.size,
+            )
         }
-        TodayNote(
-            text = when {
-                today.isEmpty() && state.nextStudyDay != null -> "Folga hoje. Próximo estudo ${dayLabelPtBr(state.nextStudyDay!!, state.today)}: ${state.nextDayTasks.size} atividade(s), ${minutesLabelPtBr(state.nextDayTasks.sumOf { it.entity.plannedMinutes })}."
-                today.isEmpty() -> "Dia livre no plano."
-                todayDone == today.size -> "Missão cumprida! Amanhã o plano continua."
-                else -> "$todayDone de ${today.size} feitas · ${minutesLabelPtBr(state.todayActualMinutes)} de ${minutesLabelPtBr(state.todayPlannedMinutes)}"
-            },
-            overdue = state.overdueTasks.size,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 18.dp).offset(y = 14.dp),
-        )
     }
-    Spacer(Modifier.height(18.dp))
+    Spacer(Modifier.height(8.dp))
 }
 
 /** O anel do plano cumprido: trilha clara, arco dourado animado e a porcentagem no meio. */
@@ -186,29 +198,52 @@ private fun WeekDots(state: ActivePlanUiState) {
     }
 }
 
-/** A missão de hoje num bilhete de papel colado com fita, levemente torto. */
+/**
+ * A missão de hoje num cartão reto de papel, com a borda dourada: o anel das atividades feitas, o
+ * que falta (atividades e tempo) e a barra dos minutos do dia. Verde quando a missão foi cumprida.
+ */
 @Composable
-private fun TodayNote(text: String, overdue: Int, modifier: Modifier = Modifier) {
-    Box(modifier.rotate(-1.2f)) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(6.dp))
-                .background(Paper)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            br.com.estudario.ui.brand.BrandIcon(br.com.estudario.ui.brand.Glyph.Target, size = 34.dp)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text("Missão de hoje", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = PaperInk)
-                Text(text, style = MaterialTheme.typography.bodySmall, color = PaperInk.copy(alpha = 0.75f))
+private fun TodayMission(done: Int, total: Int, title: String, subtitle: String, progress: Float, overdue: Int) {
+    val finished = total > 0 && done == total
+    val accent = if (finished) Color(0xFF2FBF8A) else Gold
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Paper)
+            .drawBehind { drawRect(accent, size = Size(6.dp.toPx(), size.height)) }
+            .padding(start = 20.dp, end = 14.dp, top = 14.dp, bottom = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val shown by animateFloatAsState(if (total == 0) 0f else done.toFloat() / total, tween(900), label = "missionRing")
+        Box(Modifier.size(54.dp), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.size(54.dp)) {
+                val stroke = 6.dp.toPx()
+                val inset = stroke / 2
+                val arc = Size(size.width - stroke, size.height - stroke)
+                if (finished) drawCircle(accent)
+                else {
+                    drawArc(Color(0xFFE9E3D3), 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(stroke))
+                    drawArc(Color(0xFF5B4BF5), -90f, 360f * shown, false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
+                }
             }
-            if (overdue > 0) Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0xFFC0262D)).padding(horizontal = 10.dp, vertical = 4.dp)) {
-                Text("$overdue atrasada${if (overdue > 1) "s" else ""}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(
+                when { finished -> "✓"; total == 0 -> "0"; else -> "$done/$total" },
+                style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black,
+                color = if (finished) Color.White else PaperInk,
+            )
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("MISSÃO DE HOJE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color(0xFFC98A0B))
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = PaperInk)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = PaperInk.copy(alpha = 0.72f))
+            if (total > 0 && !finished) Box(Modifier.padding(top = 6.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)).background(Color(0xFFE9E3D3))) {
+                Box(Modifier.fillMaxWidth(progress.coerceAtLeast(0.03f)).height(6.dp).clip(RoundedCornerShape(50)).background(Brush.horizontalGradient(listOf(Color(0xFF5B4BF5), Gold))))
             }
         }
-        // A fita adesiva no alto do bilhete.
-        Box(Modifier.align(Alignment.TopCenter).offset(y = (-8).dp).size(64.dp, 16.dp).rotate(2f).background(Tape))
+        if (overdue > 0) Box(Modifier.padding(start = 8.dp).clip(RoundedCornerShape(50)).background(Color(0xFFC0262D)).padding(horizontal = 10.dp, vertical = 4.dp)) {
+            Text("$overdue atrasada${if (overdue > 1) "s" else ""}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White)
+        }
     }
 }

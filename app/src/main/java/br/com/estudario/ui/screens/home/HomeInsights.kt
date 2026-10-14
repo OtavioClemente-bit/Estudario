@@ -115,6 +115,7 @@ fun PerformanceAndStanding(
     onOpenStatistics: () -> Unit,
     onOpenProfile: () -> Unit,
     modifier: Modifier = Modifier,
+    showStanding: Boolean = true,
 ) {
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.large)) {
         Column(
@@ -149,7 +150,7 @@ fun PerformanceAndStanding(
             }
         }
 
-        Column(
+        if (showStanding) Column(
             Modifier
                 .weight(1f)
                 .clip(RoundedCornerShape(4.dp))

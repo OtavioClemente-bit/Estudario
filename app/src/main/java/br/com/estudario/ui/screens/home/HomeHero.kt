@@ -114,11 +114,7 @@ fun HomeHero(
                 coverage.masteryPercent?.let { Text("Domínio de $it% nas questões", style = MaterialTheme.typography.bodySmall, color = white.copy(alpha = 0.75f)) }
             }
         }
-        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            HeroChip(br.com.estudario.ui.brand.Glyph.Fire, if (standing.streakDays == 0) "Comece a sequência hoje" else "${standing.streakDays} ${if (standing.streakDays == 1) "dia" else "dias"} seguidos")
-            HeroChip(br.com.estudario.ui.brand.Glyph.Medal, "Nível ${standing.level} · ${standing.levelTitle}")
-        }
+        // Sequência e nível ficam no perfil: o cartão fala só do concurso.
     }
 }
 
