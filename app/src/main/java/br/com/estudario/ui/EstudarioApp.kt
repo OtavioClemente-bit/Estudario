@@ -167,6 +167,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
     val tourStepIndex by viewModel.tourStepIndex.collectAsState()
     val tourBounds by viewModel.tourTargetBounds.collectAsState()
     var showTourPicker by remember { mutableStateOf(false) }
+    var showPlansFromMenu by remember { mutableStateOf(false) }
     var showHelpGuidePicker by remember { mutableStateOf(false) }
     var tutorialToShow by remember { mutableStateOf<TutorialVideo?>(null) }
     BackHandler(enabled = tourStep != null && tutorialToShow == null) { viewModel.stopTour() }
@@ -357,6 +358,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         onNotifications = { abrirDoMenu("notifications") },
                         onSyncCalendar = { abrirDoMenu("agenda") },
                         onHelp = { drawerScope.launch { drawerState.close() }; showTourPicker = true },
+                        onPlans = { drawerScope.launch { drawerState.close() }; showPlansFromMenu = true },
                     ),
                     appVersion = "Estudário ${BuildConfig.VERSION_NAME}",
                     onOpenProfile = { abrirDoMenu("profile") },
@@ -622,6 +624,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
         levelUp?.let { event -> if (celebration == null && badgeUnlock.isEmpty() && tourStep == null) br.com.estudario.ui.profile.LevelUpScreen(event, viewModel::consumeLevelUp) }
         val xpGain by viewModel.xpGain.collectAsState()
         br.com.estudario.ui.profile.XpGainToast(xpGain)
+        if (showPlansFromMenu) br.com.estudario.ui.plans.PlansDialog(onDismiss = { showPlansFromMenu = false }, onSignIn = { showPlansFromMenu = false; navController.navigate("profile") })
         if (showTourPicker) TourPickerDialog(
             seen = seenTours.orEmpty(),
             onDismiss = { showTourPicker = false },

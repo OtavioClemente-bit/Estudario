@@ -323,15 +323,7 @@ private fun ProfileContent(
             }
             item { Divider() }
 
-            item {
-                Band {
-                    Text("BACKUP EM ARQUIVO", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(EstudarioSpacing.small))
-                    BackupRow(Icons.Outlined.CloudDownload, "Exportar backup completo", "Salve uma cópia versionada no local que escolher", onExportBackup)
-                    HorizontalDivider(Modifier.padding(vertical = EstudarioSpacing.small), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    BackupRow(Icons.Outlined.Restore, "Restaurar backup", "Substitui os dados deste aparelho após confirmação", onImportBackup)
-                }
-            }
+            // Backup só pelo Google Drive (na conta); o backup em arquivo no celular saiu.
             item { Spacer(Modifier.height(EstudarioSpacing.expansive)) }
             item {
                 Text(

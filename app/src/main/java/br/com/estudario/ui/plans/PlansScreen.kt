@@ -159,6 +159,7 @@ fun PlansDialog(onDismiss: () -> Unit, onSignIn: (() -> Unit)? = null) {
     var products by remember { mutableStateOf<List<ProductDetails>>(emptyList()) }
     var yearly by remember { mutableStateOf(false) }
     var buying by remember { mutableStateOf(false) }
+    var selectedTier by remember { mutableStateOf<String?>(null) }
     val event by billing.events.collectAsState()
 
     LaunchedEffect(reload) {
@@ -179,8 +180,19 @@ fun PlansDialog(onDismiss: () -> Unit, onSignIn: (() -> Unit)? = null) {
         if (event is PurchaseEvent.Cancelled || event is PurchaseEvent.Failed || event is PurchaseEvent.Pending) buying = false
     }
 
+    val subscribe: (AiPlanPricing) -> Unit = { pricing ->
+        val activity = context.findActivity()
+        val product = products.firstOrNull { it.productId == pricing.playProductId }
+        val basePlan = if (yearly) pricing.playBasePlanYear else pricing.playBasePlanMonth
+        if (activity != null && product != null && basePlan != null) {
+            buying = true
+            scope.launch { if (!billing.subscribe(activity, product, basePlan)) buying = false }
+        }
+    }
+
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+          Box(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 Hero(
                     currentTier = (state as? PlansState.Ready)?.summary?.planTier,
@@ -206,28 +218,53 @@ fun PlansDialog(onDismiss: () -> Unit, onSignIn: (() -> Unit)? = null) {
                             onAction = { reload++ },
                         )
                         is PlansState.Ready -> {
-                            PlanCatalog(
+                            PlanPickerSection(
                                 summary = current.summary,
                                 products = products,
                                 yearly = yearly,
                                 onYearly = { yearly = it },
-                                buying = buying,
-                                onSubscribe = { pricing ->
-                                    val activity = context.findActivity() ?: return@PlanCatalog
-                                    val product = products.firstOrNull { it.productId == pricing.playProductId } ?: return@PlanCatalog
-                                    val basePlan = (if (yearly) pricing.playBasePlanYear else pricing.playBasePlanMonth) ?: return@PlanCatalog
-                                    buying = true
-                                    scope.launch { if (!billing.subscribe(activity, product, basePlan)) buying = false }
-                                },
+                                onSelected = { selectedTier = it },
                             )
                             UsageSection(current.summary.usage)
                             EveryPlanHas()
                             HowQuotaWorks()
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
+                    // Espaço para o botão fixo embaixo não cobrir o fim da lista.
+                    Spacer(Modifier.height(if (state is PlansState.Ready) 110.dp else 12.dp))
                 }
             }
+            val ready = (state as? PlansState.Ready)?.summary
+            val tier = selectedTier
+            if (ready != null && tier != null) {
+                val pricing = ready.pricingOf(tier) ?: AiPlanPricing(tier)
+                val product = products.firstOrNull { it.productId == pricing.playProductId }
+                val basePlan = if (yearly) pricing.playBasePlanYear else pricing.playBasePlanMonth
+                val available = ready.billing.playEnabled && product != null && basePlan != null
+                val isCurrent = tier == ready.planTier
+                val price = shownPrice(pricing, product, yearly)
+                val name = pricing.name.ifBlank { planDisplayName(tier) }
+                Box(Modifier.align(Alignment.BottomCenter).navigationBarsPadding()) {
+                    PlanActionBar(
+                        label = when {
+                            isCurrent -> "Este é o seu plano"
+                            !pricing.isPaid -> "Continuar no Grátis"
+                            available -> "Assinar $name · ${price.main}"
+                            else -> "Em breve na Google Play"
+                        },
+                        sublabel = when {
+                            isCurrent || !pricing.isPaid -> null
+                            available -> "Cobrado pela Google Play. Cancela quando quiser, sem multa."
+                            else -> null
+                        },
+                        color = tierLook(tier).color,
+                        enabled = !isCurrent && (!pricing.isPaid || available),
+                        busy = buying,
+                        onClick = { if (pricing.isPaid) subscribe(pricing) else onDismiss() },
+                    )
+                }
+            }
+          }
         }
     }
 
@@ -426,173 +463,39 @@ private fun AdRewardCard(visible: Boolean, busy: Boolean, onClick: () -> Unit) {
     }
 }
 
+/** A escolha do plano: Folha, seletor mensal/anual, carrossel e comparação, tudo reagindo junto. */
 @Composable
-private fun PlanCatalog(
+private fun PlanPickerSection(
     summary: AiPlanSummary,
     products: List<ProductDetails>,
     yearly: Boolean,
     onYearly: (Boolean) -> Unit,
-    buying: Boolean,
-    onSubscribe: (AiPlanPricing) -> Unit,
+    onSelected: (String) -> Unit,
 ) {
-    if (summary.plans.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        SectionTitle("Escolha seu plano", "Todos têm o mesmo conteúdo, com as mesmas fontes conferidas. Muda só quanto você pode gerar.")
-        PeriodToggle(yearly, onYearly)
-        // O recomendado primeiro, depois o mais completo e por fim o grátis.
-        summary.plans.sortedBy { listOf("ESSENCIAL", "PRO", "FREE").indexOf(it.planTier).let { i -> if (i < 0) 9 else i } }.forEach { plan ->
-            val pricing = summary.pricingOf(plan.planTier) ?: AiPlanPricing(plan.planTier)
-            PlanCard(
-                plan = plan,
-                pricing = pricing,
-                product = products.firstOrNull { it.productId == pricing.playProductId },
-                yearly = yearly,
-                isCurrent = plan.planTier == summary.planTier,
-                featured = pricing.featured,
-                storeOpen = summary.billing.playEnabled,
-                buying = buying,
-                onSubscribe = { onSubscribe(pricing) },
-            )
-        }
+    val plans = remember(summary) { pickerOrder(summary.plans) }
+    if (plans.isEmpty()) return
+    // Começa no plano da pessoa; quem está no Grátis começa no recomendado.
+    val start = remember(plans) {
+        val current = plans.indexOfFirst { it.planTier == summary.planTier }
+        val featured = plans.indexOfFirst { summary.pricingOf(it.planTier)?.featured == true }
+        (if (summary.planTier == "FREE" && featured >= 0) featured else current).coerceAtLeast(0)
     }
-}
-
-/** Mensal ou anual, com o quanto o anual economiza. */
-@Composable
-private fun PeriodToggle(yearly: Boolean, onYearly: (Boolean) -> Unit) {
-    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-        Row(Modifier.padding(4.dp)) {
-            listOf(false to "Mensal", true to "Anual · 2 meses grátis").forEach { (value, label) ->
-                val selected = yearly == value
-                Surface(
-                    onClick = { onYearly(value) },
-                    shape = RoundedCornerShape(11.dp),
-                    color = if (selected) MaterialTheme.colorScheme.surface else Color.Transparent,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(
-                        label,
-                        Modifier.padding(vertical = 10.dp),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
+    val pager = androidx.compose.foundation.pager.rememberPagerState(initialPage = start) { plans.size }
+    val selected = plans[pager.currentPage.coerceIn(0, plans.lastIndex)]
+    LaunchedEffect(selected.planTier) { onSelected(selected.planTier) }
+    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        SectionTitle("Escolha seu plano", "Arraste ou toque. O conteúdo é o mesmo em todos; muda quanto você pode gerar.")
+        SlidingPeriodToggle(yearly, onYearly, tierLook(selected.planTier).color)
     }
-}
-
-@Composable
-private fun PlanCard(
-    plan: AiPlanCatalogEntry,
-    pricing: AiPlanPricing,
-    product: ProductDetails?,
-    yearly: Boolean,
-    isCurrent: Boolean,
-    featured: Boolean,
-    storeOpen: Boolean,
-    buying: Boolean,
-    onSubscribe: () -> Unit,
-) {
-    val premium = pricing.isPaid
-    val shape = RoundedCornerShape(24.dp)
-    val border = when {
-        featured -> Modifier.border(2.dp, MaterialTheme.colorScheme.primary, shape)
-        isCurrent -> Modifier.border(2.dp, MaterialTheme.colorScheme.secondary, shape)
-        else -> Modifier.border(2.dp, MaterialTheme.colorScheme.outlineVariant, shape)
-    }
-    // Preço: o da loja (já na moeda da pessoa) quando a Google Play respondeu; senão o do servidor.
-    val basePlan = if (yearly) pricing.playBasePlanYear else pricing.playBasePlanMonth
-    val storePrice = product?.subscriptionOfferDetails.orEmpty()
-        .firstOrNull { it.basePlanId == basePlan && it.offerId == null }
-        ?.pricingPhases?.pricingPhaseList?.lastOrNull()?.formattedPrice
-    val price = storePrice ?: formatBrl(if (yearly) pricing.priceYearCents else pricing.priceMonthCents)
-    val perMonth = if (yearly && premium) formatBrl(pricing.priceYearCents / 12) else null
-
-    Box(Modifier.fillMaxWidth()) {
-        Surface(
-            Modifier.fillMaxWidth().padding(top = if (featured) 14.dp else 0.dp).then(border),
-            shape = shape,
-            color = if (featured) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surfaceContainerLow,
-        ) {
-            Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(if (premium) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            if (plan.planTier == "PRO") Icons.Outlined.Bolt else if (premium) Icons.Outlined.WorkspacePremium else Icons.Outlined.AutoAwesome,
-                            null,
-                            tint = if (premium) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(pricing.name.ifBlank { planDisplayName(plan.planTier) }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                        Text(pricing.tagline.ifBlank { planTagline(plan.planTier) }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    if (isCurrent) {
-                        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.secondary) {
-                            Text("Seu plano", Modifier.padding(horizontal = 10.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSecondary, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(if (premium) price else "R$ 0", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        when {
-                            !premium -> "para sempre"
-                            yearly -> "por ano" + (perMonth?.let { "\n$it por mês" } ?: "")
-                            else -> "por mês"
-                        },
-                        Modifier.padding(bottom = 6.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    plan.limits
-                        .filter { it.feature in VISIBLE_FEATURES }
-                        .groupBy { it.feature }
-                        .toSortedMap(compareBy<String> { featureOrder(it) })
-                        .forEach { (feature, limits) -> Benefit(featureLabel(feature), limits.joinToString(" · ") { limitCopy(it) }) }
-                    if (premium) Benefit("Teoria, flashcards, dicas e questões", "em cada material, com explicação de cada alternativa")
-                    else Benefit("Editais do catálogo", "dezenas de concursos prontos; o seu PDF é dos planos pagos")
-                }
-                if (premium && !isCurrent) {
-                    val available = storeOpen && product != null && basePlan != null
-                    Button(
-                        onClick = onSubscribe,
-                        enabled = available && !buying,
-                        modifier = Modifier.fillMaxWidth().height(54.dp),
-                        shape = RoundedCornerShape(16.dp),
-                    ) {
-                        if (buying) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                        else Text(if (available) "Assinar ${pricing.name}" else "Em breve na Google Play", fontWeight = FontWeight.Bold)
-                    }
-                    if (available) Text(
-                        "Cobrado pela Google Play. Cancela quando quiser, sem multa.",
-                        Modifier.fillMaxWidth(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
-        }
-        if (featured) {
-            Box(
-                Modifier.align(Alignment.TopCenter).clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.primary).padding(horizontal = 14.dp, vertical = 6.dp),
-            ) {
-                Text("MAIS ESCOLHIDO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Black)
-            }
-        }
-    }
+    PlanCarousel(
+        plans = plans,
+        pricingOf = { summary.pricingOf(it) ?: AiPlanPricing(it) },
+        productOf = { pricing -> products.firstOrNull { it.productId == pricing.playProductId } },
+        currentTier = summary.planTier,
+        yearly = yearly,
+        pager = pager,
+    )
+    PlanCompare(selected, plans)
 }
 
 @Composable

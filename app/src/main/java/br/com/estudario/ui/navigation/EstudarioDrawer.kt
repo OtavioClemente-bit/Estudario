@@ -42,6 +42,7 @@ import androidx.compose.material.icons.outlined.GpsFixed
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.WorkspacePremium
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -199,6 +200,7 @@ fun estudarioDrawerSections(
     onMySyllabi: () -> Unit = {},
     onNotebook: () -> Unit = {},
     onHome: () -> Unit = {},
+    onPlans: () -> Unit = {},
 ): List<DrawerSection> = listOf(
     DrawerSection(
         "Estudos",
@@ -226,6 +228,7 @@ fun estudarioDrawerSections(
     DrawerSection(
         "Aplicativo",
         listOf(
+            DrawerEntry("Planos e assinatura", Icons.Outlined.WorkspacePremium, onPlans),
             DrawerEntry("Ajustes", Icons.Outlined.Tune, onSettings, "more"),
             DrawerEntry("Notificações", Icons.Outlined.NotificationsActive, onNotifications, "notifications"),
             DrawerEntry("Agenda do celular", Icons.Outlined.CalendarMonth, onSyncCalendar, "agenda"),
