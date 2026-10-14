@@ -97,8 +97,22 @@ private var drawerOpen by mutableStateOf(false)
 
 @Composable
 fun App() {
+    // A abertura (#splash do index.html) fica na frente enquanto carrega e se dissolve quando o app
+    // abre, depois de um mínimo para a marca terminar de se desenhar.
+    val loading = Store.load == LoadState.Loading
+    androidx.compose.runtime.LaunchedEffect(loading) {
+        if (loading) return@LaunchedEffect
+        val splash = kotlinx.browser.document.getElementById("splash") ?: return@LaunchedEffect
+        val started = (kotlinx.browser.window.asDynamic().__splashStart as? Number)?.toDouble() ?: kotlin.js.Date.now()
+        kotlinx.coroutines.delay((1500 - (kotlin.js.Date.now() - started)).toLong().coerceAtLeast(0))
+        splash.classList.add("out")
+        kotlinx.coroutines.delay(650)
+        splash.remove()
+    }
     when (val load = Store.load) {
-        LoadState.Loading -> CenterMessage { ProcessScene(220); B({ classes("loading-title") }) { Text("Abrindo seus estudos…") } }
+        LoadState.Loading -> if (kotlinx.browser.document.getElementById("splash") == null) {
+            CenterMessage { ProcessScene(220); B({ classes("loading-title") }) { Text("Abrindo seus estudos…") } }
+        }
         LoadState.SignedOut -> LoginScreen()
         is LoadState.Failed -> CenterMessage {
             Folha(mood = "thinking", size = 110)
