@@ -25,8 +25,12 @@ object Queries {
     fun activePlan(data: Snapshot): StudyPlan? =
         data.plans.firstOrNull { it.active && !it.archived } ?: data.plans.firstOrNull { !it.archived }
 
+    /**
+     * As tarefas do dia que valem. Ao replanejar, a tarefa antiga vira REPROGRAMADA e entra uma cópia
+     * nova; mostrar as duas fazia o dia parecer infinito, com a mesma matéria repetida.
+     */
     fun tasksOn(data: Snapshot, planId: String, epochDay: Long): List<PlanTask> =
-        data.tasks.filter { it.planId == planId && it.day == epochDay }.sortedWith(compareBy({ it.status == "CONCLUIDA" }, { typeOrder(it.type) }))
+        data.tasks.filter { it.planId == planId && it.day == epochDay && it.status != "REPROGRAMADA" && it.status != "CANCELADA" }.sortedWith(compareBy({ it.status == "CONCLUIDA" }, { typeOrder(it.type) }))
 
     private fun typeOrder(type: String) = listOf("REVIEW", "THEORY", "QUESTIONS", "ACTIVE_RECALL", "FLASHCARDS", "DISCURSIVE", "SIMULATION").indexOf(type).let { if (it < 0) 99 else it }
 
