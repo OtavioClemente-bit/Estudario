@@ -39,6 +39,62 @@ object TopicFocus {
     var timeUpSeen by mutableStateOf(false)
     private var ticker: Int? = null
 
+    // ---------------------------------------------------------------- sobreviver ao F5
+    // O foco fica guardado neste navegador a cada segundo. Recarregar ou fechar a aba sem querer
+    // não perde a sessão: ela volta pausada no ponto em que estava (o tempo com a aba fechada não
+    // conta) e é só continuar ou encerrar.
+    private const val SAVE_KEY = "estudario.focus.active"
+
+    private fun persist() {
+        runCatching {
+            if (!active) { window.localStorage.removeItem(SAVE_KEY); return }
+            val o: dynamic = js("({})")
+            o.topicId = topicId?.toDouble(); o.taskId = taskId; o.subjectId = subjectId?.toDouble(); o.title = title
+            o.startedAt = startedAt.toDouble(); o.pausedAt = pausedAt?.toDouble(); o.pausedTotal = pausedTotal.toDouble()
+            o.plannedMinutes = plannedMinutes; o.timeUpSeen = timeUpSeen; o.lastSeen = Date.now()
+            window.localStorage.setItem(SAVE_KEY, JSON.stringify(o))
+        }
+    }
+
+    private fun startTicker() {
+        ticker?.let { window.clearInterval(it) }
+        ticker = window.setInterval({
+            now = Date.now().toLong()
+            document.title = if (clockHidden) "Foco · Estudário" else "${clock()} · Foco · Estudário"
+            persist()
+        }, 1000)
+    }
+
+    init {
+        runCatching {
+            val raw = window.localStorage.getItem(SAVE_KEY) ?: return@runCatching
+            val o: dynamic = JSON.parse<Any>(raw)
+            val started = (o.startedAt as? Number)?.toLong() ?: return@runCatching
+            val lastSeen = (o.lastSeen as? Number)?.toLong() ?: started
+            topicId = (o.topicId as? Number)?.toLong()
+            taskId = o.taskId as? String
+            subjectId = (o.subjectId as? Number)?.toLong()
+            title = (o.title as? String).orEmpty()
+            plannedMinutes = (o.plannedMinutes as? Number)?.toInt()
+            timeUpSeen = o.timeUpSeen == true
+            startedAt = started
+            pausedTotal = (o.pausedTotal as? Number)?.toLong() ?: 0L
+            // Já estava pausado: fica como estava. Rodando: pausa no último segundo visto.
+            pausedAt = (o.pausedAt as? Number)?.toLong() ?: lastSeen
+            now = Date.now().toLong()
+            startTicker()
+            window.setTimeout({ Toast.show("Seu foco foi guardado e está pausado. Continue quando quiser.") }, 1500)
+        }
+        // Com foco ativo, o navegador pergunta antes de recarregar ou fechar a aba.
+        window.addEventListener("beforeunload", { event ->
+            if (active) {
+                persist()
+                event.preventDefault()
+                event.asDynamic().returnValue = ""
+            }
+        })
+    }
+
     val active: Boolean get() = startedAt > 0L
     val running: Boolean get() = active && pausedAt == null
     val elapsedMs: Long get() = if (!active) 0L else ((pausedAt ?: now) - startedAt - pausedTotal).coerceAtLeast(0L)
@@ -57,15 +113,15 @@ object TopicFocus {
         pausedAt = null
         pausedTotal = 0L
         timeUpSeen = false
-        ticker?.let { window.clearInterval(it) }
-        ticker = window.setInterval({ now = Date.now().toLong(); document.title = if (clockHidden) "Foco · Estudário" else "${clock()} · Foco · Estudário" }, 1000)
+        startTicker()
+        persist()
     }
 
     /** Compatível com a chamada antiga do tópico. */
     fun start(id: Long, name: String) = start(id, name, null, null, null)
 
-    fun pause() { if (running) pausedAt = Date.now().toLong() }
-    fun resume() { pausedAt?.let { pausedTotal += Date.now().toLong() - it; pausedAt = null } }
+    fun pause() { if (running) { pausedAt = Date.now().toLong(); persist() } }
+    fun resume() { pausedAt?.let { pausedTotal += Date.now().toLong() - it; pausedAt = null; persist() } }
 
     /** Encerra e salva no histórico (menos de 1 minuto não conta). Devolve os minutos. */
     fun stop(): Int {
@@ -81,6 +137,7 @@ object TopicFocus {
         ticker = null
         document.title = "Estudário"
         topicId = null; taskId = null; startedAt = 0L; pausedAt = null; pausedTotal = 0L; plannedMinutes = null; timeUpSeen = false
+        persist()
         if (seconds < 60) { Toast.show("Foco encerrado (menos de 1 minuto não conta)"); return 0 }
         Store.update {
             it.append(
