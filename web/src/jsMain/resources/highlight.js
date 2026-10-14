@@ -34,15 +34,46 @@
     return r;
   }
 
-  // marks: [{ block: número do bloco, quote: texto }]; os blocos têm id "tb-<theoryId>-<bloco>".
+  // Os trechos pintados de cada teoria, com o id do grifo, para saber em qual a pessoa clicou.
+  const marksOf = {};
+
+  // O grifo sob o ponto (x, y) da tela, ou null: é por ele que dá para tirar um grifo no próprio texto.
+  window.estudarioMarkAt = function (theoryId, x, y) {
+    const list = marksOf[theoryId];
+    if (!list || !list.length) return null;
+    let node = null, offset = 0;
+    if (document.caretPositionFromPoint) {
+      const p = document.caretPositionFromPoint(x, y);
+      if (p) { node = p.offsetNode; offset = p.offset; }
+    } else if (document.caretRangeFromPoint) {
+      const r = document.caretRangeFromPoint(x, y);
+      if (r) { node = r.startContainer; offset = r.startOffset; }
+    }
+    if (!node) return null;
+    for (const m of list) {
+      try {
+        if (m.range.isPointInRange(node, offset)) {
+          // O ponto pode cair logo depois do fim do trecho: confere se o clique está dentro do desenho.
+          for (const rect of m.range.getClientRects()) {
+            if (x >= rect.left - 2 && x <= rect.right + 2 && y >= rect.top - 2 && y <= rect.bottom + 2) return m.id;
+          }
+        }
+      } catch (e) { /* trecho fora do documento */ }
+    }
+    return null;
+  };
+
+  // marks: [{ id, block: número do bloco, quote: texto }]; os blocos têm id "tb-<theoryId>-<bloco>".
   window.estudarioHighlight = function (theoryId, marks) {
     if (!window.CSS || !CSS.highlights || typeof Highlight === "undefined") return false;
     const ranges = [];
+    const byId = [];
     for (const m of marks || []) {
       const el = document.getElementById(`tb-${theoryId}-${m.block}`);
       const r = el && rangeFor(el, m.quote);
-      if (r) ranges.push(r);
+      if (r) { ranges.push(r); if (m.id != null) byId.push({ id: m.id, range: r }); }
     }
+    marksOf[theoryId] = byId;
     const key = `${NAME}-${theoryId}`;
     if (ranges.length) CSS.highlights.set(key, new Highlight(...ranges));
     else CSS.highlights.delete(key);

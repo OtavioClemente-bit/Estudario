@@ -460,6 +460,7 @@ private fun TheoryReader(theory: Theory) {
             val o: dynamic = js("({})")
             o.block = TheoryJump.blockOf(blocks, m.quote, m.blockIndex)
             o.quote = m.quote
+            o.id = m.id.toDouble()
             o
         }.toTypedArray()
         // Em dynamic, "?.invoke()" vira chamada ao método invoke (inexistente) e derruba a tela: chamar direto.
@@ -468,6 +469,8 @@ private fun TheoryReader(theory: Theory) {
     }
     // Selecionar um trecho mostra a barrinha "Grifar" logo acima dele.
     var picked by remember(theory.id) { mutableStateOf<TextPick?>(null) }
+    // Clique num trecho já grifado: a barrinha oferece tirar o grifo ali mesmo.
+    var clickedMark by remember(theory.id) { mutableStateOf<Triple<Long, Double, Double>?>(null) }
     var noteFor by remember(theory.id) { mutableStateOf<TextPick?>(null) }
     DisposableEffect(theory.id) {
         val check: (org.w3c.dom.events.Event) -> Unit = {
@@ -478,7 +481,15 @@ private fun TheoryReader(theory: Theory) {
                 else TextPick((s.block as Number).toInt(), s.quote as String, (s.x as Number).toDouble(), (s.y as Number).toDouble())
             }, 0)
         }
-        val hide: (org.w3c.dom.events.Event) -> Unit = { picked = null }
+        val hide: (org.w3c.dom.events.Event) -> Unit = { picked = null; clickedMark = null }
+        val click: (org.w3c.dom.events.Event) -> Unit = { e ->
+            val m = e as org.w3c.dom.events.MouseEvent
+            val markAt = window.asDynamic().estudarioMarkAt
+            val hasSelection = (window.asDynamic().getSelection()?.toString() as? String).orEmpty().isNotBlank()
+            val id = if (markAt == null || markAt == undefined || hasSelection) null else markAt(theory.id, m.clientX, m.clientY)
+            clickedMark = if (id == null || id == undefined) null else Triple((id as Number).toLong(), m.clientX.toDouble(), m.clientY.toDouble())
+        }
+        document.addEventListener("click", click)
         document.addEventListener("mouseup", check)
         document.addEventListener("keyup", check)
         document.addEventListener("touchend", check)
@@ -487,6 +498,7 @@ private fun TheoryReader(theory: Theory) {
             document.removeEventListener("mouseup", check)
             document.removeEventListener("keyup", check)
             document.removeEventListener("touchend", check)
+            document.removeEventListener("click", click)
             window.removeEventListener("scroll", hide)
         }
     }
@@ -597,6 +609,25 @@ private fun TheoryReader(theory: Theory) {
             Div({ classes("toc-sheet"); attr("role", "dialog"); attr("aria-label", "Capítulos") }) {
                 TheoryToc(theory.id, chapters, blocks.size, shown, activeChapter, percent, marks) { tocOpen = false }
             }
+        }
+    }
+    clickedMark?.let { (markId, x, y) ->
+        val mark = theoryMarks.firstOrNull { it.id == markId }
+        if (mark != null && picked == null) Div({
+            classes("grifo-bar")
+            attr("style", "left:${x}px;top:${(y - 54).coerceAtLeast(8.0)}px")
+            addEventListener("mousedown") { it.preventDefault() }
+            addEventListener("click") { it.stopPropagation() }
+        }) {
+            Button({
+                classes("grifo-btn", "danger")
+                onClick {
+                    if (Store.demo) Toast.show("Entre com sua conta para mexer nos grifos.")
+                    else { Store.update { Actions.deleteTheoryMark(it, markId) }; Toast.show("Grifo tirado") }
+                    clickedMark = null
+                }
+            }) { Icon("ink_eraser"); Text("Tirar grifo") }
+            if (mark.note.isNotBlank()) Span({ classes("grifo-note") }) { Text(mark.note.take(80)) }
         }
     }
     picked?.let { p ->
