@@ -33,6 +33,9 @@ sealed interface AiContentProgress {
  * O resultado vira um pacote .estudo com os mesmos IDs que o pedido para outras IAs usaria, então a
  * importação cai no tópico certo e passa pela mesma pré-visualização antes de salvar.
  */
+/** Saldo do plano esgotado: a tela reconhece esta frase e mostra a oferta de plano no lugar do erro. */
+const val QUOTA_ENDED_MESSAGE = "O saldo do seu plano para isto acabou neste mês."
+
 class AiContentGenerator(
     private val config: SupabaseClientConfig,
     private val authRepository: SupabaseAuthRepository,
@@ -115,9 +118,8 @@ class AiContentGenerator(
     private fun errorMessage(response: AiHttpResponse): String {
         val code = runCatching { JSONObject(response.body).getJSONObject("error").getString("code") }.getOrNull()
         return when (code) {
-            "QUOTA_EXHAUSTED", "AI_QUOTA_EXHAUSTED" -> "Você usou todas as gerações de conteúdo do seu plano neste mês. Veja em Perfil > Planos e uso."
+            "QUOTA_EXHAUSTED", "AI_QUOTA_EXHAUSTED", "QUESTION_LIMIT_EXCEEDED" -> QUOTA_ENDED_MESSAGE
             "QUOTA_RESERVED" -> "Já tem uma geração em andamento. Espere ela terminar."
-            "QUESTION_LIMIT_EXCEEDED" -> "Essa quantidade de questões passa do limite do seu plano."
             "DEVICE_QUOTA_EXHAUSTED" -> DEVICE_QUOTA_MESSAGE
             "AI_RATE_LIMIT_EXCEEDED" -> "Muitas tentativas em pouco tempo. Tente de novo em alguns minutos."
             "AUTH_REQUIRED", "AUTH_INVALID" -> "Entre na sua conta para gerar com o Estudário."

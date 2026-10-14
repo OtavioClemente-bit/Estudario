@@ -545,6 +545,15 @@ private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, on
                             }
                         },
                     )
+                } else if (failed.message == br.com.estudario.data.ai.QUOTA_ENDED_MESSAGE) {
+                    // Saldo esgotado não é erro: mostra a oferta do plano certo (questões ou materiais).
+                    val reason = if (questionsOnly) br.com.estudario.ui.plans.UpgradeReason.QUESTIONS else br.com.estudario.ui.plans.UpgradeReason.CONTENT
+                    Spacer(Modifier.height(32.dp))
+                    br.com.estudario.ui.assistant.Folha(132.dp, mood = br.com.estudario.ui.assistant.FolhaMood.TALKING)
+                    Text(reason.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Text(reason.body, textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    br.com.estudario.ui.plans.UpgradeCta(reason, openAtStart = true)
+                    TextButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("Voltar") }
                 } else {
                     Spacer(Modifier.height(32.dp))
                     br.com.estudario.ui.assistant.Folha(132.dp, mood = br.com.estudario.ui.assistant.FolhaMood.SAD)
