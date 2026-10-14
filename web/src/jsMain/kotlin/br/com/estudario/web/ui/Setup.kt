@@ -95,7 +95,8 @@ internal fun PdfEditalDialog(onClose: () -> Unit, onDone: (String, String, List<
                 error?.let {
             Div({ classes("banner", "error") }) { Text(it) }
             var upgradeSeen by remember(it) { mutableStateOf(false) }
-            if (isQuotaMessage(it) && !upgradeSeen) UpgradeModal(UpgradeReason.SIMULATION) { upgradeSeen = true }
+            // Edital pelo PDF sem saldo (no Grátis, sempre): a oferta certa é a do edital.
+            if (isQuotaMessage(it) && !upgradeSeen) UpgradeModal(UpgradeReason.SYLLABUS) { upgradeSeen = true }
         }
                 Div({ classes("row", "end") }) {
                     Btn("Cancelar", onClose, style = "ghost")
@@ -107,7 +108,7 @@ internal fun PdfEditalDialog(onClose: () -> Unit, onDone: (String, String, List<
                             try {
                                 val proposal = br.com.estudario.web.data.EditalAi.generate(chosenFile, br.com.estudario.web.data.EditalAi.Options(name, role, board, year)) { step = it }
                                 val nodes = br.com.estudario.web.data.EditalAi.parse(proposal)
-                                if (nodes.isEmpty()) error = "A IA não encontrou matérias neste PDF. Confira se é o edital com o conteúdo programático."
+                                if (nodes.isEmpty()) error = "Não encontrei matérias neste PDF. Confira se é o edital com o conteúdo programático."
                                 else { if (name.isBlank()) name = proposal.str("documentTitle")?.take(120) ?: ""; preview = nodes }
                             } catch (e: Throwable) {
                                 error = e.message ?: "Não deu para montar o edital."
