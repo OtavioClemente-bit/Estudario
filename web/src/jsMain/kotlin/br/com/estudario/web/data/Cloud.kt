@@ -82,6 +82,10 @@ object Cloud {
         // Os mesmos bytes são enviados, medidos e assinados. Antes o texto ia como texto e o tamanho
         // era calculado à parte; um caractere partido (emoji cortado ao meio) deixava os dois
         // diferentes e o servidor recusava todo envio ("size_mismatch"), para sempre.
+        // O servidor aceita no máximo 25 arquivos por conta. A limpeza antes só rodava depois de um
+        // envio aceito: com envios recusados acumulando, a pasta enchia e travava tudo (o celular
+        // inclusive). Agora limpa antes de enviar, sempre guardando a foto vigente.
+        runCatching { prune(currentPath = "", keep = 3) }
         val bytes = text.encodeToByteArray()
         val sha = Sha256.digest(bytes).toHex()
         val path = "$userId/${Date.now().toLong()}-${sha.take(12)}.json"
@@ -124,7 +128,9 @@ object Cloud {
      */
     suspend fun prune(currentPath: String, keep: Int = 4) {
         val userId = Auth.session?.userId ?: return
-        val headPath = runCatching { head().objectPath }.getOrNull() ?: return
+        // Sem saber qual é a foto vigente, não apaga nada.
+        val currentHead = runCatching { head() }.getOrNull() ?: return
+        val headPath = currentHead.objectPath
         val listBody = buildJsonObject {
             put("prefix", userId)
             put("limit", 200)
