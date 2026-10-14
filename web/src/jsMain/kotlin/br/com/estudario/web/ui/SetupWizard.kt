@@ -502,7 +502,7 @@ private fun ExamCard(entry: CatalogEntry, loading: Boolean, disabled: Boolean, o
             B({ classes("exam-role") }) { Text(entry.role) }
             val details = listOfNotNull(entry.agency.takeIf { !it.equals(entry.shortName, true) }, entry.board).joinToString(" · ")
             if (details.isNotBlank()) Span({ classes("exam-details") }) { Text(details) }
-            Span({ classes("exam-size") }) { Text("${entry.subjectCount} matérias · ${entry.topicCount} tópicos") }
+            Span({ classes("exam-size") }) { Text("${entry.category.label} · ${entry.subjectCount} matérias · ${entry.topicCount} tópicos") }
             // Temporário: quanto do edital já tem material pronto, para acompanhar a biblioteca.
             Span({ classes("exam-ready"); attr("style", "--ready:$readyTone") }) {
                 Span({ classes("track") }) { Span({ attr("style", "width:${ready.coerceAtLeast(2)}%") }) }

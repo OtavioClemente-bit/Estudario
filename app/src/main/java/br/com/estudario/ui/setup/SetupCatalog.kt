@@ -143,13 +143,14 @@ internal fun ExamResultCard(entry: ExamCatalogEntry, selected: Boolean, onClick:
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(entry.shortName, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Text(entry.shortName, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f, fill = false))
                 entry.year?.let { YearTag(it, old) }
             }
-            Text(entry.role, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            // O nome inteiro, sem corte: é com ele que a pessoa decide qual edital é o dela.
+            Text(entry.role, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             val details = listOfNotNull(entry.agency.takeIf { !it.equals(entry.shortName, true) }, entry.board).joinToString(" · ")
-            if (details.isNotBlank()) Text(details, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text("${entry.subjectCount} matérias · ${entry.topicCount} tópicos", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (details.isNotBlank()) Text(details, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${entry.category().label} · ${entry.subjectCount} matérias · ${entry.topicCount} tópicos", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             // Temporário: mostra quanto do edital já tem material pronto, para acompanhar a biblioteca.
             ReadyBar(entry.readyPercent)
         }
