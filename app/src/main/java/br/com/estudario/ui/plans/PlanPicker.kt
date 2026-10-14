@@ -322,7 +322,6 @@ internal fun PlanCompare(plan: AiPlanCatalogEntry, all: List<AiPlanCatalogEntry>
         "QUESTION_BATCH" to "Lotes de questões",
         "SIMULATION_GENERATION" to "Simulados",
         "SYLLABUS_GENERATION" to "Edital pelo PDF",
-        "PLAN_GENERATION" to "Planos de estudo",
     )
     val tone by animateColorAsState(look.color, tween(450), label = "tone")
     Column(
@@ -334,7 +333,8 @@ internal fun PlanCompare(plan: AiPlanCatalogEntry, all: List<AiPlanCatalogEntry>
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         FolhaTalking(56.dp, look.folha)
-        rows.forEach { (feature, label) ->
+        // Só o que o plano tem: no Grátis, nada de linha dizendo "não tem".
+        rows.filter { (feature, _) -> (plan.limits.firstOrNull { it.feature == feature }?.quotaLimit ?: 0) > 0 }.forEach { (feature, label) ->
             val limit = plan.limits.firstOrNull { it.feature == feature }
             val max = all.mapNotNull { p -> p.limits.firstOrNull { it.feature == feature }?.quotaLimit }.maxOrNull()?.coerceAtLeast(1) ?: 1
             val value = limit?.quotaLimit ?: 0
@@ -353,7 +353,7 @@ internal fun PlanCompare(plan: AiPlanCatalogEntry, all: List<AiPlanCatalogEntry>
             }
         }
         Text(
-            "Teoria, flashcards, dicas e questões comentadas em todo material, com as mesmas fontes em qualquer plano.",
+            "Plano de estudo, revisões, treino e caderno em todos os planos. Teoria, flashcards, dicas e questões comentadas em todo material.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

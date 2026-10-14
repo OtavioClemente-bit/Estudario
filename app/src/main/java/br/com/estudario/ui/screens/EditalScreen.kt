@@ -64,7 +64,7 @@ import kotlinx.coroutines.withContext
  * de uma vez: cada pedido fica focado, sai mais profundo e não deixa a pessoa esperando minutos.
  */
 @Composable
-fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () -> Unit = {}) {
+fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () -> Unit = {}, onSavedEditais: () -> Unit = {}) {
     val competitions by viewModel.competitions.collectAsState()
     val entitlements = br.com.estudario.ui.plans.rememberEntitlements()
     var editaisUpgrade by remember { mutableStateOf(false) }
@@ -134,6 +134,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
             subtitle = if (competition.isPrimary) "Concurso principal" else "Concurso",
             actions = buildList {
                 add(SheetAction(Icons.Outlined.Add, "Novo concurso", "Pelo catálogo de editais ou pelo PDF do edital") { addCompetition = true })
+                add(SheetAction(Icons.Outlined.FolderOpen, "Editais salvos na conta", "Os editais que você já organizou, para trazer de volta") { onSavedEditais() })
                 add(SheetAction(Icons.Outlined.Flag, "Prioridade do concurso", "Quanto este concurso pesa no seu plano") { priorityTarget = PriorityTarget.Competition(competition, competition.priorityState()) })
                 if (!competition.isPrimary) add(SheetAction(Icons.Outlined.Star, "Tornar principal", "Aparece primeiro no Início e no plano") { viewModel.setPrimary(competition.id) })
                 if (isCatalogAdmin) add(SheetAction(Icons.Outlined.VerifiedUser, "Aprovar envios do catálogo") { showCatalogReview = true })
@@ -190,7 +191,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Concursos", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text("Meus concursos", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Text("Cada tópico vira material de estudo", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 FilledTonalButton(onClick = { addCompetition = true }, shape = RoundedCornerShape(14.dp)) {

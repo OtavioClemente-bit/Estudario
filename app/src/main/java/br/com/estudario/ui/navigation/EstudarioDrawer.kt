@@ -58,6 +58,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.graphics.luminance
 import android.content.res.Configuration
 import br.com.estudario.ui.theme.EstudarioTheme
 import br.com.estudario.ui.components.EstudarioGlyph
@@ -207,8 +210,7 @@ fun estudarioDrawerSections(
         "Estudos",
         listOf(
             DrawerEntry("Início", Icons.Outlined.Home, onHome, "home"),
-            DrawerEntry("Meus concursos", Icons.Outlined.FolderOpen, onMySyllabi, "my-syllabi"),
-            DrawerEntry("Concursos", Icons.AutoMirrored.Outlined.LibraryBooks, onSyllabus, "syllabus"),
+            DrawerEntry("Meus concursos", Icons.AutoMirrored.Outlined.LibraryBooks, onSyllabus, "syllabus"),
             DrawerEntry("Plano de estudos", Icons.Outlined.CalendarMonth, onPlan, "plan"),
             DrawerEntry("Treinar questões", Icons.Outlined.GpsFixed, onTrain, "train"),
             DrawerEntry("Caderno de estudo", Icons.Outlined.Bookmarks, onNotebook, "notebook"),
@@ -284,21 +286,32 @@ fun EstudarioTopBar(
         ) {
             // O menu com a cara do Estudário (adesivo de caderno), não os três tracinhos do Android.
             br.com.estudario.ui.brand.BrandMenuMark(size = 30.dp)
-            // A assinatura: o nome com um traço dourado à mão embaixo, a cor do capelo do Folha.
-            if (!compactBrand) Text(
-                "Estudário",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.drawBehind {
-                    val y = size.height - 1.dp.toPx()
-                    val path = androidx.compose.ui.graphics.Path().apply {
-                        moveTo(size.width * 0.02f, y)
-                        quadraticTo(size.width * 0.5f, y + 4.dp.toPx(), size.width * 0.98f, y - 2.dp.toPx())
-                    }
-                    drawPath(path, androidx.compose.ui.graphics.Color(0xFFF5B83D), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                },
-            )
+            // A marca igual à do site: "estudário" em minúsculas, o acento em âmbar e uma passada de
+            // marca-texto amarelo atrás da metade de baixo das letras.
+            if (!compactBrand) {
+                val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+                val highlight = androidx.compose.ui.graphics.Color(0xFFFFD23F).copy(alpha = if (dark) 0.30f else 0.55f)
+                Text(
+                    androidx.compose.ui.text.buildAnnotatedString {
+                        append("estud")
+                        withStyle(androidx.compose.ui.text.SpanStyle(color = androidx.compose.ui.graphics.Color(0xFFFFB421))) { append("á") }
+                        append("rio")
+                    },
+                    style = MaterialTheme.typography.titleLarge.copy(letterSpacing = (-0.04).em),
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
+                    color = if (dark) androidx.compose.ui.graphics.Color(0xFFEDEBFF) else androidx.compose.ui.graphics.Color(0xFF26234A),
+                    modifier = Modifier
+                        .drawBehind {
+                            drawRoundRect(
+                                highlight,
+                                topLeft = androidx.compose.ui.geometry.Offset(0f, size.height * 0.55f),
+                                size = androidx.compose.ui.geometry.Size(size.width, size.height * 0.34f),
+                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
+                            )
+                        }
+                        .padding(horizontal = 3.dp),
+                )
+            }
         }
         if (title != null) {
             Text(

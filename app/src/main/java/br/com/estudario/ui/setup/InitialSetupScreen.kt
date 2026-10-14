@@ -186,7 +186,9 @@ fun InitialSetupFlow(
     // Aberto pela aba Plano ("novo plano"): Cancelar volta ao app e devolve a configuração como estava.
     val planPrefs = remember(context) { context.getSharedPreferences(PLAN_MODE_PREFS, android.content.Context.MODE_PRIVATE) }
     val planMode = remember(snapshot.status) { planPrefs.contains(PLAN_MODE_PREVIOUS_STATUS) }
-    val planFirstStep = snapshot.step == InitialSetupStep.SUBJECT_PRIORITY
+    // Primeira etapa do modo novo plano/novo concurso: voltar daqui sai do assistente e volta ao app
+    // (no novo concurso ele começa na escolha do concurso; antes, voltar caía na abertura e prendia).
+    val planFirstStep = snapshot.step == InitialSetupStep.SUBJECT_PRIORITY || (planMode && snapshot.step == InitialSetupStep.COMPETITION)
     fun cancelPlanMode() = viewModel.cancelPlanMode(
         planPrefs.getString(PLAN_MODE_PREVIOUS_STATUS, null),
         planPrefs.getString(PLAN_MODE_PREVIOUS_STEP, null),

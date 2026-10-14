@@ -45,6 +45,18 @@ object FocusMode {
     fun dndSettingsIntent(): Intent = Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
+    /**
+     * Abre o acesso ao Não Perturbe já na página do Estudário, quando o Android tem essa tela
+     * (Android 11+ e várias fabricantes); senão, a lista geral, como antes.
+     */
+    fun openDndSettings(context: Context) {
+        val direct = Intent("android.settings.NOTIFICATION_POLICY_ACCESS_DETAIL_SETTINGS")
+            .setData(android.net.Uri.fromParts("package", context.packageName, null))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val opened = runCatching { context.startActivity(direct) }.isSuccess
+        if (!opened) runCatching { context.startActivity(dndSettingsIntent()) }
+    }
+
     /** Liga o Não Perturbe e devolve o filtro que estava valendo (ou FILTER_UNKNOWN se não mexeu). */
     fun turnOnDnd(context: Context): Int {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return FocusSessionPrefs.FILTER_UNKNOWN

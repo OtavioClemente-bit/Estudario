@@ -6,10 +6,10 @@ import org.junit.Test
 
 class DrawerNavigationTest {
     @Test
-    fun `meus editais abre a biblioteca pela rota propria`() {
+    fun `meus concursos e uma entrada so e abre os concursos`() {
         var opened = false
         val sections = estudarioDrawerSections(
-            onSyllabus = {},
+            onSyllabus = { opened = true },
             onPlan = {},
             onTrain = {},
             onReviews = {},
@@ -22,14 +22,15 @@ class DrawerNavigationTest {
             onNotifications = {},
             onSyncCalendar = {},
             onHelp = {},
-            onMySyllabi = { opened = true },
         )
+        // Uma entrada só: os editais salvos na conta ficam dentro de Meus concursos, não no menu.
         val entry = sections.flatMap { it.entries }.single { it.label == "Meus concursos" }
 
         entry.onClick()
 
-        assertEquals("my-syllabi", entry.route)
+        assertEquals("syllabus", entry.route)
         assertTrue(opened)
+        assertTrue(sections.flatMap { it.entries }.none { it.route == "my-syllabi" })
     }
 
     @Test

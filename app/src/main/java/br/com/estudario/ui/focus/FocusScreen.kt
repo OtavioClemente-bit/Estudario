@@ -224,7 +224,7 @@ fun FocusScreen(
                         else "O cronômetro continua mesmo sem o acesso ao Não Perturbe.",
                     )
                     if (wantsDnd && !dndGranted) {
-                        OutlinedButton(onClick = { context.startActivity(FocusMode.dndSettingsIntent()) }, Modifier.fillMaxWidth()) {
+                        OutlinedButton(onClick = { FocusMode.openDndSettings(context) }, Modifier.fillMaxWidth()) {
                             Text("Conceder acesso ao Não Perturbe")
                         }
                     }

@@ -125,7 +125,16 @@ fun MoreScreen(
                 HorizontalDivider()
                 ToggleRow(Icons.Outlined.Visibility, "Explicação logo após responder", "Desligue para fazer tudo e ver as explicações só no final.", showExplanation, viewModel::setShowExplanation)
                 HorizontalDivider()
-                BigValueSlider(defaultCount.coerceIn(5, 50), 5..50, 5, { "$it" }, { viewModel.setDefaultQuestionCount(it) }, caption = "questões por sessão, por padrão", quickValues = listOf(10, 20, 30))
+                br.com.estudario.ui.brand.BrandCounter(
+                    value = defaultCount.coerceIn(5, 50),
+                    range = 5..50,
+                    step = 5,
+                    unit = "questões por sessão",
+                    glyph = br.com.estudario.ui.brand.Glyph.Clipboard,
+                    onChange = { viewModel.setDefaultQuestionCount(it) },
+                    quickValues = listOf(10, 20, 30),
+                    mood = { when { it <= 10 -> "Sessões curtas, cabem em qualquer intervalo"; it <= 20 -> "Um bom bloco de treino"; else -> "Sessão longa, como na prova" } },
+                )
             }
         }
 
@@ -142,7 +151,7 @@ fun MoreScreen(
                 ToggleRow(Icons.Outlined.DoNotDisturbOn, "Não perturbe durante o estudo", "Silencia o celular ao começar e devolve tudo ao normal ao encerrar.", focusDnd, viewModel::setFocusDoNotDisturb)
                 if (focusDnd && !dndGranted) {
                     Text("Falta autorizar o Não Perturbe nas configurações do Android (uma vez só).", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                    OutlinedButton(onClick = { context.startActivity(FocusMode.dndSettingsIntent()) }, Modifier.fillMaxWidth()) { Text("Conceder acesso") }
+                    OutlinedButton(onClick = { FocusMode.openDndSettings(context) }, Modifier.fillMaxWidth()) { Text("Conceder acesso") }
                 }
                 HorizontalDivider()
                 ToggleRow(Icons.Outlined.Lightbulb, "Manter a tela ligada", "Enquanto a tela do modo foco estiver aberta.", focusScreenOn, viewModel::setFocusKeepScreenOn)

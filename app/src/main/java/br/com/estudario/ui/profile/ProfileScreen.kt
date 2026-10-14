@@ -657,14 +657,15 @@ private fun DailyGoalBand(questions: Int, onChange: (Int) -> Unit) {
             color = MaterialTheme.colorScheme.onSurface,
         )
         Spacer(Modifier.height(EstudarioSpacing.small))
-        br.com.estudario.ui.prompt.BigValueSlider(
+        br.com.estudario.ui.brand.BrandCounter(
             value = questions,
             range = 5..100,
             step = 5,
-            format = { "$it" },
+            unit = "questões por dia",
+            glyph = br.com.estudario.ui.brand.Glyph.Target,
             onChange = onChange,
-            caption = "questões por dia",
             quickValues = listOf(10, 20, 30, 50),
+            mood = { when { it <= 10 -> "Ritmo leve, para não perder o hábito"; it <= 30 -> "Ritmo firme, o mais escolhido"; it <= 50 -> "Ritmo puxado, para quem tem tempo"; else -> "Modo reta final" } },
         )
     }
 }

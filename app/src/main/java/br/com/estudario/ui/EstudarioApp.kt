@@ -266,7 +266,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
     // chamada "Mais" para guardar o que não coube.
     val destinations = listOf(
         br.com.estudario.ui.brand.BrandTab("home", "Início", br.com.estudario.ui.brand.Glyph.House),
-        br.com.estudario.ui.brand.BrandTab("syllabus", "Concursos", br.com.estudario.ui.brand.Glyph.Books),
+        br.com.estudario.ui.brand.BrandTab("syllabus", "Meus concursos", br.com.estudario.ui.brand.Glyph.Books),
         br.com.estudario.ui.brand.BrandTab("plan", "Plano", br.com.estudario.ui.brand.Glyph.Calendar),
         br.com.estudario.ui.brand.BrandTab("train", "Treinar", br.com.estudario.ui.brand.Glyph.Target),
         br.com.estudario.ui.brand.BrandTab("notebook", "Caderno", br.com.estudario.ui.brand.Glyph.Notebook),
@@ -463,7 +463,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         onSetup = viewModel::reopenInitialSetup,
                     )
                 }
-                composable("syllabus") { EditalScreen(viewModel, onTopic = { navController.navigate("topic/$it") }, onHelp = { showHelpGuidePicker = true }) }
+                composable("syllabus") { EditalScreen(viewModel, onTopic = { navController.navigate("topic/$it") }, onHelp = { showHelpGuidePicker = true }, onSavedEditais = { navController.navigate("my-syllabi") }) }
                 composable("my-syllabi") {
                     val application = LocalContext.current.applicationContext as EstudarioApplication
                     val libraryViewModel: MySyllabiViewModel = viewModel(factory = MySyllabiViewModelFactory(application))

@@ -117,8 +117,8 @@ private fun featureIcon(feature: String): ImageVector = when (feature) {
     else -> Icons.Outlined.AutoAwesome
 }
 
-/** O que o saldo mostra, inclusive os planos de estudo (o Grátis tem um; os pagos, novos todo mês). */
-private val VISIBLE_FEATURES = setOf("SYLLABUS_GENERATION", "CONTENT_GENERATION", "SIMULATION_GENERATION", "QUESTION_BATCH", "PLAN_GENERATION", "AD_REWARD")
+/** O que o saldo mostra. O plano de estudo é de todos os planos, então não aparece como saldo. */
+private val VISIBLE_FEATURES = setOf("SYLLABUS_GENERATION", "CONTENT_GENERATION", "SIMULATION_GENERATION", "QUESTION_BATCH", "AD_REWARD")
 
 private fun featureOrder(feature: String): Int = listOf(
     "CONTENT_GENERATION", "PLAN_GENERATION", "SYLLABUS_GENERATION", "SIMULATION_GENERATION", "QUESTION_BATCH", "AD_REWARD",
@@ -396,7 +396,7 @@ private fun Notice(title: String, body: String, actionLabel: String?, onAction: 
 /** Saldo do mês: um anel por recurso, com o que resta em destaque. */
 @Composable
 private fun UsageSection(usage: List<AiPlanUsage>) {
-    val items = usage.filter { it.feature in VISIBLE_FEATURES && it.feature != "AD_REWARD" }.sortedBy { featureOrder(it.feature) }
+    val items = usage.filter { it.feature in VISIBLE_FEATURES && it.feature != "AD_REWARD" && it.limit > 0 }.sortedBy { featureOrder(it.feature) }
     if (items.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         SectionTitle("Seu saldo", items.firstNotNullOfOrNull { formatDate(it.resetAt) }?.let { "Renova em $it" })

@@ -109,7 +109,7 @@ fun tourSteps(id: TourId): List<TourStep> = when (id) {
     TourId.WELCOME_START -> listOf(
         TourStep("home", null, "Bem-vindo ao Estudário", "Um giro rápido de 5 passos. Use as setas."),
         TourStep("home", TourKey.NAV_MENU, "Menu", "Revisões, desempenho, caderno de erros, backup e ajuda ficam aqui."),
-        TourStep("home", TourKey.NAV_EDITAL, "Concursos", "Tudo começa aqui: o seu concurso, com as matérias e os tópicos do edital."),
+        TourStep("home", TourKey.NAV_EDITAL, "Meus concursos", "Tudo começa aqui: o seu concurso, com as matérias e os tópicos do edital."),
         TourStep("syllabus", TourKey.EDITAL_AI, "Monte pelo edital", "Anexe o PDF do edital e o Estudário separa as matérias e os tópicos. Você confere antes de salvar."),
         TourStep("syllabus", TourKey.EDITAL_CREATE, "Ou crie do seu jeito", "No +, crie o concurso e adicione as matérias à mão. Depois, o plano e o material saem daqui."),
     )
