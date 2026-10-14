@@ -282,11 +282,13 @@ object InitialSetupTransitions {
         InitialSetupStep.SYLLABUS_METHOD to InitialSetupStep.SYLLABUS_REVIEW,
         // O edital entra, e a conversa passa imediatamente a "como a prova distribui a atenção".
         InitialSetupStep.SYLLABUS_REVIEW to InitialSetupStep.SUBJECT_PRIORITY,
-        InitialSetupStep.SUBJECT_PRIORITY to InitialSetupStep.SUBJECT_DIFFICULTY,
+        // Peso, esforço e base ficam numa tela só (SUBJECT_PRIORITY); SUBJECT_DIFFICULTY e PLAN_METHOD
+        // só existem para quem parou neles numa versão anterior.
+        InitialSetupStep.SUBJECT_PRIORITY to InitialSetupStep.AVAILABILITY,
         InitialSetupStep.SUBJECT_DIFFICULTY to InitialSetupStep.AVAILABILITY,
         InitialSetupStep.AVAILABILITY to InitialSetupStep.PROFILE,
         InitialSetupStep.PROFILE to InitialSetupStep.PLAN_SUMMARY,
-        InitialSetupStep.PLAN_SUMMARY to InitialSetupStep.PLAN_METHOD,
+        InitialSetupStep.PLAN_SUMMARY to InitialSetupStep.PLAN_REVIEW,
         InitialSetupStep.PLAN_METHOD to InitialSetupStep.PLAN_REVIEW,
         InitialSetupStep.PLAN_REVIEW to InitialSetupStep.READY,
     )

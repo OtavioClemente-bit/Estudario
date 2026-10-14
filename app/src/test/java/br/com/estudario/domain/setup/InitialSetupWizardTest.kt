@@ -176,12 +176,10 @@ class InitialSetupWizardTest {
             InitialSetupStep.EXAM_DATE to InitialSetupStep.SYLLABUS_METHOD,
             InitialSetupStep.SYLLABUS_METHOD to InitialSetupStep.SYLLABUS_REVIEW,
             InitialSetupStep.SYLLABUS_REVIEW to InitialSetupStep.SUBJECT_PRIORITY,
-            InitialSetupStep.SUBJECT_PRIORITY to InitialSetupStep.SUBJECT_DIFFICULTY,
-            InitialSetupStep.SUBJECT_DIFFICULTY to InitialSetupStep.AVAILABILITY,
+            InitialSetupStep.SUBJECT_PRIORITY to InitialSetupStep.AVAILABILITY,
             InitialSetupStep.AVAILABILITY to InitialSetupStep.PROFILE,
             InitialSetupStep.PROFILE to InitialSetupStep.PLAN_SUMMARY,
-            InitialSetupStep.PLAN_SUMMARY to InitialSetupStep.PLAN_METHOD,
-            InitialSetupStep.PLAN_METHOD to InitialSetupStep.PLAN_REVIEW,
+            InitialSetupStep.PLAN_SUMMARY to InitialSetupStep.PLAN_REVIEW,
             InitialSetupStep.PLAN_REVIEW to InitialSetupStep.READY,
         )
         expected.forEach { (from, to) ->
@@ -199,7 +197,7 @@ class InitialSetupWizardTest {
             InitialSetupTransitions.canAdvance(untouched, InitialSetupStep.AVAILABILITY, ids),
         )
         val priority = InitialSetupSnapshot(step = InitialSetupStep.SUBJECT_PRIORITY)
-        assertTrue(InitialSetupTransitions.canAdvance(priority, InitialSetupStep.SUBJECT_DIFFICULTY, ids))
+        assertTrue(InitialSetupTransitions.canAdvance(priority, InitialSetupStep.AVAILABILITY, ids))
     }
 
     @Test

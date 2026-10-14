@@ -128,10 +128,13 @@ class SetupSyllabusStepsTest {
         var continued = false
         compose.setContent {
             CompactScreen {
-                SubjectProfileStep(
+                SubjectsStep(
                     subjects = subjects,
+                    topics = emptyList(),
                     snapshot = snapshot.value,
                     officialPriorities = emptyMap(),
+                    onPriority = { _, _ -> },
+                    onResetPriority = {},
                     onDifficulty = { id, difficulty ->
                         snapshot.value = snapshot.value.copy(subjectDifficulties = snapshot.value.subjectDifficulties + (id to difficulty))
                     },
@@ -165,13 +168,13 @@ class SetupSyllabusStepsTest {
         val snapshot = InitialSetupSnapshot(subjectDifficulties = mapOf("1" to PersonalDifficulty.EASY, "removed" to PersonalDifficulty.VERY_HARD))
         compose.setContent {
             CompactScreen {
-                SubjectProfileStep(subjects.value, snapshot, emptyMap(), { _, _ -> }, { _, _ -> }, {})
+                SubjectsStep(subjects.value, emptyList(), snapshot, emptyMap(), { _, _ -> }, {}, { _, _ -> }, { _, _ -> }, {})
             }
         }
         compose.onNodeWithText("Continuar").assertIsEnabled()
         compose.runOnIdle { subjects.value += SubjectEntity(id = 2, competitionId = 1, name = "Matemática") }
         compose.onNodeWithText("Continuar").assertIsEnabled()
-        compose.onNodeWithText("1 matéria(s) com resposta sua.").assertIsDisplayed()
+        compose.onNodeWithText("Ajustes salvos. Dá para mudar depois na aba Plano.").assertIsDisplayed()
         compose.onNodeWithTag("difficulty_1_EASY").assertIsSelected()
         compose.onNodeWithTag("difficulty_2_NORMAL").assertIsSelected()
     }

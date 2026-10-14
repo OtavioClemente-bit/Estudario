@@ -162,11 +162,9 @@ private val visibleSteps = listOf(
     InitialSetupStep.SYLLABUS_METHOD,
     InitialSetupStep.SYLLABUS_REVIEW,
     InitialSetupStep.SUBJECT_PRIORITY,
-    InitialSetupStep.SUBJECT_DIFFICULTY,
     InitialSetupStep.AVAILABILITY,
     InitialSetupStep.PROFILE,
     InitialSetupStep.PLAN_SUMMARY,
-    InitialSetupStep.PLAN_METHOD,
     InitialSetupStep.PLAN_REVIEW,
 )
 
@@ -298,7 +296,13 @@ fun InitialSetupFlow(
                 .consumeWindowInsets(padding)
                 .imePadding(),
         ) {
-            val stepIndex = visibleSteps.indexOf(snapshot.step)
+            // Passos antigos guardados de versões anteriores caem na tela que os substituiu.
+            val shownStep = when (snapshot.step) {
+                InitialSetupStep.SUBJECT_DIFFICULTY -> InitialSetupStep.SUBJECT_PRIORITY
+                InitialSetupStep.PLAN_METHOD -> InitialSetupStep.PLAN_SUMMARY
+                else -> snapshot.step
+            }
+            val stepIndex = visibleSteps.indexOf(shownStep)
             if (snapshot.step != InitialSetupStep.INTRO && snapshot.step != InitialSetupStep.READY && stepIndex >= 0) {
                 SetupProgress(stepIndex, visibleSteps.size)
             }
@@ -339,34 +343,29 @@ fun InitialSetupFlow(
                         onRemoveSubject = { viewModel.removeReviewSubject(it) },
                         onRemoveTopic = { viewModel.removeReviewTopic(it) },
                     )
-                    InitialSetupStep.SUBJECT_PRIORITY -> SubjectPriorityStep(
+                    InitialSetupStep.SUBJECT_PRIORITY, InitialSetupStep.SUBJECT_DIFFICULTY -> SubjectsStep(
                         subjects = uiState.subjects,
                         topics = uiState.topicEntities,
                         snapshot = snapshot,
                         officialPriorities = uiState.officialPrioritiesBySubjectId,
-                        onSelect = { subjectId, priority -> viewModel.setSubjectPriority(subjectId, priority) },
-                        onReset = { subjectId -> viewModel.clearSubjectPriority(subjectId) },
-                        onContinue = { viewModel.advance(InitialSetupStep.SUBJECT_PRIORITY, InitialSetupStep.SUBJECT_DIFFICULTY) },
-                    )
-                    InitialSetupStep.SUBJECT_DIFFICULTY -> SubjectProfileStep(
-                        subjects = uiState.subjects,
-                        snapshot = snapshot,
-                        officialPriorities = uiState.officialPrioritiesBySubjectId,
+                        onPriority = { subjectId, priority -> viewModel.setSubjectPriority(subjectId, priority) },
+                        onResetPriority = { subjectId -> viewModel.clearSubjectPriority(subjectId) },
                         onDifficulty = { subjectId, value -> viewModel.setSubjectDifficulty(subjectId, value) },
                         onKnowledge = { subjectId, value -> viewModel.setSubjectKnowledge(subjectId, value) },
-                        onContinue = { viewModel.advance(InitialSetupStep.SUBJECT_DIFFICULTY, InitialSetupStep.AVAILABILITY) },
+                        onContinue = { viewModel.advance(step, InitialSetupStep.AVAILABILITY) },
                     )
                     InitialSetupStep.AVAILABILITY -> AvailabilityStep(snapshot, viewModel)
                     InitialSetupStep.PROFILE -> ProfileStep(snapshot, viewModel)
-                    InitialSetupStep.PLAN_SUMMARY -> PlanSummaryStep(
+                    InitialSetupStep.PLAN_SUMMARY, InitialSetupStep.PLAN_METHOD -> PlanSummaryStep(
                         snapshot = snapshot,
                         subjects = uiState.subjects,
                         topics = uiState.topicEntities,
                         officialPriorities = uiState.officialPrioritiesBySubjectId,
-                        onContinue = { viewModel.advance(InitialSetupStep.PLAN_SUMMARY, InitialSetupStep.PLAN_METHOD) },
+                        building = operation is SetupOperation.Loading,
+                        error = (operation as? SetupOperation.Error)?.message,
+                        onBuild = { viewModel.createAutomaticPlan() },
                         onReviewAvailability = { viewModel.jumpTo(InitialSetupStep.AVAILABILITY) },
                     )
-                    InitialSetupStep.PLAN_METHOD -> PlanMethodStep(snapshot, uiState, operation, viewModel, picker)
                     InitialSetupStep.PLAN_REVIEW -> PlanReviewStep(snapshot, uiState, viewModel)
                     InitialSetupStep.READY -> ReadyStep(onFinish = {
                         planPrefs.edit().remove(PLAN_MODE_PREVIOUS_STATUS).remove(PLAN_MODE_PREVIOUS_STEP).apply()
@@ -999,32 +998,6 @@ private fun AvailabilityStep(snapshot: InitialSetupSnapshot, viewModel: InitialS
 }
 
 @Composable
-private fun PlanMethodStep(
-    snapshot: InitialSetupSnapshot,
-    uiState: InitialSetupUiState,
-    operation: SetupOperation,
-    viewModel: InitialSetupViewModel,
-    picker: androidx.activity.result.ActivityResultLauncher<Array<String>>,
-) {
-    SetupPage(
-        eyebrow = "Seu plano",
-        title = "Deixamos a primeira semana pronta?",
-        description = "O plano automático é determinístico, usa o edital real e pode ser refeito quando sua rotina mudar.",
-        icon = Icons.Outlined.CalendarMonth,
-        bottom = { SetupPrimaryButton("Montar meu plano", { viewModel.createAutomaticPlan() }) },
-    ) {
-        // O plano é feito pelo motor do app, sem IA: é conta de calendário (horas, pesos e
-        // revisões) e sai igual e de graça. Quem vinha de uma versão com IA volta para o automático.
-        LaunchedEffect(snapshot.planMethod) {
-            if (snapshot.planMethod != PlanCreationMethod.AUTOMATIC) viewModel.choosePlanMethod(PlanCreationMethod.AUTOMATIC)
-        }
-        OutlinedTextField(snapshot.planPreference, viewModel::savePlanPreference, Modifier.fillMaxWidth(), label = { Text("Alguma prioridade? (opcional)") }, placeholder = { Text("Ex.: mais questões de Constitucional") }, minLines = 2)
-        Text("O plano é montado pelo Estudário com o seu edital, suas horas e prioridades. Essa observação fica registrada para orientar o próximo ajuste.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (operation is SetupOperation.Success) Text((operation as SetupOperation.Success).message, color = MaterialTheme.colorScheme.primary)
-    }
-}
-
-@Composable
 private fun PlanReviewStep(snapshot: InitialSetupSnapshot, uiState: InitialSetupUiState, viewModel: InitialSetupViewModel) {
     val context = LocalContext.current.applicationContext as br.com.estudario.EstudarioApplication
     var reviewTasks by remember(snapshot.lastValidPlanId) { mutableStateOf<List<br.com.estudario.data.local.planner.PlanTaskEntity>?>(null) }
@@ -1071,10 +1044,8 @@ private fun PlanReviewStep(snapshot: InitialSetupSnapshot, uiState: InitialSetup
     val firstTask = currentTasks.firstOrNull()
     val firstTaskName = firstTask?.let { it.topicNameSnapshot ?: it.subjectNameSnapshot }
     val firstDate = currentTasks.minOfOrNull { it.scheduledEpochDay }?.let(java.time.LocalDate::ofEpochDay)
-    val lastDate = currentTasks.maxOfOrNull { it.scheduledEpochDay }?.let(java.time.LocalDate::ofEpochDay)
     val examDate = snapshot.examDate?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
     val remainingDays = examDate?.let { java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), it).coerceAtLeast(0) }
-    val dayNames = listOf("Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo")
     SetupPage(
         eyebrow = "Última conferência",
         title = "Seu plano começa assim",
@@ -1082,41 +1053,19 @@ private fun PlanReviewStep(snapshot: InitialSetupSnapshot, uiState: InitialSetup
         icon = Icons.Outlined.CheckCircle,
         bottom = { SetupPrimaryButton("Concluir configuração", viewModel::complete, enabled = snapshot.lastValidPlanId != null) },
     ) {
+        // Conferência curta: o essencial para começar. O detalhe de cada dia e de cada matéria continua
+        // na aba Plano; repetir tudo aqui só alongava o fim do assistente.
         SetupCard {
             Text(snapshot.competitionName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text("Perfil de estudo: ${snapshot.studyProfile.label}")
-            Text("Método: ${if (snapshot.planMethod == PlanCreationMethod.AUTOMATIC) "plano do Estudário" else "plano conferido"}")
-            Text("Bloco de estudo: ${snapshot.sessionMinutes} min, é o tamanho-base de cada tarefa, não o total diário.")
-            Text("Disponibilidade semanal: ${formatAvailabilityMinutes(snapshot.availabilityMinutes.sum())} em ${snapshot.availabilityMinutes.count { it > 0 }} dias.")
-            snapshot.availabilityMinutes.forEachIndexed { index, minutes ->
-                Text("${dayNames[index]}: ${formatAvailabilityMinutes(minutes)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Text("Data da prova: ${snapshot.examDate ?: "não definida"}${remainingDays?.let { " · $it dias a partir de hoje" }.orEmpty()}")
-            if (firstDate != null && lastDate != null) Text("Calendário criado: $firstDate a $lastDate (${currentTasks.size} tarefas vigentes)", style = MaterialTheme.typography.bodySmall)
-        }
-        SetupCard {
-            Icon(Icons.Outlined.School, null, tint = MaterialTheme.colorScheme.primary)
-            Text("Seus três eixos por matéria", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Text(
-                "O peso na prova vem do edital; o esforço e a base são seus. São coisas diferentes, e o plano usa as três separadamente.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            SummaryRow(
+                "Prova",
+                examDate?.let { date ->
+                    "%02d/%02d/%d".format(date.dayOfMonth, date.monthValue, date.year) + remainingDays?.let { " · faltam $it dias" }.orEmpty()
+                } ?: "sem data definida",
             )
-            uiState.subjects.forEach { subject ->
-                val key = subject.id.toString()
-                val dimensions = snapshot.dimensionsFor(
-                    subjectId = key,
-                    examPriority = SetupPlannerPreviewFactory.suggestedPriority(uiState.officialPrioritiesBySubjectId, subject.id),
-                )
-                Text(subject.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "Prova: ${dimensions.examPriority.label.lowercase()} · " +
-                        "Esforço: ${dimensions.personalDifficulty.label.lowercase()} · " +
-                        "Base: ${dimensions.initialKnowledge.label.lowercase()}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            SummaryRow("Tempo por semana", "${formatAvailabilityMinutes(snapshot.availabilityMinutes.sum())} em ${snapshot.availabilityMinutes.count { it > 0 }} dias")
+            SummaryRow("Bloco de estudo", "${snapshot.sessionMinutes} min")
+            SummaryRow("Estratégia", snapshot.studyProfile.label)
         }
         SetupCard {
             Text("Cobertura do edital", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -1136,7 +1085,7 @@ private fun PlanReviewStep(snapshot: InitialSetupSnapshot, uiState: InitialSetup
         SetupCard {
             Text("Primeiro passo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Text(firstTaskName ?: "O plano foi criado; a primeira tarefa aparecerá na Home.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            firstDate?.let { Text("Programado para $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            firstDate?.let { Text("Programado para " + "%02d/%02d".format(it.dayOfMonth, it.monthValue), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 }
