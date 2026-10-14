@@ -89,7 +89,8 @@ internal fun glyphFor(vectorName: String): Glyph? = when (vectorName.substringAf
     "EmojiEvents" -> Glyph.Trophy
     "WorkspacePremium" -> Glyph.Medal
     "Lightbulb" -> Glyph.Bulb
-    "WarningAmber", "Warning", "ErrorOutline", "ReportProblem" -> Glyph.Warning
+    "WarningAmber", "Warning", "ReportProblem" -> Glyph.Warning
+    "ErrorOutline", "Error" -> Glyph.Oops
     "LocalFireDepartment" -> Glyph.Fire
     "Bolt", "OfflineBolt", "Speed" -> Glyph.Bolt
     "DirectionsRun" -> Glyph.Flag

@@ -20,19 +20,23 @@ import org.jetbrains.compose.web.dom.Text
 import org.w3c.dom.HTMLDivElement
 
 /**
- * Ícone. Os de significado (casa, calendário, troféu, chama...) são os desenhos do Estudário
- * (glyphs.js, os mesmos de BrandGlyphs.kt no app); os de controle (setas, fechar, mais) continuam
- * o traço do Material Symbols. "faint" deixa o desenho em cinza, como o tint apagado do app.
+ * Ícone. Os de significado (casa, calendário, troféu, chama...) são a turma do Folha (turma.js,
+ * gerado de design/turma com o mesmo desenho do app), em SVG no próprio HTML para se mexer quando o
+ * mouse passa no botão; os de controle (setas, fechar, mais) continuam o traço do Material Symbols.
+ * "faint" deixa o desenho em cinza, como o tint apagado do app.
  */
 @Composable
 fun Icon(name: String, filled: Boolean = false, extraClass: String? = null, plain: Boolean = false) {
     val muted = extraClass == "faint"
-    val uri = if (plain) null else androidx.compose.runtime.remember(name, muted) { glyphUri(name, muted) }
-    if (uri != null) {
-        Span({
-            classes(*listOfNotNull("ms", "gl", extraClass).toTypedArray())
-            attr("aria-hidden", "true")
-        }) { org.jetbrains.compose.web.dom.Img(src = uri, alt = "") }
+    val svg = if (plain) null else androidx.compose.runtime.remember(name, muted) { glyphSvg(name, muted) }
+    if (svg != null) {
+        androidx.compose.runtime.key(name, muted) {
+            Span({
+                classes(*listOfNotNull("ms", "gl", extraClass).toTypedArray())
+                attr("aria-hidden", "true")
+                ref { el -> el.innerHTML = svg; onDispose { } }
+            })
+        }
         return
     }
     Span({
@@ -40,6 +44,9 @@ fun Icon(name: String, filled: Boolean = false, extraClass: String? = null, plai
         attr("aria-hidden", "true")
     }) { Text(name) }
 }
+
+fun glyphSvg(name: String, muted: Boolean = false): String? =
+    runCatching { kotlinx.browser.window.asDynamic().estudarioGlyph(name, muted) as? String }.getOrNull()
 
 fun glyphUri(name: String, muted: Boolean = false): String? =
     runCatching { kotlinx.browser.window.asDynamic().estudarioGlyphUri(name, muted) as? String }.getOrNull()
