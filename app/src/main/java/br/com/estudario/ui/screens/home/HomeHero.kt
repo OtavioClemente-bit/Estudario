@@ -1,6 +1,9 @@
 package br.com.estudario.ui.screens.home
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,40 +57,96 @@ fun HomeHero(
     onOpenContest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val on = MaterialTheme.colorScheme.onPrimaryContainer
-    Surface(shape = EstudarioShapes.spotlight, color = MaterialTheme.colorScheme.primaryContainer, modifier = modifier.fillMaxWidth()) {
-        Column(Modifier.clickable(onClick = onOpenContest).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("${greetingNow()}, $firstName", style = MaterialTheme.typography.bodyMedium, color = on)
-                    Text(contest.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = on, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                }
-                if (daysToExam != null) Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 12.dp)) {
-                    Text("$daysToExam", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    Text(if (daysToExam == 1L) "dia para a prova" else "dias para a prova", style = MaterialTheme.typography.labelSmall, color = on)
-                }
+    // O cartão do concurso com a cara do Estudário: a tinta índigo do Folha, a pauta do caderno e a
+    // margem vermelha ao fundo, o nome do concurso sempre inteiro (a letra diminui antes de cortar),
+    // os dias até a prova num ingresso dourado e o edital coberto num anel.
+    val ink = androidx.compose.ui.graphics.Color(0xFF2E2799)
+    val inkDeep = androidx.compose.ui.graphics.Color(0xFF1B1464)
+    val gold = androidx.compose.ui.graphics.Color(0xFFF5B83D)
+    val white = androidx.compose.ui.graphics.Color.White
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp)
+    val nameStyle = when {
+        contest.name.length > 90 -> MaterialTheme.typography.titleMedium
+        contest.name.length > 50 -> MaterialTheme.typography.titleLarge
+        else -> MaterialTheme.typography.headlineSmall
+    }
+    Column(
+        modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(ink, inkDeep)))
+            .drawBehind {
+                // Pauta do caderno, bem leve, e a linha vermelha da margem.
+                val step = 26.dp.toPx()
+                var y = step
+                while (y < size.height) { drawLine(white.copy(alpha = 0.06f), androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Offset(size.width, y), 1.dp.toPx()); y += step }
+                val margin = 14.dp.toPx()
+                drawLine(androidx.compose.ui.graphics.Color(0xFFE7A9A3).copy(alpha = 0.45f), androidx.compose.ui.geometry.Offset(margin, 0f), androidx.compose.ui.geometry.Offset(margin, size.height), 1.5.dp.toPx())
             }
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row {
-                    Text("Edital coberto", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = on)
-                    Text("${coverage.percent}% · ${coverage.studiedTopics}/${coverage.totalTopics} tópicos", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = on)
+            .clickable(onClick = onOpenContest)
+            .padding(start = 28.dp, end = 20.dp, top = 20.dp, bottom = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("${greetingNow()}, $firstName", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = white.copy(alpha = 0.8f))
+            if (daysToExam != null) {
+                // O ingresso: dias até a prova, com o recorte das bordas.
+                Row(
+                    Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp)).background(gold).padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("$daysToExam", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = inkDeep)
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (daysToExam == 1L) "dia para\na prova" else "dias para\na prova", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = inkDeep, lineHeight = androidx.compose.ui.unit.TextUnit(12f, androidx.compose.ui.unit.TextUnitType.Sp))
                 }
-                Box(Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))) {
-                    Box(Modifier.fillMaxWidth((coverage.percent / 100f).coerceIn(0.015f, 1f)).fillMaxHeight().clip(CircleShape).background(MaterialTheme.colorScheme.primary))
-                }
-            }
-            // FlowRow: sem espaço, o que não cabe desce para a linha de baixo em vez de virar uma
-            // coluna de letras ("D o m í n i o").
-            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Icon(Icons.Outlined.LocalFireDepartment, null, Modifier.size(18.dp), tint = estudarioColors().attention)
-                    Text(if (standing.streakDays == 0) "Comece a sequência hoje" else "${standing.streakDays} ${if (standing.streakDays == 1) "dia" else "dias"} seguidos", style = MaterialTheme.typography.labelLarge, color = on)
-                }
-                Text("Nível ${standing.level}", style = MaterialTheme.typography.labelLarge, color = on)
-                coverage.masteryPercent?.let { Text("Domínio $it%", style = MaterialTheme.typography.labelLarge, color = on) }
             }
         }
+        Text(contest.name, style = nameStyle, fontWeight = FontWeight.Black, color = white)
+        if (!contest.objective.isNullOrBlank() && contest.objective != contest.name) {
+            Text(contest.objective, style = MaterialTheme.typography.bodyMedium, color = white.copy(alpha = 0.75f))
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CoverageRing(coverage.percent, gold, white)
+            Spacer(Modifier.width(16.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("do edital coberto", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = white)
+                Text("${coverage.studiedTopics} de ${coverage.totalTopics} tópicos estudados", style = MaterialTheme.typography.bodySmall, color = white.copy(alpha = 0.75f))
+                coverage.masteryPercent?.let { Text("Domínio de $it% nas questões", style = MaterialTheme.typography.bodySmall, color = white.copy(alpha = 0.75f)) }
+            }
+        }
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            HeroChip(br.com.estudario.ui.brand.Glyph.Fire, if (standing.streakDays == 0) "Comece a sequência hoje" else "${standing.streakDays} ${if (standing.streakDays == 1) "dia" else "dias"} seguidos")
+            HeroChip(br.com.estudario.ui.brand.Glyph.Medal, "Nível ${standing.level} · ${standing.levelTitle}")
+        }
+    }
+}
+
+/** O anel do edital coberto: trilha clara, arco dourado que cresce animado e a porcentagem no meio. */
+@Composable
+private fun CoverageRing(percent: Int, gold: androidx.compose.ui.graphics.Color, white: androidx.compose.ui.graphics.Color) {
+    val shown by androidx.compose.animation.core.animateFloatAsState((percent / 100f).coerceIn(0f, 1f), androidx.compose.animation.core.tween(1100), label = "ring")
+    Box(Modifier.size(76.dp), contentAlignment = Alignment.Center) {
+        androidx.compose.foundation.Canvas(Modifier.size(76.dp)) {
+            val stroke = 9.dp.toPx()
+            val inset = stroke / 2
+            val arcSize = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke)
+            drawArc(white.copy(alpha = 0.16f), 0f, 360f, false, androidx.compose.ui.geometry.Offset(inset, inset), arcSize, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+            drawArc(gold, -90f, 360f * shown, false, androidx.compose.ui.geometry.Offset(inset, inset), arcSize, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+        }
+        Text("$percent%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = white)
+    }
+}
+
+@Composable
+private fun HeroChip(glyph: br.com.estudario.ui.brand.Glyph, text: String) {
+    Row(
+        Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(50)).background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.14f)).padding(start = 6.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        br.com.estudario.ui.brand.BrandIcon(glyph, size = 24.dp)
+        Spacer(Modifier.width(6.dp))
+        Text(text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color.White)
     }
 }
 

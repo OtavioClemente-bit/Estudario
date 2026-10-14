@@ -199,14 +199,16 @@ fun rememberQuestionBatchLimit(batch: Boolean = false): QuestionBatchLimit {
 fun QuestionCountSelector(value: Int, limit: QuestionBatchLimit, perTopic: Boolean, onChange: (Int) -> Unit) {
     val current = value.coerceIn(GenerationLimits.MIN_QUESTIONS, limit.max)
     LaunchedEffect(value, limit.max) { if (value != current) onChange(current) }
-    BigValueSlider(
+    // O contador da marca, igual ao da meta do dia: número grande, − e + com degrau e fichas.
+    br.com.estudario.ui.brand.BrandCounter(
         value = current,
         range = GenerationLimits.MIN_QUESTIONS..limit.max,
-        step = 1,
-        format = { "$it" },
+        step = 5,
+        unit = if (perTopic) "questões por tópico" else "questões",
+        glyph = br.com.estudario.ui.brand.Glyph.Clipboard,
         onChange = onChange,
-        caption = (if (perTopic) "questões por tópico" else "questões") + " · plano ${limit.planName}: até ${limit.max}",
-        quickValues = listOf(5, 10, 15, 20, 30),
+        quickValues = listOf(5, 10, 20, 30).filter { it <= limit.max },
+        mood = { "No plano ${limit.planName}, até ${limit.max} por vez" },
     )
 }
 

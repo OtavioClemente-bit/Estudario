@@ -357,7 +357,7 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         })
         if (ContentBlock.QUESTIONS in options.blocks) add(WizardStep(
             "Questões",
-            "Arraste para escolher. O limite depende do seu plano.",
+            "Toque para escolher. O limite depende do seu plano.",
             "Defina a quantidade de questões.".takeIf { options.questionCount !in GenerationLimits.MIN_QUESTIONS..questionLimit.max },
             question = "Quantas questões e em que nível?",
             answer = "${options.questionCount} questões · ${options.difficulty.label} · ${options.style.label}" + options.board.takeIf(String::isNotBlank)?.let { " · $it" }.orEmpty(),
@@ -637,7 +637,7 @@ fun AdditionalQuestionPromptBuilderDialog(
     val steps = listOf(
         WizardStep(
             "Quantidade",
-            "Arraste para escolher. O limite depende do seu plano.",
+            "Toque para escolher. O limite depende do seu plano.",
             "Defina a quantidade de questões.".takeIf { options.questionCount !in GenerationLimits.MIN_QUESTIONS..questionLimit.max },
             question = "Quantas questões novas você quer resolver?",
             answer = "${options.questionCount} questões · ${options.style.label}",

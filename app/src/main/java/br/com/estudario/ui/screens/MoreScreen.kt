@@ -163,8 +163,8 @@ fun MoreScreen(
                 LinkRow(Icons.Outlined.Notifications, "Notificações", "Lembrete diário e pendências", onNotifications)
                 HorizontalDivider()
                 LinkRow(Icons.Outlined.CalendarMonth, "Agenda do celular", "Salvar o plano no calendário", onAgenda)
-                HorizontalDivider()
-                LinkRow(Icons.Outlined.AutoAwesome, "Configurar meus estudos", "Revisar concurso, edital, rotina e plano", onOpenSetup)
+                // "Configurar meus estudos" saiu: com o estudo pronto ele reabria o assistente inteiro
+                // ("retomar configurações") e bagunçava. Concurso e plano se ajustam nas próprias telas.
             }
         }
 
