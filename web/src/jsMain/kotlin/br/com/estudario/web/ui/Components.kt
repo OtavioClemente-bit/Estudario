@@ -261,3 +261,48 @@ fun ToastHost() {
         Div({ classes("toast"); attr("role", "status") }) { Icon("check_circle", filled = true); Text(text) }
     }
 }
+
+/**
+ * O contador da marca, como o do app (BrandCounter.kt): o número grande no centro, botões − e + com
+ * "lábio" e atalhos rápidos embaixo. [mood] diz em uma linha o que aquele número significa.
+ */
+@Composable
+fun BrandCounter(
+    value: Int,
+    onChange: (Int) -> Unit,
+    step: Int = 1,
+    min: Int = 0,
+    max: Int = Int.MAX_VALUE,
+    unit: String = "",
+    chips: List<Int> = emptyList(),
+    mood: (Int) -> String? = { null },
+    label: String = "",
+) {
+    val latest = androidx.compose.runtime.rememberUpdatedState(onChange)
+    val current = androidx.compose.runtime.rememberUpdatedState(value)
+    Div({ classes("bcounter"); attr("role", "group"); if (label.isNotBlank()) attr("aria-label", label) }) {
+        Div({ classes("bc-row") }) {
+            Button({
+                type(ButtonType.Button); classes("bc-btn"); attr("aria-label", "Diminuir")
+                if (value <= min) disabled()
+                onClick { latest.value((current.value - step).coerceAtLeast(min)) }
+            }) { Icon("remove") }
+            Div({ classes("bc-value"); attr("aria-live", "polite") }) {
+                org.jetbrains.compose.web.dom.B { Text(value.toString()) }
+                if (unit.isNotBlank()) Span { Text(unit) }
+            }
+            Button({
+                type(ButtonType.Button); classes("bc-btn"); attr("aria-label", "Aumentar")
+                if (value >= max) disabled()
+                onClick { latest.value((current.value + step).coerceAtMost(max)) }
+            }) { Icon("add") }
+        }
+        mood(value)?.let { Div({ classes("bc-mood") }) { Text(it) } }
+        val quick = chips.filter { it in min..max }
+        if (quick.isNotEmpty()) Div({ classes("bc-chips") }) {
+            quick.forEach { n ->
+                Button({ type(ButtonType.Button); classes(*listOfNotNull("bc-chip", if (n == value) "on" else null).toTypedArray()); onClick { latest.value(n) } }) { Text(n.toString()) }
+            }
+        }
+    }
+}

@@ -336,13 +336,8 @@ fun SettingsScreen() {
         }
         Card {
             CardHead("Questões por dia")
-            Div({ classes("day-row") }) {
-                Div({ classes("grow") }) {
-                    Div({ classes("name") }) { Text("Meta diária de questões") }
-                    Div({ classes("hint") }) { Text("Ou uma tarefa do plano, ou uma revisão, também fecham o dia") }
-                }
-                Stepper(goal, { goal = it; Prefs.dailyGoal = it }, step = 5, min = 5, max = 100, label = "Meta diária de questões")
-            }
+            BrandCounter(goal, { goal = it; Prefs.dailyGoal = it }, step = 5, min = 5, max = 100, unit = "questões por dia", chips = listOf(10, 20, 30, 50), mood = ::goalMood, label = "Meta diária de questões")
+            P({ classes("xs", "muted"); attr("style", "text-align:center;margin:8px 0 0") }) { Text("Uma tarefa do plano ou uma revisão também fecham o dia.") }
         }
         Card {
             CardHead("Sincronização")
@@ -357,6 +352,18 @@ fun SettingsScreen() {
             }
         }
     }
+    Card {
+        CardHead("Como usar")
+        P({ classes("small", "muted") }) { Text("Reveja o giro rápido pelas partes principais do Estudário.") }
+        Btn("Rever o tour", { replayTour() }, style = "outline", icon = "explore", small = true)
+    }
     P({ classes("xs", "faint"); attr("style", "text-align:center") }) { Text("Estudário no computador · app.estudario.com.br") }
+}
+
+private fun goalMood(n: Int): String = when {
+    n <= 10 -> "Leve: dá para manter todo dia."
+    n <= 25 -> "Firme: um bom ritmo de treino."
+    n <= 50 -> "Puxado: ritmo de reta final."
+    else -> "Maratona: só se o dia render."
 }
 

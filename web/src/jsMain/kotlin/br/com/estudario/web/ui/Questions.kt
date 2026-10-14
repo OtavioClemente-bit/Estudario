@@ -81,7 +81,7 @@ fun TrainScreen() {
                     H3 { Text("Quantidade") }
                     P({ classes("small", "muted") }) { Text(if (available == 0) "Nenhuma questão com esses filtros" else "$available disponíve${if (available == 1) "l" else "is"} com esses filtros") }
                 }
-                Stepper(count, { count = it }, step = 5, min = 5, max = 60, label = "Quantidade de questões")
+                BrandCounter(count, { count = it }, step = 5, min = 5, max = 60, unit = "questões", chips = listOf(10, 20, 30), label = "Quantidade de questões")
             }
             Btn(modes.first { it.first == mode }.second.let { "Iniciar ${it.lowercase()}" }, { Router.go(Route.Quiz(scope)) }, block = true, style = "primary", icon = "play_arrow", enabled = available > 0)
         }

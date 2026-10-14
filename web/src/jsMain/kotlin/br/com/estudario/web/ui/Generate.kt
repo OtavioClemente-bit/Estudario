@@ -127,9 +127,9 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                             B { Text("Quantas questões e em qual formato?") }
                             P({ classes("small", "muted") }) { Text(if (questionsOnly) "Cada lote traz até $BATCH_QUESTIONS questões novas." else "No seu plano, até $maxQuestions questões ao criar a matéria.") }
                         }
-                        Div({ classes("day-row") }) {
-                            Div({ classes("grow") }) { Div({ classes("name") }) { Text("Quantidade") }; Div({ classes("hint") }) { Text("$count questões") } }
-                            Stepper(count, { count = it }, min = 1, max = if (questionsOnly) BATCH_QUESTIONS else maxQuestions, label = "Quantidade de questões")
+                        Div({ attr("style", "margin:6px 0 10px") }) {
+                            val top = if (questionsOnly) BATCH_QUESTIONS else maxQuestions
+                            BrandCounter(count, { count = it }, step = 1, min = 1, max = top, unit = "questões", chips = listOf(5, 10, 20, 30).filter { it <= top }, label = "Quantidade de questões")
                         }
                         ChoiceCards(styleChoices, { it == style }) { style = it }
                     }
