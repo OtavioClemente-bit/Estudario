@@ -9,11 +9,15 @@ Todo limite que protege gasto é aplicado no Supabase. O app só exibe o saldo.
   Nulo em plano pago significa concessão manual sem vencimento.
 - `public.ai_plan_limits`: limites por plano e recurso.
 
-| Plano | Editais | Planos | Conteúdo/mês | Lotes de questões/mês | Questões por lote | Por tópico/mês | Anúncio |
-|---|---|---|---|---|---|---|---|
-| Grátis | 1 no total | 1 no total | 10 | 5 | 10 | 20 | +1 conteúdo, até 2/dia e 10/mês (desligado no teste fechado) |
-| Essencial | 3/mês | 3/mês | 60 | 30 | 20 | 60 | não tem |
-| Pro | 8/mês | 8/mês | 200 | 100 | 30 | 120 | não tem |
+Valores conferidos no banco em 14/10/2026 (`ai_plan_limits` e `plan_catalog`):
+
+| Plano | Preço | Material/mês | Lotes de questões/mês (até 10 cada) | Simulados (até 30 questões) | Edital pelo PDF | Editais salvos | Planos | Anúncio |
+|---|---|---|---|---|---|---|---|---|
+| Grátis | R$ 0 | 10 | 3 | 1 no total | não | 5 | 1 no total | +1 conteúdo, até 2/dia e 10/mês |
+| Essencial | R$ 24,90/mês ou R$ 249/ano | 25 | 10 | 3/mês | 2/mês | 15 | 3/mês | não tem |
+| Pro | R$ 49,90/mês ou R$ 499/ano | 40 | 25 | 6/mês | 5/mês | sem limite (1000) | 10/mês | não tem |
+
+A página estudario.com.br (`site/index.html`) repete esses números: mudou aqui, muda lá.
 
 Hoje só a geração de edital passa pelo backend. Os demais limites já estão cadastrados para a
 tela de planos e para quando conteúdo, plano e questões forem gerados no servidor.
