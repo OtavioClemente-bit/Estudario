@@ -278,7 +278,8 @@ fun EstudarioTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight),
         ) {
-            Icon(Icons.Outlined.Menu, contentDescription = null, modifier = Modifier.size(22.dp))
+            // O menu com a cara do Estudário (adesivo de caderno), não os três tracinhos do Android.
+            br.com.estudario.ui.brand.BrandMenuMark(size = 30.dp)
             EstudarioGlyph(size = 30.dp)
             if (!compactBrand) Text("Estudário", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
         }

@@ -407,9 +407,9 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     ) {
                         Row(Modifier.padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.Menu, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.inverseOnSurface)
+                            br.com.estudario.ui.brand.BrandMenuMark(size = 22.dp)
                             Spacer(Modifier.width(10.dp))
-                            Text("Toque em ☰ Estudário para abrir o menu: Caderno, Revisões, Desempenho, Agenda e Ajustes.", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.inverseOnSurface)
+                            Text("Toque no Estudário, no alto, para abrir o menu: Caderno, Revisões, Desempenho, Agenda e Ajustes.", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.inverseOnSurface)
                             IconButton(onClick = { drawerHintSeen = true; hintPrefs.edit().putBoolean("drawer_hint_seen", true).apply() }) {
                                 Icon(Icons.Outlined.Close, "Entendi", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.inverseOnSurface)
                             }
