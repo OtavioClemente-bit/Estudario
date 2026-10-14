@@ -209,7 +209,8 @@ private fun SidebarContent(section: Route) {
     val progress = Progress.of(Store.data).progress
     // A marca no alto do menu, como nos sites grandes: o Folha e o nome.
     A(href = "#/inicio", { classes("brand-mark"); onClick { drawerOpen = false } }) {
-        Span({ classes("brand-folha") }) { Folha("happy", 42) }
+        // Vivo mesmo pequeno: é o mascote da marca, não um ícone de botão.
+        Span({ classes("brand-folha") }) { Folha("happy", 46, live = true) }
         Div { Wordmark(); Span({ classes("brand-tag") }) { Text("do edital à aprovação") } }
     }
     // Cabeçalho do menu: o perfil, com nível e XP (como no app).

@@ -48,8 +48,8 @@ import org.jetbrains.compose.web.dom.Text
  * uma lista cheia de botões não virar dezenas de animações.
  */
 @Composable
-fun Folha(mood: String = "happy", size: Int = 96, extraStyle: String = "") {
-    if (size >= LIVE_FOLHA_MIN_SIZE) {
+fun Folha(mood: String = "happy", size: Int = 96, extraStyle: String = "", live: Boolean = size >= LIVE_FOLHA_MIN_SIZE) {
+    if (live) {
         TagElement<org.w3c.dom.HTMLElement>(
             elementBuilder = ElementBuilder.createBuilder("estudario-folha"),
             applyAttrs = {
