@@ -183,6 +183,8 @@ fun TopicScreen(topicId: Long) {
     var generatingQuestions by remember(topicId) { mutableStateOf(false) }
     var menuOpen by remember(topicId) { mutableStateOf(false) }
     var finishAsk by remember(topicId) { mutableStateOf(false) }
+    var deletingMaterial by remember(topicId) { mutableStateOf(false) }
+    val hasMaterial = theories.isNotEmpty() || summaries.isNotEmpty() || snippets.isNotEmpty()
     val focusHere = TopicFocus.topicId == topicId
 
     DisposableEffect(focusHere) {
@@ -208,8 +210,23 @@ fun TopicScreen(topicId: Long) {
             if (menuOpen) Div({ classes("menu-pop") }) {
                 if (children.isEmpty() && !Store.demo) MenuItem("auto_awesome", "Gerar material com o Estudário") { menuOpen = false; generating = true }
                 if (studied) MenuItem("undo", "Desmarcar como estudado") { menuOpen = false; Store.update { Actions.unmarkStudied(it, topicId) } }
+                if (hasMaterial && !Store.demo) MenuItem("delete", "Apagar material") { menuOpen = false; deletingMaterial = true }
                 MenuItem("close", "Fechar") { menuOpen = false }
             }
+        }
+    }
+
+    if (deletingMaterial) {
+        val answeredIds = attempts.mapTo(hashSetOf()) { it.questionId }
+        DeleteMaterialModal(
+            topicTitle = topic.title, theories = theories.size, summaries = summaries.size, snippets = snippets.size,
+            unanswered = questions.count { it.id !in answeredIds }, answered = questions.count { it.id in answeredIds },
+            onDismiss = { deletingMaterial = false },
+        ) { withQuestions ->
+            deletingMaterial = false
+            Store.update { Actions.deleteTopicMaterial(it, topicId, withQuestions) }
+            tab = 0
+            Toast.show("Material apagado. O tópico e seu histórico continuam aqui.")
         }
     }
 

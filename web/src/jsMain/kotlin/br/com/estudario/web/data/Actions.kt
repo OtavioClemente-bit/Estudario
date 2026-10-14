@@ -353,6 +353,25 @@ object Actions {
     private fun JsonObject.longOf(key: String): Long? = (this[key] as? JsonPrimitive)?.content?.toLongOrNull()
     private fun JsonObject.textOf(key: String): String? = (this[key] as? JsonPrimitive)?.content
 
+    /**
+     * Apaga o material salvo de um tópico, como o "Apagar material" do app (StudyRepository.deleteTopicMaterial):
+     * teoria com os grifos, resumos, flashcards, dicas e fontes. As questões não respondidas só saem se
+     * [withUnansweredQuestions]; as respondidas ficam sempre (levam o histórico e o XP). O tópico, se foi
+     * estudado e as revisões continuam.
+     */
+    fun deleteTopicMaterial(data: Snapshot, topicId: Long, withUnansweredQuestions: Boolean): Snapshot {
+        val theoryIds = data.theories.filter { it.topicId == topicId }.mapTo(hashSetOf()) { it.id }
+        val answered = data.attempts.mapTo(hashSetOf()) { it.questionId }
+        var next = data
+        fun dropWhere(key: String, pick: (JsonObject) -> Boolean) { next = next.edit(key) { if (pick(it)) null else it } }
+        listOf(Keys.THEORIES, Keys.SUMMARIES, Keys.SNIPPETS, "contentSources").forEach { key -> dropWhere(key) { it.longOf("topicId") == topicId } }
+        dropWhere("theoryMarks") { it.longOf("theoryId") in theoryIds }
+        if (withUnansweredQuestions) dropWhere(Keys.QUESTIONS) { q ->
+            q.longOf("topicId") == topicId && q.longOf("simulationId") == null && q.longOf("id") !in answered
+        }
+        return next
+    }
+
     /** Apaga a matéria e tudo que pende dela: tópicos, material, fontes, questões, respostas, erros, revisões, notas e tarefas do plano. */
     fun deleteSubject(data: Snapshot, subjectId: Long): Snapshot {
         val topicIds = data.topics.filter { it.subjectId == subjectId }.mapTo(hashSetOf()) { it.id }
