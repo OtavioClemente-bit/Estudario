@@ -166,12 +166,23 @@ async function libraryContent(
   const servedKey = `lib:${found.topicId}@${found.version}:${await contentCacheKey(input)}`;
   const content = assembleFromLibrary(found.material, found.note, input, `${job.id}:${job.userId}`, found.focus ?? null, true);
   if (!content) return null;
-  // A biblioteca não tinha todas (ex.: 25 de 30): a IA escreve só as que faltam (até 10), em cima
-  // da teoria pronta, em vez de refazer o material inteiro.
+  // A biblioteca não tinha todas (ex.: 13 de 30): a IA escreve só as que faltam, em cima da teoria
+  // pronta, em vez de refazer o material inteiro. Em partes de até QUESTION_CHUNK, ao mesmo tempo
+  // (acima disso o modelo erra mais), até completar o pedido.
   const have = Array.isArray(content.questions) ? (content.questions as unknown[]).length : 0;
-  if (have < input.options.questionCount) {
-    const extra = await libraryTopUp(content, Math.min(input.options.questionCount - have, QUESTION_CHUNK), input, job, dependencies);
-    content.questions = [...(content.questions as unknown[]), ...extra];
+  const missing = input.options.questionCount - have;
+  if (missing > 0) {
+    const sizes = Array.from({ length: Math.ceil(missing / QUESTION_CHUNK) }, (_, i) => Math.min(QUESTION_CHUNK, missing - i * QUESTION_CHUNK));
+    const parts = await Promise.all(sizes.map((size) => libraryTopUp(content, size, input, job, dependencies).catch(() => [])));
+    // Partes feitas em paralelo podem repetir enunciado: fica a primeira.
+    const seen = new Set((content.questions as Record<string, unknown>[]).map((q) => normalizeStatement(q.statement)));
+    const extra = parts.flat().filter((q) => {
+      const key = normalizeStatement(q.statement);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    content.questions = [...(content.questions as unknown[]), ...extra.slice(0, missing)];
   }
   if (fresh) await store.markServed?.(servedKey, job.userId).catch(() => undefined);
   await store.recordLibraryHit?.(found.topicId).catch(() => undefined);
@@ -182,6 +193,10 @@ async function libraryContent(
  * Questões que faltam num material da biblioteca: uma chamada curta, sem pesquisa, a partir dos
  * capítulos prontos; passam pelo conserto e (3 ou mais) pelo revisor. Se der errado, nada é somado.
  */
+function normalizeStatement(value: unknown): string {
+  return String(value ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
 async function libraryTopUp(
   content: Record<string, unknown>,
   missing: number,
