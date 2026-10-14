@@ -444,7 +444,8 @@ private fun featureIcon(feature: String) = when (feature) {
     else -> "auto_awesome"
 }
 
-private val visibleFeatures = listOf("CONTENT_GENERATION", "QUESTION_BATCH", "SIMULATION_GENERATION", "SAVED_EDITAIS", "PLAN_GENERATION", "SYLLABUS_GENERATION")
+/** O plano de estudo é de todos os planos, então não entra como saldo nem na comparação. */
+private val visibleFeatures = listOf("CONTENT_GENERATION", "QUESTION_BATCH", "SIMULATION_GENERATION", "SYLLABUS_GENERATION", "SAVED_EDITAIS")
 private fun planName(tier: String) = when (tier) { "ESSENCIAL" -> "Essencial"; "PRO" -> "Pro"; else -> "Grátis" }
 private fun planTagline(tier: String) = when (tier) {
     "ESSENCIAL" -> "Para estudar todo dia, matéria por matéria"
@@ -511,7 +512,7 @@ fun PlanLimitsScreen() {
         info = runCatching { parsePlan(response.body) }.getOrNull() ?: run { error = "Resposta inesperada do servidor."; null }
     }
     BackToProfile()
-    PageHead("Planos e uso", "Quanto da IA você já usou neste período")
+    PageHead("Planos e uso", "Seu plano, o que ainda tem no mês e a comparação")
     val current = info
     if (current == null) {
         if (error != null) Card {
@@ -531,7 +532,7 @@ fun PlanLimitsScreen() {
     Card {
         CardHead("Uso deste período")
         Div({ classes("stack") }) {
-            current.usage.filter { it.feature in visibleFeatures }.sortedBy { visibleFeatures.indexOf(it.feature) }.forEach { u ->
+            current.usage.filter { it.feature in visibleFeatures && it.limit > 0 }.sortedBy { visibleFeatures.indexOf(it.feature) }.forEach { u ->
                 key(u.feature) {
                     Div({ classes("row") }) {
                         Span({ classes("mini-medal") }) { Icon(featureIcon(u.feature)) }
@@ -548,36 +549,61 @@ fun PlanLimitsScreen() {
             }
         }
     }
-    Div({ classes("grid", "cols-3", "plan-grid") }) {
-        current.plans.sortedBy { listOf("ESSENCIAL", "PRO", "FREE").indexOf(it.first) }.forEach { (tier, limits) ->
+    // A escolha do plano, como no app: os três lado a lado nas cores de cada um; clicar escolhe, o
+    // escolhido sobe com a borda viva girando e a comparação mostra o que ele inclui.
+    val tiers = current.plans.sortedBy { listOf("FREE", "ESSENCIAL", "PRO").indexOf(it.first).let { i -> if (i < 0) 9 else i } }
+    var chosen by remember { mutableStateOf(if (current.tier == "FREE") (current.pricing.entries.firstOrNull { it.value.featured }?.key ?: "ESSENCIAL") else current.tier) }
+    var yearly by remember { mutableStateOf(false) }
+    val chosenPaid = (current.pricing[chosen]?.monthCents ?: 0) > 0
+    if (chosenPaid) Div({ classes("segmented", "period-toggle") }) {
+        Button({ classes(*listOfNotNull(if (!yearly) "on" else null).toTypedArray()); onClick { yearly = false } }) { Text("Mensal") }
+        Button({ classes(*listOfNotNull(if (yearly) "on" else null).toTypedArray()); onClick { yearly = true } }) { Text("Anual · 2 meses grátis") }
+    }
+    Div({ classes("tier-row") }) {
+        tiers.forEach { (tier, _) ->
             key(tier) {
                 val price = current.pricing[tier]
                 val paid = (price?.monthCents ?: 0) > 0
-                Card(extra = if (price?.featured == true) "selected plan-featured" else if (tier == current.tier) "selected" else null) {
-                    if (price?.featured == true) Span({ classes("plan-badge") }) { Text("MAIS ESCOLHIDO") }
-                    Div({ classes("row", "between") }) {
-                        H2 { Text(price?.name?.ifBlank { null } ?: planName(tier)) }
-                        if (tier == current.tier) Chip("Seu plano", tone = "green")
-                    }
-                    P({ classes("small", "muted") }) { Text(price?.tagline?.ifBlank { null } ?: planTagline(tier)) }
-                    Div({ classes("plan-price") }) {
-                        B { Text(if (paid) brl(price!!.monthCents) else "R$ 0") }
-                        Span({ classes("small", "muted") }) { Text(if (paid) " por mês · ou " + brl(price!!.yearCents) + " por ano (2 meses grátis)" else " para sempre") }
-                    }
-                    Div({ classes("stack", "tight"); attr("style", "margin-top:10px") }) {
-                        limits.filter { it.feature in visibleFeatures }.sortedBy { visibleFeatures.indexOf(it.feature) }.forEach { l ->
-                            Div({ classes("row") }) { Icon("check", extraClass = "ok"); Span({ classes("small") }) { B { Text(featureLabel(l.feature)) }; Text(" · ${limitCopy(l)}") } }
-                        }
-                    }
-                    if (paid && tier != current.tier) Div({ classes("stack", "tight"); attr("style", "margin-top:14px") }) {
-                        A(href = PLAY_URL, { attr("target", "_blank"); attr("rel", "noopener"); classes("btn", "primary", "block") }) { Icon("smartphone"); Text("Assinar no app") }
-                        Span({ classes("xs", "muted"); attr("style", "text-align:center") }) { Text("Pela Google Play, na mesma conta. Vale aqui na hora.") }
+                Button({
+                    classes(*listOfNotNull("tier-card", "tier-" + tier.lowercase(), if (tier == chosen) "on" else null).toTypedArray())
+                    onClick { chosen = tier }
+                }) {
+                    Div({ classes("tier-in") }) {
+                        Icon(when (tier) { "PRO" -> "diamond"; "ESSENCIAL" -> "star"; else -> "menu_book" }, extraClass = "tier-glyph")
+                        B({ classes("tier-name") }) { Text(price?.name?.ifBlank { null } ?: planName(tier)) }
+                        Span({ classes("tier-tag") }) { Text(price?.tagline?.ifBlank { null } ?: planTagline(tier)) }
+                        B({ classes("tier-price") }) { Text(if (!paid) "R$ 0" else brl(if (yearly) price!!.yearCents else price!!.monthCents)) }
+                        Span({ classes("tier-unit") }) { Text(if (!paid) "para sempre" else if (yearly) "por ano · " + brl(price!!.yearCents / 12) + " por mês" else "por mês") }
+                        if (tier == current.tier) Span({ classes("tier-badge", "mine") }) { Text("Seu plano agora") }
+                        else if (price?.featured == true) Span({ classes("tier-badge") }) { Text("Mais escolhido") }
                     }
                 }
             }
         }
     }
-    P({ classes("xs", "faint"); attr("style", "text-align:center") }) { Text("A assinatura é feita no app, pela Google Play, e vale aqui na mesma conta. Cancela quando quiser, sem multa. O plano de estudo é montado sem IA e não tem limite em nenhum plano.") }
+    val chosenLimits = tiers.firstOrNull { it.first == chosen }?.second.orEmpty()
+    Card(extra = "tier-compare") {
+        CardHead("O que o " + (current.pricing[chosen]?.name?.ifBlank { null } ?: planName(chosen)) + " inclui")
+        Div({ classes("stack") }) {
+            chosenLimits.filter { it.feature in visibleFeatures && it.quota > 0 }.sortedBy { visibleFeatures.indexOf(it.feature) }.forEach { l ->
+                key(l.feature) {
+                    val max = tiers.mapNotNull { (_, limits) -> limits.firstOrNull { it.feature == l.feature }?.quota }.maxOrNull()?.coerceAtLeast(1) ?: 1
+                    Div({ classes("stack", "tight") }) {
+                        Div({ classes("row", "between") }) {
+                            B({ classes("small") }) { Text(featureLabel(l.feature)) }
+                            Span({ classes("small", "strong") }) { Text(limitCopy(l)) }
+                        }
+                        Div({ classes("tier-bar", "tier-" + chosen.lowercase()) }) { Span({ attr("style", "width:${(l.quota.coerceAtMost(max) * 100 / max).coerceAtLeast(4)}%") }) }
+                    }
+                }
+            }
+            P({ classes("xs", "muted") }) { Text("Plano de estudo, revisões, treino e caderno em todos os planos. Teoria, flashcards, dicas e questões comentadas em todo material.") }
+        }
+        if (chosenPaid && chosen != current.tier) Div({ classes("stack", "tight"); attr("style", "margin-top:14px") }) {
+            A(href = PLAY_URL, { attr("target", "_blank"); attr("rel", "noopener"); classes("btn", "primary", "block", "shine") }) { Icon("smartphone"); Text("Assinar o " + (current.pricing[chosen]?.name?.ifBlank { null } ?: planName(chosen)) + " no app") }
+            Span({ classes("xs", "muted"); attr("style", "text-align:center") }) { Text("Pela Google Play, na mesma conta. Vale aqui na hora. Cancela quando quiser.") }
+        }
+    }
 }
 
 @Composable

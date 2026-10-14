@@ -62,8 +62,8 @@ fun HomeScreen() {
         Div({ classes("hh-top") }) {
             Div({ classes("grow") }) {
                 P({ classes("hh-greet") }) { Text("$greeting, $firstName") }
-                H2({ classes("hh-title", "clamp-3") }) { Text(competition?.name ?: "Seu concurso") }
-                plan?.objective?.takeIf { it.isNotBlank() && it != competition?.name }?.let { P({ classes("hh-sub", "clamp-2") }) { Text(it) } }
+                H2({ classes("hh-title") }) { Text(competition?.name ?: "Seu concurso") }
+                plan?.objective?.takeIf { it.isNotBlank() && it != competition?.name }?.let { P({ classes("hh-sub") }) { Text(it) } }
             }
             if (daysToExam != null) Div({ classes("hh-count") }) {
                 B { Text("$daysToExam") }

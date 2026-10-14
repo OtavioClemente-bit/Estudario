@@ -267,7 +267,7 @@ private fun PlanProgressHeader(plan: br.com.estudario.web.data.StudyPlan, tasks:
         Div({ classes("hh-top") }) {
             Div({ classes("grow") }) {
                 Span({ classes("eyebrow") }) { Text("SEU PLANO") }
-                H2({ classes("hh-title", "clamp-2") }) { Text(plan.objective.takeIf { it.isNotBlank() } ?: plan.name) }
+                H2({ classes("hh-title") }) { Text(plan.objective.takeIf { it.isNotBlank() } ?: plan.name) }
             }
             if (daysToExam != null) Div({ classes("hh-count") }) {
                 B { Text("$daysToExam") }
@@ -279,7 +279,27 @@ private fun PlanProgressHeader(plan: br.com.estudario.web.data.StudyPlan, tasks:
             Div({ classes("hh-bar") }) { Span({ attr("style", "width:${pct.coerceAtLeast(2)}%") }) }
             P({ classes("small") }) { Text(forecast?.let { "No ritmo atual você fecha o edital em ${Queries.dayLabel(LocalDate.fromEpochDays(it))}." } ?: "Todo o conteúdo previsto já foi coberto. Agora é revisão e questões.") }
         }
-        Div({ classes("hh-mission") }) {
+        // A semana em bolinhas: cheia quando o dia foi feito, contornada quando tem estudo, apagada na folga.
+        val monday = todayEpoch - (LocalDate.fromEpochDays(todayEpoch.toInt()).dayOfWeek.ordinal)
+        Div({ classes("week-dots") }) {
+            listOf("S", "T", "Q", "Q", "S", "S", "D").forEachIndexed { i, label ->
+                val day = monday + i
+                val dayTasks = load.filter { it.day == day }
+                val complete = dayTasks.isNotEmpty() && dayTasks.all { it.status == "CONCLUIDA" }
+                val state = when {
+                    complete -> "done"
+                    day == todayEpoch -> "today"
+                    day < todayEpoch && dayTasks.isNotEmpty() -> "missed"
+                    dayTasks.isNotEmpty() -> "planned"
+                    else -> "rest"
+                }
+                Div({ classes("wd", state) }) {
+                    Span({ classes("wd-l") }) { Text(label) }
+                    Span({ classes("wd-c") }) { Text(if (complete) "✓" else "${LocalDate.fromEpochDays(day.toInt()).day}") }
+                }
+            }
+        }
+        Div({ classes("hh-mission", "note") }) {
             Div({ classes("grow") }) {
                 B { Text("Missão de hoje") }
                 P({ classes("small") }) {
