@@ -375,8 +375,22 @@ object Actions {
     fun deleteCompetition(data: Snapshot, competitionId: Long): Snapshot {
         var next = data
         data.subjects.filter { it.competitionId == competitionId }.forEach { next = deleteSubject(next, it.id) }
-        val planIds = next.plans.filter { it.competitionId == competitionId }.mapTo(hashSetOf()) { it.id }
         fun dropWhere(key: String, pick: (JsonObject) -> Boolean) { next = next.edit(key) { if (pick(it)) null else it } }
+        // Plano que junta matérias de mais de um concurso não some junto com o concurso que o criou:
+        // fica com as matérias que sobraram, passa a pertencer ao concurso delas e se reorganiza.
+        // Só sai o plano que ficou sem nenhuma matéria.
+        val survivors = mutableListOf<String>()
+        val planIds = next.plans.filter { it.competitionId == competitionId }.mapNotNullTo(hashSetOf()) { plan ->
+            val keptSubject = next.planSubjects.firstOrNull { it.planId == plan.id }?.subjectId
+            val newOwner = keptSubject?.let { id -> next.subjects.firstOrNull { it.id == id }?.competitionId }
+            if (newOwner == null) plan.id
+            else {
+                next = next.edit(Keys.PLANS) { if (it.textOf("id") == plan.id) JsonObject(it + ("competitionId" to JsonPrimitive(newOwner))) else it }
+                next = next.edit(Keys.TASKS) { if (it.textOf("planId") == plan.id) JsonObject(it + ("competitionId" to JsonPrimitive(newOwner))) else it }
+                survivors += plan.id
+                null
+            }
+        }
         listOf(Keys.TASKS, Keys.EXECUTIONS, Keys.AVAILABILITY, Keys.PLAN_SUBJECTS, Keys.PLAN_REVISIONS).forEach { key -> dropWhere(key) { it.textOf("planId") in planIds } }
         dropWhere(Keys.PLANS) { it.textOf("id") in planIds }
         dropWhere(Keys.SIMULATIONS) { it.longOf("competitionId") == competitionId }
@@ -386,6 +400,7 @@ object Actions {
             val first = remaining.first().id
             next = next.edit(Keys.COMPETITIONS) { if (it.longOf("id") == first) JsonObject(it + ("primary" to JsonPrimitive(true))) else it }
         }
+        survivors.forEach { planId -> next = runCatching { Planning.replan(next, planId, br.com.estudario.domain.planner.ReplanReason.SUBJECT_CHANGED) }.getOrDefault(next) }
         return next
     }
 

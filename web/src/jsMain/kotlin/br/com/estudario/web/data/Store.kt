@@ -37,6 +37,9 @@ object Store {
         private set
     var conflict by mutableStateOf<CloudHead?>(null)
         private set
+    /** Por que o último envio falhou (aparece no aviso de "sem conexão" e em Ajustes). */
+    var lastError by mutableStateOf<String?>(null)
+        private set
     var session by mutableStateOf(Auth.session)
         private set
 
@@ -63,6 +66,9 @@ object Store {
             }
         })
         window.addEventListener("online", { if (save == SaveState.Offline) scheduleSave(0) })
+        // Sem conexão não é estado final: tenta de novo sozinho a cada 30 s (antes ficava travado
+        // até recarregar a página, e o que foi feito aqui não chegava ao celular).
+        window.setInterval({ if (!demo && save == SaveState.Offline && pending.isNotEmpty()) scheduleSave(0) }, 30_000)
         // O que foi feito no celular aparece aqui sem recarregar: ao voltar para a aba e a cada
         // meio minuto com ela visível, confere se a conta tem revisão nova e troca a foto.
         window.addEventListener("focus", { scope.launch { refreshIfRemoteChanged() } })
@@ -196,11 +202,12 @@ object Store {
             // Só saem da fila as edições que foram nesta foto; as feitas durante o envio vão na próxima.
             repeat(sent.coerceAtMost(pending.size)) { pending.removeAt(0) }
             save = if (pending.isEmpty()) SaveState.Saved else SaveState.Pending
+            lastError = null
             if (pending.isNotEmpty()) scheduleSave(800)
         } catch (error: CloudConflictException) {
             // Outro aparelho publicou depois da nossa base: baixa a versão da conta e refaz só as
             // edições feitas aqui por cima dela. Nunca sobrescreve o que veio do celular.
-            if (attempt >= 3) { save = SaveState.Offline; return }
+            if (attempt >= 3) { lastError = "A conta mudou várias vezes seguidas durante o envio."; save = SaveState.Offline; return }
             try {
                 var merged = Snapshot.parse(Cloud.download(error.head))
                 pending.toList().forEach { change -> merged = runCatching { change(merged) }.getOrDefault(merged) }
@@ -209,15 +216,25 @@ object Store {
                 pushNow(attempt = attempt + 1)
             } catch (_: SignedOutException) {
                 load = LoadState.SignedOut
-            } catch (_: Throwable) {
+            } catch (other: Throwable) {
+                lastError = describe(other)
                 save = SaveState.Offline
             }
         } catch (_: SignedOutException) {
             load = LoadState.SignedOut
-        } catch (_: Throwable) {
+        } catch (error: Throwable) {
+            lastError = describe(error)
             save = SaveState.Offline
         }
     }
+
+    private fun describe(error: Throwable): String = when (error) {
+        is HttpException -> if (error.status == 0) "Sem internet." else "O servidor recusou (${error.status}): ${error.body.take(160)}"
+        else -> error.message ?: error.toString()
+    }
+
+    /** Tenta enviar de novo agora (o aviso de "sem conexão" chama isto). */
+    fun retryNow() { if (!demo && save == SaveState.Offline) scheduleSave(0) }
 
     /** Conflito: manter o que foi feito aqui (substitui a versão da conta). */
     fun keepMine() {

@@ -348,7 +348,11 @@ fun SettingsScreen() {
             CardHead("Sincronização")
             P({ classes("small", "muted") }) { Text("O que você faz aqui vai para a sua conta em segundos e aparece no celular logo depois. Se os dois mudarem ao mesmo tempo, o Estudário junta as duas mudanças sem perder nada.") }
             Div({ classes("row", "wrap"); attr("style", "margin-top:12px") }) {
-                Btn("Recarregar da conta", { Store.start() }, style = "outline", icon = "refresh", small = true)
+                Btn("Recarregar da conta", {
+                    // Recarregar troca tudo pela versão da conta: o que ainda não foi enviado se perde.
+                    val unsent = Store.save != br.com.estudario.web.data.SaveState.Saved
+                    if (!unsent || kotlinx.browser.window.confirm("Há mudanças feitas aqui que ainda não chegaram à conta. Recarregar descarta essas mudanças. Continuar?")) Store.start()
+                }, style = "outline", icon = "refresh", small = true)
                 A(href = "https://estudario.com.br/privacidade.html", { attr("target", "_blank"); classes("btn", "ghost", "small") }) { Text("Privacidade") }
             }
         }

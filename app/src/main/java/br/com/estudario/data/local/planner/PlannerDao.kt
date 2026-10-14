@@ -42,6 +42,12 @@ interface PlannerDao {
     @Query("SELECT * FROM study_day_overrides ORDER BY planId, epochDay") suspend fun dayOverridesOnce(): List<StudyDayOverrideEntity>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertPlanSubjects(values: List<PlanSubjectEntity>)
     @Query("SELECT * FROM plan_subjects WHERE planId = :planId ORDER BY position") suspend fun subjectsFor(planId: String): List<PlanSubjectEntity>
+    // Plano com matérias de outro concurso troca de dono antes de o concurso que o criou ser apagado
+    // (as tabelas apagam em cascata pelo concurso).
+    @Query("UPDATE study_plans SET competitionId = :to WHERE id = :planId") suspend fun movePlan(planId: String, to: Long)
+    @Query("UPDATE plan_tasks SET competitionId = :to WHERE planId = :planId") suspend fun movePlanTasks(planId: String, to: Long)
+    @Query("UPDATE study_task_executions SET competitionId = :to WHERE planId = :planId") suspend fun movePlanExecutions(planId: String, to: Long)
+    @Query("DELETE FROM plan_tasks WHERE planId = :planId AND subjectId IN (:subjectIds) AND status IN ('PLANEJADA', 'EM_ANDAMENTO', 'REPROGRAMADA')") suspend fun deletePendingTasksForSubjects(planId: String, subjectIds: Set<Long>)
     @Query("SELECT * FROM plan_subjects ORDER BY planId, position") suspend fun subjectsOnce(): List<PlanSubjectEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertAnnualPhases(values: List<AnnualPhaseEntity>)

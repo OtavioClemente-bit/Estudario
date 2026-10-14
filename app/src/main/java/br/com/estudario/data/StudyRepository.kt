@@ -75,6 +75,19 @@ class StudyRepository(private val db: AppDatabase) {
         val subjectIds = dao.subjectsFor(value.id).map { it.id }.toSet()
         val topicIds = dao.topicsOnce().filter { it.subjectId in subjectIds }.map { it.id }
         cleanupTopicReferences(topicIds)
+        // Plano que junta matérias de mais de um concurso não some com o concurso que o criou: passa
+        // a pertencer ao concurso das matérias que sobraram. Só sai o plano que ficaria vazio.
+        val planner = db.plannerDao()
+        val subjectCompetition = dao.subjectsOnce().associate { it.id to it.competitionId }
+        planner.plansOnce().filter { it.competitionId == value.id }.forEach { plan ->
+            val newOwner = planner.subjectsFor(plan.id).map { it.subjectId }.firstNotNullOfOrNull { id ->
+                subjectCompetition[id]?.takeIf { it != value.id }
+            } ?: return@forEach
+            planner.deletePendingTasksForSubjects(plan.id, subjectIds)
+            planner.movePlan(plan.id, newOwner)
+            planner.movePlanTasks(plan.id, newOwner)
+            planner.movePlanExecutions(plan.id, newOwner)
+        }
         dao.deleteCompetition(value)
         val remaining = dao.competitionsOnce()
         if (remaining.isNotEmpty() && remaining.none { it.isPrimary }) {

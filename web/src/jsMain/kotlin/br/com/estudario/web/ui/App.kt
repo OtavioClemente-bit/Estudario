@@ -267,7 +267,13 @@ private fun SaveIndicator() {
         Store.save == SaveState.Offline -> "offline" to "Sem conexão"
         else -> "pending" to "Salvando…"
     }
-    Span({ classes(*listOfNotNull("save-state", css.ifEmpty { null }).toTypedArray()); attr("aria-live", "polite"); attr("title", text) }) {
+    val offline = Store.save == SaveState.Offline && !Store.demo
+    Span({
+        classes(*listOfNotNull("save-state", css.ifEmpty { null }).toTypedArray()); attr("aria-live", "polite")
+        // Sem conexão: o motivo aparece ao passar o mouse, e um clique tenta enviar de novo agora.
+        attr("title", if (offline) "${Store.lastError ?: "Não deu para enviar."} Clique para tentar de novo." else text)
+        if (offline) { attr("role", "button"); attr("tabindex", "0"); attr("style", "cursor:pointer"); onClick { Store.retryNow() } }
+    }) {
         Span({ classes("led") })
         Span({ classes("txt") }) { Text(text) }
     }

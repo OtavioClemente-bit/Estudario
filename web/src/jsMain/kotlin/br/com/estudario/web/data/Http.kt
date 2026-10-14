@@ -17,11 +17,13 @@ suspend fun httpRequest(
     url: String,
     headers: Map<String, String> = emptyMap(),
     body: String? = null,
+    /** Corpo em bytes, enviado exatamente como está (o tamanho e a assinatura batem com ele). */
+    bytes: ByteArray? = null,
 ): HttpResponse {
     val init = RequestInit(
         method = method,
         headers = json(*headers.map { it.key to it.value }.toTypedArray()),
-        body = body ?: undefined,
+        body = bytes?.unsafeCast<org.khronos.webgl.Int8Array>() ?: body ?: undefined,
     )
     return try {
         val response = window.fetch(url, init).await()

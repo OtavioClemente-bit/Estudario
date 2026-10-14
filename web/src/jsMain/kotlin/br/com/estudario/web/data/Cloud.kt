@@ -79,13 +79,17 @@ object Cloud {
     /** Publica [text] como a nova versão; devolve a nova revisão. */
     suspend fun upload(text: String, expectedRevision: Long): Long {
         val userId = Auth.session?.userId ?: throw SignedOutException()
-        val sha = sha256(text)
+        // Os mesmos bytes são enviados, medidos e assinados. Antes o texto ia como texto e o tamanho
+        // era calculado à parte; um caractere partido (emoji cortado ao meio) deixava os dois
+        // diferentes e o servidor recusava todo envio ("size_mismatch"), para sempre.
+        val bytes = text.encodeToByteArray()
+        val sha = Sha256.digest(bytes).toHex()
         val path = "$userId/${Date.now().toLong()}-${sha.take(12)}.json"
         val put = httpRequest(
             "POST",
             "${WebConfig.SUPABASE_URL}/storage/v1/object/$BUCKET/$path",
             headers(mapOf("Content-Type" to "application/json", "x-upsert" to "false")),
-            text,
+            bytes = bytes,
         )
         if (put.status == 401) throw SignedOutException()
         if (!put.ok) throw HttpException(put.status, put.body)
@@ -93,14 +97,21 @@ object Cloud {
             put("p_expected_revision", expectedRevision)
             put("p_object_path", path)
             put("p_sha256", sha)
-            put("p_size_bytes", text.encodeToByteArray().size.toLong())
+            put("p_size_bytes", bytes.size.toLong())
             put("p_device_id", deviceId)
             put("p_device_label", deviceLabel)
         }.toString()
         val commit = httpRequest("POST", "${WebConfig.SUPABASE_URL}/rest/v1/rpc/sync_commit", headers(mapOf("Content-Type" to "application/json")), body)
         if (commit.body.contains("sync_conflict")) throw CloudConflictException(head())
         if (commit.status == 401) throw SignedOutException()
-        if (!commit.ok) throw HttpException(commit.status, commit.body)
+        if (!commit.ok) {
+            // Recusa sem a palavra "sync_conflict" (formato do erro mudou, proxy etc.): se a conta
+            // está em outra revisão, é conflito de verdade e o site junta as mudanças em vez de
+            // ficar "sem conexão" repetindo o mesmo envio velho.
+            val current = runCatching { head() }.getOrNull()
+            if (current != null && current.revision != expectedRevision) throw CloudConflictException(current)
+            throw HttpException(commit.status, commit.body)
+        }
         val revision = (snapshotJson.parseToJsonElement(commit.body).jsonObject["revision"] as JsonPrimitive).longOrNull ?: (expectedRevision + 1)
         runCatching { prune(path) }
         return revision
@@ -113,6 +124,7 @@ object Cloud {
      */
     suspend fun prune(currentPath: String, keep: Int = 4) {
         val userId = Auth.session?.userId ?: return
+        val headPath = runCatching { head().objectPath }.getOrNull() ?: return
         val listBody = buildJsonObject {
             put("prefix", userId)
             put("limit", 200)
@@ -123,7 +135,8 @@ object Cloud {
         val names = (runCatching { snapshotJson.parseToJsonElement(listed.body) as? JsonArray }.getOrNull() ?: return)
             .mapNotNull { (it as? JsonObject)?.str("name") }
             .map { "$userId/$it" }
-            .filter { it != currentPath }
+            // Nunca apaga a foto vigente da conta, mesmo se envios recusados forem mais novos que ela.
+            .filter { it != currentPath && it != headPath }
             .sortedDescending() // o nome começa pelo horário do envio
         names.drop(keep).forEach { path ->
             httpRequest("DELETE", "${WebConfig.SUPABASE_URL}/storage/v1/object/$BUCKET/$path", headers())
