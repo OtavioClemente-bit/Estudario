@@ -25,7 +25,7 @@ import { type ExpectedVersions, validateStudyPlan, validateTopicContent } from "
 import { applyReview, type ContentReview, runContentReview } from "./content-review.ts";
 import { resolveOpenAiModel } from "./openai-provider.ts";
 import { CACHE_MAX_AGE_DAYS, contentCacheKey } from "./content-cache.ts";
-import { assembleFromLibrary, composeMaterials, GENERAL_BOARD_NORM, lookupAliases, normalizeAlias, normalizeBoard } from "./library.ts";
+import { assembleFromLibrary, composeMaterials, GENERAL_BOARD_NORM, inferFocus, lookupAliases, normalizeAlias, normalizeBoard } from "./library.ts";
 import { routeTopic } from "./topic-router.ts";
 import type { LibraryHit } from "../ai-syllabus-worker/index.ts";
 import { ensureBoardNote } from "./board-notes.ts";
@@ -164,7 +164,9 @@ async function libraryContent(
   }
   const fresh = input.avoidStatements.length === 0;
   const servedKey = `lib:${found.topicId}@${found.version}:${await contentCacheKey(input)}`;
-  const content = assembleFromLibrary(found.material, found.note, input, `${job.id}:${job.userId}`, found.focus ?? null, true);
+  // Sem recorte cadastrado, o nome do tópico escolhe os capítulos (pedir "HTML5" traz só HTML5).
+  const focus = found.focus ?? inferFocus(found.material, input.topicPath[input.topicPath.length - 1]);
+  const content = assembleFromLibrary(found.material, found.note, input, `${job.id}:${job.userId}`, focus, true);
   if (!content) return null;
   // A biblioteca não tinha todas (ex.: 13 de 30): a IA escreve só as que faltam, em cima da teoria
   // pronta, em vez de refazer o material inteiro. Em partes de até QUESTION_CHUNK, ao mesmo tempo

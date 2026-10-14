@@ -212,3 +212,19 @@ Deno.test("questão do banco vira A–D tirando uma errada e leva comentários e
   const five = deliverQuestion(bank, "FIVE_OPTIONS", "semente");
   assertEquals((five.options as Json[]).length, 5);
 });
+
+Deno.test("tópico estreito sem recorte traz só os capítulos que ele cita", async () => {
+  const { inferFocus } = await import("./library.ts");
+  const web = { chapters: [
+    { title: "1. HTML5, formulários, semântica, usabilidade e acessibilidade" },
+    { title: "2. CSS3: seletores, cascata, modelo de caixa e layout responsivo" },
+    { title: "3. HTTP, HTTPS, cache e infraestrutura web moderna" },
+    { title: "4. APIs REST, JSON, XML, SOAP e GraphQL" },
+    { title: "5. DOM, AJAX, CORS, WebSocket, SPA e PWA: integração prática" },
+  ] };
+  assertEquals(inferFocus(web, "Front-end: HTML5.")?.capitulos, [0]);
+  assertEquals(inferFocus(web, "CSS3")?.capitulos, [1]);
+  // O nome do material inteiro cita metade ou mais dos capítulos: sem recorte.
+  assertEquals(inferFocus(web, "HTML, CSS, HTTP e APIs REST"), null);
+  assertEquals(inferFocus(web, "Desenvolvimento web"), null);
+});

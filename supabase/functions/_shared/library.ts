@@ -21,6 +21,57 @@ export interface LibraryFocus {
 export const LIBRARY_MODEL_VERSION = "biblioteca";
 
 /** Minúsculas, sem acento, sem numeração de edital ("1.2 Função afim." → "funcao afim"). */
+/**
+ * Divide um capítulo pelas seções dele ("## " ou "### "), de 2 a 6 partes: o recorte de um capítulo
+ * só continua com o formato de matéria. Nulo quando o capítulo não tem seções para dividir.
+ */
+export function splitChapter(chapter: Json): Json[] | null {
+  const lines = String(chapter.markdown ?? "").split("\n");
+  const level = ["## ", "### "].find((mark) => lines.filter((line) => line.startsWith(mark)).length >= 2);
+  if (!level) return null;
+  const parts: { title: string; body: string[] }[] = [];
+  const intro: string[] = [];
+  for (const line of lines) {
+    if (line.startsWith(level)) parts.push({ title: line.slice(level.length).replace(/[*_]/g, "").trim(), body: [] });
+    else (parts.length ? parts[parts.length - 1].body : intro).push(line);
+  }
+  if (intro.join("").trim()) parts[0].body.unshift(...intro);
+  // Mais de 6 seções: as últimas entram na sexta.
+  while (parts.length > 6) {
+    const last = parts.pop()!;
+    parts[parts.length - 1].body.push("", level + last.title, ...last.body);
+  }
+  const out = parts
+    .map((part) => ({ title: part.title, markdown: part.body.join("\n").trim() }))
+    .filter((part) => part.title && part.markdown);
+  return out.length >= 2 ? out : null;
+}
+
+/** Palavras que não dizem de que parte do material o tópico fala. */
+const FOCUS_STOPWORDS = new Set([
+  "de", "da", "do", "das", "dos", "e", "em", "a", "o", "as", "os", "para", "com", "sem", "por", "na", "no", "nas", "nos", "um", "uma",
+  "front", "end", "back", "web", "desenvolvimento", "nocoes", "conceitos", "basicos", "fundamentos", "introducao", "linguagem", "linguagens",
+]);
+
+/**
+ * Sem recorte cadastrado: acha os capítulos do material que o nome do tópico cita (ex.: "Front-end:
+ * HTML5." -> o capítulo de HTML5). Só recorta quando o tópico cobre no máximo metade dos capítulos;
+ * se o nome é o do material inteiro, segue sem recorte.
+ */
+export function inferFocus(material: Json, topicTitle: string | null | undefined): LibraryFocus | null {
+  const words = normalizeAlias(topicTitle).split(" ").filter((w) => w.length >= 3 && !FOCUS_STOPWORDS.has(w));
+  const chapters = (material.chapters as Json[] | undefined) ?? [];
+  if (words.length === 0 || chapters.length < 2) return null;
+  // "html" acha "html5" e "css" acha "css3": a palavra do tópico abre uma palavra do título.
+  const picked = chapters.flatMap((chapter, i) => {
+    const titleWords = normalizeAlias(String(chapter.title ?? "")).split(" ");
+    return words.some((w) => titleWords.some((t) => t.startsWith(w))) ? [i] : [];
+  });
+  if (picked.length === 0) return null;
+  if (picked.length > Math.floor(chapters.length / 2)) return null;
+  return { capitulos: picked, questoes: [] };
+}
+
 export function normalizeAlias(value: string | null | undefined): string {
   return (value ?? "")
     .normalize("NFD").replace(/[̀-ͯ]/g, "")
@@ -590,7 +641,9 @@ export function assembleFromLibrary(
     const direct = topicPool.filter((q) => focusQuestions.has(q));
     const sameChapter = topicPool.filter((q) => !focusQuestions.has(q) && titles.has(String(q.section).trim()));
     const rest = topicPool.filter((q) => !focusQuestions.has(q) && !titles.has(String(q.section).trim()));
-    ordered = [...byLevel([], direct), ...byLevel(boardPool, sameChapter), ...byLevel([], rest)];
+    // Recorte por capítulo: só as questões dele (as que faltarem a IA completa sobre a mesma teoria);
+    // as de outros capítulos falariam de assunto que a teoria recortada nem traz.
+    ordered = [...byLevel([], direct), ...byLevel(boardPool, sameChapter), ...(focusChapters.length > 0 ? [] : byLevel([], rest))];
   }
   const questions = ordered
     .slice(0, options.questionCount)
@@ -604,8 +657,16 @@ export function assembleFromLibrary(
   if (wanted !== null) for (const question of questions) question.difficulty = wanted;
 
   // A teoria fica sempre na ordem original: capítulos numerados fora de ordem ("3., 4., 1., 2.")
-  // pareciam matéria embaralhada. O foco vale para as questões.
-  const chapters = wants("THEORY") ? structuredClone(allChapters) : [];
+  // pareciam matéria embaralhada. Com recorte, só os capítulos do recorte: pedir "HTML5" não pode
+  // trazer CSS, HTTP e APIs junto.
+  const focused = focusChapters.length > 0 ? allChapters.filter((_, i) => focusChapters.includes(i)) : allChapters;
+  // Um capítulo só não fecha uma matéria (o app pede de 2 a 6): ele vira capítulos pelas seções dele.
+  const chapters = !wants("THEORY") ? [] : structuredClone(focused.length === 1 ? splitChapter(focused[0]) ?? allChapters : focused);
+  // A seção de cada questão tem que ser um capítulo da teoria entregue (o recorte pode ter mudado os títulos).
+  if (chapters.length > 0) {
+    const titles = new Set(chapters.map((chapter) => String(chapter.title).trim()));
+    for (const question of questions) if (!titles.has(String(question.section ?? "").trim())) question.section = String(chapters[0].title).trim();
+  }
   const board = typeof note?.board === "string" ? note.board : input.board;
   const who = normalizeBoard(board) === GENERAL_BOARD_NORM ? "prova" : board;
   const howItFalls = typeof note?.howItFalls === "string" ? note.howItFalls : null;
@@ -640,7 +701,9 @@ export function assembleFromLibrary(
     return validateTopicContent(
       JSON.stringify(content),
       { schemaVersion: AI_TOPIC_CONTENT_SCHEMA_VERSION, promptVersion: CONTENT_PROMPT_VERSION, modelVersion: LIBRARY_MODEL_VERSION },
-      options,
+      // Confere pelo que a biblioteca entrega: com menos que o pedido (parcial ou "mais questões"),
+      // quem chama completa o resto. Conferir pelo pedido recusava o material e mandava tudo para a IA.
+      { ...options, questionCount: questions.length },
     );
   } catch {
     return null;
