@@ -55,7 +55,10 @@ private data class SubjectAxes(
 
 private val stepNames = listOf("Edital", "Conferir", "Prova", "Rotina", "Matérias", "Momento")
 
-private fun priorityLabel(p: PlanPriority) = when (p) { PlanPriority.CRITICAL -> "Essencial"; PlanPriority.HIGH -> "Alta"; PlanPriority.MEDIUM -> "Média"; PlanPriority.LOW -> "Baixa" }
+private fun priorityLabel(p: PlanPriority) = when (p) { PlanPriority.CRITICAL -> "Muito alta"; PlanPriority.HIGH -> "Alta"; PlanPriority.MEDIUM -> "Média"; PlanPriority.LOW -> "Baixa" }
+
+/** Do menor para o maior, na ordem das barrinhas do medidor. */
+private val priorityLevels = listOf(PlanPriority.LOW, PlanPriority.MEDIUM, PlanPriority.HIGH, PlanPriority.CRITICAL)
 
 private fun flatten(nodes: List<EditalAi.TopicNode>, depth: Int = 0): List<String> =
     nodes.flatMap { listOf("  ".repeat(depth) + it.name) + flatten(it.children, depth + 1) }
@@ -77,6 +80,7 @@ fun SetupScreen() {
     var pdfOpen by remember { mutableStateOf(false) }
     var examDate by remember { mutableStateOf("") }
     var minutes by remember { mutableStateOf(listOf(120, 120, 120, 120, 120, 180, 0)) }
+    var block by remember { mutableStateOf(50) }
     var axes by remember { mutableStateOf(mapOf<String, SubjectAxes>()) }
     var profile by remember { mutableStateOf(StudyProfile.DO_ZERO) }
     var busy by remember { mutableStateOf(false) }
@@ -118,7 +122,7 @@ fun SetupScreen() {
                 examDate = examDate.takeIf { it.isNotBlank() }?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
                 weeklyMinutes = minutes,
                 subjects = choices,
-                method = StudyMethodConfig.forProfile(profile),
+                method = StudyMethodConfig.forProfile(profile).copy(blockMinutes = block),
             ),
         )
     }
@@ -240,36 +244,35 @@ fun SetupScreen() {
                 P({ classes("small", "muted") }) { Text("Use o menos e o mais. Dia sem tempo vira folga. Dá para mudar quando quiser.") }
             }
             Card {
-                WeeklyHoursEditor(minutes) { minutes = it }
-                P({ classes("small", "muted", "strong"); attr("style", "margin-top:10px;text-align:right") }) { Text("${Queries.minutesLabel(total)} por semana") }
+                H3 { Text("Horas por dia") }
+                RoutineWeek(minutes, { minutes = it })
+            }
+            Card {
+                H3 { Text("Tamanho do bloco") }
+                BlockSizePicker(block, { block = it })
             }
             NextBar("Continuar", enabled = minutes.any { it > 0 }) { step = 4 }
         }
         4 -> {
             FolhaSays("thinking", 88) {
-                H2 { Text("Como você está em cada matéria?") }
-                P({ classes("small", "muted") }) { Text("Com isso eu dou mais tempo ao que é prioridade, ao que é difícil para você e ao que você ainda não conhece.") }
+                H2 { Text("Ajuste só o que for diferente para você") }
+                P({ classes("small", "muted") }) { Text("Tudo começa no meio do caminho. Clique nas barrinhas para mudar: eu dou mais tempo ao que pesa na prova, ao que é difícil para você e ao que você ainda não conhece.") }
             }
-            Card {
-                Div({ classes("axes-head") }) {
-                    Span { Text("Matéria") }; Span { Text("Prioridade") }; Span { Text("Dificuldade para você") }; Span { Text("O quanto já sabe") }
-                }
-                edital.forEach { (name, _) ->
-                    key(name) {
-                        val a = axes[name] ?: SubjectAxes()
-                        Div({ classes("axes-row") }) {
-                            B({ classes("small", "clamp-2") }) { Text(name) }
-                            Div({ classes("segmented", "tiny") }) {
-                                listOf(PlanPriority.HIGH, PlanPriority.MEDIUM, PlanPriority.LOW).forEach { p ->
-                                    Button({ classes(*listOfNotNull(if (a.priority == p) "on" else null).toTypedArray()); onClick { axes = axes + (name to a.copy(priority = p)) } }) { Text(priorityLabel(p)) }
-                                }
-                            }
-                            Select({ classes("input", "small"); attr("aria-label", "Dificuldade em $name"); onChange { v -> v.value?.let { axes = axes + (name to a.copy(difficulty = PersonalDifficulty.valueOf(it))) } } }) {
-                                PersonalDifficulty.entries.forEach { d -> Option(d.name, { if (a.difficulty == d) selected() }) { Text(d.label) } }
-                            }
-                            Select({ classes("input", "small"); attr("aria-label", "Conhecimento em $name"); onChange { v -> v.value?.let { axes = axes + (name to a.copy(knowledge = InitialKnowledge.valueOf(it))) } } }) {
-                                InitialKnowledge.entries.forEach { k -> Option(k.name, { if (a.knowledge == k) selected() }) { Text(k.label) } }
-                            }
+            LevelLegend()
+            edital.forEach { (name, topics) ->
+                key(name) {
+                    val a = axes[name] ?: SubjectAxes()
+                    Card(extra = "lvl-card") {
+                        H3 { Text(name) }
+                        Span({ classes("xs", "muted") }) { Text("${topics.size} tópico(s)") }
+                        LevelMeter("Peso na prova", priorityLevels.map { priorityLabel(it) }, priorityLevels.indexOf(a.priority), AxisColor.PRIORITY) {
+                            axes = axes + (name to (axes[name] ?: SubjectAxes()).copy(priority = priorityLevels[it]))
+                        }
+                        LevelMeter("Esforço para você", PersonalDifficulty.entries.map { it.label }, a.difficulty.ordinal, AxisColor.EFFORT) {
+                            axes = axes + (name to (axes[name] ?: SubjectAxes()).copy(difficulty = PersonalDifficulty.entries[it]))
+                        }
+                        LevelMeter("O quanto você já sabe", InitialKnowledge.entries.map { it.label }, a.knowledge.ordinal, AxisColor.KNOWLEDGE) {
+                            axes = axes + (name to (axes[name] ?: SubjectAxes()).copy(knowledge = InitialKnowledge.entries[it]))
                         }
                     }
                 }

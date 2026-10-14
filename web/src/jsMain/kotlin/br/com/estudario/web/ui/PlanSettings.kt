@@ -30,35 +30,9 @@ private val priorityLabels = listOf(
     PlanPriority.LOW to "Baixa",
 )
 
-/** Horas de cada dia com mais e menos (10 em 10 minutos) e atalhos de duração. */
+/** Horas de cada dia: o mesmo desenho da montagem do plano (WizardControls.kt), igual ao app. */
 @Composable
-fun WeeklyHoursEditor(minutes: List<Int>, onChange: (List<Int>) -> Unit) {
-    val current = androidx.compose.runtime.rememberUpdatedState(minutes)
-    val latest = androidx.compose.runtime.rememberUpdatedState(onChange)
-    fun set(index: Int, value: Int) = latest.value(current.value.toMutableList().also { it[index] = value.coerceIn(0, 720) })
-    Div {
-        Queries.weekdayLong.forEachIndexed { index, day ->
-            androidx.compose.runtime.key(index) {
-                val value = minutes[index]
-                Div({ classes(*listOfNotNull("day-row", if (value == 0) "off" else null).toTypedArray()) }) {
-                    Div({ classes("grow") }) {
-                        Div({ classes("name") }) { Text(day.replaceFirstChar(Char::uppercase)) }
-                        Div({ classes("hint") }) { Text(if (value == 0) "Folga" else "${Queries.minutesLabel(value)} de estudo") }
-                    }
-                    Stepper(value, { set(index, it) }, step = 10, min = 0, max = 720, format = { if (it == 0) "Folga" else Queries.minutesLabel(it) }, label = "Tempo de $day")
-                }
-            }
-        }
-    }
-    Div({ classes("row", "between", "wrap"); attr("style", "margin-top:12px") }) {
-        Span({ classes("strong") }) { Text("Total: ${Queries.minutesLabel(minutes.sum())} por semana") }
-        Div({ classes("quick-picks") }) {
-            listOf(60 to "1 h por dia", 120 to "2 h por dia", 180 to "3 h por dia").forEach { (perDay, label) ->
-                Btn(label, { latest.value(List(7) { if (it < 6) perDay else 0 }) }, style = "outline", small = true)
-            }
-        }
-    }
-}
+fun WeeklyHoursEditor(minutes: List<Int>, onChange: (List<Int>) -> Unit) = RoutineWeek(minutes, onChange)
 
 @Composable
 fun PlanSettingsScreen() {

@@ -949,38 +949,28 @@ private fun AvailabilityStep(snapshot: InitialSetupSnapshot, viewModel: InitialS
     SetupPage(
         eyebrow = "Seu ritmo",
         title = "Quanto tempo cabe na sua semana?",
-        description = "Use − e + para marcar o tempo líquido de cada dia, já sem pausas. Zero é folga. Dá para mudar depois.",
+        description = "Marque o tempo líquido de cada dia, já sem pausas. Zero é folga. Dá para mudar depois.",
         icon = Icons.Outlined.Schedule,
         bottom = {
             if (!hasTime) Text("Marque pelo menos um dia com tempo de estudo.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             SetupPrimaryButton("Continuar", { viewModel.advance(InitialSetupStep.AVAILABILITY, InitialSetupStep.PROFILE) }, enabled = hasTime)
         },
     ) {
-        // Atalhos para o caso comum; depois a pessoa ajusta cada dia arrastando a barra.
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(60, 120, 180, 240).forEach { minutes ->
-                val selected = (0..4).all { snapshot.availabilityMinutes.getOrElse(it) { 0 } == minutes }
-                FilterChip(selected, { (0..4).forEach { day -> viewModel.setAvailability(day, minutes) } }, label = { Text("${minutes / 60}h seg a sex") })
-            }
+        // Mesma língua dos medidores de matéria: barras que enchem, valor numa pílula, nada que corte.
+        SetupCard {
+            Text("Horas por dia", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            RoutineWeek(
+                minutes = List(7) { snapshot.availabilityMinutes.getOrElse(it) { 0 } },
+                onChange = { day, minutes -> viewModel.setAvailability(day, minutes) },
+            )
         }
-        br.com.estudario.ui.prompt.WeekHoursPicker(
-            minutes = List(7) { snapshot.availabilityMinutes.getOrElse(it) { 0 } },
-            onChange = { day, minutes -> viewModel.setAvailability(day, minutes) },
-            maxMinutes = 720,
-        )
-        Text("Tamanho do bloco", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        br.com.estudario.ui.prompt.BigValueSlider(
-            value = snapshot.sessionMinutes,
-            range = 15..120,
-            step = 5,
-            format = ::formatAvailabilityMinutes,
-            onChange = viewModel::chooseSessionMinutes,
-            caption = "Tamanho-base de cada tarefa, não o total do dia: as tarefas usam múltiplos do bloco dentro do tempo disponível.",
-            quickValues = listOf(25, 45, 50, 60, 90),
-        )
+        SetupCard {
+            Text("Tamanho do bloco", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            BlockSizePicker(snapshot.sessionMinutes, viewModel::chooseSessionMinutes)
+        }
         // Esta pergunta só existe porque muda comportamento real: ela define o teto diário por
         // matéria e a alternância do rodízio. Se um dia deixar de mudar algo, ela sai do assistente.
-        Text("Variar ou aprofundar", style = MaterialTheme.typography.titleMedium)
+        Text("Variar ou aprofundar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Text(
             "Você prefere alternar bastante entre matérias no mesmo dia ou ficar mais tempo na mesma?",
             style = MaterialTheme.typography.bodySmall,
