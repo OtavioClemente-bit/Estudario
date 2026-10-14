@@ -210,9 +210,18 @@ private fun SidebarContent(section: Route) {
     val session = Store.session
     val progress = Progress.of(Store.data).progress
     // A marca no alto do menu, como nos sites grandes: o Folha e o nome.
-    A(href = "#/inicio", { classes("brand-mark"); onClick { drawerOpen = false } }) {
-        // Vivo mesmo pequeno: é o mascote da marca, não um ícone de botão.
-        Span({ classes("brand-folha") }) { Folha("happy", 46, live = true) }
+    // O Folha da marca fica vivo e tranquilo (respira e pisca); comemora só quando a pessoa passa o
+    // mouse ou clica nele.
+    var cheer by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var clicks by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0) }
+    androidx.compose.runtime.LaunchedEffect(clicks) { if (clicks > 0) { cheer = true; kotlinx.coroutines.delay(1600); cheer = false } }
+    A(href = "#/inicio", {
+        classes("brand-mark")
+        onMouseEnter { cheer = true }
+        onMouseLeave { cheer = false }
+        onClick { drawerOpen = false; clicks++ }
+    }) {
+        Span({ classes("brand-folha") }) { Folha(if (cheer) "happy" else "idle", 46, live = true) }
         Div { Wordmark(); Span({ classes("brand-tag") }) { Text("do edital à aprovação") } }
     }
     // Cabeçalho do menu: o perfil, com nível e XP (como no app).
