@@ -83,7 +83,13 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
     var depth by remember { mutableStateOf("DEEP") }
     var maxQuestions by remember { mutableStateOf(FREE_MAX_QUESTIONS) }
     var count by remember { mutableStateOf(FREE_MAX_QUESTIONS) }
-    LaunchedEffect(Unit) { if (!questionsOnly) materialQuestionLimit()?.takeIf { it >= 1 }?.let { maxQuestions = it } }
+    // Uma consulta só: o saldo do mês (medidor no topo) e o teto de questões ao criar a matéria.
+    var quota by remember { mutableStateOf<Quota?>(null) }
+    LaunchedEffect(Unit) {
+        quota = quotaFor(if (questionsOnly) "QUESTION_BATCH" else "CONTENT_GENERATION")
+        if (!questionsOnly) quota?.maxPerRequest?.takeIf { it >= 1 }?.let { maxQuestions = it }
+    }
+    var upgradeSeen by remember { mutableStateOf(false) }
     var style by remember { mutableStateOf("MIXED") }
     var difficulty by remember { mutableStateOf("MEDIUM") }
     var board by remember { mutableStateOf("") }
@@ -110,6 +116,11 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                     IconButton("close", "Fechar", onClose)
                 }
                 Div({ classes("wizard-dots") }) { steps.indices.forEach { i -> Span({ classes(*listOfNotNull(if (i <= step) "on" else null).toTypedArray()) }) } }
+                quota?.let { q ->
+                    QuotaMeter(q, if (questionsOnly) "lotes de questões" else "materiais")
+                    // Sem saldo, a oferta aparece logo, como no app (fechar volta para a janela).
+                    if (q.limit > 0 && q.remaining == 0 && !upgradeSeen) UpgradeModal(if (questionsOnly) UpgradeReason.QUESTIONS else UpgradeReason.CONTENT) { upgradeSeen = true }
+                }
                 when (current) {
                     "blocks" -> {
                         FolhaSays("talking", 64) {
@@ -198,3 +209,23 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
 /** Enunciados das questões que a pessoa já tem neste tópico (as mais recentes primeiro), para não repetir. */
 private fun avoidFor(topicId: Long): List<String> =
     Store.data.questions.filter { it.topicId == topicId }.asReversed().map { it.statement }.filter { it.isNotBlank() }.take(400)
+
+/** O saldo do mês em uma faixa: quantos restam, a barra e quando renova. */
+@Composable
+private fun QuotaMeter(q: Quota, what: String) {
+    if (q.limit <= 0) return
+    val empty = q.remaining == 0
+    Div({ classes(*listOfNotNull("quota-meter", if (empty) "empty" else null).toTypedArray()) }) {
+        Div({ classes("qm-top") }) {
+            Span({ classes("qm-num") }) { B { Text(q.remaining.toString()) }; Span { Text(" de ${q.limit}") } }
+            Span({ classes("qm-label") }) {
+                Text(when {
+                    empty -> "Seus $what acabaram" + (q.resetLabel?.let { ". Renova em $it" } ?: "")
+                    q.monthly -> "$what restantes neste mês" + (q.resetLabel?.let { " · renova em $it" } ?: "")
+                    else -> "$what restantes"
+                })
+            }
+        }
+        Div({ classes("qm-bar") }) { Span({ attr("style", "width:${(q.remaining * 100 / q.limit).coerceIn(0, 100)}%") }) }
+    }
+}

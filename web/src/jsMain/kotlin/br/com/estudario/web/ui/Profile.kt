@@ -485,14 +485,29 @@ private fun parsePlan(body: String): PlanInfo {
     return PlanInfo(root.s("planTier") ?: "FREE", root.s("planRenewsAt"), plans, usage, pricing, playEnabled)
 }
 
-/** Questões ao criar a matéria no plano da conta (Grátis 10, Essencial 20, Pro 30); null se não deu para ler. */
-suspend fun materialQuestionLimit(): Int? {
+/** O saldo de um recurso no plano da conta, como o medidor do app (AiGenerationScreen). */
+class Quota(val remaining: Int, val limit: Int, val monthly: Boolean, val resetLabel: String?, val maxPerRequest: Int?)
+
+/** Saldo de [feature] na conta; null na demonstração ou se não deu para ler. */
+suspend fun quotaFor(feature: String): Quota? {
+    val info = fetchPlanInfo() ?: return null
+    val limit = info.plans.firstOrNull { it.first == info.tier }?.second?.firstOrNull { it.feature == feature }
+    val usage = info.usage.firstOrNull { it.feature == feature } ?: return null
+    return Quota(usage.remaining, usage.limit, limit?.periodKind == "MONTHLY", shortIso(usage.resetAt), limit?.maxPerRequest)
+}
+
+private suspend fun fetchPlanInfo(): PlanInfo? {
     if (Store.demo) return null
     val token = Auth.accessToken() ?: return null
     val response = runCatching {
         httpRequest("GET", "${WebConfig.SUPABASE_URL}/functions/v1/ai-plan", mapOf("Authorization" to "Bearer $token", "apikey" to WebConfig.SUPABASE_KEY, "Accept" to "application/json", "x-estudario-client" to "web"))
     }.getOrNull()?.takeIf { it.ok } ?: return null
-    val info = runCatching { parsePlan(response.body) }.getOrNull() ?: return null
+    return runCatching { parsePlan(response.body) }.getOrNull()
+}
+
+/** Questões ao criar a matéria no plano da conta (Grátis 10, Essencial 20, Pro 30); null se não deu para ler. */
+suspend fun materialQuestionLimit(): Int? {
+    val info = fetchPlanInfo() ?: return null
     return info.plans.firstOrNull { it.first == info.tier }?.second?.firstOrNull { it.feature == "CONTENT_GENERATION" }?.maxPerRequest
 }
 
