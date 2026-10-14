@@ -74,6 +74,9 @@ class StudyPlanApplicationService(
     private val planner = db.plannerDao()
     private val snapshotFactory = StudyPlanSnapshotFactory(db)
 
+    /** Entradas do motor para a previsão (PlanProjection). */
+    suspend fun plannerInput(planId: String): br.com.estudario.domain.planner.PlannerSnapshotBuilder.Input = snapshotFactory.input(planId)
+
     suspend fun createPlan(input: CreatePlanInput): String = db.withTransaction {
         require(input.name.isNotBlank()) { "Informe um nome para o plano." }
         require(input.objective.isNotBlank()) { "Informe o objetivo do plano." }

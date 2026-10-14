@@ -104,8 +104,12 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
             val accuracy = if (attempts.isEmpty()) 100 else attempts.count { it.correct } * 100 / attempts.size
             if (attempts.size >= 10 && accuracy < 65) ContextWeakTopic(topics[topicId]?.title ?: return@mapNotNull null, accuracy, attempts.size) else null
         }.sortedBy { it.accuracyPercent }
-        val roadmap = runCatching { roadmapFor(plan, weeklyCapacity, mapped.planSubjects) }.getOrNull()
-        return mapped.copy(forecastDate = forecast.estimatedDate?.toJavaLocalDate(), masterAlerts = alerts, weakTopics = weakTopics, methodNotes = methodNotes, roadmap = roadmap)
+        val projection = runCatching { roadmapFor(plan, weeklyCapacity, mapped.planSubjects) }.getOrNull()
+        val roadmap = projection?.first
+        // A previsão é do edital inteiro (a projeção), não só das tarefas já marcadas: o plano é
+        // rolante (4 semanas), e a conta antiga dizia "edital fechado em 4 semanas" faltando meses.
+        val forecastDate = projection?.second ?: forecast.estimatedDate
+        return mapped.copy(forecastDate = forecastDate?.toJavaLocalDate(), masterAlerts = alerts, weakTopics = weakTopics, methodNotes = methodNotes, roadmap = roadmap)
     }
 
     private val roadmapPrefs = app.getSharedPreferences("plan_roadmap", android.content.Context.MODE_PRIVATE)
@@ -118,7 +122,7 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         plan: br.com.estudario.data.local.planner.StudyPlanEntity,
         weeklyCapacity: Int,
         planSubjects: List<br.com.estudario.data.local.planner.PlanSubjectEntity>,
-    ): br.com.estudario.domain.planner.EditalRoadmapResult = withContext(Dispatchers.Default) {
+    ): Pair<br.com.estudario.domain.planner.EditalRoadmapResult, KDate?> = withContext(Dispatchers.Default) {
         val today = br.com.estudario.time.today()
         val profile = runCatching { br.com.estudario.domain.planner.StudyProfile.valueOf(plan.profile) }.getOrDefault(br.com.estudario.domain.planner.StudyProfile.DO_ZERO)
         val active = planSubjects.filter { !it.paused }
@@ -136,21 +140,39 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
             config = config,
             needs = emptyMap(),
             includeRevisions = false,
-        ).items.associate { it.topicId to (it.theoryMinutes + it.questionMinutes) }
+        ).items.associate { it.topicId to (it.theoryMinutes + it.questionMinutes to it.theoryMinutes) }
         val topics = leaves.map {
-            br.com.estudario.domain.planner.RoadmapTopic(it.id, it.subjectId, it.position, it.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO, estimate[it.id] ?: plan.blockMinutes)
+            br.com.estudario.domain.planner.RoadmapTopic(it.id, it.subjectId, it.position, it.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO, estimate[it.id]?.first ?: plan.blockMinutes, estimate[it.id]?.second ?: plan.blockMinutes)
         }
-        fun build(end: KDate, hasExam: Boolean) = br.com.estudario.domain.planner.EditalRoadmap.build(today, end, hasExam, profile, weeklyCapacity, subjects, topics)
+        // A previsão é o próprio plano simulado (PlanProjection): o motor roda semana a semana com as
+        // revisões, e o dia de cada tópico é o do plano real, não uma conta paralela.
+        val input = runCatching { service.plannerInput(plan.id) }.getOrNull()
+        fun project(end: KDate, withExam: Boolean) = input?.let {
+            runCatching {
+                br.com.estudario.domain.planner.PlanProjection.project(
+                    if (withExam) it else it.copy(plan = it.plan.copy(examEpochDay = null)), end,
+                )
+            }.getOrNull()
+        }
+        fun build(end: KDate, hasExam: Boolean, projected: br.com.estudario.domain.planner.PlanProjection.Result?) =
+            br.com.estudario.domain.planner.EditalRoadmap.build(today, end, hasExam, profile, weeklyCapacity, subjects, topics, projected)
         val exam = plan.examEpochDay?.let { KDate.fromEpochDays(it) }?.takeIf { it.isAfter(today) }
-        if (exam != null) return@withContext build(exam, hasExam = true)
+        if (exam != null) {
+            val roadmap = build(exam, hasExam = true, project(exam, withExam = true))
+            // Não cabe até a prova: quando o edital fecharia no ritmo atual (a tela diz quantos dias
+            // de conteúdo sobram depois da prova).
+            val finish = roadmap.coverageDate ?: project(today.plusYears(3), withExam = false)?.coverageDate
+            return@withContext roadmap to finish
+        }
+        val open = project(today.plusYears(3), withExam = false)
+        val finishAtPace = open?.coverageDate
         val saved = roadmapPrefs.getLong("end_${plan.id}", Long.MIN_VALUE).takeIf { it != Long.MIN_VALUE }?.let { KDate.fromEpochDays(it) }?.takeIf { it.isAfter(today.plusDays(29)) }
         val end = saved ?: run {
             // Sem prova: prazo inicial = quando o edital termina no ritmo atual, mais a reta final.
-            val probe = build(today.plusYears(3), hasExam = false)
-            val finish = probe.coverageDate ?: today.plusMonths(6)
+            val finish = finishAtPace ?: today.plusMonths(6)
             maxOf(today.plusDays(60), finish.plusDays(daysBetween(today, finish) / 4 + 21))
         }
-        build(end, hasExam = false)
+        build(end, hasExam = false, open).let { it to (it.coverageDate ?: finishAtPace) }
     }
 
     /** Sem data de prova: muda o prazo do plano em [days] dias (mínimo de 30 dias a partir de hoje). */
@@ -164,7 +186,7 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             val weekly = current.availability.sumOf { if (it.unavailable) 0 else it.availableMinutes }
             val updated = runCatching { roadmapFor(plan, weekly, current.planSubjects) }.getOrNull() ?: return@launch
-            _state.update { it.copy(roadmap = updated) }
+            _state.update { it.copy(roadmap = updated.first, forecastDate = (updated.second ?: updated.first.coverageDate)?.toJavaLocalDate() ?: it.forecastDate) }
         }
     }
 

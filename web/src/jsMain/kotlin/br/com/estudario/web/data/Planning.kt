@@ -119,15 +119,14 @@ object Planning {
         return next to id
     }
 
-    /** StudyPlanApplicationService.replan + applyProposal. */
-    fun replan(data: Snapshot, planId: String, reason: ReplanReason): Snapshot {
-        val planRow = data.array(Keys.PLANS).firstOrNull { (it as? JsonObject)?.str("id") == planId } as? JsonObject ?: return data
-        if (planRow.bool("archived") == true) return data
-        val revision = planRow.long("revision") ?: 0
-        val taskRows = data.array(Keys.TASKS).mapNotNull { it as? JsonObject }.filter { it.str("planId") == planId }
-        val tasks = taskRows.mapNotNull { it.toPlannerTask() }
-        val today = Queries.todayDate()
-        val snapshot = PlannerSnapshotBuilder.build(
+    /** As entradas do motor (StudyPlanSnapshotFactory do app); também alimentam a previsão (PlanProjection). */
+    fun inputFor(data: Snapshot, planId: String): PlannerSnapshotBuilder.Input? {
+        val planRow = data.array(Keys.PLANS).firstOrNull { (it as? JsonObject)?.str("id") == planId } as? JsonObject ?: return null
+        val tasks = data.array(Keys.TASKS).mapNotNull { it as? JsonObject }.filter { it.str("planId") == planId }.mapNotNull { it.toPlannerTask() }
+        return inputFor(data, planId, planRow, tasks, planRow.long("revision") ?: 0, Queries.todayDate())
+    }
+
+    private fun inputFor(data: Snapshot, planId: String, planRow: JsonObject, tasks: List<PlannerTask>, revision: Long, today: LocalDate): PlannerSnapshotBuilder.Input =
             PlannerSnapshotBuilder.Input(
                 plan = PlannerSnapshotBuilder.Plan(planId, revision, planRow.long("start") ?: today.toEpochDay(), planRow.long("exam"), planRow.methodConfig()),
                 planSubjects = data.array(Keys.PLAN_SUBJECTS).mapNotNull { it as? JsonObject }.filter { it.str("planId") == planId }.map { row ->
@@ -157,8 +156,17 @@ object Planning {
                 },
                 today = today,
                 zone = Queries.zone,
-            ),
-        )
+            )
+
+    /** StudyPlanApplicationService.replan + applyProposal. */
+    fun replan(data: Snapshot, planId: String, reason: ReplanReason): Snapshot {
+        val planRow = data.array(Keys.PLANS).firstOrNull { (it as? JsonObject)?.str("id") == planId } as? JsonObject ?: return data
+        if (planRow.bool("archived") == true) return data
+        val revision = planRow.long("revision") ?: 0
+        val taskRows = data.array(Keys.TASKS).mapNotNull { it as? JsonObject }.filter { it.str("planId") == planId }
+        val tasks = taskRows.mapNotNull { it.toPlannerTask() }
+        val today = Queries.todayDate()
+        val snapshot = PlannerSnapshotBuilder.build(inputFor(data, planId, planRow, tasks, revision, today))
         val computed = StudyPlannerEngine().plan(snapshot, reason)
         // Plano trazido da IA é da pessoa: o motor não acrescenta tarefas nem mexe nas importadas.
         val imported = tasks.filter { it.origin == PlanOrigin.IMPORTED }.mapTo(hashSetOf()) { it.id }

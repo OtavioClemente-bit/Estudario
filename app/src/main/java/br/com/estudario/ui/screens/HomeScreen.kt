@@ -511,6 +511,8 @@ private fun coverageUi(metrics: HomeMetrics?): SyllabusCoverageUi {
 private fun paceUi(planState: ActivePlanUiState): PaceUi {
     val plan = planState.activePlan ?: return PaceUi.Unknown
     val pendente = planState.tasks.any { it.entity.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO) }
+        // Tópico do edital ainda não estudado também é trabalho que falta, mesmo sem tarefa marcada.
+        || planState.roadmap?.let { it.studiedTopics < it.totalTopics } == true
     val pace = StudyPaceEvaluator.evaluate(
         today = planState.today.toKotlinLocalDate(),
         forecast = planState.forecastDate?.toKotlinLocalDate(),

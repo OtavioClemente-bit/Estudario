@@ -23,6 +23,11 @@ data class RoadmapTopic(
     val studied: Boolean,
     /** Teoria + questões do tópico; a revisão sai do tempo reservado de cada fase. */
     val contentMinutes: Int,
+    /**
+     * Só a teoria do tópico. É ela que marca o ritmo do plano de verdade (o blueprint avança um tópico
+     * novo quando cabe a teoria dele na fatia de teoria da fase); sem o valor, vale o conteúdo todo.
+     */
+    val theoryMinutes: Int = contentMinutes,
 )
 
 data class RoadmapSubjectSlice(val subjectId: Long, val name: String, val newTopics: Int)
@@ -83,6 +88,11 @@ object EditalRoadmap {
         weeklyCapacityMinutes: Int,
         subjects: List<RoadmapSubject>,
         topics: List<RoadmapTopic>,
+        /**
+         * O plano de verdade simulado até [end] (PlanProjection). Quando vem, ele decide em que dia cada
+         * tópico é visto; a conta por fatias abaixo fica só como reserva.
+         */
+        projected: PlanProjection.Result? = null,
     ): EditalRoadmapResult {
         val safeEnd = if (end.isAfter(today)) end else today.plusDays(1)
         val phases = StudyMethod.phases(today, safeEnd, profile)
@@ -111,12 +121,20 @@ object EditalRoadmap {
         var current = nextTopic()
         var day = today
         var contentCapacityDays = 0.0
-        while (!day.isAfter(contentDeadline)) {
-            val share = contentShare(StudyMethod.phaseAt(phases, day).kind)
+        // O ritmo de tópicos novos é o mesmo do plano: a fatia de teoria de cada fase (base 55%,
+        // aprofundamento 30%) paga a teoria de cada tópico. A conta antiga usava uma fatia maior para
+        // teoria + questões e, no aprofundamento, prometia uns 27% a mais do que o plano agendava.
+        if (projected != null) {
+            projected.studiedOn.forEach { (id, date) -> if (!date.isAfter(safeEnd)) assignedOn[id] = date }
+            // Capacidade de teoria até a reta final, só para estimar os minutos extras quando não cabe.
+            while (!day.isAfter(contentDeadline)) { contentCapacityDays += StudyMethod.phaseAt(phases, day).mix.theoryPercent / 100.0; day = day.plusDays(1) }
+        }
+        while (projected == null && !day.isAfter(contentDeadline)) {
+            val share = StudyMethod.phaseAt(phases, day).mix.theoryPercent / 100.0
             contentCapacityDays += share
             budget += dailyCapacity * share
-            while (current != null && budget >= current.contentMinutes.coerceAtLeast(1)) {
-                budget -= current.contentMinutes.coerceAtLeast(1)
+            while (current != null && budget >= current.theoryMinutes.coerceAtLeast(1)) {
+                budget -= current.theoryMinutes.coerceAtLeast(1)
                 assignedOn[current.id] = day
                 current = nextTopic()
             }
@@ -145,9 +163,13 @@ object EditalRoadmap {
                 )
             }.toList()
 
-        val pendingMinutes = pending.sumOf { it.contentMinutes.coerceAtLeast(1) }
-        val extraPerDay = if (leftOut.isEmpty() || contentCapacityDays <= 0.0) 0
-        else ceil(((pendingMinutes - dailyCapacity * contentCapacityDays) / contentCapacityDays).coerceAtLeast(0.0)).toInt()
+        val pendingMinutes = pending.sumOf { it.theoryMinutes.coerceAtLeast(1) }
+        val extraPerDay = when {
+            leftOut.isEmpty() || contentCapacityDays <= 0.0 -> 0
+            // Com o plano simulado: a teoria do que ficou de fora espalhada pelos dias de conteúdo.
+            projected != null -> ceil(leftOut.sumOf { it.theoryMinutes.coerceAtLeast(1) } / contentCapacityDays).toInt().coerceAtLeast(1)
+            else -> ceil(((pendingMinutes - dailyCapacity * contentCapacityDays) / contentCapacityDays).coerceAtLeast(0.0)).toInt()
+        }
         val verdict = when {
             leftOut.isNotEmpty() -> RoadmapVerdict.DOES_NOT_FIT
             coverageDate != null && daysBetween(coverageDate, contentDeadline) >= COMFORTABLE_SLACK_DAYS -> RoadmapVerdict.COMFORTABLE

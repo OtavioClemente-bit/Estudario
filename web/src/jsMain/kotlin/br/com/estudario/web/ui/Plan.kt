@@ -258,7 +258,10 @@ private fun PlanProgressHeader(plan: br.com.estudario.web.data.StudyPlan, tasks:
     val todayDone = today.count { it.status == "CONCLUIDA" }
     val overdue = load.count { it.day < todayEpoch && (it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO") }
     val daysToExam = plan.exam?.let { it - todayEpoch }?.takeIf { it >= 0 }
-    val forecast = load.filter { it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO" }.let { p -> p.filter { it.type == "THEORY" }.maxOfOrNull { it.day } ?: p.maxOfOrNull { it.day } }
+    // Previsão do edital inteiro (as tarefas marcadas só cobrem as próximas 4 semanas).
+    val projection = br.com.estudario.web.data.Forecast.of(br.com.estudario.web.data.Store.data, plan)
+    val forecast = if (projection != null) projection.date?.takeIf { projection.remainingTopics > 0 }?.toEpochDays()?.toLong()
+        else load.filter { it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO" }.let { p -> p.filter { it.type == "THEORY" }.maxOfOrNull { it.day } ?: p.maxOfOrNull { it.day } }
     val next = load.filter { it.day > todayEpoch && it.status == "PLANEJADA" }.minOfOrNull { it.day }
     Div({ classes("home-hero", "plan-hero", "rise") }) {
         Div({ classes("hh-top") }) {
@@ -365,16 +368,27 @@ private fun PlanOverview(planId: String, tasks: List<PlanTask>, todayEpoch: Long
             }
         }
     }
-    if (exam != null) {
-        val last = load.maxOfOrNull { it.day }
+    val plan = br.com.estudario.web.data.Store.data.plans.firstOrNull { it.id == planId }
+    val projection = plan?.let { br.com.estudario.web.data.Forecast.of(br.com.estudario.web.data.Store.data, it) }
+    if (projection != null) {
+        val r = projection.roadmap
+        val text = when {
+            projection.remainingTopics == 0 -> "Todos os ${r.totalTopics} tópicos já foram vistos. Daqui até a prova é revisão e questões."
+            r.verdict == br.com.estudario.domain.planner.RoadmapVerdict.DOES_NOT_FIT ->
+                "Com as horas de hoje, ${r.topicsLeftOut} de ${projection.remainingTopics} tópicos não cabem antes da reta final" +
+                    (r.atRiskSubjects.takeIf { it.isNotEmpty() }?.let { " (mais em ${it.take(3).joinToString()})" } ?: "") +
+                    ". Mais ${r.extraMinutesPerDayToFit} min por dia fariam caber." +
+                    (projection.finishAtPace?.let { " No ritmo atual o edital fecha em ${Queries.dayLabel(it)}." } ?: "")
+            r.verdict == br.com.estudario.domain.planner.RoadmapVerdict.TIGHT ->
+                "Cabe, mas apertado: o último tópico é visto em ${Queries.dayLabel(r.coverageDate!!)}, com pouca folga antes da reta final (${Queries.dayLabel(r.contentDeadline)})."
+            else -> "O edital inteiro é visto até ${Queries.dayLabel(r.coverageDate!!)}, ${r.slackDays} dias antes da reta final" + (if (exam != null) "; a prova é em ${Queries.dayLabel(LocalDate.fromEpochDays(exam))}." else ".")
+        }
         Card(extra = "soft") {
             Div({ classes("row") }) {
                 Icon("event_available")
                 Div({ classes("grow") }) {
                     B { Text("Previsão de conclusão") }
-                    P({ classes("small", "muted") }) {
-                        Text(last?.let { "O plano vai até ${Queries.dayLabel(LocalDate.fromEpochDays(it))}; a prova é em ${Queries.dayLabel(LocalDate.fromEpochDays(exam))}." } ?: "Sem tarefas no plano.")
-                    }
+                    P({ classes("small", "muted") }) { Text(text) }
                 }
             }
         }

@@ -14,10 +14,12 @@ import kotlinx.datetime.TimeZone
  * ([PlannerSnapshotBuilder], no módulo comum); aqui só os dados do Room viram as entradas dela.
  */
 class StudyPlanSnapshotFactory(private val db: AppDatabase) {
-    suspend fun create(planId: String, today: LocalDate = today()): StudyPlannerSnapshot = db.withTransaction {
+    suspend fun create(planId: String, today: LocalDate = today()): StudyPlannerSnapshot = PlannerSnapshotBuilder.build(input(planId, today))
+
+    /** As entradas do motor, também usadas pela previsão (PlanProjection simula o plano com elas). */
+    suspend fun input(planId: String, today: LocalDate = today()): PlannerSnapshotBuilder.Input = db.withTransaction {
         val planner = db.plannerDao()
         val plan = planner.plan(planId) ?: error("Plano não encontrado.")
-        PlannerSnapshotBuilder.build(
             PlannerSnapshotBuilder.Input(
                 plan = PlannerSnapshotBuilder.Plan(plan.id, plan.revision, plan.startEpochDay, plan.examEpochDay, plan.methodConfig()),
                 planSubjects = planner.subjectsFor(planId).map {
@@ -46,7 +48,6 @@ class StudyPlanSnapshotFactory(private val db: AppDatabase) {
                 dayOverrides = planner.dayOverridesFor(planId).map { PlannerSnapshotBuilder.DayOverride(it.epochDay, it.availableMinutes, it.unavailable, it.locked) },
                 today = today,
                 zone = TimeZone.currentSystemDefault(),
-            ),
-        )
+            )
     }
 }

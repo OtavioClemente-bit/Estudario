@@ -230,7 +230,13 @@ private fun DailyMission(tasks: List<PlanTask>, onComplete: (PlanTask) -> Unit) 
 private fun PaceCard(data: Snapshot, planId: String?, exam: Long?) {
     val todayEpoch = Queries.todayEpoch()
     val pending = if (planId == null) emptyList() else data.tasks.filter { it.planId == planId && (it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO") }
-    val forecast = pending.filter { it.type == "THEORY" }.maxOfOrNull { it.day } ?: pending.maxOfOrNull { it.day }
+    // Previsão do edital inteiro (como no app); as tarefas marcadas só cobrem as próximas 4 semanas.
+    val projection = data.plans.firstOrNull { it.id == planId }?.let { br.com.estudario.web.data.Forecast.of(data, it) }
+    val forecast = when {
+        projection == null -> pending.filter { it.type == "THEORY" }.maxOfOrNull { it.day } ?: pending.maxOfOrNull { it.day }
+        projection.remainingTopics == 0 -> null
+        else -> projection.date?.toEpochDays()?.toLong() ?: pending.maxOfOrNull { it.day }
+    }
     val (tone, title, detail) = when {
         planId == null -> Triple("var(--faint)", "Sem previsão ainda.", "Monte seu plano e o Estudário calcula quando o edital fecha.")
         forecast == null -> Triple("var(--green)", "Conteúdo previsto coberto.", "Daqui para frente o plano vira revisão e questões.")
