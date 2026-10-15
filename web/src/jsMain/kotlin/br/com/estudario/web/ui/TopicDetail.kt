@@ -559,6 +559,8 @@ private fun TheoryReader(theory: Theory) {
     var activeChapter by remember(theory.id) { mutableStateOf(0) }
     var readerOpen by remember(theory.id) { mutableStateOf(false) }
     var tocOpen by remember(theory.id) { mutableStateOf(false) }
+    // O botão do sumário só aparece com o texto na tela (antes dele ficava por cima das abas).
+    var inText by remember(theory.id) { mutableStateOf(false) }
     DisposableEffect(theory.id, chapters) {
         val listener: (org.w3c.dom.events.Event) -> Unit = {
             val line = window.innerHeight * 0.35
@@ -570,6 +572,7 @@ private fun TheoryReader(theory: Theory) {
             activeChapter = at
             // Linha de progresso: quanto do texto já passou pela tela.
             document.querySelector(".theory-text")?.getBoundingClientRect()?.let { r ->
+                inText = r.top < window.innerHeight * 0.5 && r.bottom > window.innerHeight * 0.3
                 val total = (r.height - window.innerHeight * 0.6).coerceAtLeast(1.0)
                 ReadProgress.fraction = ((window.innerHeight * 0.4 - r.top) / total).coerceIn(0.0, 1.0)
             }
@@ -642,7 +645,7 @@ private fun TheoryReader(theory: Theory) {
     }
     }
     // Tela menor: o sumário vem num botão flutuante.
-    if (chapters.size > 1) {
+    if (chapters.size > 1 && (inText || tocOpen)) {
         Button({ classes("toc-fab"); attr("aria-label", "Capítulos"); onClick { tocOpen = !tocOpen } }) {
             Icon(if (tocOpen) "close" else "toc"); Span { Text("${activeChapter + 1}/${chapters.size}") }
         }
