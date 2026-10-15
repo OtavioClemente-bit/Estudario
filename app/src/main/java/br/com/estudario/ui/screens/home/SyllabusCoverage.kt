@@ -190,7 +190,7 @@ private fun SubjectCoverageRow(subject: SubjectCoverageUi) {
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                subject.name.substringAfter(" – ").trim().replace(Regex("^[^\\p{L}]+"), "").take(1).uppercase().ifBlank { "•" },
+                subject.name.substringAfter(" \u2013 ").trim().replace(Regex("^[^\\p{L}]+"), "").take(1).uppercase().ifBlank { "•" },
                 style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = color,
             )
         }
