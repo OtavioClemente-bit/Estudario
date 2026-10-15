@@ -203,6 +203,7 @@ private fun Shell(content: @Composable () -> Unit) {
                 }
                 content()
             }
+            DeskNote()
         }
         Nav({ classes("bottomnav"); attr("aria-label", "Seções") }) {
             tabs.forEach { entry -> NavLink(entry, entry.route == section) }

@@ -420,7 +420,28 @@ private fun PlanPreview(result: Pair<Snapshot, String>?, onBack: () -> Unit, onO
     }
     Div({ classes("row", "between") }) {
         Btn("Voltar e ajustar", onBack, style = "ghost", icon = "arrow_back")
-        Btn("Abrir meu plano", onOpen, style = "primary", icon = "rocket_launch")
+        // O foguete desenhado à mão decola do botão, explode na tela e o Folha comemora (rocket.js);
+        // depois o plano abre normalmente.
+        var launching by remember { mutableStateOf(false) }
+        Button({
+            attr("type", "button")
+            classes("btn", "primary", "rocket-btn")
+            if (launching) attr("disabled", "")
+            onClick {
+                if (!launching) {
+                    launching = true
+                    val rocket = kotlinx.browser.document.querySelector(".rocket-btn .rocket-ico")
+                    val launch = runCatching { kotlinx.browser.window.asDynamic().estudarioRocketLaunch(rocket) }.getOrNull()
+                    if (launch == null) onOpen() else launch.then { onOpen() }
+                }
+            }
+        }) {
+            Span({
+                classes("rocket-ico")
+                ref { el -> el.innerHTML = (kotlinx.browser.window.asDynamic().estudarioRocketSvg as? String).orEmpty(); onDispose { } }
+            })
+            Text("Abrir meu plano")
+        }
     }
 }
 

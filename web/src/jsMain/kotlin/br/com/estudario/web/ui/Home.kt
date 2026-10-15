@@ -157,7 +157,9 @@ private fun NowPanel(data: Snapshot, hasPlan: Boolean, tasks: List<PlanTask>, ho
                     Span({ classes("subject-bar"); attr("style", "background:${subjectColor(task.subjectName)}") })
                     Div({ classes("grow") }) {
                         P({ classes("now-subject", "clamp-2") }) { Text(task.subjectName.ifBlank { "Plano de estudos" }) }
-                        H2({ classes("now-title", "clamp-3") }) { Text(taskTitle(task)) }
+                        // Título longo (tópico de edital com lista de siglas) fica menor, para caber sem virar um muro de letras.
+                        val title = taskTitle(task)
+                        H2({ classes(*listOfNotNull("now-title", "clamp-3", when { title.length > 80 -> "xlong"; title.length > 44 -> "long"; else -> null }).toTypedArray()) }) { Text(title) }
                     }
                 }
                 P({ classes("muted") }) { Text("${Queries.taskTypeLabel(task.type)} · ${Queries.minutesLabel(task.minutes)}${if (task.questions > 0) " · ${task.questions} questões" else ""}") }
