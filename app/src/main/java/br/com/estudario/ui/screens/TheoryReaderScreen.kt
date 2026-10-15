@@ -38,8 +38,8 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
     if (theory == null) { EmptyState("Teoria não encontrada", "O livro pode ter sido removido.", "Voltar", onBack); return }
     val blocks = remember(theory.markdown) { br.com.estudario.ui.components.studyBlocks(theory.markdown) }
     val marks = allMarks.filter { it.theoryId == theoryId }
-    // Dentro do app o cabeçalho é um item da lista: os blocos começam depois dele.
-    val headerOffset = if (showInternalTopBar) 0 else 1
+    // O cabeçalho fica fixo fora da lista (como no modo foco): os blocos começam no item 0.
+    val headerOffset = 0
     val startBlock = (initialBlock ?: theory.lastReadBlock).coerceIn(0, (blocks.size - 1).coerceAtLeast(0))
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = startBlock + if (startBlock > 0) headerOffset else 0)
     val chapters = remember(blocks) { blocks.withIndex().filter { it.value.trimStart().startsWith("#") }.map { it.index to it.value.trimStart().trimStart('#').trim().lineSequence().first() } }
@@ -167,6 +167,30 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
+            // Cabeçalho fixo: título, capítulos, ajuste de letra e a linha de progresso não saem do alto ao rolar.
+            if (!showInternalTopBar) Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 2.dp) {
+                Column {
+                    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(theory.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                            val chapterAt = chapters.indexOfLast { it.first <= currentBlock }
+                            Text(
+                                listOfNotNull(
+                                    if (chapters.size > 1 && chapterAt >= 0) "Capítulo ${chapterAt + 1} de ${chapters.size}" else null,
+                                    "${(progress * 100).toInt()}% lido",
+                                    if (marks.isNotEmpty()) "${marks.size} grifo(s)" else null,
+                                ).joinToString(" • "),
+                                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        if (chapters.size > 1) IconButton(onClick = { tocOpen = true }) { Icon(Icons.Outlined.Toc, "Capítulos") }
+                        IconButton(onClick = { readerSettings = true }) { Text("Aa", fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif) }
+                        ReportTheoryButton()
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    ReadLine(progress)
+                }
+            }
             // Explica o gesto uma única vez; some ao fechar ou na primeira marcação.
         if (!markHintSeen && blocks.isNotEmpty()) {
             Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -179,18 +203,6 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
         }
         androidx.compose.runtime.CompositionLocalProvider(br.com.estudario.ui.components.LocalReaderBook provides bookFont) {
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            if (!showInternalTopBar) item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(theory.title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        if (chapters.size > 1) IconButton(onClick = { tocOpen = true }) { Icon(Icons.Outlined.Toc, "Índice") }
-                        IconButton(onClick = { readerSettings = true }) { Text("Aa", fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif) }
-                        ReportTheoryButton()
-                    }
-                    Text("${(progress * 100).toInt()}% lido • ${marks.size} grifo(s)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    ReadLine(progress)
-                }
-            }
             blocks.forEachIndexed { index, block ->
                 item(key = index) {
                     val mark = marks.firstOrNull { it.blockIndex == index }

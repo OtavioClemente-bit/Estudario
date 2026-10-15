@@ -137,9 +137,16 @@ private fun DrawerHeader(profile: UserProfile, level: Int?, totalXp: Int?, onOpe
             .padding(horizontal = EstudarioSpacing.large, vertical = EstudarioSpacing.small),
         verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.small),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
-            EstudarioGlyph(size = 34.dp)
-            Text("Estudário", style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+        // A marca igual à do site: "estudário" com o acento em âmbar, marca-texto atrás e o lema embaixo.
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            DrawerWordmark()
+            Text(
+                "DO EDITAL À APROVAÇÃO",
+                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.08.em),
+                fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 3.dp),
+            )
         }
         Spacer(Modifier.height(EstudarioSpacing.tight))
         ProfileAvatar(profile.photoPath, profile.initials, 56.dp)
@@ -398,4 +405,31 @@ private fun IconAction(icon: ImageVector, description: String, onClick: () -> Un
     ) {
         Icon(icon, contentDescription = description, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+}
+
+/** "estudário" em minúsculas, o á em âmbar e a passada de marca-texto amarelo (como no site). */
+@Composable
+private fun DrawerWordmark() {
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val highlight = androidx.compose.ui.graphics.Color(0xFFFFD23F).copy(alpha = if (dark) 0.30f else 0.55f)
+    Text(
+        androidx.compose.ui.text.buildAnnotatedString {
+            append("estud")
+            withStyle(androidx.compose.ui.text.SpanStyle(color = androidx.compose.ui.graphics.Color(0xFFFFB421))) { append("á") }
+            append("rio")
+        },
+        style = MaterialTheme.typography.headlineSmall.copy(letterSpacing = (-0.04).em),
+        fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
+        color = if (dark) androidx.compose.ui.graphics.Color(0xFFEDEBFF) else androidx.compose.ui.graphics.Color(0xFF26234A),
+        modifier = Modifier
+            .drawBehind {
+                drawRoundRect(
+                    highlight,
+                    topLeft = androidx.compose.ui.geometry.Offset(0f, size.height * 0.55f),
+                    size = androidx.compose.ui.geometry.Size(size.width, size.height * 0.34f),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
+                )
+            }
+            .padding(horizontal = 3.dp),
+    )
 }

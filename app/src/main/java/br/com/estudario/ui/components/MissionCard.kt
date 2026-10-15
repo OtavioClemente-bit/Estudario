@@ -43,7 +43,8 @@ fun MissionCard(
     // Atrasada é a tarefa de um dia que já passou e ainda não foi feita, em qualquer tela (Hoje,
     // Semana, Mês, um dia antigo aberto no calendário), não só na lista de atrasadas. Antes, fora
     // dessa lista, o cartão mostrava "Começar" e reprogramar não era possível.
-    val pending = task.status == PlanTaskStatus.PLANEJADA || task.status == PlanTaskStatus.EM_ANDAMENTO
+    // "Não realizada" também é pendente: antes caía no botão genérico, que dizia Reprogramar mas abria a tarefa.
+    val pending = task.status == PlanTaskStatus.PLANEJADA || task.status == PlanTaskStatus.EM_ANDAMENTO || task.status == PlanTaskStatus.NAO_REALIZADA || task.status == PlanTaskStatus.REPROGRAMADA
     val isOverdue = pending && (isOverdue || task.scheduledEpochDay < java.time.LocalDate.now().toEpochDay())
     val statusColor = when (task.status) {
         PlanTaskStatus.CONCLUIDA -> Color(0xFF087F5B)

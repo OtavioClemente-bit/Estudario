@@ -60,7 +60,7 @@ fun completionActionPtBr(status: PlanTaskStatus): String = when (status) {
     PlanTaskStatus.EM_ANDAMENTO -> "Continuar"
     PlanTaskStatus.CONCLUIDA -> "Concluída"
     PlanTaskStatus.REPROGRAMADA -> "Continuar"
-    PlanTaskStatus.NAO_REALIZADA -> "Reprogramar"
+    PlanTaskStatus.NAO_REALIZADA -> "Fazer agora"
     PlanTaskStatus.PAUSADA -> "Retomar"
 }
 

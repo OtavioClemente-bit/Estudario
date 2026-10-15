@@ -100,7 +100,9 @@ class StudyExecutionService(
             return db.withTransaction {
                 val plan = planner.plan(task.planId) ?: error("Plano não encontrado.")
                 require(planner.claimRevision(plan.id, plan.revision, System.currentTimeMillis()) == 1)
-                planner.updateTask(task.copy(scheduledEpochDay = targetDate.toEpochDay(), updatedRevision = plan.revision + 1, updatedAt = System.currentTimeMillis()))
+                // Atrasada levada para outro dia volta a ser só planejada (não fica marcada como não feita).
+                val status = if (task.status == br.com.estudario.domain.planner.PlanTaskStatus.NAO_REALIZADA) br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA else task.status
+                planner.updateTask(task.copy(scheduledEpochDay = targetDate.toEpochDay(), status = status, updatedRevision = plan.revision + 1, updatedAt = System.currentTimeMillis()))
                 planner.insertRevision(StudyPlanRevisionEntity(plan.id, plan.revision + 1, plan.revision, "TASK_REPROGRAMMED", summary = task.id))
                 PlanningProposal(
                     id = "manual:${task.id}:${plan.revision + 1}", planId = plan.id, baseRevision = plan.revision + 1,
