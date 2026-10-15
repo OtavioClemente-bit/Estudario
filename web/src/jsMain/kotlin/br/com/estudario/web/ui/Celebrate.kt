@@ -97,6 +97,23 @@ fun CelebrationHost() {
         CelebrationQueue.items += Celebration.LevelUp(level, view.progress.levelTitle, view.progress.totalXp)
     }
 
+    // A comemoração não atropela a geração de material (espera terminar e mais uns segundos) e não roda
+    // com a aba escondida: o navegador congela a animação e ela apareceria parada no primeiro quadro.
+    var visible by androidx.compose.runtime.remember { mutableStateOf(kotlinx.browser.document.asDynamic().visibilityState == "visible") }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val onChange: (org.w3c.dom.events.Event) -> Unit = { visible = kotlinx.browser.document.asDynamic().visibilityState == "visible" }
+        kotlinx.browser.document.addEventListener("visibilitychange", onChange)
+        onDispose { kotlinx.browser.document.removeEventListener("visibilitychange", onChange) }
+    }
+    var calm by androidx.compose.runtime.remember { mutableStateOf(true) }
+    val generating = Generation.active.isNotEmpty()
+    LaunchedEffect(generating, Generation.finishedAt) {
+        if (generating) { calm = false; return@LaunchedEffect }
+        val wait = 15_000 - (kotlin.js.Date.now() - Generation.finishedAt)
+        if (wait > 0) { calm = false; kotlinx.coroutines.delay(wait.toLong()) }
+        calm = true
+    }
+    if (!visible || !calm) return
     val current = CelebrationQueue.items.firstOrNull() ?: return
     CelebrationScreen(current) { CelebrationQueue.items.removeAt(0) }
 }

@@ -31,6 +31,8 @@ object Generation {
     /** Questões pedidas e entregues no último pedido do tópico (a IA entrega até 10). */
     val requested = mutableStateMapOf<Long, Int>()
     val delivered = mutableStateMapOf<Long, Int>()
+    /** Quando a última geração terminou (as comemorações esperam um pouco depois disso). */
+    var finishedAt by androidx.compose.runtime.mutableStateOf(0.0)
     private val scope = MainScope()
 
     fun running(topicId: Long): Boolean = state[topicId].let { it != null && it !is AiContent.Progress.Done && it !is AiContent.Progress.Failed }
@@ -50,6 +52,7 @@ object Generation {
                 Store.update { AiContent.apply(it, topicId, result.proposal) }
             }
             state[topicId] = result
+            finishedAt = kotlin.js.Date.now()
             val title = Store.data.topics.firstOrNull { it.id == topicId }?.title ?: "seu tópico"
             if (result is AiContent.Progress.Done) Notify.materialReady(title, topicId, onlyQuestions)
             else if (result is AiContent.Progress.Failed) Toast.show(if (onlyQuestions) "Não deu para gerar as questões de $title." else "Não deu para gerar o material de $title.")
@@ -157,6 +160,7 @@ fun GenerationPreview() {
     if (!open) return
     // "dialogo" abre o assistente de verdade (os passos antes de gerar), no primeiro tópico.
     if (kind == "dialogo") { Store.data.topics.firstOrNull()?.let { GenerateDialog(it.id) { open = false } }; return }
+    if (kind == "pdf") { PdfEditalDialog(onClose = { open = false }) { _, _, _ -> open = false }; return }
     Modal(onDismiss = { open = false }, wide = true, extraClass = "gen-modal") {
         Div({ classes("gen-body", "gen-working") }) {
         ProcessView(

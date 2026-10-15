@@ -33,7 +33,7 @@ estudario-workshop{display:block;width:100%;max-width:580px;margin:0 auto;aspect
 .ws-spark{position:absolute;width:10px;height:10px;pointer-events:none}
 /* ---------- caderno */
 .nb{position:absolute;inset:6px 0 0;display:flex;perspective:1200px}
-.nb-page{position:relative;flex:1;background:#FFFEFA;border:2.5px solid ${INK};padding:16px 16px 10px;overflow:hidden;
+.nb-page{position:relative;flex:1;background:#FFFEFA;border:2.5px solid ${INK};padding:16px 16px 10px;overflow:visible;
   background-image:repeating-linear-gradient(to bottom,transparent 0 21px,#E7E2F5 21px 22px);background-position:0 30px}
 .nb-page.l{border-radius:16px 4px 4px 16px;border-right-width:1.2px}
 .nb-page.r{border-radius:4px 16px 16px 4px;border-left-width:1.2px}
@@ -41,11 +41,11 @@ estudario-workshop{display:block;width:100%;max-width:580px;margin:0 auto;aspect
 .nb-page.l::before{display:none}
 .nb-flip{position:absolute;right:0;top:0;bottom:0;width:50%;transform-origin:0 50%;background:#FFFEFA;border:2.5px solid ${INK};border-radius:4px 16px 16px 4px;
   backface-visibility:hidden;background-image:repeating-linear-gradient(to bottom,transparent 0 21px,#E7E2F5 21px 22px);background-position:0 30px;z-index:3}
-.nb-title{height:12px;border-radius:6px;background:${INK};margin:0 0 14px;width:0}
+.nb-title{position:relative;height:12px;border-radius:6px;background:${INK};margin:0 0 14px;width:0}
 .nb-line{position:relative;height:7px;border-radius:4px;background:#8F8AB8;margin:0 0 15px;width:0}
 .nb-line.hl::after{content:"";position:absolute;left:-4px;top:-5px;height:17px;width:0;border-radius:3px;background:rgba(255,210,63,.6);mix-blend-mode:multiply;animation:nbHl .6s ease-out forwards}
 @keyframes nbHl{to{width:calc(100% + 8px)}}
-.nb-pencil{width:44px;height:44px;z-index:5;transition:left .12s linear,top .25s ease;transform:scaleX(-1) rotate(-8deg)}
+.nb-pencil{width:40px;height:40px;z-index:5;right:-33px;top:-31px;transform:scaleX(-1) rotate(-6deg);pointer-events:none}
 .nb-pencil.writing svg{animation:nbWrite .16s ease-in-out infinite alternate}
 @keyframes nbWrite{from{transform:translate(0,0) rotate(-3deg)}to{transform:translate(1px,-3px) rotate(3deg)}}
 .nb-card{border:2.5px solid ${INK};border-radius:12px;background:#ECE9FF;padding:10px;margin:2px 0 12px;box-shadow:0 4px 0 ${INK};transform:scale(0);transform-origin:20% 80%}
@@ -150,18 +150,14 @@ estudario-workshop{display:block;width:100%;max-width:580px;margin:0 auto;aspect
       const left = p.querySelector(".nb-page.l"), lines = p.querySelector(".nb-lines"), right = p.querySelector(".nb-right"), title = p.querySelector(".nb-title");
       const pencil = this.sticker("Pencil", "nb-pencil");
       const still = reduce();
-      const pos = (el, frac) => {
-        const r = el.getBoundingClientRect(), pr = p.getBoundingClientRect(), k = pr.width / p.offsetWidth || 1;
-        pencil.style.left = ((r.left - pr.left) / k + frac) - 38 + "px";
-        pencil.style.top = ((r.top - pr.top) / k) - 34 + "px";
-      };
+      const pos = (el) => { if (pencil.parentNode !== el) el.appendChild(pencil); };
       const write = async (el, w, ms) => {
         if (still) { el.style.width = w + "%"; return; }
         pencil.classList.add("writing");
-        const total = left.clientWidth - 32, target = total * w / 100, steps = Math.max(6, Math.round(ms / 60));
+        pos(el);
+        const steps = Math.max(6, Math.round(ms / 60));
         for (let i = 1; i <= steps && this.alive; i++) {
           el.style.width = (w * i / steps) + "%";
-          pos(el, target * i / steps);
           await this.wait(ms / steps);
         }
         pencil.classList.remove("writing");
