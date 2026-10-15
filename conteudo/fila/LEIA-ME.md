@@ -3,8 +3,8 @@
 **Atualização 15/10/2026:** 955 matérias e 828 editais; 12.340 tópicos sem matéria (7%) e 38 editais acima de 20%.
 Os blocos 01 (PM), 02 (PMMG) e 03 (TRT-3) estão concluídos na prática: todas as matérias de PM e PMMG existem e os
 editais do TRT-3 têm no máximo 1 a 22 tópicos sem matéria cada (as do bloco 03 entraram com outros nomes).
-Lacunas reais vistas em 15/10: contabilidade de partidos políticos e campanhas eleitorais (TRE/TSE, cerca de 28
-tópicos), história e geografia do Espírito Santo (SEDU-ES), regimento interno do TRF-1, Resolução CNJ 383/2021.
+Lacunas de 15/10 já resolvidas: contabilidade eleitoral, história e geografia do ES, regimento do TRF-1 e
+Resolução CNJ 383/2021 (texto achado em atos.cnj.jus.br/atos/detalhar/3829). Restam 12.191 tópicos sem matéria.
 
 **Situação em 14/10/2026:** 921 matérias, 4.559 recortes e 765 editais publicados; cerca de 15.300 tópicos de
 edital (10%) ainda sem matéria. `conteudo/entrada` está toda conferida: o que tinha conteúdo foi publicado
