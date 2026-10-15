@@ -194,7 +194,7 @@ Já existe edital mais novo no catálogo: cbm-df-2025, pcdf-2024, pcma-2026, pol
 
 **Vale incluir (edital mais novo publicado):**
 - ✅ TJRN 2023 (FGV): 12 cargos incluídos em 15/10 (tjrn-2023--*).
-- TCE-ES 2022 (FGV, auditor). O catálogo só tem 2012/2013.
+- ✅ TCE-ES 2022 (FGV): Auditor de Controle Externo, 8 áreas, incluído em 15/10 (tce-es-2022--auditor-*).
 - TRT-16 2022 (FGV) e TRT-17 (FCC, válido até 2027). O catálogo só tem 2005/2013.
 - TCE-RN 2025 (Cebraspe, auditor e outros; provas em abril de 2026).
 - PC-AL delegado 2022/2023 (Cebraspe).
