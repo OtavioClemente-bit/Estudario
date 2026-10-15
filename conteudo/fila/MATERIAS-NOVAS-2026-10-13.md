@@ -1,5 +1,7 @@
 # Matérias novas que mais fecham lacunas de edital (13/10/2026)
 
+**Atualização 14/10 (noite):** feitas ou cobertas — DF, Alagoas, Pará e MT (matérias já existiam; tópicos de história/geografia ligados), propriedade industrial e direitos autorais, contratos bancários (ligados a contratos-empresariais), Pernambuco (história), direito econômico internacional (ligado a economia), processo estrutural, IPVA/ITCMD (ligados a icms-impostos-estaduais), valor justo e AVP, Goiás, protesto de títulos, Constituição de SP, Lei Orgânica do MPSP (LC 734), Estatuto dos servidores de SP (Lei 10.261), tutela coletiva, Fundeb, Henry Borel e bullying. Pendentes: direito aeronáutico (poucos tópicos, ANAC), leis estaduais sem texto oficial atualizado (Constituição PE, regimentos de TRE/TCE), decretos do DF e militares do DF.
+
 Base: tópicos com `"topico": null` nos 738 editais de `conteudo/editais`. A contagem foi feita por
 palavra-chave, então é uma estimativa: antes de gerar cada matéria, confira os tópicos de verdade e
 os ids que já existem (vários temas já têm matéria parecida e só faltou ligar com cuidado).
