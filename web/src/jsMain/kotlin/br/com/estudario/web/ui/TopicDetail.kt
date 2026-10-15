@@ -210,6 +210,8 @@ fun TopicScreen(topicId: Long) {
             if (menuOpen) Div({ classes("menu-pop") }) {
                 if (children.isEmpty() && !Store.demo) MenuItem("auto_awesome", "Gerar material com o Estudário") { menuOpen = false; generating = true }
                 if (studied) MenuItem("undo", "Desmarcar como estudado") { menuOpen = false; Store.update { Actions.unmarkStudied(it, topicId) } }
+                if (hasMaterial) MenuItem("flag", "Reportar erro no material") { menuOpen = false; Reports.report(if (theories.isNotEmpty()) ReportKindWeb.THEORY else ReportKindWeb.OTHER, theories.firstOrNull()?.let { it.title + ": " + it.markdown.take(600) } ?: topic.title, topic.title) }
+                if (hasMaterial) MenuItem("forum", "Comentar o material") { menuOpen = false; Reports.comment(if (theories.isNotEmpty()) ReportKindWeb.THEORY else ReportKindWeb.OTHER, topic.title, topic.title) }
                 if (hasMaterial && !Store.demo) MenuItem("delete", "Apagar material") { menuOpen = false; deletingMaterial = true }
                 MenuItem("close", "Fechar") { menuOpen = false }
             }

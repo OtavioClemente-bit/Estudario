@@ -126,6 +126,7 @@ fun App() {
     if (Store.load == LoadState.Ready) GenerationBanner()
     if (Store.load == LoadState.Ready) ReprogramHost()
     CelebrationHost()
+    ReportHost()
     // O giro de boas-vindas, na primeira visita (ou pelos Ajustes), sempre a partir do Início.
     if (Store.load == LoadState.Ready && Router.current == Route.Home) WelcomeTour()
     ToastHost()

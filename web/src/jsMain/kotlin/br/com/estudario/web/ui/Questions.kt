@@ -291,8 +291,12 @@ fun QuizScreen(scope: String) {
                     topic?.let { Chip(it.title, "primary") }
                     listOfNotNull(question.board, question.agency, question.year?.toString()).filter { !it.contains("http") && it.length <= 60 }.takeIf { it.isNotEmpty() }?.let { Chip(it.joinToString(" · ")) }
                 }
-                IconButton(if (question.favorite) "star" else "star_outline", if (question.favorite) "Tirar dos favoritos" else "Favoritar") {
-                    Store.update { Actions.toggleFavorite(it, question.id) }
+                Div({ classes("row"); attr("style", "gap:2px") }) {
+                    IconButton("forum", "Comentar esta questão") { Reports.comment(ReportKindWeb.QUESTION, question.statement, topic?.title) }
+                    IconButton("flag", "Reportar erro nesta questão") { Reports.report(ReportKindWeb.QUESTION, question.statement, topic?.title) }
+                    IconButton(if (question.favorite) "star" else "star_outline", if (question.favorite) "Tirar dos favoritos" else "Favoritar") {
+                        Store.update { Actions.toggleFavorite(it, question.id) }
+                    }
                 }
             }
             QuestionStatement(question.statement)
