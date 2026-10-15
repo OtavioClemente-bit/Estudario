@@ -1,0 +1,1859 @@
+{
+  "id": "informatica.armazenamento-san-nas-raid-backup",
+  "subject": "Informática",
+  "title": "Armazenamento de dados, datacenter e backup",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Armazenamento de dados, datacenter e backup"
+  ],
+  "scope": {
+    "covers": "Armazenamento DAS, NAS, SAN e por objetos; componentes e protocolos Fibre Channel, iSCSI, SMB/CIFS, NFS e S3; sistemas de arquivos, RAID, replicação, deduplicação, backup, restauração, Bacula, fitas, ILM, alta disponibilidade e arquitetura de datacenter.",
+    "excludes": "Configuração avançada de fabricantes específicos, administração profunda de servidores de aplicação, protocolos de roteamento WAN, investigação forense e implantação especializada de sistemas de detecção de intrusão."
+  },
+  "theoryTitle": "Arquiteturas de armazenamento, RAID, redes SAN, replicação e proteção de dados",
+  "chapters": [
+    {
+      "title": "1. DAS, NAS, SAN e fundamentos dos sistemas de arquivos",
+      "markdown": "## Três formas de oferecer armazenamento\nO **DAS (Direct Attached Storage)** é armazenamento conectado diretamente ao servidor ou equipamento consumidor, por interfaces como SATA, SAS ou PCIe/NVMe. Em geral, o sistema operacional vê dispositivos de blocos locais. Não se deve confundir conexão direta com ausência de redundância: um equipamento DAS pode empregar RAID. O **NAS (Network Attached Storage)** fornece arquivos a clientes por rede, normalmente Ethernet e TCP/IP, expondo **compartilhamentos** por SMB ou NFS. O cliente pede operações em arquivos e diretórios; quem mantém o sistema de arquivos que atende aos pedidos é, normalmente, o servidor NAS. Já a **SAN (Storage Area Network)** é uma rede dedicada ou logicamente segregada para acesso a **blocos** remotos. O equipamento consumidor recebe uma unidade lógica, por exemplo uma LUN, e cria ou monta nela um sistema de arquivos adequado. SAN costuma empregar Fibre Channel ou iSCSI; não é sinônimo obrigatório de Fibre Channel nem de acesso a arquivos. Há appliances e serviços que reúnem múltiplas modalidades na mesma infraestrutura.\n\n| Arquitetura | Unidade exposta tipicamente | Exemplos de conexão | Administração dos arquivos |\n| --- | --- | --- | --- |\n| DAS | Bloco local | SATA, SAS, NVMe | Servidor conectado |\n| NAS | Arquivo e diretório | SMB/CIFS, NFS sobre IP | Servidor de arquivos |\n| SAN | LUN ou volume de blocos remoto | Fibre Channel, iSCSI | Hospedeiro com acesso ao bloco |\n| Objetos | Objeto com chave e metadados | API HTTP, como S3 | Aplicação via API |\n\n## Protocolos de acesso a arquivos\n**SMB (Server Message Block)** é amplamente usado para compartilhamento de arquivos e impressoras, negociação de autenticação, permissões e operações remotas. **CIFS** designa uma variante histórica do SMB; afirmar que toda implementação SMB atual é necessariamente CIFS antigo é impreciso. **NFS (Network File System)** oferece acesso a arquivos de outros equipamentos, frequente em ambientes Unix/Linux, com características e mecanismos de autorização dependentes de sua versão e configuração. SMB e NFS fornecem **serviço de arquivos**, diferentemente do iSCSI, que transporta comandos SCSI por rede IP e entrega blocos. Caso um servidor acesse compartilhamento NFS e o reformate como se fosse disco bruto, a arquitetura está sendo descrita incorretamente: montagem de arquivos e apresentação de LUN são operações de camadas distintas.\n\n## Arquivo, diretório, inode e vínculos\nUm **arquivo** é uma unidade lógica de dados e metadados; um **diretório** associa nomes a entradas correspondentes. Em sistemas de arquivos do tipo Unix, o **inode** contém metadados e referências aos blocos do arquivo, normalmente não o próprio nome, que está na entrada do diretório. Um **hard link** é outro nome associado ao mesmo inode dentro de um mesmo sistema de arquivos; alterar o conteúdo por um nome afeta o mesmo arquivo e remover um nome não elimina o conteúdo enquanto houver referências e nenhum impedimento operacional. Um **link simbólico** contém referência a um caminho: pode apontar para outro sistema de arquivos e ficar pendente quando o destino desaparece. Isso difere de duplicar os bytes em um segundo arquivo.\n\n**Journaling** registra intenções ou informações de alterações estruturais para auxiliar recuperação da consistência após falha. Ele não é backup nem garante restauração de arquivo apagado legitimamente. **Fragmentação** ocorre quando dados ou espaço livre estão dispersos, elevando potenciais custos de acesso, sobretudo em mídia mecânica; em SSDs, outras características, como amplificação de escrita e desgaste, também influenciam a administração. A distinção entre fragmentação de arquivos e de espaço livre ajuda a interpretar operações de alocação.\n\n## Datacenter e caminho de entrada e saída\nNum datacenter, servidores, adaptadores, redes, controladoras, discos ou SSDs e aplicações participam de uma cadeia de armazenamento. **IOPS** mede operações de entrada e saída por segundo; **throughput** mede volume de dados transferido por tempo; **latência** é o tempo de resposta da operação. Pequenas leituras aleatórias podem exigir IOPS elevados sem grande vazão em MB/s, enquanto cópia sequencial de arquivos grandes demanda throughput. Interfaces **SATA** e **SAS** são comuns em discos; **NVMe** foi concebido para comunicação eficiente com armazenamento não volátil, usualmente sobre PCIe, e há transporte NVMe sobre fabric. **HDD** combina componentes mecânicos e SSD utiliza memória de estado sólido: menor latência típica não significa ausência de limites de durabilidade. Para comparar soluções, pergunte primeiro se o cliente precisa de bloco, arquivo ou objeto; só depois selecione a tecnologia física."
+    },
+    {
+      "title": "2. Fibre Channel, fabric, zoning, NPIV e S3",
+      "markdown": "## Anatomia de uma SAN\nUma SAN Fibre Channel possui **iniciadores** de I/O, tipicamente adaptadores **HBA (Host Bus Adapter)** em servidores, **switches** que compõem a **fabric**, portas e enlaces ópticos ou compatíveis e **targets** de controladoras de armazenamento. A controladora apresenta volumes identificados como **LUNs (Logical Unit Numbers)**. Cada porta pode ser identificada por um **WWPN (World Wide Port Name)**; há também identificador de nó **WWNN**. Os switches da fabric promovem conectividade entre iniciadores e targets, mas isso não significa que todo servidor pode acessar todo volume. A disponibilidade de caminhos e a permissão de usar LUNs são configuradas em níveis diferentes. **Multipathing (MPIO)** permite múltiplos trajetos entre iniciador e storage, selecionando caminhos e, conforme política, distribuindo I/O e recuperando falhas de enlace. Dois caminhos que atravessam um único switch ainda compartilham esse ponto de falha; por isso fabric A e fabric B independentes são desenho frequente de redundância.\n\n**Zoning** é uma configuração da fabric Fibre Channel que restringe quais portas podem se comunicar: zonas podem referir WWPNs e, em certos equipamentos, portas físicas. **LUN masking** opera normalmente no storage e determina quais iniciadores autorizados enxergam ou acessam volumes específicos. **Zoning não substitui LUN masking**. Exemplo: se HBA X e target Y estão na mesma zona, ainda pode faltar apresentação da LUN 12 a X. Da mesma forma, uma LUN atribuída ao host pode não ficar acessível se os enlaces e a zona estiverem incorretos. Um bom desenho usa zonas pequenas por iniciador e somente targets necessários, com monitoramento de alterações.\n\n**NPIV (N_Port ID Virtualization)** permite que múltiplas portas virtuais Fibre Channel compartilhem um adaptador ou porta física, apresentando **WWPNs distintos**, útil para identidades independentes de máquinas virtuais e partições lógicas. Não cria discos por si só, não equivale a RAID e não elimina zoning ou masking; ao contrário, viabiliza que cada identidade virtual tenha políticas de acesso próprias. **Fibre Channel** é família de transporte especializada em I/O de armazenamento; **iSCSI** encapsula comandos SCSI em TCP/IP, permitindo construir SAN sobre rede Ethernet/IP. Cabos de fibra podem aparecer em ambos os ambientes, mas o protocolo não é definido pelo material do cabo. A expressão **fabric** indica a malha de switches e portas Fibre Channel, não um volume ou sistema de arquivos.\n\n## Object storage e compatibilidade S3\nNo **armazenamento por objetos**, a aplicação grava um **objeto** contendo dados, metadados e uma **chave**, geralmente dentro de um **bucket**. No serviço **Amazon S3**, a combinação de bucket, chave e, quando habilitado, ID de versão identifica uma versão armazenada; as operações comuns usam uma API HTTP com solicitações como PUT, GET, HEAD e DELETE. A chave `relatorios/2026/arquivo.pdf` se parece com caminho, mas no bucket de uso geral corresponde a uma chave de objeto; a barra não implica por si um diretório POSIX com inode. Sistemas e aplicações podem simular hierarquias pela nomenclatura das chaves. Diferentemente de block storage, S3 não oferece aos clientes, por meio dessa API, setor de disco para formatação como partição local. Há produtos compatíveis com API S3 que não são o próprio serviço de nuvem; **compatibilidade de API não prova identidade de implementação**.\n\n**Versioning** em S3 mantém versões diferentes sob a mesma chave e pode auxiliar a recuperar sobrescritas ou exclusões acidentais; a opção precisa ser habilitada e acompanhada de políticas de retenção e custo. Não é equivalente a criar backup isolado contra comprometimento de credenciais. O S3 moderno oferece **consistência forte de leitura após escrita** para operações de objetos GET, PUT e LIST nas condições documentadas: não é correto ensinar que novos objetos inevitavelmente demoram para aparecer em LIST. A consistência por chave não transforma operações de múltiplas chaves numa transação atômica de banco de dados. Classes de armazenamento diferem em frequência de acesso, latência de recuperação e preço, e as transições podem ser controladas por políticas de ciclo de vida.\n\n| Controle ou recurso | Em qual camada atua | Erro que evita |\n| --- | --- | --- |\n| Zoning | Conectividade da fabric | Confundir rede autorizada com acesso a todos os volumes |\n| LUN masking | Apresentação do storage | Expor volume a iniciador não autorizado |\n| NPIV | Identidade virtual de porta Fibre Channel | Misturar múltiplas identidades de acesso |\n| MPIO | Seleção e recuperação de caminhos | Tratar cabo duplicado como redundância completa |\n| Versioning S3 | Histórico de objetos por chave | Supor que a versão anterior é automaticamente descartada |\n\n**Exemplo de decisão:** para um compartilhamento colaborativo de planilhas via SMB, NAS corresponde diretamente ao serviço solicitado; para um volume de blocos destinado a um sistema de arquivos próprio em servidor, uma LUN SAN é solução natural; para milhões de imagens com acesso por API e metadados, object storage é apropriado.\n\n### ISL\n- **ISL (Inter-Switch Link):** enlace que **liga dois switches Fibre Channel** de uma mesma fabric, permitindo que dispositivos conectados a switches diferentes se comuniquem.\n- Vários ISLs entre os mesmos switches podem ser agrupados (**trunking**) para somar banda e dar redundância. O excesso de tráfego num ISL gera gargalo, por isso se planeja a relação entre portas de servidores e enlaces entre switches."
+    },
+    {
+      "title": "3. RAID, capacidade útil e falhas de discos",
+      "markdown": "## O que RAID faz — e o que não faz\n**RAID (Redundant Array of Independent Disks)** combina unidades físicas em um arranjo lógico, buscando desempenho, redundância ou ambos. **RAID 0** usa striping: distribui blocos entre discos, oferece capacidade agregada, mas não possui redundância; falha de uma unidade pode comprometer o conjunto. **RAID 1** espelha os dados: duas unidades idênticas guardam cópias, normalmente com capacidade útil equivalente a uma. **RAID 5** distribui dados e paridade por no mínimo **três discos**, suporta falha de **um disco** no conjunto. **RAID 6** emprega duas paridades independentes, exige no mínimo **quatro discos** e suporta até **dois discos** perdidos. **RAID 10 (1+0)** distribui dados entre pares espelhados; no arranjo clássico são necessárias **quatro unidades**, e um disco de cada par pode falhar sem perder dados. Não é correto concluir que RAID 10 sempre tolera duas falhas quaisquer: ambas dentro do mesmo par podem destruir o volume.\n\nEm exemplos com **n discos de mesma capacidade C**, sem considerar metadados, reserva de hot spare ou diferenças de unidades, as capacidades ideais são: RAID 0 = `n × C`; RAID 1 com duas unidades = `C`; RAID 5 = `(n − 1) × C`; RAID 6 = `(n − 2) × C`; RAID 10 clássico = `(n / 2) × C`. Em seis discos de 2 TB: RAID 5 fornece **10 TB** ideais; RAID 6, **8 TB**; RAID 10, **6 TB**. TB decimal e TiB binário não são a mesma unidade: 1 TiB equivale a 1.099.511.627.776 bytes, enquanto 1 TB decimal corresponde a 1.000.000.000.000 bytes. Não interprete capacidade nominal de fabricante como espaço livre após sistema de arquivos, reserva ou reconstrução.\n\n| Nível | Mínimo clássico | Capacidade em discos iguais | Tolerância de falha |\n| --- | --- | --- | --- |\n| RAID 0 | 2 para striping | n × C | Nenhum disco |\n| RAID 1 | 2 | C no espelho de dois | Um dos dois |\n| RAID 5 | 3 | (n − 1) × C | Um disco |\n| RAID 6 | 4 | (n − 2) × C | Dois discos |\n| RAID 10 | 4 no arranjo clássico | (n / 2) × C | Depende de quais pares falham |\n\n## Escrita, leitura e reconstrução\nO RAID 5 precisa atualizar paridade e pode impor trabalho adicional em **escritas pequenas**; RAID 6 calcula duas informações de paridade, elevando custo de escrita e de reconstrução conforme a implementação. RAID 10 pode favorecer I/O aleatório de escrita, à custa de menor eficiência de capacidade. **Hot spare** é uma unidade de reserva que pode ser automaticamente recrutada quando outra falha, conforme configuração; o hot spare não transforma RAID 5 em RAID 6 e não aumenta seu número garantido de falhas simultâneas toleradas. Durante o **rebuild**, o sistema reconstrói o conteúdo em um disco substituto: há aumento de atividade, janela de vulnerabilidade e possíveis erros de leitura de outros discos. Em RAID 5, uma segunda falha antes de completar a reconstrução costuma comprometer o conjunto. Controladoras e software podem implementar técnicas adicionais, mas não devem ser pressupostas sem informação explícita.\n\n## RAID, snapshot, replicação e backup são distintos\n**RAID protege principalmente da falha física de unidades**, não de exclusão lógica por usuário, ransomware, corrupção replicada, incêndio de toda a sala ou erro administrativo. **Snapshot** guarda um ponto lógico de referência e pode permitir reversão rápida; normalmente compartilha dependências com o sistema de origem, conforme arquitetura. **Replicação** mantém cópia em outro destino, mas um erro ou exclusão pode ser propagado. **Backup** preserva cópias recuperáveis com histórico e política de retenção, idealmente isoladas de produção. Um arranjo RAID 6 com dois discos quebrados ainda pode funcionar, mas se um operador apagar um arquivo e a exclusão se propagar, a paridade não recupera o conteúdo anterior como backup. O teste técnico que mais importa é **restaurar realmente os dados**, não apenas verificar mensagem de sucesso da cópia.\n\n## Interfaces, discos e desempenho\n**SATA** e **SAS** podem conectar HDDs ou SSDs segundo dispositivos compatíveis; SAS é frequente em instalações empresariais com recursos de gerenciamento e conectividade especializados. **NVMe** utiliza filas e comandos adaptados a memória não volátil e aparece frequentemente sobre PCIe. **SSD** elimina movimento mecânico do cabeçote, mas tem limites de ciclos e políticas de descarte, provisionamento e redundância. Em aplicações com leituras aleatórias, a latência e IOPS importam mais do que taxa sequencial anunciada. **Cache de escrita** em controladora pode acelerar operações, exigindo proteção contra perda de energia para consistência do que foi reconhecido como gravado. Na prova, descarte respostas que atribuem à escolha do RAID proteção contra ataques lógicos sem uma arquitetura adicional de recuperação."
+    },
+    {
+      "title": "4. Replicação, disponibilidade, deduplicação e ciclo de vida",
+      "markdown": "## Réplicas síncronas e assíncronas\nNa **replicação síncrona**, uma gravação costuma ser confirmada ao aplicativo depois do comprometimento da gravação nos destinos exigidos pela política; isso pode proporcionar **RPO próximo de zero para falhas cobertas pelo arranjo**, mas acrescenta latência e depende da conectividade. Não garante RPO zero diante de corrupção lógica propagada. Na **replicação assíncrona**, a gravação local é confirmada antes da confirmação remota, havendo atraso entre primário e secundário; favorece grandes distâncias ou menor latência percebida, porém pode perder as últimas alterações quando ocorre falha abrupta do primário. Não é correto afirmar que a assíncrona elimina qualquer perda de dados. Replicar volumes em duas salas da mesma instalação protege de alguns eventos localizados, mas ambas podem sofrer o mesmo incidente físico.\n\n**RPO (Recovery Point Objective)** é o máximo de perda de dados tolerada, expresso como distância temporal em relação ao último ponto recuperável; **RTO (Recovery Time Objective)** é a meta para restabelecer operação após interrupção. Em um sistema com cópias válidas a cada 30 minutos, o planejamento pode mirar RPO de 30 minutos, mas atrasos ou falhas de execução alteram o RPO obtido. Um RTO de duas horas não indica perda de duas horas de dados: descreve prazo de retorno ao serviço. **Failover** é troca de operação para componente secundário em falha; **failback** é retorno controlado ao primário. Um balanceador de carga distribui requisições e pode desviar de nós indisponíveis, mas não substitui persistência compartilhada ou replicação consistente de estado. A detecção de problemas depende de sondas de saúde e critérios adequados, evitando que um nó responda à rede enquanto o serviço interno está inutilizável.\n\n## Estratégias de alta disponibilidade\nFontes de alimentação redundantes, caminhos MPIO, switches em fabrics separadas, equipamentos replicados e monitoramento reduzem pontos únicos de falha. **Ativo-passivo** mantém elemento secundário preparado para assumir; **ativo-ativo** permite mais de uma instância prestar serviço, exigindo mecanismos de consistência, coordenação de escrita e resolução de conflitos conforme o dado. Em sistemas distribuídos, **split-brain** ocorre quando partes isoladas acreditam exercer simultaneamente autoridade sobre o mesmo recurso, criando risco de divergência. **Quorum e fencing** são mecanismos que podem evitar escrita concorrente indevida. Disponibilidade não equivale a integridade: vários nós podem reproduzir o mesmo dado corrompido.\n\n## Deduplicação e otimização\n**Deduplicação** identifica conteúdos repetidos e armazena apenas uma representação física de segmentos iguais, com referências lógicas para os múltiplos usos. Pode operar em nível de arquivo ou **bloco/chunk**, de forma **inline** durante a ingestão ou **pós-processamento**. Compressão transforma representação dos dados para reduzir volume explorando padrões internos, ao passo que deduplicação elimina repetição entre unidades comparadas; as técnicas podem coexistir. O ganho depende da repetitividade e dos limites de processamento e catálogo. Exemplo: cem máquinas com a mesma imagem de sistema podem compartilhar blocos deduplicados e liberar muito espaço; arquivos criptografados com chaves ou inicializações distintas podem reduzir o aproveitamento. O índice e o repositório deduplicado tornam-se componentes importantes para restauração.\n\n**ILM (Information Lifecycle Management)** associa dados a fases e políticas ao longo de seu ciclo: criação, uso frequente, retenção, arquivamento e descarte. **Tiering** move dados para classes de desempenho/custo distintas segundo temperatura de acesso, por exemplo SSD para arquivos muito ativos e mídia de custo menor para arquivos raros. Classificação e retenção devem respeitar necessidade de acesso, requisitos de preservação e exclusão. Uma política pode movimentar objetos do S3 para classes mais econômicas e definir expiração, mas movimentação automática não cria, por si, cópia isolada recuperável após apagamento.\n\n| Medida | Principal benefício | Limite mais importante |\n| --- | --- | --- |\n| Replicação síncrona | Pequena perda de dados em falhas cobertas | Latência, custo e corrupção propagada |\n| Replicação assíncrona | Distância e desempenho local | Defasagem e possível perda recente |\n| Balanceamento | Distribuição e continuidade do serviço | Não cria cópias consistentes de dados |\n| Deduplicação | Redução de armazenamento repetido | Pode ampliar dependência de índice/repositório |\n| ILM/tiering | Custo e desempenho conforme ciclo | Não equivale a backup testado |\n\nNa proteção da infraestrutura, combine controle de acesso mínimo, criptografia em trânsito e repouso, monitoramento e segregação da rede de armazenamento. Sistemas de **detecção de intrusão (IDS)** produzem alertas sobre atividade suspeita, enquanto mecanismos de prevenção podem bloquear conforme política; um alerta não restaura dados e um controle de tráfego não substitui backup."
+    },
+    {
+      "title": "5. Backup, restauração, fita, Bacula e continuidade",
+      "markdown": "## Tipos de cópia e cadeias de restauração\n**Backup completo (full)** copia todo o conjunto definido pela política. **Incremental** copia mudanças desde o backup mais recente relevante, seja completo ou incremental; recuperar um estado após full e três incrementais, em um sistema tradicional, requer o **full mais cada incremental subsequente**. **Diferencial** copia mudanças desde o último full: a restauração tradicional necessita do **full mais o último diferencial**. Exemplo: full no domingo, alteração A na segunda e B na terça. Incremental de segunda leva A; incremental de terça leva B. Diferencial de terça leva **A e B**, pois sua referência continua sendo o full de domingo. O tamanho do diferencial tende a crescer entre completos; a cadeia incremental pode exigir mais etapas de restauração. Há tecnologias de síntese de full e backups incrementais permanentes, mas não se deve presumir isso numa questão que descreve apenas modalidades clássicas.\n\n**Imagem de sistema** captura volumes e estado necessário para recuperação abrangente, ao passo que cópia de arquivos pode exigir reinstalação separada de ambiente. **Snapshot** cria marco lógico útil para rollback rápido, porém pode residir na mesma infraestrutura e carecer de retenção independente. **CDP (Continuous Data Protection)** captura mudanças com granularidade frequente ou contínua para oferecer vários pontos recuperáveis; diferenciar frequência de gravação da capacidade real de restauração. **RPO** indica quanto dado se aceita perder; **RTO**, tempo admissível para recuperar serviço. Os dois orientam frequência, mídia e topologia de backup.\n\n## Política, mídia, fita e isolamento\nA regra operacional **3-2-1** recomenda ao menos **três cópias dos dados**, em **dois tipos de mídia** ou domínios de armazenamento adequadamente distintos e **uma cópia fora do local**. A interpretação moderna dá destaque a cópias **offline, imutáveis ou de credenciais segregadas**, verificadas regularmente contra ransomware. Guardar três diretórios na mesma LUN não garante isolamento contra falha ou exclusão. **Fita magnética (tape)** oferece custo por capacidade favorável e pode compor retenção externa desconectada; o acesso sequencial e o tempo de carregamento podem tornar sua recuperação mais lenta que disco. Biblioteca de fitas, unidade gravadora, cartuchos, robô e catálogo desempenham funções distintas. Restauração exige localizar conjunto e sequência corretos, mídia íntegra, chaves de criptografia necessárias e informações de catálogo. Backup em nuvem depende de rede, credenciais, políticas de retenção e custos de transferência; seu rótulo não garante imutabilidade.\n\n**Política de backup** define escopo, criticidade, periodicidade, janela de execução, retenção, localização, autenticação, criptografia, notificações, verificação e **testes de restauração**. Em sistemas transacionais, backups precisam capturar estado **consistente**: congelamento, snapshots coordenados com aplicação ou backup nativo e logs podem ser necessários. Copiar arquivos de banco em modificação sem mecanismo de consistência pode produzir cópia inutilizável. **Recuperação granular** restaura arquivo ou registro; **recuperação bare metal** pretende reinstaurar sistema inteiro em equipamento compatível. Verificação de hash e testes de recuperação complementam, mas não substituem o ensaio de uso real do dado restaurado.\n\n## Bacula: arquitetura de um sistema livre de backup\n**Bacula** é uma suíte de backup e restauração com componentes distintos. O **Director (DIR)** coordena Jobs, horários (**Schedule**), conjuntos de arquivos (**FileSet**), clientes e pools. O **File Daemon (FD)** executa no cliente para ler ou restaurar seus dados. O **Storage Daemon (SD)** recebe o fluxo e grava em volumes de disco ou fita, ou lê a mídia para restauração. O **Catalog** contém metadados de arquivos, Jobs e volumes em banco de dados, permitindo localizar conteúdos; não é o próprio depósito integral dos backups. O **Console** permite comandos de administração. Um **Job** vincula cliente, conjunto de arquivos, plano e destino, conforme a configuração. Ao restaurar, o catálogo localiza a mídia; o Storage Daemon lê os volumes e o File Daemon aplica os dados ao destino. Perder o catálogo pode complicar a localização e reconstrução de cópias, mesmo que os volumes físicos existam.\n\n## Continuidade do datacenter\nEnergia protegida por UPS, refrigeração, detecção de incêndio, controle físico, cabeamento redundante, capacidade de rede, monitoramento e documentação de recuperação são requisitos de arquitetura resiliente. Replicar storage sem cópia histórica permite replicar exclusões indevidas. Adotar RAID sem redundância de controladora mantém ponto único de falha. Implantar balanceador sem persistência de estado pode permitir acesso à interface e ainda assim falhar transações. Por isso, o plano de continuidade deve sequenciar detecção, decisão de failover, integridade do destino, retorno da aplicação e validação dos usuários. Exercícios devem medir RPO e RTO **realizados**, e não somente as metas documentadas.\n\n| Cenário | Estratégia recomendável | Alerta de prova |\n| --- | --- | --- |\n| Excluir arquivo por engano | Backup ou versão histórica íntegra | RAID não desfaz exclusão |\n| Romper um enlace SAN | Caminho redundante e MPIO | Dois cabos no mesmo switch não isolam falha do switch |\n| Perder disco de RAID 5 | Reconstruir usando paridade e unidade nova | Segunda falha pode ser fatal |\n| Recuperar full + incrementais | Restaurar full e cadeia necessária | Último incremental sozinho é incompleto |\n| Recuperar full + diferencial | Restaurar full e último diferencial | Não necessita de todos os diferenciais anteriores |\n| Malware criptografar produção | Cópia isolada, íntegra e testada | Replicação pode disseminar criptografia |\n\n**Como o tema costuma ser cobrado**\nA prova confronta **bloco versus arquivo versus objeto**; separa **zoning, masking e NPIV**; exige capacidade e tolerância de falhas em **RAID 0/1/5/6/10**; calcula **cadeias incremental e diferencial**; distingue **RPO de RTO**, **replicação síncrona e assíncrona**, **snapshot e backup**, **deduplicação e compressão**. Também associa as funções do **Director, File Daemon, Storage Daemon e Catalog** e cobra que uma cópia só se torna confiável após **teste de restauração**.\n\n### VTL\n- **VTL (Virtual Tape Library):** sistema baseado em **disco** que **emula uma biblioteca de fitas**. Para o software de backup, ele parece uma biblioteca de fitas real, com drives e cartuchos virtuais.\n- **Vantagens:** backups e restaurações **mais rápidos** que em fita física, sem mudar o software nem a rotina de backup; costuma ter **deduplicação** e compressão.\n- É comum combinar VTL e fita: o backup vai primeiro para a VTL e depois é copiado para **fita física**, guardada fora do local (*off-site*) para proteção de longo prazo e contra ransomware."
+    }
+  ],
+  "summary": "## Modalidades de armazenamento\n**DAS:** discos conectados diretamente ao equipamento; **NAS:** compartilhamento de arquivos por **SMB/CIFS ou NFS**; **SAN:** rede de armazenamento de **blocos**, geralmente via **Fibre Channel ou iSCSI**; **objetos:** dados, metadados e chave em bucket, acessados por API como S3. Em SAN, **zoning** controla comunicação na fabric, **LUN masking** limita quais volumes aparecem ao iniciador, **NPIV** oferece identidades Fibre Channel virtuais distintas com WWPNs e **MPIO** administra caminhos redundantes. O S3 oferece consistência forte de leitura após escrita para operações de objetos e listagem, e versioning opcional para preservar versões; nenhum desses recursos transforma S3 em disco bruto.\n\n## RAID e discos\n| RAID | Mínimo clássico | Capacidade útil com n discos iguais de C | Falha tolerada |\n| --- | --- | --- | --- |\n| 0 | 2 | n × C | Nenhuma |\n| 1 | 2 | C, com par espelhado | 1 dos 2 |\n| 5 | 3 | (n − 1) × C | 1 |\n| 6 | 4 | (n − 2) × C | 2 |\n| 10 | 4 | (n / 2) × C | Conforme pares espelhados |\n**RAID não é backup**: exclusão, corrupção e criptografia maliciosa podem atingir todos os discos. HDD tem componentes mecânicos; SSD usa memória de estado sólido; SATA, SAS e NVMe são interfaces ou protocolos, com características próprias.\n\n## Dados e disponibilidade\n**Arquivo:** unidade de informação; **diretório:** associação de nomes; **inode:** metadados e referências de dados; **hard link:** mais um nome para mesmo inode; **symlink:** referência a caminho, que pode ficar quebrada; **journaling:** auxilia recuperação de consistência após falha, mas não restaura histórico de arquivo apagado. **Replicação síncrona:** confirmação conforme comprometimento dos destinos, com custo de latência; **assíncrona:** destino pode ficar atrasado e perder alterações recentes. **RPO** determina perda de dados tolerada; **RTO**, tempo máximo desejado de restabelecimento. **Failover** transfere serviço a alternativa; **balanceamento** distribui carga; **deduplicação** elimina armazenamento repetido; **compressão** reduz representação dos dados; **ILM/tiering** administra localização e retenção por ciclo de vida.\n\n## Backup e recuperação\n**Full** copia tudo; **incremental** copia desde último backup relevante e requer cadeia após o full; **diferencial** copia desde último full e requer full mais último diferencial. **3-2-1:** três cópias, duas classes de mídia/domínios e uma cópia remota, reforçadas por isolamento e testes. Fita é sequencial, apropriada a retenção econômica; snapshot e replicação não substituem backup independente. **Bacula Director:** agenda e coordena; **File Daemon:** acessa arquivos no cliente; **Storage Daemon:** opera volumes/mídia; **Catalog:** índices e metadados; **Console:** administração. Proteger também credenciais, chaves, armazenamento de destino e capacidade comprovada de restauração.",
+  "flashcards": [
+    {
+      "front": "O que distingue DAS de NAS?",
+      "back": "DAS liga armazenamento diretamente ao equipamento, tipicamente como bloco. NAS compartilha arquivos por rede com protocolos como SMB e NFS."
+    },
+    {
+      "front": "Qual tipo de acesso é comum em SAN?",
+      "back": "Acesso a blocos remotos organizados em volumes ou LUNs, por exemplo via Fibre Channel ou iSCSI."
+    },
+    {
+      "front": "O que é zoning FC?",
+      "back": "Restrição, na fabric, de quais portas iniciadoras e de destino podem comunicar-se."
+    },
+    {
+      "front": "O que é LUN masking?",
+      "back": "Controle no sistema de armazenamento sobre quais iniciadores acessam determinados volumes lógicos."
+    },
+    {
+      "front": "Para que serve NPIV?",
+      "back": "Permite várias identidades de porta Fibre Channel, com WWPNs próprios, usando uma porta física."
+    },
+    {
+      "front": "Qual a função de MPIO?",
+      "back": "Gerenciar diversos caminhos de I/O, incluindo seleção e recuperação após falhas de trajeto."
+    },
+    {
+      "front": "SMB e NFS oferecem o quê?",
+      "back": "Serviços de arquivos e diretórios em rede, diferentemente de uma LUN de blocos."
+    },
+    {
+      "front": "O que identifica objeto S3?",
+      "back": "Um bucket e chave; havendo versionamento, a identificação inclui o ID da versão."
+    },
+    {
+      "front": "A listagem S3 é eventualmente consistente após PUT?",
+      "back": "Não, nas operações de objetos documentadas o Amazon S3 oferece consistência forte de leitura após escrita e listagem."
+    },
+    {
+      "front": "Hard link e symlink diferem como?",
+      "back": "Hard link é outro nome para o mesmo inode; symlink contém caminho para outro objeto e pode ficar quebrado."
+    },
+    {
+      "front": "Journaling equivale a backup?",
+      "back": "Não. Ele ajuda a recuperar a consistência de estruturas após falha, não versões históricas de arquivos excluídos."
+    },
+    {
+      "front": "RAID 0 suporta perder um disco?",
+      "back": "Não. Striping não fornece redundância entre discos."
+    },
+    {
+      "front": "Qual falha tolera RAID 5?",
+      "back": "Uma unidade perdida no arranjo, com possibilidade de reconstrução mediante paridade."
+    },
+    {
+      "front": "Qual falha tolera RAID 6?",
+      "back": "Até duas unidades no mesmo arranjo de paridade dupla."
+    },
+    {
+      "front": "RAID 10 tolera duas falhas quaisquer?",
+      "back": "Não. Falhas de duas unidades no mesmo par espelhado podem destruir o conjunto."
+    },
+    {
+      "front": "O que significa hot spare?",
+      "back": "Unidade reserva que pode assumir automaticamente lugar de disco falhado para iniciar reconstrução."
+    },
+    {
+      "front": "Qual a diferença entre RPO e RTO?",
+      "back": "RPO é perda temporal de dados tolerada; RTO é tempo tolerado para restabelecer o serviço."
+    },
+    {
+      "front": "Replicação assíncrona tem qual risco?",
+      "back": "O destino pode estar atrasado, de modo que alterações recentes podem ser perdidas na falha do primário."
+    },
+    {
+      "front": "Como funciona deduplicação?",
+      "back": "Blocos ou arquivos iguais são armazenados de forma compartilhada e referenciados em vários pontos lógicos."
+    },
+    {
+      "front": "Restaurar incrementais clássicos exige o quê?",
+      "back": "Full mais a sequência de incrementais até o ponto desejado."
+    },
+    {
+      "front": "Restaurar diferencial clássico exige o quê?",
+      "back": "Último full mais o diferencial mais recente até o ponto desejado."
+    },
+    {
+      "front": "Quais componentes essenciais do Bacula?",
+      "back": "Director coordena; File Daemon coleta/restaura no cliente; Storage Daemon lê/grava mídia; Catalog indexa Jobs e volumes."
+    },
+    {
+      "front": "A regra 3-2-1 propõe o quê?",
+      "back": "Três cópias dos dados, duas mídias ou domínios adequadamente distintos, e uma cópia externa, com segurança e testes de restauração."
+    }
+  ],
+  "tips": [
+    "Antes de decorar protocolos, desenhe a camada: LUN/bloco tende a SAN; arquivo compartilhado tende a NAS; chave e metadados via API tendem a objetos.",
+    "Numa topologia FC, faça três perguntas separadas: há caminho físico? zoning permite comunicação? masking expõe a LUN?",
+    "Em cálculo de RAID com discos iguais, desconte um disco no RAID 5, dois no RAID 6 e metade da capacidade no RAID 10 clássico.",
+    "Verifique quais discos falham no RAID 10: dois discos de pares diferentes podem ser tolerados; dois do mesmo par não.",
+    "Para backup incremental, acompanhe o último backup realizado; para diferencial, mantenha como referência o último full.",
+    "Traduza RPO em perda de alterações, não em demora para iniciar; traduza RTO em tempo de retorno ao serviço.",
+    "Valide backup restaurando: relatório de sucesso, snapshot e replicação são evidências insuficientes de recuperação isoladamente.",
+    "Lembre Bacula com funções concretas: Director decide, File Daemon lê, Storage Daemon grava e Catalog localiza."
+  ],
+  "traps": [
+    "A prova escreve que NAS apresenta LUN bruta via SMB. Incorreto: SMB fornece compartilhamento de arquivos; LUN bruta é típica de SAN.",
+    "A prova confunde zoning com LUN masking. Zoning controla comunicação entre portas FC; masking controla apresentação de volumes no storage.",
+    "A prova apresenta NPIV como duplicação física de adaptadores. NPIV virtualiza identidades de portas Fibre Channel sobre hardware compartilhado.",
+    "A prova afirma que RAID 5 suporta perda simultânea de dois discos. O nível de paridade dupla para tolerar dois discos é RAID 6.",
+    "A prova afirma que duas falhas quaisquer são toleradas em RAID 10. Se ambas ocorrerem no mesmo espelho, o arranjo pode se perder.",
+    "A prova descreve S3 como sistema de arquivos POSIX nativo com diretórios físicos. O modelo é objeto identificado por chave em bucket.",
+    "A prova iguala replicação síncrona a backup imune a exclusões. A exclusão pode ser replicada, sendo necessária cópia histórica isolada.",
+    "A prova diz que o diferencial usa como base o último diferencial. Diferencial clássico usa o último completo; incremental usa o backup anterior."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como explicar blocos, arquivos e objetos por um exemplo de aplicação?",
+      "answer": "Volume de sistema de arquivos próprio pede blocos SAN/DAS; compartilhamento SMB para equipe pede NAS; imagens recuperadas por bucket e chave via HTTP pedem objetos S3."
+    },
+    {
+      "question": "Por que um host pode enxergar um target Fibre Channel e ainda não acessar sua LUN?",
+      "answer": "O zoning pode permitir conectividade sem que o LUN masking/mapping apresente o volume ao WWPN do host."
+    },
+    {
+      "question": "Quanto oferece RAID 5 com seis discos iguais de 2 TB e RAID 6 com os mesmos discos?",
+      "answer": "RAID 5 oferece 10 TB ideais e tolera um disco; RAID 6 oferece 8 TB ideais e tolera dois."
+    },
+    {
+      "question": "Quando duas falhas em RAID 10 são toleradas?",
+      "answer": "Quando não eliminam ambas as unidades de nenhum par espelhado; falhas no mesmo par podem comprometer dados."
+    },
+    {
+      "question": "Como restaurar terça-feira após full no domingo e incrementais na segunda e terça?",
+      "answer": "Restaurar full de domingo, incremental de segunda e incremental de terça, nessa ordem lógica."
+    },
+    {
+      "question": "Como restaurar terça-feira após full no domingo e diferenciais na segunda e terça?",
+      "answer": "Restaurar full de domingo e diferencial de terça, que incorpora as mudanças desde domingo."
+    },
+    {
+      "question": "Que decisão muda ao exigir RPO de 15 minutos, mas aceitar RTO de quatro horas?",
+      "answer": "Precisam existir pontos de recuperação com defasagem compatível com 15 minutos; a reativação do serviço pode consumir até quatro horas."
+    },
+    {
+      "question": "Que componentes Bacula participam de backup e restauração?",
+      "answer": "Director orquestra Job, File Daemon acessa dados, Storage Daemon grava/lê volumes, Catalog indica onde encontrá-los e Console administra."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir bloco, arquivo e objeto",
+      "summary": "SAN e DAS costumam expor blocos, NAS fornece arquivos via NFS/SMB, enquanto S3 apresenta objetos em buckets com chaves e metadados; o protocolo e a interface determinam a semântica para a aplicação."
+    },
+    {
+      "key": "e2",
+      "title": "Tratar zoning, masking e NPIV como equivalentes",
+      "summary": "Zoning isola comunicação de portas FC; masking decide quais LUNs são acessíveis; NPIV cria identidades de portas virtuais com WWPNs próprios."
+    },
+    {
+      "key": "e3",
+      "title": "Superestimar proteção do RAID",
+      "summary": "RAID 0 não tem redundância; RAID 5 tolera uma unidade, RAID 6 duas; RAID 10 depende da distribuição das falhas pelos espelhos. Nenhum desses níveis substitui backup."
+    },
+    {
+      "key": "e4",
+      "title": "Confundir durabilidade, replicação e disponibilidade",
+      "summary": "Replicação síncrona e assíncrona têm impactos diversos sobre latência e perda recente; failover e balanceamento não garantem histórico nem integridade contra corrupção propagada."
+    },
+    {
+      "key": "e5",
+      "title": "Trocar RPO/RTO e incremental/diferencial",
+      "summary": "RPO mensura perda de dados tolerada e RTO o tempo de restauração; diferencial compara com full, incremental com backup recente, exigindo cadeias de recuperação diferentes."
+    },
+    {
+      "key": "e6",
+      "title": "Confundir cópia, snapshot e restauração validada",
+      "summary": "Snapshots e versões podem compartilhar falhas e credenciais com a origem. Política 3-2-1, isolamento, retenção e ensaios reais de restauração são essenciais, inclusive com Bacula e fitas."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe precisa disponibilizar uma pasta compartilhada por SMB, com acesso simultâneo de diferentes computadores pela rede. Qual arquitetura corresponde diretamente ao requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "NAS, que compartilha arquivos e diretórios na rede local.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DAS, que entrega blocos a um único equipamento conectado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SAN FC, que fornece LUNs brutas diretamente a iniciadores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "S3, que oferece objetos acessados por bucket e chave HTTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RAID 1, que espelha unidades físicas no armazenamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O NAS oferece serviço de arquivos em rede e pode usar SMB. B descreve ligação direta, não compartilhamento SMB por si. C expõe blocos remotos, não arquivos gerenciados pelo protocolo. D corresponde a acesso por objetos via API. E é técnica de redundância de discos, não arquitetura de compartilhamento.",
+      "section": "1. DAS, NAS, SAN e fundamentos dos sistemas de arquivos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor recebe um volume remoto identificado como LUN, que será formatado com sistema de arquivos próprio. Qual modelo de armazenamento é mais diretamente descrito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "NAS via NFS, que apresenta diretórios já formatados remotamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SAN de blocos, que apresenta unidade lógica ao hospedeiro.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "S3 por API, que devolve objetos completos mediante chave.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SMB como serviço de impressão e navegação por pastas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ILM, que transfere arquivos antigos para mídias econômicas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Em uma SAN, o hospedeiro acessa blocos de LUN e pode formatá-los. A oferece arquivos e diretórios por NFS; C fornece objetos por API, sem apresentar disco bruto; D pertence ao serviço de arquivos SMB; E é gestão de ciclo de vida, não método de exposição de volume.",
+      "section": "1. DAS, NAS, SAN e fundamentos dos sistemas de arquivos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um armazenamento Fibre Channel permite conexão entre dois WWPNs, mas o volume ainda não é apresentado ao servidor. Qual recurso controla especificamente a visibilidade dessa LUN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Zoning, que autoriza comunicação entre portas da fabric FC.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "NPIV, que cria identidades virtuais sobre porta física FC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "LUN masking, que limita volumes expostos a iniciadores.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "MPIO, que seleciona rotas de I/O disponíveis no host.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Striping, que distribui blocos entre discos do arranjo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O LUN masking controla a apresentação de volumes para iniciadores autorizados. A restringe quem conversa na fabric, mas não mapeia o volume por si; B virtualiza identidade de porta; D gerencia caminhos redundantes; E é distribuição física de dados em RAID, sem função de autorização de LUN.",
+      "section": "2. Fibre Channel, fabric, zoning, NPIV e S3",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quatro discos de 2 TB serão organizados em RAID 5 convencional. Sem reservas nem metadados, qual capacidade útil nominal é esperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "4 TB, como em espelhamento de pares no RAID 10.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "8 TB, como no striping sem paridade do RAID 0.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "2 TB, como no espelho simples de todas as unidades.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "6 TB, com equivalente a um disco para paridade.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "5 TB, após descontar metade de um disco de paridade.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. RAID 5 reserva capacidade equivalente a uma unidade: (4 − 1) × 2 TB = 6 TB. A corresponderia à metade dos discos em espelhos; B desconsidera paridade; C pressupõe espelhar os quatro; E desconta somente 1 TB, fração que não corresponde ao modelo clássico do RAID 5.",
+      "section": "3. RAID, capacidade útil e falhas de discos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma solução deve suportar falha simultânea de duas unidades com paridade distribuída e discos de mesmo tamanho. Qual nível clássico corresponde à exigência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RAID 0, que divide os blocos sem informação redundante.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RAID 1, que espelha um par de unidades equivalentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RAID 5, que emprega uma paridade distribuída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RAID 10, que tolera duas falhas em qualquer par.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RAID 6, que mantém dupla paridade distribuída.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. O RAID 6 emprega dupla paridade e tolera até duas falhas de discos no mesmo arranjo. A não possui redundância; B oferece espelho de um par; C tolera apenas uma unidade; D pode tolerar mais de uma falha, mas não assegura quaisquer duas, pois ambas podem atingir o mesmo par espelhado.",
+      "section": "3. RAID, capacidade útil e falhas de discos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço estabelece RPO de quinze minutos e RTO de duas horas. O que descreve corretamente esses objetivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Perda temporal de até 15 minutos e recuperação em até duas horas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Recuperação em 15 minutos e perda de até duas horas de dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Interrupção mínima de 15 minutos e retenção de dados por duas horas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replicação a cada duas horas e indisponibilidade de 15 minutos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retenção de quinze backups e restauração de duas versões por hora.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. RPO define o ponto de recuperação, isto é, perda de alterações tolerada; RTO é o tempo-alvo para retorno do serviço. B inverte as grandezas; C confunde com mínimo de parada e retenção; D inventa periodicidade de replicação; E troca métricas temporais por contagens de cópias e versões.",
+      "section": "4. Replicação, disponibilidade, deduplicação e ciclo de vida",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após backup completo no domingo, ocorreram incrementais na segunda e terça. Para restaurar o estado da terça, qual conjunto clássico é necessário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente incremental de terça, pois contém toda a semana.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Completo de domingo e incrementais de segunda e terça.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Completo de domingo e somente incremental de terça.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente incrementais de segunda e terça, sem completo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Completo de domingo e diferencial gerado na segunda.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O incremental de terça captura mudanças posteriores ao backup anterior, exigindo o full de domingo e a cadeia de segunda e terça. A omite base e alterações anteriores; C ignora segunda; D não possui ponto inicial; E substitui por diferencial não fornecido e não inclui alterações da terça.",
+      "section": "5. Backup, restauração, fita, Bacula e continuidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador deseja realizar backup completo e depois diferencial diário. Qual conjunto restaura o estado de quinta-feira, supondo full no domingo e diferencial na quinta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O diferencial da quinta isoladamente, sem imagem de base.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O full de domingo e todos os diferenciais intermediários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O full de domingo e o diferencial produzido na quinta.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Somente os diferenciais de quarta e quinta consecutivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O full de domingo e o diferencial produzido na segunda.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Cada diferencial clássico compara alterações com o último backup completo; assim, restauram-se o full e o diferencial do ponto desejado. A não fornece a base; B adiciona diferenciais desnecessários; D omite o full; E só alcançaria as mudanças até segunda-feira.",
+      "section": "5. Backup, restauração, fita, Bacula e continuidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bacula, um componente mantém o catálogo de arquivos, tarefas e volumes para localizar dados nas restaurações. Qual é esse componente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "File Daemon, que lê dados dos clientes durante backups.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Storage Daemon, que opera os volumes em disco ou fita.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Director, que coordena agendamentos e tarefas de cópia.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Catalog, com índices dos arquivos, Jobs e seus volumes.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Console, que fornece comandos para administrar a solução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Catalog mantém o índice e metadados utilizados para encontrar arquivos e mídias de restauração. A executa trabalho junto aos arquivos do cliente; B grava e lê mídia; C coordena execução de tarefas; E serve para administração interativa. Nenhum desses quatro é o banco de índices descrito.",
+      "section": "5. Backup, restauração, fita, Bacula e continuidade",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação deve guardar imagens com chave identificadora e metadados em buckets, consumindo API HTTP. Qual alternativa expressa melhor a interface solicitada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "LUN iSCSI formatada diretamente pelo sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Compartilhamento NFS que expõe inodes remotamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Volume Fibre Channel montado por caminhos MPIO.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dispositivo SATA conectado à placa controladora.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Object storage com operações S3 sobre buckets e chaves.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A combinação bucket, chave, metadados e API HTTP corresponde a armazenamento por objetos como S3. A e C apresentam blocos a serem formatados; B fornece arquivos por protocolo NFS; D é conexão física de disco. Nenhum deles, por si só, oferece a semântica de objetos identificados por chave requerida.",
+      "section": "2. Fibre Channel, fabric, zoning, NPIV e S3",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ambiente virtualizado compartilha um único adaptador Fibre Channel físico entre várias identidades virtuais, cada uma reconhecida pelo próprio WWPN. Qual tecnologia atende ao cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "NPIV, com várias identidades virtuais em uma porta FC.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "MPIO, que gerencia rotas de I/O para a mesma unidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Zoning, que autoriza comunicação entre membros da fabric.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RAID 10, que combina espelhos e distribuição de blocos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NFS, que compartilha diretórios do servidor por rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. NPIV possibilita vários WWPNs virtuais sobre uma porta Fibre Channel física. B lida com caminhos redundantes, não cria identidades; C limita comunicação na fabric; D combina discos e não portas; E oferece acesso a arquivos remotos, sem virtualização de adaptadores Fibre Channel.",
+      "section": "2. Fibre Channel, fabric, zoning, NPIV e S3",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista cria outro nome para um arquivo Unix, apontando ao mesmo inode e sem duplicar seu conteúdo. Qual estrutura foi criada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Link simbólico, que registra um caminho ao destino existente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Hard link, que mantém nova entrada para o mesmo inode.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Snapshot, que representa o sistema em outro ponto temporal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Diretório, que contém os dados duplicados em seus blocos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Journal, que conserva operações para recuperação estrutural.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Um hard link é uma segunda entrada de diretório associada ao inode existente. A guarda referência a caminho e pode ficar pendente; C representa estado de dados em instante lógico; D mistura entrada de nome com duplicação do conteúdo; E registra operações de consistência, não fornece segundo nome do mesmo arquivo.",
+      "section": "1. DAS, NAS, SAN e fundamentos dos sistemas de arquivos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instalação tem seis unidades de 3 TB e deseja RAID 6 convencional, sem hot spare. Quanto é a capacidade nominal útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "9 TB, considerando três discos para paridade distribuída.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "15 TB, como no nível de paridade simples RAID 5.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "12 TB, com duas unidades reservadas à dupla paridade.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "18 TB, por aproveitar todos os discos como dados úteis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "6 TB, como se quatro discos fossem totalmente reservados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. RAID 6 oferece (n − 2) × C: (6 − 2) × 3 = 12 TB ideais. A subtrai três unidades, não duas; B segue capacidade de RAID 5; D pressupõe striping sem paridade; E reserva quatro unidades, resultado incompatível com dupla paridade em arranjo clássico.",
+      "section": "3. RAID, capacidade útil e falhas de discos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num arranjo RAID 10 de quatro discos em dois pares espelhados, falham duas unidades pertencentes ao mesmo par. Qual risco deve ser reconhecido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O conjunto permanece seguro, pois RAID 10 aceita duas falhas quaisquer.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A paridade dupla recompõe os dados, como ocorreria em RAID 6.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A perda limita apenas o desempenho, sem afetar os dados do par.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O conjunto pode perder dados se os dois discos do espelho falharem.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A controladora usa metade da capacidade restante como paridade simples.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. RAID 10 tolera falhas condicionadas à preservação de pelo menos um disco em cada par. A generaliza indevidamente; B atribui paridade inexistente em RAID 10; C ignora perda total de espelho; E descreve mecanismo de paridade que não integra a composição dos pares espelhados.",
+      "section": "3. RAID, capacidade útil e falhas de discos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização precisa reduzir latência no site primário, aceitando risco de perder algumas atualizações ainda não transmitidas ao destino remoto. Qual replicação atende ao compromisso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Síncrona, que espera confirmação remota antes de liberar escrita.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Síncrona, que dispensa largura de banda entre os dois destinos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Por snapshot local, que equivale a cópia remota instantânea.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Por RAID 5, que transmite toda escrita para outro datacenter.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Assíncrona, com confirmação local antes de atualizar o destino.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A replicação assíncrona confirma localmente antes de garantir a escrita remota e pode apresentar atraso de dados. A tende a acrescentar espera de confirmação; B nega demanda de rede; C confunde ponto local com réplica remota; D atribui função de replicação geográfica ao mecanismo de paridade RAID.",
+      "section": "4. Replicação, disponibilidade, deduplicação e ciclo de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Cem máquinas armazenam imagens quase idênticas, repetindo grandes blocos de dados. Qual mecanismo pode economizar espaço identificando segmentos iguais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Deduplicação por blocos, que compartilha dados iguais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Replicação síncrona, que mantém outra cópia atualizada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MPIO, que alterna caminhos para o mesmo volume lógico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Zoning, que delimita visibilidade de portas numa fabric.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Failover, que desloca serviço após detecção de falha.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Deduplicação por blocos reconhece conteúdo repetido e evita armazená-lo fisicamente muitas vezes, mantendo referências lógicas. B amplia cópias para continuidade, não remove repetição; C e D controlam acesso/caminhos; E substitui instância indisponível e não reduz consumo de dados.",
+      "section": "4. Replicação, disponibilidade, deduplicação e ciclo de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema de backup Bacula, o componente que executa no equipamento protegido para ler arquivos e recolocá-los durante a restauração é qual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Storage Daemon, encarregado de gerenciar volumes de mídia.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "File Daemon, que lê e devolve dados ao cliente protegido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Catalog, que mantém o índice lógico de arquivos e tarefas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Director, que centraliza a agenda e o controle dos Jobs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Console, usado para emissão de comandos administrativos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. File Daemon participa diretamente do acesso a arquivos no cliente durante backup e restauração. A opera meios de armazenamento; C indexa metadados; D orquestra clientes, horários e tarefas; E oferece interface de comandos. Trocar File Daemon por Storage Daemon confunde coleta com gravação em mídia.",
+      "section": "5. Backup, restauração, fita, Bacula e continuidade",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um bucket S3 recebe gravação confirmada de um novo objeto e, logo depois, uma aplicação consulta sua chave por GET e a lista do bucket por LIST. Qual comportamento corresponde à documentação atual do serviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "GET é forte, mas LIST necessariamente omite o objeto até convergência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "LIST é forte, mas GET pode devolver indefinidamente o estado anterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "GET e LIST oferecem consistência forte após a gravação concluída.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "GET e LIST tornam atômicas todas as gravações feitas em chaves distintas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "GET depende de NFS, e LIST depende de compartilhamento SMB ativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. A documentação do S3 informa consistência forte após PUT confirmado para leituras e listagens. A repete comportamento antigo de listagem; B nega a leitura atualizada; D confunde consistência por objeto com transação entre chaves; E atribui protocolos de arquivo que não constituem requisito da API S3.",
+      "section": "2. Fibre Channel, fabric, zoning, NPIV e S3",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor tem dois HBAs, mas ambos atravessam o mesmo switch FC até o storage. O projeto pretende manter I/O mesmo se esse switch falhar. Qual alteração corrige o ponto único de falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas dobrar o número de zonas no switch atual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Habilitar NPIV nos dois HBAs mantendo a mesma fabric física.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar LUN masking para facilitar a descoberta do volume.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Distribuir caminhos entre fabrics independentes, com MPIO configurado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o número de discos do volume, preservando o único switch.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Dois HBAs no mesmo switch compartilham a falha desse componente. Fabrics independentes com caminhos redundantes e MPIO podem manter I/O após perda de um switch. A cria apenas isolamento lógico; B virtualiza identidades; C amplia exposição e não dá disponibilidade; E protege discos sem eliminar falha da rede.",
+      "section": "2. Fibre Channel, fabric, zoning, NPIV e S3",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um RAID 5 de cinco unidades tem uma unidade hot spare e perde um disco de dados. Antes de reconstrução terminar, outro disco ativo falha. Qual avaliação é tecnicamente correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Hot spare acrescenta segunda paridade e permite reconstrução garantida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RAID 5 passa automaticamente a RAID 6 quando hot spare entra em ação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A primeira falha já elimina dados, pois RAID 5 não possui redundância.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A segunda falha altera apenas taxa de leitura, sem risco de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Hot spare não cria dupla paridade; nova falha pode destruir dados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A unidade reserva pode receber reconstrução, mas RAID 5 tolera uma falha e permanece vulnerável antes da recomposição. A e B atribuem paridade adicional inexistente; C confunde RAID 5 com RAID 0; D ignora que dois discos indisponíveis ultrapassam a tolerância clássica de paridade simples.",
+      "section": "3. RAID, capacidade útil e falhas de discos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois datacenters replicam síncronamente um volume. Um usuário autorizado exclui acidentalmente um conjunto de arquivos, e a operação é propagada. Qual mecanismo atenderia melhor à necessidade de recuperar o estado anterior?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Backup histórico íntegro e isolado, com ponto anterior à exclusão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Replicação síncrona adicional, mantendo somente o estado atual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Outro caminho MPIO, usando a mesma LUN dos dados excluídos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Zoning mais restrito, sem mudança na retenção de versões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RAID 6 no primário, sem retenção anterior à exclusão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. A replicação mantém o estado corrente e pode propagar exclusões; para voltar ao conteúdo anterior é necessária cópia histórica recuperável e íntegra. B acrescenta destinos com o mesmo estado excluído; C e D operam conectividade/acesso; E suporta falhas de disco, não desfaz operação lógica confirmada.",
+      "section": "4. Replicação, disponibilidade, deduplicação e ciclo de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação é migrada para nós ativo-ativo em locais distintos. Após quebra de comunicação, os dois continuam aceitando gravações no mesmo conjunto sem coordenação. Que problema a arquitetura precisa prevenir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fragmentação de blocos locais, resolvida apenas com desfragmentação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Split-brain, mediante quórum ou fencing para controlar autoridade de escrita.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Erro de paridade RAID, resolvido pela instalação de um hot spare.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conflito de zoning FC, resolvido automaticamente pelo balanceador HTTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Perda de catálogo Bacula, reparada pela comutação do nó primário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Split-brain ocorre quando partições isoladas assumem autoridade concorrente e podem divergir. Quórum e fencing reduzem esse risco. A trata dispersão física; C cuida falhas de disco; D mistura controle de portas FC e camada HTTP; E refere-se a metadados de backup, não ao conflito de escrita.",
+      "section": "4. Replicação, disponibilidade, deduplicação e ciclo de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um backup de banco de dados copia arquivos de armazenamento enquanto transações escrevem continuamente, sem coordenação com a aplicação. Embora a cópia termine, qual risco específico permanece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RAID 10 é convertido em RAID 0 durante a cópia dos dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A rotina incremental passa a ser diferencial por causa das escritas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A cópia pode representar estado inconsistente e falhar na restauração.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O catálogo de metadados impede qualquer acesso posterior a arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O storage torna automaticamente atômicas todas as transações de aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Arquivos de banco copiados sem mecanismo de consistência podem conter páginas e logs de momentos diferentes e ser irrecuperáveis. A inventa alteração de RAID; B muda conceito de backup sem relação; D atribui ao catálogo bloqueio inexistente; E presume atomicidade da aplicação garantida pela mídia de armazenamento.",
+      "section": "5. Backup, restauração, fita, Bacula e continuidade",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um plano de proteção tem três pastas com cópias no mesmo volume, na mesma controladora e sob uma única credencial. Qual fragilidade demonstra que isso não implementa adequadamente 3-2-1?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Falta duplicar a contagem de arquivos dentro das três pastas atuais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Falta configurar paridade RAID para que as cópias sejam independentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Falta habilitar NPIV para tornar os diretórios imunes a ransomware.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Faltam diversidade de meios ou domínios e cópia externa isolada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Falta trocar full por diferencial, mesmo sem cópia em outro local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Três pastas sob as mesmas dependências não constituem proteção em mídias/domínios distintos nem fornecem cópia remota e segregada. A multiplica conteúdo sem isolar risco; B protege falha física limitada; C virtualiza portas FC; E muda modalidade de backup sem resolver falha compartilhada ou exposição de credenciais.",
+      "section": "5. Backup, restauração, fita, Bacula e continuidade",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política ILM mantém imagens recentes em SSD e transfere automaticamente objetos raramente acessados a uma classe de arquivamento mais econômica. Qual interpretação descreve essa prática?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Deduplicação obrigatória, que elimina os dados migrados da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Replicação síncrona, que confirma gravação simultânea em dois locais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Zoning de fabric, que separa iniciadores por frequência de acesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Journaling, que grava as alterações históricas de diretórios e arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tiering por ciclo de vida, que ajusta mídia e custo ao padrão de acesso.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. ILM utiliza classificação e políticas para posicionar dados conforme uso, retenção e custo; tiering é uma técnica associada. A trata eliminação de duplicação, não migração; B mantém réplicas atualizadas; C controla conectividade FC; D protege consistência estrutural após interrupção, sem política de classe de armazenamento.",
+      "section": "4. Replicação, disponibilidade, deduplicação e ciclo de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma unidade de armazenamento diretamente conectada por SAS ao servidor, sem rede intermediária para o acesso a seus blocos, exemplifica DAS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. DAS designa armazenamento diretamente conectado ao consumidor, sendo SAS exemplo de interface empregada nessa arquitetura. O mesmo servidor pode depois compartilhar arquivos pela rede, mas tal compartilhamento não altera a natureza da ligação física direta entre o servidor e o dispositivo.",
+      "section": "1. DAS, NAS, SAN e fundamentos dos sistemas de arquivos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O protocolo NFS apresenta ao cliente setores brutos de uma LUN para que ele formate o disco exatamente como ocorre em uma SAN iSCSI.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. NFS é serviço de arquivos e diretórios em rede, enquanto iSCSI fornece comandos SCSI e acesso a blocos de armazenamento. Um cliente NFS monta uma exportação com semântica de arquivos; a formatação direta de uma LUN remota corresponde a outra camada de serviço.",
+      "section": "1. DAS, NAS, SAN e fundamentos dos sistemas de arquivos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma fabric Fibre Channel, zoning delimita quais portas podem se comunicar, sem substituir automaticamente a autorização de acesso às LUNs no sistema de armazenamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Zoning isola a conectividade de iniciadores e targets na fabric; mapeamento e mascaramento de LUNs definem quais volumes serão apresentados ao servidor. Uma zona correta pode coexistir com ausência de permissão a determinada LUN, que então continuará inacessível.",
+      "section": "2. Fibre Channel, fabric, zoning, NPIV e S3",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um conjunto RAID 0 distribui blocos por dois discos e pode recuperar todos os dados após falha completa de um deles, pois o striping cria paridade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. RAID 0 utiliza striping sem espelhamento ou paridade. A perda de qualquer disco necessário ao conjunto compromete dados distribuídos entre as unidades. Paridade capaz de reconstruir falha aparece em níveis como RAID 5 e 6, não decorre do striping isolado.",
+      "section": "3. RAID, capacidade útil e falhas de discos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na replicação assíncrona, o destino pode estar temporariamente atrasado em relação ao primário, com risco de perda das gravações ainda não replicadas durante falha abrupta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A confirmação da gravação local pode preceder o comprometimento no destino assíncrono, formando defasagem. Se o primário falhar antes do envio de todas as alterações, o secundário pode conter estado anterior; essa possibilidade deve constar do RPO do plano.",
+      "section": "4. Replicação, disponibilidade, deduplicação e ciclo de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de full no domingo, um backup diferencial feito na quarta usa como referência apenas o diferencial de terça, não as alterações desde o full.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O diferencial clássico reúne alterações desde o último backup completo, mesmo que outros diferenciais tenham sido produzidos. O incremental compara com o backup mais recente relevante. Por isso, o diferencial de quarta engloba alterações de segunda, terça e quarta, quando todas surgiram após o full de domingo.",
+      "section": "5. Backup, restauração, fita, Bacula e continuidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em sistema Unix, dois hard links para um arquivo podem referenciar o mesmo inode, enquanto um link simbólico guarda referência a um caminho que pode deixar de existir.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Hard links são entradas de nome que apontam ao mesmo inode no sistema de arquivos, enquanto links simbólicos apontam a caminhos. Se o alvo de um symlink deixar de existir, o vínculo pode ficar quebrado; remover um dos hard links não remove necessariamente os dados.",
+      "section": "1. DAS, NAS, SAN e fundamentos dos sistemas de arquivos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em ambiente virtualizado, habilitar NPIV equivale a instalar adaptadores Fibre Channel físicos independentes e elimina os pontos únicos de falha do adaptador compartilhado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. NPIV permite várias identidades de porta FC com WWPNs individuais sobre recursos físicos compartilhados, mas não cria controladoras, cabos ou HBAs fisicamente independentes. A disponibilidade continua exigindo caminhos e dispositivos redundantes para não concentrar risco na mesma porta.",
+      "section": "2. Fibre Channel, fabric, zoning, NPIV e S3",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O versionamento de um bucket S3 pode preservar versões anteriores quando uma chave é sobrescrita, mas esse recurso depende de ativação e de políticas apropriadas de retenção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Com versioning habilitado, uma substituição de objeto produz nova versão em vez de simplesmente eliminar a anterior. Isso permite recuperar estados anteriores, observadas permissões, ciclo de vida e eventual exclusão permanente de versões; não substitui backup externo e isolado.",
+      "section": "2. Fibre Channel, fabric, zoning, NPIV e S3",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante um rebuild RAID 5, a presença de hot spare garante tolerância à perda simultânea de mais um disco ativo, pois a reserva funciona como segunda paridade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Hot spare fornece mídia para reconstrução, mas não transforma paridade simples do RAID 5 em paridade dupla. Enquanto o rebuild não termina, nova falha de disco pode inviabilizar a reconstrução; para tolerância convencional a dois discos usa-se RAID 6.",
+      "section": "3. RAID, capacidade útil e falhas de discos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política ILM pode mover dados pouco acessados para camada de armazenamento mais econômica, sem que essa migração represente necessariamente criação de backup isolado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ILM acompanha o ciclo de vida e pode implementar tiering por frequência de acesso, custo e retenção. A simples movimentação de um objeto ou arquivo para outra classe não garante cópia histórica, domínio independente, credenciais segregadas nem teste de restauração.",
+      "section": "4. Replicação, disponibilidade, deduplicação e ciclo de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bacula, o Catalog é o componente encarregado de receber o fluxo de arquivos e gravar os bytes completos do backup nas fitas, em substituição ao Storage Daemon.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O Catalog contém metadados e índices de Jobs, volumes e arquivos. O Storage Daemon realiza I/O dos volumes em disco ou fita, enquanto o File Daemon opera no cliente. Confundir banco de catálogo com mídia que armazena o conteúdo compromete o planejamento da recuperação.",
+      "section": "5. Backup, restauração, fita, Bacula e continuidade",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mídia de fita pode ser utilizada como cópia offline para retenção, embora o acesso sequencial costume torná-la menos adequada a restaurações aleatórias de baixa latência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Fitas podem ter custo por capacidade atrativo e ser mantidas desconectadas, reduzindo exposição a ataques sobre produção. Como acesso e posicionamento são sequenciais e exigem unidade compatível, a recuperação granular pode ser mais demorada que em disco de acesso aleatório.",
+      "section": "5. Backup, restauração, fita, Bacula e continuidade",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma solução informa latência de 1 milissegundo e 50 mil IOPS. Esses dois indicadores medem a mesma grandeza, de modo que um torna desnecessário o outro na avaliação de desempenho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Latência representa tempo por operação, enquanto IOPS quantifica operações por segundo; throughput mede volume transferido por unidade de tempo. Os indicadores se influenciam mas não são equivalentes, e comparar armazenamento exige conhecer também tamanho, padrão e simultaneidade das requisições.",
+      "section": "1. DAS, NAS, SAN e fundamentos dos sistemas de arquivos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma SAN pode funcionar sobre TCP/IP por meio de iSCSI, que transporta comandos SCSI sobre a rede, apesar de Fibre Channel constituir outra família amplamente utilizada em SANs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A definição de SAN depende da prestação de serviço de blocos em rede, não de cabeamento Fibre Channel obrigatório. iSCSI usa a pilha TCP/IP para transportar comandos de armazenamento; Fibre Channel é alternativa especializada, com suas próprias portas, fabrics e mecanismos de zoning.",
+      "section": "2. Fibre Channel, fabric, zoning, NPIV e S3",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como o S3 oferece consistência forte de leitura após escrita e listagem, uma aplicação pode atualizar simultaneamente três chaves diferentes com garantia de transação atômica entre todas elas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A consistência forte das operações de objetos não equivale a transações multiobjeto. Uma substituição individual é atômica para aquela chave nas condições documentadas, mas atualizações em três chaves distintas não recebem automaticamente garantia de commit único, exigindo desenho da aplicação.",
+      "section": "2. Fibre Channel, fabric, zoning, NPIV e S3",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um RAID 10 possui quatro discos distribuídos em dois pares espelhados, a perda de um disco em cada par pode ser tolerada sem perda do conjunto, desde que os outros membros permaneçam disponíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em RAID 10 clássico, cada par espelhado precisa manter ao menos um membro íntegro. Perder um disco de cada par pode ser suportado; perder os dois do mesmo par pode comprometer o arranjo. A localização das falhas é, portanto, tão relevante quanto sua quantidade.",
+      "section": "3. RAID, capacidade útil e falhas de discos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um conjunto replicado sincronamente para outro datacenter, com confirmação remota de escrita, dispensa backups históricos porque o RPO de falhas cobertas será próximo de zero.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Replicação síncrona pode reduzir perda de gravações em certas falhas, mas também pode reproduzir exclusão legítima acidental, corrupção e dados criptografados maliciosamente. Backup com histórico, retenção e isolamento atende à recuperação de estados anteriores, finalidade que a simples réplica atual não assegura.",
+      "section": "4. Replicação, disponibilidade, deduplicação e ciclo de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um backup que terminou sem erro de transferência ainda pode ser inútil se capturou banco de dados em estado inconsistente; testes de restauração e mecanismos de consistência aplicacional são medidas pertinentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Transferir todos os bytes não garante um estado logicamente recuperável quando arquivos mudam durante a cópia. Procedimentos que coordenam snapshot e registros transacionais, associados à restauração de teste, ajudam a verificar se a aplicação consegue abrir e usar o estado recuperado.",
+      "section": "5. Backup, restauração, fita, Bacula e continuidade",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Três cópias de arquivos alojadas em diretórios da mesma LUN, com as mesmas credenciais e o mesmo domínio de falha, cumprem integralmente a regra 3-2-1 e garantem recuperação contra ransomware.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Três diretórios na mesma LUN compartilham exposição física e lógica. A abordagem 3-2-1 pressupõe diversidade de mídias ou domínios apropriados e ao menos uma cópia externa; diante de ransomware, cópias offline ou protegidas por controles de imutabilidade e testes reais são medidas adicionais fundamentais.",
+      "section": "5. Backup, restauração, fita, Bacula e continuidade",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null,
+      "statement": "A VTL (Virtual Tape Library) é um sistema baseado em disco que emula uma biblioteca de fitas, sendo vista pelo software de backup como uma biblioteca real.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Ela acelera backups e restaurações sem exigir mudança na rotina; é comum copiar depois os dados da VTL para fita física guardada fora do local.",
+      "section": "5. Backup, restauração, fita, Bacula e continuidade",
+      "errorConceptKey": "e5"
+    },
+    {
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null,
+      "statement": "Em uma SAN Fibre Channel, o enlace que conecta dois switches da mesma fabric é chamado de:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "NPIV, que permite a uma porta física ter vários identificadores virtuais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "zoning, que restringe quais dispositivos podem se comunicar entre si.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "LUN masking, que controla o acesso de servidores aos volumes do storage.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ISL.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "WWN, que identifica de forma única cada porta ou dispositivo da rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "D está correta. O ISL (Inter-Switch Link) interliga switches; vários ISLs podem ser agregados em trunking para somar banda e oferecer redundância.",
+      "section": "2. Fibre Channel, fabric, zoning, NPIV e S3",
+      "errorConceptKey": "e2"
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Security Guidelines for Storage Infrastructure — NIST SP 800-209",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "NIST SP 800-209, outubro de 2020: DAS, SAN, NAS, blocos, arquivos, objetos, segurança e restauração",
+      "url": "https://csrc.nist.gov/pubs/sp/800/209/final",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "RAID level summary",
+      "publisher": "IBM Documentation",
+      "reference": "Tabela comparativa de RAID 0, 5, 6 e 10, capacidade, redundância e desempenho",
+      "url": "https://www.ibm.com/docs/en/storage-scale-system/5147-092?topic=overview-raid-level-summary",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "Virtual Fibre Channel",
+      "publisher": "IBM Documentation",
+      "reference": "NPIV, WWPN, LUN, acesso de partições e conectividade Fibre Channel",
+      "url": "https://www.ibm.com/docs/en/power9/9223-22H?topic=adapters-virtual-fibre-channel",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "Fibre Channel switch zoning",
+      "publisher": "IBM Documentation",
+      "reference": "Zoning de iniciadores e targets, configuração de fabric e caminhos",
+      "url": "https://www.ibm.com/docs/en/iim/1.1.0?topic=protocol-fibre-channel-switch-zoning",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "O que é o Amazon S3?",
+      "publisher": "Amazon Web Services",
+      "reference": "Bucket, chave, versionamento, object storage e consistência de operações",
+      "url": "https://docs.aws.amazon.com/pt_br/AmazonS3/latest/userguide/Welcome.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "Amazon S3 objects overview",
+      "publisher": "Amazon Web Services",
+      "reference": "Identificação e composição de objetos: key, version ID e valor",
+      "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingObjects.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "O que é backup e restauração?",
+      "publisher": "IBM",
+      "reference": "RPO, RTO, backup full, incremental, diferencial, fita e restauração",
+      "url": "https://www.ibm.com/br-pt/think/topics/backup-and-restore",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "Configuring the Director — Bacula Manual",
+      "publisher": "Bacula",
+      "reference": "Director, Job, Schedule, FileSet, Client, Storage, Catalog, Pool e Console",
+      "url": "https://bacula.org/13.0.x-manuals/en/main/Configuring_Director.html",
+      "accessedAt": "2026-10-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "StopRansomware Guide",
+      "publisher": "Cybersecurity and Infrastructure Security Agency",
+      "reference": "Recomendação de backups offline, criptografados e testes regulares de restauração",
+      "url": "https://www.cisa.gov/stopransomware/ransomware-guide",
+      "accessedAt": "2026-10-10"
+    }
+  ]
+}
