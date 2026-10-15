@@ -28,6 +28,7 @@ import br.com.estudario.domain.simulation.SimulationBlueprint
 import br.com.estudario.domain.simulation.SimulationMode
 import br.com.estudario.domain.simulation.SimulationReadiness
 import br.com.estudario.domain.simulation.SimulationUnlock
+import br.com.estudario.text.QuestionKey
 import java.time.Instant
 import java.time.ZoneId
 import java.util.UUID
@@ -178,10 +179,13 @@ class SimulationService(
             board?.let { put("board", it.take(80)) }
             put("mode", mode.name)
             put("style", style)
-            put("detectBoard", board == null)
             put("weakSpots", JsonArray(weakSpots.map { JsonPrimitive(it) }))
+            // O servidor monta o simulado com as questões prontas da biblioteca: a semente (a mesma em
+            // todas as partes) e as chaves de tudo o que a pessoa já tem garantem que nada se repete.
+            put("seed", "sim-${UUID.randomUUID().toString().take(12)}")
+            put("seen", JsonArray(appDao.recentStatements(SEEN_LIMIT).asSequence().map(QuestionKey::of).distinct().map { JsonPrimitive(it) }.toList()))
         }
-        val parts = if (mode == SimulationMode.REMATCH) rematchParts(competitionId, base) else blueprintParts(competitionId, mode, size, base)
+        val parts = if (mode == SimulationMode.REMATCH) rematchParts(competitionId, base, board == null) else blueprintParts(competitionId, mode, size, base, board == null)
         if (parts.isEmpty()) throw SimulationException("Ainda não há tópicos suficientes para montar este simulado.")
         val planned = parts.sumOf { questionCountOf(it.input) }
         val title = when (mode) {
@@ -214,14 +218,19 @@ class SimulationService(
         (input["items"] as? JsonArray).orEmpty().sumOf { it.jsonObject["count"]?.jsonPrimitive?.intOrNull ?: 0 } +
             (input["rematch"] as? JsonArray).orEmpty().size
 
-    private suspend fun blueprintParts(competitionId: Long, mode: SimulationMode, size: Int, base: JsonObject): List<SimulationPart> {
+    private suspend fun blueprintParts(competitionId: Long, mode: SimulationMode, size: Int, base: JsonObject, detectBoard: Boolean): List<SimulationPart> {
         val topics = leafTopics(competitionId)
         val blueprint = SimulationBlueprint.build(mode, topics, size)
         val avoid = avoidList(blueprint.parts.flatMap { it.items }.map { it.topicId }.toSet())
+        // Tópico dividido entre duas partes: cada parte leva uma fatia diferente das questões dele.
+        val chunks = blueprint.parts.flatMap { it.items }.groupingBy { it.topicId }.eachCount()
+        val chunkSeen = HashMap<Long, Int>()
         return blueprint.parts.mapIndexed { index, part ->
             val refs = part.items.mapIndexed { itemIndex, item -> "i${itemIndex + 1}" to item.topicId }.toMap()
             val input = buildJsonObject {
                 base.forEach { (key, value) -> put(key, value) }
+                // A banca é pesquisada uma vez só, na primeira parte.
+                put("detectBoard", detectBoard && index == 0)
                 put("partIndex", index)
                 put("partCount", blueprint.parts.size)
                 put("items", buildJsonArray {
@@ -231,6 +240,13 @@ class SimulationService(
                             put("topicPath", JsonArray(item.path.takeLast(6).map { JsonPrimitive(it.take(800)) }))
                             put("count", item.count)
                             put("difficulty", "MISTA")
+                            val total = chunks.getValue(item.topicId)
+                            if (total > 1) {
+                                val chunk = chunkSeen.getOrElse(item.topicId) { 0 }
+                                chunkSeen[item.topicId] = chunk + 1
+                                put("chunk", chunk)
+                                put("chunks", total)
+                            }
                             item.scope?.takeIf(String::isNotBlank)?.let { put("scope", it.take(800)) }
                         })
                     }
@@ -242,18 +258,25 @@ class SimulationService(
     }
 
     /** Revanche: as questões erradas nos simulados entregues e as do caderno de erros ainda abertas. */
-    private suspend fun rematchParts(competitionId: Long, base: JsonObject): List<SimulationPart> {
+    private suspend fun rematchParts(competitionId: Long, base: JsonObject, detectBoard: Boolean): List<SimulationPart> {
         val sources = rematchSources(competitionId).take(SimulationBlueprint.MAX_PER_PART)
         if (sources.isEmpty()) return emptyList()
         val refs = sources.mapIndexed { index, question -> "r${index + 1}" to question.question.topicId }.toMap()
+        val topics = leafTopics(competitionId).associateBy { it.topicId }
         val input = buildJsonObject {
             base.forEach { (key, value) -> put(key, value) }
+            put("detectBoard", detectBoard)
             put("partIndex", 0)
             put("partCount", 1)
             put("items", JsonArray(emptyList()))
             put("rematch", buildJsonArray {
                 sources.forEach { source ->
                     add(buildJsonObject {
+                        // Com o tópico, a revanche sai da biblioteca: outra questão do mesmo conceito.
+                        topics[source.question.topicId]?.let { topic ->
+                            put("subjectName", topic.subjectName.take(300))
+                            put("topicPath", JsonArray(topic.path.takeLast(6).map { JsonPrimitive(it.take(800)) }))
+                        }
                         put("statement", source.question.statement.take(3_000))
                         put("options", buildJsonArray {
                             source.options.sortedBy { it.position }.forEach { option ->
@@ -413,11 +436,15 @@ class SimulationService(
         val weakSpots = runCatching { JSONArray(simulation.weakSpotsJson) }.getOrNull()
         db.withTransaction {
             // Idempotente: parte regravada (retomada depois de fechar o app) não duplica questões.
-            val existing = dao.questionsFor(simulationId).mapNotNull { it.question.externalId }.toSet()
+            val stored = dao.questionsFor(simulationId)
+            val existing = stored.mapNotNull { it.question.externalId }.toSet()
+            val keys = stored.mapTo(hashSetOf()) { QuestionKey.of(it.question.statement) }
             (proposal["questions"] as? JsonArray).orEmpty().forEachIndexed { index, element ->
                 val question = element.jsonObject
                 val externalId = "sim-$simulationId-p$partIndex-q${index + 1}"
                 if (externalId in existing) return@forEachIndexed
+                // Duas partes podem ter tirado a mesma questão da biblioteca (tópicos que caem na mesma matéria).
+                if (!keys.add(QuestionKey.of(question.text("statement")))) return@forEachIndexed
                 val topicId = part.refs[question.text("itemRef")] ?: part.refs.values.firstOrNull() ?: return@forEachIndexed
                 val trap = question.text("trap")
                 val weakIndex = question["targetsWeakSpot"]?.jsonPrimitive?.intOrNull
@@ -593,6 +620,8 @@ class SimulationService(
     }
 
     companion object {
+        /** Quantas questões recentes entram na lista do que não repetir (6 mil chaves ~ 66 KB por parte). */
+        const val SEEN_LIMIT = 6_000
         fun decodeAnswers(json: String): Map<Long, String> = runCatching {
             val value = JSONObject(json)
             value.keys().asSequence().mapNotNull { key -> key.toLongOrNull()?.let { it to value.getString(key) } }.toMap()

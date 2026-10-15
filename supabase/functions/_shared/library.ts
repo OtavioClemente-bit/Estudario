@@ -497,7 +497,7 @@ const ALL_BLOCKS: ContentJobInput["options"]["blocks"] = [
 ];
 
 /** Embaralha igual para a mesma semente: pessoas diferentes recebem questões em ordens diferentes. */
-function shuffled<T>(items: T[], seed: string): T[] {
+export function shuffled<T>(items: T[], seed: string): T[] {
   let state = 2166136261;
   for (const char of seed) state = Math.imul(state ^ char.charCodeAt(0), 16777619);
   const random = () => {
@@ -518,7 +518,7 @@ function hasOptionComments(question: Json): boolean {
   return (question.options as Json[]).every((option) => typeof option.comentario === "string" && option.comentario.trim() !== "");
 }
 
-function fitsStyle(question: Json, style: ContentJobInput["options"]["questionStyle"]): boolean {
+export function fitsStyle(question: Json, style: ContentJobInput["options"]["questionStyle"]): boolean {
   const optionCount = (question.options as unknown[]).length;
   if (question.format === "TRUE_FALSE") return style === "TRUE_FALSE" || style === "MIXED";
   if (optionCount === 4) return style === "FOUR_OPTIONS";

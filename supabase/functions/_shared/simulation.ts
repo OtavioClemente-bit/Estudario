@@ -22,12 +22,18 @@ export interface SimulationItem {
   count: number;
   difficulty: ItemDifficulty;
   scope: string | null;
+  /** Item dividido entre partes: esta é a fatia `chunk` de `chunks` (as fatias não repetem questão). */
+  chunk: number;
+  chunks: number;
 }
 
 export interface RematchSource {
   ref: string;
   statement: string;
   options: { key: string; text: string; correct: boolean }[];
+  /** Tópico da questão errada: a revanche sai da biblioteca, com outra questão do mesmo conceito. */
+  subjectName: string | null;
+  topicPath: string[];
 }
 
 export interface SimulationJobInput {
@@ -45,6 +51,22 @@ export interface SimulationJobInput {
   rematch: RematchSource[];
   weakSpots: string[];
   avoid: string[];
+  /** Semente do simulado (a mesma em todas as partes): a escolha na biblioteca é a mesma em cada parte. */
+  seed: string;
+  /** Chaves (questionKey) de todas as questões que a pessoa já tem: nada repetido no simulado. */
+  seen: string[];
+}
+
+/**
+ * Chave curta de um enunciado, igual no app, no site e no servidor: as primeiras 160 letras e
+ * algarismos, em minúsculas, num hash FNV-1a de 32 bits. Ignora espaços e pontuação, então a mesma
+ * questão com as assertivas quebradas em parágrafos dá a mesma chave.
+ */
+export function questionKey(statement: string): string {
+  const letters = statement.toLowerCase().replace(/[^\p{L}\p{Nd}]/gu, "").slice(0, 160);
+  let hash = 2166136261;
+  for (let i = 0; i < letters.length; i++) hash = Math.imul(hash ^ letters.charCodeAt(i), 16777619);
+  return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
 const LONG = 800;
@@ -73,6 +95,8 @@ export function parseSimulationJobInput(value: unknown): SimulationJobInput {
       count: integer(raw.count, `${field}.count`, 1, 10),
       difficulty: oneOf(raw.difficulty, `${field}.difficulty`, ["FACIL", "MEDIA", "DIFICIL", "MISTA"] as const),
       scope: optionalText(raw.scope, `${field}.scope`, LONG),
+      chunks: raw.chunks === undefined || raw.chunks === null ? 1 : integer(raw.chunks, `${field}.chunks`, 1, 8),
+      chunk: raw.chunk === undefined || raw.chunk === null ? 0 : integer(raw.chunk, `${field}.chunk`, 0, 7),
     };
   });
   const rematch = rawRematch.map((raw, index): RematchSource => {
@@ -89,6 +113,10 @@ export function parseSimulationJobInput(value: unknown): SimulationJobInput {
           correct: option.correct,
         };
       }),
+      subjectName: optionalText(raw.subjectName, `${field}.subjectName`, 300),
+      topicPath: Array.isArray(raw.topicPath) && raw.topicPath.length <= 6
+        ? raw.topicPath.map((item, pathIndex) => text(item, `${field}.topicPath.${pathIndex}`, LONG))
+        : [],
     };
   });
   // Revanche vem só de questões erradas; o resto do simulado vem só da planta.
@@ -119,6 +147,10 @@ export function parseSimulationJobInput(value: unknown): SimulationJobInput {
     rematch,
     weakSpots: list(value.weakSpots, "weakSpots", 10, 240),
     avoid: list(value.avoid, "avoid", 40, 300),
+    seed: typeof value.seed === "string" && /^[\w:-]{1,80}$/.test(value.seed) ? value.seed : "",
+    seen: Array.isArray(value.seen)
+      ? value.seen.slice(0, 8_000).filter((key): key is string => typeof key === "string" && /^[0-9a-f]{8}$/.test(key))
+      : [],
   };
 }
 
@@ -459,7 +491,8 @@ export function validateSimulation(raw: string | Json, expected: ExpectedVersion
     const optionTexts = new Set(answerOptions.map((option) => fingerprint(String(option.text))));
     if (optionTexts.size !== answerOptions.length) reject(`${field} repeats an option`);
     if (typeof question.explanation !== "string" || question.explanation.trim().length < 20) reject(`${field}.explanation`);
-    if (typeof question.trap !== "string" || question.trap.trim().length === 0) reject(`${field}.trap`);
+    // Questão da biblioteca pode não ter armadilha à parte (o comentário já está na explicação).
+    if (typeof question.trap !== "string" || (question.trap.trim().length === 0 && question.fromLibrary !== true)) reject(`${field}.trap`);
     const item = input.items.find((candidate) => candidate.ref === ref);
     if (item && item.difficulty !== "MISTA" && question.difficulty !== item.difficulty) reject(`${field} difficulty differs from the request`);
     const weak = question.targetsWeakSpot;

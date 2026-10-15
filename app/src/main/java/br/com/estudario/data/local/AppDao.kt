@@ -126,6 +126,8 @@ interface AppDao {
     @Transaction @Query("SELECT * FROM questions ORDER BY importedAt DESC") fun questions(): Flow<List<QuestionWithOptions>>
     @Transaction @Query("SELECT * FROM questions ORDER BY importedAt DESC") suspend fun questionsOnce(): List<QuestionWithOptions>
     @Transaction @Query("SELECT * FROM questions ORDER BY importedAt DESC LIMIT :limit OFFSET :offset") suspend fun questionsPage(limit: Int, offset: Int): List<QuestionWithOptions>
+    /** Enunciados mais recentes, só o texto: chaves para o simulado não repetir questão. */
+    @Query("SELECT statement FROM questions ORDER BY importedAt DESC LIMIT :limit") suspend fun recentStatements(limit: Int): List<String>
     @Query("SELECT COUNT(*) FROM questions") suspend fun questionCount(): Int
     @Transaction @Query("SELECT * FROM questions WHERE id = :id") suspend fun question(id: Long): QuestionWithOptions?
     @Query("SELECT * FROM questions WHERE externalId = :externalId LIMIT 1") suspend fun questionByExternalId(externalId: String): QuestionEntity?

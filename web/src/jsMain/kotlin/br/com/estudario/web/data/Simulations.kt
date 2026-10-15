@@ -5,6 +5,7 @@ import br.com.estudario.domain.simulation.BoardStyle
 import br.com.estudario.domain.simulation.SimulationBlueprint
 import br.com.estudario.domain.simulation.SimulationMode
 import br.com.estudario.domain.simulation.SimulationReadiness
+import br.com.estudario.text.QuestionKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.async
@@ -171,13 +172,19 @@ object Simulations {
         val profile = examProfile(data, competitionId)
         val leaves = leafTopics(data, competitionId)
         val weak = weakSpots(data, leaves.mapTo(hashSetOf()) { it.topicId })
+        // O servidor monta o simulado com as questões prontas da biblioteca: a semente (a mesma em
+        // todas as partes) e as chaves de tudo o que a pessoa já tem garantem que nada se repete.
+        val seed = "sim-${Random.nextBytes(6).joinToString("") { (it.toInt() and 0xff).toString(16) }}"
+        val seen = data.questions.asReversed().asSequence().map { QuestionKey.of(it.statement) }.distinct().take(6_000).toList()
+        val leafById = leaves.associateBy { it.topicId }
         val base = buildJsonObject {
             put("competitionName", competition.name.take(300))
             profile.board?.let { put("board", it.take(80)) }
             put("mode", mode.name)
             put("style", profile.style)
-            put("detectBoard", profile.board == null)
             put("weakSpots", JsonArray(weak.map { JsonPrimitive(it) }))
+            put("seed", seed)
+            put("seen", JsonArray(seen.map { JsonPrimitive(it) }))
         }
         val parts: List<SimPart> = if (mode == SimulationMode.REMATCH) {
             val sources = rematchSources(data, competitionId).take(SimulationBlueprint.MAX_PER_PART)
@@ -187,10 +194,15 @@ object Simulations {
                     refs = sources.mapIndexed { index, q -> "r${index + 1}" to q.topicId }.toMap(),
                     input = buildJsonObject {
                         base.forEach { (k, v) -> put(k, v) }
+                        put("detectBoard", profile.board == null)
                         put("partIndex", 0); put("partCount", 1); put("items", JsonArray(emptyList()))
                         put("rematch", buildJsonArray {
                             sources.forEach { q ->
                                 add(buildJsonObject {
+                                    leafById[q.topicId]?.let { topic ->
+                                        put("subjectName", topic.subjectName.take(300))
+                                        put("topicPath", JsonArray(topic.path.takeLast(6).map { JsonPrimitive(it.take(800)) }))
+                                    }
                                     put("statement", q.statement.take(3_000))
                                     put("options", buildJsonArray { q.options.sortedBy { it.position }.forEach { o -> add(buildJsonObject { put("key", o.key); put("text", o.text.take(1_500)); put("correct", o.correct) }) } })
                                 })
@@ -203,12 +215,17 @@ object Simulations {
             val blueprint = SimulationBlueprint.build(mode, leaves, size)
             val itemTopics = blueprint.parts.flatMap { it.items }.mapTo(hashSetOf()) { it.topicId }
             val avoid = data.questions.filter { it.topicId in itemTopics }.take(40).map { it.statement.replace(Regex("\\s+"), " ").take(280) }.filter { it.length >= 15 }
+            // Tópico dividido entre duas partes: cada parte leva uma fatia diferente das questões dele.
+            val chunks = blueprint.parts.flatMap { it.items }.groupingBy { it.topicId }.eachCount()
+            val chunkSeen = HashMap<Long, Int>()
             blueprint.parts.mapIndexed { index, part ->
                 SimPart(
                     key = "",
                     refs = part.items.mapIndexed { i, item -> "i${i + 1}" to item.topicId }.toMap(),
                     input = buildJsonObject {
                         base.forEach { (k, v) -> put(k, v) }
+                        // A banca é pesquisada uma vez só, na primeira parte.
+                        put("detectBoard", profile.board == null && index == 0)
                         put("partIndex", index); put("partCount", blueprint.parts.size)
                         put("items", buildJsonArray {
                             part.items.forEach { item ->
@@ -217,6 +234,12 @@ object Simulations {
                                     put("topicPath", JsonArray(item.path.takeLast(6).map { JsonPrimitive(it.take(800)) }))
                                     put("count", item.count)
                                     put("difficulty", "MISTA")
+                                    val total = chunks.getValue(item.topicId)
+                                    if (total > 1) {
+                                        val chunk = chunkSeen.getOrElse(item.topicId) { 0 }
+                                        chunkSeen[item.topicId] = chunk + 1
+                                        put("chunk", chunk); put("chunks", total)
+                                    }
                                     item.scope?.takeIf(String::isNotBlank)?.let { put("scope", it.take(800)) }
                                 })
                             }
@@ -333,6 +356,7 @@ object Simulations {
         val sim = row(data, simulationId) ?: return data
         val weak = runCatching { snapshotJson.parseToJsonElement(sim.str("weakSpotsJson") ?: "[]").jsonArray.map { it.text() } }.getOrDefault(emptyList())
         val existing = data.questions.filter { it.simulationId == simulationId }.mapTo(hashSetOf()) { q -> (data.array(Keys.QUESTIONS).firstOrNull { (it as? JsonObject)?.long("id") == q.id } as? JsonObject)?.str("externalId") }
+        val keys = data.questions.filter { it.simulationId == simulationId }.mapTo(hashSetOf()) { QuestionKey.of(it.statement) }
         var questionId = data.nextId(Keys.QUESTIONS)
         var optionId = (data.questions.flatMap { it.options }.maxOfOrNull { it.id } ?: 0L) + 1
         val at = now()
@@ -340,6 +364,8 @@ object Simulations {
             val question = element as? JsonObject ?: return@mapIndexedNotNull null
             val externalId = "sim-$simulationId-p$partIndex-q${index + 1}"
             if (externalId in existing) return@mapIndexedNotNull null
+            // Duas partes podem ter tirado a mesma questão da biblioteca (tópicos que caem na mesma matéria).
+            if (!keys.add(QuestionKey.of(question["statement"].text()))) return@mapIndexedNotNull null
             val topicId = part.refs[question["itemRef"].text()] ?: part.refs.values.firstOrNull() ?: return@mapIndexedNotNull null
             val trap = question["trap"].text()
             val weakText = (question["targetsWeakSpot"] as? JsonPrimitive)?.intOrNull?.let { weak.getOrNull(it) }?.takeIf(String::isNotBlank)

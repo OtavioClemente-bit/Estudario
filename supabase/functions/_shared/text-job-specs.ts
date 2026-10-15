@@ -25,7 +25,8 @@ import { type ExpectedVersions, validateStudyPlan, validateTopicContent } from "
 import { applyReview, type ContentReview, runContentReview } from "./content-review.ts";
 import { resolveOpenAiModel } from "./openai-provider.ts";
 import { CACHE_MAX_AGE_DAYS, contentCacheKey } from "./content-cache.ts";
-import { assembleFromLibrary, composeMaterials, GENERAL_BOARD_NORM, inferFocus, lookupAliases, normalizeAlias, normalizeBoard } from "./library.ts";
+import { assembleFromLibrary, composeMaterials, GENERAL_BOARD_NORM, inferFocus, LIBRARY_MODEL_VERSION, lookupAliases, normalizeAlias, normalizeBoard } from "./library.ts";
+import { planSimulationFromLibrary } from "./simulation-library.ts";
 import { routeTopic } from "./topic-router.ts";
 import type { LibraryHit } from "../ai-syllabus-worker/index.ts";
 import { ensureBoardNote } from "./board-notes.ts";
@@ -482,14 +483,37 @@ export const SIMULATION_JOB_SPEC: AiJobSpec = {
   usesSource: false,
   // Pesquisa para confirmar lei, número e a própria banca do concurso.
   tools: [{ type: "web_search", search_context_size: "medium" }],
+  // A IA só recebe o que a biblioteca não cobriu (o worker refaz o pedido depois de `cached`).
   prompts: (job) => ({
     systemPrompt: SIMULATION_SYSTEM_PROMPT,
-    userPrompt: simulationUserPrompt(inputOf<SimulationJobInput>(job, parseSimulationJobInput)),
+    userPrompt: simulationUserPrompt(SIMULATION_LEFTOVER.get(job.id) ?? inputOf<SimulationJobInput>(job, parseSimulationJobInput)),
   }),
-  validate: async (raw, expected, job, dependencies) => {
+  // Primeiro a biblioteca: questões prontas e conferidas, sem custo. Se cobriu tudo, a parte sai
+  // daqui; senão a IA escreve só as que faltaram.
+  cached: async (job, dependencies) => {
     const input = inputOf<SimulationJobInput>(job, parseSimulationJobInput);
+    if (Deno.env.get("SIMULATION_LIBRARY_ENABLED") === "false") return null;
+    const plan = await planSimulationFromLibrary(input, dependencies.jobs, `${job.id}:${job.userId}`);
+    if (plan.remaining) {
+      SIMULATION_LEFTOVER.set(job.id, plan.remaining);
+      return null;
+    }
+    const expected = { schemaVersion: SIMULATION_SCHEMA_VERSION, promptVersion: SIMULATION_PROMPT_VERSION, modelVersion: LIBRARY_MODEL_VERSION };
+    const part = { ...expected, detectedBoard: { name: null, sourceUrl: null }, questions: plan.questions, sources: [], warnings: [] };
+    return validateSimulation(part, expected, plan.delivered) as unknown as WorkerProposal;
+  },
+  validate: async (raw, expected, job, dependencies) => {
+    const full = inputOf<SimulationJobInput>(job, parseSimulationJobInput);
+    // A resposta da IA cobre só o que faltou: refaz a escolha da biblioteca (a mesma, pela semente)
+    // para saber o que foi pedido e juntar as duas no fim.
+    const plan = Deno.env.get("SIMULATION_LIBRARY_ENABLED") === "false"
+      ? null
+      : await planSimulationFromLibrary(full, dependencies.jobs, `${job.id}:${job.userId}`).catch(() => null);
+    SIMULATION_LEFTOVER.delete(job.id);
+    const input = plan?.remaining ?? full;
+    const merge = (part: Record<string, unknown>) => plan?.remaining ? mergeWithLibrary(part, plan.questions, full) : part;
     const part = validateSimulation(raw, expected, input);
-    if (Deno.env.get("CONTENT_REVIEW_ENABLED") === "false") return part as unknown as WorkerProposal;
+    if (Deno.env.get("CONTENT_REVIEW_ENABLED") === "false") return merge(part) as unknown as WorkerProposal;
     const review = await runContentReview({ questions: part.questions }, {
       provider: dependencies.provider,
       jobId: job.id,
@@ -498,9 +522,20 @@ export const SIMULATION_JOB_SPEC: AiJobSpec = {
       previousReviewId: () => dependencies.jobs.completedReviewId?.(job.id) ?? Promise.resolve(null),
       context: [input.competitionName, input.role, input.board ? `banca ${input.board}` : null, "simulado"].filter(Boolean).join(" · "),
     });
-    return withSimulationReview(part, review, expected, input) as unknown as WorkerProposal;
+    return merge(withSimulationReview(part, review, expected, input)) as unknown as WorkerProposal;
   },
 };
+
+/** Parte ainda por pedir à IA, por job (vale só dentro da mesma execução do worker). */
+const SIMULATION_LEFTOVER = new Map<string, SimulationJobInput>();
+
+/** Questões da biblioteca + as da IA, na ordem dos itens da planta (que é a ordem da prova). */
+function mergeWithLibrary(part: Record<string, unknown>, library: Record<string, unknown>[], input: SimulationJobInput): Record<string, unknown> {
+  const order = new Map([...input.items.map((item) => item.ref), ...input.rematch.map((source) => source.ref)].map((ref, index) => [ref, index]));
+  const all = [...library, ...(part.questions as Record<string, unknown>[])];
+  const rank = (q: Record<string, unknown>) => order.get(String(q.itemRef)) ?? order.size;
+  return { ...part, questions: all.map((q, index) => ({ q, index })).sort((a, b) => rank(a.q) - rank(b.q) || a.index - b.index).map(({ q }) => q) };
+}
 
 /** Mesma lógica da revisão do conteúdo: corrigido e revalidado, ou o original com aviso. */
 export function withSimulationReview(

@@ -219,7 +219,7 @@ private fun GeneratingView(simulation: Simulation) {
             if (simulation.status == "FAILED" || parts.any { it.status == "FAILED" }) Icon("error", extraClass = "big") else Spinner()
             H2 { Text(simulation.title) }
             P({ classes("muted") }) {
-                Text(if (simulation.status == "FAILED") "Não deu para gerar. Nenhuma cota foi usada nas partes que falharam." else "A IA está escrevendo questões inéditas no estilo da banca. Leva alguns minutos; deixe esta aba aberta.")
+                Text(if (simulation.status == "FAILED") "Não deu para gerar. Nenhuma cota foi usada nas partes que falharam." else "Montando sua prova com questões que você ainda não viu, no estilo da banca. Costuma levar segundos; tópicos sem questão pronta podem levar alguns minutos. Deixe esta aba aberta.")
             }
             Div({ classes("stack", "tight"); attr("style", "width:100%;max-width:420px") }) {
                 parts.forEachIndexed { index, part ->

@@ -829,7 +829,7 @@ export async function processSyllabusJob(
       const spec = specOf(dependencies, job);
       // Monta o pedido antes de marcar o provedor como iniciado: entrada inválida falha limpa,
       // com a cota devolvida, sem chegar a gastar tokens.
-      const prompts = spec.prompts(job);
+      let prompts = spec.prompts(job);
       const extracted = spec.usesSource ? sourceTextOf(job) : null;
       const bytes = spec.usesSource && extracted === null
         ? await dependencies.source(job)
@@ -859,6 +859,8 @@ export async function processSyllabusJob(
         await finalizeFailure(dependencies, job, lease, blocked, "FAILED", false);
         return true;
       }
+      // `cached` pode ter resolvido parte do pedido (simulado da biblioteca): a IA recebe só o resto.
+      prompts = spec.prompts(job);
       if (dependencies.jobs.markProviderStarted) {
         await dependencies.jobs.markProviderStarted(job.id, lease);
       }
