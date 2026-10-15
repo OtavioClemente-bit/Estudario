@@ -31,6 +31,8 @@ sealed class Route(val path: String) {
     data object PlanLimits : Route("perfil/plano")
     data object Settings : Route("perfil/ajustes")
     data object Setup : Route("configurar")
+    /** Reportes e comentários (só a conta do administrador). */
+    data object AdminReports : Route("equipe/reportes")
 
     /** Item do menu ao qual esta rota pertence. */
     val section: Route
@@ -79,6 +81,7 @@ sealed class Route(val path: String) {
                 }
                 "desempenho" -> Stats
                 "configurar" -> Setup
+                "equipe" -> AdminReports
                 else -> Home
             }
         }

@@ -91,6 +91,7 @@ private fun titleOf(route: Route): String = when (route) {
     Route.PlanLimits -> "Planos e uso"
     Route.Settings -> "Ajustes"
     Route.Setup -> "Configurar estudos"
+    Route.AdminReports -> "Reportes"
 }
 
 private var drawerOpen by mutableStateOf(false)
@@ -158,6 +159,7 @@ private fun Screen(route: Route) {
         Route.PlanLimits -> PlanLimitsScreen()
         Route.Settings -> SettingsScreen()
         Route.Setup -> SetupScreen()
+        Route.AdminReports -> AdminReportsScreen()
     }
 }
 
@@ -239,8 +241,10 @@ private fun SidebarContent(section: Route) {
         }
         Icon("chevron_right", extraClass = "faint")
     }
+    // A seção Equipe (reportes) só aparece para a conta do administrador.
+    val sections = if (isOwner()) menu + NavSection("Equipe", listOf(NavEntry(Route.AdminReports, "Reportes", "flag"))) else menu
     Nav({ attr("aria-label", "Menu") }) {
-        menu.forEach { group ->
+        sections.forEach { group ->
             // Seção recolhível: a da página atual fica sempre aberta; a escolha fica guardada no navegador.
             val holdsCurrent = group.entries.any { it.route == section }
             val open = holdsCurrent || (navOpen[group.title] ?: (group.title == menu.first().title))
