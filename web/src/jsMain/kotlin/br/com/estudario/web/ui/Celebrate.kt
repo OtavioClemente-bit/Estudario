@@ -213,36 +213,41 @@ private fun StreakContent(item: Celebration.StreakDay) {
     Div({ classes("cel-corner") }) { Folha(cornerMood, 110) }
 }
 
-/** As interações do Folha com o emblema: uma sorteada a cada vez. */
-private val badgeScenes = listOf("juggle", "polish", "peek", "cheer")
-
+/**
+ * Emblema novo, no nível da subida de nível: a medalha cai carimbada (com impacto e onda de choque),
+ * raios de luz giram atrás, um brilho de vidro passa por ela e estrelinhas piscam em volta; o nome
+ * aparece e o Folha entra pelo canto com o balão de parabéns.
+ */
 @Composable
 private fun BadgeContent(badge: Badge) {
     val (light, dark) = tierColors(badge.tier)
-    val scene = androidx.compose.runtime.remember(badge.id) { badgeScenes.random() }
-    var mood by androidx.compose.runtime.remember(badge.id) { mutableStateOf(if (scene == "peek") "thinking" else "happy") }
-    LaunchedEffect(badge.id) {
-        when (scene) {
-            "polish" -> { mood = "point"; kotlinx.coroutines.delay(1800); mood = "wink" }
-            "peek" -> { kotlinx.coroutines.delay(1100); mood = "happy"; kotlinx.coroutines.delay(1400); mood = "wave" }
-            "juggle" -> { kotlinx.coroutines.delay(2600); mood = "wink" }
-            else -> { kotlinx.coroutines.delay(2200); mood = "wave" }
-        }
-    }
-    Span({ classes("cel-eyebrow") }) { Text("NOVO EMBLEMA · ${tierName(badge.tier).uppercase()}") }
-    Div({ classes("cel-badge-stage", scene) }) {
-        Div({ classes("cel-medal"); attr("style", "--m1:$light;--m2:$dark") }) {
-            Span({ classes("cel-ribbon", "l") }); Span({ classes("cel-ribbon", "r") })
-            Div({ classes("cel-disc") }) {
-                Span({ classes("cel-shine") })
-                Icon("military_tech", filled = true)
+    var mood by androidx.compose.runtime.remember(badge.id) { mutableStateOf("happy") }
+    LaunchedEffect(badge.id) { kotlinx.coroutines.delay(1800); mood = "talking"; kotlinx.coroutines.delay(2400); mood = "wave" }
+    Div({ classes("bd-stage"); attr("style", "--m1:$light;--m2:$dark") }) {
+        Div({ classes("lv-rays", "bd-rays") })
+        Div({ classes("lv-shock", "bd-shock") })
+        Div({ classes("bd-medal") }) {
+            Div({ classes("cel-medal") }) {
+                Span({ classes("cel-ribbon", "l") }); Span({ classes("cel-ribbon", "r") })
+                Div({ classes("cel-disc") }) {
+                    Span({ classes("bd-glass") })
+                    Icon("military_tech", filled = true)
+                }
             }
         }
-        Div({ classes("cel-badge-folha") }) { Folha(mood, 96) }
-        if (scene == "polish") Div({ classes("cel-sparkles"); attr("aria-hidden", "true") }) { repeat(6) { i -> Span({ attr("style", "--si:$i") }) } }
+        Div({ classes("bd-stars"); attr("aria-hidden", "true") }) {
+            listOf(-120 to -70, 118 to -50, -100 to 70, 110 to 84, 0 to -118).forEachIndexed { i, (x, y) ->
+                Span({ attr("style", "--x:${x}px;--y:${y}px;--i:$i") })
+            }
+        }
     }
-    H2({ classes("cel-title") }) { Text(badge.name) }
-    P({ classes("cel-body") }) { Text(badge.requirement) }
+    Span({ classes("cel-eyebrow", "lv-late"); attr("style", "--ld:.95s") }) { Text("NOVO EMBLEMA · ${tierName(badge.tier).uppercase()}") }
+    H2({ classes("cel-title", "lv-late"); attr("style", "--ld:1.05s") }) { Text(badge.name) }
+    P({ classes("cel-body", "lv-late"); attr("style", "--ld:1.2s") }) { Text(badge.requirement) }
+    Div({ classes("lv-folha", "bd-folha") }) {
+        Div({ classes("lv-folha-body") }) { Folha(mood, 120) }
+        Div({ classes("lv-bubble", "bd-bubble") }) { Text("Emblema novo! ${badge.name}. Você mereceu, continua assim!") }
+    }
 }
 
 /**
