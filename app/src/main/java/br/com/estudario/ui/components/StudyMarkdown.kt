@@ -64,6 +64,9 @@ fun StudyMarkdown(markdown: String, modifier: Modifier = Modifier, textSizeSp: F
     }
 }
 
+/** Leitura com fonte de livro (serifada, entrelinha maior): ligada pela teoria quando a pessoa escolhe "Livro". */
+val LocalReaderBook = androidx.compose.runtime.staticCompositionLocalOf { false }
+
 @Composable
 private fun MarkdownTextView(markdown: String, modifier: Modifier, textSizeSp: Float?, onLongPress: (() -> Unit)?, onTap: (() -> Unit)?, textColor: androidx.compose.ui.graphics.Color? = null, centered: Boolean = false) {
     val context = LocalContext.current
@@ -73,6 +76,7 @@ private fun MarkdownTextView(markdown: String, modifier: Modifier, textSizeSp: F
     val ink = textColor ?: colors.onSurface
     val markwon = remember(colors, size, density, ink) { studyMarkwon(context, colors, size, density, ink) }
     val text = remember(markdown) { StudyMarkdownNormalizer.normalize(markdown) }
+    val book = LocalReaderBook.current
     AndroidView(
         modifier = modifier,
         factory = { viewContext ->
@@ -89,6 +93,8 @@ private fun MarkdownTextView(markdown: String, modifier: Modifier, textSizeSp: F
             val center = centered && !hasBlockLayout(markdown)
             view.gravity = if (center) android.view.Gravity.CENTER_HORIZONTAL else android.view.Gravity.START
             view.textAlignment = if (center) android.view.View.TEXT_ALIGNMENT_CENTER else android.view.View.TEXT_ALIGNMENT_VIEW_START
+            if (book) { view.typeface = android.graphics.Typeface.create("serif", android.graphics.Typeface.NORMAL); view.setLineSpacing(0f, 1.42f) }
+            else { androidx.core.content.res.ResourcesCompat.getFont(view.context, br.com.estudario.R.font.nunito_family)?.let { view.typeface = it }; view.setLineSpacing(0f, 1.3f) }
             view.setTextColor(ink.toArgb())
             view.setLinkTextColor(colors.primary.toArgb())
             view.setTextSize(TypedValue.COMPLEX_UNIT_SP, size)

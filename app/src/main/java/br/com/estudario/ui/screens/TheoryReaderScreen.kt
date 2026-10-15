@@ -44,7 +44,11 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = startBlock + if (startBlock > 0) headerOffset else 0)
     val chapters = remember(blocks) { blocks.withIndex().filter { it.value.trimStart().startsWith("#") }.map { it.index to it.value.trimStart().trimStart('#').trim().lineSequence().first() } }
     var tocOpen by remember { mutableStateOf(false) }
-    var textScale by rememberSaveable { mutableFloatStateOf(1f) }
+    val uiPrefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
+    // Ajustes de leitura (como num leitor de livros): tamanho e fonte, lembrados entre as aberturas.
+    var textScale by remember { mutableFloatStateOf(uiPrefs.getFloat("reader_scale", 1.05f)) }
+    var bookFont by remember { mutableStateOf(uiPrefs.getBoolean("reader_book", true)) }
+    var readerSettings by remember { mutableStateOf(false) }
     var editingIndex by remember { mutableStateOf<Int?>(null) }
     var selected by remember(theoryId) { mutableStateOf<Int?>(null) }
     var reportIndex by remember { mutableStateOf<Int?>(null) }
@@ -92,6 +96,20 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
         )
     }
 
+    if (readerSettings) ReaderSettingsSheet(
+        scale = textScale, book = bookFont,
+        onScale = { textScale = it; uiPrefs.edit().putFloat("reader_scale", it).apply() },
+        onBook = { bookFont = it; uiPrefs.edit().putBoolean("reader_book", it).apply() },
+        onDismiss = { readerSettings = false },
+    )
+    // Capítulo concluído: um aviso curto quando a leitura passa para o próximo.
+    val chapterIndex by remember { derivedStateOf { chapters.indexOfLast { it.first <= currentBlock } } }
+    var lastChapter by remember { mutableIntStateOf(-1) }
+    LaunchedEffect(chapterIndex) {
+        if (lastChapter >= 0 && chapterIndex > lastChapter && chapters.size > 1) snackbar.showSnackbar("Capítulo ${lastChapter + 1} concluído", duration = SnackbarDuration.Short)
+        lastChapter = chapterIndex
+    }
+
     if (tocOpen) ModalBottomSheet(onDismissRequest = { tocOpen = false }) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Índice", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
@@ -118,9 +136,9 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                 TopAppBar(
                     title = { Column { Text(theory.title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis); Text("${(progress * 100).toInt()}% lido • ${marks.size} grifo(s)", style = MaterialTheme.typography.labelSmall) } },
                     navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") } },
-                    actions = { if (chapters.size > 1) IconButton(onClick = { tocOpen = true }) { Icon(Icons.Outlined.Toc, "Índice") }; IconButton(onClick = { textScale = (textScale - .1f).coerceAtLeast(.8f) }) { Text("A−", fontWeight = FontWeight.Bold) }; IconButton(onClick = { textScale = (textScale + .1f).coerceAtMost(1.5f) }) { Text("A+", fontWeight = FontWeight.Bold) }; ReportTheoryButton() },
+                    actions = { if (chapters.size > 1) IconButton(onClick = { tocOpen = true }) { Icon(Icons.Outlined.Toc, "Índice") }; IconButton(onClick = { readerSettings = true }) { Text("Aa", fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif) }; ReportTheoryButton() },
                 )
-                LinearProgressIndicator({ progress.coerceIn(0f, 1f) }, Modifier.fillMaxWidth())
+                ReadLine(progress)
             }
         },
         snackbarHost = { SnackbarHost(snackbar) },
@@ -167,18 +185,18 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                 }
             }
         }
-        LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        androidx.compose.runtime.CompositionLocalProvider(br.com.estudario.ui.components.LocalReaderBook provides bookFont) {
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (!showInternalTopBar) item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(theory.title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         if (chapters.size > 1) IconButton(onClick = { tocOpen = true }) { Icon(Icons.Outlined.Toc, "Índice") }
-                        IconButton(onClick = { textScale = (textScale - .1f).coerceAtLeast(.8f) }) { Text("A−", fontWeight = FontWeight.Bold) }
-                        IconButton(onClick = { textScale = (textScale + .1f).coerceAtMost(1.5f) }) { Text("A+", fontWeight = FontWeight.Bold) }
+                        IconButton(onClick = { readerSettings = true }) { Text("Aa", fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif) }
                         ReportTheoryButton()
                     }
                     Text("${(progress * 100).toInt()}% lido • ${marks.size} grifo(s)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    LinearProgressIndicator({ progress.coerceIn(0f, 1f) }, Modifier.fillMaxWidth())
+                    ReadLine(progress)
                 }
             }
             blocks.forEachIndexed { index, block ->
@@ -235,6 +253,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
             item { Spacer(Modifier.height(70.dp)) }
         }
         }
+        }
     }
 }
 
@@ -267,6 +286,59 @@ private fun SelectionAction(icon: androidx.compose.ui.graphics.vector.ImageVecto
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(icon, null, Modifier.size(22.dp))
             Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        }
+    }
+}
+
+/** Linha fina de progresso da leitura, em degradê da marca (no lugar da barra comum). */
+@Composable
+private fun ReadLine(progress: Float) {
+    Box(Modifier.fillMaxWidth().height(3.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))) {
+        Box(
+            Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).fillMaxHeight()
+                .background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.primary, androidx.compose.ui.graphics.Color(0xFFFFB421)))),
+        )
+    }
+}
+
+/** Ajustes de leitura: quatro tamanhos de letra e a fonte (Livro ou Simples). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReaderSettingsSheet(scale: Float, book: Boolean, onScale: (Float) -> Unit, onBook: (Boolean) -> Unit, onDismiss: () -> Unit) {
+    val steps = listOf(0.9f, 1.05f, 1.2f, 1.38f)
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text("Leitura", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("TAMANHO DA LETRA", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                steps.forEachIndexed { i, v ->
+                    val on = kotlin.math.abs(scale - v) < 0.04f
+                    Surface(
+                        onClick = { onScale(v) },
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (on) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                        border = androidx.compose.foundation.BorderStroke(2.dp, if (on) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent),
+                        modifier = Modifier.weight(1f).height(52.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) { Text("A", fontSize = androidx.compose.ui.unit.TextUnit((13 + i * 4).toFloat(), androidx.compose.ui.unit.TextUnitType.Sp), fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif) }
+                    }
+                }
+            }
+            Text("FONTE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(true to "Livro", false to "Simples").forEach { (value, label) ->
+                    val on = book == value
+                    Surface(
+                        onClick = { onBook(value) },
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (on) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                        border = androidx.compose.foundation.BorderStroke(2.dp, if (on) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent),
+                        modifier = Modifier.weight(1f).height(52.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) { Text(label, fontWeight = FontWeight.Bold, fontFamily = if (value) androidx.compose.ui.text.font.FontFamily.Serif else null) }
+                    }
+                }
+            }
         }
     }
 }

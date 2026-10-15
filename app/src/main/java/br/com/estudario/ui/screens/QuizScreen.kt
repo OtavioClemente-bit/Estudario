@@ -31,6 +31,7 @@ import br.com.estudario.ui.brand.OutlinedButton
 import br.com.estudario.ui.brand.Button
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateMap
@@ -186,6 +187,10 @@ fun QuizScreen(
 
     val current = sessionQuestions[index.coerceAtMost(sessionQuestions.lastIndex)]
     val selected = selections[current.question.id]
+    // A questão nova entra deslizando da direita.
+    val enter = remember(current.question.id) { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(current.question.id) { enter.animateTo(1f, androidx.compose.animation.core.tween(380, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
+    val enterLayer = Modifier.graphicsLayer { translationX = (1f - enter.value) * 44.dp.toPx(); alpha = enter.value }
     val confirmed = results.containsKey(current.question.id)
     val correct = results[current.question.id]
     // Alternativas riscadas, como na prova de papel: "id da questão:letra". Só ajuda a pensar,
@@ -227,7 +232,7 @@ fun QuizScreen(
             }
         }
         item(key = "enunciado-${current.question.id}") {
-            Column {
+            Column(enterLayer) {
                 // Questão inédita já diz a banca no selo de origem; o chip só repete.
                 if (current.question.questionSourceType != br.com.estudario.data.local.QuestionSourceType.AUTHORIAL) current.question.board?.let { AssistChip(onClick = {}, label = { Text(listOfNotNull(it, current.question.year?.toString()).joinToString(" • ")) }) }
                 Spacer(Modifier.height(8.dp))
@@ -284,6 +289,7 @@ fun QuizScreen(
             }
         } else shuffledOptions(current.options, shuffleSeed + current.question.id * 7919, fixed = simulation).forEach { (option, shownLetter) ->
             item(key = "opt-${current.question.id}-${option.id}") {
+              Box(enterLayer) {
                 val reveal = confirmed && !simulation
                 val crossed = isEliminated(option.key) && !reveal
                 val container = when {
@@ -326,6 +332,7 @@ fun QuizScreen(
                     }
                 }
             }
+              }
         }
         if (!simulation && confirmed) {
             item {
@@ -561,7 +568,17 @@ private fun AnswerTile(
     }
     val lip = if (state == AnswerState.IDLE) scheme.outlineVariant else androidx.compose.ui.graphics.lerp(accent, Color.Black, 0.25f)
     val shape = RoundedCornerShape(16.dp)
-    Box(modifier.fillMaxWidth().clip(shape), propagateMinConstraints = true) {
+    // Resposta com movimento: a certa dá um pulinho, a errada treme.
+    val pop = remember { androidx.compose.animation.core.Animatable(1f) }
+    val shake = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(state) {
+        when (state) {
+            AnswerState.RIGHT -> { pop.animateTo(1.04f, androidx.compose.animation.core.tween(140)); pop.animateTo(1f, androidx.compose.animation.core.spring(0.35f, androidx.compose.animation.core.Spring.StiffnessMedium)) }
+            AnswerState.WRONG -> listOf(-7f, 6f, -4f, 2f, 0f).forEach { shake.animateTo(it, androidx.compose.animation.core.tween(70)) }
+            else -> Unit
+        }
+    }
+    Box(modifier.fillMaxWidth().graphicsLayer { scaleX = pop.value; scaleY = pop.value; translationX = shake.value.dp.toPx() }.clip(shape), propagateMinConstraints = true) {
         Box(Modifier.matchParentSize().padding(top = 4.dp).background(lip, shape))
         Row(
             Modifier
