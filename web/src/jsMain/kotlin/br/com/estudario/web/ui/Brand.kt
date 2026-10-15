@@ -28,7 +28,7 @@ import kotlin.math.exp
  * ele fica ouvindo. O texto inteiro, invisível, reserva a altura do balão para nada pular.
  */
 @Composable
-fun FolhaTalking(text: String, size: Int = 88, onFolhaClick: (() -> Unit)? = null, extra: String? = null) {
+fun FolhaTalking(text: String, size: Int = 88, onFolhaClick: (() -> Unit)? = null, extra: String? = null, restMood: String = "idle") {
     var shown by remember(text) { mutableStateOf(0) }
     LaunchedEffect(text) {
         shown = 0
@@ -50,7 +50,7 @@ fun FolhaTalking(text: String, size: Int = 88, onFolhaClick: (() -> Unit)? = nul
         Div({
             classes("folha-talk-avatar")
             onFolhaClick?.let { click -> onClick { click() } }
-        }) { key(size) { Folha(if (talking) "talking" else "idle", size) } }
+        }) { key(size) { Folha(if (talking) "talking" else restMood, size) } }
         Div({ classes("talk-bubble"); attr("aria-live", "polite") }) {
             Span({ classes("ghost"); attr("aria-hidden", "true") }) { Text(text) }
             Span({ classes("live") }) {

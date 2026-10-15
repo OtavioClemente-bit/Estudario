@@ -243,6 +243,10 @@ fun QuizScreen(scope: String) {
                     Span { Text("de acerto") }
                 }
                 H2 { Text(if (right * 10 >= results.size * 7) "Mandou bem!" else if (right * 2 >= results.size) "Bom treino!" else "Cada erro é um degrau") }
+                // O Folha comenta o treino, como no app: fala no balão e depois comemora (ou pensa junto).
+                val good = right * 10 >= results.size * 7
+                val fine = right * 2 >= results.size
+                FolhaTalking(sessionLine(scope, right, results.size, sessionId), 104, extra = "quiz-end-talk", restMood = if (good) "happy" else if (fine) "wink" else "thinking")
                 P({ classes("muted") }) { Text("$right de ${results.size} certas. ${if (results.size - right > 0) "As erradas foram para o caderno de erros e voltam em 3 dias." else "Nenhuma foi para o caderno de erros."}") }
                 Xp(xp)
                 Div({ classes("row", "wrap"); attr("style", "justify-content:center;margin-top:8px") }) {
@@ -427,4 +431,18 @@ private fun AnswerReaction(right: Boolean, correctKey: String?, questionId: Long
             B { Text(badge.second) }
         }
     }
+}
+
+/** O que o Folha diz ao fim do treino: muda com o resultado, com o tipo de treino e de vez em quando. */
+private fun sessionLine(scope: String, right: Int, total: Int, seed: String): String {
+    val rate = if (total == 0) 0.0 else right.toDouble() / total
+    val errors = scope.startsWith("erros") || scope.contains("m-wrong")
+    val options = when {
+        total > 0 && right == total && errors -> listOf("Caderno de erros vencido! Errou antes, acertou agora: isso é aprendizado de verdade.", "Todas certas nas que você tinha errado. Esse conteúdo agora é seu.")
+        total > 0 && right == total -> listOf("Gabaritou! $right de $total. Assim a aprovação chega mais perto.", "Perfeito! Nenhum erro. Tá voando nesse conteúdo.", "100%! Bora manter esse ritmo amanhã também.")
+        rate >= 0.7 -> listOf("Mandou muito bem! $right de $total certas. Revise as erradas e fecha com chave de ouro.", "Esse é o ritmo de quem passa. As que escaparam voltam pra você no caderno de erros.", "Ótimo treino! Cada acerto é um ponto a mais na prova.")
+        rate >= 0.5 -> listOf("Bom treino! Mais da metade certa. Vamos firmar as que escaparam?", "Tá no caminho. As erradas vão para o caderno de erros e voltam em 3 dias.", "Metade já é sua. Mais uma rodada e esse tópico fica firme.")
+        else -> listOf("Calma, errar no treino é o que faz acertar na prova. Vamos revisar juntos?", "Esse tópico ainda está pegando. Que tal reler a teoria e tentar de novo?", "Todo mundo começa assim. As erradas voltam pra você treinar de novo.")
+    }
+    return options[(seed.hashCode() and Int.MAX_VALUE) % options.size]
 }
