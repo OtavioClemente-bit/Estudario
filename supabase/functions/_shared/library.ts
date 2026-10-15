@@ -1,7 +1,7 @@
 import type { ContentJobInput } from "./text-job-input.ts";
 import { AI_TOPIC_CONTENT_SCHEMA_VERSION } from "./schemas/ai-text-jobs-v1.ts";
 import { CONTENT_PROMPT_VERSION } from "./prompts/text-jobs-v1.ts";
-import { validateTopicContent } from "./text-job-validators.ts";
+import { MIN_FLASHCARDS as MIN_LIBRARY_FLASHCARDS, validateTopicContent } from "./text-job-validators.ts";
 import { breakAssertivas } from "./content-repair.ts";
 
 // Biblioteca de matérias prontas (conteudo/ no repositório, tabelas library_* no banco).
@@ -726,17 +726,31 @@ export function assembleFromLibrary(
     const titles = new Set(chapters.map((chapter) => String(chapter.title).trim()));
     for (const question of questions) if (!titles.has(String(question.section ?? "").trim())) question.section = String(chapters[0].title).trim();
   }
+  // Com recorte, resumo, flashcards, dicas, pegadinhas e memorização também ficam no recorte: tirar
+  // da teoria o capítulo de Flyway e mandar flashcard de Flyway deixava o material incoerente.
+  const wholeTheory = focused.length === allChapters.length || (focused.length === 1 && !splitChapter(focused[0]));
+  const outside = wholeTheory ? [] : outsideTerms(allChapters.filter((chapter) => !focused.includes(chapter)), focused);
+  const mentionsOutside = (value: unknown) => outside.length > 0 && outside.some((term) => term.test(JSON.stringify(value ?? "")));
   const board = typeof note?.board === "string" ? note.board : input.board;
   const who = normalizeBoard(board) === GENERAL_BOARD_NORM ? "prova" : board;
   const howItFalls = typeof note?.howItFalls === "string" ? note.howItFalls : null;
   let summary = wants("SUMMARY") ? String(material.summary) : "";
+  if (summary && outside.length > 0) {
+    const kept = summary.split(/(?<=[.!?])\s+/).filter((sentence) => !mentionsOutside(sentence)).join(" ").trim();
+    if (kept.length >= 80) summary = kept;
+  }
   if (howItFalls && wants("THEORY") && chapters.length < 6) {
     chapters.push({ title: `Como a ${who} cobra este tópico`, markdown: howItFalls });
   } else if (howItFalls && wants("SUMMARY")) {
     summary = `**Como a ${who} cobra:** ${howItFalls}\n\n${summary}`;
   }
+  const inFocus = <T>(items: T[]) => outside.length === 0 ? items : items.filter((item) => !mentionsOutside(item));
   const merged = (field: "tips" | "traps") =>
-    wants("TIPS_TRAPS") ? [...new Set([...((note?.[field] as string[]) ?? []), ...(material[field] as string[])])].slice(0, 8) : [];
+    wants("TIPS_TRAPS") ? [...new Set([...((note?.[field] as string[]) ?? []), ...inFocus(material[field] as string[])])].slice(0, 8) : [];
+  // Flashcards têm mínimo: se o recorte deixar poucos, vai o conjunto inteiro (melhor que a IA paga).
+  const focusedCards = inFocus(material.flashcards as Json[]);
+  const cards = focusedCards.length >= MIN_LIBRARY_FLASHCARDS ? focusedCards : (material.flashcards as Json[]);
+  const recall = inFocus(material.activeRecall as Json[]);
 
   const content: Json = {
     schemaVersion: AI_TOPIC_CONTENT_SCHEMA_VERSION,
@@ -750,10 +764,10 @@ export function assembleFromLibrary(
       : material.theoryTitle,
     chapters,
     summary,
-    flashcards: wants("QUICK_REVIEW") ? (material.flashcards as Json[]).slice(0, 30) : [],
+    flashcards: wants("QUICK_REVIEW") ? cards.slice(0, 30) : [],
     tips: merged("tips"),
     traps: merged("traps"),
-    activeRecall: wants("ACTIVE_RECALL") ? (material.activeRecall as Json[]).slice(0, 10) : [],
+    activeRecall: wants("ACTIVE_RECALL") ? (recall.length > 0 ? recall : (material.activeRecall as Json[])).slice(0, 10) : [],
     errorConcepts: structuredClone(material.errorConcepts),
     questions,
     sources: (material.sources as Json[]).slice(0, 12),
@@ -771,4 +785,23 @@ export function assembleFromLibrary(
   } catch {
     return null;
   }
+}
+
+/**
+ * Nomes próprios e técnicos (Flyway, Envers, PostgreSQL...) que só existem nos capítulos fora do
+ * recorte: escritos com maiúscula no meio da frase pelo menos duas vezes lá e ausentes da teoria
+ * entregue. Servem para tirar do resumo, dos flashcards e das dicas o que a teoria recortada não traz.
+ */
+export function outsideTerms(outside: Json[], inside: Json[]): RegExp[] {
+  const insideText = inside.map((chapter) => `${chapter.title} ${chapter.markdown}`).join(" ").toLowerCase();
+  const counts = new Map<string, number>();
+  for (const chapter of outside) {
+    const text = `${chapter.title}\n${chapter.markdown}`;
+    for (const match of text.matchAll(/(?<=[a-zà-ú,;)] )([A-Z][A-Za-z0-9]{2,})/g)) {
+      counts.set(match[1], (counts.get(match[1]) ?? 0) + 1);
+    }
+  }
+  return [...counts]
+    .filter(([word, count]) => count >= 2 && !insideText.includes(word.toLowerCase()))
+    .map(([word]) => new RegExp(`\\b${word}\\b`, "i"));
 }
