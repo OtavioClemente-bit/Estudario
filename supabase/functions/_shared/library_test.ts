@@ -6,6 +6,8 @@ import {
   lookupAliases,
   normalizeAlias,
   normalizeBoard,
+  topicMatches,
+  topicWords,
   validateBoardNote,
   validateLibraryMaterial,
 } from "./library.ts";
@@ -143,6 +145,23 @@ Deno.test("recorte da banca entra como capítulo, dicas e questões primeiro", (
   assertEquals((content.chapters as Json[]).at(-1)!.title, "Como a VUNESP cobra este tópico");
   assertEquals((content.tips as string[])[0], "Dica da VUNESP sobre gráficos");
   assertEquals((content.questions as Json[])[0].statement, "Questão no estilo VUNESP sobre tarifa de táxi como função afim.");
+});
+
+Deno.test("questões da banca do mesmo tópico do edital vêm antes das outras da banca", () => {
+  const m = material();
+  const other = { ...question(901, "MC5", "MEDIA"), statement: "Questão da banca sobre outro assunto da matéria.", topico: "Sistemas de equações lineares." };
+  const same = { ...question(902, "MC5", "MEDIA"), statement: "Questão da banca sobre gráfico da função afim.", topico: "Função afim: gráfico e coeficientes." };
+  const note = validateBoardNote({
+    topic: m.id, board: "VUNESP", role: null, version: 1, incidence: "ALTA",
+    howItFalls: long("A VUNESP cobra interpretação de gráfico", 400), tips: [], traps: [],
+    questions: [other, same],
+  }, m);
+  for (const seed of ["a", "b", "c", "d"]) {
+    const content = assembleFromLibrary(m, note, { board: "Vunesp", options: ALL, avoidStatements: [], topicPath: ["Matemática", "Função afim e seu gráfico."] }, seed)!;
+    assertEquals((content.questions as Json[])[0].statement, same.statement);
+  }
+  assertEquals(topicMatches(topicWords("Teorias da motivação."), "Teorias da motivação: Maslow e Herzberg."), true);
+  assertEquals(topicMatches(topicWords("Teorias da motivação."), "Liderança."), false);
 });
 
 Deno.test("recorte padrão das provas (GERAL) não aparece como nome de banca", () => {

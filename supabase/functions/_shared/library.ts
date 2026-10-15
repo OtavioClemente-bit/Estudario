@@ -72,6 +72,20 @@ export function inferFocus(material: Json, topicTitle: string | null | undefined
   return { capitulos: picked, questoes: [] };
 }
 
+/** Palavras significativas de um tópico de edital, para comparar com o "topico" das questões do banco. */
+export function topicWords(value: unknown): string[] {
+  return [...new Set(normalizeAlias(typeof value === "string" ? value : "").split(" ").filter((w) => w.length >= 4 && !FOCUS_STOPWORDS.has(w)))];
+}
+
+/** A questão é do tópico pedido quando o tópico dela cobre ao menos metade das palavras do pedido. */
+export function topicMatches(asked: string[], questionTopic: unknown): boolean {
+  if (asked.length === 0) return false;
+  const own = new Set(topicWords(questionTopic));
+  if (own.size === 0) return false;
+  const hits = asked.filter((w) => own.has(w)).length;
+  return hits >= Math.max(1, Math.ceil(asked.length / 2));
+}
+
 export function normalizeAlias(value: string | null | undefined): string {
   return (value ?? "")
     .normalize("NFD").replace(/[̀-ͯ]/g, "")
@@ -593,7 +607,7 @@ function interleave<T>(lists: T[][]): T[] {
 export function assembleFromLibrary(
   material: Json,
   note: Json | null,
-  input: Pick<ContentJobInput, "board" | "options" | "avoidStatements">,
+  input: Pick<ContentJobInput, "board" | "options" | "avoidStatements"> & { topicPath?: string[] },
   seed: string,
   focus: LibraryFocus | null = null,
   /** Entrega o material mesmo com menos questões que o pedido (quem chama completa as que faltam). */
@@ -618,11 +632,18 @@ export function assembleFromLibrary(
   const nearest: Record<string, string[]> = { FACIL: ["FACIL", "MEDIA", "DIFICIL"], MEDIA: ["MEDIA", "DIFICIL", "FACIL"], DIFICIL: ["DIFICIL", "MEDIA", "FACIL"] };
   const usable = (pool: Json[]) =>
     pool.filter((q) => fitsStyle(q, options.questionStyle) && !seen(q.statement));
-  const boardPool = usable((note?.questions as Json[] | undefined) ?? []);
+  // As questões do banco trazem o tópico do edital de onde vieram ("topico"): as do mesmo tópico do
+  // pedido vêm antes das outras questões da banca sobre a matéria.
+  const boardAll = usable((note?.questions as Json[] | undefined) ?? []);
+  const asked = topicWords(input.topicPath?.at(-1));
+  const sameTopic = boardAll.filter((q) => topicMatches(asked, q.topico));
+  const boardPool = [...sameTopic, ...boardAll.filter((q) => !sameTopic.includes(q))];
   const topicPool = usable(material.questions as Json[]);
   // Em cada nível, as questões do recorte da banca vêm antes das da matéria.
+  const atLevel = (level: string | null) => (q: Json) => level === null || q.difficulty === level;
   const tier = (board: Json[], topic: Json[]) => (level: string | null) => [
-    ...shuffled(board.filter((q) => level === null || q.difficulty === level), seed),
+    ...shuffled(board.filter((q) => sameTopic.includes(q)).filter(atLevel(level)), seed),
+    ...shuffled(board.filter((q) => !sameTopic.includes(q)).filter(atLevel(level)), seed),
     ...shuffled(topic.filter((q) => level === null || q.difficulty === level), seed),
   ];
   const byLevel = (board: Json[], topic: Json[]) => wanted === null ? tier(board, topic)(null) : nearest[wanted].flatMap(tier(board, topic));
