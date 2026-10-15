@@ -124,29 +124,13 @@ fun StreakCelebrationScreen(celebration: StreakCelebration, onClose: () -> Unit)
                     // Brilho e faísca.
                     Canvas(Modifier.fillMaxSize()) {
                         val c = Offset(size.width / 2, size.height * 0.55f)
-                        val r = size.minDimension * 0.62f * (0.2f + 0.8f * glow.value) * (1f + 0.06f * flick)
-                        drawCircle(Brush.radialGradient(listOf(FireGlow.copy(alpha = 0.55f * glow.value), Ember.copy(alpha = 0.15f * glow.value), Color.Transparent), c, r), r, c)
                         if (spark.value in 0.01f..0.99f) {
                             val sr = 12.dp.toPx() * (1f + 3f * spark.value)
                             drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha = 1f - spark.value), Color(0xFFFFD84A).copy(alpha = 1f - spark.value), Color.Transparent), Offset(c.x, size.height * 0.72f), sr), sr, Offset(c.x, size.height * 0.72f))
                         }
-                        // Brasas subindo.
-                        if (fire.value > 0.3f) repeat(12) { i ->
-                            val p = (emberT + i / 12f) % 1f
-                            val x = c.x + ((i * 29) % 90 - 45).dp.toPx() * (1f + 0.4f * p)
-                            val y = size.height * 0.78f - p * size.height * 0.75f
-                            drawCircle(Ember.copy(alpha = (1f - p) * 0.9f), (2.5f + i % 3).dp.toPx() * (1f - p * 0.6f), Offset(x, y))
-                        }
                     }
-                    BrandIcon(
-                        Glyph.Fire,
-                        Modifier.graphicsLayer {
-                            transformOrigin = TransformOrigin(0.5f, 0.85f)
-                            val f = fire.value
-                            scaleX = f * (1f + 0.03f * flick); scaleY = f * (1f + 0.05f * (1f - flick))
-                        },
-                        size = if (compact) 130.dp else 160.dp,
-                    )
+                    // A chama viva: fogo de verdade, nasce girando e cresce (LiveFlame, a mesma do site).
+                    br.com.estudario.ui.brand.LiveFlame(Modifier.fillMaxWidth().height(if (compact) 230.dp else 290.dp).offset(y = (-20).dp), delay = 0.3f, grow = 2.3f)
                     // O Folha que se assusta e corre.
                     Folha(
                         if (compact) 78.dp else 92.dp,
