@@ -45,6 +45,7 @@ import br.com.estudario.data.local.QuestionWithOptions
 import br.com.estudario.data.remote.ReportKind
 import br.com.estudario.data.simulation.SimulationService
 import br.com.estudario.data.simulation.SubjectScore
+import br.com.estudario.domain.simulation.SimulationInsights
 import br.com.estudario.domain.simulation.SimulationMode
 import br.com.estudario.ui.AppViewModel
 import br.com.estudario.ui.components.MarkdownText
@@ -88,6 +89,16 @@ fun SimulationResultScreen(
     val personalRight = personal.count { answers[it.question.id] == correctKey(it) }
     val wrong = questions.count { it.question.id in answers && answers[it.question.id] != correctKey(it) }
     val blank = questions.count { it.question.id !in answers }
+    val reading = remember(questions, answers) {
+        SimulationInsights.read(questions.map { row ->
+            SimulationInsights.Answered(
+                topicId = row.question.topicId,
+                difficulty = row.question.difficulty?.name,
+                explanation = row.question.explanation,
+                correct = answers[row.question.id]?.let { it == correctKey(row) },
+            )
+        })
+    }
     // Regra Cebraspe nos itens Certo/Errado: certo +1, errado −1, em branco 0.
     val ceItems = questions.filter { row -> row.options.map { it.key }.toSet() == setOf("C", "E") }
     val ceRight = ceItems.count { answers[it.question.id] == correctKey(it) }
@@ -182,6 +193,31 @@ fun SimulationResultScreen(
                                 color = if (subject.percent >= target) estudarioColors().completed else if (subject.percent < target - 20) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                                 strokeCap = StrokeCap.Round,
                             )
+                        }
+                    }
+                }
+            }
+        }
+        if (reading.lostTopics.isNotEmpty() || reading.levels.size > 1) item {
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Onde você perdeu pontos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    if (reading.levels.size > 1) Text(
+                        reading.levels.joinToString(" · ") { "${it.label} ${it.right}/${it.total}" },
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                    reading.advice?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                    reading.lostTopics.forEach { lost ->
+                        val topic = topics.firstOrNull { it.id == lost.topicId }
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(topic?.title ?: "Tópico", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                Text("−${lost.lost} de ${lost.total}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.error)
+                                topic?.let { TextButton(onClick = { onTrainSubject(it.subjectId) }) { Text("Treinar") } }
+                            }
+                            lost.trap?.let {
+                                Text("Armadilha: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                 }

@@ -1,4 +1,4 @@
-import { deliverQuestion, fitsStyle, GENERAL_BOARD_NORM, inferFocus, type LibraryFocus, lookupAliases, normalizeAlias, normalizeBoard, shuffled } from "./library.ts";
+import { deliverQuestion, fitsStyle, GENERAL_BOARD_NORM, inferFocus, type LibraryFocus, lookupAliases, normalizeAlias, normalizeBoard, shuffled, topicWords } from "./library.ts";
 import { questionKey, type RematchSource, type SimulationItem, type SimulationJobInput } from "./simulation.ts";
 
 // Simulado montado da biblioteca: as questões prontas e conferidas de cada tópico da planta, sem
@@ -89,7 +89,18 @@ function candidatesFor(hit: SimulationLibraryHit, item: Pick<SimulationItem, "to
     const weak = title ? weakNorm.findIndex((spot) => spot.length > 0 && (spot === title || spot.includes(title) || title.includes(spot))) : -1;
     out.push({ question, material, key, level: String(question.difficulty ?? "MEDIA"), weak: weak >= 0 ? weak : null });
   }
-  return out;
+  // Tópico sem recorte abre a matéria inteira: as questões que usam os termos do tópico do edital
+  // vêm antes (a ordem sorteada continua dentro de cada grupo). Na auditoria, ~3% caíam em outro
+  // ponto da matéria ("Princípios da legalidade" recebendo questão sobre o art. 9º do CP).
+  const asked = topicWords(item.topicPath.at(-1));
+  // Direto do recorte (foco) já é do tópico: só reordena quando a lista não veio de um recorte.
+  if (asked.length === 0 || narrow) return out;
+  const relevance = (c: Candidate) => {
+    const text = ` ${normalizeAlias(`${String(c.question.statement ?? "")} ${String(c.question.explanation ?? "")} ${String(c.question.topico ?? "")}`)} `;
+    return asked.filter((word) => text.includes(` ${word.slice(0, Math.max(5, word.length - 2))}`)).length;
+  };
+  const scored = out.map((c, index) => ({ c, index, score: relevance(c) }));
+  return scored.sort((a, b) => Number(b.score > 0) - Number(a.score > 0) || a.index - b.index).map(({ c }) => c);
 }
 
 /** Converte a questão do banco no formato da parte do simulado. */

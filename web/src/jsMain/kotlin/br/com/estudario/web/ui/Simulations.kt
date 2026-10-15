@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import br.com.estudario.domain.simulation.BoardStyle
+import br.com.estudario.domain.simulation.SimulationInsights
 import br.com.estudario.domain.simulation.SimulationMode
 import br.com.estudario.domain.simulation.SimulationUnlock
 import br.com.estudario.web.Route
@@ -148,7 +149,7 @@ private fun CreateSimulationDialog(competitionId: Long, mode: SimulationMode, on
                 Div({ classes("row", "between") }) { Span({ classes("small") }) { Text("Tempo de prova") }; B({ classes("small") }) { Text("${BoardStyle.minutesFor(profile.style, if (mode == SimulationMode.REMATCH) 30 else size)} min") } }
             }
         }
-        P({ classes("xs", "muted") }) { Text("A geração leva alguns minutos e acontece em partes. Pode navegar pelo site enquanto isso; deixe esta aba aberta.") }
+        P({ classes("xs", "muted") }) { Text("Com as questões prontas da biblioteca, o simulado fica pronto em segundos; tópicos sem questão pronta podem levar alguns minutos. Pode navegar pelo site enquanto isso; deixe esta aba aberta.") }
         error?.let {
             Div({ classes("banner", "error") }) { Text(it) }
             var upgradeSeen by remember(it) { mutableStateOf(false) }
@@ -361,6 +362,14 @@ private fun ResultView(simulation: Simulation) {
     val answers = Simulations.answersOf(Simulations.row(data, simulation.id))
     val questions = data.questions.filter { it.simulationId == simulation.id }.sortedBy { it.id }
     var reviewWrongOnly by remember { mutableStateOf(true) }
+    var rematchError by remember { mutableStateOf<String?>(null) }
+    // Regra Cebraspe nos itens Certo/Errado: certo +1, errado −1, em branco 0.
+    val ceItems = questions.filter { q -> q.options.map { it.key }.toSet() == setOf("C", "E") }
+    val ceRight = ceItems.count { q -> answers[q.id] == q.options.firstOrNull { it.correct }?.key }
+    val ceWrong = ceItems.count { q -> q.id in answers && answers[q.id] != q.options.firstOrNull { it.correct }?.key }
+    val reading = SimulationInsights.read(questions.map { q ->
+        SimulationInsights.Answered(q.topicId, q.difficulty, q.explanation, answers[q.id]?.let { it == q.options.firstOrNull { o -> o.correct }?.key })
+    })
     Div({ classes("row") }) { Btn("Simulados", { Router.go(Route.Simulations) }, style = "ghost", small = true, icon = "arrow_back") }
     Card(extra = "pad-lg") {
         Div({ classes("mission") }) {
@@ -368,7 +377,22 @@ private fun ResultView(simulation: Simulation) {
             Div({ classes("stack", "tight", "grow") }) {
                 H2 { Text(if (score >= target) "Passou da meta!" else "Abaixo da meta de $target%") }
                 P({ classes("muted") }) { Text("${simulation.correctCount} de ${simulation.questionCount} certas · ${simulation.title}") }
+                if (ceItems.isNotEmpty()) P({ classes("small") }) {
+                    B { Text("Regra Cebraspe: ${ceRight - ceWrong} ponto(s) líquido(s) em ${ceItems.size} itens. ") }
+                    Text("Cada erro anula um acerto: na dúvida real, deixar em branco pode valer mais.")
+                }
                 P({ classes("small", "muted") }) { Text("As erradas foram para o caderno de erros e entram na Revanche.") }
+                if (simulation.mode != SimulationMode.REMATCH.name && questions.any { answers[it.id] != it.options.firstOrNull { o -> o.correct }?.key }) Div({ classes("row") }) {
+                    Btn("Revanche: refazer os erros com outro cenário", {
+                        try {
+                            var id = 0L
+                            Store.update { val (next, created) = Simulations.create(it, simulation.competitionId, SimulationMode.REMATCH, 30); id = created; next }
+                            Simulations.generate(id)
+                            Router.go(Route.Simulation(id))
+                        } catch (e: Throwable) { rematchError = e.message }
+                    }, icon = "replay")
+                }
+                rematchError?.let { Div({ classes("banner", "error") }) { Text(it) } }
             }
         }
     }
@@ -385,9 +409,24 @@ private fun ResultView(simulation: Simulation) {
             }
         }
         Card {
-            CardHead("Tempo")
-            Stat("${simulation.timeLimitMinutes} min", "tempo de prova")
-            P({ classes("small", "muted"); attr("style", "margin-top:8px") }) { Text("Entregue em ${Queries.shortDate(Queries.dateOf(simulation.finishedAt ?: simulation.createdAt))}.") }
+            CardHead("Onde você perdeu pontos")
+            Div({ classes("stack") }) {
+                if (reading.levels.size > 1) B({ classes("small") }) { Text(reading.levels.joinToString(" · ") { "${it.label} ${it.right}/${it.total}" }) }
+                reading.advice?.let { P({ classes("small") }) { Text(it) } }
+                reading.lostTopics.forEach { lost ->
+                    val topic = data.topics.firstOrNull { it.id == lost.topicId }
+                    Div({ classes("stack", "tight") }) {
+                        Div({ classes("row", "between") }) {
+                            B({ classes("small", "clamp-2") }) { Text(topic?.title ?: "Tópico") }
+                            Span({ classes("small", "nowrap"); attr("style", "color:var(--danger)") }) { Text("−${lost.lost} de ${lost.total}") }
+                        }
+                        lost.trap?.let { P({ classes("xs", "muted") }) { Text("Armadilha: $it") } }
+                        topic?.let { t -> Div({ classes("row") }) { Btn("Estudar o tópico", { Router.go(Route.Topic(t.id)) }, style = "ghost", small = true) } }
+                    }
+                }
+                if (reading.lostTopics.isEmpty()) P({ classes("small", "muted") }) { Text("Nenhum ponto perdido. Prova fechada!") }
+                P({ classes("xs", "muted") }) { Text("Tempo de prova: ${simulation.timeLimitMinutes} min · entregue em ${Queries.shortDate(Queries.dateOf(simulation.finishedAt ?: simulation.createdAt))}.") }
+            }
         }
     }
     Card {
