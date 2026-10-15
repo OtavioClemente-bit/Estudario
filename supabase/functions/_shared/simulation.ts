@@ -299,7 +299,7 @@ Inédito de verdade:
 
 Revanche (quando houver QUESTÕES PARA REVANCHE): para cada uma, crie UMA variante que cobre o MESMO conceito com cenário, dados, redação e letra correta diferentes. Quem decorou a original não pode acertar a variante sem entender. itemRef = a ref da original (r1, r2...).
 
-Questões irmãs (itens com MODELO): o MODELO é uma questão conferida do tópico. Crie questões NOVAS que cobrem o mesmo conceito e a mesma armadilha com outro cenário, outros nomes e outra redação, e mude a letra correta. Em cálculo (matemática, raciocínio lógico, contabilidade, estatística, finanças) troque os valores e refaça a conta do zero, conferindo o resultado. Em português, use outra frase com o mesmo fenômeno. Em lei, norma, prazo, percentual, idade, valor ou número de artigo, NUNCA altere o dado: mude só a situação concreta e mantenha o fato jurídico exatamente como no MODELO e na explicação dele. Use o MODELO e a explicação como fonte; para esses itens não é preciso pesquisar.
+Questões irmãs (itens com MODELO): o MODELO é uma questão conferida do tópico. Crie questões NOVAS que cobrem o mesmo conceito e a mesma armadilha com outro cenário, outros nomes e outra redação, e mude a letra correta. Trocar só os nomes e manter a mesma frase e as mesmas alternativas não vale: mude a situação, a pergunta e os distratores. A questão cobre o TÓPICO DO EDITAL do item; se o MODELO tratar de outro ponto da matéria, aproveite dele só o estilo e o nível. Nas alternativas, escreva só o texto, sem a letra. Em cálculo (matemática, raciocínio lógico, contabilidade, estatística, finanças) troque os valores e refaça a conta do zero, conferindo o resultado. Em português, use outra frase com o mesmo fenômeno. Em lei, norma, prazo, percentual, idade, valor ou número de artigo, NUNCA altere o dado: mude só a situação concreta e mantenha o fato jurídico exatamente como no MODELO e na explicação dele. Use o MODELO e a explicação como fonte; para esses itens não é preciso pesquisar.
 
 Banca (quando DETECTAR BANCA estiver pedido): pesquise qual banca organiza este concurso (edital, site do órgão ou da banca). Preencha detectedBoard.name e detectedBoard.sourceUrl só com confirmação em fonte; sem certeza, ambos null.
 
@@ -451,6 +451,11 @@ function fingerprint(value: string): string {
 export interface SimulationValidationOptions {
   /** Depois da revisão, questões sem conserto podem ter saído: aceita até 20% a menos. */
   allowShortfall?: boolean;
+  /**
+   * Questão com defeito (alternativa repetida, duas corretas...) sai em vez de derrubar a parte:
+   * a biblioteca já entregou o resto e refazer tudo pagaria a IA de novo. Basta sobrar uma.
+   */
+  dropInvalid?: boolean;
 }
 
 /**
@@ -470,19 +475,17 @@ export function validateSimulation(raw: string | Json, expected: ExpectedVersion
   if (value.schemaVersion !== expected.schemaVersion || value.promptVersion !== expected.promptVersion || value.modelVersion !== expected.modelVersion) {
     throw new ProposalValidationError("VERSION_MISMATCH", "provider output versions differ from the worker");
   }
-  const questions = Array.isArray(value.questions) ? value.questions as Json[] : reject("questions is not a list");
+  let questions = Array.isArray(value.questions) ? value.questions as Json[] : reject("questions is not a list");
   const wanted = new Map<string, number>();
   input.items.forEach((item) => wanted.set(item.ref, item.count));
   input.rematch.forEach((source) => wanted.set(source.ref, 1));
   const expectedTotal = simulationQuestionCount(input);
-  const minimum = options.allowShortfall ? Math.ceil(expectedTotal * 0.8) : expectedTotal;
-  if (questions.length < minimum || questions.length > expectedTotal) reject("question count");
   const produced = new Map<string, number>();
   // Questão irmã não pode ser o próprio modelo.
   const avoid = new Set([...input.avoid, ...input.items.flatMap((item) => (item.bases ?? []).map((base) => base.statement))].map(fingerprint));
   const originals = new Map(input.rematch.map((source) => [source.ref, fingerprint(source.statement)]));
-  const seen = new Set<string>();
-  questions.forEach((question, index) => {
+  let seen = new Set<string>();
+  const check = (question: Json, index: number) => {
     const field = `questions.${index}`;
     if (!isRecord(question)) reject(`${field} is not an object`);
     const ref = String(question.itemRef);
@@ -496,6 +499,10 @@ export function validateSimulation(raw: string | Json, expected: ExpectedVersion
     if (avoid.has(key)) reject(`${field} copies an existing question`);
     if (originals.get(ref) === key) reject(`${field} rematch copies the original`);
     const answerOptions = Array.isArray(question.options) ? question.options as Json[] : reject(`${field}.options`);
+    // O modelo às vezes repete a letra no texto ("A) A) p ∧ q"), copiando o formato do MODELO.
+    for (const option of answerOptions) {
+      if (isRecord(option) && typeof option.text === "string") option.text = option.text.replace(/^\s*\(?[A-E]\)\s+/, "");
+    }
     const keys = answerOptions.map((option) => String(option.key)).join();
     const format = question.format;
     if (input.style === "TRUE_FALSE" && format !== "TRUE_FALSE") reject(`${field} must be Certo/Errado`);
@@ -515,8 +522,24 @@ export function validateSimulation(raw: string | Json, expected: ExpectedVersion
     if (item && item.difficulty !== "MISTA" && question.difficulty !== item.difficulty) reject(`${field} difficulty differs from the request`);
     const weak = question.targetsWeakSpot;
     if (weak !== null && (typeof weak !== "number" || weak < 0 || weak >= input.weakSpots.length)) reject(`${field}.targetsWeakSpot`);
-  });
-  if (!options.allowShortfall) {
+  };
+  if (options.dropInvalid) {
+    questions = questions.filter((question, index) => {
+      try {
+        check(question, index);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+    value.questions = questions;
+    seen = new Set();
+    produced.clear();
+  }
+  const minimum = options.dropInvalid ? Math.min(1, expectedTotal) : options.allowShortfall ? Math.ceil(expectedTotal * 0.8) : expectedTotal;
+  if (questions.length < minimum || questions.length > expectedTotal) reject("question count");
+  questions.forEach(check);
+  if (!options.allowShortfall && !options.dropInvalid) {
     for (const [ref, count] of wanted) if ((produced.get(ref) ?? 0) !== count) reject(`count for ${ref}`);
   }
   // Gabarito concentrado numa letra é sinal de questão feita às pressas.

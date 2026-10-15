@@ -119,3 +119,14 @@ Deno.test("review fixes the key; dropping past the 20% shortfall keeps the quest
   const skipped = withSimulationReview(part, null, expected, input);
   assertEquals((skipped.warnings as { code: string }[])[0].code, "SOURCE_NOT_VERIFIED");
 });
+
+Deno.test("dropInvalid tira só a questão com defeito em vez de recusar a parte", () => {
+  const input = parseSimulationJobInput({ competitionName: "T", mode: "FULL", partCount: 1, partIndex: 0, items: [{ subjectName: "M", topicPath: ["Juros"], count: 2, difficulty: "MISTA" }] });
+  const good = (n: number) => ({ itemRef: "i1", statement: `Questão ${n} sobre juros simples com capital e taxa dados.`, format: "MULTIPLE_CHOICE", difficulty: "FACIL", options: ["A", "B", "C", "D", "E"].map((key, k) => ({ key, text: `Opção ${key} ${n}`, correct: k === 1 })), explanation: "Explicação suficiente da conta feita.", trap: "Confundir taxa com juros.", targetsWeakSpot: null });
+  const bad = { ...good(2), options: good(2).options.map((o, k) => k === 4 ? { ...o, text: good(2).options[3].text } : o) };
+  const versions = { schemaVersion: 1, promptVersion: "simulation-v1", modelVersion: "m" };
+  const part = { ...versions, detectedBoard: { name: null, sourceUrl: null }, questions: [good(1), bad], sources: [], warnings: [] };
+  assertThrows(() => validateSimulation(structuredClone(part), versions, input));
+  const kept = validateSimulation(structuredClone(part), versions, input, { dropInvalid: true });
+  assertEquals((kept.questions as unknown[]).length, 1);
+});

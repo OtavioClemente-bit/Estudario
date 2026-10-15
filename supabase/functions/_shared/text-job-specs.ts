@@ -41,6 +41,7 @@ import {
   SIMULATION_SCHEMA_VERSION,
   SIMULATION_SYSTEM_PROMPT,
   type SimulationJobInput,
+  type SimulationValidationOptions,
   simulationUserPrompt,
   validateSimulation,
 } from "./simulation.ts";
@@ -518,7 +519,9 @@ export const SIMULATION_JOB_SPEC: AiJobSpec = {
     SIMULATION_LEFTOVER.delete(job.id);
     const input = plan?.remaining ?? full;
     const merge = (part: Record<string, unknown>) => plan?.remaining ? mergeWithLibrary(part, plan.questions, full) : part;
-    const part = validateSimulation(raw, expected, input);
+    // Com a biblioteca entregando o resto, uma questão da IA com defeito sai sozinha (refazer a parte pagaria a IA de novo).
+    const lenient = plan?.remaining ? { dropInvalid: true } : {};
+    const part = validateSimulation(raw, expected, input, lenient);
     if (Deno.env.get("CONTENT_REVIEW_ENABLED") === "false") return merge(part) as unknown as WorkerProposal;
     const review = await runContentReview({ questions: part.questions }, {
       provider: dependencies.provider,
@@ -528,7 +531,7 @@ export const SIMULATION_JOB_SPEC: AiJobSpec = {
       previousReviewId: () => dependencies.jobs.completedReviewId?.(job.id) ?? Promise.resolve(null),
       context: [input.competitionName, input.role, input.board ? `banca ${input.board}` : null, "simulado"].filter(Boolean).join(" · "),
     });
-    return merge(withSimulationReview(part, review, expected, input)) as unknown as WorkerProposal;
+    return merge(withSimulationReview(part, review, expected, input, lenient)) as unknown as WorkerProposal;
   },
 };
 
@@ -549,6 +552,7 @@ export function withSimulationReview(
   review: ContentReview | null,
   expected: ExpectedVersions,
   input: SimulationJobInput,
+  options: SimulationValidationOptions = {},
 ): Record<string, unknown> {
   const warn = (message: string) => ({
     ...part,
@@ -558,7 +562,7 @@ export function withSimulationReview(
   for (const attempt of [review, { ...review, removeQuestions: [], removeFlashcards: [] }]) {
     const { content: reviewed } = applyReview(part, attempt);
     try {
-      return validateSimulation(reviewed, expected, input, { allowShortfall: true });
+      return validateSimulation(reviewed, expected, input, { allowShortfall: true, ...options });
     } catch {
       // Tenta a forma mais conservadora.
     }

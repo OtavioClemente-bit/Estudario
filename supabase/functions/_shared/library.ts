@@ -161,7 +161,9 @@ export function lookupAliases(input: Pick<ContentJobInput, "topicPath"> & { subj
   // "matéria + tópico", que é específico o bastante para ter apelido na biblioteca.
   const subject = normalizeAlias(input.subjectName);
   const withSubject = subject && path.length > 0 ? `${subject} ${path.at(-1)}` : "";
-  const candidates = [path.join(" "), path.at(-1) ?? "", withSubject].filter((alias) => alias.length >= 2);
+  // "Matéria + tópico" vem primeiro: o mesmo nome genérico ("Princípios básicos.") é de matérias
+  // diferentes conforme a disciplina, e só sem ela caía na primeira que tinha o nome.
+  const candidates = [withSubject, path.join(" "), path.at(-1) ?? ""].filter((alias) => alias.length >= 2);
   return [...new Set(candidates)];
 }
 

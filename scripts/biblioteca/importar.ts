@@ -95,6 +95,9 @@ for (const { path, value } of await jsonFiles("recortes")) {
 const missing: string[] = [];
 const materialAliases = new Set(aliasOwner.keys());
 const ambiguous = new Set<string>();
+const qualifiedAmbiguous = new Set<string>();
+/** Apelido com disciplina → texto do tópico sem ela (o foco do tópico vale para os dois). */
+const qualifiedPlain = new Map<string, string>();
 for (const { path, value } of await jsonFiles("editais")) {
   const subjects = Array.isArray(value.disciplinas) ? value.disciplinas as Json[] : [];
   if (subjects.length === 0) problems.push(`${path}: sem disciplinas`);
@@ -114,6 +117,20 @@ for (const { path, value } of await jsonFiles("editais")) {
       if (!materials.has(id)) {
         problems.push(`${path}: "${text}" aponta para ${id}, que não existe em conteudo/materias`);
         continue;
+      }
+      // Apelido com a disciplina na frente ("direito penal principios basicos"): o servidor tenta
+      // este primeiro, então um nome genérico ("Princípios básicos.") cai na matéria certa da
+      // disciplina em vez da primeira matéria que tem esse nome (que era a de física).
+      const qualified = `${normalizeAlias(String(subject.nome ?? ""))} ${alias}`.trim();
+      if (qualified !== alias && qualified.length <= 400 && !qualifiedAmbiguous.has(qualified) && !materialAliases.has(qualified)) {
+        const owner = aliasOwner.get(qualified);
+        if (owner && owner !== id) {
+          aliasOwner.delete(qualified);
+          qualifiedAmbiguous.add(qualified);
+        } else {
+          aliasOwner.set(qualified, id);
+          qualifiedPlain.set(qualified, alias);
+        }
       }
       // O banco guarda apelidos de até 400 caracteres; tópico de edital mais longo que isso é
       // atendido pela enciclopédia (rota tópico → matérias), não pelo apelido.
@@ -138,6 +155,7 @@ for (const { path, value } of await jsonFiles("editais")) {
 // Foco por tópico (conteudo/foco/<id>.json): tópico estreito abre a matéria nos capítulos e nas
 // questões dele. Só vale para o apelido que é mesmo daquela matéria; "inteira" fica sem foco.
 const focusByAlias = new Map<string, { capitulos: number[]; questoes: string[] }>();
+const focusByPlain = new Map<string, { capitulos: number[]; questoes: string[] }>();
 for (const { path, value } of await jsonFiles("foco")) {
   const material = materials.get(String(value.materia));
   if (!material) {
@@ -149,11 +167,17 @@ for (const { path, value } of await jsonFiles("foco")) {
   for (const topic of (Array.isArray(value.topicos) ? value.topicos : []) as Json[]) {
     if (topic.foco === "inteira") continue;
     const alias = normalizeAlias(String(topic.texto ?? ""));
-    if (aliasOwner.get(alias) !== material.id) continue;
     const capitulos = ((topic.capitulos ?? []) as unknown[]).map(Number).filter((i) => Number.isInteger(i) && i >= 0 && i < chapterCount);
     const questoes = ((topic.questoes ?? []) as unknown[]).map(String).filter((q) => /^q\d+$/.test(q) && Number(q.slice(1)) >= 1 && Number(q.slice(1)) <= questionCount);
-    if (capitulos.length > 0 || questoes.length > 0) focusByAlias.set(alias, { capitulos, questoes });
+    if (capitulos.length === 0 && questoes.length === 0) continue;
+    if (aliasOwner.get(alias) === material.id) focusByAlias.set(alias, { capitulos, questoes });
+    if (!focusByPlain.has(`${material.id}|${alias}`)) focusByPlain.set(`${material.id}|${alias}`, { capitulos, questoes });
   }
+}
+// O apelido com disciplina herda o foco do mesmo texto na mesma matéria.
+for (const [qualified, plain] of qualifiedPlain) {
+  const focus = focusByPlain.get(`${aliasOwner.get(qualified)}|${plain}`);
+  if (focus) focusByAlias.set(qualified, focus);
 }
 
 // Catálogo de editais que o app mostra na busca ("PMMG", "polícia federal"). Cada arquivo de
