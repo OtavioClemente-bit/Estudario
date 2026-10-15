@@ -198,8 +198,8 @@ Já existe edital mais novo no catálogo: cbm-df-2025, pcdf-2024, pcma-2026, pol
 - ✅ TRT-16 2022 (FGV): 13 cargos incluídos em 15/10 (trt16-2022--*).
 - ✅ TRT-17 2022 (FCC): 15 cargos incluídos em 15/10 (trt17-2022--*).
 - ✅ TCE-RN 2025 (Cebraspe): 14 cargos incluídos em 15/10 (tce-rn-2025--*).
-- PC-AL delegado 2022/2023 (Cebraspe).
-- ANTT no CNU 2025, bloco 9 (FGV, técnico em regulação).
+- ✅ PC-AL Delegado 2022 (Cebraspe): incluído em 15/10 (pcal-2022--delegado); sem matéria para o Estatuto da PC-AL (Lei 3.437/1975) e o RJU de Alagoas (Lei 5.247/1991).
+- ✅ ANTT no CNU 2025, bloco 9: já estava no catálogo (cnu-2025--bloco-9-intermediario-regulacao).
 
 **Sem edital novo (só banca ou previsão):**
 - SEFAZ-RS: FCC contratada em set/2026.
@@ -211,7 +211,20 @@ Já existe edital mais novo no catálogo: cbm-df-2025, pcdf-2024, pcma-2026, pol
 - TCE-RO, SEFAZ-ES: nada novo.
 - ANTT: concurso próprio com 720 vagas pedido em jun/2026.
 
-**Faltam pesquisar:** anac, dnit, cbmpa, pmro, pge-sc, sefaz-ba, sefaz-am, sef-mg, tce-ba, tj-pb, age-mg, inss perito.
+**Pesquisa de 15/10/2026, segunda parte:**
+- ANAC: sem edital; pedido no MGI (último 2023, Cebraspe).
+- DNIT: sem edital novo (concurso 2023 FGV ainda convocando para curso de formação em 2026).
+- CBM-PA: sem edital novo (2023, Cebraspe, em convocação).
+- PM-RO oficial: sem edital de CFO em 2026.
+- PGE-SC: sem edital novo (2022 FGV, validade prorrogada).
+- SEFAZ-BA: autorizado, comissões formadas; edital previsto set/out 2026, banca indefinida.
+- SEFAZ-AM: sem edital novo (2022 FGV).
+- SEF-MG auditor: sem edital novo (2022 FGV válido até 2027); fala-se em Gestor Fazendário.
+- TCE-BA: comissão formada em mar/2026 (Auditor); sem edital.
+- TJPB juiz leigo: comissão instituída em 2026; sem edital.
+- AGE-MG: sem edital novo (2022 FGV).
+- ✅ INSS perito médico: edital 2024 do MPS (Cebraspe) incluído em 15/10 (mps-2024--perito-medico-federal); faltam matérias de ética médica e telessaúde.
+- ANTT: já coberto pelo cnu-2025--bloco-9-intermediario-regulacao.
 
 ## Ainda não pesquisados
 - age-mg-procurador-2022.json
