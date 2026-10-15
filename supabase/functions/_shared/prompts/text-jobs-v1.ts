@@ -4,7 +4,7 @@ import type { ContentJobInput, PlanJobInput } from "../text-job-input.ts";
 // prompt do usuário, delimitados como DADOS. Regras de qualidade vêm do prompt de conteúdo que o
 // app já usa com IAs externas, condensadas para gastar menos tokens de entrada.
 
-export const CONTENT_PROMPT_VERSION = "topic-content-v14" as const;
+export const CONTENT_PROMPT_VERSION = "topic-content-v15" as const;
 export const PLAN_PROMPT_VERSION = "study-plan-v1" as const;
 /** Questões por chamada: acima disso o modelo erra mais (gabarito trocado, rascunho na explicação). */
 export const QUESTION_CHUNK = 10;
@@ -57,11 +57,12 @@ Recursos visuais (o app desenha; use quando ajudarem a entender, não para enfei
 Recorte:
 - No caminho do tópico, os ancestrais fornecem somente contexto. O último item é o tópico selecionado e define o escopo do material. Não gere o conteúdo inteiro do pai nem dos irmãos ao estudar um filho.
 - Preencha scope.covers com o que ESTE item do edital pede e scope.excludes com o que é do mesmo assunto mas fica fora. Escreva só o que está em covers.
+- O texto do tópico selecionado manda. O "recorte já anotado" dos DADOS é só uma pista e pode ter vindo de uma matéria mais ampla: se ele citar assuntos que o texto do tópico não nomeia nem pressupõe, ignore o excedente. Quando o tópico é uma lista (ex.: "firewall, IPS, IDS, VPN e NGAV"), o material trata cada item da lista, as diferenças entre eles e o mínimo de base para entendê-los; não acrescente outros itens da mesma família (ex.: não vire uma aula de arquitetura Zero Trust, IAM, MFA, EDR ou SOAR porque o tópico citou ZTNA ou SIEM).
 - A palavra do edital define a profundidade: "noções", "conceitos básicos", "fundamentos" e "aspectos gerais" são teto (panorama); "análise", "aplicação" e "interpretação" pedem caso concreto e exceção.
 - Dê mais espaço ao que tem histórico de cobrança em provas; o resto, mais curto.
 
 Partes: gere SOMENTE as partes listadas em PEDIDO. Parte não pedida fica vazia: lista vazia ou texto "".
-- chapters (TEORIA): 2 a 6 capítulos em Markdown, didáticos e autossuficientes (fundamentos, desenvolvimento, exemplos concretos, pegadinhas de banca), com tabelas quando ajudarem. Títulos numerados ("1. Fundamentos"); o markdown do capítulo não repete o título (o app já o mostra). No fim do último capítulo, "### Fontes consultadas". A profundidade pedida manda: ESSENCIAL é direto ao ponto; APROFUNDADA traz exemplos e exceções; LIVRO é o mais completo possível: 4 a 6 capítulos, cada um com pelo menos 2.500 caracteres de conteúdo útil, cobrindo TODOS os subitens do tópico do edital e os pontos vizinhos que a banca cobra junto (ex.: em "corpo de delito e peritos", também que o juiz não fica adstrito ao laudo e os prazos de autópsia e de exame complementar). Antes de entregar, liste mentalmente os subitens do tópico e confira se cada um tem regra, exemplo e pegadinha.
+- chapters (TEORIA): 2 a 6 capítulos em Markdown, didáticos e autossuficientes (fundamentos, desenvolvimento, exemplos concretos, pegadinhas de banca), com tabelas quando ajudarem. Títulos numerados ("1. Fundamentos"); o markdown do capítulo não repete o título (o app já o mostra). No fim do último capítulo, "### Fontes consultadas". A profundidade pedida manda: ESSENCIAL é direto ao ponto; APROFUNDADA traz exemplos e exceções; LIVRO é o mais completo possível: 4 a 6 capítulos, cada um com pelo menos 2.500 caracteres de conteúdo útil, cobrindo TODOS os subitens do tópico do edital e só os pontos vizinhos que fazem parte do mesmo dispositivo ou instituto e a banca cobra junto (ex.: em "corpo de delito e peritos", também que o juiz não fica adstrito ao laudo e os prazos de autópsia e de exame complementar). Profundidade maior é mais detalhe sobre os itens do tópico, nunca mais assuntos. Antes de entregar, liste mentalmente os subitens do tópico e confira se cada um tem regra, exemplo e pegadinha.
 - summary (RESUMO): resumo completo em Markdown, suficiente para revisar só por ele.
 - flashcards (FLASHCARDS): um baralho para estudar por repetição, de 15 a 25 cartões. Regras de um bom cartão:
   - UMA ideia por cartão, do tipo que a prova cobra. Nada de "explique tudo sobre X" nem de definição óbvia.
