@@ -155,7 +155,10 @@ fun GenerationPreview() {
     val kind = Regex("gerando=([a-z]+)").find(kotlinx.browser.window.location.search)?.groupValues?.get(1) ?: return
     var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
     if (!open) return
-    Modal(onDismiss = { open = false }, wide = true) {
+    // "dialogo" abre o assistente de verdade (os passos antes de gerar), no primeiro tópico.
+    if (kind == "dialogo") { Store.data.topics.firstOrNull()?.let { GenerateDialog(it.id) { open = false } }; return }
+    Modal(onDismiss = { open = false }, wide = true, extraClass = "gen-modal") {
+        Div({ classes("gen-body", "gen-working") }) {
         ProcessView(
             title = if (kind == "questions") "Preparando as suas questões" else "Preparando o seu material",
             eyebrow = "Demonstração",
@@ -165,5 +168,6 @@ fun GenerationPreview() {
             scene = kind,
             footer = { org.jetbrains.compose.web.dom.P({ classes("small", "muted"); attr("style", "text-align:center") }) { org.jetbrains.compose.web.dom.Text("Pode fechar esta janela e continuar estudando.") } },
         )
+        }
     }
 }

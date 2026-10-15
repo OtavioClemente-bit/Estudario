@@ -108,14 +108,22 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
     val title = if (questionsOnly) "Mais questões" else "Gerar material"
     val close = { if (progress is AiContent.Progress.Done || progress is AiContent.Progress.Failed) Generation.clear(topicId); onClose() }
 
-    Modal(onDismiss = close, wide = progress != null && progress !is AiContent.Progress.Failed) {
+    // Janela em três partes: cabeçalho e rodapé fixos, o meio rola. Larga, com respiro nas bordas.
+    Modal(onDismiss = close, wide = true, extraClass = "gen-modal") {
         when (val p = progress) {
             null, is AiContent.Progress.Failed -> {
-                Div({ classes("row", "between") }) {
-                    Span({ classes("xs", "muted") }) { Text("$title · passo ${step + 1} de ${steps.size}") }
-                    IconButton("close", "Fechar", onClose)
+                Div({ classes("gen-head") }) {
+                    Div({ classes("gen-head-row") }) {
+                        Div({ classes("gen-head-title") }) {
+                            Span({ classes("gen-eyebrow") }) { Text("Passo ${step + 1} de ${steps.size}") }
+                            org.jetbrains.compose.web.dom.H2 { Text(title) }
+                            topic?.title?.let { P({ classes("gen-topic") }) { Text(it) } }
+                        }
+                        IconButton("close", "Fechar", onClose)
+                    }
+                    Div({ classes("wizard-dots") }) { steps.indices.forEach { i -> Span({ classes(*listOfNotNull(if (i <= step) "on" else null).toTypedArray()) }) } }
                 }
-                Div({ classes("wizard-dots") }) { steps.indices.forEach { i -> Span({ classes(*listOfNotNull(if (i <= step) "on" else null).toTypedArray()) }) } }
+                Div({ classes("gen-body") }) {
                 quota?.let { q ->
                     QuotaMeter(q, if (questionsOnly) "lotes de questões" else "materiais")
                     // Sem saldo, a oferta aparece logo, como no app (fechar volta para a janela).
@@ -127,7 +135,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                             B { Text("O que você quer que eu prepare?") }
                             P({ classes("small", "muted") }) { Text(topic?.title?.let { "Para “$it”. Marque um ou mais." } ?: "Marque um ou mais.") }
                         }
-                        ChoiceCards(blockChoices, { it in blocks }) { key -> blocks = if (key in blocks) blocks - key else blocks + key }
+                        ChoiceCards(blockChoices, { it in blocks }, cols = 3) { key -> blocks = if (key in blocks) blocks - key else blocks + key }
                     }
                     "depth" -> {
                         FolhaSays("thinking", 64) { B { Text("Quão profunda deve ser a teoria?") } }
@@ -162,13 +170,14 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                     var upgradeSeen by remember(p) { mutableStateOf(false) }
                     if (isQuotaMessage(p.message) && !upgradeSeen) UpgradeModal(if (questionsOnly) UpgradeReason.QUESTIONS else UpgradeReason.CONTENT) { upgradeSeen = true }
                 }
-                Div({ classes("row", "between"); attr("style", "margin-top:4px") }) {
+                }
+                Div({ classes("gen-foot") }) {
                     if (step > 0) Btn("Voltar", { step-- }, style = "ghost", icon = "arrow_back") else Btn("Cancelar", onClose, style = "ghost")
                     if (step < steps.lastIndex) Btn("Continuar", { step++ }, style = "primary", enabled = blocks.isNotEmpty())
                     else Btn(if (questionsOnly) "Gerar questões" else "Gerar material", { start() }, style = "primary", icon = "auto_awesome", enabled = blocks.isNotEmpty())
                 }
             }
-            is AiContent.Progress.Done -> Div({ classes("stack", "pop-in"); attr("style", "align-items:center;text-align:center;padding:8px 0") }) {
+            is AiContent.Progress.Done -> Div({ classes("gen-body", "gen-done", "stack", "pop-in") }) {
                 Div({ classes("celebrate") }) { Folha("happy", 140) }
                 org.jetbrains.compose.web.dom.H2 { Text("Prontinho!") }
                 P({ classes("muted") }) { Text(if (showQuestions) "As novas questões já estão em “${topic?.title ?: "neste tópico"}”, prontas para treinar." else "Seu material está salvo em “${topic?.title ?: "neste tópico"}”: teoria, flashcards e questões esperando por você.") }
@@ -180,7 +189,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                 if (showQuestions) Btn("Treinar agora", { Generation.clear(topicId); onClose(); Router.go(Route.Quiz("topico-$topicId")) }, style = "primary", size = "lg", icon = "play_arrow")
                 else Btn("Ver material", { Generation.clear(topicId); onClose(); Router.go(Route.Topic(topicId)) }, style = "primary", size = "lg", icon = "menu_book")
             }
-            else -> {
+            else -> Div({ classes("gen-body", "gen-working") }) {
                 ProcessView(
                     title = if (showQuestions) "Preparando as suas questões" else "Preparando o seu material",
                     eyebrow = topic?.title?.take(60),

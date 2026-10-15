@@ -164,12 +164,12 @@ fun Empty(icon: String, title: String, text: String, action: (@Composable () -> 
 fun Spinner() { Div({ classes("spinner") }) }
 
 @Composable
-fun Modal(onDismiss: () -> Unit, wide: Boolean = false, content: @Composable () -> Unit) {
+fun Modal(onDismiss: () -> Unit, wide: Boolean = false, extraClass: String? = null, content: @Composable () -> Unit) {
     Div({
         classes("modal-back")
         onClick { event -> if (event.target == event.currentTarget) onDismiss() }
     }) {
-        Div({ classes(*listOfNotNull("modal", if (wide) "wide" else null).toTypedArray()); attr("role", "dialog"); attr("aria-modal", "true") }) { content() }
+        Div({ classes(*listOfNotNull("modal", if (wide) "wide" else null, extraClass).toTypedArray()); attr("role", "dialog"); attr("aria-modal", "true") }) { content() }
     }
 }
 
