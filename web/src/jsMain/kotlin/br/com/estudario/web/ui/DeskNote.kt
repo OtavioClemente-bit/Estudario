@@ -9,8 +9,8 @@ import org.jetbrains.compose.web.dom.Text
 
 /**
  * O canto da mesa (telas largas): no lugar de rabiscos genéricos, um post-it do Folha colado no
- * caderno, com fita, o "bizu do dia" escrito à mão e a assinatura dele; ao lado, o lápis e o
- * marca-texto da turma. Muda de bizu todo dia. Fica atrás do conteúdo e não pega clique.
+ * caderno, com fita, a "dica do Folha" escrita à mão e a assinatura dele; ao lado, o lápis e o
+ * marca-texto da turma. Muda de dica todo dia. Fica atrás do conteúdo e não pega clique.
  */
 @Composable
 fun DeskNote() {
@@ -18,7 +18,7 @@ fun DeskNote() {
     Div({ classes("desk-note"); attr("aria-hidden", "true") }) {
         Div({ classes("desk-postit") }) {
             Span({ classes("desk-tape") })
-            B { Text("bizu do dia") }
+            B { Text("dica do Folha") }
             Div({ classes("desk-tip") }) { Text(tip) }
             Div({ classes("desk-sign") }) { Folha("wink", 34, live = false); Span { Text("Folha") } }
         }
