@@ -19,12 +19,17 @@ object ExamWeights {
 
     /** As avaliações de todas as matérias de um edital; vazio se faltar a fatia de alguma. */
     fun assessAll(shares: List<Share?>): List<PriorityAssessment> {
-        if (shares.isEmpty() || shares.any { it == null || it.questions <= 0 || it.weight <= 0 }) return emptyList()
+        // 0 questões = a matéria não cai na prova objetiva (ex.: só na discursiva): fica com a menor prioridade.
+        if (shares.isEmpty() || shares.any { it == null || it.questions < 0 || it.weight <= 0 } || shares.all { it!!.questions == 0 }) return emptyList()
         val list = shares.map { it!! }
         val totalPoints = list.sumOf { it.points }
         val totalQuestions = list.sumOf { it.questions }
-        val average = totalPoints / list.size
+        val average = totalPoints / list.count { it.questions > 0 }
         return list.map { share ->
+            if (share.questions == 0) {
+                val description = share.blockNote ?: "não cai na prova objetiva"
+                return@map PriorityAssessment(15, PrioritySource.OFFICIAL_EXAM_STRUCTURE, 0.95f, "Peso no edital: $description.", listOf(PriorityEvidence(PriorityEvidenceType.OFFICIAL_QUESTION_COUNT, description, 0.0)))
+            }
             val ratio = share.points / average
             val score = when {
                 ratio >= 1.8 -> 90
@@ -66,7 +71,7 @@ object ExamWeights {
 
     /** Número de questões da matéria na prova, guardado na evidência (app e site guardam igual). */
     fun questionsOfJson(json: String?): Int? =
-        json?.let { EVIDENCE.find(it) }?.groupValues?.get(3)?.toDoubleOrNull()?.roundToInt()?.takeIf { it > 0 }
+        json?.let { EVIDENCE.find(it) }?.groupValues?.get(3)?.toDoubleOrNull()?.roundToInt()?.takeIf { it >= 0 }
 
     /** Frase para mostrar ao lado da matéria ("12 de 70 questões na prova, peso 2 (24% da nota)"). */
     fun descriptionOfJson(json: String?): String? =

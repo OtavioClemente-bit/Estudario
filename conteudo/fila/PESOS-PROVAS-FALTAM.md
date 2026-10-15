@@ -6,6 +6,12 @@ Dica: `pdftotext -enc UTF-8 -raw arquivo.pdf saida.txt` deixa as tabelas legíve
 Edital sem quadro claro fica sem peso (nunca chutar).
 
 ## Editais do catálogo com matéria faltando (conferir antes de dar peso)
+- nav-brasil-2026 (nível superior: advogado, analista-gestao, analista-tecnologia, contador, meteorologista): sem os conhecimentos básicos (Português 15, Inglês 10, RLM 8, Informática 5, Legislação 7).
+- nav-brasil-2026--profissional-tecnico-navegacao-aerea: tem "Aptidão e Perfil Operacional", que não está no quadro da prova objetiva.
+- sefaz-ce-2026 (gestão fazendária e TI): sem Direito Financeiro (8) e Auditoria (8) dos conhecimentos gerais.
+
+## Só baixando à mão (o portal da Cesgranrio não entrega o PDF por link direto)
+- Transpetro 2026 (vários editais), SEMA-MT 2026, Polícia Civil do Amapá 2026.
 - cpnuje-2024--analista-contabilidade: sem Língua Portuguesa e Noções de Direito Administrativo (conhecimentos básicos).
 - cpnuje-2024--analista-tecnologia-informacao: sem Noções de Direito Administrativo.
 - cvm-2024--inspetor-contabilidade-auditoria: tem Estatística, que o quadro oficial do perfil 3 não tem.

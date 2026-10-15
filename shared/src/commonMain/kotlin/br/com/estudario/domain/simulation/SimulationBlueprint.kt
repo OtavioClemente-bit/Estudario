@@ -68,11 +68,13 @@ object SimulationBlueprint {
         if (pool.isEmpty() || total <= 0) return Blueprint(mode, emptyList())
         val bySubject = pool.groupBy { it.subjectId }
         // Ordem de prova: a ordem em que as matérias aparecem no edital.
-        val subjectOrder = pool.map { it.subjectId }.distinct()
+        val subjectOrder = pool.map { it.subjectId }.distinct().toMutableList()
         // Prova completa e diagnóstico seguem o peso real da prova quando o edital informa; "do que
         // estudei" segue a prioridade da pessoa (que já está no peso de cada tópico).
         val examCounts = subjectOrder.associateWith { id -> bySubject.getValue(id).firstNotNullOfOrNull { it.subjectExamQuestions } }
-        val useExam = mode != SimulationMode.STUDIED && examCounts.values.all { it != null && it > 0 }
+        val useExam = mode != SimulationMode.STUDIED && examCounts.values.all { it != null } && examCounts.values.any { it!! > 0 }
+        // Matéria que não cai na prova objetiva (0 questões no quadro) fica fora da prova completa.
+        if (useExam) subjectOrder.retainAll { examCounts.getValue(it)!! > 0 }
         val subjectWeight = subjectOrder.associateWith { id ->
             if (useExam) examCounts.getValue(id)!!.toDouble() else bySubject.getValue(id).sumOf { topicWeight(it) }
         }
