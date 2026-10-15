@@ -15,8 +15,8 @@ Fila: 13-atualizar-editais.md (339 arquivos). Passo 1 (automático): 166 já tê
 - Serpro: sem edital novo (último 2023, Cebraspe) — catálogo já tem serpro-2023.
 
 ## Editais mais novos que existem e não estão no catálogo (a ingerir)
-- TJDFT servidores 2022 (FGV, 112 vagas, válido até 2026) substitui tjdft-2013.
-- MPSP servidores 2025 (Vunesp: Analista Jurídico, Analista Técnico Científico, Analista e Oficial de Promotoria) substitui mpsp-2022.
+- TJDFT servidores 2022 (FGV, 112 vagas, válido até 2026) substitui tjdft-2013. **FEITO** (6f07bc2f; tjdft-2013 mantido no catálogo).
+- MPSP servidores 2025 (Vunesp) **FEITO**: Analista Jurídico (8a152397), Analista de Promotoria II (8bdb1879), Analista Técnico Científico em 13 especialidades (a84042be), Auxiliar de Promotoria I e III (0b4cd2e8). Não substitui mpsp-2022 (cargos de saúde da FGV), só acrescenta. Lacunas: inquérito civil/TAC/ação civil pública geral, Estatuto dos Funcionários de SP (Lei 10.261/68), LC 734/93 e LC 1.118/2010, resoluções do CNMP.
 
 ## Já cobertos com outro nome no catálogo
 - camara-dos-deputados-2014 → camara-deputados-2026; dpf-* → pf-2025; irbr-diplomata-2018 → irbr-2026.
