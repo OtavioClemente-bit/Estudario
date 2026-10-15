@@ -102,14 +102,6 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
         onBook = { bookFont = it; uiPrefs.edit().putBoolean("reader_book", it).apply() },
         onDismiss = { readerSettings = false },
     )
-    // Capítulo concluído: um aviso curto quando a leitura passa para o próximo.
-    val chapterIndex by remember { derivedStateOf { chapters.indexOfLast { it.first <= currentBlock } } }
-    var lastChapter by remember { mutableIntStateOf(-1) }
-    LaunchedEffect(chapterIndex) {
-        if (lastChapter >= 0 && chapterIndex > lastChapter && chapters.size > 1) snackbar.showSnackbar("Capítulo ${lastChapter + 1} concluído", duration = SnackbarDuration.Short)
-        lastChapter = chapterIndex
-    }
-
     if (tocOpen) ModalBottomSheet(onDismissRequest = { tocOpen = false }) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Índice", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))

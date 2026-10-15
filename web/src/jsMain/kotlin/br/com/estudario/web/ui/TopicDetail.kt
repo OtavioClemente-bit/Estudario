@@ -297,6 +297,8 @@ fun TopicScreen(topicId: Long) {
                 if (counts[index] > 0) Span({ classes("count") }) { Text("${counts[index]}") }
             }
         }
+        // A linha fina de progresso da leitura corre na borda das abas, de ponta a ponta.
+        if (tab == 0 && ReadProgress.fraction >= 0) Div({ classes("read-progress") }) { Span({ attr("style", "transform:scaleX(${ReadProgress.fraction})") }) }
     }
 
     when (tab) {
@@ -555,10 +557,7 @@ private fun TheoryReader(theory: Theory) {
     }
     // O capítulo na tela agora (o sumário lateral acompanha a rolagem, para cima e para baixo).
     var activeChapter by remember(theory.id) { mutableStateOf(0) }
-    var readFraction by remember(theory.id) { mutableStateOf(0.0) }
-    var chapterDone by remember(theory.id) { mutableStateOf(0) }
     var readerOpen by remember(theory.id) { mutableStateOf(false) }
-    LaunchedEffect(chapterDone) { if (chapterDone > 0) { delay(1900); chapterDone = 0 } }
     var tocOpen by remember(theory.id) { mutableStateOf(false) }
     DisposableEffect(theory.id, chapters) {
         val listener: (org.w3c.dom.events.Event) -> Unit = {
@@ -568,17 +567,16 @@ private fun TheoryReader(theory: Theory) {
                 val el = document.getElementById("tb-${theory.id}-$blockIndex")
                 if (el != null && el.getBoundingClientRect().top < line) at = pos
             }
-            if (at > activeChapter && chapters.size > 1) chapterDone = activeChapter + 1
             activeChapter = at
             // Linha de progresso: quanto do texto já passou pela tela.
             document.querySelector(".theory-text")?.getBoundingClientRect()?.let { r ->
                 val total = (r.height - window.innerHeight * 0.6).coerceAtLeast(1.0)
-                readFraction = ((window.innerHeight * 0.4 - r.top) / total).coerceIn(0.0, 1.0)
+                ReadProgress.fraction = ((window.innerHeight * 0.4 - r.top) / total).coerceIn(0.0, 1.0)
             }
         }
         window.addEventListener("scroll", listener)
         val first = window.setTimeout({ listener(org.w3c.dom.events.Event("scroll")) }, 450)
-        onDispose { window.clearTimeout(first); window.removeEventListener("scroll", listener) }
+        onDispose { window.clearTimeout(first); window.removeEventListener("scroll", listener); ReadProgress.fraction = -1.0 }
     }
     LaunchedEffect(readUpTo) {
         if (readUpTo > theory.lastReadBlock && !Store.demo) {
@@ -616,9 +614,6 @@ private fun TheoryReader(theory: Theory) {
     // Citações da busca no meio do texto saem; as fontes ficam só em "Sobre este conteúdo".
     val extracted = remember(blocks) { blocks.map { InlineSources.extract(it) } }
     Div({ classes(*listOfNotNull("theory-layout", if (chapters.size > 1) "has-toc" else null).toTypedArray()) }) {
-    // A linha fina de progresso no topo e o aviso de capítulo concluído.
-    Div({ classes("read-progress") }) { Span({ attr("style", "transform:scaleX($readFraction)") }) }
-    if (chapterDone > 0) Div({ classes("chapter-done") }) { Icon("check_circle", filled = true); Text("Capítulo $chapterDone concluído") }
     Div({
         classes(*listOfNotNull("theory-text", if (ReaderPrefs.serif) "reader-book" else null).toTypedArray())
         attr("style", "--reader-size:${ReaderPrefs.sizes[ReaderPrefs.size]}px")
@@ -951,3 +946,6 @@ private fun ReaderSettingsPop(onClose: () -> Unit) {
         Btn("Pronto", onClose, style = "ghost", small = true)
     }
 }
+
+/** Quanto da teoria aberta já passou pela tela (-1 quando não há teoria na tela). */
+object ReadProgress { var fraction by mutableStateOf(-1.0) }
