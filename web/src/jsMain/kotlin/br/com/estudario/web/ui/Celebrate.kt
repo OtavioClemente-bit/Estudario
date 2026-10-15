@@ -145,72 +145,67 @@ private fun CelebrationScreen(item: Celebration, onClose: () -> Unit) {
 }
 
 /**
- * A cena da sequência: uma faísca acende no meio, a chama (a nossa, da turma do Folha) cresce aos
- * trancos com brasas subindo; o Folha, que estava ali, leva um susto e sai correndo; a chama se
- * assenta e o número de dias sobe contando; a semana acende dia a dia e hoje ganha o carimbo da
- * chama; por fim o Folha volta pelo canto, dando tchau.
+ * A sequência do dia: a chama acende. Uma faísca estala na base e o fogo pega de baixo para cima
+ * (estica, passa do ponto, assenta), e daí fica viva: o corpo tremula num ritmo, o rosto balança em
+ * outro, com halo de calor e brasas subindo. O número rola como um contador (ontem → hoje), os dias
+ * feitos da semana aparecem acesos e hoje pega fogo junto com a virada do número. O Folha aparece no
+ * canto com um balão curto. Sem confete: as brasas fazem esse papel.
  */
 @Composable
 private fun StreakContent(item: Celebration.StreakDay) {
-    var shown by androidx.compose.runtime.remember { mutableStateOf(0) }
-    var runnerMood by androidx.compose.runtime.remember { mutableStateOf("idle") }
-    var cornerMood by androidx.compose.runtime.remember { mutableStateOf("wave") }
-    LaunchedEffect(item) {
-        kotlinx.coroutines.delay(900); runnerMood = "talking"           // o susto
-        kotlinx.coroutines.delay(1150)
-        // O número sobe contando enquanto a chama se assenta.
-        val steps = item.days.coerceAtMost(30)
-        for (i in 1..steps) { shown = if (i == steps) item.days else (item.days * i / steps); kotlinx.coroutines.delay((520L / steps).coerceIn(18, 120)) }
-        shown = item.days
-        kotlinx.coroutines.delay(1800); cornerMood = "happy"
-    }
-    Div({ classes("cel-stage") }) {
-        Div({ classes("cel-fire-wrap") }) {
-            Span({ classes("cel-spark") })
-            // A chama viva (flame.js): fogo de verdade, quadro a quadro, com o rosto se mexendo. Nasce
-            // uma brasinha girando e cresce enquanto o giro desacelera.
-            org.jetbrains.compose.web.dom.Canvas({
-                classes("cel-flame-canvas")
-                ref { el ->
-                    val opts: dynamic = js("({ delay: 0.3, grow: 2.3 })")
-                    // Em dynamic, "?.invoke()" vira chamada ao método invoke: chamar a função direto.
-                    val fn = window.asDynamic().estudarioFlame
-                    val ctl: dynamic = if (fn != null && fn != undefined) fn(el, opts) else null
-                    onDispose { if (ctl != null && ctl != undefined) ctl.stop() }
-                }
-            })
-        }
-        // O Folha que estava ali: olha, se assusta e sai correndo (com poeirinha).
-        Div({ classes("cel-runner") }) {
-            Div({ classes("cel-runner-body") }) { Folha(runnerMood, 92) }
-            Span({ classes("cel-dust", "d1") }); Span({ classes("cel-dust", "d2") }); Span({ classes("cel-dust", "d3") })
-        }
-        B({ classes("cel-count") }) { Text(if (shown == 0) "" else "$shown") }
-    }
-    Span({ classes("cel-eyebrow", "cel-late") }) { Text("META DO DIA CUMPRIDA") }
-    H2({ classes("cel-title", "cel-late") }) { Text(if (item.days <= 1) "Sequência acesa!" else "${item.days} dias seguidos!") }
-    P({ classes("cel-body", "cel-late") }) {
-        Text(
-            when {
-                item.days <= 1 -> "Hoje começa a sua sequência. Volte amanhã para mantê-la acesa."
-                item.days >= item.best -> "É o seu recorde! Cada dia conta ponto na prova."
-                else -> "Faltam ${item.best - item.days} para bater o seu recorde de ${item.best} dias."
-            },
-        )
-    }
-    // A semana acende dia a dia; hoje (o último) ganha o carimbo da chama.
-    if (item.week.isNotEmpty()) Div({ classes("cel-week", "cel-late") }) {
-        item.week.forEachIndexed { i, (label, done) ->
-            val today = i == item.week.lastIndex
-            Div({ classes(*listOfNotNull("cel-day", if (done) "on" else null, if (today) "today" else null).toTypedArray()); attr("style", "--wi:$i") }) {
-                Span({ classes("cel-dot") }) { if (done) Icon("local_fire_department", filled = true) }
-                Span({ classes("cel-dl") }) { Text(if (today) "hoje" else label) }
+    val previous = (item.days - 1).coerceAtLeast(0)
+    Div({ classes("sk-stage") }) {
+        Span({ classes("sk-glow") })
+        Span({ classes("sk-spark") })
+        // O halo de calor: a mesma chama, desfocada, atrás.
+        Div({ classes("sk-flame", "sk-haze"); attr("aria-hidden", "true") }) { Icon("local_fire_department", filled = true) }
+        Div({ classes("sk-flame") }) { Icon("local_fire_department", filled = true) }
+        Div({ classes("sk-embers"); attr("aria-hidden", "true") }) {
+            (0 until 12).forEach { i ->
+                Span({ attr("style", "--ex:${(i * 23) % 70 - 35}px;--ed:${1.1 + (i % 6) * 0.35}s;--et:${2.2 + (i % 4) * 0.5}s;--es:${3 + i % 3}px") })
             }
         }
     }
-    if (item.xpToday > 0) Span({ classes("cel-xp", "cel-late") }) { Icon("bolt", filled = true); Text("+${item.xpToday} XP hoje") }
-    // O Folha volta pelo canto, dando tchau.
-    Div({ classes("cel-corner") }) { Folha(cornerMood, 110) }
+    // O contador: ontem embaixo, hoje entra rolando.
+    Div({ classes("sk-odo"); attr("aria-label", "${item.days} dias") }) {
+        Div({ classes("sk-odo-col") }) {
+            B { Text("$previous") }
+            B { Text("${item.days}") }
+        }
+    }
+    Span({ classes("sk-label", "sk-late"); attr("style", "--sd:1.7s") }) { Text(if (item.days == 1) "dia de sequência" else "dias de sequência") }
+    H2({ classes("cel-title", "sk-late"); attr("style", "--sd:1.85s") }) {
+        Text(
+            when {
+                item.days <= 1 -> "A chama acendeu"
+                item.days >= item.best -> "Recorde! Ninguém te para."
+                else -> "Mais um dia aceso"
+            },
+        )
+    }
+    P({ classes("cel-body", "sk-late"); attr("style", "--sd:2s") }) {
+        Text(
+            when {
+                item.days <= 1 -> "Volte amanhã para manter o fogo aceso."
+                item.days >= item.best -> "Sua maior sequência até agora. Amanhã tem mais."
+                else -> "Faltam ${item.best - item.days} para o seu recorde de ${item.best} dias."
+            },
+        )
+    }
+    if (item.week.isNotEmpty()) Div({ classes("sk-week", "sk-late"); attr("style", "--sd:.25s") }) {
+        item.week.forEachIndexed { i, (label, done) ->
+            val today = i == item.week.lastIndex
+            Div({ classes(*listOfNotNull("sk-day", if (done && !today) "on" else null, if (today) "today" else null).toTypedArray()); attr("style", "--wi:$i") }) {
+                Span({ classes("sk-dot") }) { if (done) Icon("local_fire_department", filled = true) }
+                Span({ classes("sk-dl") }) { Text(if (today) "hoje" else label) }
+            }
+        }
+    }
+    if (item.xpToday > 0) Span({ classes("cel-xp", "sk-late"); attr("style", "--sd:2.2s") }) { Icon("bolt", filled = true); Text("+${item.xpToday} XP hoje") }
+    Div({ classes("sk-folha") }) {
+        Div({ classes("sk-folha-body") }) { Folha("wave", 104) }
+        Div({ classes("lv-bubble", "sk-bubble") }) { Text(if (item.days <= 1) "Acendeu! Amanhã a gente mantém." else "${item.days} dias! Tá pegando fogo!") }
+    }
 }
 
 /**
