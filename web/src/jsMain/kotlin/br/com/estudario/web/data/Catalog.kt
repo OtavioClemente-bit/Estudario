@@ -1,5 +1,7 @@
 package br.com.estudario.web.data
 
+import br.com.estudario.domain.ExamWeights
+import br.com.estudario.domain.PriorityAssessment
 import br.com.estudario.text.stripAccents
 import br.com.estudario.web.WebConfig
 import kotlinx.serialization.SerialName
@@ -33,7 +35,8 @@ data class CatalogEntry(
 }
 
 @Serializable
-data class CatalogSubject(val name: String, val topics: List<String>)
+/** [questions]: questões da matéria na prova real (quadro do edital); null quando o edital não informa. */
+data class CatalogSubject(val name: String, val topics: List<String>, val questions: Int? = null)
 
 @Serializable
 private data class CatalogSubjectsRow(val subjects: List<CatalogSubject>)
@@ -59,6 +62,32 @@ object Catalog {
             .map { subject -> subject.copy(name = subject.name.trim(), topics = subject.topics.map(String::trim).filter(String::isNotBlank)) }
             .filter { it.name.isNotBlank() && it.topics.isNotEmpty() }
             .ifEmpty { throw IllegalStateException("Este edital não está mais disponível no catálogo.") }
+    }
+
+    /**
+     * Para cada concurso cujas matérias ainda não têm avaliação, acha o edital do catálogo de mesmo
+     * nome e mesmas matérias e devolve a função que grava os pesos (null se não houver o que fazer).
+     */
+    suspend fun backfillWeights(data: Snapshot): ((Snapshot) -> Snapshot)? {
+        val pending = data.competitions.filter { competition ->
+            val own = data.subjects.filter { it.competitionId == competition.id }
+            own.isNotEmpty() && own.none { it.hasAssessedPriority }
+        }
+        if (pending.isEmpty()) return null
+        val all = entries()
+        val updates = mutableListOf<Pair<Long, List<CatalogSubject>>>()
+        for (competition in pending) {
+            val names = data.subjects.filter { it.competitionId == competition.id }.mapTo(hashSetOf()) { it.name.lowercase() }
+            val candidates = all.filter { it.shortName.equals(competition.name, true) || it.title.equals(competition.name, true) }.take(12)
+            for (entry in candidates) {
+                val subjects = runCatching { subjects(entry.id) }.getOrNull() ?: continue
+                if (subjects.any { it.questions == null } || subjects.mapTo(hashSetOf()) { it.name.lowercase() } != names) continue
+                updates += competition.id to subjects
+                break
+            }
+        }
+        if (updates.isEmpty()) return null
+        return { snapshot -> updates.fold(snapshot) { acc, (id, subjects) -> withWeights(acc, id, subjects) } }
     }
 
     // ---- busca: mesma regra do ExamCatalogSearch do app ----
@@ -111,9 +140,11 @@ object Catalog {
         val newSubjects = mutableListOf<JsonObject>()
         val newTopics = mutableListOf<JsonObject>()
         val currentSubjects = next.subjects.filter { it.competitionId == competitionId }
+        // Peso real da prova vira a prioridade de cada matéria (só se o edital informa todas).
+        val weights = ExamWeights.assessAll(subjects.map { it.questions })
         subjects.forEachIndexed { index, subject ->
             val sid = currentSubjects.firstOrNull { it.name.equals(subject.name, true) }?.id
-                ?: subjectId++.also { newSubjects += jsonOf("id" to it, "competitionId" to competitionId, "name" to subject.name, "position" to currentSubjects.size + index, "externalId" to null) }
+                ?: subjectId++.also { newSubjects += jsonOf("id" to it, "competitionId" to competitionId, "name" to subject.name, "position" to currentSubjects.size + index, "externalId" to null).let { row -> JsonObject(row + (weights.getOrNull(index)?.let(::priorityFields)?.mapValues { (_, v) -> v.toJsonElement() } ?: emptyMap())) } }
             val existingTitles = next.topics.filter { it.subjectId == sid }.mapTo(hashSetOf()) { it.title.lowercase() }
             var position = existingTitles.size
             subject.topics.forEach { title ->
@@ -127,6 +158,36 @@ object Catalog {
             }
         }
         next = next.appendAll(mapOf(Keys.SUBJECTS to newSubjects, Keys.TOPICS to newTopics))
+        if (weights.isNotEmpty()) next = withWeights(next, competitionId, subjects)
         return next to competitionId
     }
+
+    /**
+     * Grava o peso da prova nas matérias de um concurso já existente (quem escolheu o edital antes de
+     * o catálogo ter os pesos). Nunca mexe na prioridade que a pessoa trocou nem numa avaliação já feita.
+     */
+    fun withWeights(data: Snapshot, competitionId: Long, subjects: List<CatalogSubject>): Snapshot {
+        val weights = ExamWeights.assessAll(subjects.map { it.questions })
+        if (weights.isEmpty()) return data
+        val byName = subjects.mapIndexed { index, subject -> subject.name.lowercase() to weights[index] }.toMap()
+        val ids = data.subjects.filter { it.competitionId == competitionId && it.userPriorityOverride == null }.associate { it.id to it.name.lowercase() }
+        return data.edit(Keys.SUBJECTS) { row ->
+            val id = (row["id"] as? JsonPrimitive)?.content?.toLongOrNull()
+            val name = ids[id] ?: return@edit row
+            val source = (row["assessedPrioritySource"] as? JsonPrimitive)?.content
+            val assessed = (row["hasAssessedPriority"] as? JsonPrimitive)?.content == "true"
+            val weight = byName[name] ?: return@edit row
+            if (assessed && source != "OFFICIAL_EXAM_STRUCTURE") return@edit row
+            JsonObject(row + priorityFields(weight).mapValues { (_, v) -> v.toJsonElement() })
+        }
+    }
+
+    private fun priorityFields(assessment: PriorityAssessment): Map<String, Any?> = mapOf(
+        "assessedPriorityScore" to assessment.score,
+        "assessedPrioritySource" to assessment.source.name,
+        "assessedPriorityConfidence" to assessment.confidence.toDouble(),
+        "assessedPriorityRationale" to assessment.rationale,
+        "assessedPriorityEvidenceJson" to ExamWeights.evidenceJson(assessment.evidence),
+        "hasAssessedPriority" to true,
+    )
 }

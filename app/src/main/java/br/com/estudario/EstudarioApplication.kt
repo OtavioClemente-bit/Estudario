@@ -168,6 +168,8 @@ class EstudarioApplication : Application() {
             // Sessão de foco que ficou aberta (app fechado, aparelho reiniciado) é resolvida aqui:
             // ou volta com a notificação, ou é encerrada e o Não Perturbe é devolvido.
             FocusSessionManager.reconcile(this@EstudarioApplication)
+            // Edital do catálogo escolhido antes de ter o peso da prova recebe as prioridades agora.
+            br.com.estudario.data.catalog.ExamWeightsApplier.backfill(database.dao(), br.com.estudario.data.catalog.ExamCatalogProvider.get(this@EstudarioApplication))
         }
     }
 }

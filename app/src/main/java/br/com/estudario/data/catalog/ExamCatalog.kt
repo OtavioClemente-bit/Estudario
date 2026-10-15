@@ -49,7 +49,8 @@ data class ExamCatalogEntry(
 }
 
 @Serializable
-data class ExamCatalogSubject(val name: String, val topics: List<String>)
+/** [questions]: questões da matéria na prova real (quadro do edital); null quando o edital não informa. */
+data class ExamCatalogSubject(val name: String, val topics: List<String>, val questions: Int? = null)
 
 @Serializable
 private data class ExamCatalogSubjectsRow(val subjects: List<ExamCatalogSubject>)

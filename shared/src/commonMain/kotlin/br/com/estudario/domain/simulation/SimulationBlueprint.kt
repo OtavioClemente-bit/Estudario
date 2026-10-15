@@ -24,6 +24,8 @@ data class BlueprintTopic(
     val studied: Boolean,
     val hasContent: Boolean,
     val scope: String? = null,
+    /** Questões da matéria na prova real (quadro do edital); null quando o edital não informa. */
+    val subjectExamQuestions: Int? = null,
 )
 
 data class BlueprintItem(
@@ -67,7 +69,13 @@ object SimulationBlueprint {
         val bySubject = pool.groupBy { it.subjectId }
         // Ordem de prova: a ordem em que as matérias aparecem no edital.
         val subjectOrder = pool.map { it.subjectId }.distinct()
-        val subjectWeight = subjectOrder.associateWith { id -> bySubject.getValue(id).sumOf { topicWeight(it) } }
+        // Prova completa e diagnóstico seguem o peso real da prova quando o edital informa; "do que
+        // estudei" segue a prioridade da pessoa (que já está no peso de cada tópico).
+        val examCounts = subjectOrder.associateWith { id -> bySubject.getValue(id).firstNotNullOfOrNull { it.subjectExamQuestions } }
+        val useExam = mode != SimulationMode.STUDIED && examCounts.values.all { it != null && it > 0 }
+        val subjectWeight = subjectOrder.associateWith { id ->
+            if (useExam) examCounts.getValue(id)!!.toDouble() else bySubject.getValue(id).sumOf { topicWeight(it) }
+        }
         val allocation = allocate(total, subjectOrder, subjectWeight)
         val items = subjectOrder.flatMap { subjectId ->
             val count = allocation[subjectId] ?: 0

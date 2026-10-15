@@ -112,7 +112,11 @@ object Store {
     }
 
     fun start() {
-        scope.launch { reload() }
+        scope.launch {
+            reload()
+            // Quem escolheu um edital do catálogo antes de ele ter os pesos da prova recebe agora.
+            if (load == LoadState.Ready) runCatching { Catalog.backfillWeights(data) }.getOrNull()?.let { filled -> update { filled(it) } }
+        }
     }
 
     suspend fun reload() {

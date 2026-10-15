@@ -247,6 +247,8 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
                     subject.topics.forEach { title -> if (existingTopics.add(title.lowercase())) repository.addTopic(subjectId, title) }
                 }
             }
+            // Peso real da prova (quando o edital informa) vira a prioridade de cada matéria.
+            br.com.estudario.data.catalog.ExamWeightsApplier.apply(dao, competitionId, subjects)
             repository.setPrimary(competitionId)
             _editalAttachment.value = null
             _attachmentCheck.value = EditalAttachmentCheck.None

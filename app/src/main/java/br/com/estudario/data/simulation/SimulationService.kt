@@ -28,6 +28,10 @@ import br.com.estudario.domain.simulation.SimulationBlueprint
 import br.com.estudario.domain.simulation.SimulationMode
 import br.com.estudario.domain.simulation.SimulationReadiness
 import br.com.estudario.domain.simulation.SimulationUnlock
+import br.com.estudario.domain.ExamWeights
+import br.com.estudario.domain.PriorityLevel
+import br.com.estudario.domain.PriorityResolver
+import br.com.estudario.data.local.SubjectEntity
 import br.com.estudario.text.QuestionKey
 import java.time.Instant
 import java.time.ZoneId
@@ -99,6 +103,13 @@ class SimulationService(
 
     // ---------------------------------------------------------------------------------------- prontidão
 
+    private fun effectivePriority(topic: TopicEntity, subject: SubjectEntity): PriorityLevel =
+        topic.userPriorityOverride
+            ?: PriorityResolver.scoreToLevel(topic.assessedPriorityScore).takeIf { topic.hasAssessedPriority }
+            ?: subject.userPriorityOverride
+            ?: PriorityResolver.scoreToLevel(subject.assessedPriorityScore).takeIf { subject.hasAssessedPriority }
+            ?: PriorityLevel.MEDIUM
+
     suspend fun leafTopics(competitionId: Long): List<BlueprintTopic> {
         val subjects = appDao.subjectsOnce().filter { it.competitionId == competitionId }
         val subjectIds = subjects.map { it.id }.toSet()
@@ -114,7 +125,9 @@ class SimulationService(
                     subjectId = topic.subjectId,
                     subjectName = subjects.first { it.id == topic.subjectId }.name,
                     path = pathOf(topic, topics),
-                    weight = topic.assessedPriorityScore,
+                    // Prioridade efetiva: a escolha da pessoa vence; senão a avaliação do tópico, a da matéria ou média.
+                    weight = ExamWeights.levelScore(effectivePriority(topic, subjects.first { it.id == topic.subjectId })),
+                    subjectExamQuestions = ExamWeights.questionsOfJson(subjects.first { it.id == topic.subjectId }.assessedPriorityEvidenceJson),
                     studied = topic.status != TopicStatus.NAO_ESTUDADO,
                     hasContent = topic.id in withTheory,
                     scope = topic.scopeCovers,

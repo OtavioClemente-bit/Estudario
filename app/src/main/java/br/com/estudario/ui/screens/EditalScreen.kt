@@ -364,6 +364,14 @@ internal fun SubjectCard(subject: SubjectEntity, topics: List<TopicEntity>, expa
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(subject.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    // Peso da prova lido no quadro do edital: é o que define a prioridade, a menos que a pessoa troque.
+                    br.com.estudario.domain.ExamWeights.questionsOfJson(subject.assessedPriorityEvidenceJson)?.let { count ->
+                        Text(
+                            "$count questões na prova" + if (subject.userPriorityOverride != null) " · você ajustou a prioridade" else "",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(shape = RoundedCornerShape(50), color = attention.color().copy(alpha = .14f)) {
                             Row(Modifier.padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {

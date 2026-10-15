@@ -5,6 +5,7 @@ import br.com.estudario.domain.simulation.BoardStyle
 import br.com.estudario.domain.simulation.SimulationBlueprint
 import br.com.estudario.domain.simulation.SimulationMode
 import br.com.estudario.domain.simulation.SimulationReadiness
+import br.com.estudario.domain.ExamWeights
 import br.com.estudario.text.QuestionKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
@@ -66,6 +67,8 @@ object Simulations {
         val subjectIds = subjects.mapTo(hashSetOf()) { it.id }
         val topicRows = data.array(Keys.TOPICS).mapNotNull { it as? JsonObject }.filter { (it.long("subjectId") ?: -1) in subjectIds }
         val topics = data.topics.filter { it.subjectId in subjectIds }
+        val subjectRows = data.array(Keys.SUBJECTS).mapNotNull { it as? JsonObject }.associateBy { it.long("id") }
+        fun subject(topic: Topic) = subjects.first { it.id == topic.subjectId }
         val parents = topics.mapNotNullTo(hashSetOf()) { it.parentTopicId }
         val withTheory = data.theories.mapTo(hashSetOf()) { it.topicId }
         val byId = topics.associateBy { it.id }
@@ -84,10 +87,12 @@ object Simulations {
                 subjectId = topic.subjectId,
                 subjectName = subjects.first { it.id == topic.subjectId }.name,
                 path = path(topic),
-                weight = raw?.int("assessedPriorityScore") ?: 50,
+                // Prioridade efetiva (a escolha da pessoa vence; senão a avaliação, a da matéria ou média).
+                weight = ExamWeights.levelScore(br.com.estudario.web.ui.topicPriority(topic, br.com.estudario.web.ui.subjectPriority(subject(topic), null))),
                 studied = topic.status != "NAO_ESTUDADO",
                 hasContent = topic.id in withTheory,
                 scope = raw?.str("scopeCovers"),
+                subjectExamQuestions = ExamWeights.questionsOfJson(subjectRows[topic.subjectId]?.str("assessedPriorityEvidenceJson")),
             )
         }
     }

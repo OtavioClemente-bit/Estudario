@@ -204,6 +204,12 @@ private fun SubjectCard(
                     Span({ classes("attn-pill"); attr("title", "Prioridade ${priorityLabel(priority).lowercase()}${difficulty?.takeIf { it != "NORMAL" }?.let { " · dificuldade ${difficultyLabel(it)}" } ?: ""}") }) {
                         Span({ classes("adot") }); Text(attention.label)
                     }
+                    subjectExamQuestions(data, subject.id)?.let { count ->
+                        // Peso da prova: o que define a prioridade, a menos que a pessoa tenha trocado.
+                        Span({ classes("xs", "muted"); attr("title", "Peso lido no quadro de provas do edital") }) {
+                            Text("$count questões na prova" + if (subject.userPriorityOverride != null) " · você ajustou a prioridade" else "")
+                        }
+                    }
                     Span({ classes("xs", "muted") }) { Text("$withContent/${topics.size} com material · $studied estudados") }
                 }
                 Div({ classes("subject-bar-track") }) {
