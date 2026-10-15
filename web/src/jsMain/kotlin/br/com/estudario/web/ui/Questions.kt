@@ -306,12 +306,15 @@ fun QuizScreen(scope: String) {
         Btn("Sair", { Router.go(Route.Train) }, style = "ghost", small = true, icon = "close")
         Span({ classes("strong", "muted") }) { Text("${index + 1} de ${initial.size}") }
         Div({ classes("row") }) {
-            Span({ classes("chip", "green") }) { Icon("check"); Text("${results.count { it }}") }
-            Span({ classes("chip", "red") }) { Icon("close"); Text("${results.count { !it }}") }
+            // Os contadores saltam quando mudam (a chave nova recria o elemento e a animação roda).
+            androidx.compose.runtime.key("ok-" + results.count { it }) { Span({ classes("chip", "green", "q-bump") }) { Icon("check"); Text("${results.count { it }}") } }
+            androidx.compose.runtime.key("no-" + results.count { !it }) { Span({ classes("chip", "red", "q-bump") }) { Icon("close"); Text("${results.count { !it }}") } }
         }
     }
     ProgressBar(index.toDouble() / initial.size)
-    Card(extra = "pad-lg") {
+    // A questão nova entra deslizando da direita (o cartão é recriado a cada questão).
+    androidx.compose.runtime.key(index) {
+    Card(extra = "pad-lg q-card") {
         Div({ classes("stack") }) {
             Div({ classes("row", "between") }) {
                 Div({ classes("row", "wrap") }) {
@@ -363,6 +366,7 @@ fun QuizScreen(scope: String) {
                 }
             }
         }
+    }
     }
     if (answered) {
         if (showResult) {

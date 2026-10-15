@@ -555,6 +555,10 @@ private fun TheoryReader(theory: Theory) {
     }
     // O capítulo na tela agora (o sumário lateral acompanha a rolagem, para cima e para baixo).
     var activeChapter by remember(theory.id) { mutableStateOf(0) }
+    var readFraction by remember(theory.id) { mutableStateOf(0.0) }
+    var chapterDone by remember(theory.id) { mutableStateOf(0) }
+    var readerOpen by remember(theory.id) { mutableStateOf(false) }
+    LaunchedEffect(chapterDone) { if (chapterDone > 0) { delay(1900); chapterDone = 0 } }
     var tocOpen by remember(theory.id) { mutableStateOf(false) }
     DisposableEffect(theory.id, chapters) {
         val listener: (org.w3c.dom.events.Event) -> Unit = {
@@ -564,7 +568,13 @@ private fun TheoryReader(theory: Theory) {
                 val el = document.getElementById("tb-${theory.id}-$blockIndex")
                 if (el != null && el.getBoundingClientRect().top < line) at = pos
             }
+            if (at > activeChapter && chapters.size > 1) chapterDone = activeChapter + 1
             activeChapter = at
+            // Linha de progresso: quanto do texto já passou pela tela.
+            document.querySelector(".theory-text")?.getBoundingClientRect()?.let { r ->
+                val total = (r.height - window.innerHeight * 0.6).coerceAtLeast(1.0)
+                readFraction = ((window.innerHeight * 0.4 - r.top) / total).coerceIn(0.0, 1.0)
+            }
         }
         window.addEventListener("scroll", listener)
         val first = window.setTimeout({ listener(org.w3c.dom.events.Event("scroll")) }, 450)
@@ -584,6 +594,11 @@ private fun TheoryReader(theory: Theory) {
                 B({ classes("theory-name") }) { Text(theory.title.ifBlank { "Teoria" }) }
                 Div({ classes("small", "muted") }) { Text(listOfNotNull("${chapters.size.coerceAtLeast(1)} capítulo(s)", "$percent% lido", if (marks > 0) "$marks grifo(s)" else null).joinToString(" · ")) }
             }
+            // Ajustes de leitura: tamanho da letra e fonte (ficam neste navegador).
+            Div({ attr("style", "position:relative") }) {
+                org.jetbrains.compose.web.dom.Button({ classes("reader-aa"); attr("aria-label", "Ajustar a leitura"); onClick { readerOpen = !readerOpen } }) { Text("Aa") }
+                if (readerOpen) ReaderSettingsPop { readerOpen = false }
+            }
         }
         Div({ attr("style", "margin:12px 0 4px") }) { ProgressBar(percent / 100.0) }
         if (chapters.size > 1) Div({ classes("chapters") }) {
@@ -601,7 +616,13 @@ private fun TheoryReader(theory: Theory) {
     // Citações da busca no meio do texto saem; as fontes ficam só em "Sobre este conteúdo".
     val extracted = remember(blocks) { blocks.map { InlineSources.extract(it) } }
     Div({ classes(*listOfNotNull("theory-layout", if (chapters.size > 1) "has-toc" else null).toTypedArray()) }) {
-    Div({ classes("theory-text") }) {
+    // A linha fina de progresso no topo e o aviso de capítulo concluído.
+    Div({ classes("read-progress") }) { Span({ attr("style", "transform:scaleX($readFraction)") }) }
+    if (chapterDone > 0) Div({ classes("chapter-done") }) { Icon("check_circle", filled = true); Text("Capítulo $chapterDone concluído") }
+    Div({
+        classes(*listOfNotNull("theory-text", if (ReaderPrefs.serif) "reader-book" else null).toTypedArray())
+        attr("style", "--reader-size:${ReaderPrefs.sizes[ReaderPrefs.size]}px")
+    }) {
         extracted.map { it.first }.forEachIndexed { i, block ->
             val trap = calloutTrap(block)
             Div({
@@ -889,5 +910,44 @@ object TheoryJump {
         val needle = plain(quote).take(60)
         if (needle.length >= 8) blocks.indexOfFirst { plain(it).contains(needle) }.takeIf { it >= 0 }?.let { return it }
         return fallback.coerceIn(0, (blocks.size - 1).coerceAtLeast(0))
+    }
+}
+
+/** Ajustes de leitura da teoria, como num leitor de livros: tamanho da letra e fonte. */
+object ReaderPrefs {
+    val sizes = listOf(16, 17.5, 19, 21)
+    private fun read(k: String) = runCatching { kotlinx.browser.localStorage.getItem(k) }.getOrNull()
+    private fun write(k: String, v: String) { runCatching { kotlinx.browser.localStorage.setItem(k, v) } }
+    var size by mutableStateOf(read("estudario.reader.size")?.toIntOrNull()?.coerceIn(0, 3) ?: 1)
+        private set
+    var serif by mutableStateOf(read("estudario.reader.font") != "simples")
+        private set
+    fun setSize(v: Int) { size = v.coerceIn(0, 3); write("estudario.reader.size", size.toString()) }
+    fun setSerif(v: Boolean) { serif = v; write("estudario.reader.font", if (v) "livro" else "simples") }
+}
+
+@Composable
+private fun ReaderSettingsPop(onClose: () -> Unit) {
+    Div({ classes("reader-pop") }) {
+        Div({ classes("reader-pop-row") }) {
+            Span({ classes("xs", "muted", "strong") }) { Text("TAMANHO") }
+            Div({ classes("reader-sizes") }) {
+                ReaderPrefs.sizes.forEachIndexed { i, px ->
+                    org.jetbrains.compose.web.dom.Button({
+                        classes(*listOfNotNull("reader-size", if (ReaderPrefs.size == i) "on" else null).toTypedArray())
+                        attr("style", "font-size:${11 + i * 3}px"); attr("aria-label", "Letra $px")
+                        onClick { ReaderPrefs.setSize(i) }
+                    }) { Text("A") }
+                }
+            }
+        }
+        Div({ classes("reader-pop-row") }) {
+            Span({ classes("xs", "muted", "strong") }) { Text("FONTE") }
+            Div({ classes("segmented") }) {
+                org.jetbrains.compose.web.dom.Button({ classes(*listOfNotNull("reader-font-book", if (ReaderPrefs.serif) "on" else null).toTypedArray()); onClick { ReaderPrefs.setSerif(true) } }) { Text("Livro") }
+                org.jetbrains.compose.web.dom.Button({ classes(*listOfNotNull(if (!ReaderPrefs.serif) "on" else null).toTypedArray()); onClick { ReaderPrefs.setSerif(false) } }) { Text("Simples") }
+            }
+        }
+        Btn("Pronto", onClose, style = "ghost", small = true)
     }
 }
