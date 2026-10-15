@@ -290,9 +290,12 @@ fun QuizScreen(scope: String) {
     val latestState = androidx.compose.runtime.rememberUpdatedState(Triple(answered, options.mapIndexed { i, o -> "ABCDEF"[i].toString() to o.key }.toMap(), showResult))
     DisposableEffect(scope) {
         val listener: (org.w3c.dom.events.Event) -> Unit = { event ->
-            val key = (event as KeyboardEvent).key.uppercase()
+            val typing = (event.target as? org.w3c.dom.Element)?.closest("input, textarea, select, [contenteditable]") != null
+            val raw = (event as KeyboardEvent).key.uppercase()
+            // 1 a 5 também escolhem (1 = A), para quem prefere a fileira de números.
+            val key = raw.toIntOrNull()?.takeIf { it in 1..6 }?.let { "ABCDEF"[it - 1].toString() } ?: raw
             val (isAnswered, keys, shown) = latestState.value
-            when {
+            if (!typing && !event.ctrlKey && !event.metaKey && !event.altKey) when {
                 !isAnswered && key in keys -> latestChoose.value(keys.getValue(key))
                 !isAnswered && key == "ENTER" -> latestConfirm.value()
                 isAnswered && (key == "ENTER" || key == "ARROWRIGHT") && shown -> latestNext.value()
@@ -386,7 +389,7 @@ fun QuizScreen(scope: String) {
         }
     } else {
         Btn("Confirmar resposta", { confirm() }, block = true, icon = "check", enabled = marked != null)
-        P({ classes("small", "faint"); attr("style", "text-align:center") }) { Text("Dica: as teclas A a E marcam a alternativa e Enter confirma.") }
+        P({ classes("small", "faint"); attr("style", "text-align:center") }) { Text("Dica: A a E (ou 1 a 5) marcam a alternativa, Enter confirma e → passa para a próxima.") }
     }
 }
 

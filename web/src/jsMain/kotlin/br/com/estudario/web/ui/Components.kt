@@ -138,10 +138,22 @@ fun Stat(value: String, label: String) {
     }
 }
 
+/**
+ * Tela vazia com a cara do Estudário: o Folha segura o ícone do assunto e reage ao caso
+ * (comemora o que está em dia, pensa na busca sem resultado, aponta para o botão do próximo passo).
+ */
 @Composable
 fun Empty(icon: String, title: String, text: String, action: (@Composable () -> Unit)? = null) {
+    val mood = when (icon) {
+        "task_alt", "check_circle", "inbox" -> "happy"
+        "search", "event" -> "thinking"
+        else -> if (action != null) "point" else "idle"
+    }
     Div({ classes("empty") }) {
-        Icon(icon, extraClass = "big")
+        Div({ classes("empty-folha") }) {
+            Folha(mood, 84)
+            Span({ classes("empty-badge") }) { Icon(icon) }
+        }
         org.jetbrains.compose.web.dom.H3 { Text(title) }
         P { Text(text) }
         action?.invoke()
