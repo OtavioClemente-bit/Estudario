@@ -1,230 +1,247 @@
 package br.com.estudario.ui.profile
 
-import br.com.estudario.time.isoDayOfWeek
-import androidx.compose.foundation.layout.PaddingValues
-import br.com.estudario.ui.components.FitOrScrollColumn
-import br.com.estudario.ui.theme.estudarioLayout
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
-import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.ButtonDefaults
-import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import br.com.estudario.time.isoDayOfWeek
 import br.com.estudario.domain.StreakDay
-import br.com.estudario.domain.StreakSummary
-import br.com.estudario.ui.components.AppMark
-import br.com.estudario.ui.components.AppMarkBackground
+import br.com.estudario.ui.assistant.Folha
+import br.com.estudario.ui.assistant.FolhaMood
+import br.com.estudario.ui.brand.BrandIcon
+import br.com.estudario.ui.brand.Button
+import br.com.estudario.ui.brand.Glyph
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
-private val Verde = Color(0xFF20B486)
+private val InkTop = Color(0xFF3B2FC9)
+private val InkMid = Color(0xFF1D1670)
+private val InkBottom = Color(0xFF110F26)
+private val Ember = Color(0xFFFFB421)
+private val FireGlow = Color(0xFFFF8A1F)
 
 /**
- * Comemoração da sequência: aparece uma vez por dia, quando a pessoa fecha a meta. O livro do ícone
- * entra, o certo verde é carimbado em cima e o número da sequência sobe.
+ * A cena da sequência (a mesma do site): uma faísca acende, a chama da turma do Folha cresce aos
+ * trancos com brasas subindo; o Folha, que estava ali, leva um susto e sai correndo; a chama se
+ * assenta e o número de dias sobe contando; a semana acende dia a dia e hoje ganha o carimbo da
+ * chama; por fim o Folha volta pelo canto, dando tchau. Aparece uma vez por dia, ao fechar a meta.
  */
 @Composable
 fun StreakCelebrationScreen(celebration: StreakCelebration, onClose: () -> Unit) {
     val summary = celebration.summary
-    var stage by remember { mutableIntStateOf(0) }
-    LaunchedEffect(Unit) { stage = 1; delay(380); stage = 2; delay(320); stage = 3 }
+    val density = LocalDensity.current
+    val fire = remember { Animatable(0f) }
+    val glow = remember { Animatable(0f) }
+    val spark = remember { Animatable(0f) }
+    val runX = remember { Animatable(0f) }
+    val runY = remember { Animatable(0f) }
+    val runTilt = remember { Animatable(0f) }
+    val corner = remember { Animatable(0f) }
+    val textIn = remember { Animatable(0f) }
+    var runnerMood by remember { mutableStateOf(FolhaMood.IDLE) }
+    var cornerMood by remember { mutableStateOf(FolhaMood.WAVE) }
+    var shown by remember { mutableIntStateOf(0) }
+    var weekLit by remember { mutableIntStateOf(0) }
+    var stamped by remember { mutableStateOf(false) }
 
-    val markScale by animateFloatAsState(if (stage >= 1) 1f else 0.55f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow), label = "mark")
-    val markAlpha by animateFloatAsState(if (stage >= 1) 1f else 0f, tween(300), label = "markAlpha")
-    val checkScale by animateFloatAsState(if (stage >= 2) 1f else 0f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "check")
-    val textAlpha by animateFloatAsState(if (stage >= 3) 1f else 0f, tween(400), label = "text")
-    val streakValue by animateIntAsState(
-        if (stage >= 3) summary.current else (summary.current - 1).coerceAtLeast(0),
-        tween(650),
-        label = "streak",
-    )
+    LaunchedEffect(Unit) {
+        launch { spark.animateTo(1f, tween(550)) }
+        launch { delay(400); glow.animateTo(1f, tween(2100, easing = FastOutSlowInEasing)) }
+        // A chama pega aos trancos: cresce, recua, cresce mais.
+        launch {
+            delay(350)
+            listOf(0.2f to 160, 0.16f to 200, 0.42f to 280, 0.36f to 200, 0.8f to 320, 0.72f to 200, 1.14f to 340, 1f to 300).forEach { (v, ms) ->
+                fire.animateTo(v, tween(ms, easing = FastOutSlowInEasing))
+            }
+        }
+        // O Folha: olha, se assusta (pula para trás) e sai correndo.
+        launch {
+            delay(900); runnerMood = FolhaMood.TALKING
+            launch { runY.animateTo(-26f, tween(180)); runY.animateTo(0f, spring(Spring.DampingRatioMediumBouncy)) }
+            runTilt.animateTo(10f, tween(160)); runTilt.animateTo(0f, tween(200))
+            delay(250)
+            runTilt.animateTo(-14f, tween(140))
+            launch { repeat(5) { runY.animateTo(-8f, tween(70)); runY.animateTo(0f, tween(70)) } }
+            runX.animateTo(700f, tween(720, easing = LinearEasing))
+        }
+        delay(2050)
+        launch { textIn.animateTo(1f, tween(500)) }
+        val steps = summary.current.coerceIn(1, 30)
+        for (i in 1..steps) { shown = summary.current * i / steps; delay((520L / steps).coerceIn(18, 120)) }
+        shown = summary.current
+        for (i in 1..summary.week.size) { weekLit = i; delay(110) }
+        delay(150); stamped = true
+        delay(250)
+        corner.animateTo(1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow))
+        delay(1600); cornerMood = FolhaMood.HAPPY
+    }
+
+    val flicker = rememberInfiniteTransition(label = "flicker")
+    val flick by flicker.animateFloat(0f, 1f, infiniteRepeatable(tween(650, easing = LinearEasing), RepeatMode.Reverse), label = "flick")
+    val emberT by flicker.animateFloat(0f, 1f, infiniteRepeatable(tween(1600, easing = LinearEasing)), label = "ember")
 
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(AppMarkBackground, Color(0xFF0E2E63), AppMarkBackground))),
-        ) {
-            // Centralizado quando cabe; rola quando a tela é baixa ou a fonte é grande (antes o topo e
-            // o fim eram cortados). O rodapé de 108dp deixa espaço para o botão fixo embaixo.
-            FitOrScrollColumn(
-                Modifier.fillMaxSize().systemBarsPadding(),
-                contentPadding = PaddingValues(start = 28.dp, end = 28.dp, top = 28.dp, bottom = 108.dp),
+        BoxWithConstraints(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(InkTop, InkMid, InkBottom)))) {
+            val compact = maxHeight < 640.dp
+            Column(
+                Modifier.fillMaxSize().systemBarsPadding().padding(horizontal = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                // A "questão certa" em verde, em cima do livro.
-                Row(
-                    Modifier
-                        .graphicsLayer { alpha = checkScale }
-                        .clip(RoundedCornerShape(50))
-                        .background(Verde.copy(alpha = 0.16f))
-                        .border(1.dp, Verde.copy(alpha = 0.5f), RoundedCornerShape(50))
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Icon(Icons.Rounded.Check, null, Modifier.size(18.dp), tint = Verde)
-                    Text(celebration.reason, color = Verde, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
-                }
-
-                Spacer(Modifier.height(if (estudarioLayout().isShortHeight) 20.dp else 36.dp))
-
-                Box(contentAlignment = Alignment.BottomEnd) {
-                    // O Folha comemorando a sequência, com o certo verde carimbado do lado.
-                    br.com.estudario.ui.assistant.Folha(
-                        if (estudarioLayout().isShortHeight) 150.dp else 200.dp,
-                        mood = br.com.estudario.ui.assistant.FolhaMood.HAPPY,
-                        modifier = Modifier.graphicsLayer { scaleX = markScale; scaleY = markScale; alpha = markAlpha },
+                // O palco: a chama no meio, o Folha ao lado.
+                Box(Modifier.fillMaxWidth().height(if (compact) 200.dp else 250.dp), contentAlignment = Alignment.Center) {
+                    // Brilho e faísca.
+                    Canvas(Modifier.fillMaxSize()) {
+                        val c = Offset(size.width / 2, size.height * 0.55f)
+                        val r = size.minDimension * 0.62f * (0.2f + 0.8f * glow.value) * (1f + 0.06f * flick)
+                        drawCircle(Brush.radialGradient(listOf(FireGlow.copy(alpha = 0.55f * glow.value), Ember.copy(alpha = 0.15f * glow.value), Color.Transparent), c, r), r, c)
+                        if (spark.value in 0.01f..0.99f) {
+                            val sr = 12.dp.toPx() * (1f + 3f * spark.value)
+                            drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha = 1f - spark.value), Color(0xFFFFD84A).copy(alpha = 1f - spark.value), Color.Transparent), Offset(c.x, size.height * 0.72f), sr), sr, Offset(c.x, size.height * 0.72f))
+                        }
+                        // Brasas subindo.
+                        if (fire.value > 0.3f) repeat(12) { i ->
+                            val p = (emberT + i / 12f) % 1f
+                            val x = c.x + ((i * 29) % 90 - 45).dp.toPx() * (1f + 0.4f * p)
+                            val y = size.height * 0.78f - p * size.height * 0.75f
+                            drawCircle(Ember.copy(alpha = (1f - p) * 0.9f), (2.5f + i % 3).dp.toPx() * (1f - p * 0.6f), Offset(x, y))
+                        }
+                    }
+                    BrandIcon(
+                        Glyph.Fire,
+                        Modifier.graphicsLayer {
+                            transformOrigin = TransformOrigin(0.5f, 0.85f)
+                            val f = fire.value
+                            scaleX = f * (1f + 0.03f * flick); scaleY = f * (1f + 0.05f * (1f - flick))
+                        },
+                        size = if (compact) 130.dp else 160.dp,
                     )
-                    Box(
-                        Modifier
-                            .graphicsLayer { scaleX = checkScale; scaleY = checkScale }
-                            .size(54.dp)
-                            .clip(CircleShape)
-                            .background(Verde)
-                            .border(4.dp, AppMarkBackground, CircleShape),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(Icons.Rounded.Check, null, Modifier.size(30.dp), tint = Color.White)
+                    // O Folha que se assusta e corre.
+                    Folha(
+                        if (compact) 78.dp else 92.dp,
+                        mood = runnerMood,
+                        modifier = Modifier.align(Alignment.BottomCenter).offset(x = if (compact) 100.dp else 120.dp)
+                            .graphicsLayer {
+                                translationX = with(density) { runX.value.dp.toPx() }
+                                translationY = with(density) { runY.value.dp.toPx() }
+                                rotationZ = runTilt.value
+                                transformOrigin = TransformOrigin(0.5f, 1f)
+                            },
+                    )
+                    if (shown > 0) Text(
+                        "$shown",
+                        Modifier.align(Alignment.BottomCenter),
+                        fontSize = 60.sp, fontWeight = FontWeight.Black, color = Ember,
+                    )
+                }
+                Column(Modifier.graphicsLayer { alpha = textIn.value; translationY = (1f - textIn.value) * 30f }, horizontalAlignment = Alignment.CenterHorizontally) {
+                    Spacer(Modifier.height(10.dp))
+                    Text("META DO DIA CUMPRIDA", color = Ember, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black)
+                    Text(
+                        if (summary.current <= 1) "Sequência acesa!" else "${summary.current} dias seguidos!",
+                        color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        when {
+                            summary.current <= 1 -> "Hoje começa a sua sequência. Volte amanhã para mantê-la acesa."
+                            summary.current >= summary.best -> "É o seu recorde! Cada dia conta ponto na prova."
+                            else -> "Faltam ${summary.best - summary.current} para bater o seu recorde de ${summary.best} dias."
+                        },
+                        color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(18.dp))
+                    // A semana acende dia a dia; hoje (o último) ganha o carimbo da chama.
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        summary.week.forEachIndexed { i, day -> WeekFlame(day, lit = i < weekLit, today = i == summary.week.lastIndex, stamped = stamped) }
+                    }
+                    if (celebration.xpToday > 0) {
+                        Spacer(Modifier.height(14.dp))
+                        Text(
+                            "+${celebration.xpToday} XP hoje",
+                            Modifier.clip(RoundedCornerShape(50)).background(Ember.copy(alpha = 0.18f)).padding(horizontal = 14.dp, vertical = 6.dp),
+                            color = Color(0xFFFFD27A), fontWeight = FontWeight.Black,
+                        )
                     }
                 }
-
-                Spacer(Modifier.height(if (estudarioLayout().isShortHeight) 20.dp else 36.dp))
-
-                Text(
-                    "$streakValue",
-                    fontSize = 68.sp,
-                    fontWeight = FontWeight.Black,
-                    color = Color.White,
-                    modifier = Modifier.graphicsLayer { alpha = markAlpha },
-                )
-                Text(
-                    if (summary.current == 1) "dia de sequência" else "dias de sequência",
-                    color = Color.White.copy(alpha = 0.75f),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-
-                if (celebration.xpToday > 0) {
-                    Spacer(Modifier.height(14.dp))
-                    Row(
-                        Modifier
-                            .graphicsLayer { alpha = textAlpha }
-                            .clip(RoundedCornerShape(50))
-                            .background(Color.White.copy(alpha = 0.12f))
-                            .padding(horizontal = 14.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Text("+${celebration.xpToday} XP", color = Color.White, fontWeight = FontWeight.Bold)
-                        Text("hoje", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelMedium)
-                    }
-                }
-
-                Spacer(Modifier.height(28.dp))
-
-                Row(
-                    Modifier.fillMaxWidth().graphicsLayer { alpha = textAlpha },
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                ) { summary.week.forEach { day -> WeekDot(day) } }
-
-                Spacer(Modifier.height(20.dp))
-
-                if (stage >= 3) br.com.estudario.ui.assistant.FolhaSays(
-                    br.com.estudario.ui.assistant.FolhaLines.forStreak(summary.current, java.time.LocalDate.now().toEpochDay()),
-                    avatar = 0.dp,
-                    bubbleColor = Color.White.copy(alpha = 0.14f),
-                    textColor = Color.White,
-                )
-
-                Spacer(Modifier.height(16.dp))
-
-                Text(
-                    if (summary.current >= summary.best && summary.current > 1) "Essa é a sua melhor sequência até agora. Continue amanhã."
-                    else "Melhor sequência: ${summary.best} dia(s). Volte amanhã para não zerar.",
-                    color = Color.White.copy(alpha = 0.7f),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.graphicsLayer { alpha = textAlpha },
-                )
             }
-
             Button(
                 onClick = onClose,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .systemBarsPadding()
-                    .padding(28.dp)
-                    .fillMaxWidth()
-                    .heightIn(min = 52.dp)
-                    .graphicsLayer { alpha = textAlpha },
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Verde, contentColor = Color.White),
-            ) { Text("Continuar", fontWeight = FontWeight.Bold) }
+                modifier = Modifier.align(Alignment.BottomCenter).systemBarsPadding().padding(start = 24.dp, end = 140.dp, bottom = 24.dp).fillMaxWidth().heightIn(min = 52.dp)
+                    .graphicsLayer { alpha = textIn.value },
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Ember, contentColor = InkMid),
+            ) { Text("Bora continuar", fontWeight = FontWeight.Black) }
+            // O Folha volta pelo canto, dando tchau.
+            Folha(
+                110.dp,
+                mood = cornerMood,
+                modifier = Modifier.align(Alignment.BottomEnd).systemBarsPadding().padding(end = 14.dp, bottom = 8.dp)
+                    .graphicsLayer {
+                        val k = corner.value
+                        translationX = (1f - k) * size.width * 1.6f
+                        translationY = (1f - k) * size.height * 0.4f
+                        rotationZ = (1f - k) * 20f - 4f * k
+                        alpha = if (k > 0.01f) 1f else 0f
+                    },
+            )
         }
     }
 }
 
-private val DIAS = listOf("S", "T", "Q", "Q", "S", "S", "D")
-
 @Composable
-private fun WeekDot(day: StreakDay) {
-    val index = day.date.isoDayOfWeek - 1
+private fun WeekFlame(day: StreakDay, lit: Boolean, today: Boolean, stamped: Boolean) {
+    val pop = remember { Animatable(0f) }
+    LaunchedEffect(lit) { if (lit) pop.animateTo(1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)) }
+    val stamp = remember { Animatable(0f) }
+    LaunchedEffect(stamped) { if (stamped && today) stamp.animateTo(1f, spring(Spring.DampingRatioLowBouncy, Spring.StiffnessMediumLow)) }
+    val label = if (today) "hoje" else listOf("S", "T", "Q", "Q", "S", "S", "D").getOrElse(day.date.isoDayOfWeek - 1) { "" }
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(DIAS.getOrElse(index) { "" }, color = Color.White.copy(alpha = 0.6f), fontSize = 11.sp)
+        val size = if (today) 42.dp else 34.dp
         Box(
-            Modifier
-                .size(30.dp)
+            Modifier.size(size).graphicsLayer {
+                val s = if (today && stamped) (2.4f - 1.4f * stamp.value) else if (day.done) (0.6f + 0.4f * pop.value) else 1f
+                scaleX = s; scaleY = s
+                rotationZ = if (today && stamped) (1f - stamp.value) * -25f else 0f
+            }
                 .clip(CircleShape)
-                .background(
-                    when {
-                        day.done -> Verde
-                        day.partial -> Verde.copy(alpha = 0.3f)
-                        else -> Color.White.copy(alpha = 0.12f)
-                    },
-                ),
+                .background(if (day.done && (lit || today)) Ember else Color.White.copy(alpha = 0.08f))
+                .border(2.dp, if (day.done) Ember else Color.White.copy(alpha = 0.18f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            if (day.done) Icon(Icons.Rounded.Check, null, Modifier.size(17.dp), tint = Color.White)
+            if (day.done && (if (today) stamped else lit)) BrandIcon(Glyph.Fire, size = size * 0.78f)
         }
+        Text(label, color = if (today) Ember else Color.White.copy(alpha = 0.6f), fontSize = 11.sp, fontWeight = FontWeight.Black)
     }
 }

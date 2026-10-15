@@ -120,7 +120,8 @@ private fun CelebrationScreen(item: Celebration, onClose: () -> Unit) {
         window.addEventListener("keydown", keys)
         onDispose { window.removeEventListener("keydown", keys) }
     }
-    Div({ classes("celebrate"); attr("role", "dialog"); attr("aria-modal", "true") }) {
+    val kind = when (item) { is Celebration.StreakDay -> "streak"; is Celebration.NewBadge -> "badge"; is Celebration.LevelUp -> "level" }
+    Div({ classes("celebrate", kind); attr("role", "dialog"); attr("aria-modal", "true") }) {
         Div({ classes("cel-glow") })
         // Confete de caderno: tirinhas de papel nas cores da marca.
         Div({ classes("confetti"); attr("aria-hidden", "true") }) {
@@ -143,15 +144,48 @@ private fun CelebrationScreen(item: Celebration, onClose: () -> Unit) {
     }
 }
 
+/**
+ * A cena da sequência: uma faísca acende no meio, a chama (a nossa, da turma do Folha) cresce aos
+ * trancos com brasas subindo; o Folha, que estava ali, leva um susto e sai correndo; a chama se
+ * assenta e o número de dias sobe contando; a semana acende dia a dia e hoje ganha o carimbo da
+ * chama; por fim o Folha volta pelo canto, dando tchau.
+ */
 @Composable
 private fun StreakContent(item: Celebration.StreakDay) {
-    Div({ classes("cel-flame") }) {
-        Span({ classes("cel-flame-ic") }) { Icon("local_fire_department", filled = true) }
-        B({ classes("cel-flame-n") }) { Text("${item.days}") }
+    var shown by androidx.compose.runtime.remember { mutableStateOf(0) }
+    var runnerMood by androidx.compose.runtime.remember { mutableStateOf("idle") }
+    var cornerMood by androidx.compose.runtime.remember { mutableStateOf("wave") }
+    LaunchedEffect(item) {
+        kotlinx.coroutines.delay(900); runnerMood = "talking"           // o susto
+        kotlinx.coroutines.delay(1150)
+        // O número sobe contando enquanto a chama se assenta.
+        val steps = item.days.coerceAtMost(30)
+        for (i in 1..steps) { shown = if (i == steps) item.days else (item.days * i / steps); kotlinx.coroutines.delay((520L / steps).coerceIn(18, 120)) }
+        shown = item.days
+        kotlinx.coroutines.delay(1800); cornerMood = "happy"
     }
-    Span({ classes("cel-eyebrow") }) { Text("META DO DIA CUMPRIDA") }
-    H2({ classes("cel-title") }) { Text(if (item.days <= 1) "Sequência acesa!" else "${item.days} dias seguidos!") }
-    P({ classes("cel-body") }) {
+    Div({ classes("cel-stage") }) {
+        Div({ classes("cel-fire-wrap") }) {
+            Span({ classes("cel-fire-glow") })
+            Span({ classes("cel-spark") })
+            Div({ classes("cel-fire") }) { Icon("local_fire_department", filled = true) }
+            // Brasas subindo da chama.
+            Div({ classes("cel-embers"); attr("aria-hidden", "true") }) {
+                (0 until 14).forEach { i ->
+                    Span({ attr("style", "--ex:${(i * 29) % 90 - 45}px;--ed:${0.7 + (i % 7) * 0.22}s;--et:${1.4 + (i % 4) * 0.35}s;--es:${4 + i % 4}px") })
+                }
+            }
+        }
+        // O Folha que estava ali: olha, se assusta e sai correndo (com poeirinha).
+        Div({ classes("cel-runner") }) {
+            Div({ classes("cel-runner-body") }) { Folha(runnerMood, 92) }
+            Span({ classes("cel-dust", "d1") }); Span({ classes("cel-dust", "d2") }); Span({ classes("cel-dust", "d3") })
+        }
+        B({ classes("cel-count") }) { Text(if (shown == 0) "" else "$shown") }
+    }
+    Span({ classes("cel-eyebrow", "cel-late") }) { Text("META DO DIA CUMPRIDA") }
+    H2({ classes("cel-title", "cel-late") }) { Text(if (item.days <= 1) "Sequência acesa!" else "${item.days} dias seguidos!") }
+    P({ classes("cel-body", "cel-late") }) {
         Text(
             when {
                 item.days <= 1 -> "Hoje começa a sua sequência. Volte amanhã para mantê-la acesa."
@@ -160,33 +194,51 @@ private fun StreakContent(item: Celebration.StreakDay) {
             },
         )
     }
-    // A semana em bolinhas, acesas nos dias feitos.
-    if (item.week.isNotEmpty()) Div({ classes("cel-week") }) {
-        item.week.forEach { (label, done) ->
-            Div({ classes(*listOfNotNull("cel-day", if (done) "on" else null).toTypedArray()) }) {
+    // A semana acende dia a dia; hoje (o último) ganha o carimbo da chama.
+    if (item.week.isNotEmpty()) Div({ classes("cel-week", "cel-late") }) {
+        item.week.forEachIndexed { i, (label, done) ->
+            val today = i == item.week.lastIndex
+            Div({ classes(*listOfNotNull("cel-day", if (done) "on" else null, if (today) "today" else null).toTypedArray()); attr("style", "--wi:$i") }) {
                 Span({ classes("cel-dot") }) { if (done) Icon("local_fire_department", filled = true) }
-                Span({ classes("cel-dl") }) { Text(label) }
+                Span({ classes("cel-dl") }) { Text(if (today) "hoje" else label) }
             }
         }
     }
-    if (item.xpToday > 0) Span({ classes("cel-xp") }) { Icon("bolt", filled = true); Text("+${item.xpToday} XP hoje") }
-    Folha("happy", 84)
+    if (item.xpToday > 0) Span({ classes("cel-xp", "cel-late") }) { Icon("bolt", filled = true); Text("+${item.xpToday} XP hoje") }
+    // O Folha volta pelo canto, dando tchau.
+    Div({ classes("cel-corner") }) { Folha(cornerMood, 110) }
 }
+
+/** As interações do Folha com o emblema: uma sorteada a cada vez. */
+private val badgeScenes = listOf("juggle", "polish", "peek", "cheer")
 
 @Composable
 private fun BadgeContent(badge: Badge) {
     val (light, dark) = tierColors(badge.tier)
-    Span({ classes("cel-eyebrow") }) { Text("NOVO EMBLEMA · ${tierName(badge.tier).uppercase()}") }
-    Div({ classes("cel-medal"); attr("style", "--m1:$light;--m2:$dark") }) {
-        Span({ classes("cel-ribbon", "l") }); Span({ classes("cel-ribbon", "r") })
-        Div({ classes("cel-disc") }) {
-            Span({ classes("cel-shine") })
-            Icon("military_tech", filled = true)
+    val scene = androidx.compose.runtime.remember(badge.id) { badgeScenes.random() }
+    var mood by androidx.compose.runtime.remember(badge.id) { mutableStateOf(if (scene == "peek") "thinking" else "happy") }
+    LaunchedEffect(badge.id) {
+        when (scene) {
+            "polish" -> { mood = "point"; kotlinx.coroutines.delay(1800); mood = "wink" }
+            "peek" -> { kotlinx.coroutines.delay(1100); mood = "happy"; kotlinx.coroutines.delay(1400); mood = "wave" }
+            "juggle" -> { kotlinx.coroutines.delay(2600); mood = "wink" }
+            else -> { kotlinx.coroutines.delay(2200); mood = "wave" }
         }
+    }
+    Span({ classes("cel-eyebrow") }) { Text("NOVO EMBLEMA · ${tierName(badge.tier).uppercase()}") }
+    Div({ classes("cel-badge-stage", scene) }) {
+        Div({ classes("cel-medal"); attr("style", "--m1:$light;--m2:$dark") }) {
+            Span({ classes("cel-ribbon", "l") }); Span({ classes("cel-ribbon", "r") })
+            Div({ classes("cel-disc") }) {
+                Span({ classes("cel-shine") })
+                Icon("military_tech", filled = true)
+            }
+        }
+        Div({ classes("cel-badge-folha") }) { Folha(mood, 96) }
+        if (scene == "polish") Div({ classes("cel-sparkles"); attr("aria-hidden", "true") }) { repeat(6) { i -> Span({ attr("style", "--si:$i") }) } }
     }
     H2({ classes("cel-title") }) { Text(badge.name) }
     P({ classes("cel-body") }) { Text(badge.requirement) }
-    Folha("wave", 76)
 }
 
 @Composable
