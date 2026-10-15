@@ -178,7 +178,8 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                 }
             }
             is AiContent.Progress.Done -> Div({ classes("gen-body", "gen-done", "stack", "pop-in") }) {
-                Div({ classes("celebrate") }) { Folha("happy", 140) }
+                // "gen-done-folha", não "celebrate": esse nome é o da tela cheia das comemorações e cobria tudo.
+                Div({ classes("gen-done-folha") }) { Folha("happy", 140) }
                 org.jetbrains.compose.web.dom.H2 { Text("Prontinho!") }
                 P({ classes("muted") }) { Text(if (showQuestions) "As novas questões já estão em “${topic?.title ?: "neste tópico"}”, prontas para treinar." else "Seu material está salvo em “${topic?.title ?: "neste tópico"}”: teoria, flashcards e questões esperando por você.") }
                 val asked = Generation.requested[topicId] ?: 0

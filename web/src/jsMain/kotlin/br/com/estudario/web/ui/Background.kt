@@ -160,6 +160,12 @@ fun GenerationPreview() {
     if (!open) return
     // "dialogo" abre o assistente de verdade (os passos antes de gerar), no primeiro tópico.
     if (kind == "dialogo") { Store.data.topics.firstOrNull()?.let { GenerateDialog(it.id) { open = false } }; return }
+    if (kind == "pronto") {
+        val id = Store.data.topics.firstOrNull()?.id ?: return
+        androidx.compose.runtime.LaunchedEffect(Unit) { Generation.state[id] = AiContent.Progress.Done(kotlinx.serialization.json.JsonObject(emptyMap())) }
+        GenerateDialog(id) { open = false }
+        return
+    }
     if (kind == "pdf") { PdfEditalDialog(onClose = { open = false }) { _, _, _ -> open = false }; return }
     Modal(onDismiss = { open = false }, wide = true, extraClass = "gen-modal") {
         Div({ classes("gen-body", "gen-working") }) {
