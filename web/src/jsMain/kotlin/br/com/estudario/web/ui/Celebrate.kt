@@ -166,15 +166,19 @@ private fun StreakContent(item: Celebration.StreakDay) {
     }
     Div({ classes("cel-stage") }) {
         Div({ classes("cel-fire-wrap") }) {
-            Span({ classes("cel-fire-glow") })
             Span({ classes("cel-spark") })
-            Div({ classes("cel-fire") }) { Icon("local_fire_department", filled = true) }
-            // Brasas subindo da chama.
-            Div({ classes("cel-embers"); attr("aria-hidden", "true") }) {
-                (0 until 14).forEach { i ->
-                    Span({ attr("style", "--ex:${(i * 29) % 90 - 45}px;--ed:${0.7 + (i % 7) * 0.22}s;--et:${1.4 + (i % 4) * 0.35}s;--es:${4 + i % 4}px") })
+            // A chama viva (flame.js): fogo de verdade, quadro a quadro, com o rosto se mexendo. Nasce
+            // uma brasinha girando e cresce enquanto o giro desacelera.
+            org.jetbrains.compose.web.dom.Canvas({
+                classes("cel-flame-canvas")
+                ref { el ->
+                    val opts: dynamic = js("({ delay: 0.3, grow: 2.3 })")
+                    // Em dynamic, "?.invoke()" vira chamada ao método invoke: chamar a função direto.
+                    val fn = window.asDynamic().estudarioFlame
+                    val ctl: dynamic = if (fn != null && fn != undefined) fn(el, opts) else null
+                    onDispose { if (ctl != null && ctl != undefined) ctl.stop() }
                 }
-            }
+            })
         }
         // O Folha que estava ali: olha, se assusta e sai correndo (com poeirinha).
         Div({ classes("cel-runner") }) {
@@ -241,14 +245,47 @@ private fun BadgeContent(badge: Badge) {
     P({ classes("cel-body") }) { Text(badge.requirement) }
 }
 
+/**
+ * A subida de nível, para impressionar: o nível antigo aparece no anel, um corte de lâmina atravessa
+ * a tela com um clarão e o número se parte em dois (as metades caem girando, a tela treme); o nível
+ * novo cai do alto com impacto, onda de choque, raios girando e estouro de partículas; a barra de XP
+ * enche, o título aparece (com selo quando é título novo) e o Folha salta de baixo dando parabéns.
+ */
 @Composable
 private fun LevelContent(item: Celebration.LevelUp) {
-    Span({ classes("cel-eyebrow") }) { Text("SUBIU DE NÍVEL") }
-    Div({ classes("cel-level") }) {
-        Span({ classes("cel-level-ring") })
-        B { Text("${item.level}") }
+    val old = (item.level - 1).coerceAtLeast(1)
+    val newTitle = br.com.estudario.domain.ProgressEngine.levelTitle(old) != item.title
+    var folhaMood by androidx.compose.runtime.remember { mutableStateOf("happy") }
+    LaunchedEffect(item) { kotlinx.coroutines.delay(2400); folhaMood = "talking"; kotlinx.coroutines.delay(2600); folhaMood = "wave" }
+    Div({ classes("lv-stage") }) {
+        Div({ classes("lv-rays") })
+        Div({ classes("lv-shock") })
+        Div({ classes("lv-flash") })
+        Div({ classes("lv-slash") })
+        // O nível antigo, que vai ser cortado ao meio.
+        Div({ classes("lv-old") }) {
+            Div({ classes("lv-half", "a") }) { B { Text("$old") } }
+            Div({ classes("lv-half", "b") }) { B { Text("$old") } }
+        }
+        // O novo, caindo do alto.
+        Div({ classes("lv-new") }) {
+            Span({ classes("lv-ring") })
+            B { Text("${item.level}") }
+        }
+        Div({ classes("lv-burst"); attr("aria-hidden", "true") }) {
+            (0 until 16).forEach { i -> Span({ attr("style", "--a:${i * 22.5}deg;--d:${70 + (i % 4) * 22}px;--c:${listOf("#FFB421", "#7EE0B8", "#ABA2FF", "#FF8FA3")[i % 4]}") }) }
+        }
     }
-    H2({ classes("cel-title") }) { Text(item.title) }
-    P({ classes("cel-body") }) { Text("Você chegou ao nível ${item.level} com ${item.totalXp} XP. O estudo de cada dia está virando resultado.") }
-    Folha("happy", 76)
+    Span({ classes("cel-eyebrow", "lv-late"); attr("style", "--ld:1.7s") }) { Text("SUBIU DE NÍVEL") }
+    H2({ classes("cel-title", "lv-late"); attr("style", "--ld:1.85s") }) { Text("Nível ${item.level} · ${item.title}") }
+    if (newTitle) Span({ classes("lv-badge", "lv-late"); attr("style", "--ld:2.1s") }) { Icon("military_tech", filled = true); Text("Novo título!") }
+    Div({ classes("lv-xp", "lv-late"); attr("style", "--ld:2s") }) {
+        Span({ classes("lv-xp-fill") })
+        B { Text("${item.totalXp} XP") }
+    }
+    // O Folha salta de baixo dando parabéns.
+    Div({ classes("lv-folha") }) {
+        Div({ classes("lv-folha-body") }) { Folha(folhaMood, 120) }
+        Div({ classes("lv-bubble") }) { Text("Parabéns! Você chegou ao nível ${item.level}. Esse esforço tá aparecendo!") }
+    }
 }
