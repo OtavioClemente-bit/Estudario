@@ -367,7 +367,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * sequência do dia são registrados em silêncio: vieram do histórico, não foram conquistados agora.
      */
     @Volatile private var celebrationsMutedUntil = 0L
-    private fun celebrationsMuted() = System.currentTimeMillis() < celebrationsMutedUntil
+    private fun celebrationsMuted() = System.currentTimeMillis() < celebrationsMutedUntil ||
+        // O que acabou de chegar da sincronização já foi comemorado no aparelho em que aconteceu.
+        System.currentTimeMillis() - app.cloudSync.lastRemoteApplyAt < RESTORE_QUIET_MILLIS
 
     private suspend fun restoreQuietly(content: String) {
         celebrationsMutedUntil = Long.MAX_VALUE

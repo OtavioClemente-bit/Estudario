@@ -69,7 +69,8 @@ private fun DayPlanView(
     header: LazyListScope.() -> Unit,
 ) {
     var selectedDate by remember { mutableStateOf(state.today) }
-    var showOverdue by remember { mutableStateOf(false) }
+    // O aviso de atrasadas do Início abre o plano com elas já abertas.
+    var showOverdue by remember { mutableStateOf(PlanOverdueRequest.consume()) }
     
     // Só as tarefas vigentes do dia. Ao refazer o plano, as antigas ficam no histórico como
     // reprogramadas; listá-las junto dobrava o dia (3h viravam 6h), repetia a teoria e punha
@@ -458,4 +459,11 @@ private fun PlanList(header: LazyListScope.() -> Unit, content: LazyListScope.()
         header()
         content()
     }
+}
+
+/** Pedido do Início para abrir o plano já nas atrasadas (vale uma vez). */
+object PlanOverdueRequest {
+    @Volatile private var pending = false
+    fun request() { pending = true }
+    fun consume(): Boolean = pending.also { pending = false }
 }

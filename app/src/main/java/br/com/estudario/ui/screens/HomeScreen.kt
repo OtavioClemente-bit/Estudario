@@ -378,7 +378,7 @@ fun HomeScreen(
                     onOpenErrors = onErrors,
                     onOpenWeakTopic = { atual?.weakTopicId?.let(onTopic) },
                     overduePlanTasks = if (activePlan != null) planState.overdueTasks.size else 0,
-                    onOpenPlan = onPlan,
+                    onOpenPlan = { br.com.estudario.ui.planner.PlanOverdueRequest.request(); onPlan() },
                 )
             }
         }

@@ -33,7 +33,11 @@ import org.jetbrains.compose.web.dom.Ul
 private enum class PlanView(val label: String, val icon: String) { TODAY("Hoje", "today"), WEEK("Semana", "date_range"), MONTH("Mês", "calendar_month"), OVERVIEW("Visão geral", "insights") }
 
 /** Quem abre o plano pela "Previsão" do Início cai direto na visão geral; o resto, no dia de hoje. */
-object PlanEntry { var overview = false }
+object PlanEntry {
+    var overview = false
+    /** O Início pediu para abrir o plano já nas atrasadas. */
+    var overdue = false
+}
 
 @Composable
 fun PlanScreen() {
@@ -46,6 +50,7 @@ fun PlanScreen() {
     var monthOffset by remember { mutableStateOf(0) }
     var completing by remember { mutableStateOf<PlanTask?>(null) }
     var whyOpen by remember { mutableStateOf(false) }
+    var overdueOpen by remember { mutableStateOf(PlanEntry.overdue).also { PlanEntry.overdue = false } }
 
     if (plan == null) {
         PageHead("Plano", "Meu plano de estudos")
@@ -113,6 +118,31 @@ fun PlanScreen() {
                 }
                 Div({ attr("style", "margin-top:12px") }) { ProgressBar(if (dayTasks.isEmpty()) 0.0 else done.toDouble() / dayTasks.size) }
                 P({ classes("small", "muted"); attr("style", "margin-top:8px") }) { Text("$earned XP conquistados · até +$possible se fechar tudo.") }
+            }
+            // As atrasadas de dias anteriores, aqui mesmo em Hoje (antes era preciso voltar dia a dia).
+            val overdueTasks = planTasks.filter { it.day < todayEpoch && (it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO") }.sortedBy { it.day }
+            if (dayOffset == 0 && overdueTasks.isNotEmpty()) {
+                Div({ classes("overdue-box"); id("atrasadas") }) {
+                    Button({ classes("overdue-head"); attr("aria-expanded", overdueOpen.toString()); onClick { overdueOpen = !overdueOpen } }) {
+                        Span({ classes("overdue-ic") }) { Icon("event_busy") }
+                        Div({ classes("grow"); attr("style", "text-align:left") }) {
+                            B { Text("${overdueTasks.size} atividade${if (overdueTasks.size == 1) "" else "s"} atrasada${if (overdueTasks.size == 1) "" else "s"}") }
+                            Div({ classes("small", "muted") }) { Text("Faça agora, conclua ou reprograme: o plano se reorganiza sozinho.") }
+                        }
+                        Span({ classes("overdue-toggle") }) { Text(if (overdueOpen) "Ocultar" else "Ver"); Icon(if (overdueOpen) "expand_less" else "expand_more") }
+                    }
+                    if (overdueOpen) Div({ classes("stack"); attr("style", "margin-top:12px") }) {
+                        overdueTasks.forEach { task ->
+                            androidx.compose.runtime.key("late-" + task.id) {
+                                Div({ classes("overdue-day") }) { Text(dayTitle(task.day, todayEpoch)) }
+                                TaskRow(task) { completing = task }
+                            }
+                        }
+                    }
+                }
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    if (overdueOpen) { kotlinx.coroutines.delay(250); kotlinx.browser.document.getElementById("atrasadas")?.asDynamic()?.scrollIntoView(js("({behavior:'smooth',block:'start'})")) }
+                }
             }
             WhyThisPlan(plan.id, whyOpen) { whyOpen = !whyOpen }
             if (dayTasks.isEmpty()) {

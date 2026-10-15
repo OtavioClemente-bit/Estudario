@@ -339,7 +339,7 @@ private fun AttentionPanel(data: Snapshot, planId: String?) {
         Div({ classes("attn-grid") }) {
             AttentionTile("autorenew", "Revisões", due.size, if (due.isEmpty()) "Nenhuma para hoje" else "para hoje", "#2EA8F5") { Router.go(Route.Reviews) }
             AttentionTile("error_med", "Caderno de erros", errors.size, if (errors.isEmpty()) "Tudo em dia" else "para rever", "#FF5C4D") { Router.go(Route.Errors) }
-            if (planId != null) AttentionTile("event_busy", "Atrasadas", overdue.size, if (overdue.isEmpty()) "Plano em dia" else "no plano", "#F2A900") { Router.go(Route.Plan) }
+            if (planId != null) AttentionTile("event_busy", "Atrasadas", overdue.size, if (overdue.isEmpty()) "Plano em dia" else "no plano", "#F2A900") { PlanEntry.overdue = overdue.isNotEmpty(); Router.go(Route.Plan) }
             AttentionTile("bookmarks", "Caderno de estudo", null, "Grifos, salvos e notas", "#1FB574") { Router.go(Route.Notebook) }
         }
         if (weakTopic != null) Button({ classes("weak-row"); onClick { Router.go(Route.Topic(weakTopic.id)) } }) {
@@ -428,8 +428,9 @@ fun TaskRow(task: PlanTask, onComplete: () -> Unit) {
             Div({ classes("row", "wrap"); attr("style", "gap:8px") }) {
                 if (done) Span({ classes("done-pill") }) { Icon("check_circle"); Text("Concluída") }
                 else if (task.status != "NAO_REALIZADA") {
-                    Btn(if (task.status == "EM_ANDAMENTO") "Continuar" else if (overdue) "Fazer agora" else "Começar", { openTask(task) }, small = true, style = if (overdue) "outline" else "primary")
+                    Btn(if (task.status == "EM_ANDAMENTO") "Continuar" else if (overdue) "Fazer agora" else "Começar", { openTask(task) }, small = true, style = "primary")
                     Btn("Concluir", { latest.value() }, small = true, style = "tonal", icon = "check")
+                    if (!task.locked && !Store.demo) Btn("Reprogramar", { Reprogram.task = task }, small = true, style = if (overdue) "outline" else "ghost", icon = "event_repeat")
                 }
             }
             Xp(Progress.taskXp(task), green = done)
@@ -509,6 +510,8 @@ fun CompleteTaskDialog(task: PlanTask, onClose: () -> Unit) {
 
 fun openTask(task: PlanTask) {
     when {
+        // Tarefa de questões de um tópico abre as questões dele (antes abria só a página do tópico).
+        task.type == "QUESTIONS" && task.topicId != null && Store.data.questions.any { it.topicId == task.topicId && !it.hidden } -> Router.go(Route.Quiz("topico-${task.topicId}"))
         task.topicId != null -> Router.go(Route.Topic(task.topicId))
         task.type == "SIMULATION" -> Router.go(Route.Simulations)
         task.type == "QUESTIONS" && task.subjectId != null -> Router.go(Route.Quiz("materia-${task.subjectId}-${task.questions.coerceAtLeast(10)}"))
@@ -533,4 +536,42 @@ fun taskTitle(task: PlanTask): String {
         else -> subject
     }
     return if (task.questions > 0 && task.type == "QUESTIONS") "$base · ${task.questions} questões" else base
+}
+
+/** A tarefa a reprogramar (qualquer tela abre a mesma janela, montada no App). */
+object Reprogram { var task by androidx.compose.runtime.mutableStateOf<PlanTask?>(null) }
+
+/**
+ * Para onde levar uma tarefa: três caminhos claros, como o ReprogramDialog do app. O que já foi
+ * feito dela continua registrado.
+ */
+@Composable
+fun ReprogramHost() {
+    val task = Reprogram.task ?: return
+    val close = { Reprogram.task = null }
+    fun pick(day: Long?) {
+        Store.update { Actions.reprogramTask(it, task.id, day) }
+        Toast.show(when (day) { null -> "O plano encaixou a atividade no próximo espaço livre."; Queries.todayEpoch() -> "Atividade trazida para hoje."; else -> "Atividade movida para amanhã." })
+        close()
+    }
+    Modal(onDismiss = close) {
+        Span({ classes("eyebrow") }) { Text("REPROGRAMAR") }
+        org.jetbrains.compose.web.dom.H2 { Text(taskTitle(task)) }
+        P({ classes("small", "muted") }) { Text("O que você já fez dela continua registrado.") }
+        Div({ classes("reprog") }) {
+            ReprogramOption("#7C5CFF", "auto_awesome", "Deixar o plano encaixar", "Vai para o primeiro espaço livre do seu cronograma") { pick(null) }
+            ReprogramOption("#22C59A", "event", "Amanhã", "Entra no plano de amanhã") { pick(Queries.todayEpoch() + 1) }
+            ReprogramOption("#F2852B", "today", "Hoje", "Fazer ainda hoje, junto com o que já estava") { pick(Queries.todayEpoch()) }
+        }
+        Div({ classes("row", "end") }) { Btn("Cancelar", close, style = "ghost") }
+    }
+}
+
+@Composable
+private fun ReprogramOption(color: String, icon: String, title: String, detail: String, onClick: () -> Unit) {
+    org.jetbrains.compose.web.dom.Button({ classes("reprog-opt"); attr("style", "--c:$color"); onClick { onClick() } }) {
+        Span({ classes("reprog-ic") }) { Icon(icon) }
+        Div({ classes("grow") }) { B { Text(title) }; Span({ classes("small", "muted") }) { Text(detail) } }
+        Icon("chevron_right", extraClass = "faint")
+    }
 }

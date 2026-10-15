@@ -68,6 +68,14 @@ class CloudSyncService(
 
     /** Quando este aparelho mudou algo pela última vez (qualquer tabela), fora da própria restauração. */
     @Volatile private var restoring = false
+
+    /**
+     * Quando dados de outro aparelho (o site, por exemplo) foram aplicados aqui pela última vez. O
+     * que chega assim já foi comemorado lá: o app registra emblemas, sequência e nível em silêncio,
+     * em vez de abrir todas as comemorações de uma vez.
+     */
+    @Volatile var lastRemoteApplyAt = 0L
+        private set
     private val changeObserver = object : androidx.room.InvalidationTracker.Observer(allTables(database)) {
         override fun onInvalidated(tables: Set<String>) {
             if (restoring) return
@@ -180,7 +188,7 @@ class CloudSyncService(
         val merged = SnapshotMerge.merge(base, JSONObject(localSnapshot), JSONObject(remoteText))
         keepLocalCopy()
         restoring = true
-        try { backup.restore(merged.toString()) } finally { restoring = false }
+        try { backup.restore(merged.toString()) } finally { restoring = false; lastRemoteApplyAt = System.currentTimeMillis() }
         val snapshot = canonicalSnapshot()
         upload(userId, snapshot, Sha256.digest(snapshot.encodeToByteArray()).toHex(), head.revision)
     }
@@ -244,7 +252,7 @@ class CloudSyncService(
         if (sha != head.sha256) error("A cópia baixada veio incompleta. Tente de novo.")
         keepLocalCopy()
         restoring = true
-        try { backup.restore(text) } finally { restoring = false }
+        try { backup.restore(text) } finally { restoring = false; lastRemoteApplyAt = System.currentTimeMillis() }
         // A base é o que este aparelho exporta depois de restaurar (a ordem das linhas pode sair
         // diferente da foto recebida); assim a próxima rodada não confunde isso com uma edição.
         val restored = canonicalSnapshot()

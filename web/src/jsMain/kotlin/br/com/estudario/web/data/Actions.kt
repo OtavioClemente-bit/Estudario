@@ -71,6 +71,25 @@ object Actions {
             )
     }
 
+    /**
+     * StudyExecutionService.reprogram do app: com [targetDay], a tarefa vai para esse dia (a escolha
+     * da pessoa é preservada); sem data, o plano encaixa a tarefa no primeiro espaço livre.
+     */
+    fun reprogramTask(data: Snapshot, taskId: String, targetDay: Long?): Snapshot {
+        val task = data.tasks.firstOrNull { it.id == taskId } ?: return data
+        if (task.locked || task.status !in setOf("PLANEJADA", "EM_ANDAMENTO")) return data
+        val plan = data.plans.firstOrNull { it.id == task.planId } ?: return data
+        // Plano trazido da IA não é redistribuído pelo motor: o automático leva para amanhã.
+        val day = targetDay ?: if (task.origin == "IMPORTED") Queries.todayEpoch() + 1 else null
+        if (day == null) return runCatching { Planning.replan(data, plan.id, br.com.estudario.domain.planner.ReplanReason.TASK_PARTIAL) }.getOrDefault(data)
+        val at = now()
+        val nextRevision = plan.revision + 1
+        return data
+            .edit(Keys.TASKS) { if (it.idIs(taskId)) it.with("day" to JsonPrimitive(day), "updatedRevision" to JsonPrimitive(nextRevision), "updatedAt" to JsonPrimitive(at)) else it }
+            .edit(Keys.PLANS) { if (it.idIs(plan.id)) it.with("revision" to JsonPrimitive(nextRevision), "updatedAt" to JsonPrimitive(at)) else it }
+            .append(Keys.PLAN_REVISIONS, jsonOf("planId" to plan.id, "revision" to nextRevision, "base" to plan.revision, "reason" to "TASK_REPROGRAMMED", "proposalId" to null, "summary" to task.id, "createdAt" to at))
+    }
+
     /** StudyExecutionService.skip */
     fun skipTask(data: Snapshot, taskId: String, reason: String): Snapshot {
         val task = data.tasks.firstOrNull { it.id == taskId } ?: return data
