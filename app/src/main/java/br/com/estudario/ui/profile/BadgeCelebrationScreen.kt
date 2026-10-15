@@ -117,45 +117,18 @@ private fun Conteudo(badge: Badge, total: Int, index: Int) {
     val opacidade by animateFloatAsState(if (stage >= 1) 1f else 0f, tween(320), label = "opacidade")
     val texto by animateFloatAsState(if (stage >= 2) 1f else 0f, tween(420), label = "texto")
 
-    // O Folha interage com o emblema: uma cena sorteada a cada vez (malabarismo, lustrar, espiar, comemorar).
-    val scene = remember(badge.id) { listOf("juggle", "polish", "peek", "cheer").random() }
-    val medalY = remember { androidx.compose.animation.core.Animatable(0f) }
-    val medalRot = remember { androidx.compose.animation.core.Animatable(0f) }
-    val medalSpin = remember { androidx.compose.animation.core.Animatable(0f) }
-    val folhaX = remember { androidx.compose.animation.core.Animatable(0f) }
-    val folhaY = remember { androidx.compose.animation.core.Animatable(if (scene == "peek") 60f else 0f) }
-    val folhaRot = remember { androidx.compose.animation.core.Animatable(0f) }
-    var folhaMood by remember { androidx.compose.runtime.mutableStateOf(if (scene == "peek") br.com.estudario.ui.assistant.FolhaMood.THINKING else br.com.estudario.ui.assistant.FolhaMood.HAPPY) }
-    var folhaFront by remember { androidx.compose.runtime.mutableStateOf(scene != "peek") }
-    LaunchedEffect(scene) {
-        delay(450)
-        when (scene) {
-            "juggle" -> repeat(3) {
-                kotlinx.coroutines.coroutineScope {
-                    launch { medalY.animateTo(-90f, tween(420, easing = androidx.compose.animation.core.FastOutSlowInEasing)); medalY.animateTo(0f, tween(420, easing = androidx.compose.animation.core.LinearOutSlowInEasing)) }
-                    launch { medalRot.animateTo(medalRot.value + 200f, tween(840)) }
-                    launch { folhaY.animateTo(-16f, tween(200)); folhaY.animateTo(0f, tween(220)); delay(200); folhaY.animateTo(-10f, tween(110)); folhaY.animateTo(0f, tween(110)) }
-                }
-            }.also { medalRot.animateTo(0f, tween(300)); folhaMood = br.com.estudario.ui.assistant.FolhaMood.WAVE }
-            "polish" -> { folhaMood = br.com.estudario.ui.assistant.FolhaMood.TALKING; repeat(8) { folhaX.animateTo(-22f, tween(160)); folhaRot.animateTo(6f, tween(1)); folhaX.animateTo(0f, tween(160)); folhaRot.animateTo(-8f, tween(1)) }; folhaRot.animateTo(0f, tween(200)); folhaMood = br.com.estudario.ui.assistant.FolhaMood.HAPPY }
-            "peek" -> {
-                folhaY.animateTo(-70f, tween(500, easing = androidx.compose.animation.core.FastOutSlowInEasing))
-                folhaX.animateTo(-50f, tween(300)); delay(300)
-                folhaMood = br.com.estudario.ui.assistant.FolhaMood.HAPPY
-                folhaFront = true
-                kotlinx.coroutines.coroutineScope { launch { folhaX.animateTo(110f, tween(600)) }; launch { folhaY.animateTo(90f, tween(600)) } }
-                folhaMood = br.com.estudario.ui.assistant.FolhaMood.WAVE
-            }
-            else -> {
-                launch { medalSpin.animateTo(720f, tween(1600, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
-                repeat(6) { folhaY.animateTo(-26f, tween(240)); folhaRot.animateTo(if (it % 2 == 0) 8f else -6f, tween(1)); folhaY.animateTo(0f, tween(240)) }
-                folhaRot.animateTo(0f, tween(200)); folhaMood = br.com.estudario.ui.assistant.FolhaMood.WAVE
-            }
-        }
-    }
-    val folhaAlign = when (scene) { "juggle" -> Alignment.BottomCenter; "polish" -> Alignment.BottomEnd; "peek" -> Alignment.Center; else -> Alignment.BottomStart }
-    val folhaLayer = Modifier.graphicsLayer {
-        translationX = folhaX.value.dp.toPx(); translationY = folhaY.value.dp.toPx(); rotationZ = folhaRot.value; alpha = opacidade
+    // A medalha cai carimbada (como no site): do alto, grande e inclinada, com impacto e um quique.
+    val drop = remember { androidx.compose.animation.core.Animatable(0f) }
+    val land = remember { androidx.compose.animation.core.Animatable(0f) }
+    val shine = remember { androidx.compose.animation.core.Animatable(-1f) }
+    var folhaMood by remember { androidx.compose.runtime.mutableStateOf(br.com.estudario.ui.assistant.FolhaMood.HAPPY) }
+    LaunchedEffect(badge.id) {
+        drop.animateTo(1f, tween(450, easing = androidx.compose.animation.core.FastOutLinearInEasing))
+        land.animateTo(1f, spring(0.35f, Spring.StiffnessMediumLow))
+        delay(200)
+        shine.animateTo(1f, tween(1100))
+        delay(500); folhaMood = br.com.estudario.ui.assistant.FolhaMood.TALKING
+        delay(2200); folhaMood = br.com.estudario.ui.assistant.FolhaMood.WAVE
     }
 
     val giro = rememberInfiniteTransition(label = "giro")
@@ -198,6 +171,23 @@ private fun Conteudo(badge: Badge, total: Int, index: Int) {
                     .size(if (estudarioLayout().isShortHeight) 220.dp else 300.dp)
                     .graphicsLayer { alpha = opacidade },
             ) {
+                // Raios de luz girando atrás da medalha, depois do impacto.
+                if (land.value > 0f) {
+                    val c = Offset(size.width / 2, size.height / 2)
+                    rotate(angulo * 0.6f, c) {
+                        repeat(16) { i ->
+                            val a = i * (2 * Math.PI / 16).toFloat()
+                            val r = size.minDimension * 0.62f
+                            val ray = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(c.x, c.y)
+                                lineTo(c.x + kotlin.math.cos(a - 0.07f) * r, c.y + kotlin.math.sin(a - 0.07f) * r)
+                                lineTo(c.x + kotlin.math.cos(a + 0.07f) * r, c.y + kotlin.math.sin(a + 0.07f) * r)
+                                close()
+                            }
+                            drawPath(ray, androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color(0xFFFFE58A).copy(alpha = 0.28f * land.value), Color.Transparent), c, r))
+                        }
+                    }
+                }
                 // Confete de papel caindo: retangulinhos coloridos girando, como numa festa de verdade.
                 val cores = listOf(Color(0xFFFFB421), Color(0xFF1FB574), Color(0xFFFF5C4D), Color(0xFF2EA8F5), Color(0xFFF0559A), palette.glow)
                 val t = angulo / 360f
@@ -216,17 +206,20 @@ private fun Conteudo(badge: Badge, total: Int, index: Int) {
                     }
                 }
             }
-            if (!folhaFront) br.com.estudario.ui.assistant.Folha(92.dp, mood = folhaMood, modifier = Modifier.align(folhaAlign).then(folhaLayer))
             BadgeArt(
                 badge = badge,
                 earned = true,
                 size = if (estudarioLayout().isShortHeight) 140.dp else 190.dp,
                 modifier = Modifier.graphicsLayer {
-                    scaleX = escala; scaleY = escala; alpha = opacidade
-                    translationY = medalY.value.dp.toPx(); rotationZ = medalRot.value; rotationY = medalSpin.value
+                    val d = drop.value
+                    val l = land.value
+                    translationY = (1f - d) * (-260).dp.toPx()
+                    val s = if (l == 0f) 2.2f - 1.05f * d else 1.15f - 0.15f * l
+                    scaleX = s; scaleY = if (l == 0f) s else s * (0.86f + 0.14f * l)
+                    rotationZ = if (l == 0f) -18f + 12f * d else -6f + 2f * l
+                    alpha = if (d > 0f) 1f else 0f
                 },
             )
-            if (folhaFront) br.com.estudario.ui.assistant.Folha(92.dp, mood = folhaMood, modifier = Modifier.align(folhaAlign).then(folhaLayer))
         }
 
         Spacer(Modifier.height(28.dp))
@@ -268,6 +261,7 @@ private fun Conteudo(badge: Badge, total: Int, index: Int) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            br.com.estudario.ui.assistant.Folha(84.dp, mood = folhaMood)
             Text(
                 br.com.estudario.ui.assistant.FolhaLines.forBadge(badge.id.hashCode().toLong()),
                 color = Color.White,
