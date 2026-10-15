@@ -196,6 +196,8 @@ private fun SubjectCard(
     fun hasContentBelow(id: Long): Boolean = id in contentIds || topics.filter { it.parentTopicId == id }.any { hasContentBelow(it.id) }
     Div({ classes(*listOfNotNull("subject", if (expanded) "open" else null).toTypedArray()); attr("style", "--attn:${attention.color}") }) {
         Button({ classes("subject-head"); attr("aria-expanded", expanded.toString()); onClick { latest.value() } }) {
+            // O personagem da matéria (turma do Folha), na cor dela.
+            Span({ classes("hs-art", "subject-art"); attr("style", "--c:${subjectColor(subject.name)}") }) { Icon(br.com.estudario.domain.catalog.SubjectArt.iconFor(subject.name)) }
             Div({ classes("grow"); attr("style", "min-width:0") }) {
                 H3 { Text(subject.name) }
                 Div({ classes("row", "wrap"); attr("style", "gap:8px;margin-top:6px") }) {

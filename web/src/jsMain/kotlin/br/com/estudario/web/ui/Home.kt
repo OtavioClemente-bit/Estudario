@@ -89,6 +89,7 @@ fun HomeScreen() {
             NowPanel(data, plan != null, tasks, hour, seed, onGenerate = { generatingFor = it })
             if (plan != null && tasks.isNotEmpty()) DailyMission(tasks) { completing = it }
             AttentionPanel(data, plan?.id)
+            HomeSyllabus(data, subjects)
         }
         Div({ classes("stack", "loose") }) {
             PaceCard(data, plan?.id, plan?.exam)
