@@ -495,8 +495,8 @@ private fun ExamCard(entry: CatalogEntry, loading: Boolean, disabled: Boolean, o
         if (disabled) attr("disabled", "")
         onClick { latest.value() }
     }) {
-        val mono = br.com.estudario.domain.catalog.ExamCategory.monogram(entry.shortName)
-        Span({ classes(*listOfNotNull("exam-mono", if (mono.length >= 5) "long" else null).toTypedArray()) }) { Text(mono) }
+        // O desenho da área (escudo, martelo, banco...) no lugar da sigla solta.
+        Span({ classes("exam-mono", "art") }) { Icon(br.com.estudario.domain.catalog.SubjectArt.iconFor(entry.category)) }
         Span({ classes("exam-body") }) {
             Span({ classes("exam-top") }) {
                 Span({ classes("exam-short") }) { Text(entry.shortName) }

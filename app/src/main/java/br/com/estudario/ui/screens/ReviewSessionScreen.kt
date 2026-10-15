@@ -64,15 +64,39 @@ private enum class RvStep(val label: String) { RECALL("Lembrar"), SUMMARY("Revis
  * avaliação com a data em que o tópico volta em cada opção, já com a sugestão pelo desempenho.
  */
 @Composable
-fun ReviewSessionScreen(viewModel: AppViewModel, reviewId: Long, onBack: () -> Unit) {
+fun ReviewSessionScreen(
+    viewModel: AppViewModel,
+    reviewId: Long,
+    onQuizTopic: (Long) -> Unit = {},
+    onOpenTopic: (Long) -> Unit = {},
+    onBack: () -> Unit,
+) {
     val reviews by viewModel.reviews.collectAsState()
     val topics by viewModel.topics.collectAsState()
     val snippets by viewModel.snippets.collectAsState()
     val summaries by viewModel.summaries.collectAsState()
     val allQuestions by viewModel.questions.collectAsState()
     val review = reviews.firstOrNull { it.id == reviewId }
+    // Acabou de concluir: o fechamento, com as questões para fixar.
+    var done by remember { mutableStateOf<Pair<Long, Long>?>(null) }
+    done?.let { (topicId, days) ->
+        val available = allQuestions.count { it.question.topicId == topicId && !it.question.isHidden }
+        ReviewDone(topics.firstOrNull { it.id == topicId }?.title ?: "Tópico revisado", days, available, onQuiz = { onQuizTopic(topicId) }, onGenerate = { onOpenTopic(topicId) }, onBack = onBack)
+        return
+    }
     if (review == null) { EmptyState("Revisão não encontrada", "Ela pode já ter sido removida.", "Voltar", onBack); return }
     val topic = topics.firstOrNull { it.id == review.topicId }
+    // Revisão espaçada vale no dia dela: antes, ainda é cedo (revisar antes enfraquece o efeito).
+    val zoneHere = ZoneId.systemDefault()
+    val dueDay = java.time.Instant.ofEpochMilli(review.dueAt).atZone(zoneHere).toLocalDate()
+    if (dueDay.isAfter(LocalDate.now(zoneHere))) {
+        EmptyState(
+            "Ainda não é dia desta revisão",
+            "${topic?.title ?: "Este tópico"} volta em ${dueDay.dayOfMonth}/${dueDay.monthValue.toString().padStart(2, '0')}. Revisar antes da hora enfraquece o efeito; até lá, treine questões se quiser.",
+            "Treinar questões do tópico",
+        ) { onQuizTopic(review.topicId) }
+        return
+    }
     val recall = remember(review.topicId, snippets.size) { snippets.filter { it.topicId == review.topicId && it.kind == SnippetKind.RECUPERACAO && !it.answer.isNullOrBlank() }.shuffled().take(8) }
     val quick = summaries.firstOrNull { it.topicId == review.topicId && it.kind == SummaryKind.RAPIDO } ?: summaries.firstOrNull { it.topicId == review.topicId }
     // Revisar é reencontrar a falha: primeiro o que já errou, depois o que nunca respondeu, depois o resto.
@@ -192,8 +216,9 @@ fun ReviewSessionScreen(viewModel: AppViewModel, reviewId: Long, onBack: () -> U
             }
             RvStep.RATE -> item {
                 RateCard(review, reviews, recalled, forgotten, correct, questions.size) { difficulty ->
+                    val days = nextDueDays(review, reviews, difficulty, correct, questions.size)
                     viewModel.completeReview(review, difficulty, correct, questions.size, recalled, forgotten, startedAt)
-                    onBack()
+                    done = review.topicId to days
                 }
             }
         }
@@ -345,5 +370,38 @@ private fun ResultRing(value: Int, total: Int, label: String) {
             Text("$value/$total", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+/** Revisão concluída: quando o tópico volta e algumas questões dele agora, para fixar de verdade. */
+@Composable
+private fun ReviewDone(title: String, days: Long, available: Int, onQuiz: () -> Unit, onGenerate: () -> Unit, onBack: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+    ) {
+        br.com.estudario.ui.assistant.Folha(120.dp, mood = br.com.estudario.ui.assistant.FolhaMood.HAPPY)
+        Text("REVISÃO CONCLUÍDA", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Color(0xFFC98A0B))
+        Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface)
+        Text(
+            if (days <= 1L) "Ele volta amanhã para mais uma revisão." else "Ele volta em $days dias. Até lá, a memória trabalha por você.",
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
+        )
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.primaryContainer).padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Fixe agora com questões", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text(
+                    if (available > 0) "Responder logo depois de revisar é o que mais segura o conteúdo." else "Este tópico ainda não tem questões. Gere um lote para treinar.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                )
+            }
+        }
+        if (available > 0) Button(onClick = onQuiz, Modifier.fillMaxWidth()) { Text("Fazer ${minOf(5, available)} questões") }
+        else Button(onClick = onGenerate, Modifier.fillMaxWidth()) { Text("Gerar questões") }
+        TextButton(onClick = onBack) { Text("Voltar às revisões") }
     }
 }

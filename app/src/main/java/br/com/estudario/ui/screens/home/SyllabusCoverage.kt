@@ -184,16 +184,8 @@ private fun SubjectCoverageRow(subject: SubjectCoverageUi) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // O selo da matéria: a inicial na cor dela, como uma etiqueta de caderno.
-        Box(
-            Modifier.width(38.dp).height(38.dp).clip(RoundedCornerShape(12.dp)).background(color.copy(alpha = 0.18f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                subject.name.substringAfter(" \u2013 ").trim().replace(Regex("^[^\\p{L}]+"), "").take(1).uppercase().ifBlank { "•" },
-                style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = color,
-            )
-        }
+        // O selo da matéria: o desenho do assunto na cor dela (livro, martelo, computador...).
+        br.com.estudario.ui.brand.SubjectArtTile(br.com.estudario.domain.catalog.SubjectArt.iconFor(subject.name), color, 40.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(

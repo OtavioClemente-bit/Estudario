@@ -148,12 +148,26 @@ private fun StageLadder(stage: Int) {
 fun ReviewSessionScreen(reviewId: Long) {
     val data = Store.data
     val review = data.reviews.firstOrNull { it.id == reviewId }
+    // Acabou de concluir: a tela de fechamento, com as questões para fixar.
+    ReviewDone.state?.takeIf { it.reviewId == reviewId }?.let { ReviewDoneScreen(it); return }
     if (review == null || review.completedAt != null) {
         Card { Empty("task_alt", "Revisão concluída", "Ela já foi feita ou não existe mais.", action = { Btn("Voltar às revisões", { Router.go(Route.Reviews) }) }) }
         return
     }
     val topic = data.topics.firstOrNull { it.id == review.topicId }
     val subject = data.subjects.firstOrNull { it.id == topic?.subjectId }
+    // Revisão espaçada vale no dia dela: antes disso, ainda é cedo (revisar antes enfraquece o efeito).
+    if (review.dueAt >= Queries.endOfToday()) {
+        Card {
+            Empty("event", "Ainda não é dia desta revisão", "${topic?.title ?: "Este tópico"} volta em ${Queries.shortDate(Queries.dateOf(review.dueAt))}. Revisar antes da hora enfraquece o efeito da revisão espaçada; até lá, treine questões se quiser.", action = {
+                Div({ classes("row", "wrap"); attr("style", "justify-content:center;gap:8px") }) {
+                    Btn("Voltar às revisões", { Router.go(Route.Reviews) }, style = "outline")
+                    if (data.questions.any { it.topicId == review.topicId && !it.hidden }) Btn("Treinar questões do tópico", { Router.go(Route.Quiz("topico-${review.topicId}-5")) }, style = "primary", icon = "quiz")
+                }
+            })
+        }
+        return
+    }
     val recall = remember(reviewId) { data.snippets.filter { it.topicId == review.topicId && it.kind == "RECUPERACAO" && !it.answer.isNullOrBlank() }.shuffled().take(8) }
     val summary = data.summaries.firstOrNull { it.topicId == review.topicId && it.kind == "RAPIDO" } ?: data.summaries.firstOrNull { it.topicId == review.topicId }
     // Revisar é reencontrar a falha: primeiro as erradas, depois as nunca respondidas, depois o resto.
@@ -326,10 +340,9 @@ private fun RateStep(review: Review, recalled: Int, forgotten: Int, correct: Int
         }
         Div({ classes("rv-choice") }) {
             Btn("Concluir revisão", {
+                val days = nextDueWith(review.id, pick, correct, total)?.let { ((it - Queries.startOfToday()) / DAY).toInt().coerceAtLeast(1) }
                 Store.update { Actions.completeReview(it, review.id, pick, correct, total, startedAt, recalled, forgotten) }
-                val nextDue = Queries.dueReviews(Store.data).filter { it.id != review.id }.minByOrNull { it.dueAt }
-                Toast.show("Revisão concluída! +XP")
-                if (ReviewRun.active && nextDue != null) Router.go(Route.ReviewSession(nextDue.id)) else { ReviewRun.active = false; Router.go(Route.Reviews) }
+                ReviewDone.state = ReviewDone.State(review.id, review.topicId, days)
             }, style = "primary", icon = "check", size = "lg")
         }
     }
@@ -341,5 +354,43 @@ private fun RvRing(value: Int, total: Int, label: String) {
     Div({ classes("rv-ring"); attr("style", "--p:$pct") }) {
         B { Text("$value/$total") }
         Span { Text(label) }
+    }
+}
+
+/** O fechamento da revisão que acabou de ser concluída (mostrado na própria rota da sessão). */
+private object ReviewDone {
+    data class State(val reviewId: Long, val topicId: Long, val nextInDays: Int?)
+    var state by mutableStateOf<State?>(null)
+}
+
+/**
+ * Revisão concluída: quando o tópico volta e, para fixar de verdade, algumas questões dele agora
+ * (as erradas e as inéditas primeiro). Sem questões no tópico, oferece gerar.
+ */
+@Composable
+private fun ReviewDoneScreen(done: ReviewDone.State) {
+    val data = Store.data
+    val topic = data.topics.firstOrNull { it.id == done.topicId }
+    val available = data.questions.count { it.topicId == done.topicId && !it.hidden && it.simulationId == null }
+    val nextDue = Queries.dueReviews(data).filter { it.id != done.reviewId }.minByOrNull { it.dueAt }
+    fun leave(go: () -> Unit) { ReviewDone.state = null; go() }
+    Div({ classes("rv-paper", "rv-done") }) {
+        Folha("happy", 110)
+        Span({ classes("rv-face-tag") }) { Text("REVISÃO CONCLUÍDA") }
+        H2 { Text(topic?.title ?: "Tópico revisado") }
+        P({ classes("muted") }) { Text(done.nextInDays?.let { if (it <= 1) "Ele volta amanhã para mais uma revisão." else "Ele volta em $it dias. Até lá, a memória trabalha por você." } ?: "A próxima revisão já está na agenda.") }
+        Div({ classes("rv-fix") }) {
+            Span({ classes("rv-fix-ic") }) { Icon("quiz", filled = true) }
+            Div({ classes("grow") }) {
+                B { Text("Fixe agora com questões") }
+                Span({ classes("small", "muted") }) { Text(if (available > 0) "Responder logo depois de revisar é o que mais segura o conteúdo." else "Este tópico ainda não tem questões. Gere um lote para treinar.") }
+            }
+        }
+        Div({ classes("rv-choice") }) {
+            if (available > 0) Btn("Fazer ${minOf(5, available)} questões", { leave { Router.go(Route.Quiz("topico-${done.topicId}-5")) } }, style = "primary", icon = "play_arrow", size = "lg")
+            else Btn("Gerar questões", { leave { Router.go(Route.Topic(done.topicId)) } }, style = "primary", icon = "auto_awesome", size = "lg")
+            if (ReviewRun.active && nextDue != null) Btn("Próxima revisão", { leave { Router.go(Route.ReviewSession(nextDue.id)) } }, style = "outline", icon = "skip_next")
+            else Btn("Voltar às revisões", { leave { ReviewRun.active = false; Router.go(Route.Reviews) } }, style = "ghost")
+        }
     }
 }

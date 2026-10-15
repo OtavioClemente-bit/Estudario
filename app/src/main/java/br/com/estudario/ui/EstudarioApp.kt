@@ -583,7 +583,13 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     )
                 }
                 composable("reviews") { ReviewsScreen(viewModel, { navController.popBackStack() }, { navController.navigate("review-session/$it") }, { navController.navigate("topic/$it") }, showInlineBack = false) }
-                composable("review-session/{id}") { backStack -> ReviewSessionScreen(viewModel, backStack.arguments?.getString("id")?.toLongOrNull() ?: 0) { navController.popBackStack() } }
+                composable("review-session/{id}") { backStack ->
+                    ReviewSessionScreen(
+                        viewModel, backStack.arguments?.getString("id")?.toLongOrNull() ?: 0,
+                        onQuizTopic = { topicId -> navController.popBackStack(); navController.navigate("quiz/5/$topicId/0/random/_/_") },
+                        onOpenTopic = { topicId -> navController.popBackStack(); navController.navigate("topic/$topicId") },
+                    ) { navController.popBackStack() }
+                }
                 composable("queue") { QueueScreen(viewModel, { navController.popBackStack() }, { navController.navigate("topic/$it") }, showInlineBack = false) }
                 composable("statistics") { StatisticsScreen(viewModel, { navController.popBackStack() }, showInlineBack = false) }
                 composable("question-bank") { QuestionBankScreen(viewModel, { navController.popBackStack() }, { config -> navController.navigate("quiz/${config.count}/${config.topicId ?: 0}/${config.subjectId ?: 0}/${config.mode}/${Uri.encode(config.board ?: "_")}/${config.difficulty ?: "_"}") }, showInlineBack = false) }

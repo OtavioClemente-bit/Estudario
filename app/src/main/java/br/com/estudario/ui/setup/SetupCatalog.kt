@@ -125,21 +125,8 @@ internal fun ExamResultCard(entry: ExamCatalogEntry, selected: Boolean, onClick:
     val old = entry.year != null && entry.year < year - 2
     br.com.estudario.ui.brand.BrandChoice(selected, onClick) {
         val tone = monogramColor(entry.shortName)
-        Box(
-            Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(tone.copy(alpha = 0.16f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            val mono = ExamCategory.monogram(entry.shortName)
-            Text(
-                mono,
-                style = if (mono.length >= 5) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Black,
-                color = tone,
-                maxLines = 1,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 4.dp),
-            )
-        }
+        // O desenho da área (escudo, martelo, banco...) no lugar da sigla solta.
+        br.com.estudario.ui.brand.SubjectArtTile(br.com.estudario.domain.catalog.SubjectArt.iconFor(entry.category()), tone, 52.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
