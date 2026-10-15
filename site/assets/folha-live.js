@@ -217,6 +217,7 @@
 
   function drawFace(g, s) {
     const { t, mood, blink, lookX, lookY, wink } = s;
+    const gulp = s.gulp || 0;
     const eyeL = [31 + lookX * 1.6, 61 + lookY * 1.4], eyeR = [69 + lookX * 1.6, 61 + lookY * 1.4];
     const cheekA = mood === "happy" ? 0.7 : 0.45;
     oval(g, rgba(CHEEK, cheekA), 19, 67, 9, 5);
@@ -242,6 +243,16 @@
       line(g, INK, 26, 51, 35, 53, 1.8); line(g, INK, 65, 53, 74, 51, 1.8);
     }
     const mx = 50, my = 73;
+    if (gulp > 0.08) {
+      // "Nham": boca redonda recebendo a folha, com brilho saindo das páginas (como no app).
+      const r = 1.5 + 3.2 * gulp;
+      oval(g, INK, mx - r, my - r * 1.1, r * 2, r * 2.2);
+      for (let i = 0; i < 4; i++) {
+        const a = i * (PI / 2) + 0.5;
+        circle(g, rgba(SPARK, gulp), 1.8 * gulp * 0.9, 50 + Math.cos(a) * (22 + 14 * (1 - gulp)), 58 + sin(a) * (16 + 10 * (1 - gulp)));
+      }
+      return;
+    }
     if (mood === "talking") {
       const open = (0.5 + 0.5 * sin(t * 13)) * (0.55 + 0.45 * abs(sin(t * 3.1)));
       const h = 1.2 + 5 * open;
@@ -469,7 +480,9 @@
         lookX: still ? 0.3 : this._look.x,
         lookY: still ? -0.2 : this._look.y,
         wink: this._wink || winkAttr,
-        bounce: this._bounce(now),
+        // Na tela de processamento, o Folha "engole" cada folha que chega (o EstudarioProcess define gulp).
+        bounce: Math.max(this._bounce(now), (this.gulp || 0) * 0.45),
+        gulp: still ? 0 : (this.gulp || 0),
       });
       // Quadro fixo para quem pede menos movimento: desenha uma vez e sai do laço.
       if (still && this._bounceAt < 0) live.delete(this);
