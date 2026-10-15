@@ -85,18 +85,36 @@
   };
 
   // A seleção atual dentro de um bloco da teoria: { theoryId, block, quote, x, y } ou null.
+  // A seleção atual na teoria: { theoryId, block, quote, parts: [{ block, quote }], x, y } ou null.
+  // Pode atravessar vários parágrafos: cada parágrafo tocado vira uma parte (um grifo em cada um).
   window.estudarioSelection = function () {
     const sel = window.getSelection && window.getSelection();
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
-    const quote = sel.toString().replace(/\s+/g, " ").trim();
-    if (quote.length < 3 || quote.length > 1200) return null;
-    let node = sel.getRangeAt(0).commonAncestorContainer;
-    if (node.nodeType !== 1) node = node.parentElement;
-    const block = node && node.closest && node.closest("[id^='tb-']");
-    if (!block) return null;
-    const m = /^tb-(\d+)-(\d+)$/.exec(block.id);
-    if (!m) return null;
-    const rect = sel.getRangeAt(0).getBoundingClientRect();
-    return { theoryId: Number(m[1]), block: Number(m[2]), quote, x: rect.left + rect.width / 2, y: rect.top };
+    const range = sel.getRangeAt(0);
+    const blockOf = (node) => {
+      const el = node && (node.nodeType === 1 ? node : node.parentElement);
+      return el && el.closest ? el.closest("[id^='tb-']") : null;
+    };
+    const parse = (el) => { const m = el && /^tb-(\d+)-(\d+)$/.exec(el.id); return m ? { theoryId: Number(m[1]), block: Number(m[2]) } : null; };
+    // Começo ou fim fora de um bloco (a seleção passou do texto): usa o primeiro/último bloco tocado.
+    const all = Array.from(document.querySelectorAll("[id^='tb-']")).filter((el) => range.intersectsNode(el));
+    const first = parse(blockOf(range.startContainer) || all[0]);
+    const last = parse(blockOf(range.endContainer) || all[all.length - 1]);
+    if (!first || !last || first.theoryId !== last.theoryId) return null;
+    const parts = [];
+    for (let b = first.block; b <= last.block; b++) {
+      const el = document.getElementById(`tb-${first.theoryId}-${b}`);
+      if (!el || !range.intersectsNode(el)) continue;
+      const piece = document.createRange();
+      piece.selectNodeContents(el);
+      if (b === first.block && el.contains(range.startContainer)) piece.setStart(range.startContainer, range.startOffset);
+      if (b === last.block && el.contains(range.endContainer)) piece.setEnd(range.endContainer, range.endOffset);
+      const quote = piece.toString().replace(/\s+/g, " ").trim();
+      if (quote.length >= 3) parts.push({ block: b, quote: quote.slice(0, 1200) });
+    }
+    if (parts.length === 0 || parts.length > 12) return null;
+    const rect = range.getBoundingClientRect();
+    const top = rect.top < 60 ? Math.max(60, rect.top) : rect.top;
+    return { theoryId: first.theoryId, block: parts[0].block, quote: parts.map((p) => p.quote).join(" … "), parts, x: rect.left + rect.width / 2, y: top };
   };
 })();

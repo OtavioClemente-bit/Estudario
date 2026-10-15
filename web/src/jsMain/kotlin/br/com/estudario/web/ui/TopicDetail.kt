@@ -495,7 +495,10 @@ private fun TheoryReader(theory: Theory) {
                 val selection = window.asDynamic().estudarioSelection
                 val s = if (selection != null && selection != undefined) selection() else null
                 picked = if (s == null || s == undefined || (s.theoryId as Number).toLong() != theory.id) null
-                else TextPick((s.block as Number).toInt(), s.quote as String, (s.x as Number).toDouble(), (s.y as Number).toDouble())
+                else TextPick(
+                    (s.block as Number).toInt(), s.quote as String, (s.x as Number).toDouble(), (s.y as Number).toDouble(),
+                    (s.parts as? Array<dynamic>)?.map { ((it.block as Number).toInt()) to (it.quote as String) } ?: emptyList(),
+                )
             }, 0)
         }
         val hide: (org.w3c.dom.events.Event) -> Unit = { picked = null; clickedMark = null }
@@ -522,8 +525,12 @@ private fun TheoryReader(theory: Theory) {
     fun saveMark(p: TextPick, note: String) {
         if (Store.demo) Toast.show("Entre com sua conta para grifar e guardar no Caderno.")
         else {
-            Store.update { Actions.addTheoryMark(it, theory.id, p.block, p.quote, note) }
-            Toast.show("Grifo salvo no Caderno de estudo")
+            // Seleção de vários parágrafos: um grifo em cada um (a nota vai no primeiro).
+            val parts = p.parts.ifEmpty { listOf(p.block to p.quote) }
+            Store.update { snapshot ->
+                parts.foldIndexed(snapshot) { i, acc, (block, quote) -> Actions.addTheoryMark(acc, theory.id, block, quote, if (i == 0) note else "") }
+            }
+            Toast.show(if (parts.size > 1) "${parts.size} trechos grifados e salvos no Caderno de estudo" else "Grifo salvo no Caderno de estudo")
         }
         window.asDynamic().getSelection()?.removeAllRanges()
         picked = null
@@ -673,7 +680,7 @@ private fun TheoryReader(theory: Theory) {
 }
 
 /** Trecho selecionado na teoria: bloco, texto e onde a barrinha "Grifar" aparece (coordenadas da tela). */
-private data class TextPick(val block: Int, val quote: String, val x: Double, val y: Double)
+private data class TextPick(val block: Int, val quote: String, val x: Double, val y: Double, val parts: List<Pair<Int, String>> = emptyList())
 
 @Composable
 private fun TopicSources(topicId: Long) {
