@@ -53,7 +53,7 @@ fun PlanScreen() {
     var overdueOpen by remember { mutableStateOf(PlanEntry.overdue).also { PlanEntry.overdue = false } }
 
     if (plan == null) {
-        PageHead("Plano", "Meu plano de estudos")
+        PageHead("Plano de estudos", "O que estudar, quando e por quê")
         Card {
             Empty("calendar_month", "Nenhum plano ativo", "Monte seu plano aqui mesmo: escolha o edital, a data da prova e as horas de cada dia.", action = {
                 Btn("Configurar meus estudos", { Router.go(Route.Setup) }, icon = "auto_awesome")
@@ -66,7 +66,7 @@ fun PlanScreen() {
     val todayEpoch = today.toEpochDay()
     val planTasks = data.tasks.filter { it.planId == plan.id }
 
-    PageHead("Plano", "O que estudar, quando e por quê") {
+    PageHead("Plano de estudos", "O que estudar, quando e por quê") {
         Btn("Ajustar plano", { Router.go(Route.PlanSettings) }, style = "outline", icon = "tune", small = true)
     }
     PlanProgressHeader(plan, planTasks, todayEpoch)

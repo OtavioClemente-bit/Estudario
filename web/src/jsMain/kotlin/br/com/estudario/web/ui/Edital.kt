@@ -56,7 +56,7 @@ fun EditalScreen() {
     val studied = allTopics.count(Queries::isStudied)
     val compPriority = competitionPriority(data, competitionId)
 
-    PageHead("Concursos", "Cada tópico vira material de estudo") {
+    PageHead("Meus concursos", "Cada tópico vira material de estudo") {
         Btn("Novo concurso", { Store.startEmpty(); Router.go(Route.Setup) }, style = "tonal", small = true, icon = "add")
         if (competition != null && !Store.demo) Btn("Excluir", { deletingCompetition = true }, style = "ghost", small = true, icon = "delete")
     }

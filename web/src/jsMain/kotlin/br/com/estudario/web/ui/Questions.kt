@@ -59,7 +59,7 @@ fun TrainScreen() {
     val scope = "m-$mode~s-$subject~b-${js("encodeURIComponent")(board)}~d-$difficulty~n-$count"
     val available = pickQuestions(data, scope, preview = true).size
 
-    PageHead("Treinar", "Escolha a matéria, a banca e a dificuldade")
+    PageHead("Treinar questões", "Escolha a matéria, a banca e a dificuldade")
     CompetitionTabs()
 
     Card(extra = "pad-lg") {

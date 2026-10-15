@@ -50,7 +50,7 @@ fun ReviewsScreen() {
     val upcoming = data.reviews.filter { it.completedAt == null && it.ignoredAt == null && it.dueAt >= Queries.endOfToday() && it.topicId in scope }.sortedBy { it.dueAt }
     val doneToday = data.reviews.count { (it.completedAt ?: 0) >= Queries.startOfToday() && it.topicId in scope }
 
-    PageHead("Revisões", "Revisar na hora certa é o que faz o conteúdo ficar")
+    PageHead("Revisões espaçadas", "Revisar na hora certa é o que faz o conteúdo ficar")
     CompetitionTabs()
 
     Div({ classes("rv-hero", "rise") }) {
