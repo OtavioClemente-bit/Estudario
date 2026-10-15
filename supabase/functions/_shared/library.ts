@@ -72,6 +72,37 @@ export function inferFocus(material: Json, topicTitle: string | null | undefined
   return { capitulos: picked, questoes: [] };
 }
 
+/**
+ * Estilos de questão do banco (campo "estilo") mais parecidos com cada banca, em ordem de preferência,
+ * para quando a banca do aluno não tem recorte com questões próprias.
+ */
+const STYLE_AFFINITY: Record<string, string[]> = {
+  "cebraspe": ["CEBRASPE"],
+  "fgv": ["FGV", "FCC"],
+  "fcc": ["FCC", "VUNESP"],
+  "vunesp": ["VUNESP", "FCC"],
+  "cesgranrio": ["CESGRANRIO", "FGV"],
+  "ibfc": ["CESGRANRIO", "FCC"],
+  "aocp": ["FCC", "CESGRANRIO"],
+  "idecan": ["CESGRANRIO", "FCC"],
+  "consulplan": ["FCC", "CESGRANRIO"],
+  "fumarc": ["FCC", "CESGRANRIO"],
+  "iades": ["CEBRASPE", "FCC"],
+  "quadrix": ["CEBRASPE", "FCC"],
+};
+
+/** Estilos preferidos para a banca pedida; bancas não mapeadas ficam com as de múltipla escolha mais comuns. */
+export function preferredStyles(board: string | null | undefined): string[] {
+  const norm = normalizeBoard(board);
+  if (!norm || norm === GENERAL_BOARD_NORM) return [];
+  return STYLE_AFFINITY[norm] ?? ["FCC", "CESGRANRIO", "VUNESP"];
+}
+
+function styleRank(prefer: string[], question: Json): number {
+  const i = prefer.indexOf(String(question.estilo ?? "").toUpperCase());
+  return i < 0 ? prefer.length : i;
+}
+
 /** Palavras significativas de um tópico de edital, para comparar com o "topico" das questões do banco. */
 export function topicWords(value: unknown): string[] {
   return [...new Set(normalizeAlias(typeof value === "string" ? value : "").split(" ").filter((w) => w.length >= 4 && !FOCUS_STOPWORDS.has(w)))];
@@ -641,9 +672,14 @@ export function assembleFromLibrary(
   const topicPool = usable(material.questions as Json[]);
   // Em cada nível, as questões do recorte da banca vêm antes das da matéria.
   const atLevel = (level: string | null) => (q: Json) => level === null || q.difficulty === level;
+  // Banca sem recorte próprio (veio o "Padrão das provas"): as questões no estilo mais parecido com o
+  // da banca do aluno vêm antes (ex.: Vunesp → estilo Vunesp e FCC).
+  const borrowed = normalizeBoard(typeof note?.board === "string" ? note.board : "") === GENERAL_BOARD_NORM;
+  const prefer = borrowed ? preferredStyles(input.board) : [];
+  const byStyle = (pool: Json[]) => prefer.length === 0 ? pool : [...pool].sort((a, b) => styleRank(prefer, a) - styleRank(prefer, b));
   const tier = (board: Json[], topic: Json[]) => (level: string | null) => [
-    ...shuffled(board.filter((q) => sameTopic.includes(q)).filter(atLevel(level)), seed),
-    ...shuffled(board.filter((q) => !sameTopic.includes(q)).filter(atLevel(level)), seed),
+    ...byStyle(shuffled(board.filter((q) => sameTopic.includes(q)).filter(atLevel(level)), seed)),
+    ...byStyle(shuffled(board.filter((q) => !sameTopic.includes(q)).filter(atLevel(level)), seed)),
     ...shuffled(topic.filter((q) => level === null || q.difficulty === level), seed),
   ];
   const byLevel = (board: Json[], topic: Json[]) => wanted === null ? tier(board, topic)(null) : nearest[wanted].flatMap(tier(board, topic));

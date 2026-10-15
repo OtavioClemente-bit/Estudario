@@ -5,8 +5,9 @@
    monta a explicação com os comentários restantes. Vale para as 14.510 questões A–E dos recortes.
    Limite: as questões próprias das matérias (sem `comentario`) não entram em A–D; esgotado o recorte,
    o pedido A–D cai na IA.
-2. [~] **Filtro por banca**: em parte — as questões do recorte da banca entram antes das da matéria.
-   Falta, se valer a pena, priorizar o `estilo` quando o recorte da banca do aluno não existir.
+2. [x] **Filtro por banca**: as questões do recorte da banca entram antes das da matéria; quando a banca não tem
+   recorte próprio e vem o "Padrão das provas", as questões são ordenadas pelo `estilo` mais parecido com a banca
+   (`preferredStyles`, ex.: Vunesp → VUNESP, FCC). Feito em 15/10.
 3. [x] **Tópico por questão**: feito em 15/10. `assembleFromLibrary` recebe o `topicPath` do pedido e, entre as
    questões do recorte da banca, põe primeiro as cujo `topico` cobre ao menos metade das palavras do tópico
    pedido (`topicWords`/`topicMatches`), depois as demais da banca e as da matéria. Precisa de deploy do ai-text-worker.

@@ -6,6 +6,7 @@ import {
   lookupAliases,
   normalizeAlias,
   normalizeBoard,
+  preferredStyles,
   topicMatches,
   topicWords,
   validateBoardNote,
@@ -162,6 +163,23 @@ Deno.test("questões da banca do mesmo tópico do edital vêm antes das outras d
   }
   assertEquals(topicMatches(topicWords("Teorias da motivação."), "Teorias da motivação: Maslow e Herzberg."), true);
   assertEquals(topicMatches(topicWords("Teorias da motivação."), "Liderança."), false);
+});
+
+Deno.test("banca sem recorte próprio: questões do Padrão das provas no estilo mais parecido vêm primeiro", () => {
+  const m = material();
+  const cesgranrio = { ...question(903, "MC5", "MEDIA"), statement: "Questão do padrão no estilo Cesgranrio.", estilo: "CESGRANRIO" };
+  const vunesp = { ...question(904, "MC5", "MEDIA"), statement: "Questão do padrão no estilo Vunesp.", estilo: "VUNESP" };
+  const note = validateBoardNote({
+    topic: m.id, board: "GERAL", role: null, version: 1, incidence: "MEDIA",
+    howItFalls: long("As provas cobram gráficos", 400), tips: [], traps: [],
+    questions: [cesgranrio, vunesp],
+  }, m);
+  for (const seed of ["a", "b", "c", "d"]) {
+    const content = assembleFromLibrary(m, note, { board: "Vunesp", options: ALL, avoidStatements: [] }, seed)!;
+    assertEquals((content.questions as Json[])[0].statement, vunesp.statement);
+  }
+  assertEquals(preferredStyles("Cebraspe"), ["CEBRASPE"]);
+  assertEquals(preferredStyles(null), []);
 });
 
 Deno.test("recorte padrão das provas (GERAL) não aparece como nome de banca", () => {
