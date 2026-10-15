@@ -193,7 +193,7 @@ Fila: 13-atualizar-editais.md (339 arquivos). Passo 1 (automático): 166 já tê
 Já existe edital mais novo no catálogo: cbm-df-2025, pcdf-2024, pcma-2026, policia-cientifica-pe-2024 (cobre sds-pe-2016), tce-rs-2025, tjba-2026, ufpe-2026, pces-oficial-investigador-2025.
 
 **Vale incluir (edital mais novo publicado):**
-- TJRN 2023 (FGV, servidores). O catálogo só tem tj-rn-2012.
+- ✅ TJRN 2023 (FGV): 12 cargos incluídos em 15/10 (tjrn-2023--*).
 - TCE-ES 2022 (FGV, auditor). O catálogo só tem 2012/2013.
 - TRT-16 2022 (FGV) e TRT-17 (FCC, válido até 2027). O catálogo só tem 2005/2013.
 - TCE-RN 2025 (Cebraspe, auditor e outros; provas em abril de 2026).
