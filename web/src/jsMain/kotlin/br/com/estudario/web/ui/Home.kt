@@ -510,7 +510,11 @@ fun CompleteTaskDialog(task: PlanTask, onClose: () -> Unit) {
 }
 
 fun openTask(task: PlanTask) {
+    // Quem ainda não respondeu nenhuma questão começa pela teoria do tópico: o primeiro contato é
+    // ler e depois acertar, não errar logo de cara.
+    val beginner = Store.data.attempts.isEmpty()
     when {
+        beginner && task.type == "QUESTIONS" && task.topicId != null -> Router.go(Route.Topic(task.topicId))
         // Tarefa de questões de um tópico abre as questões dele (antes abria só a página do tópico).
         task.type == "QUESTIONS" && task.topicId != null && Store.data.questions.any { it.topicId == task.topicId && !it.hidden } ->
             planQuiz(task, "topico-${task.topicId}-${task.questions.coerceAtLeast(5)}")

@@ -146,8 +146,10 @@ fun SetupScreen() {
     if (building || preview != null) {
         PlanPreview(preview, onBack = { preview = null; building = false }) {
             try {
+                // Primeiro plano da conta: vai direto para o Início, com o primeiro estudo do dia em destaque.
+                val firstTime = Store.data.attempts.isEmpty() && Store.data.sessions.isEmpty()
                 Store.update { build(it).first }
-                Router.go(Route.Plan)
+                Router.go(if (firstTime) Route.Home else Route.Plan)
             } catch (e: Throwable) { error = e.message; preview = null; building = false }
         }
         return
