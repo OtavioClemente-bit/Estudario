@@ -480,6 +480,187 @@ export const TURMA = {
     ],
     face: [66, 52, 0.55, "oops"],
   }) },
+  // ---------------------------------------------------------------- matérias e áreas de concurso
+  Idioma: { anim: "wiggle", about: "Idiomas: balões conversando", draw: () => ({
+    body: [
+      solid(rr(40, 6, 54, 40, 14) + "M80 44l8 12-18-10z", "coral"),
+      line("M57 36 66 16 75 36M60.5 29h11", WHITE, 4, { noHalo: true }),
+      solid(rr(6, 32, 62, 48, 16) + "M18 76l-6 18 22-14z", "sky"),
+    ],
+    face: [37, 56, 0.85, "grin"],
+  }) },
+  Pena: { anim: "write", about: "Português: tinteiro com pena", draw: () => ({
+    body: [
+      solid("M50 50 84 6q12 16-4 32L58 56z", "paper", { lipY: 3 }),
+      line("M54 52 80 18", "#B7AFCC", 3, { noHalo: true }),
+      flat(rr(24, 46, 32, 12, 4), "steel", { w: 4 }),
+      solid(rr(12, 54, 56, 38, 12), "indigo"),
+      shine("M20 64v14"),
+    ],
+    face: [40, 72, 0.78, "smile"],
+  }) },
+  Calculadora: { anim: "hop", about: "Raciocínio e matemática: calculadora", draw: () => ({
+    body: [
+      solid(rr(18, 6, 64, 88, 14), "violet"),
+      flat(rr(26, 14, 48, 20, 6), "glass", { w: 4 }),
+      line("M60 20v8M66 20v8", INK, 3, { noHalo: true }),
+      paint(rr(27, 62, 12, 10, 3) + rr(44, 62, 12, 10, 3) + rr(27, 77, 12, 10, 3) + rr(44, 77, 12, 10, 3), WHITE),
+      paint(rr(61, 62, 12, 25, 3), C.amber[0]),
+    ],
+    face: [50, 46, 0.6, "happy"],
+  }) },
+  Laptop: { anim: "hop", about: "Informática e TI: notebook", draw: () => ({
+    body: [
+      solid(rr(16, 12, 68, 50, 8), "indigo"),
+      flat(rr(23, 19, 54, 36, 4), "sky", { w: 4 }),
+      solid("M4 68h92l-10 18H14z", "steel", { lipY: 4 }),
+      line("M42 77h16", WHITE, 3.5, { noHalo: true }),
+    ],
+    face: [50, 39, 0.72, "smile"],
+  }) },
+  Colunas: { anim: "hop", about: "Direito constitucional: colunas do Estado", draw: () => ({
+    body: [
+      solid(rr(14, 34, 15, 46, 3), "paper"),
+      solid(rr(42.5, 34, 15, 46, 3), "paper"),
+      solid(rr(71, 34, 15, 46, 3), "paper"),
+      solid(rr(6, 78, 88, 14, 5), "steel", { lipY: 3 }),
+      solid("M4 34 50 6 96 34z", "indigo", { lipY: 3 }),
+    ],
+    face: [50, 25, 0.55, "proud"],
+  }) },
+  Martelo: { anim: "zap", about: "Direito penal e tribunais: martelo de juiz", draw: () => ({
+    body: [
+      solid(rr(56, 76, 38, 16, 6), "brown", { lipY: 3 }),
+      solid("M44 46h12v36a6 6 0 0 1-12 0z", "wood"),
+      solid(rr(10, 14, 60, 32, 10), "brown"),
+      flat(rr(14, 12, 8, 36, 3), "amber", { w: 3.5 }),
+      flat(rr(58, 12, 8, 36, 3), "amber", { w: 3.5 }),
+    ],
+    face: [40, 30, 0.62, "fierce", { smile: true }],
+    fx: [fxLine("M78 62l8-6M84 70h9", "#FFB421")],
+  }) },
+  Moedas: { anim: "hop", about: "Contabilidade e finanças: moedas", draw: () => ({
+    body: [
+      solid(ell(36, 82, 28, 9), "amber", { lipY: 3 }),
+      solid(ell(36, 70, 28, 9), "amber", { lipY: 3 }),
+      solid(ell(36, 58, 28, 9), "amber", { lipY: 3 }),
+      solid(ell(66, 48, 28), "sun"),
+      flat(ell(66, 48, 20), "amber", { w: 3, lip: false }),
+      shine("M50 30a22 22 0 0 1 10-8"),
+    ],
+    face: [66, 48, 0.7, "happy"],
+  }) },
+  Maleta: { anim: "hop", about: "Administração e gestão: maleta", draw: () => ({
+    body: [
+      ...inkLine("M36 24v-8a6 6 0 0 1 6-6h16a6 6 0 0 1 6 6v8", "steel", 6),
+      solid(rr(8, 24, 84, 64, 12), "brown"),
+      line("M8 46h84", "ink", 4, { noHalo: true }),
+      flat(rr(43, 40, 14, 14, 3), "amber", { w: 3.5 }),
+    ],
+    face: [50, 68, 0.8, "smile"],
+  }) },
+  Pergaminho: { anim: "sway", about: "Ética e legislação: pergaminho com selo", draw: () => ({
+    body: [
+      solid(rr(20, 14, 60, 72, 4), "paper"),
+      line("M30 28h40M30 37h32", "#B7AFCC", 3.5, { noHalo: true }),
+      solid(rr(12, 6, 76, 14, 7), "wood", { lipY: 3 }),
+      solid(rr(12, 80, 76, 14, 7), "wood", { lipY: 3 }),
+      solid(ell(72, 66, 9), "coral", { lipY: 3 }),
+    ],
+    face: [44, 56, 0.72, "calm"],
+  }) },
+  Balanca: { anim: "sway", about: "Direito: balança da justiça", draw: () => ({
+    body: [
+      ...inkLine("M50 18v62", "steel", 5),
+      ...inkLine("M12 28h76", "steel", 5),
+      line("M14 28 4 56M14 28l10 28M86 28 76 56M86 28l10 28", "ink", 2.6),
+      solid("M2 56q12 16 24 0z", "amber", { lipY: 3 }),
+      solid("M74 56q12 16 24 0z", "amber", { lipY: 3 }),
+      solid(rr(28, 80, 44, 12, 5), "indigo", { lipY: 3 }),
+      solid(ell(50, 50, 15), "indigo"),
+      flat(ell(50, 16, 7), "amber", { w: 3.5 }),
+    ],
+    face: [50, 50, 0.55, "proud"],
+  }) },
+  Globo: { anim: "spin", about: "Atualidades e conhecimentos gerais: globo", draw: () => ({
+    body: [
+      ...inkLine("M20 86q30 12 60 0", "steel", 5),
+      solid(ell(50, 46, 38), "sky"),
+      paint("M18 34q6-14 18-14 8 4 2 12-10 2-12 10-6 4-8-8z", C.green[0]),
+      paint("M64 66q8-8 18-6 2 10-8 16-8 2-10-10z", C.green[0]),
+      paint("M70 16q10 4 12 14-8 2-12-6z", C.green[0]),
+    ],
+    face: [50, 48, 0.82, "happy"],
+  }) },
+  KitMedico: { anim: "pulse", about: "Saúde: maleta de primeiros socorros", draw: () => ({
+    body: [
+      ...inkLine("M36 26v-8a6 6 0 0 1 6-6h16a6 6 0 0 1 6 6v8", "steel", 6),
+      solid(rr(8, 26, 84, 62, 14), "coral"),
+      flat("M70 34h8v8h8v8h-8v8h-8v-8h-8v-8h8z", "paper", { w: 3.5 }),
+    ],
+    face: [40, 60, 0.85, "smile"],
+  }) },
+  Frasco: { anim: "wiggle", about: "Ciências: frasco borbulhando", draw: () => ({
+    body: [
+      solid("M38 10h24v24l24 46a8 8 0 0 1-7 12H21a8 8 0 0 1-7-12l24-46z", "glass"),
+      paint("M27 60h46l13 22a6 6 0 0 1-5 9H19a6 6 0 0 1-5-9z", C.green[0]),
+      line("M38 10h24v24l24 46a8 8 0 0 1-7 12H21a8 8 0 0 1-7-12l24-46z", "ink", 5, { noHalo: true }),
+      flat(rr(32, 4, 36, 10, 4), "steel", { w: 4 }),
+    ],
+    face: [50, 70, 0.66, "curious"],
+    fx: [fxFill(ell(44, -2, 4), "#22C27B"), fxFill(ell(58, -10, 3), "#22C27B")],
+  }) },
+  Barco: { anim: "sway", about: "Marinha e navegação: barquinho", draw: () => ({
+    body: [
+      line("M50 8v48", "ink", 5),
+      solid("M46 12v42H14z", "paper"),
+      flat("M54 18v36h28z", "sky", { w: 4 }),
+      solid("M4 58h92l-14 28H18z", "coral"),
+    ],
+    face: [50, 70, 0.62, "happy"],
+    fx: [fxLine("M4 92q8-6 16 0t16 0M64 92q8-6 16 0t16 0", "#38B2FF", 3)],
+  }) },
+  Lupa: { anim: "zap", about: "Controle e auditoria: lupa", draw: () => ({
+    body: [
+      ...inkLine("M66 66l24 24", "brown", 9),
+      solid(ell(42, 42, 34), "steel"),
+      flat(ell(42, 42, 26), "glass", { w: 4 }),
+      shine("M24 32a20 20 0 0 1 10-10"),
+    ],
+    face: [42, 44, 0.8, "curious"],
+  }) },
+  Recibo: { anim: "hop", about: "Fiscal e tributária: nota fiscal", draw: () => ({
+    body: [
+      solid("M20 6h60v86l-10-6-10 6-10-6-10 6-10-6-10 6z", "paper"),
+      line("M32 62h36M32 72h24", "#B7AFCC", 3.5, { noHalo: true }),
+      solid(ell(70, 22, 9), "green", { lipY: 3 }),
+      line("M66 22l3 3 6-6", WHITE, 3, { noHalo: true }),
+    ],
+    face: [46, 38, 0.8, "smile"],
+  }) },
+  Urna: { anim: "hop", about: "Legislativo: urna de votação", draw: () => ({
+    body: [
+      solid("M32 6h36v40H32z", "paper", { lipY: 3 }),
+      line("M41 24l6 6 11-11", "#22C27B", 4, { noHalo: true }),
+      solid(rr(8, 40, 84, 50, 10), "indigo"),
+      line("M30 40h40", "ink", 5, { noHalo: true }),
+      shine("M18 52v20"),
+    ],
+    face: [50, 66, 0.8, "proud"],
+  }) },
+  Cofrinho: { anim: "hop", about: "Bancos: cofrinho", draw: () => ({
+    body: [
+      solid(rr(22, 74, 12, 18, 4), "pink", { lipY: 3 }),
+      solid(rr(60, 74, 12, 18, 4), "pink", { lipY: 3 }),
+      solid("M28 32 32 12 46 26z", "pink"),
+      solid(ell(48, 56, 40, 30), "pink"),
+      flat(ell(88, 58, 7, 10), "pink", { w: 4 }),
+      paint(ell(86, 55, 1.6) + ell(90, 61, 1.6), INK),
+      line("M40 28h16", "ink", 4, { noHalo: true }),
+      flat(ell(48, 14, 9), "sun", { w: 3.5 }),
+    ],
+    face: [44, 56, 0.85, "happy"],
+  }) },
 };
 
 // ------------------------------------------------------------------ montagem

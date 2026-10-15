@@ -32,6 +32,9 @@ enum class Glyph {
     House, Books, OpenBook, Calendar, Timer, Clipboard, Notebook, Bookmark, Cap, Check, Flag,
     Lock, Star, Trophy, Medal, Bulb, Warning, Oops, Fire, Bolt, Heart, Bell, Chart, Cycle, Target, Folder,
     Gear, Help, Person, Shield, Cards, Dice, Play, Cloud, Doc, Pencil, Sun, Moon, Phone, Gem, Brain, Trap,
+    // Matérias e áreas de concurso (SubjectArt)
+    Idioma, Pena, Calculadora, Laptop, Colunas, Martelo, Moedas, Maleta, Pergaminho, Balanca, Globo, KitMedico,
+    Frasco, Barco, Lupa, Recibo, Urna, Cofrinho,
 }
 
 @Composable

@@ -50,6 +50,12 @@ const NAMES: Record<string, string[]> = {
   Phone: ["devices", "phone_android", "smartphone", "computer"],
   Gem: ["fiber_new", "diamond"],
   Trap: ["pest_control_rodent"],
+  // Matérias e áreas de concurso (SubjectArt): nomes próprios, para não trocar ícones já usados.
+  Idioma: ["art-idioma"], Pena: ["art-pena"], Calculadora: ["art-calculadora"], Laptop: ["art-laptop"],
+  Colunas: ["art-colunas"], Martelo: ["art-martelo"], Moedas: ["art-moedas"], Maleta: ["art-maleta"],
+  Pergaminho: ["art-pergaminho"], Balanca: ["art-balanca"], Globo: ["art-globo"], KitMedico: ["art-kitmedico"],
+  Frasco: ["art-frasco"], Barco: ["art-barco"], Lupa: ["art-lupa"], Recibo: ["art-recibo"], Urna: ["art-urna"],
+  Cofrinho: ["art-cofrinho"],
 };
 for (const k of Object.keys(icons)) if (!NAMES[k]) throw new Error(`sem nomes do Material: ${k}`);
 
