@@ -1,30 +1,55 @@
 package br.com.estudario.ui.screens
 
-import br.com.estudario.ui.theme.screenPadding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.*
-import br.com.estudario.ui.brand.ElevatedCard
-import br.com.estudario.ui.brand.FilledTonalButton
-import br.com.estudario.ui.brand.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import br.com.estudario.ui.AppViewModel
-import br.com.estudario.domain.ProgressEngine
-import br.com.estudario.ui.components.EmptyState
-import br.com.estudario.ui.components.XpTag
-import br.com.estudario.domain.ReviewPolicy
 import br.com.estudario.domain.ComputedReviewStatus
-import java.text.DateFormat
-import java.util.Date
+import br.com.estudario.domain.ReviewPolicy
+import br.com.estudario.ui.AppViewModel
+import br.com.estudario.ui.brand.Icon
+import br.com.estudario.ui.brand.marker
+import br.com.estudario.ui.components.EmptyState
+import br.com.estudario.ui.theme.screenPadding
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.TextStyle
+import java.util.Locale
 
+private val Gold = Color(0xFFF5B83D)
+private val Mint = Color(0xFF2FBF8A)
+private val Red = Color(0xFFE5484D)
+private val InkA = Color(0xFF2E2799)
+private val InkB = Color(0xFF1B1464)
+private val ladder = listOf("D+1", "D+7", "D+30", "D+60")
+
+/**
+ * As revisões espaçadas com a cara do Estudário, como no site: o cartão de tinta com o que há para
+ * hoje (e o botão para começar), as revisões do dia com a escadinha das etapas e as próximas numa
+ * linha do tempo por dia.
+ */
 @Composable
 fun ReviewsScreen(
     viewModel: AppViewModel,
@@ -35,32 +60,146 @@ fun ReviewsScreen(
 ) {
     val reviews by viewModel.reviews.collectAsState()
     val topics by viewModel.topics.collectAsState()
-    val pending = reviews.filter { it.completedAt == null && it.ignoredAt == null }.sortedWith(compareBy({ ReviewPolicy.status(it).ordinal }, { it.dueAt }))
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val subjects by viewModel.subjects.collectAsState()
+    val pending = reviews.filter { it.completedAt == null && it.ignoredAt == null }
+    val due = pending.filter { ReviewPolicy.status(it) in setOf(ComputedReviewStatus.DISPONIVEL, ComputedReviewStatus.ATRASADA) }.sortedBy { it.dueAt }
+    val late = due.count { ReviewPolicy.status(it) == ComputedReviewStatus.ATRASADA }
+    val upcoming = (pending - due.toSet()).sortedBy { it.dueAt }
+    val zone = ZoneId.systemDefault()
+    val today = LocalDate.now(zone)
+    fun dateOf(millis: Long) = Instant.ofEpochMilli(millis).atZone(zone).toLocalDate()
+    val doneToday = reviews.count { it.completedAt != null && dateOf(it.completedAt!!) == today }
+
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (showInlineBack) IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") }
-                Column { Text("Revisões", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("D+1, D+7, D+30, e depois sempre, com intervalo maior a cada volta") }
+                Column {
+                    Text("Revisões", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, modifier = Modifier.padding(start = 3.dp).marker())
+                    Text("Revisar na hora certa é o que faz o conteúdo ficar", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
-        if (pending.isEmpty()) item { EmptyState("Revisões em dia", "Marque um tópico como estudado para criar a agenda automaticamente.") }
-        items(pending, key = { it.id }) { review ->
-            val topic = topics.firstOrNull { it.id == review.topicId }
-            val status = ReviewPolicy.status(review)
-            ElevatedCard(onClick = { onStartReview(review.id) }) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(topic?.title ?: "Tópico", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("${when (status) { ComputedReviewStatus.ATRASADA -> "Atrasada"; ComputedReviewStatus.DISPONIVEL -> "Disponível"; else -> "Agendada" }} • ${DateFormat.getDateInstance().format(Date(review.dueAt))}")
-                        Text("${review.stage}ª revisão deste tópico", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        item {
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(Brush.linearGradient(listOf(InkA, InkB)))
+                    .drawBehind {
+                        val step = 26.dp.toPx(); var y = step
+                        while (y < size.height) { drawLine(Color.White.copy(alpha = 0.05f), Offset(0f, y), Offset(size.width, y), 1.dp.toPx()); y += step }
                     }
-                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        XpTag(ProgressEngine.previewReview())
-                        FilledTonalButton(onClick = { onStartReview(review.id) }) { Text("Revisar") }
-                        TextButton(onClick = { onOpenTopic(review.topicId) }) { Text("Ver tópico") }
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Text("REVISÃO ESPAÇADA", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Gold)
+                Text(
+                    if (due.isEmpty()) "Tudo em dia por hoje" else "${due.size} ${if (due.size == 1) "revisão" else "revisões"} para hoje",
+                    style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = Color.White,
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HeroStat("${due.size}", "hoje", Gold, Modifier.weight(1f))
+                    HeroStat("$late", "atrasadas", Color(0xFFFF8A80), Modifier.weight(1f))
+                    HeroStat("$doneToday", "feitas", Color(0xFF7EE0B8), Modifier.weight(1f))
+                }
+                if (due.isNotEmpty()) Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Gold).clickable { onStartReview(due.first().id) }.padding(vertical = 14.dp),
+                    horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Outlined.PlayArrow, null, Modifier.size(22.dp), tint = InkB)
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (due.size > 1) "Começar pela primeira" else "Começar a revisão", fontWeight = FontWeight.Black, color = InkB)
+                }
+            }
+        }
+        if (due.isEmpty() && upcoming.isEmpty()) item { EmptyState("Revisões em dia", "Marque um tópico como estudado: as revisões entram sozinhas em D+1, D+7 e D+30.") }
+        if (due.isNotEmpty()) item { Text("Para fazer agora", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface) }
+        items(due, key = { it.id }) { review ->
+            val topic = topics.firstOrNull { it.id == review.topicId }
+            val subject = subjects.firstOrNull { it.id == topic?.subjectId }
+            val daysLate = java.time.temporal.ChronoUnit.DAYS.between(dateOf(review.dueAt), today)
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .border(1.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f), RoundedCornerShape(20.dp))
+                    .drawBehind { drawRect(if (daysLate > 0) Red else Gold, size = Size(5.dp.toPx(), size.height)) }
+                    .clickable { onStartReview(review.id) }
+                    .padding(start = 20.dp, end = 14.dp, top = 14.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text((subject?.name ?: "").uppercase(), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (daysLate > 0) Text(
+                        "atrasada $daysLate ${if (daysLate == 1L) "dia" else "dias"}",
+                        Modifier.clip(RoundedCornerShape(50)).background(Red.copy(alpha = 0.12f)).padding(horizontal = 8.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Red,
+                    )
+                }
+                Text(topic?.title ?: "Tópico", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+                StageLadder(review.stage)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { onOpenTopic(review.topicId) }) { Text("Ver tópico") }
+                    TextButton(onClick = { viewModel.ignoreReview(review) }) { Text("Pular") }
+                    br.com.estudario.ui.brand.Button(onClick = { onStartReview(review.id) }) { Text("Revisar") }
+                }
+            }
+        }
+        if (upcoming.isNotEmpty()) {
+            item { Text("Próximas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(top = 6.dp)) }
+            items(upcoming.take(30).groupBy { dateOf(it.dueAt) }.entries.take(10).toList(), key = { it.key.toEpochDay() }) { (date, list) ->
+                Row(verticalAlignment = Alignment.Top) {
+                    Column(
+                        Modifier.width(52.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(vertical = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text("${date.dayOfMonth}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                        Text(date.month.getDisplayName(TextStyle.SHORT, Locale("pt", "BR")).uppercase().trimEnd('.'), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f).padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        list.forEach { review ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    ladder.getOrElse(review.stage - 1) { "R${review.stage}" },
+                                    Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.primaryContainer).padding(horizontal = 8.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(topics.firstOrNull { it.id == review.topicId }?.title ?: "Tópico", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun HeroStat(value: String, label: String, color: Color, modifier: Modifier) {
+    Column(
+        modifier.clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.07f)).border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(14.dp)).padding(10.dp),
+    ) {
+        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = color)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.75f))
+    }
+}
+
+/** A escadinha das etapas: feitas em verde, a de agora em dourado. */
+@Composable
+private fun StageLadder(stage: Int) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        ladder.forEachIndexed { i, label ->
+            val s = i + 1
+            val done = s < stage
+            val now = s == stage
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    Modifier.size(22.dp).clip(CircleShape).background(when { done -> Mint; now -> Gold; else -> Color.Transparent })
+                        .border(2.dp, when { done -> Mint; now -> Gold; else -> MaterialTheme.colorScheme.outlineVariant }, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { if (done) Icon(Icons.Outlined.Check, null, Modifier.size(14.dp), tint = Color.White) }
+                Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = if (now) FontWeight.Black else FontWeight.SemiBold, color = if (now) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (i < ladder.lastIndex) Box(Modifier.weight(1f).padding(top = 10.dp, start = 4.dp, end = 4.dp).height(2.dp).background(if (done) Mint else MaterialTheme.colorScheme.outlineVariant))
+        }
+        if (stage > ladder.size) Text("  etapa $stage", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

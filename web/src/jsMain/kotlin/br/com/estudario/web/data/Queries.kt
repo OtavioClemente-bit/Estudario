@@ -123,6 +123,10 @@ object Queries {
     val weekdayShort = listOf("seg", "ter", "qua", "qui", "sex", "sáb", "dom")
     val weekdayLong = listOf("segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo")
     val monthShort = listOf("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
+    fun startOfToday(): Long = todayDate().startOfDay(zone).toEpochMilliseconds()
+
+    fun monthShort(date: LocalDate): String = monthLong[date.month.ordinal].take(3).uppercase()
+
     val monthLong = listOf("janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro")
 
     fun dayLabel(date: LocalDate): String = "${date.day} de ${monthLong[date.month.ordinal]}"

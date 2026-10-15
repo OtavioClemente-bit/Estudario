@@ -20,6 +20,7 @@ sealed class Route(val path: String) {
     data object Notebook : Route("caderno")
     data class Flashcards(val topicId: Long?) : Route(if (topicId == null) "caderno/flashcards" else "caderno/flashcards/$topicId")
     data object Reviews : Route("caderno/revisoes")
+    data class ReviewSession(val id: Long) : Route("caderno/revisoes/$id")
     data object Errors : Route("caderno/erros")
     data object Focus : Route("foco")
     data object FocusHistory : Route("foco/historico")
@@ -41,6 +42,7 @@ sealed class Route(val path: String) {
             PlanSettings -> Plan
             is Quiz, Simulations, is Simulation -> Train
             is Flashcards -> Notebook
+            is ReviewSession -> Reviews
             else -> this
         }
 
@@ -62,7 +64,7 @@ sealed class Route(val path: String) {
                 }
                 "caderno" -> when (second) {
                     "flashcards" -> Flashcards(parts.getOrNull(2)?.toLongOrNull())
-                    "revisoes" -> Reviews
+                    "revisoes" -> parts.getOrNull(2)?.toLongOrNull()?.let(::ReviewSession) ?: Reviews
                     "erros" -> Errors
                     else -> Notebook
                 }

@@ -79,7 +79,7 @@ private fun titleOf(route: Route): String = when (route) {
     Route.Simulations, is Route.Simulation -> "Simulados"
     Route.Notebook -> "Caderno de estudo"
     is Route.Flashcards -> "Flashcards"
-    Route.Reviews -> "Revisões espaçadas"
+    Route.Reviews, is Route.ReviewSession -> "Revisões espaçadas"
     Route.Errors -> "Caderno de erros"
     Route.Focus -> "Modo foco"
     Route.FocusHistory -> "Histórico do foco"
@@ -148,6 +148,7 @@ private fun Screen(route: Route) {
         Route.Notebook -> NotebookScreen()
         is Route.Flashcards -> FlashcardsScreen(route.topicId)
         Route.Reviews -> ReviewsScreen()
+        is Route.ReviewSession -> ReviewSessionScreen(route.id)
         Route.Errors -> ErrorsScreen()
         Route.Focus -> FocusScreen()
         Route.FocusHistory -> FocusHistoryScreen()
@@ -193,7 +194,7 @@ private fun Shell(content: @Composable () -> Unit) {
                     if (photo != null) Img(src = photo, alt = "") else Text(initials(session?.name ?: session?.email))
                 }
             }
-            val narrow = route is Route.Topic || route is Route.Quiz || route is Route.Flashcards || route == Route.Focus || route == Route.Setup
+            val narrow = route is Route.Topic || route is Route.ReviewSession || route is Route.Quiz || route is Route.Flashcards || route == Route.Focus || route == Route.Setup
             Main({ classes(*listOfNotNull("content", if (narrow) "narrow" else null).toTypedArray()); id("conteudo") }) {
                 if (Store.demo) Div({ classes("banner", "info") }) {
                     Icon("visibility")

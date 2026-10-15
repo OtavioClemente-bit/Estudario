@@ -176,7 +176,7 @@ object Actions {
     // ------------------------------------------------------------------ revisões
 
     /** StudyRepository.completeReview */
-    fun completeReview(data: Snapshot, reviewId: Long, difficulty: ReviewDifficulty, correct: Int = 0, total: Int = 0, startedAt: Long = now()): Snapshot {
+    fun completeReview(data: Snapshot, reviewId: Long, difficulty: ReviewDifficulty, correct: Int = 0, total: Int = 0, startedAt: Long = now(), recalled: Int = 0, forgotten: Int = 0): Snapshot {
         val review = data.reviews.firstOrNull { it.id == reviewId } ?: return data
         val at = now()
         val ofTopic = data.reviews.filter { it.topicId == review.topicId }
@@ -202,7 +202,7 @@ object Actions {
         next = next.append(Keys.REVIEW_HISTORY, jsonOf("id" to next.nextId(Keys.REVIEW_HISTORY), "topicId" to review.topicId, "reviewedAt" to at))
         next = next.append(
             Keys.REVIEW_SESSIONS,
-            jsonOf("id" to next.nextId(Keys.REVIEW_SESSIONS), "reviewId" to review.id, "topicId" to review.topicId, "startedAt" to startedAt, "completedAt" to at, "recalled" to 0, "forgotten" to 0, "questionCorrect" to correct, "questionTotal" to total, "difficulty" to difficulty.name),
+            jsonOf("id" to next.nextId(Keys.REVIEW_SESSIONS), "reviewId" to review.id, "topicId" to review.topicId, "startedAt" to startedAt, "completedAt" to at, "recalled" to recalled, "forgotten" to forgotten, "questionCorrect" to correct, "questionTotal" to total, "difficulty" to difficulty.name),
         )
         return next.edit(Keys.TOPICS) { if (it.idIs(review.topicId)) it.with("status" to JsonPrimitive("REVISANDO"), "lastReviewedAt" to JsonPrimitive(at)) else it }
     }
