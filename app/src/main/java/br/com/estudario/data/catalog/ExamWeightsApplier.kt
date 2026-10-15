@@ -12,7 +12,7 @@ import kotlinx.coroutines.CancellationException
  */
 object ExamWeightsApplier {
     suspend fun apply(dao: AppDao, competitionId: Long, subjects: List<ExamCatalogSubject>): Boolean {
-        val weights = ExamWeights.assessAll(subjects.map { it.questions })
+        val weights = ExamWeights.assessAll(subjects.map { it.share })
         if (weights.isEmpty()) return false
         val byName = subjects.mapIndexed { index, subject -> subject.name.lowercase() to weights[index] }.toMap()
         var changed = false

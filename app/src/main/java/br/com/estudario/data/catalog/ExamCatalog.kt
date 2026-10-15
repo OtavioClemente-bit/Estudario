@@ -50,7 +50,17 @@ data class ExamCatalogEntry(
 
 @Serializable
 /** [questions]: questões da matéria na prova real (quadro do edital); null quando o edital não informa. */
-data class ExamCatalogSubject(val name: String, val topics: List<String>, val questions: Int? = null)
+data class ExamCatalogSubject(
+    val name: String,
+    val topics: List<String>,
+    val questions: Int? = null,
+    /** Peso de cada questão da matéria na nota (1 quando o edital não diferencia). */
+    val weight: Double? = null,
+    /** Quando o edital só dá o total do bloco: a frase que explica a divisão. */
+    val blockNote: String? = null,
+) {
+    val share: br.com.estudario.domain.ExamWeights.Share? get() = questions?.let { br.com.estudario.domain.ExamWeights.Share(it, weight ?: 1.0, blockNote) }
+}
 
 @Serializable
 private data class ExamCatalogSubjectsRow(val subjects: List<ExamCatalogSubject>)

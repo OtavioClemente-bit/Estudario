@@ -10,14 +10,14 @@ import kotlin.test.assertTrue
 class ExamWeightsTest {
     @Test
     fun heavySubjectsBecomeHighPriorityAndEvidenceRoundTrips() {
-        val all = ExamWeights.assessAll(listOf(40, 10, 10, 5))
+        val all = ExamWeights.assessAll(listOf(40, 10, 10, 5).map { ExamWeights.Share(it) })
         assertEquals(PriorityLevel.VERY_HIGH, all[0].level)
         // 10 de 65 (15%) com 4 matérias (média de 25%) fica abaixo da média.
         assertEquals(PriorityLevel.LOW, all[1].level)
         assertTrue(all[3].level == PriorityLevel.LOW || all[3].level == PriorityLevel.VERY_LOW)
         assertEquals(PrioritySource.OFFICIAL_EXAM_STRUCTURE, all[0].source)
         assertEquals(40, ExamWeights.questionsOfJson(ExamWeights.evidenceJson(all[0].evidence)))
-        assertEquals(emptyList(), ExamWeights.assessAll(listOf(10, null)))
+        assertEquals(emptyList(), ExamWeights.assessAll(listOf(ExamWeights.Share(10), null)))
     }
 
     @Test

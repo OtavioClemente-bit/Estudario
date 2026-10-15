@@ -36,7 +36,17 @@ data class CatalogEntry(
 
 @Serializable
 /** [questions]: questões da matéria na prova real (quadro do edital); null quando o edital não informa. */
-data class CatalogSubject(val name: String, val topics: List<String>, val questions: Int? = null)
+data class CatalogSubject(
+    val name: String,
+    val topics: List<String>,
+    val questions: Int? = null,
+    /** Peso de cada questão da matéria na nota (1 quando o edital não diferencia). */
+    val weight: Double? = null,
+    /** Quando o edital só dá o total do bloco: a frase que explica a divisão. */
+    val blockNote: String? = null,
+) {
+    val share: ExamWeights.Share? get() = questions?.let { ExamWeights.Share(it, weight ?: 1.0, blockNote) }
+}
 
 @Serializable
 private data class CatalogSubjectsRow(val subjects: List<CatalogSubject>)
@@ -141,7 +151,7 @@ object Catalog {
         val newTopics = mutableListOf<JsonObject>()
         val currentSubjects = next.subjects.filter { it.competitionId == competitionId }
         // Peso real da prova vira a prioridade de cada matéria (só se o edital informa todas).
-        val weights = ExamWeights.assessAll(subjects.map { it.questions })
+        val weights = ExamWeights.assessAll(subjects.map { it.share })
         subjects.forEachIndexed { index, subject ->
             val sid = currentSubjects.firstOrNull { it.name.equals(subject.name, true) }?.id
                 ?: subjectId++.also { newSubjects += jsonOf("id" to it, "competitionId" to competitionId, "name" to subject.name, "position" to currentSubjects.size + index, "externalId" to null).let { row -> JsonObject(row + (weights.getOrNull(index)?.let(::priorityFields)?.mapValues { (_, v) -> v.toJsonElement() } ?: emptyMap())) } }
@@ -167,7 +177,7 @@ object Catalog {
      * o catálogo ter os pesos). Nunca mexe na prioridade que a pessoa trocou nem numa avaliação já feita.
      */
     fun withWeights(data: Snapshot, competitionId: Long, subjects: List<CatalogSubject>): Snapshot {
-        val weights = ExamWeights.assessAll(subjects.map { it.questions })
+        val weights = ExamWeights.assessAll(subjects.map { it.share })
         if (weights.isEmpty()) return data
         val byName = subjects.mapIndexed { index, subject -> subject.name.lowercase() to weights[index] }.toMap()
         val ids = data.subjects.filter { it.competitionId == competitionId && it.userPriorityOverride == null }.associate { it.id to it.name.lowercase() }

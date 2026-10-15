@@ -313,8 +313,8 @@ fun accuracyColor(percent: Int?): String = when {
     else -> "#2FA36B"
 }
 
-/** Questões da matéria na prova real (peso lido no quadro do edital), quando o edital informa. */
-fun subjectExamQuestions(data: Snapshot, subjectId: Long): Int? =
+/** Peso da matéria na prova (frase lida no quadro do edital), quando o edital informa. */
+fun subjectExamWeight(data: Snapshot, subjectId: Long): String? =
     (data.array(br.com.estudario.web.data.Keys.SUBJECTS).firstOrNull { (it as? kotlinx.serialization.json.JsonObject)?.get("id")?.toString() == subjectId.toString() } as? kotlinx.serialization.json.JsonObject)
         ?.get("assessedPriorityEvidenceJson")?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
-        .let { br.com.estudario.domain.ExamWeights.questionsOfJson(it) }
+        .let { br.com.estudario.domain.ExamWeights.descriptionOfJson(it) }

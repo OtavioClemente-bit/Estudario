@@ -198,6 +198,8 @@ for (const { path, value } of await jsonFiles("editais")) {
     topics: ((subject.topicos ?? []) as Json[]).map((topic) => String(topic.texto ?? "").trim()).filter(Boolean),
     // Questões da matéria na prova real (quadro do edital); o app transforma em prioridade.
     ...(Number.isInteger(subject.questoes) && (subject.questoes as number) > 0 ? { questions: subject.questoes } : {}),
+    ...(typeof subject.peso === "number" && subject.peso > 0 && subject.peso !== 1 ? { weight: subject.peso } : {}),
+    ...(typeof subject.notaBloco === "string" && subject.notaBloco.trim() ? { blockNote: subject.notaBloco.trim() } : {}),
   })).filter((subject) => subject.name && subject.topics.length > 0);
   const topics = ((value.disciplinas ?? []) as Json[]).flatMap((subject) => (subject.topicos ?? []) as Json[]);
   const synonyms = Array.isArray(value.sinonimos) ? (value.sinonimos as unknown[]).map(String) : [];
