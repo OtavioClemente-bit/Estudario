@@ -1,0 +1,1471 @@
+{
+  "id": "informatica.testes-unitarios-integracao-junit-mockito",
+  "subject": "Informática",
+  "title": "Testes de Software: Testes Unitários e de Integração, JUnit e Mockito",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Testes unitários e de integração",
+    "JUnit e Mockito",
+    "Testes de software: testes unitários e de integração; JUnit e Mockito",
+    "Testes automatizados em Java"
+  ],
+  "scope": {
+    "covers": "Níveis de teste (unitário, integração, sistema, aceitação) e pirâmide de testes; características de um bom teste unitário; testes de integração e suas abordagens; JUnit 5 (anotações @Test, @BeforeEach, @AfterEach, @BeforeAll, @AfterAll, @Disabled, @DisplayName, @ParameterizedTest, asserções como assertEquals, assertTrue, assertThrows, assertAll); dublês de teste (dummy, stub, fake, mock, spy); Mockito (mock, when/thenReturn, thenThrow, verify, times, never, @Mock, @InjectMocks, @Spy, ArgumentCaptor, matchers); TDD e cobertura de código.",
+    "excludes": "Testes de desempenho e segurança em profundidade, ferramentas de outras linguagens e frameworks de teste de interface."
+  },
+  "theoryTitle": "Testar cada peça sozinha e depois juntas",
+  "chapters": [
+    {
+      "title": "1. Níveis de teste e testes unitários",
+      "order": 1,
+      "markdown": "### Níveis de teste\n- **Unitário:** testa a **menor unidade** isoladamente (um método ou uma classe), sem depender de banco, rede ou outras classes reais.\n- **Integração:** verifica se **componentes funcionam juntos** (classe com banco de dados, serviço com API, módulos entre si).\n- **Sistema:** testa o sistema completo contra os requisitos.\n- **Aceitação:** valida com o usuário ou cliente se o sistema atende ao negócio.\n\n### Pirâmide de testes\n- **Base larga de testes unitários** (muitos, rápidos e baratos), **menos testes de integração** e **poucos testes de ponta a ponta** (lentos e caros).\n\n### Características de um bom teste unitário (FIRST)\n- **Fast:** rápido.\n- **Independent:** independente; não depende da ordem nem de outros testes.\n- **Repeatable:** repetível; mesmo resultado em qualquer ambiente.\n- **Self-validating:** autoverificável; passa ou falha sozinho, por asserções.\n- **Timely:** escrito no momento certo, idealmente junto ou antes do código.\n- Estrutura comum **AAA**: **Arrange** (preparar), **Act** (executar) e **Assert** (verificar).\n\n### TDD e cobertura\n- **TDD (desenvolvimento guiado por testes):** ciclo **vermelho, verde, refatorar**. Escreve-se um teste que falha, implementa-se o mínimo para passar e depois melhora-se o código.\n- **Cobertura de código:** percentual do código executado pelos testes. É útil, mas **alta cobertura não garante ausência de defeitos**, pois depende da qualidade das asserções.\n\n### Abordagens de integração\n- **Big bang:** integra tudo de uma vez e testa. É simples, mas dificulta localizar a origem das falhas.\n- **Incremental de cima para baixo (top-down):** começa pelos módulos de alto nível e usa **stubs** no lugar dos módulos inferiores ainda não prontos.\n- **Incremental de baixo para cima (bottom-up):** começa pelos módulos de baixo nível e usa **drivers**, programas que chamam o módulo testado, no lugar dos superiores.\n- **Sanduíche:** combina as duas abordagens.\n\n### Teste de regressão\n- Reexecução dos testes existentes após mudanças, para garantir que algo que funcionava não quebrou. Testes automatizados com JUnit tornam a regressão barata e frequente."
+    },
+    {
+      "title": "2. JUnit 5",
+      "order": 2,
+      "markdown": "### Anotações principais\n| Anotação | Função |\n|---|---|\n| `@Test` | marca um método de teste |\n| `@BeforeEach` / `@AfterEach` | executam **antes/depois de cada** teste |\n| `@BeforeAll` / `@AfterAll` | executam **uma vez** antes/depois de todos os testes da classe (em regra, métodos `static`) |\n| `@Disabled` | desativa o teste |\n| `@DisplayName` | nome legível do teste |\n| `@ParameterizedTest` | executa o mesmo teste com vários dados, com fontes como `@ValueSource` e `@CsvSource` |\n\n- No JUnit 4, os equivalentes eram `@Before`, `@After`, `@BeforeClass`, `@AfterClass` e `@Ignore`. O JUnit 5 (Jupiter) usa o pacote `org.junit.jupiter.api`.\n\n### Asserções\n- `assertEquals(esperado, atual)`: compara valores. A ordem é **esperado primeiro**.\n- `assertTrue` / `assertFalse`, `assertNull` / `assertNotNull`, `assertSame` (mesma referência).\n- `assertThrows(Excecao.class, () -> ...)`: verifica se o código **lança a exceção** esperada e devolve a exceção para outras verificações.\n- `assertAll(...)`: agrupa várias asserções e **relata todas as falhas**, em vez de parar na primeira.\n- `assertTimeout`: verifica se a execução termina dentro do tempo.\n\n### Ciclo de vida\n- Por padrão, o JUnit 5 cria **uma nova instância da classe para cada teste**, o que reforça a independência entre eles.\n- Ferramentas de build como o **Maven** (plugin Surefire) e o Gradle executam os testes automaticamente no ciclo de build e na integração contínua.\n\n### Exemplo de teste com JUnit\n```java\nclass CalculadoraTest {\n  private Calculadora calc;\n\n  @BeforeEach\n  void setUp() { calc = new Calculadora(); }\n\n  @Test\n  @DisplayName(\"soma dois números positivos\")\n  void soma() {\n    assertEquals(5, calc.somar(2, 3));\n  }\n\n  @Test\n  void divisaoPorZero() {\n    assertThrows(ArithmeticException.class, () -> calc.dividir(1, 0));\n  }\n}\n```"
+    },
+    {
+      "title": "3. Dublês de teste e Mockito",
+      "order": 3,
+      "markdown": "### Dublês de teste (test doubles)\n- **Dummy:** objeto passado só para preencher parâmetro, sem uso.\n- **Stub:** devolve **respostas prontas** a chamadas, para controlar o cenário.\n- **Fake:** implementação simplificada que funciona (ex.: banco em memória).\n- **Mock:** objeto programado com expectativas, usado para **verificar interações** (se um método foi chamado, quantas vezes, com quais argumentos).\n- **Spy:** objeto **real** parcialmente monitorado ou substituído.\n\n### Mockito: o essencial\n- `mock(Classe.class)` ou `@Mock`: cria um mock.\n- `when(mock.metodo(arg)).thenReturn(valor)`: define o retorno (**stubbing**). `thenThrow(...)` faz lançar exceção.\n- `verify(mock).metodo(arg)`: verifica se a chamada ocorreu. Use `times(n)`, `never()`, `atLeastOnce()` para quantidade.\n- `@InjectMocks`: cria o objeto testado **injetando nele os mocks** declarados.\n- `@Spy` / `spy(objeto)`: usa o objeto real, permitindo substituir partes. Para spies, prefere-se `doReturn(...).when(spy).metodo()`.\n- **Matchers:** `any()`, `anyString()`, `eq(...)`. Se um argumento usar matcher, **todos** os argumentos daquela chamada devem usar matchers.\n- `ArgumentCaptor`: **captura o argumento** passado ao mock para fazer asserções sobre ele.\n- Por padrão, métodos de mock não configurados devolvem valores padrão: `null`, `0`, `false` ou coleção vazia.\n- No JUnit 5, a integração costuma ser feita com `@ExtendWith(MockitoExtension.class)`.\n\n### Unitário × integração na prática\n- No teste **unitário** de um serviço, o repositório é **mockado**: o teste é rápido e isola a regra de negócio.\n- No teste de **integração**, usa-se o componente real (ou um banco em memória ou em contêiner) para verificar a colaboração entre as partes.\n\n### Exemplo com Mockito\n```java\n@ExtendWith(MockitoExtension.class)\nclass PedidoServiceTest {\n  @Mock PedidoRepository repo;\n  @InjectMocks PedidoService service;\n\n  @Test\n  void naoSalvaPedidoInvalido() {\n    assertThrows(IllegalArgumentException.class, () -> service.criar(null));\n    verify(repo, never()).salvar(any());\n  }\n}\n```"
+    }
+  ],
+  "summary": "O teste unitário verifica a menor unidade isolada; o de integração, a colaboração entre componentes; o de sistema, o todo; e o de aceitação, o negócio com o usuário. A pirâmide de testes prevê muitos unitários, menos de integração e poucos de ponta a ponta. Um bom teste unitário é rápido, independente, repetível, autoverificável e oportuno (FIRST) e segue a estrutura preparar, executar e verificar (AAA). O TDD segue o ciclo vermelho, verde, refatorar, e cobertura alta não garante ausência de defeitos. No JUnit 5, @Test marca o teste, @BeforeEach e @AfterEach rodam a cada teste, @BeforeAll e @AfterAll rodam uma vez (métodos estáticos), @Disabled desativa e @ParameterizedTest repete com dados. Entre as asserções, assertEquals recebe o esperado primeiro, assertThrows verifica exceções e assertAll relata todas as falhas. Os dublês são dummy, stub (respostas prontas), fake (implementação simplificada), mock (verifica interações) e spy (objeto real monitorado). No Mockito, when/thenReturn define retornos, verify com times e never confere chamadas, @InjectMocks injeta os mocks no objeto testado, matchers exigem que todos os argumentos usem matchers e ArgumentCaptor captura argumentos. Mocks não configurados devolvem valores padrão.",
+  "flashcards": [
+    {
+      "front": "Teste unitário",
+      "back": "Testa a menor unidade isolada, sem dependências reais como banco ou rede."
+    },
+    {
+      "front": "Teste de integração",
+      "back": "Verifica se componentes funcionam juntos."
+    },
+    {
+      "front": "Pirâmide de testes",
+      "back": "Muitos unitários, menos de integração, poucos de ponta a ponta."
+    },
+    {
+      "front": "FIRST",
+      "back": "Fast, Independent, Repeatable, Self-validating, Timely."
+    },
+    {
+      "front": "AAA",
+      "back": "Arrange, Act, Assert: preparar, executar, verificar."
+    },
+    {
+      "front": "Ciclo do TDD",
+      "back": "Vermelho, verde, refatorar."
+    },
+    {
+      "front": "@BeforeEach x @BeforeAll",
+      "back": "BeforeEach roda antes de cada teste; BeforeAll uma vez antes de todos (em regra estático)."
+    },
+    {
+      "front": "Ordem do assertEquals",
+      "back": "Esperado primeiro, valor atual depois."
+    },
+    {
+      "front": "assertThrows",
+      "back": "Verifica se o código lança a exceção esperada."
+    },
+    {
+      "front": "assertAll",
+      "back": "Agrupa asserções e relata todas as falhas."
+    },
+    {
+      "front": "Stub x mock",
+      "back": "Stub devolve respostas prontas; mock verifica interações."
+    },
+    {
+      "front": "when/thenReturn",
+      "back": "Define o retorno de um método do mock (stubbing)."
+    },
+    {
+      "front": "verify(mock, times(2))",
+      "back": "Confere se o método foi chamado duas vezes."
+    },
+    {
+      "front": "@InjectMocks",
+      "back": "Cria o objeto testado injetando nele os mocks."
+    },
+    {
+      "front": "ArgumentCaptor",
+      "back": "Captura o argumento passado ao mock para verificação."
+    }
+  ],
+  "tips": [
+    "Unitário isola; integração junta.",
+    "Each é a cada teste; All é uma vez só.",
+    "assertEquals: esperado vem antes.",
+    "when define o que o mock devolve; verify confere o que aconteceu.",
+    "Usou matcher num argumento, use em todos."
+  ],
+  "traps": [
+    "Achar que teste unitário acessa banco de dados real.",
+    "Confundir @BeforeEach com @BeforeAll.",
+    "Inverter a ordem de esperado e atual no assertEquals.",
+    "Confundir stub com mock.",
+    "Achar que 100% de cobertura garante código sem defeitos."
+  ],
+  "activeRecall": [
+    {
+      "question": "Qual a diferença entre teste unitário e de integração?",
+      "answer": "O unitário testa uma unidade isolada, substituindo dependências por dublês; o de integração verifica a colaboração real entre componentes, como serviço e banco de dados."
+    },
+    {
+      "question": "O que fazem @BeforeEach e @BeforeAll no JUnit 5?",
+      "answer": "@BeforeEach executa antes de cada teste; @BeforeAll executa uma única vez antes de todos os testes da classe e, em regra, é um método estático."
+    },
+    {
+      "question": "Como se configura o retorno e se verifica uma chamada no Mockito?",
+      "answer": "Com when(mock.metodo()).thenReturn(valor) para o retorno e verify(mock).metodo() para a chamada, podendo usar times(n) ou never()."
+    },
+    {
+      "question": "Para que serve @InjectMocks?",
+      "answer": "Para criar a instância da classe testada e injetar nela automaticamente os mocks declarados com @Mock."
+    },
+    {
+      "question": "Qual a regra dos matchers no Mockito?",
+      "answer": "Se um argumento da chamada usar matcher (como any()), todos os argumentos daquela chamada devem usar matchers, por exemplo eq() para valores fixos."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Níveis e boas práticas",
+      "summary": "Errar níveis de teste, pirâmide, FIRST, AAA, TDD e cobertura."
+    },
+    {
+      "key": "e2",
+      "title": "JUnit",
+      "summary": "Errar anotações, asserções e ciclo de vida do JUnit."
+    },
+    {
+      "key": "e3",
+      "title": "Dublês e Mockito",
+      "summary": "Errar tipos de dublê e recursos do Mockito."
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "JUnit 5 User Guide",
+      "publisher": "JUnit Team",
+      "reference": "Documentação oficial",
+      "url": "https://junit.org/junit5/docs/current/user-guide/",
+      "accessedAt": "2026-10-15"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Mockito Documentation",
+      "publisher": "Mockito",
+      "reference": "Documentação oficial",
+      "url": "https://site.mockito.org/",
+      "accessedAt": "2026-10-15"
+    }
+  ],
+  "questions": [
+    {
+      "statement": "O teste unitário verifica a menor unidade do código de forma isolada, sem depender de banco de dados, rede ou outras classes reais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As dependências são substituídas por dublês, como mocks e stubs, o que torna o teste rápido, determinístico e focado na regra da unidade testada.",
+      "section": "1. Níveis de teste e testes unitários",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O nível de teste que verifica se componentes distintos, como um serviço e o banco de dados, funcionam corretamente juntos é o teste:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "unitário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "de integração.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "de aceitação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "de usabilidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "de regressão visual.",
+          "correct": false
+        }
+      ],
+      "explanation": "B está correta. O teste de integração foca a colaboração real entre as partes; o unitário isola uma unidade, e o de aceitação valida o atendimento ao negócio.",
+      "section": "1. Níveis de teste e testes unitários",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na pirâmide de testes, recomenda-se ter muitos testes de ponta a ponta e poucos testes unitários, pois os primeiros são mais rápidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A base da pirâmide são os testes unitários, numerosos, rápidos e baratos; os de ponta a ponta ficam no topo, em menor número, por serem lentos e caros.",
+      "section": "1. Níveis de teste e testes unitários",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No acrônimo FIRST, que descreve bons testes unitários, a letra I significa que o teste deve ser:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "integrado ao banco de dados de produção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "interativo, exigindo confirmação manual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "incremental, rodando só uma vez por versão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "independente dos demais testes.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "ilustrado com capturas de tela.",
+          "correct": false
+        }
+      ],
+      "explanation": "D está correta. O teste não deve depender da ordem de execução nem do resultado de outro teste; FIRST significa rápido, independente, repetível, autoverificável e oportuno.",
+      "section": "1. Níveis de teste e testes unitários",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A estrutura AAA de um teste corresponde às etapas de preparar o cenário, executar a ação e verificar o resultado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Arrange, Act e Assert organizam o teste de forma legível, separando a montagem dos dados, a chamada ao código e as asserções sobre o resultado.",
+      "section": "1. Níveis de teste e testes unitários",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No TDD, o ciclo de desenvolvimento segue a sequência:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "codificar, implantar e testar em produção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "refatorar, codificar e documentar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "vermelho, verde e refatorar.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "verde, vermelho e implantar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "planejar, codificar e descartar testes.",
+          "correct": false
+        }
+      ],
+      "explanation": "C está correta. Escreve-se um teste que falha (vermelho), implementa-se o mínimo para passar (verde) e depois melhora-se o código mantendo os testes passando.",
+      "section": "1. Níveis de teste e testes unitários",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cobertura de código de 100% garante que o software não possui defeitos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A cobertura mede o código executado pelos testes, não a qualidade das verificações; testes sem asserções relevantes podem cobrir tudo e ainda deixar defeitos passarem.",
+      "section": "1. Níveis de teste e testes unitários",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O teste de aceitação tem como objetivo principal:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "validar com o usuário se o sistema atende ao negócio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "testar um método isolado com dublês.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "medir a cobertura de cada classe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "verificar só a compilação do código.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "substituir o banco por uma versão em memória.",
+          "correct": false
+        }
+      ],
+      "explanation": "A está correta. Ele confirma, com o usuário ou cliente, que os requisitos de negócio foram atendidos, depois dos testes unitários, de integração e de sistema.",
+      "section": "1. Níveis de teste e testes unitários",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No JUnit 5, a anotação que faz um método executar antes de cada teste da classe é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "@BeforeAll.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "@AfterEach.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "@Disabled.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "@DisplayName.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "@BeforeEach.",
+          "correct": true
+        }
+      ],
+      "explanation": "E está correta. O @BeforeAll roda uma única vez antes de todos os testes e, em regra, exige método estático; o @AfterEach roda depois de cada teste.",
+      "section": "2. JUnit 5",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No JUnit 5, os métodos anotados com @BeforeAll e @AfterAll devem, em regra, ser estáticos, pois executam uma única vez para toda a classe de teste.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Como o JUnit cria uma nova instância da classe para cada teste por padrão, métodos de execução única precisam ser estáticos, salvo configuração do ciclo de vida por classe.",
+      "section": "2. JUnit 5",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No método assertEquals do JUnit, o primeiro parâmetro deve ser o valor obtido pelo código testado, e o segundo, o valor esperado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A convenção é assertEquals(esperado, atual); inverter os parâmetros não muda se o teste passa, mas deixa a mensagem de falha confusa.",
+      "section": "2. JUnit 5",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para verificar que um método lança IllegalArgumentException ao receber valor inválido, utiliza-se no JUnit 5:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "assertNull.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "assertSame.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "assertThrows.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "assertTrue.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "@Disabled.",
+          "correct": false
+        }
+      ],
+      "explanation": "C está correta. O assertThrows recebe a classe da exceção e o código a executar e devolve a exceção lançada, permitindo também verificar sua mensagem.",
+      "section": "2. JUnit 5",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O assertAll do JUnit 5 agrupa várias asserções e relata todas as falhas encontradas, em vez de interromper na primeira.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Isso ajuda a diagnosticar vários problemas de uma vez, por exemplo ao verificar diversos campos de um objeto retornado pelo código testado.",
+      "section": "2. JUnit 5",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para executar o mesmo teste com diferentes conjuntos de dados, o JUnit 5 oferece:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "@Disabled com valores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "@AfterAll repetido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "assertSame em laço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "@ParameterizedTest.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "@DisplayName múltiplo.",
+          "correct": false
+        }
+      ],
+      "explanation": "D está correta. O teste parametrizado recebe os dados de fontes como @ValueSource ou @CsvSource, evitando duplicar o mesmo teste para cada entrada.",
+      "section": "2. JUnit 5",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No JUnit 4, a anotação equivalente ao @BeforeEach do JUnit 5 era @Before, e a equivalente ao @Disabled era @Ignore.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Também mudaram @BeforeClass e @AfterClass, que viraram @BeforeAll e @AfterAll; o JUnit 5 (Jupiter) usa o pacote org.junit.jupiter.api.",
+      "section": "2. JUnit 5",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por padrão, quantas instâncias da classe de teste o JUnit 5 cria?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma única para todos os testes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma nova para cada método de teste.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Nenhuma, pois os testes são estáticos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Duas, uma para setup e outra para teste.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma por pacote de testes.",
+          "correct": false
+        }
+      ],
+      "explanation": "B está correta. A instância nova por teste reforça a independência, evitando que um teste altere o estado usado por outro; é possível mudar esse ciclo por configuração.",
+      "section": "2. JUnit 5",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ferramentas de build como o Maven executam automaticamente os testes JUnit durante o ciclo de build, o que permite seu uso em integração contínua.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No Maven, o plugin Surefire roda os testes na fase de teste; se algum falhar, o build é interrompido, impedindo a entrega de código quebrado.",
+      "section": "2. JUnit 5",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A anotação @Disabled, no JUnit 5, serve para:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "desativar a execução de um teste.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "criar um mock automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "definir o nome exibido do teste.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "rodar o teste antes de todos os demais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "medir o tempo de execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "A está correta. É útil para desligar temporariamente um teste, de preferência com um motivo, e o relatório de testes mostra que ele foi ignorado.",
+      "section": "2. JUnit 5",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O dublê de teste que apenas devolve respostas prontas a chamadas, para controlar o cenário, é chamado de:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "dummy.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "spy.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "fake.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "mock.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "stub.",
+          "correct": true
+        }
+      ],
+      "explanation": "E está correta. O mock, por sua vez, é usado para verificar interações; o fake é implementação simplificada funcional, e o dummy só preenche parâmetros.",
+      "section": "3. Dublês de teste e Mockito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O mock é o dublê de teste usado para verificar interações, como se um método foi chamado e quantas vezes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No Mockito, o mock também pode receber respostas prontas por stubbing, mas sua marca é a verificação do comportamento com verify.",
+      "section": "3. Dublês de teste e Mockito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um banco de dados em memória usado no lugar do banco real durante os testes é exemplo de dublê do tipo fake.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O fake funciona de verdade, mas de forma simplificada, inadequada para produção; difere do stub, que só devolve respostas fixas.",
+      "section": "3. Dublês de teste e Mockito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Mockito, para fazer o método buscar(1) de um mock retornar um objeto específico, utiliza-se:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "verify(mock).buscar(1).",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "when(mock.buscar(1)).thenReturn(objeto).",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "assertEquals(mock, objeto).",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "@Disabled no método buscar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "never(mock.buscar(1)).",
+          "correct": false
+        }
+      ],
+      "explanation": "B está correta. O when com thenReturn faz o stubbing; o verify serve para conferir, depois da execução, se a chamada aconteceu. Isso é muito cobrado.",
+      "section": "3. Dublês de teste e Mockito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A instrução verify(repositorio, never()).salvar(any()) verifica que o método salvar nunca foi chamado no mock.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O verify aceita modos como times(n), never() e atLeastOnce(); é comum usá-lo para garantir que nada foi gravado quando a validação falha.",
+      "section": "3. Dublês de teste e Mockito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A anotação do Mockito que cria a instância da classe testada e injeta nela os mocks declarados com @Mock é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "@InjectMocks.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "@Spy.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "@Captor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "@BeforeAll.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "@Test.",
+          "correct": false
+        }
+      ],
+      "explanation": "A está correta. Com @ExtendWith(MockitoExtension.class) no JUnit 5, os campos @Mock são criados e injetados automaticamente no objeto marcado com @InjectMocks.",
+      "section": "3. Dublês de teste e Mockito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Mockito, quando um argumento de uma chamada usa matcher, como any(), os demais argumentos dessa mesma chamada também devem usar matchers, como eq().",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Misturar matcher com valor literal na mesma chamada causa erro de uso; para um valor fixo, usa-se eq(valor) junto com os outros matchers.",
+      "section": "3. Dublês de teste e Mockito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para capturar o objeto passado a um método do mock e fazer asserções sobre seus campos, o Mockito oferece:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "assertAll.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "thenThrow.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "@ParameterizedTest.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ArgumentCaptor.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "@DisplayName.",
+          "correct": false
+        }
+      ],
+      "explanation": "D está correta. O captor é usado junto com verify para recuperar o argumento enviado e conferir, por exemplo, se o objeto salvo tinha os dados corretos.",
+      "section": "3. Dublês de teste e Mockito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método de mock do Mockito que não foi configurado com when lança exceção ao ser chamado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Por padrão, métodos não configurados devolvem valores padrão, como null, zero, false ou coleção vazia; para lançar exceção, usa-se thenThrow.",
+      "section": "3. Dublês de teste e Mockito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O spy do Mockito se diferencia do mock porque:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "nunca pode ser verificado com verify.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "não aceita nenhum tipo de stubbing.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "só funciona com interfaces.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "substitui o banco de dados real.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "usa o objeto real, permitindo substituir partes.",
+          "correct": true
+        }
+      ],
+      "explanation": "E está correta. No spy, chamadas não configuradas executam o código real; para substituir um método com segurança, prefere-se doReturn(...).when(spy).metodo().",
+      "section": "3. Dublês de teste e Mockito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No teste unitário de um serviço que usa um repositório, a prática recomendada é mockar o repositório, isolando a regra de negócio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Assim o teste fica rápido e não depende do banco; a colaboração real entre serviço e banco é verificada nos testes de integração.",
+      "section": "3. Dublês de teste e Mockito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para fazer um método de mock lançar uma exceção quando chamado, utiliza-se no Mockito:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "thenReturn(null).",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "when(...).thenThrow(...).",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "verify(..., never()).",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "assertThrows no mock.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "@Disabled no mock.",
+          "correct": false
+        }
+      ],
+      "explanation": "B está correta. O thenThrow simula falhas das dependências, permitindo testar como o código reage, por exemplo, a uma indisponibilidade do banco.",
+      "section": "3. Dublês de teste e Mockito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No JUnit 5, a integração com o Mockito costuma ser feita com @ExtendWith(MockitoExtension.class) na classe de teste.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A extensão inicializa os campos @Mock, @Spy e @InjectMocks antes de cada teste, dispensando a criação manual dos dublês. Isso é muito cobrado.",
+      "section": "3. Dublês de teste e Mockito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O dublê de teste passado apenas para preencher um parâmetro obrigatório, sem ser usado pelo código testado, é o:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "dummy.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "fake.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "stub.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "spy.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "mock.",
+          "correct": false
+        }
+      ],
+      "explanation": "A está correta. O dummy existe só para satisfazer a assinatura do método; os demais dublês participam de alguma forma do comportamento testado.",
+      "section": "3. Dublês de teste e Mockito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Testes de integração costumam ser mais lentos que testes unitários, pois envolvem componentes reais como banco de dados ou serviços externos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Por isso ficam em menor número na pirâmide; para reduzir custo, usam-se bancos em memória ou em contêineres criados só para os testes.",
+      "section": "1. Níveis de teste e testes unitários",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste unitário que só passa se outro teste for executado antes dele viola principalmente a característica de:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "rapidez.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "autoverificação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "independência.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "oportunidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "cobertura.",
+          "correct": false
+        }
+      ],
+      "explanation": "C está correta. Testes acoplados pela ordem geram falhas intermitentes e difíceis de diagnosticar; cada teste deve preparar o próprio cenário.",
+      "section": "1. Níveis de teste e testes unitários",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A asserção assertSame verifica se dois objetos têm o mesmo conteúdo, ainda que sejam instâncias diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O assertSame verifica se as duas referências apontam para o mesmo objeto; a igualdade de conteúdo, via equals, é verificada pelo assertEquals.",
+      "section": "2. JUnit 5",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No JUnit 5, a anotação que define um nome legível para o teste nos relatórios é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "@Test.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "@Disabled.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "@BeforeEach.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "@DisplayName.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "@Mock.",
+          "correct": false
+        }
+      ],
+      "explanation": "D está correta. O nome exibido ajuda a ler os relatórios como especificação do comportamento, por exemplo \"rejeita CPF inválido\". Isso é muito cobrado.",
+      "section": "2. JUnit 5",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No teste de integração de um repositório JPA, uma opção comum é usar um banco de dados em memória ou em contêiner criado só para o teste.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Isso permite testar o mapeamento e as consultas reais sem depender do banco de produção, mantendo os testes repetíveis em qualquer ambiente.",
+      "section": "3. Dublês de teste e Mockito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor quer garantir que, ao cadastrar um usuário com e-mail inválido, o serviço não grave nada no repositório. A verificação adequada no Mockito é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "when(repositorio.salvar(any())).thenReturn(null), sem outra verificação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "assertEquals(repositorio, null) logo após a chamada do serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "verify(repositorio, never()).salvar(any()).",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "@Disabled no método salvar do repositório mockado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "verify(repositorio, times(1)).salvar(any()), para confirmar a gravação.",
+          "correct": false
+        }
+      ],
+      "explanation": "C está correta. O never() confirma que a gravação não ocorreu; times(1) verificaria o oposto, e o stubbing com thenReturn não verifica interação alguma.",
+      "section": "3. Dublês de teste e Mockito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null,
+      "statement": "No Mockito, a instrução usada para conferir se o método enviar foi chamado exatamente duas vezes no mock é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "when(mock.enviar()).thenReturn(2), definindo o retorno do método.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "assertEquals(2, mock), comparando o mock com o número de chamadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "@ParameterizedTest com o valor 2 informado na fonte de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ArgumentCaptor configurado para capturar dois argumentos quaisquer.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "verify(mock, times(2)).enviar().",
+          "correct": true
+        }
+      ],
+      "explanation": "E está correta. O verify com times(n) confere a quantidade exata de chamadas; o when apenas configura o retorno e não verifica a interação com o mock.",
+      "section": "3. Dublês de teste e Mockito",
+      "errorConceptKey": "e3"
+    },
+    {
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null,
+      "statement": "Testes unitários devem ser repetíveis, produzindo o mesmo resultado em qualquer ambiente em que forem executados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Dependências de data atual, rede ou dados externos tornam o teste instável; por isso se usam dublês e dados controlados no próprio teste.",
+      "section": "1. Níveis de teste e testes unitários",
+      "errorConceptKey": "e1"
+    }
+  ]
+}
