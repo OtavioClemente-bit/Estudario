@@ -194,6 +194,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                     stageMillis = 9_000,
                     stageOffset = 2,
                     sceneSize = 280,
+                    scene = if (showQuestions) "questions" else "material",
                     footer = {
                         P({ classes("small", "muted"); attr("style", "text-align:center") }) {
                             Text("Pode fechar esta janela e continuar estudando. Eu continuo aqui e te aviso quando ficar pronto.")

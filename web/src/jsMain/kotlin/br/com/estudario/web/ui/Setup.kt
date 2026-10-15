@@ -76,6 +76,7 @@ internal fun PdfEditalDialog(onClose: () -> Unit, onDone: (String, String, List<
                 stageOffset = 2,
                 stageMillis = 12_000,
                 sceneSize = 260,
+                scene = "edital",
                 footer = { P({ classes("small", "muted"); attr("style", "text-align:center") }) { Text("Pode levar alguns minutos. Deixe esta aba aberta.") } },
             )
             else -> {

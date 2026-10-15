@@ -355,6 +355,7 @@ private fun PlanPreview(result: Pair<Snapshot, String>?, onBack: () -> Unit, onO
                 eyebrow = "Quase lá",
                 stages = PLAN_STAGES,
                 stageMillis = PLAN_STAGE_MILLIS,
+                scene = "plan",
             )
         }
         return

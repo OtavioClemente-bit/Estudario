@@ -1,7 +1,11 @@
 package br.com.estudario.web.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import org.jetbrains.compose.web.dom.B
 import org.jetbrains.compose.web.dom.Div
 import org.jetbrains.compose.web.dom.Span
@@ -14,9 +18,13 @@ import org.jetbrains.compose.web.dom.Text
  */
 @Composable
 fun DeskNote() {
+    // Clicou no post-it: ele descola, cai e some de todas as telas até a página ser recarregada.
+    if (DeskNoteState.gone) return
+    var falling by remember { mutableStateOf(false) }
+    LaunchedEffect(falling) { if (falling) { kotlinx.coroutines.delay(1100); DeskNoteState.gone = true } }
     val tip = remember { DESK_TIPS[((kotlin.js.Date.now() / 86_400_000).toLong() % DESK_TIPS.size).toInt()] }
-    Div({ classes("desk-note"); attr("aria-hidden", "true") }) {
-        Div({ classes("desk-postit") }) {
+    Div({ classes(*listOfNotNull("desk-note", if (falling) "falling" else null).toTypedArray()); attr("aria-hidden", "true") }) {
+        Div({ classes("desk-postit"); attr("title", "Descolar"); onClick { falling = true } }) {
             Span({ classes("desk-tape") })
             B { Text("dica do Folha") }
             Div({ classes("desk-tip") }) { Text(tip) }
@@ -39,3 +47,6 @@ private val DESK_TIPS = listOf(
     "Explique em voz alta: se travou, é ali que falta.",
     "Simulado é treino de prova, não de ansiedade.",
 )
+
+/** Só na memória: um F5 traz o post-it de volta. */
+private object DeskNoteState { var gone by mutableStateOf(false) }

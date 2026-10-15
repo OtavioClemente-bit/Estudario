@@ -184,6 +184,8 @@ fun ProcessView(
     stageOffset: Int = 0,
     detail: String? = null,
     sceneSize: Int = 300,
+    /** A cena da oficina: plan, material, questions ou edital. */
+    scene: String = "material",
     footer: (@Composable () -> Unit)? = null,
 ) {
     var elapsed by remember { mutableStateOf(0L) }
@@ -198,22 +200,42 @@ fun ProcessView(
     val expected = (stageMillis * maxOf(stages.size, 1)).toDouble()
     val progress = (0.94 * (1 - exp(-elapsed / (expected * 0.55)))).coerceIn(0.03, 0.94)
     val seconds = elapsed / 1000
-    Div({ classes("process-view") }) {
+    Div({ classes("process-view", "ws-view") }) {
         Div({ classes("process-head") }) {
             if (eyebrow != null) Span({ classes("eyebrow") }) { Text(eyebrow.uppercase()) }
-            H2 { Text(title) }
+            // O marca-texto atrás do título anda com o progresso.
+            H2 { Span({ classes("ws-title"); attr("style", "--p:${(progress * 100).toInt()}%") }) { Text(title) } }
         }
-        ProcessScene(sceneSize)
-        Div({ classes("process-speech") }) {
+        Workshop(scene)
+        Div({ classes("ws-bottom") }) {
             val stage = detail ?: stages.getOrNull(current.coerceAtMost(stages.lastIndex))
-            if (stage != null) key(stage) { Div({ classes("stage") }) { Text("$stage…") } }
-            Div({ classes("meta") }) {
-                Text("${if (stages.size > 1) "Etapa ${minOf(current + 1, stages.size)} de ${stages.size} · " else ""}${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}")
+            Div({ classes("ws-say") }) {
+                if (stage != null) key(stage) { Span({ classes("ws-say-text") }) { Text("$stage…") } }
+                Span({ classes("ws-time") }) { Text("${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}") }
             }
+            // A lista de tarefas do Folha, escrita à mão: o que já foi feito fica riscado.
+            if (stages.size > 1) org.jetbrains.compose.web.dom.Ul({ classes("ws-list") }) {
+                stages.forEachIndexed { i, s ->
+                    org.jetbrains.compose.web.dom.Li({ classes(*listOfNotNull(when { i < current -> "done"; i == current -> "now"; else -> null }).toTypedArray()) }) {
+                        Span({ classes("ws-box") }) { if (i < current) Icon("check", plain = true) else if (i == current) Icon("Pencil") }
+                        Span({ classes("ws-txt") }) { Text(s) }
+                    }
+                }
+            } else Div({ classes("process-bar") }) { Span({ attr("style", "width:${(progress * 100).toInt()}%") }) }
         }
-        if (stages.size > 1) StageTrail(stages.size, current, progress)
-        else Div({ classes("process-bar") }) { Span({ attr("style", "width:${(progress * 100).toInt()}%") }) }
         footer?.invoke()
+    }
+}
+
+/** A oficina do Folha (workshop.js): a cena do trabalho de cada tipo de geração. */
+@Composable
+fun Workshop(kind: String) {
+    key(kind) {
+        TagElement<org.w3c.dom.HTMLElement>(
+            elementBuilder = ElementBuilder.createBuilder("estudario-workshop"),
+            applyAttrs = { attr("kind", kind) },
+            content = null,
+        )
     }
 }
 
