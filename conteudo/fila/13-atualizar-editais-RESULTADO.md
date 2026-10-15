@@ -189,6 +189,29 @@ Fila: 13-atualizar-editais.md (339 arquivos). Passo 1 (automático): 166 já tê
 - trf3-juiz-2011.json -> 2024
 - trf5-juiz-2017.json -> 2026
 
+## Pesquisa de 15/10/2026 (editais antigos)
+Já existe edital mais novo no catálogo: cbm-df-2025, pcdf-2024, pcma-2026, policia-cientifica-pe-2024 (cobre sds-pe-2016), tce-rs-2025, tjba-2026, ufpe-2026, pces-oficial-investigador-2025.
+
+**Vale incluir (edital mais novo publicado):**
+- TJRN 2023 (FGV, servidores). O catálogo só tem tj-rn-2012.
+- TCE-ES 2022 (FGV, auditor). O catálogo só tem 2012/2013.
+- TRT-16 2022 (FGV) e TRT-17 (FCC, válido até 2027). O catálogo só tem 2005/2013.
+- TCE-RN 2025 (Cebraspe, auditor e outros; provas em abril de 2026).
+- PC-AL delegado 2022/2023 (Cebraspe).
+- ANTT no CNU 2025, bloco 9 (FGV, técnico em regulação).
+
+**Sem edital novo (só banca ou previsão):**
+- SEFAZ-RS: FCC contratada em set/2026.
+- SEEC-DF auditor: Cebraspe contratado, edital ainda não saiu.
+- PM-SC soldado: AOCP, 500 vagas.
+- PMERJ soldado: banca indefinida.
+- PM-RN: o edital de 2026 (IDECAN) é só para praças de saúde e músicos.
+- TCE-PB: o último auditor foi em 2017; o edital é esperado para 2027.
+- TCE-RO, SEFAZ-ES: nada novo.
+- ANTT: concurso próprio com 720 vagas pedido em jun/2026.
+
+**Faltam pesquisar:** anac, dnit, cbmpa, pmro, pge-sc, sefaz-ba, sefaz-am, sef-mg, tce-ba, tj-pb, age-mg, inss perito.
+
 ## Ainda não pesquisados
 - age-mg-procurador-2022.json
 - anac-2023--especialista-area-1-piloto.json
