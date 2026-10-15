@@ -87,22 +87,39 @@ estudario-workshop{display:block;width:100%;max-width:580px;margin:0 auto;aspect
   function style() { if (styled) return; styled = true; const s = document.createElement("style"); s.textContent = css; document.head.appendChild(s); }
 
   class Workshop extends HTMLElement {
+    // A tela em volta (o Compose) às vezes tira e põe o elemento de novo no mesmo instante. A cena
+    // não pode recomeçar nem duplicar por isso: ela só para se o elemento sair de vez.
     connectedCallback() {
       style();
+      window.__wsConnects = (window.__wsConnects || 0) + 1;
+      if (this._stopTimer) { clearTimeout(this._stopTimer); this._stopTimer = 0; }
+      if (this.ro) this.ro.observe(this);
+      if (this.alive) return;
       this.alive = true;
+      this._token = (this._token || 0) + 1;
       this.timers = new Set();
       this.innerHTML = `<div class="ws"><div class="ws-desk"></div><div class="ws-piece"></div><div class="ws-folha"><estudario-folha mood="thinking" size="150"></estudario-folha></div></div>`;
       this.stage = this.querySelector(".ws");
       this.piece = this.querySelector(".ws-piece");
       this.folha = this.querySelector("estudario-folha");
       const fit = () => { const w = this.clientWidth || 580; this.stage.style.transform = `scale(${w / 580})`; };
-      this.ro = new ResizeObserver(fit); this.ro.observe(this); fit();
+      if (!this.ro) this.ro = new ResizeObserver(fit);
+      this.ro.observe(this); fit();
       const kind = this.getAttribute("kind") || "material";
       const run = { plan: this.plan, material: this.material, questions: this.questions, edital: this.edital }[kind] || this.material;
+      window.__wsRuns = (window.__wsRuns || 0) + 1;
       run.call(this);
     }
-    disconnectedCallback() { this.alive = false; this.timers.forEach(clearTimeout); this.ro && this.ro.disconnect(); }
-    wait(ms) { return new Promise((r) => { const t = setTimeout(() => { this.timers.delete(t); r(); }, ms); this.timers.add(t); }); }
+    disconnectedCallback() {
+      this._stopTimer = setTimeout(() => {
+        if (this.isConnected) return;
+        this.alive = false;
+        this.timers.forEach(clearTimeout); this.timers.clear();
+        this.ro && this.ro.disconnect();
+      }, 300);
+    }
+    // Uma cena antiga (de antes de o elemento sair e voltar) para no próximo passo: a espera dela não acaba.
+    wait(ms) { const tk = this._token; return new Promise((r) => { const t = setTimeout(() => { this.timers.delete(t); if (tk === this._token) r(); }, ms); this.timers.add(t); }); }
     mood(m, back, ms) {
       if (!this.folha) return;
       this.folha.setAttribute("mood", m);
@@ -150,7 +167,7 @@ estudario-workshop{display:block;width:100%;max-width:580px;margin:0 auto;aspect
         pencil.classList.remove("writing");
       };
       while (this.alive) {
-        title.style.width = "0"; lines.innerHTML = ""; right.innerHTML = "";
+        title.style.width = "0"; lines.innerHTML = ""; right.innerHTML = ""; p.querySelectorAll(".nb-tip").forEach((e) => e.remove());
         pos(title, 0);
         await write(title, rand(55, 75), 700);
         for (let i = 0; i < 7 && this.alive; i++) {

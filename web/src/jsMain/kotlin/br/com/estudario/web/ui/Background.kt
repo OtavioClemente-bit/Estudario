@@ -1,7 +1,9 @@
 package br.com.estudario.web.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.setValue
 import br.com.estudario.web.Route
 import br.com.estudario.web.Router
 import br.com.estudario.web.data.AiContent
@@ -140,5 +142,28 @@ fun GenerationBanner() {
                 }
             }
         }
+    }
+}
+
+/**
+ * Só na demonstração: "?demo&gerando=material" (ou questions, plan, edital) abre a janela de
+ * geração do jeito que ela aparece de verdade, para conferir a oficina do Folha sem gastar cota.
+ */
+@androidx.compose.runtime.Composable
+fun GenerationPreview() {
+    if (!Store.demo) return
+    val kind = Regex("gerando=([a-z]+)").find(kotlinx.browser.window.location.search)?.groupValues?.get(1) ?: return
+    var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
+    if (!open) return
+    Modal(onDismiss = { open = false }, wide = true) {
+        ProcessView(
+            title = if (kind == "questions") "Preparando as suas questões" else "Preparando o seu material",
+            eyebrow = "Demonstração",
+            stages = listOf("Conferindo a segurança", "Enviando o pedido", "Lendo o tópico e a banca", "Escrevendo a teoria", "Montando flashcards e questões", "Revisando tudo"),
+            stageMillis = 3_000,
+            sceneSize = 280,
+            scene = kind,
+            footer = { org.jetbrains.compose.web.dom.P({ classes("small", "muted"); attr("style", "text-align:center") }) { org.jetbrains.compose.web.dom.Text("Pode fechar esta janela e continuar estudando.") } },
+        )
     }
 }
