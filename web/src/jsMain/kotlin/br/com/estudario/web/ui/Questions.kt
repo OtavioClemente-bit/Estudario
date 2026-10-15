@@ -146,7 +146,8 @@ fun pickQuestions(data: Snapshot, scope: String, preview: Boolean = false): List
     // Endereços antigos: topico-ID, materia-ID-N, erros-N, rapido-N.
     val legacy = scope.split('-')
     when (legacy.firstOrNull()) {
-        "topico" -> return pool.filter { it.topicId == legacy.getOrNull(1)?.toLongOrNull() }.let { smart(it, it.size) }
+        // topico-ID ou topico-ID-N (N = quantas a tarefa do plano pede; sem N, todas do tópico).
+        "topico" -> return pool.filter { it.topicId == legacy.getOrNull(1)?.toLongOrNull() }.let { smart(it, legacy.getOrNull(2)?.toIntOrNull()?.coerceAtLeast(1) ?: it.size) }
         "materia" -> return smart(pool.filter { topicsById[it.topicId]?.subjectId == legacy.getOrNull(1)?.toLongOrNull() }, legacy.getOrNull(2)?.toIntOrNull() ?: 10)
         "erros" -> return data.errors.filter { it.status != "CORRIGIDO" }.sortedBy { it.nextRetryAt ?: 0 }.mapNotNull { e -> pool.firstOrNull { it.id == e.questionId } }.take(legacy.getOrNull(1)?.toIntOrNull() ?: 20)
         "rapido" -> return smart(pool, legacy.getOrNull(1)?.toIntOrNull() ?: 10)
@@ -217,7 +218,22 @@ fun QuizScreen(scope: String) {
             val topicIds = initial.mapTo(hashSetOf()) { it.topicId }
             val subjectIds = Store.data.topics.filter { it.id in topicIds }.mapTo(hashSetOf()) { it.subjectId }
             val type = when { scope.startsWith("topico") -> "TOPIC"; scope.contains("s-") && !scope.contains("s--1") -> "SUBJECT"; scope.startsWith("erros") || scope.contains("m-wrong") -> "ERROR_REVIEW"; scope.contains("m-smart") -> "SMART"; else -> "QUICK" }
-            Store.update { Actions.saveQuestionSession(it, type, startedAt, results.size, right, subjectIds, topicIds, sessionId) }
+            // Treino aberto por uma tarefa do plano: concluí-la junto, com o tempo e os acertos (como no app).
+            val planTask = PlanQuiz.taskId?.takeIf { PlanQuiz.scope == scope }
+            PlanQuiz.taskId = null
+            Store.update { snapshot ->
+                var next = Actions.saveQuestionSession(snapshot, type, startedAt, results.size, right, subjectIds, topicIds, sessionId)
+                if (planTask != null && results.isNotEmpty()) {
+                    val task = next.tasks.firstOrNull { it.id == planTask }
+                    if (task != null) {
+                        val minutes = ((Date.now().toLong() - startedAt) / 60_000L).toInt().coerceAtLeast(1)
+                        next = Actions.completeTask(next, task.id, minutes, results.size, right, fromQuiz = true)
+                        next = runCatching { br.com.estudario.web.data.Planning.replan(next, task.planId, br.com.estudario.domain.planner.ReplanReason.TASK_COMPLETED) }.getOrDefault(next)
+                    }
+                }
+                next
+            }
+            if (planTask != null) Toast.show("Tarefa do plano concluída!")
         }
         val xp = ProgressEngine.previewQuestions(results.size).base + right
         Card(extra = "pad-lg") {

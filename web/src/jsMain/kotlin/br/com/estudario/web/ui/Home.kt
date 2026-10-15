@@ -511,10 +511,11 @@ fun CompleteTaskDialog(task: PlanTask, onClose: () -> Unit) {
 fun openTask(task: PlanTask) {
     when {
         // Tarefa de questões de um tópico abre as questões dele (antes abria só a página do tópico).
-        task.type == "QUESTIONS" && task.topicId != null && Store.data.questions.any { it.topicId == task.topicId && !it.hidden } -> Router.go(Route.Quiz("topico-${task.topicId}"))
+        task.type == "QUESTIONS" && task.topicId != null && Store.data.questions.any { it.topicId == task.topicId && !it.hidden } ->
+            planQuiz(task, "topico-${task.topicId}-${task.questions.coerceAtLeast(5)}")
         task.topicId != null -> Router.go(Route.Topic(task.topicId))
         task.type == "SIMULATION" -> Router.go(Route.Simulations)
-        task.type == "QUESTIONS" && task.subjectId != null -> Router.go(Route.Quiz("materia-${task.subjectId}-${task.questions.coerceAtLeast(10)}"))
+        task.type == "QUESTIONS" && task.subjectId != null -> planQuiz(task, "materia-${task.subjectId}-${task.questions.coerceAtLeast(5)}")
         task.type == "REVIEW" -> Router.go(Route.Reviews)
         task.type == "FLASHCARDS" || task.type == "ACTIVE_RECALL" -> Router.go(Route.Flashcards(null))
         else -> Router.go(Route.Focus)
@@ -574,4 +575,17 @@ private fun ReprogramOption(color: String, icon: String, title: String, detail: 
         Div({ classes("grow") }) { B { Text(title) }; Span({ classes("small", "muted") }) { Text(detail) } }
         Icon("chevron_right", extraClass = "faint")
     }
+}
+
+/** A tarefa do plano que abriu o treino: ao terminar, ela é concluída com o resultado. */
+object PlanQuiz {
+    var taskId: String? = null
+    var scope: String? = null
+}
+
+/** Abre o treino com a quantidade que a tarefa pede (não as questões todas da pessoa). */
+private fun planQuiz(task: PlanTask, scope: String) {
+    PlanQuiz.taskId = task.id
+    PlanQuiz.scope = scope
+    Router.go(Route.Quiz(scope))
 }
