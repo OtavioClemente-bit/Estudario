@@ -20,7 +20,7 @@
     const h = c.fillStyle;
     if (h.startsWith("#")) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
     const m = h.match(/[\d.]+/g) || [0, 0, 0];
-    return [+m[0], +m[1], +m[2]];
+    return [+m[0], +m[1], +m[2], m[3] == null ? 1 : +m[3]];
   }
 
   window.estudarioAmbient = function (host, opts) {
@@ -35,10 +35,12 @@
     let W = 0, H = 0, dpr = 1;
     const GAP = 26;
 
-    let dot, brand, mark, dark;
+    let dot, brand, mark, dark, dotA = .55;
     function readColors() {
       const root = document.documentElement;
       dot = rgb(css(root, "--dot", "#D9D0BC"));
+      // Ponto com transparência (o --dot do site é translúcido) vira um ponto chapado mais forte.
+      dotA = dot[3] >= 1 ? .55 : Math.min(.6, dot[3] * 4);
       brand = rgb(css(root, "--primary", "#5B4BF5"));
       mark = rgb(css(root, "--hl", "#FFD23F"));
       dark = matchMedia("(prefers-color-scheme: dark)").matches && root.dataset.theme !== "light" || root.dataset.theme === "dark";
@@ -84,7 +86,7 @@
             r += k * 1.9;
           }
           const c = k > 0 ? [0, 1, 2].map((i) => Math.round(dot[i] + (brand[i] - dot[i]) * k)) : dot;
-          g.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${0.55 + k * 0.45})`;
+          g.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${dotA + k * (1 - dotA)})`;
           g.beginPath(); g.arc(px, py, r, 0, 6.283); g.fill();
         }
       }
@@ -155,8 +157,11 @@
     }
     function kick() { if (!raf) raf = requestAnimationFrame(frame); }
 
+    // Os ouvintes ficam guardados para a tela poder desligar o fundo (destroy) ao sair.
+    const offs = [];
+    const on = (target, type, fn, opt) => { target.addEventListener(type, fn, opt); offs.push(() => target.removeEventListener(type, fn, opt)); };
     if (fine && !reduce) {
-      addEventListener("pointermove", (e) => {
+      on(window, "pointermove", (e) => {
         if (e.pointerType !== "mouse") return;
         const now = performance.now();
         if (!mouse.on) { mouse.sx = e.clientX; mouse.sy = e.clientY; }
@@ -166,20 +171,23 @@
         if (trail.length > 90) trail.shift();
         kick();
       }, { passive: true });
-      document.addEventListener("pointerleave", () => { mouse.on = false; kick(); });
-      if (stampsOn) addEventListener("click", (e) => {
+      on(document, "pointerleave", () => { mouse.on = false; kick(); });
+      if (stampsOn) on(window, "click", (e) => {
         if (!stickerImgs.length || e.button !== 0) return;
         // Só no papel: clique em botão, link, campo ou texto selecionável é do conteúdo.
-        if (e.target.closest("a,button,input,textarea,select,label,summary,details,[role=button],.no-stamp,p,h1,h2,h3,li,dd,dt")) return;
+        if (e.target.closest("a,button,input,textarea,select,label,summary,details,iframe,[role=button],.no-stamp,p,h1,h2,h3,li,dd,dt")) return;
         if (String(getSelection && getSelection()).length) return;
         stamps.push({ x: e.clientX, y: e.clientY, t: performance.now(), rot: (Math.random() - 0.5) * 0.5, img: stickerImgs[(Math.random() * stickerImgs.length) | 0] });
         if (stamps.length > 12) stamps.shift();
         kick();
       });
     }
-    addEventListener("resize", resize);
-    if (window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => { readColors(); kick(); });
+    on(window, "resize", resize);
+    if (window.matchMedia) on(matchMedia("(prefers-color-scheme: dark)"), "change", () => { readColors(); kick(); });
     resize();
-    return { refresh() { readColors(); kick(); } };
+    return {
+      refresh() { readColors(); kick(); },
+      destroy() { offs.forEach((f) => f()); if (raf) cancelAnimationFrame(raf); raf = 0; canvas.remove(); },
+    };
   };
 })();
