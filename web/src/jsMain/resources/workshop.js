@@ -45,7 +45,7 @@ estudario-workshop{display:block;width:100%;max-width:580px;margin:0 auto;aspect
 .nb-line{position:relative;height:7px;border-radius:4px;background:#8F8AB8;margin:0 0 15px;width:0}
 .nb-line.hl::after{content:"";position:absolute;left:-4px;top:-5px;height:17px;width:0;border-radius:3px;background:rgba(255,210,63,.6);mix-blend-mode:multiply;animation:nbHl .6s ease-out forwards}
 @keyframes nbHl{to{width:calc(100% + 8px)}}
-.nb-pencil{width:44px;height:44px;z-index:5;transition:left .12s linear,top .25s ease;transform:rotate(-8deg)}
+.nb-pencil{width:44px;height:44px;z-index:5;transition:left .12s linear,top .25s ease;transform:scaleX(-1) rotate(-8deg)}
 .nb-pencil.writing svg{animation:nbWrite .16s ease-in-out infinite alternate}
 @keyframes nbWrite{from{transform:translate(0,0) rotate(-3deg)}to{transform:translate(1px,-3px) rotate(3deg)}}
 .nb-card{border:2.5px solid ${INK};border-radius:12px;background:#ECE9FF;padding:10px;margin:2px 0 12px;box-shadow:0 4px 0 ${INK};transform:scale(0);transform-origin:20% 80%}
@@ -152,7 +152,7 @@ estudario-workshop{display:block;width:100%;max-width:580px;margin:0 auto;aspect
       const still = reduce();
       const pos = (el, frac) => {
         const r = el.getBoundingClientRect(), pr = p.getBoundingClientRect(), k = pr.width / p.offsetWidth || 1;
-        pencil.style.left = ((r.left - pr.left) / k + el.offsetWidth * 0 + frac) - 6 + "px";
+        pencil.style.left = ((r.left - pr.left) / k + frac) - 38 + "px";
         pencil.style.top = ((r.top - pr.top) / k) - 34 + "px";
       };
       const write = async (el, w, ms) => {
