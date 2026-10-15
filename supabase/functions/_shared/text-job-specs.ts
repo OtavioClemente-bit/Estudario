@@ -481,8 +481,14 @@ export const SIMULATION_JOB_SPEC: AiJobSpec = {
   schema: AI_SIMULATION_SCHEMA,
   schemaName: `ai_simulation_v${SIMULATION_SCHEMA_VERSION}`,
   usesSource: false,
-  // Pesquisa para confirmar lei, número e a própria banca do concurso.
-  tools: [{ type: "web_search", search_context_size: "medium" }],
+  // Pesquisa para confirmar lei, número e a própria banca do concurso. Quando tudo o que sobrou
+  // para a IA tem modelo da biblioteca (questões irmãs) ou é revanche, não pesquisa: a fonte é a
+  // própria questão conferida.
+  tools: (job) => {
+    const input = SIMULATION_LEFTOVER.get(job.id) ?? inputOf<SimulationJobInput>(job, parseSimulationJobInput);
+    const needsWeb = input.detectBoard || input.items.some((item) => !item.bases || item.bases.length === 0);
+    return needsWeb ? [{ type: "web_search", search_context_size: "medium" }] : undefined;
+  },
   // A IA só recebe o que a biblioteca não cobriu (o worker refaz o pedido depois de `cached`).
   prompts: (job) => ({
     systemPrompt: SIMULATION_SYSTEM_PROMPT,

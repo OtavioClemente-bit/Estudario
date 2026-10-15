@@ -25,6 +25,17 @@ export interface SimulationItem {
   /** Item dividido entre partes: esta é a fatia `chunk` de `chunks` (as fatias não repetem questão). */
   chunk: number;
   chunks: number;
+  /**
+   * Só o servidor preenche: questões conferidas da biblioteca sobre este tópico, para a IA criar
+   * questões irmãs (mesmo conceito, outro cenário) sem pesquisar na web. Nunca vem do app.
+   */
+  bases?: SimulationBase[];
+}
+
+export interface SimulationBase {
+  statement: string;
+  answer: string;
+  explanation: string;
 }
 
 export interface RematchSource {
@@ -288,6 +299,8 @@ Inédito de verdade:
 
 Revanche (quando houver QUESTÕES PARA REVANCHE): para cada uma, crie UMA variante que cobre o MESMO conceito com cenário, dados, redação e letra correta diferentes. Quem decorou a original não pode acertar a variante sem entender. itemRef = a ref da original (r1, r2...).
 
+Questões irmãs (itens com MODELO): o MODELO é uma questão conferida do tópico. Crie questões NOVAS que cobrem o mesmo conceito e a mesma armadilha com outro cenário, outros nomes e outra redação, e mude a letra correta. Em cálculo (matemática, raciocínio lógico, contabilidade, estatística, finanças) troque os valores e refaça a conta do zero, conferindo o resultado. Em português, use outra frase com o mesmo fenômeno. Em lei, norma, prazo, percentual, idade, valor ou número de artigo, NUNCA altere o dado: mude só a situação concreta e mantenha o fato jurídico exatamente como no MODELO e na explicação dele. Use o MODELO e a explicação como fonte; para esses itens não é preciso pesquisar.
+
 Banca (quando DETECTAR BANCA estiver pedido): pesquise qual banca organiza este concurso (edital, site do órgão ou da banca). Preencha detectedBoard.name e detectedBoard.sourceUrl só com confirmação em fonte; sem certeza, ambos null.
 
 Quantidade: exatamente a quantidade pedida para cada item (itemRef = ref do item), na ordem dos itens.`;
@@ -319,6 +332,10 @@ export function simulationUserPrompt(input: SimulationJobInput): string {
     for (const item of input.items) {
       lines.push(`- ${item.ref} · ${item.subjectName} · ${item.topicPath.join(" › ")} · ${item.count} · ${item.difficulty}`);
       if (item.scope) lines.push(`  recorte: ${item.scope}`);
+      for (const base of item.bases ?? []) {
+        lines.push(`  MODELO (questão conferida; crie irmãs, não copie): ${base.statement}`);
+        lines.push(`    resposta: ${base.answer} · por quê: ${base.explanation}`);
+      }
     }
   }
   if (input.rematch.length > 0) {
@@ -461,7 +478,8 @@ export function validateSimulation(raw: string | Json, expected: ExpectedVersion
   const minimum = options.allowShortfall ? Math.ceil(expectedTotal * 0.8) : expectedTotal;
   if (questions.length < minimum || questions.length > expectedTotal) reject("question count");
   const produced = new Map<string, number>();
-  const avoid = new Set(input.avoid.map(fingerprint));
+  // Questão irmã não pode ser o próprio modelo.
+  const avoid = new Set([...input.avoid, ...input.items.flatMap((item) => (item.bases ?? []).map((base) => base.statement))].map(fingerprint));
   const originals = new Map(input.rematch.map((source) => [source.ref, fingerprint(source.statement)]));
   const seen = new Set<string>();
   questions.forEach((question, index) => {

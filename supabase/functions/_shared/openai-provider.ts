@@ -304,9 +304,13 @@ function maxSearchesFor(feature: string | undefined): number | undefined {
     ? "CONTENT_MAX_SEARCHES"
     : feature === "CONTENT_REVIEW"
     ? "REVIEW_MAX_SEARCHES"
+    : feature === "SIMULATION_GENERATION"
+    ? "SIMULATION_MAX_SEARCHES"
     : undefined;
   const value = name ? Number(environmentValue(name)) : NaN;
-  return Number.isInteger(value) && value > 0 ? value : undefined;
+  if (Number.isInteger(value) && value > 0) return value;
+  // Simulado sem teto pesquisava 7 vezes numa parte; o que ele pesquisa (lei, banca) cabe em 4.
+  return feature === "SIMULATION_GENERATION" ? 4 : undefined;
 }
 
 function environmentValue(name: string): string | undefined {

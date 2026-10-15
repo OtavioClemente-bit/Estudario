@@ -54,7 +54,7 @@ interface Candidate {
 }
 
 /** Ordem de preferência das questões de um tópico, igual em todas as partes do mesmo simulado. */
-function candidatesFor(hit: SimulationLibraryHit, item: Pick<SimulationItem, "topicPath">, input: SimulationJobInput, seed: string): Candidate[] {
+function candidatesFor(hit: SimulationLibraryHit, item: Pick<SimulationItem, "topicPath">, input: SimulationJobInput, seed: string, includeSeen = false): Candidate[] {
   const material = hit.material;
   const all = (material.questions as Json[] | undefined) ?? [];
   const chapters = (material.chapters as Json[] | undefined) ?? [];
@@ -76,7 +76,7 @@ function candidatesFor(hit: SimulationLibraryHit, item: Pick<SimulationItem, "to
     : [...shuffled(noteQuestions, seed), ...shuffled(all, seed)];
   const concepts = new Map(((material.errorConcepts as Json[] | undefined) ?? []).map((c) => [String(c.key), c]));
   const weakNorm = input.weakSpots.map((spot) => squash(spot.split(":")[0]));
-  const seen = new Set(input.seen);
+  const seen = new Set(includeSeen ? [] : input.seen);
   const keys = new Set<string>();
   const out: Candidate[] = [];
   for (const question of ordered) {
@@ -173,12 +173,13 @@ export async function planSimulationFromLibrary(input: SimulationJobInput, store
   const picker = new Picker(total, input.mode, input.weakSpots.length > 0);
   const used = new Set<string>();
   const questions: Json[] = [];
-  const pools = await Promise.all(input.items.map(async (item) => {
-    const hit = await hitFor(store, item.subjectName, item.topicPath, input);
+  const hits = await Promise.all(input.items.map((item) => hitFor(store, item.subjectName, item.topicPath, input)));
+  const pools = input.items.map((item, index) => {
+    const hit = hits[index];
     if (!hit) return null;
     const pool = candidatesFor(hit, item, input, `${seed}:${item.topicPath.join(">")}`);
     return slice(pool, item.chunk, item.chunks);
-  }));
+  });
   const got = new Map<string, number>();
   const short = new Map<string, number>();
   input.items.forEach((item, index) => {
@@ -228,7 +229,24 @@ export async function planSimulationFromLibrary(input: SimulationJobInput, store
     if (variant) questions.push(variant);
     else rematchLeft.push(source);
   }
-  const remainingItems = input.items.filter((item) => short.has(item.ref)).map((item) => ({ ...item, count: short.get(item.ref)! }));
+  // Tópico com biblioteca, mas sem questão inédita para a pessoa: a IA cria questões irmãs de duas
+  // conferidas (as mesmas em toda nova tentativa), sem pesquisar na web.
+  const remainingItems = input.items.filter((item) => short.has(item.ref)).map((item) => {
+    const index = input.items.indexOf(item);
+    const hit = hits[index];
+    const bases = hit
+      ? candidatesFor(hit, item, input, `${seed}:base:${item.topicPath.join(">")}`, true).slice(0, 2).map((c) => {
+        const delivered = deliverQuestion(c.question, "MIXED", seed);
+        const correct = (delivered.options as Json[]).find((option) => option.correct === true);
+        return {
+          statement: String(delivered.statement).slice(0, 1_200),
+          answer: correct ? `${String(correct.key)}) ${String(correct.text)}`.slice(0, 400) : "",
+          explanation: String(delivered.explanation).replace(/\s+/g, " ").slice(0, 700),
+        };
+      })
+      : [];
+    return { ...item, count: short.get(item.ref)!, ...(bases.length > 0 ? { bases } : {}) };
+  });
   const remaining = remainingItems.length > 0 || rematchLeft.length > 0 ? { ...input, items: remainingItems, rematch: rematchLeft } : null;
   const delivered: SimulationJobInput = {
     ...input,

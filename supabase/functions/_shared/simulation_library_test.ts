@@ -83,3 +83,14 @@ Deno.test("revanche sai da biblioteca com outra questão do mesmo conceito", asy
   assertEquals(variant.errorConceptKey, "e1");
   assert(variant !== original);
 });
+
+Deno.test("tópico sem questão inédita vai para a IA com modelos da biblioteca (questões irmãs, sem pesquisa)", async () => {
+  const seen = (library.crase.questions as Json[]).map((q) => questionKey(String(q.statement)));
+  const input = parseSimulationJobInput({ competitionName: "TJ", mode: "FULL", partCount: 1, partIndex: 0, items: [item("crase", 4)], seed: "s", seen });
+  const plan = await planSimulationFromLibrary(input, store, "job");
+  assertEquals(plan.questions.length, 0);
+  const left = plan.remaining!.items[0];
+  assertEquals(left.count, 4);
+  assertEquals(left.bases?.length, 2);
+  assert(left.bases!.every((base) => base.statement.includes("crase") && base.answer.length > 0));
+});

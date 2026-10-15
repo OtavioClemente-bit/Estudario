@@ -275,7 +275,8 @@ export interface AiJobSpec {
   schemaName: string;
   /** Edital lê o PDF do Storage e limpa depois; conteúdo e plano são só texto. */
   usesSource: boolean;
-  tools?: unknown[];
+  /** Ferramentas do pedido; função quando dependem do job (o simulado só pesquisa se precisar). */
+  tools?: unknown[] | ((job: SyllabusWorkerJob) => unknown[] | undefined);
   prompts(job: SyllabusWorkerJob): { systemPrompt: string; userPrompt: string };
   /** Raciocínio pedido ao modelo para este job; sem valor, o padrão do modelo. */
   reasoningEffort?(job: SyllabusWorkerJob): "low" | "medium" | "high" | undefined;
@@ -888,7 +889,7 @@ export async function processSyllabusJob(
               }),
               feature: spec.feature,
               schemaName: spec.schemaName,
-              ...(spec.tools ? { tools: spec.tools } : {}),
+              ...(toolsFor(spec, job) ? { tools: toolsFor(spec, job) } : {}),
               ...(spec.reasoningEffort?.(job) ? { reasoningEffort: spec.reasoningEffort(job) } : {}),
               systemPrompt: prompts.systemPrompt,
               userPrompt: prompts.userPrompt,
@@ -1793,4 +1794,9 @@ if (import.meta.main) {
       }, { status: 503 });
     }
   });
+}
+
+function toolsFor(spec: AiJobSpec, job: SyllabusWorkerJob): unknown[] | undefined {
+  const tools = typeof spec.tools === "function" ? spec.tools(job) : spec.tools;
+  return tools && tools.length > 0 ? tools : undefined;
 }
