@@ -1,5 +1,16 @@
 # Fila de matérias (o que falta gerar e consertar)
 
+**Situação em 14/10/2026:** 921 matérias, 4.559 recortes e 765 editais publicados; cerca de 15.300 tópicos de
+edital (10%) ainda sem matéria. `conteudo/entrada` está toda conferida: o que tinha conteúdo foi publicado
+(sobram 15 rascunhos de recorte vazios, `recorte-*.json` sem questões, e `prescricao-intercorrente.json` em
+formato antigo, já publicada por outra versão). A passada de ligação por semelhança (ligar-parecidos.ts) se esgotou:
+o que resta sem matéria são lacunas de verdade (lista em `MATERIAS-NOVAS-2026-10-13.md` e `LACUNAS-EDITAIS-2026-10-13.md`).
+Feitas em 14/10: Estatuto dos Funcionários de SP (Lei 10.261/68) e tutela coletiva (ACP, inquérito civil, TAC).
+Lacunas ainda abertas do MPSP: LC 734/93 (Lei Orgânica do MPSP), LC 1.118/2010, resoluções do CNMP.
+Os blocos 01–12 abaixo são de começo de outubro; confira antes de usar.
+
+---
+
 Atualizado em 06/10/2026. Biblioteca publicada: 373 matérias e 171 recortes.
 
 **Agora (06/10):** `07-editais-200.md` (25 blocos de 8 editais para o Codex montar o catálogo) e
