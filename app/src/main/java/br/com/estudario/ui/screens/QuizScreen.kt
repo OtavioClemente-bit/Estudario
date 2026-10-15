@@ -124,6 +124,9 @@ fun QuizScreen(
     val results = rememberSaveable(saver = resultsSaver) { mutableStateMapOf<Long, Boolean>() }
     var revisao by remember { mutableStateOf<QuestionWithOptions?>(null) }
     val simulation = config.mode == "simulation"
+    // Alternativas em ordem nova a cada sessão (OptionShuffle): a pessoa não decora a letra.
+    // Simulado fica na ordem original, como na prova.
+    val shuffleSeed = rememberSaveable { System.nanoTime() }
     suspend fun finishSession() {
         val now = System.currentTimeMillis()
         val correctCount = results.values.count { it }
@@ -279,7 +282,7 @@ fun QuizScreen(
                     }
                 }
             }
-        } else current.options.sortedBy { it.position }.forEach { option ->
+        } else shuffledOptions(current.options, shuffleSeed + current.question.id * 7919, fixed = simulation).forEach { (option, shownLetter) ->
             item(key = "opt-${current.question.id}-${option.id}") {
                 val reveal = confirmed && !simulation
                 val crossed = isEliminated(option.key) && !reveal
@@ -297,7 +300,7 @@ fun QuizScreen(
                         else -> AnswerState.IDLE
                     }
                     AnswerTile(
-                        letter = option.key,
+                        letter = shownLetter,
                         state = tileState,
                         crossed = crossed,
                         // Riscada: tocar desfaz o risco em vez de marcar, para não marcar sem querer.
@@ -366,7 +369,7 @@ fun QuizScreen(
                                 },
                             )
                         }
-                        if (showExplanation) MarkdownText(current.question.explanation)
+                        if (showExplanation) MarkdownText(shuffledExplanation(current.question.explanation, current.options, shuffleSeed + current.question.id * 7919, fixed = simulation))
                         else Text("Explicação oculta pela sua configuração.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (correct == false) {
                             FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -586,4 +589,18 @@ private fun AnswerTile(
             content()
         }
     }
+}
+
+/** As alternativas na ordem de exibição, com a letra que aparece na tela (a original fica na resposta). */
+private fun shuffledOptions(options: List<br.com.estudario.data.local.QuestionOptionEntity>, seed: Long, fixed: Boolean): List<Pair<br.com.estudario.data.local.QuestionOptionEntity, String>> {
+    val original = options.sortedBy { it.position }
+    val order = if (fixed) original.indices.toList() else br.com.estudario.domain.OptionShuffle.order(original.map { it.text }, seed)
+    return order.map { i -> original[i] to br.com.estudario.domain.OptionShuffle.displayLetter(order, i) }
+}
+
+/** A explicação com as letras da ordem mostrada. */
+private fun shuffledExplanation(explanation: String, options: List<br.com.estudario.data.local.QuestionOptionEntity>, seed: Long, fixed: Boolean): String {
+    if (fixed) return explanation
+    val original = options.sortedBy { it.position }
+    return br.com.estudario.domain.OptionShuffle.relabel(explanation, original.map { it.key }, br.com.estudario.domain.OptionShuffle.order(original.map { it.text }, seed))
 }

@@ -259,7 +259,13 @@ fun QuizScreen(scope: String) {
     val answered = selected != null
     val showResult = answered && (explainNow || revealed)
     val correctKey = question.options.firstOrNull { it.correct }?.key
-    val options = question.options.sortedBy { it.position }
+    val original = question.options.sortedBy { it.position }
+    // Ordem nova a cada vez que a questão aparece (OptionShuffle): a letra mostrada segue a posição;
+    // a resposta continua gravada pela alternativa original.
+    val order = remember(question.id, index, sessionId) { br.com.estudario.domain.OptionShuffle.order(original.map { it.text }, Date.now().toLong() + question.id * 7919) }
+    val options = order.map { original[it] }
+    fun shownLetter(key: String?): String = original.indexOfFirst { it.key == key }.takeIf { it >= 0 }?.let { br.com.estudario.domain.OptionShuffle.displayLetter(order, it) } ?: (key ?: "?")
+    val explanation = remember(question.id, order) { br.com.estudario.domain.OptionShuffle.relabel(question.explanation, original.map { it.key }, order) }
 
     fun choose(key: String) {
         if (selected != null) return
@@ -276,13 +282,14 @@ fun QuizScreen(scope: String) {
     val latestChoose = androidx.compose.runtime.rememberUpdatedState(::mark)
     val latestConfirm = androidx.compose.runtime.rememberUpdatedState(::confirm)
     val latestNext = androidx.compose.runtime.rememberUpdatedState(::next)
-    val latestState = androidx.compose.runtime.rememberUpdatedState(Triple(answered, options.map { it.key }, showResult))
+    // Teclado pela letra mostrada (A é a primeira da tela), não pela original.
+    val latestState = androidx.compose.runtime.rememberUpdatedState(Triple(answered, options.mapIndexed { i, o -> "ABCDEF"[i].toString() to o.key }.toMap(), showResult))
     DisposableEffect(scope) {
         val listener: (org.w3c.dom.events.Event) -> Unit = { event ->
             val key = (event as KeyboardEvent).key.uppercase()
             val (isAnswered, keys, shown) = latestState.value
             when {
-                !isAnswered && key in keys -> latestChoose.value(key)
+                !isAnswered && key in keys -> latestChoose.value(keys.getValue(key))
                 !isAnswered && key == "ENTER" -> latestConfirm.value()
                 isAnswered && (key == "ENTER" || key == "ARROWRIGHT") && shown -> latestNext.value()
             }
@@ -338,7 +345,7 @@ fun QuizScreen(scope: String) {
                                 // Botão direito também risca, como no app (deslizar para o lado).
                                 addEventListener("contextmenu") { event -> if (!answered) { event.preventDefault(); toggleCross() } }
                             }) {
-                                Span({ classes("key") }) { Text(option.key) }
+                                Span({ classes("key") }) { Text(shownLetter(option.key)) }
                                 Span { Inline(option.text) }
                             }
                             if (!answered) Button({
@@ -356,10 +363,10 @@ fun QuizScreen(scope: String) {
     if (answered) {
         if (showResult) {
             val right = selected == correctKey
-            AnswerReaction(right, correctKey, question.id, results)
+            AnswerReaction(right, shownLetter(correctKey), question.id, results)
             if (question.explanation.isNotBlank()) Card {
                 CardHead("Explicação")
-                Markdown(question.explanation)
+                Markdown(explanation)
             }
             StatementSource(question.statement)
             Btn(if (index + 1 < initial.size) "Próxima questão" else "Ver resultado", { next() }, block = true, icon = "arrow_forward")
