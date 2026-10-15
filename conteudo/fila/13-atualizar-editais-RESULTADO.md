@@ -1,0 +1,278 @@
+# Resultado da conferência de editais antigos — 14/10/2026
+
+Fila: 13-atualizar-editais.md (339 arquivos). Passo 1 (automático): 166 já têm edital mais novo do mesmo órgão no catálogo (o arquivo antigo pode sair do app quando for do mesmo cargo). Passo 2: pesquisa web dos órgãos grandes sem edital mais novo no catálogo.
+
+## Pesquisados em 14/10/2026 (sem edital novo publicado)
+- PRF: sem edital; pedidos no MGI; concurso 2021 válido até 21/12/2026.
+- Receita Federal: autorizado (Portaria MGI 5.505/2026, 30 AFRFB + 116 ATRFB); banca em contratação; edital previsto para dez/2026.
+- INSS: sem edital; pedido no MGI (último 2022, Cebraspe).
+- TST: sem edital novo (último 2023/2024, Cebraspe) — catálogo já tem tst-2023.
+- Banco do Brasil: sem edital (contratação de banca em 2026).
+- Polícia Penal Federal (ex-Depen): sem edital; pedido de autorização em mai/2026.
+- DPU servidores: sem edital (só previsão orçamentária).
+- ABIN: sem edital (pedidos no MGI).
+- TRT-3: sem edital novo (Edital 01/2022 Fumarc válido até 17/02/2027) — catálogo já tem trt3-2022.
+- Serpro: sem edital novo (último 2023, Cebraspe) — catálogo já tem serpro-2023.
+
+## Editais mais novos que existem e não estão no catálogo (a ingerir)
+- TJDFT servidores 2022 (FGV, 112 vagas, válido até 2026) substitui tjdft-2013.
+- MPSP servidores 2025 (Vunesp: Analista Jurídico, Analista Técnico Científico, Analista e Oficial de Promotoria) substitui mpsp-2022.
+
+## Já cobertos com outro nome no catálogo
+- camara-dos-deputados-2014 → camara-deputados-2026; dpf-* → pf-2025; irbr-diplomata-2018 → irbr-2026.
+
+## 166 com edital mais novo do órgão já no catálogo
+- agu-administrativo-2010--administrador.json -> 2022,2024
+- agu-administrativo-2010--agente-administrativo.json -> 2022,2024
+- agu-administrativo-2010--contador.json -> 2022,2024
+- agu-procurador-federal-2010.json -> 2022,2024
+- agu-2022--advogado-uniao.json -> 2024
+- banco-amazonia-2012--tecnico-bancario.json -> 2024
+- banco-amazonia-2012--tecnico-cientifico-administracao.json -> 2024
+- banco-amazonia-2012--tecnico-cientifico-contabilidade.json -> 2024
+- banco-amazonia-2012--tecnico-cientifico-direito.json -> 2024
+- banco-amazonia-2012--tecnico-cientifico-economia.json -> 2024
+- banco-amazonia-2012--ti-analise-sistemas.json -> 2024
+- banco-nordeste-2018--analista-bancario.json -> 2024
+- banco-nordeste-2018--especialista-tecnico-analista-sistema.json -> 2024
+- caixa-2010--tecnico-bancario-ti.json -> 2021,2024,2025
+- caixa-2010--tecnico-bancario.json -> 2021,2024,2025
+- camara-deputados-2012--analista-arquiteto.json -> 2026
+- camara-deputados-2012--engenheiro-civil.json -> 2026
+- camara-deputados-2012--engenheiro-eletrico.json -> 2026
+- camara-deputados-2012--engenheiro-eletronica-telecomunicacoes.json -> 2026
+- camara-deputados-2012--engenheiro-seguranca-trabalho.json -> 2026
+- camara-deputados-2012--tecnico-material-patrimonio.json -> 2026
+- cgu-2021--auditor-financas-controle-auditoria-fiscalizacao.json -> 2026
+- cgu-2021--auditor-financas-controle-contabilidade-publica-financas.json -> 2026
+- cgu-2021--auditor-financas-controle-correicao-combate-corrupcao.json -> 2026
+- cgu-2021--auditor-financas-controle-tecnologia-informacao.json -> 2026
+- cgu-2021--tecnico-financas-controle.json -> 2026
+- depen-2013--agente-penitenciario.json -> 2015
+- dataprev-2023--analista-processamento.json -> 2024,2026
+- dataprev-2023--analista-ti-analise-negocios.json -> 2024,2026
+- dataprev-2023--analista-ti-arquitetura-engenharia.json -> 2024,2026
+- dataprev-2023--analista-ti-desenvolvimento-software.json -> 2024,2026
+- dataprev-2023--analista-ti-engenheiro-dados.json -> 2024,2026
+- dataprev-2023--analista-ti-inteligencia-informacao.json -> 2024,2026
+- ibama-2021--analista-ambiental-licenciamento.json -> 2025
+- ibama-2021--analista-ambiental-qualidade-ambiental.json -> 2025
+- ibama-2021--analista-ambiental-recuperacao-monitoramento.json -> 2025
+- ibama-2021--tecnico-ambiental.json -> 2025
+- icmbio-2021--tecnico-ambiental.json -> 2024
+- irbr-diplomacia-2012.json -> 2013,2014,2017
+- mpu-2013--analista-direito.json -> 2025
+- mpu-2013--tecnico-administracao.json -> 2025
+- mpu-2013-2--analista-desenvolvimento-sistemas.json -> 2025
+- mpu-2013-2--analista-financas-controle.json -> 2025
+- mpu-2013-2--analista-gestao-publica.json -> 2025
+- mpu-2013-2--analista-pericia-contabilidade.json -> 2025
+- mpu-2013-2--analista-planejamento-orcamento.json -> 2025
+- mpu-2013-2--tecnico-tic.json -> 2025
+- mpgo-2023--promotor-justica-substituto.json -> 2025
+- pcpe-2023--agente.json -> 2026
+- pcpe-2023--delegado.json -> 2026
+- pcpe-2023--escrivao.json -> 2026
+- pcba-2022--delegado.json -> 2026
+- pcba-2022--escrivao.json -> 2026
+- pcba-2022--investigador.json -> 2026
+- pcpe-2016--agente-escrivao.json -> 2023,2026
+- pcpe-2016--delegado.json -> 2023,2026
+- pc-ce-2011--inspetor.json -> 2025
+- sefaz-ce-2021--auditor-fiscal-contabil-financeiro.json -> 2026
+- sefaz-ce-2021--auditor-fiscal-juridico.json -> 2026
+- sefaz-ce-2021--auditor-fiscal-receita-estadual.json -> 2026
+- sefaz-ce-2021--auditor-fiscal-ti.json -> 2026
+- seduc-al-2017--professor-biologia.json -> 2026
+- seduc-al-2017--professor-fisica.json -> 2026
+- seduc-al-2017--professor-geografia.json -> 2026
+- seduc-al-2017--professor-historia.json -> 2026
+- seduc-al-2017--professor-matematica.json -> 2026
+- seduc-al-2017--professor-portugues.json -> 2026
+- sedu-es-2012--professor-biologia-ciencias.json -> 2024
+- sedu-es-2012--professor-educacao-fisica.json -> 2024
+- sedu-es-2012--professor-geografia.json -> 2024
+- sedu-es-2012--professor-historia.json -> 2024
+- sedu-es-2012--professor-lingua-portuguesa.json -> 2024
+- sedu-es-2012--professor-matematica.json -> 2024
+- sefaz-al-2021--auditor-financas-controle-arrecadacao.json -> 2026
+- sefaz-al-2021--auditor-fiscal.json -> 2026
+- sefaz-mt-2023--fiscal-tributos.json -> 2025
+- stj-2012--analista-biblioteconomia.json -> 2018,2024
+- stj-2012--analista-judiciaria.json -> 2018,2024
+- stj-2012--analista-medicina-clinica.json -> 2018,2024
+- stj-2012--analista-medicina-psiquiatria.json -> 2018,2024
+- stj-2012--analista-psicologia.json -> 2018,2024
+- stj-2012--tecnico-telecomunicacoes-eletricidade.json -> 2018,2024
+- stj-2018--analista-judiciaria.json -> 2024
+- stj-2018--analista-judiciario-administrativa.json -> 2024
+- stj-2018--analista-oficial-justica.json -> 2024
+- stj-2018--tecnico-desenvolvimento-sistemas.json -> 2024
+- stj-2018--tecnico-judiciario-administrativa.json -> 2024
+- stj-2018--tecnico-suporte-tecnico.json -> 2024
+- stm-2017--analista-administrativa.json -> 2025
+- stm-2017--analista-analise-sistemas.json -> 2025
+- stm-2017--analista-contabilidade.json -> 2025
+- stm-2017--analista-judiciaria.json -> 2025
+- stm-2017--tecnico-administrativa.json -> 2025
+- stm-2017--tecnico-programacao-sistemas.json -> 2025
+- tcu-2021--auditor-federal-controle-externo.json -> 2025
+- tcdf-procurador-2012.json -> 2024
+- tce-pb-2013--controle-externo.json -> 2017
+- tce-mg-2018--analista-controle-externo-administracao.json -> 2025
+- tce-mg-2018--analista-controle-externo-contabilidade.json -> 2025
+- tce-mg-2018--analista-controle-externo-direito.json -> 2025
+- tce-mg-2018--analista-controle-externo-economia.json -> 2025
+- tce-mg-2018--analista-controle-externo-engenharia.json -> 2025
+- tce-mg-2018--analista-controle-externo-ti.json -> 2025
+- tce-pe-2017--analista-controle-externo-contas-publicas.json -> 2025
+- tce-pe-2017--analista-gestao-administracao.json -> 2025
+- tce-pe-2017--analista-gestao-julgamento.json -> 2025
+- tce-pe-2017--auditor-controle-externo-contas-publicas.json -> 2025
+- tce-pe-2017--auditor-controle-externo-obras.json -> 2025
+- tce-pa-2016--auditor-administracao.json -> 2024
+- tce-pa-2016--auditor-educacional.json -> 2024
+- tce-pa-2016--auditor-fiscal-contabilidade.json -> 2024
+- tce-pa-2016--auditor-informatica-banco-dados.json -> 2024
+- tce-pa-2016--auxiliar-tecnico-administrativa.json -> 2024
+- tce-pa-2016--auxiliar-tecnico-informatica.json -> 2024
+- trt10-2012--analista-administrativa.json -> 2024
+- trt10-2012--analista-contabilidade.json -> 2024
+- trt10-2012--analista-execucao-mandados.json -> 2024
+- trt10-2012--analista-ti.json -> 2024
+- trt7-2017--analista-administrativa.json -> 2024
+- trt7-2017--analista-contabilidade.json -> 2024
+- trt7-2017--analista-judiciaria-oficial-justica.json -> 2024
+- trt7-2017--tecnico-administrativa.json -> 2024
+- trt7-2017--tecnico-tecnologia-informacao.json -> 2024
+- trt8-2013--analista-administrativa.json -> 2026
+- trt8-2013--analista-arquitetura.json -> 2026
+- trt8-2013--analista-judiciaria.json -> 2026
+- trt8-2013--analista-ti.json -> 2026
+- trt8-2013--oficial-justica.json -> 2026
+- trt8-2013--tecnico-administrativo.json -> 2026
+- tre-ba-2017--analista-administrativa.json -> 2024
+- tre-ba-2017--analista-contabilidade.json -> 2024
+- tre-ba-2017--analista-judiciaria.json -> 2024
+- tre-ba-2017--analista-sistemas.json -> 2024
+- tre-ba-2017--tecnico-administrativa.json -> 2024
+- tre-ba-2017--tecnico-programacao-sistemas.json -> 2024
+- tre-ms-2012--analista-analise-sistemas.json -> 2024
+- tre-ms-2012--analista-judiciaria.json -> 2024
+- tre-ms-2012--tecnico-administrativo.json -> 2024
+- tre-ms-2012--tecnico-contabilidade.json -> 2024
+- tre-ms-2012--tecnico-programacao-sistemas.json -> 2024
+- tre-pe-2016--analista-administrativa.json -> 2024
+- tre-pe-2016--analista-contabilidade.json -> 2024
+- tre-pe-2016--analista-judiciaria.json -> 2024
+- tre-pe-2016--analista-medicina-trabalho.json -> 2024
+- tre-pe-2016--analista-sistemas.json -> 2024
+- tre-pe-2016--tecnico-administrativa.json -> 2024
+- tre-rj-2012--analista-administrativa.json -> 2024
+- tre-rj-2012--analista-analise-sistemas.json -> 2024
+- tre-rj-2012--analista-contabilidade.json -> 2024
+- tre-rj-2012--analista-judiciaria.json -> 2024
+- tre-rj-2012--tecnico-administrativo.json -> 2024
+- tre-rj-2012--tecnico-programacao-sistemas.json -> 2024
+- tre-rs-2015--analista-administrativa.json -> 2024
+- tre-rs-2015--analista-analise-sistemas.json -> 2024
+- tre-rs-2015--analista-judiciaria.json -> 2024
+- tre-rs-2015--analista-psicologia.json -> 2024
+- tre-rs-2015--tecnico-administrativa.json -> 2024
+- tre-rs-2015--tecnico-operacao-computadores.json -> 2024
+- trf1-2017--analista-administrativa.json -> 2024,2025,2023
+- trf1-2017--analista-informatica.json -> 2024,2025,2023
+- trf1-2017--analista-oficial-justica.json -> 2024,2025,2023
+- trf1-2017--tecnico-administrativa.json -> 2024,2025,2023
+- trf1-2017--tecnico-seguranca-transporte.json -> 2024,2025,2023
+- trf1-juiz-federal-substituto-2023.json -> 2024,2025
+- trf3-juiz-2011.json -> 2024
+- trf5-juiz-2017.json -> 2026
+
+## Ainda não pesquisados
+- age-mg-procurador-2022.json
+- anac-2023--especialista-area-1-piloto.json
+- anac-2023--especialista-area-2-engenharia.json
+- anac-2023--especialista-area-3-regulacao.json
+- antt-2023--especialista-regulacao-ciencia-dados.json
+- antt-2023--especialista-regulacao-direito.json
+- antt-2023--especialista-regulacao-economia.json
+- antt-2023--especialista-regulacao-engenharia.json
+- antt-2023--especialista-regulacao-transportes-dados.json
+- cbm-df-qobm-complementar-2011--ciencias-contabeis.json
+- cbm-df-qobm-complementar-2011--direito.json
+- cbm-df-qobm-complementar-2011--enfermagem.json
+- cbm-df-qobm-complementar-2011--estatistica.json
+- cbm-df-qobm-complementar-2011--informatica.json
+- cbm-df-qobm-complementar-2011--pedagogia.json
+- cbmpa-praca-2023.json
+- dnit-2023--analista-administrativo-administracao.json
+- dnit-2023--analista-administrativo-contabilidade.json
+- dnit-2023--analista-administrativo-ti.json
+- dnit-2023--analista-infraestrutura-transportes.json
+- inss-perito-medico-2010.json
+- pcdf-agente-2013.json
+- pcal-2012--delegado.json
+- pces-delegado-2022.json
+- pc-ma-2017--delegado.json
+- pmsc-soldado-2023.json
+- pmro-oficial-2022.json
+- pmerj-soldado-2023.json
+- pmrn-soldado-2023.json
+- pge-sc-procurador-2022.json
+- sefaz-ba-2022--agente-tributos-administracao-financas.json
+- sefaz-ba-2022--agente-tributos-administracao-tributaria.json
+- sefaz-ba-2022--agente-tributos-ti.json
+- sefaz-rs-2017--auditor-fiscal.json
+- sds-pe-2016--auxiliar-legista.json
+- sds-pe-2016--auxiliar-perito.json
+- sds-pe-2016--medico-legista.json
+- sds-pe-2016--perito-criminal-area-1-engenharia-mecanica.json
+- sds-pe-2016--perito-criminal-area-2-engenharia-civil.json
+- sds-pe-2016--perito-papiloscopista.json
+- sefaz-am-2022--analista-tecnologia-informacao.json
+- sefaz-am-2022--assistente-administrativo.json
+- sefaz-am-2022--auditor-financas-controle-tesouro.json
+- sefaz-am-2022--auditor-fiscal-tributos.json
+- sefaz-am-2022--tecnico-arrecadacao-tributos.json
+- sefaz-am-2022--tecnico-fazenda.json
+- sefaz-es-consultor-2010--ciencias-contabeis.json
+- sefaz-es-consultor-2010--ciencias-economicas.json
+- seec-df-2019--auditor-fiscal-receita.json
+- sef-mg-2022--auditor-fiscal-auditoria-fiscalizacao.json
+- sef-mg-2022--auditor-fiscal-ti.json
+- sef-mg-2022--auditor-fiscal-tributacao.json
+- tce-ba-2010--procurador-mp-especial.json
+- tce-pb-2017--agente-documentacao.json
+- tce-pb-2017--auditor-contas-publicas.json
+- tce-ro-2013--analista-informatica.json
+- tce-ro-2013--auditor-ciencias-computacao.json
+- tce-ro-2013--auditor-ciencias-contabeis.json
+- tce-ro-2013--auditor-direito.json
+- tce-ro-2013--auditor-economia.json
+- tce-ro-2013--contador.json
+- tce-es-2012.json
+- tce-es-analista-2013--administracao-economia.json
+- tce-es-analista-2013--arquitetura.json
+- tce-es-analista-2013--arquivologia.json
+- tce-es-analista-2013--ciencias-contabeis.json
+- tce-es-analista-2013--direito.json
+- tce-es-analista-2013--informatica.json
+- tce-rn-2015--auditor.json
+- tce-rs-oficial-2013.json
+- tj-ba-juiz-2012.json
+- tj-pb-2010--juiz-leigo.json
+- tj-rn-2012.json
+- trt16-2005--analista-administrativa.json
+- trt16-2005--analista-contabilidade.json
+- trt16-2005--analista-judiciaria.json
+- trt16-2005--analista-sistemas.json
+- trt16-2005--tecnico-administrativa.json
+- trt16-2005--tecnico-seguranca-transporte.json
+- trt-17-2013--analista-administrativa.json
+- trt-17-2013--analista-contabilidade.json
+- trt-17-2013--analista-judiciaria.json
+- trt-17-2013--analista-ti.json
+- trt-17-2013--oficial-justica.json
+- trt-17-2013--tecnico-administrativo.json
+- ufpe-tae-2023--assistente-administracao.json
