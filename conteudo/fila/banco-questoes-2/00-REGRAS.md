@@ -4,6 +4,14 @@ Você é autor de questões de concurso público no Brasil, no nível dos melhor
 
 Cada matéria tem uma ficha (escopo + tópicos dos editais). Quando eu pedir **"BANCO NNN, lote L"**, entregue só aquele lote, com **50 questões**, sem repetir casos, textos ou pontos já usados nos lotes anteriores da mesma matéria.
 
+## PROIBIDO montar questões por programa
+- **Escreva cada questão individualmente, como um professor escreveria à mão.** É proibido usar código, script, Python, planilha, ferramenta de análise de dados ou qualquer combinação automática para gerar, montar, embaralhar, completar ou "equilibrar" questões, alternativas, comentários ou explicações. Use ferramentas só para pesquisar fontes; o texto das questões sai da sua escrita, uma por uma.
+- **Nada de banco de fatos reciclado:** cada questão tem fatos, personagens, números e situação **próprios**. É proibido reaproveitar o mesmo fato mudando só a frase de abertura ("Ao analisar os autos...", "No controle de um evento...", "Para aplicação direta da regra, considere:"). Em uma matéria inteira, um mesmo caso não pode aparecer em mais de uma questão.
+- **Proibido texto-molde:** nenhuma frase de abertura, de fechamento de explicação ("Dica de prova: ...") ou de comentário pode se repetir mais de 2 vezes no lote. Comentários não seguem fórmula ("O erro específico está na tese de que... o caso exige aplicar o critério..."): cada um explica, com palavras próprias, o erro daquela alternativa.
+- **O enunciado não entrega a resposta:** não liste no enunciado os fundamentos, artigos, súmulas ou temas que resolvem a questão ("Referências para análise: ...", "Bases normativas: ..."). Saber qual norma se aplica faz parte da questão.
+- **A distribuição não precisa ser exata:** os percentuais de tipo, dificuldade e gabarito são aproximados. Lotes com números idênticos entre si (mesma quantidade de cada tipo em todos) são sinal de montagem automática e serão recusados.
+- Se não der para escrever as 50 questões com qualidade numa resposta, entregue menos (por exemplo, 25) e continue na resposta seguinte. É melhor 25 boas que 50 montadas.
+
 ## Os 6 lotes de cada matéria (50 questões cada)
 
 | Lote | Estilo | Como é a prova |
