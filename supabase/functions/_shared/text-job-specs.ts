@@ -211,8 +211,9 @@ async function libraryTopUp(
   if (missing <= 0 || !dependencies.provider) return [];
   const context = [input.competitionName, input.role, input.board ? `banca ${input.board}` : null, input.subjectName, input.topicPath.join(" › ")].filter(Boolean).join(" · ");
   const model = resolveOpenAiModel(dependencies.modelForJob?.(job) ?? dependencies.model);
+  // Pede com reserva: se o revisor tirar alguma, a conta ainda fecha (pedia 20 e vinham 19).
   const raw = await runQuestionTopUp(
-    { content, missing, questionStyle: input.options.questionStyle, difficulty: input.options.difficulty, context },
+    { content, missing: missing + RESERVE_QUESTIONS, questionStyle: input.options.questionStyle, difficulty: input.options.difficulty, context },
     {
       provider: dependencies.provider,
       jobId: job.id,
@@ -344,7 +345,7 @@ async function completeQuestions(
     runQuestionTopUp(
       {
         content,
-        missing: Math.min(QUESTION_CHUNK, missing - i * QUESTION_CHUNK),
+        missing: Math.min(QUESTION_CHUNK, missing - i * QUESTION_CHUNK) + RESERVE_QUESTIONS,
         questionStyle: input.options.questionStyle,
         difficulty: input.options.difficulty,
         context: parts > 1 ? `${context} · parte ${i + 1} de ${parts}: cubra pontos e casos diferentes das outras partes` : context,
@@ -386,8 +387,10 @@ async function completeQuestions(
   if (extra.length === 0) return content;
   try {
     const merged = repairTopicContent(JSON.stringify({ ...content, questions: [...current, ...extra] }), input.options, 0, onDrop);
-    const count = (JSON.parse(merged).questions as unknown[]).length;
-    return validateTopicContent(merged, expected, { ...input.options, questionCount: count }) as Record<string, unknown>;
+    // A reserva que sobrou não vai: fica o número pedido.
+    const kept = keepRequestedQuestions(JSON.parse(merged), input.options.questionCount);
+    const count = (kept.questions as unknown[]).length;
+    return validateTopicContent(JSON.stringify(kept), expected, { ...input.options, questionCount: count }) as Record<string, unknown>;
   } catch {
     return content;
   }

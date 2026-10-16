@@ -637,6 +637,9 @@ function interleave<T>(lists: T[][]): T[] {
  * Material no formato da IA, montado da biblioteca. Nulo quando a biblioteca não cobre o pedido
  * (questões insuficientes no estilo pedido): aí a IA gera, como antes.
  */
+/** Recorte com ao menos isto de cartões próprios fica só com eles. */
+const MIN_FOCUSED_FLASHCARDS = 4;
+
 export function assembleFromLibrary(
   material: Json,
   note: Json | null,
@@ -749,9 +752,10 @@ export function assembleFromLibrary(
   const inFocus = <T>(items: T[]) => outside.length === 0 ? items : items.filter((item) => !mentionsOutside(item));
   const merged = (field: "tips" | "traps") =>
     wants("TIPS_TRAPS") ? [...new Set([...((note?.[field] as string[]) ?? []), ...inFocus(material[field] as string[])])].slice(0, 8) : [];
-  // Flashcards têm mínimo: se o recorte deixar poucos, vai o conjunto inteiro (melhor que a IA paga).
+  // Com recorte, só os cartões do que a teoria entregue ensina, mesmo que sejam poucos: completar com
+  // o baralho inteiro trazia cartão de assunto que o material não explicou. Quase nenhum: vai o inteiro.
   const focusedCards = inFocus(material.flashcards as Json[]);
-  const cards = focusedCards.length >= MIN_LIBRARY_FLASHCARDS ? focusedCards : (material.flashcards as Json[]);
+  const cards = focusedCards.length >= MIN_FOCUSED_FLASHCARDS ? focusedCards : (material.flashcards as Json[]);
   const recall = inFocus(material.activeRecall as Json[]);
 
   const content: Json = {
@@ -783,6 +787,7 @@ export function assembleFromLibrary(
       // Confere pelo que a biblioteca entrega: com menos que o pedido (parcial ou "mais questões"),
       // quem chama completa o resto. Conferir pelo pedido recusava o material e mandava tudo para a IA.
       { ...options, questionCount: questions.length },
+      Math.min(MIN_LIBRARY_FLASHCARDS, cards.length),
     );
   } catch {
     return null;

@@ -338,7 +338,7 @@ Deno.test("missing questions are written by a short top-up call without web sear
     start: (input) => {
       starts.push(input);
       if (input.feature === "CONTENT_TOPUP") {
-        return Promise.resolve(completed(JSON.stringify({ questions: [question(20), question(21), question(22)] })));
+        return Promise.resolve(completed(JSON.stringify({ questions: [question(20), question(21), question(22), question(23), question(24)] })));
       }
       // Geração com só 7 questões; o revisor responde algo que não é revisão (segue o original).
       return Promise.resolve(completed(JSON.stringify(content({ questions: Array.from({ length: 7 }, (_, i) => question(i)) }))));
@@ -350,7 +350,7 @@ Deno.test("missing questions are written by a short top-up call without web sear
   const topUp = starts.find((s) => s.feature === "CONTENT_TOPUP");
   assert(topUp, "chamou a reposição");
   assertEquals(topUp.tools, undefined);
-  assert(topUp.userPrompt!.includes("exatamente 3"));
+  assert(topUp.userPrompt!.includes("exatamente 5"));
   assertEquals(((proposals[0] as { questions: unknown[] }).questions).length, 10);
 });
 

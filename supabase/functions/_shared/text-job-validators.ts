@@ -78,7 +78,7 @@ function blank(value: unknown): boolean {
  * Conteúdo de um tópico: só as partes pedidas, a quantidade exata de questões no formato pedido,
  * coerência interna das questões, vínculos e fontes.
  */
-export function validateTopicContent(raw: string, expected: ExpectedVersions, options: ContentGenerationOptions): Json {
+export function validateTopicContent(raw: string, expected: ExpectedVersions, options: ContentGenerationOptions, minFlashcards = MIN_FLASHCARDS): Json {
   const value = parse(raw);
   checkVersions(value, expected);
   const wants = (block: ContentBlock) => options.blocks.includes(block);
@@ -93,7 +93,7 @@ export function validateTopicContent(raw: string, expected: ExpectedVersions, op
   if (wants("SUMMARY")) nonBlank(value.summary, "summary");
   // Baralho: quantidade que dá para estudar de verdade, cartões curtos e sem repetição.
   const cards = array(value.flashcards, "flashcards");
-  if (wants("QUICK_REVIEW") ? cards.length < MIN_FLASHCARDS || cards.length > MAX_FLASHCARDS : cards.length !== 0) reject("flashcard count");
+  if (wants("QUICK_REVIEW") ? cards.length < minFlashcards || cards.length > MAX_FLASHCARDS : cards.length !== 0) reject("flashcard count");
   const fronts = new Set<string>();
   cards.forEach((card, index) => {
     const front = nonBlank(card.front, `flashcards.${index}.front`, 240).trim().toLowerCase();
