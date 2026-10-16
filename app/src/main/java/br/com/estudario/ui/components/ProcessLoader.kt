@@ -161,6 +161,8 @@ fun EstudarioProcessView(
     stageDetail: String? = null,
     /** Texto quando tudo terminou. */
     doneLabel: String = "Pronto",
+    /** A cena da oficina do Folha (a mesma do site); null mantém a cena antiga. */
+    scene: WorkshopKind? = WorkshopKind.MATERIAL,
     footer: (@Composable () -> Unit)? = null,
 ) {
     val elapsed = rememberElapsedMillis()
@@ -188,9 +190,10 @@ fun EstudarioProcessView(
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
             )
-            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            // O marca-texto atrás do título anda com o progresso.
+            HighlightedTitle(title, progress)
         }
-        EstudarioProcessScene(sceneSize.coerceAtMost(320.dp))
+        if (scene != null) WorkshopScene(scene) else EstudarioProcessScene(sceneSize.coerceAtMost(320.dp))
         FolhaSpeech {
             if (stages.isNotEmpty()) AnimatedContent(
                 targetState = when {
@@ -220,7 +223,7 @@ fun EstudarioProcessView(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        if (stages.size > 1) StageTrail(stages.size, if (completed) stages.size else current, progress, Modifier.fillMaxWidth())
+        if (stages.size > 1) WorkshopChecklist(stages, if (completed) stages.size else current, Modifier.fillMaxWidth())
         else ProcessProgressBar(progress, Modifier.fillMaxWidth(0.72f))
         footer?.invoke()
     }
@@ -231,7 +234,7 @@ fun EstudarioProcessView(
  * diálogo com o livro pequeno ao lado do texto: toda espera do app ganha a cena inteira.
  */
 @Composable
-fun EstudarioProcessDialog(title: String, message: String? = null, steps: List<String> = emptyList()) {
+fun EstudarioProcessDialog(title: String, message: String? = null, steps: List<String> = emptyList(), scene: WorkshopKind? = null) {
     Dialog(
         onDismissRequest = {},
         properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
@@ -250,7 +253,7 @@ fun EstudarioProcessDialog(title: String, message: String? = null, steps: List<S
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                EstudarioProcessScene(176.dp, sheets = 4)
+                if (scene != null) WorkshopScene(scene) else EstudarioProcessScene(176.dp, sheets = 4)
                 Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
                 val line = steps.getOrNull(stepNow)?.let { "$it…" } ?: message
                 if (line != null) AnimatedContent(

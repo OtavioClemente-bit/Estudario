@@ -153,6 +153,7 @@ fun AiReviewScreen(
                 val preparing = content == AiReviewContent.Preparing
                 key(preparing) { EstudarioProcessView(
                     title = if (preparing) "Lendo seu edital" else "Analisando seu edital",
+                    scene = br.com.estudario.ui.components.WorkshopKind.EDITAL,
                     stages = if (preparing) PreparationStages else SyllabusAnalysisStages,
                     stageMillis = if (preparing) PREPARATION_STAGE_MILLIS else 16_000L,
                     // A leitura no celular tem etapas reais (página a página); a análise segue o tempo.

@@ -530,6 +530,7 @@ private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, on
                 if (failed == null) {
                     br.com.estudario.ui.components.EstudarioProcessView(
                         title = if (questionsOnly) "Preparando suas questões" else "Preparando seu material",
+                        scene = if (questionsOnly) br.com.estudario.ui.components.WorkshopKind.QUESTIONS else br.com.estudario.ui.components.WorkshopKind.MATERIAL,
                         eyebrow = topicTitle,
                         stages = stages,
                         stageMillis = CONTENT_STAGE_MILLIS,

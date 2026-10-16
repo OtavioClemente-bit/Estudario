@@ -21,6 +21,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -379,6 +382,7 @@ fun InitialSetupFlow(
     }
 
     if (operation is SetupOperation.Loading) LoadingDialog(
+        scene = br.com.estudario.ui.components.WorkshopKind.EDITAL,
         title = "Preparando seu estudo",
         message = "Analisando apenas o conteúdo real que você enviou…",
         steps = listOf(
@@ -1085,6 +1089,11 @@ private fun PlanReviewStep(snapshot: InitialSetupSnapshot, uiState: InitialSetup
 @Composable
 private fun ReadyStep(onFinish: () -> Unit) {
     // O fim da conversa: o Folha comemorando no meio da tela e chamando para o primeiro estudo.
+    // "Começar a estudar" decola: o foguete sai do botão, explode na tela e o Folha comemora.
+    var boxAt by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    var rocketAt by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
+    var launching by remember { mutableStateOf(false) }
+    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().onGloballyPositioned { boxAt = it.positionInWindow() }) {
     Column(
         Modifier.fillMaxSize().padding(horizontal = estudarioLayout().screenGutter),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1112,7 +1121,23 @@ private fun ReadyStep(onFinish: () -> Unit) {
                 avatar = 0.dp,
             )
         }
-        SetupBottomBar { SetupPrimaryButton("Começar a estudar", onFinish) }
+        SetupBottomBar {
+            Button(
+                onClick = { if (!launching) launching = true },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(18.dp),
+            ) {
+                br.com.estudario.ui.components.RocketIcon(
+                    Modifier.onGloballyPositioned { c -> val p = c.positionInWindow(); rocketAt = androidx.compose.ui.geometry.Offset(p.x + c.size.width / 2f, p.y + c.size.height / 2f) }
+                        .graphicsLayer { alpha = if (launching) 0f else 1f },
+                    size = 30.dp,
+                )
+                Spacer(Modifier.width(10.dp))
+                Text("Começar a estudar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+    if (launching) br.com.estudario.ui.components.RocketLaunch(from = (rocketAt ?: androidx.compose.ui.geometry.Offset(boxAt.x + 200f, boxAt.y + 1600f)) - boxAt, onDone = onFinish)
     }
 }
 

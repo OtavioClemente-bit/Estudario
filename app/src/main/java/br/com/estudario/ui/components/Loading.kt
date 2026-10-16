@@ -44,10 +44,10 @@ import androidx.compose.ui.window.DialogProperties
  * - [SkeletonBlock] / [SkeletonCard]: esqueleto com brilho, quando já sabemos o formato do conteúdo.
  */
 @Composable
-fun LoadingDialog(title: String, message: String? = null, steps: List<String> = emptyList()) {
+fun LoadingDialog(title: String, message: String? = null, steps: List<String> = emptyList(), scene: WorkshopKind? = null) {
     // A cena de processamento (o livro recebendo o material) em versão compacta; com [steps], o
     // texto vai narrando o que está acontecendo em vez de uma frase fixa.
-    EstudarioProcessDialog(title = title, message = message, steps = steps)
+    EstudarioProcessDialog(title = title, message = message, steps = steps, scene = scene)
 }
 
 /** Corpo de tela ainda sem conteúdo. */

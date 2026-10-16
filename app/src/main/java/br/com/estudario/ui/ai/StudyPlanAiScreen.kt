@@ -26,6 +26,7 @@ private val PlanCopy = AiGenerationCopy(
     ),
     generateLabel = "Montar com o Estudário",
     processingTitle = "Montando seu plano",
+    scene = br.com.estudario.ui.components.WorkshopKind.PLAN,
     stages = listOf(
         "Lendo suas matérias e prioridades",
         "Calculando o tempo de cada semana",

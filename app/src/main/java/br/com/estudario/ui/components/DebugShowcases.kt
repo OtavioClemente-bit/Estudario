@@ -23,9 +23,18 @@ import br.com.estudario.ui.theme.EstudarioTheme
 
 /** Vitrine de debug: a tela de geração como aparece ao gerar material ou ler um edital. */
 @Composable
-fun LoaderShowcase() = EstudarioTheme {
+fun LoaderShowcase(scene: String? = null) = EstudarioTheme {
+    // "--es scene rocket" mostra a decolagem em loop; plan/material/questions/edital, a oficina.
+    if (scene == "rocket") {
+        val run = androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+        br.com.estudario.ui.brand.Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            androidx.compose.runtime.key(run.intValue) { RocketLaunch(from = androidx.compose.ui.geometry.Offset(540f, 2150f), onDone = { run.intValue++ }) }
+        }
+        return@EstudarioTheme
+    }
     br.com.estudario.ui.brand.Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { Box(Modifier.padding(20.dp), contentAlignment = Alignment.Center) {
         EstudarioProcessView(
+            scene = runCatching { WorkshopKind.valueOf((scene ?: "material").uppercase()) }.getOrDefault(WorkshopKind.MATERIAL),
             title = "Gerando seu material",
             eyebrow = "Crase",
             stages = listOf("Lendo o tópico", "Montando a teoria", "Escrevendo as questões", "Revisando"),

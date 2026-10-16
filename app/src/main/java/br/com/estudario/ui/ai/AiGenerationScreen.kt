@@ -62,6 +62,8 @@ data class AiGenerationCopy(
     val stageMillis: Long,
     val durationHint: String,
     val fallbackLabel: String,
+    /** A cena da oficina do Folha enquanto gera. */
+    val scene: br.com.estudario.ui.components.WorkshopKind = br.com.estudario.ui.components.WorkshopKind.MATERIAL,
 )
 
 /**
@@ -100,6 +102,7 @@ fun AiGenerationScreen(
                             title = copy.processingTitle,
                             stages = copy.stages,
                             stageMillis = copy.stageMillis,
+                            scene = copy.scene,
                             footer = {
                                 Text(
                                     "${copy.durationHint} Pode fechar e continuar usando o app: a geração segue em segundo plano e avisamos quando estiver pronta.",

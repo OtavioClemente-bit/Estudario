@@ -122,7 +122,7 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
     reprogram?.let { row -> ReprogramDialog(row.entity.taskTitlePtBr(), { reprogram = null }) { viewModel.reprogram(row.entity.id, it) } }
     skip?.let { row -> ReasonDialog({ skip = null }) { viewModel.skip(row.entity.id, it) } }
     TransferPlanDialog(transfer, viewModel)
-    busy?.let { current -> LoadingDialog(current.title, current.message) }
+    busy?.let { current -> LoadingDialog(current.title, current.message, scene = br.com.estudario.ui.components.WorkshopKind.PLAN) }
 
     if (management) {
         PlanManagementScreen(state, { management = false }, viewModel::activate, viewModel::markMaster, viewModel::duplicate, viewModel::archive, viewModel::restore, viewModel::delete, { id -> viewModel.executionCount(id) }, { plan ->

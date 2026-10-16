@@ -95,7 +95,7 @@ class MainActivity : ComponentActivity() {
             }
             // Vitrines da tela de geração e das medalhas (só debug/preview): `--ez loaderShowcase true` / `--ez badgeShowcase true`.
             if (BuildConfig.DEBUG && intent?.getBooleanExtra("loaderShowcase", false) == true) {
-                br.com.estudario.ui.components.LoaderShowcase()
+                br.com.estudario.ui.components.LoaderShowcase(intent?.getStringExtra("scene"))
                 return@setContent
             }
             if (BuildConfig.DEBUG && intent?.getBooleanExtra("focusDoneShowcase", false) == true) {
