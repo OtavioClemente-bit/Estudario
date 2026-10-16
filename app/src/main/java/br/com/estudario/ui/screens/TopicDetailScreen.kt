@@ -59,7 +59,7 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = null, planViewModel: StudyPlanViewModel, onBack: () -> Unit, onQuiz: () -> Unit, onTheory: (Long) -> Unit, onFocus: () -> Unit, onOpenTopic: (Long) -> Unit = {}, onTheoryAt: (Long, Int) -> Unit = { id, _ -> onTheory(id) }) {
+fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = null, planViewModel: StudyPlanViewModel, onBack: () -> Unit, onQuiz: () -> Unit, onTheory: (Long) -> Unit, onFocus: () -> Unit, onOpenTopic: (Long) -> Unit = {}, onTheoryAt: (Long, Int) -> Unit = { id, _ -> onTheory(id) }, onQuizCount: (Int) -> Unit = { onQuiz() }) {
     val topics by viewModel.topics.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
     val summaries by viewModel.summaries.collectAsState()
@@ -97,6 +97,8 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
         reviews.count { it.topicId == topicId && ReviewPolicy.status(it, now) == ComputedReviewStatus.ATRASADA }, ((now - lastContact) / 86_400_000L).toInt(),
     ))
     var editor by remember { mutableStateOf<SummaryEntity?>(null) }
+    // Treinar o tópico pergunta quantas questões (antes abria sempre todas as salvas).
+    var quizPicker by remember { mutableStateOf(false) }
     var creating by remember { mutableStateOf(false) }
     var expandedSummary by remember { mutableStateOf<SummaryEntity?>(null) }
     val studyStartedAt = remember(topicId) { System.currentTimeMillis() }
@@ -459,6 +461,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
         "Histórico" to 0,
     )
 
+    if (quizPicker) QuizCountSheet(total = topicQuestions.size, onDismiss = { quizPicker = false }) { n -> quizPicker = false; onQuizCount(n) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // ---------------------------------------------------------------- cabeçalho
         item(key = "header") {
@@ -525,7 +528,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                     childTopics.isNotEmpty() -> Triple("Ver os ${childTopics.size} subtópicos", Icons.Outlined.AccountTree, { selectedTab = 0 })
                     resumeTheory != null && resumeTheory.lastReadBlock >= 0 -> Triple("Continuar leitura · ${readPercent ?: 0}%", Icons.Outlined.MenuBook, { onTheory(resumeTheory.id) })
                     resumeTheory != null -> Triple("Começar a teoria", Icons.Outlined.MenuBook, { onTheory(resumeTheory.id) })
-                    topicQuestions.isNotEmpty() -> Triple("Treinar ${topicQuestions.size} ${if (topicQuestions.size == 1) "questão" else "questões"}", Icons.Outlined.Quiz, onQuiz)
+                    topicQuestions.isNotEmpty() -> Triple("Treinar questões (${topicQuestions.size} salvas)", Icons.Outlined.Quiz, { quizPicker = true })
                     else -> Triple("Gerar material com o Estudário", Icons.Outlined.AutoAwesome, { showContentPrompt = true })
                 }
                 Button(onClick = action, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) {
@@ -800,7 +803,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                                 TopicStat("${topicQuestions.count { it.question.answerCount == 0 }}", "nunca vistas", null, Modifier.weight(1f))
                                 TopicStat(accuracy?.let { "$it%" } ?: "-", "de acerto", null, Modifier.weight(1f))
                             }
-                            Button(onClick = onQuiz, enabled = topicQuestions.isNotEmpty(), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                            Button(onClick = { quizPicker = true }, enabled = topicQuestions.isNotEmpty(), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
                                 Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Treinar este tópico")
                             }
                         }
@@ -979,4 +982,30 @@ private fun SummaryEditorDialog(summary: SummaryEntity?, onDismiss: () -> Unit, 
         confirmButton = { TextButton(enabled = title.isNotBlank() && markdown.isNotBlank(), onClick = { onSave(title, markdown); onDismiss() }) { Text("Salvar") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
+}
+
+/** Quantas questões treinar agora: atalhos e um contador, com "todas" no fim. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun QuizCountSheet(total: Int, onDismiss: () -> Unit, onStart: (Int) -> Unit) {
+    var count by remember { mutableStateOf(minOf(10, total).coerceAtLeast(1)) }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text("Quantas questões?", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("Este tópico tem $total salvas.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
+                FilledTonalIconButton(onClick = { count = (count - 1).coerceAtLeast(1) }, enabled = count > 1) { Text("−", style = MaterialTheme.typography.titleLarge) }
+                Text("$count", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 28.dp))
+                FilledTonalIconButton(onClick = { count = (count + 1).coerceAtMost(total) }, enabled = count < total) { Text("+", style = MaterialTheme.typography.titleLarge) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                (listOf(5, 10, 20).filter { it < total } + total).distinct().forEach { n ->
+                    FilterChip(selected = count == n, onClick = { count = n }, label = { Text(if (n == total) "Todas ($total)" else "$n") }, modifier = Modifier.weight(1f))
+                }
+            }
+            Button(onClick = { onStart(count) }, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) {
+                Text("Começar $count ${if (count == 1) "questão" else "questões"}", style = MaterialTheme.typography.titleSmall)
+            }
+        }
+    }
 }

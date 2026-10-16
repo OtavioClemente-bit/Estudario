@@ -181,6 +181,8 @@ fun TopicScreen(topicId: Long) {
     var tab by remember(topicId) { mutableStateOf(0) }
     var generating by remember(topicId) { mutableStateOf(false) }
     var generatingQuestions by remember(topicId) { mutableStateOf(false) }
+    // Treinar o tópico pergunta quantas questões (antes abria sempre todas as salvas).
+    var quizPicker by remember(topicId) { mutableStateOf(false) }
     var menuOpen by remember(topicId) { mutableStateOf(false) }
     var finishAsk by remember(topicId) { mutableStateOf(false) }
     var deletingMaterial by remember(topicId) { mutableStateOf(false) }
@@ -243,7 +245,7 @@ fun TopicScreen(topicId: Long) {
         children.isNotEmpty() -> Triple("Ver os ${children.size} subtópicos", "account_tree") { tab = 0 }
         resume != null && resume.lastReadBlock >= 0 -> Triple("Continuar leitura · ${readPercent(resume)}%", "menu_book") { tab = 0; scrollToBlock(resume.id, resume.lastReadBlock) }
         resume != null -> Triple("Começar a teoria", "menu_book") { tab = 0; scrollToBlock(resume.id, 0) }
-        questions.isNotEmpty() -> Triple("Treinar ${questions.size} ${if (questions.size == 1) "questão" else "questões"}", "quiz") { Router.go(Route.Quiz("topico-$topicId")) }
+        questions.isNotEmpty() -> Triple("Treinar questões (${questions.size} salvas)", "quiz") { quizPicker = true }
         else -> Triple("Gerar material com o Estudário", "auto_awesome") { if (!Store.demo) generating = true }
     }
     Btn(label, action, style = "primary", icon = icon, block = true)
@@ -286,6 +288,21 @@ fun TopicScreen(topicId: Long) {
         }
     }
     if (generating) GenerateDialog(topicId) { generating = false }
+    if (quizPicker) {
+        val total = questions.size
+        var count by remember(topicId) { mutableStateOf(minOf(10, total).coerceAtLeast(1)) }
+        Modal(onDismiss = { quizPicker = false }) {
+            FolhaSays("point", 64) {
+                org.jetbrains.compose.web.dom.B { Text("Quantas questões agora?") }
+                P({ classes("small", "muted") }) { Text("Este tópico tem $total salvas.") }
+            }
+            BrandCounter(count, { count = it }, step = 1, min = 1, max = total, unit = "questões", chips = (listOf(5, 10, 20).filter { it < total } + total).distinct(), label = "Quantidade de questões")
+            Div({ classes("row", "between") }) {
+                Btn("Cancelar", { quizPicker = false }, style = "ghost")
+                Btn("Começar $count ${if (count == 1) "questão" else "questões"}", { quizPicker = false; Router.go(Route.Quiz("topico-$topicId-$count")) }, style = "primary", icon = "play_arrow")
+            }
+        }
+    }
     if (generatingQuestions) GenerateDialog(topicId, questionsOnly = true) { generatingQuestions = false }
 
     // ---------------------------------------------------------------- abas
@@ -329,7 +346,7 @@ fun TopicScreen(topicId: Long) {
                     TopicStat("${questions.count { it.answerCount == 0 && attempts.none { a -> a.questionId == it.id } }}", "nunca vistas")
                     TopicStat(accuracy?.let { "$it%" } ?: "-", "de acerto")
                 }
-                Btn("Treinar este tópico", { Router.go(Route.Quiz("topico-$topicId")) }, style = "primary", icon = "play_arrow", block = true, enabled = questions.isNotEmpty())
+                Btn("Treinar este tópico", { quizPicker = true }, style = "primary", icon = "play_arrow", block = true, enabled = questions.isNotEmpty())
             }
             if (subject != null && !Store.demo) Card {
                 val subjectTopicIds = data.topics.filter { it.subjectId == subject.id }.mapTo(hashSetOf()) { it.id }

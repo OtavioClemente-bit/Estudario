@@ -124,6 +124,8 @@ fun HomeScreen(
     onErrors: () -> Unit = {},
     showSetupCta: Boolean = false,
     onSetup: () -> Unit = {},
+    /** Tarefa de questões do plano: abre a bateria direto, na quantidade pedida pelo plano. */
+    onPlanQuestions: (br.com.estudario.data.local.planner.PlanTaskEntity, Int) -> Unit = { task, _ -> task.topicId?.let(onTopic) },
 ) {
     val competitions by viewModel.competitions.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
@@ -259,7 +261,15 @@ fun HomeScreen(
                         when (currentStudy) {
                             is CurrentStudyUiState.Ready -> {
                                 if (queueTask != null) queueTask.topicId?.let(onTopic)
-                                else startTask(viewModel, focusTask, onStudyTask, onFocus)
+                                else if (focusTask?.entity?.type == br.com.estudario.domain.planner.PlanTaskType.QUESTIONS) {
+                                    // Questões do plano vão direto para as questões (como na tela do Plano); sem
+                                    // questões salvas, cai no tópico para gerar.
+                                    val task = focusTask.entity
+                                    scope.launch {
+                                        val count = runCatching { planViewModel.startQuestionTask(task.id) }.getOrDefault(0)
+                                        if (count > 0) onPlanQuestions(task, count) else startTask(viewModel, focusTask, onStudyTask, onFocus)
+                                    }
+                                } else startTask(viewModel, focusTask, onStudyTask, onFocus)
                             }
                             is CurrentStudyUiState.NoPlan -> onPlan()
                             else -> Unit

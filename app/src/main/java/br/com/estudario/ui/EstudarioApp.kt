@@ -468,6 +468,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         onErrors = { navController.navigate("errors") },
                         showSetupCta = initialSetup?.status == InitialSetupStatus.DEFERRED,
                         onSetup = viewModel::reopenInitialSetup,
+                        onPlanQuestions = { task, count -> navController.navigate("plan-quiz/${Uri.encode(task.id)}/$count/${task.topicId ?: 0}/${task.subjectId ?: 0}") },
                     )
                 }
                 composable("syllabus") { EditalScreen(viewModel, onTopic = { navController.navigate("topic/$it") }, onHelp = { showHelpGuidePicker = true }, onSavedEditais = { navController.navigate("my-syllabi") }) }
@@ -533,13 +534,13 @@ private fun MainNavigation(viewModel: AppViewModel) {
                 }
                 composable("topic/{id}") { backStack ->
                     val id = backStack.arguments?.getString("id")?.toLongOrNull() ?: 0
-                    TopicDetailScreen(viewModel, id, planViewModel = planViewModel, onBack = { navController.popBackStack() }, onQuiz = { navController.navigate("quiz/15/$id/0/random/_/_") }, onTheory = { navController.navigate("theory/$it") }, onFocus = {}, onOpenTopic = { navController.navigate("topic/$it") }, onTheoryAt = { theoryId, block -> navController.navigate("theory/$theoryId?block=$block") })
+                    TopicDetailScreen(viewModel, id, planViewModel = planViewModel, onBack = { navController.popBackStack() }, onQuiz = { navController.navigate("quiz/15/$id/0/random/_/_") }, onTheory = { navController.navigate("theory/$it") }, onFocus = {}, onOpenTopic = { navController.navigate("topic/$it") }, onTheoryAt = { theoryId, block -> navController.navigate("theory/$theoryId?block=$block") }, onQuizCount = { n -> navController.navigate("quiz/$n/$id/0/random/_/_") })
                 }
                 composable("topic/{id}/task/{taskId}") { backStack ->
                     val id = backStack.arguments?.getString("id")?.toLongOrNull() ?: 0
                     val taskId = backStack.arguments?.getString("taskId")
                     // A rota mantém a origem da tarefa para sincronizar a conclusão do tópico com o plano.
-                    TopicDetailScreen(viewModel, id, taskId = taskId, planViewModel = planViewModel, onBack = { navController.popBackStack() }, onQuiz = { navController.navigate("quiz/15/$id/0/random/_/_") }, onTheory = { navController.navigate("theory/$it") }, onFocus = {}, onOpenTopic = { navController.navigate("topic/$it") }, onTheoryAt = { theoryId, block -> navController.navigate("theory/$theoryId?block=$block") })
+                    TopicDetailScreen(viewModel, id, taskId = taskId, planViewModel = planViewModel, onBack = { navController.popBackStack() }, onQuiz = { navController.navigate("quiz/15/$id/0/random/_/_") }, onTheory = { navController.navigate("theory/$it") }, onFocus = {}, onOpenTopic = { navController.navigate("topic/$it") }, onTheoryAt = { theoryId, block -> navController.navigate("theory/$theoryId?block=$block") }, onQuizCount = { n -> navController.navigate("quiz/$n/$id/0/random/_/_") })
                 }
                 composable("theory/{id}?block={block}", arguments = listOf(androidx.navigation.navArgument("block") { type = androidx.navigation.NavType.IntType; defaultValue = -1 })) { backStack ->
                     TheoryReaderScreen(
