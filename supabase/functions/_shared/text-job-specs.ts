@@ -163,6 +163,12 @@ async function libraryContent(
   // Sem recorte desta banca (ou concurso sem banca): o "Padrão das provas" da matéria, se houver.
   if (!found.note) {
     found.note = await store.libraryBoardNote?.(primary.topicId, GENERAL_BOARD_NORM, "").catch(() => null) ?? null;
+  } else if (!((found.note.questions as unknown[] | undefined)?.length)) {
+    // Recorte da banca sem questões (só perfil e dicas): as questões vêm do "Padrão das provas",
+    // em vez de a IA paga escrever o que falta. O perfil e as dicas da banca continuam.
+    const general = await store.libraryBoardNote?.(primary.topicId, GENERAL_BOARD_NORM, "").catch(() => null) ?? null;
+    const borrowed = (general?.questions as unknown[] | undefined) ?? [];
+    if (borrowed.length > 0) found.note = { ...found.note, questions: borrowed, borrowedQuestions: true };
   }
   const fresh = input.avoidStatements.length === 0;
   const servedKey = `lib:${found.topicId}@${found.version}:${await contentCacheKey(input)}`;

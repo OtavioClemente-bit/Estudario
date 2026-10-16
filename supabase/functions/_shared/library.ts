@@ -679,7 +679,7 @@ export function assembleFromLibrary(
   const atLevel = (level: string | null) => (q: Json) => level === null || q.difficulty === level;
   // Banca sem recorte próprio (veio o "Padrão das provas"): as questões no estilo mais parecido com o
   // da banca do aluno vêm antes (ex.: Vunesp → estilo Vunesp e FCC).
-  const borrowed = normalizeBoard(typeof note?.board === "string" ? note.board : "") === GENERAL_BOARD_NORM;
+  const borrowed = note?.borrowedQuestions === true || normalizeBoard(typeof note?.board === "string" ? note.board : "") === GENERAL_BOARD_NORM;
   const prefer = borrowed ? preferredStyles(input.board) : [];
   const byStyle = (pool: Json[]) => prefer.length === 0 ? pool : [...pool].sort((a, b) => styleRank(prefer, a) - styleRank(prefer, b));
   const tier = (board: Json[], topic: Json[]) => (level: string | null) => [
@@ -705,7 +705,9 @@ export function assembleFromLibrary(
     const rest = topicPool.filter((q) => !focusQuestions.has(q) && !titles.has(String(q.section).trim()));
     // Recorte por capítulo: só as questões dele (as que faltarem a IA completa sobre a mesma teoria);
     // as de outros capítulos falariam de assunto que a teoria recortada nem traz.
-    ordered = [...byLevel([], direct), ...byLevel(boardPool, sameChapter), ...(focusChapters.length > 0 ? [] : byLevel([], rest))];
+    // Do recorte da banca, também só as do tópico ou dos capítulos entregues.
+    const boardInFocus = boardPool.filter((q) => sameTopic.includes(q) || titles.has(String(q.section).trim()));
+    ordered = [...byLevel([], direct), ...byLevel(boardInFocus, sameChapter), ...(focusChapters.length > 0 ? [] : byLevel([], rest))];
   }
   const questions = ordered
     .slice(0, options.questionCount)
