@@ -679,12 +679,17 @@ export function assembleFromLibrary(
   const atLevel = (level: string | null) => (q: Json) => level === null || q.difficulty === level;
   // Banca sem recorte próprio (veio o "Padrão das provas"): as questões no estilo mais parecido com o
   // da banca do aluno vêm antes (ex.: Vunesp → estilo Vunesp e FCC).
-  const borrowed = note?.borrowedQuestions === true || normalizeBoard(typeof note?.board === "string" ? note.board : "") === GENERAL_BOARD_NORM;
+  const borrowed = note?.borrowedQuestions === true || typeof note?.ownQuestions === "number" || normalizeBoard(typeof note?.board === "string" ? note.board : "") === GENERAL_BOARD_NORM;
   const prefer = borrowed ? preferredStyles(input.board) : [];
   const byStyle = (pool: Json[]) => prefer.length === 0 ? pool : [...pool].sort((a, b) => styleRank(prefer, a) - styleRank(prefer, b));
+  // Recorte da banca completado com o "Padrão das provas": as da própria banca vêm antes.
+  const noteQuestions = (note?.questions as Json[] | undefined) ?? [];
+  const ownCount = typeof note?.ownQuestions === "number" ? note.ownQuestions : noteQuestions.length;
+  const own = new Set(noteQuestions.slice(0, ownCount));
+  const ownFirst = (pool: Json[]) => [...pool.filter((q) => own.has(q)), ...byStyle(pool.filter((q) => !own.has(q)))];
   const tier = (board: Json[], topic: Json[]) => (level: string | null) => [
-    ...byStyle(shuffled(board.filter((q) => sameTopic.includes(q)).filter(atLevel(level)), seed)),
-    ...byStyle(shuffled(board.filter((q) => !sameTopic.includes(q)).filter(atLevel(level)), seed)),
+    ...ownFirst(byStyle(shuffled(board.filter((q) => sameTopic.includes(q)).filter(atLevel(level)), seed))),
+    ...ownFirst(byStyle(shuffled(board.filter((q) => !sameTopic.includes(q)).filter(atLevel(level)), seed))),
     ...shuffled(topic.filter((q) => level === null || q.difficulty === level), seed),
   ];
   const byLevel = (board: Json[], topic: Json[]) => wanted === null ? tier(board, topic)(null) : nearest[wanted].flatMap(tier(board, topic));
