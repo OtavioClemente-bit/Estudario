@@ -83,12 +83,15 @@ fun CelebrationHost() {
     LaunchedEffect(todayDone, ready) {
         val today = Queries.todayEpoch().toString()
         val last = runCatching { localStorage.getItem(KEY_DAY) }.getOrNull()
-        if (!todayDone || last == today) return@LaunchedEffect
+        // Só marca o dia como comemorado quando a comemoração de fato entra na fila (antes, abrir a
+        // página com o dia já cumprido gastava o dia sem mostrar nada, e depois só vinha o emblema).
+        if (!ready || !todayDone || last == today) return@LaunchedEffect
         write(KEY_DAY, today)
-        if (!ready) return@LaunchedEffect
         val letters = listOf("S", "T", "Q", "Q", "S", "S", "D")
         val week = view.streak.week.filter { !it.future }.takeLast(7).map { letters[it.date.dayOfWeek.ordinal] to it.done }
-        CelebrationQueue.items.add(0, Celebration.StreakDay(view.streak.current, view.streak.best, week, view.progress.xpToday))
+        // A sequência vem antes dos emblemas; se algo já está na tela, ela entra logo depois dele.
+        val at = if (CelebrationQueue.items.isEmpty()) 0 else 1
+        CelebrationQueue.items.add(at, Celebration.StreakDay(view.streak.current, view.streak.best, week, view.progress.xpToday))
     }
     LaunchedEffect(level, ready) {
         val seen = runCatching { localStorage.getItem(KEY_LEVEL) }.getOrNull()?.toIntOrNull()

@@ -395,9 +395,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             streak.filterNotNull().collect { summary ->
                 val today = LocalDate.now().toEpochDay()
                 if (!summary.todayDone || celebratedDay == today) return@collect
+                // Silenciado (logo depois de sincronizar ou restaurar): espera passar em vez de perder
+                // a comemoração do dia (antes, o dia era gasto e depois só aparecia o emblema).
+                while (celebrationsMuted() && System.currentTimeMillis() < celebrationsMutedUntil.coerceAtMost(System.currentTimeMillis() + 60_000)) kotlinx.coroutines.delay(1_000)
+                if (celebrationsMuted()) return@collect
                 celebratedDay = today
                 app.preferences.setLastCelebratedDay(today)
-                if (celebrationsMuted()) return@collect
                 _celebration.value = StreakCelebration(summary, celebrationReason(summary), progress.value?.xpToday ?: 0)
             }
         }
