@@ -28,7 +28,7 @@ async function lerJson<T>(caminho: string, padrao: T): Promise<T> {
   try { return JSON.parse(await Deno.readTextFile(caminho)) as T; } catch { return padrao; }
 }
 
-const vistas = await lerJson<{ ultimoJob: string | null; chaves: string[] }>(VISTAS, { ultimoJob: null, chaves: [] });
+const vistas = Deno.env.get("COLHER_REFAZER") ? { ultimoJob: null, chaves: [] as string[] } : await lerJson<{ ultimoJob: string | null; chaves: string[] }>(VISTAS, { ultimoJob: null, chaves: [] });
 const jaVistas = new Set(vistas.chaves);
 
 const linhas: Json[] = [];
@@ -66,6 +66,7 @@ for (const job of linhas) {
     if (!grupos.has(grupo)) grupos.set(grupo, []);
     grupos.get(grupo)!.push({
       job: job.id,
+      criado: job.created_at,
       concurso: entrada.competitionName ?? null,
       banca: entrada.board ?? null,
       cargo: entrada.role ?? null,
