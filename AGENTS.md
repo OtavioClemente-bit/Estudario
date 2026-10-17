@@ -3,6 +3,10 @@
 1. **Escreva cada questão, alternativa e explicação você mesmo, no texto da resposta.** É proibido usar
    script, código, modelo ou laço para gerar, completar, embaralhar, reordenar, alongar ou "equilibrar"
    questões e alternativas. O terminal serve só para validar se o JSON abre.
+   **Exceção autorizada pelo dono do projeto:** `scripts/banco2/gerar-lote.mjs` pode pedir a um modelo,
+   pela API da Anthropic, que escreva um lote inteiro do banco 2 (cada lote é escrito pelo modelo numa
+   única resposta, seguindo `conteudo/fila/banco-questoes-2/`). Continua proibido montar, completar,
+   embaralhar ou "equilibrar" questões por programa; o script só envia o pedido, grava a resposta e confere.
 2. **Salve os arquivos em `conteudo/entrada/`** (a matéria e o recorte). Nunca grave em
    `conteudo/materias/`, `conteudo/recortes/` nem `conteudo/editais/`: essas pastas são conferidas e
    publicadas por outro processo.
