@@ -55,7 +55,11 @@ import java.time.LocalDate
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpenTopic: (Long) -> Unit, onOpenTopicTask: (Long, String) -> Unit = { id, _ -> onOpenTopic(id) }, onOpenErrors: () -> Unit = {}, onFocus: () -> Unit = {}, onHelp: () -> Unit = {}, onStartQuestions: (PlanTaskEntity, Int) -> Unit = { _, _ -> }) {
+fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpenTopic: (Long) -> Unit, onOpenTopicTask: (Long, String) -> Unit = { id, _ -> onOpenTopic(id) }, onOpenErrors: () -> Unit = {}, onFocus: () -> Unit = {}, onHelp: () -> Unit = {}, onStartQuestions: (PlanTaskEntity, Int) -> Unit = { _, _ -> }, onReviews: () -> Unit = {}) {
+    // As revisões espaçadas vencidas até hoje aparecem no próprio plano, para ninguém esquecer delas.
+    val allReviews by appViewModel.reviews.collectAsState()
+    val endOfToday = java.time.LocalDate.now().plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+    val dueReviews = allReviews.count { it.completedAt == null && it.ignoredAt == null && it.dueAt < endOfToday }
     val state by viewModel.state.collectAsState()
     val entitlements = br.com.estudario.ui.plans.rememberEntitlements()
     var planUpgrade by remember { mutableStateOf(false) }
@@ -177,6 +181,7 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
                         // O resumo do plano rola para fora da tela; as abas Hoje/Semana/Mês/Visão geral
                         // grudam no topo (sticky) para trocar de visão sem precisar voltar lá em cima.
                         item(key = "plan-progress-header") { PlanProgressHeader(state = state) }
+                        if (dueReviews > 0) item(key = "plan-reviews-today") { ReviewReminderCard(dueReviews, onReviews) }
                         stickyHeader(key = "plan-section-selector") {
                             PlanSectionSelector(
                                 selected = state.selectedSection,
@@ -311,3 +316,26 @@ private fun CaminhoCard(titulo: String, selo: String?, corpo: String, rodape: St
 @Composable private fun ReasonDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) { var reason by remember { mutableStateOf("") }; AlertDialog(onDismissRequest = onDismiss, title = { Text("Pular atividade") }, text = { OutlinedTextField(reason, { reason = it }, label = { Text("Motivo obrigatório") }) }, confirmButton = { TextButton(enabled = reason.isNotBlank(), onClick = { onConfirm(reason); onDismiss() }) { Text("Pular") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }) }
 private suspend fun readPlanText(context: Context, uri: Uri): String? = withContext(Dispatchers.IO) { runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } }.getOrNull() }
 
+
+/** O lembrete das revisões espaçadas do dia, dentro do plano: quantas, quanto tempo e quanto XP. */
+@Composable
+private fun ReviewReminderCard(count: Int, onOpen: () -> Unit) {
+    Surface(
+        onClick = onOpen,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+        color = androidx.compose.ui.graphics.Color(0xFFFFF3C4),
+        border = androidx.compose.foundation.BorderStroke(2.dp, androidx.compose.ui.graphics.Color(0xFFFFB421)),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+    ) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            br.com.estudario.ui.brand.BrandIcon(br.com.estudario.ui.brand.Glyph.Cycle, size = 46.dp)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("REVISÃO ESPAÇADA · HOJE", style = MaterialTheme.typography.labelSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = androidx.compose.ui.graphics.Color(0xFFC47F00))
+                Text(if (count == 1) "1 revisão para hoje" else "$count revisões para hoje", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = androidx.compose.ui.graphics.Color(0xFF26234A))
+                Text("Uns ${count * 3} minutos · +${count * 20} XP · revisar no dia certo é o que fixa", style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color(0xFF4E4B6B))
+            }
+            Text("Revisar", style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = androidx.compose.ui.graphics.Color(0xFF5B4BF5))
+        }
+    }
+}

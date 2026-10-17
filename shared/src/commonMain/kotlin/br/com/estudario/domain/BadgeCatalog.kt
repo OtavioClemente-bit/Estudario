@@ -136,9 +136,12 @@ object BadgeCatalog {
     val revisoes = tiers(
         BadgeCategory.REVISOES, "revisao", "revisões",
         listOf(
+            Triple(1, "Primeira volta", "Concluir a primeira revisão espaçada"),
+            Triple(10, "Em dia com a memória", "Concluir 10 revisões"),
             Triple(25, "Revisor", "Concluir 25 revisões"),
             Triple(100, "Memória treinada", "Concluir 100 revisões"),
             Triple(400, "Nada se perde", "Concluir 400 revisões"),
+            Triple(1000, "Memória de elefante", "Concluir 1000 revisões"),
         ),
     )
 

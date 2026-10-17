@@ -121,6 +121,17 @@ fun PlanScreen() {
             }
             // As atrasadas de dias anteriores, aqui mesmo em Hoje (antes era preciso voltar dia a dia).
             val overdueTasks = planTasks.filter { it.day < todayEpoch && (it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO") }.sortedBy { it.day }
+            // As revisões espaçadas vencidas até hoje aparecem no próprio plano, para ninguém esquecer delas.
+            val dueReviews = data.reviews.count { it.completedAt == null && it.ignoredAt == null && it.dueAt < Queries.endOfToday() }
+            if (dayOffset == 0 && dueReviews > 0) Button({ classes("plan-review-card"); onClick { Router.go(Route.Reviews) } }) {
+                Span({ classes("prc-ic") }) { Icon("Cycle") }
+                Span({ classes("grow") }) {
+                    Span({ classes("prc-tag") }) { Text("REVISÃO ESPAÇADA · HOJE") }
+                    B { Text(if (dueReviews == 1) "1 revisão para hoje" else "$dueReviews revisões para hoje") }
+                    Span({ classes("prc-sub") }) { Text("Uns ${dueReviews * 3} minutos · +${dueReviews * 20} XP · revisar no dia certo é o que fixa") }
+                }
+                Span({ classes("prc-go") }) { Text("Revisar") }
+            }
             if (dayOffset == 0 && overdueTasks.isNotEmpty()) {
                 Div({ classes("overdue-box"); id("atrasadas") }) {
                     Button({ classes("overdue-head"); attr("aria-expanded", overdueOpen.toString()); onClick { overdueOpen = !overdueOpen } }) {

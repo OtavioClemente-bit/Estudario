@@ -495,6 +495,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         onOpenErrors = { navController.navigate("errors") },
                         onFocus = { showFocusOverlay = true },
                         onHelp = { viewModel.startTour(TourId.PLAN) },
+                        onReviews = { navController.navigate("reviews") },
                         onStartQuestions = { task, count ->
                             navController.navigate("plan-quiz/${Uri.encode(task.id)}/$count/${task.topicId ?: 0}/${task.subjectId ?: 0}")
                         },

@@ -24,7 +24,8 @@ object ProgressEngine {
     private const val QUESTION_XP = 1
     private const val CORRECT_BONUS_XP = 1
     private const val DAILY_QUESTION_CAP = 120
-    private const val REVIEW_XP = 12
+    // A revisão espaçada vale mais que uma questão solta: é o que segura o conteúdo até a prova.
+    private const val REVIEW_XP = 20
     private const val TOPIC_STUDIED_XP = 25
     private const val GOAL_XP = 30
     private const val STREAK_BONUS_PER_DAY = 3

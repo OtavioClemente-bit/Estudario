@@ -390,6 +390,8 @@ private fun ReviewDone(title: String, days: Long, available: Int, onQuiz: () -> 
     ) {
         br.com.estudario.ui.assistant.Folha(120.dp, mood = br.com.estudario.ui.assistant.FolhaMood.HAPPY)
         Text("REVISÃO CONCLUÍDA", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Color(0xFFC98A0B))
+        // O XP da revisão, à vista: é o que dá peso a ela.
+        br.com.estudario.ui.components.XpTag(br.com.estudario.domain.ProgressEngine.previewReview(), earned = true)
         Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface)
         Text(
             if (days <= 1L) "Ele volta amanhã para mais uma revisão." else "Ele volta em $days dias. Até lá, a memória trabalha por você.",

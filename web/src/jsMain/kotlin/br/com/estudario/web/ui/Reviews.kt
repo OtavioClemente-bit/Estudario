@@ -389,6 +389,7 @@ private fun ReviewDoneScreen(done: ReviewDone.State) {
     Div({ classes("rv-paper", "rv-done") }) {
         Folha("happy", 110)
         Span({ classes("rv-face-tag") }) { Text("REVISÃO CONCLUÍDA") }
+        Span({ classes("rv-xp") }) { Icon("Bolt"); Text("+${br.com.estudario.domain.ProgressEngine.previewReview().max} XP") }
         H2 { Text(topic?.title ?: "Tópico revisado") }
         P({ classes("muted") }) { Text(done.nextInDays?.let { if (it <= 1) "Ele volta amanhã para mais uma revisão." else "Ele volta em $it dias. Até lá, a memória trabalha por você." } ?: "A próxima revisão já está na agenda.") }
         Div({ classes("rv-fix") }) {
