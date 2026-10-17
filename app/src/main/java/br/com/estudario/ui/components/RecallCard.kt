@@ -45,6 +45,8 @@ fun RecallCard(
     modifier: Modifier = Modifier,
     revealKey: Any = question,
     showIcon: Boolean = true,
+    /** Na revisão espaçada: a resposta da pessoa (lembrou ou não) segue direto para a próxima pergunta. */
+    onVerdict: ((Boolean) -> Unit)? = null,
     trailing: @Composable (() -> Unit)? = null,
 ) {
     var showBack by rememberSaveable(revealKey) { mutableStateOf(false) }
@@ -99,15 +101,16 @@ fun RecallCard(
                 } else {
                     MarkdownText(answer)
                 }
+                if (verdict == 0 && onVerdict != null) Text("Você lembrou antes de ver a resposta?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 when (verdict) {
                     0 -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedButton(onClick = { verdict = 2 }, modifier = Modifier.weight(1f)) { Text("Não lembrei") }
-                        Button(onClick = { verdict = 1 }, modifier = Modifier.weight(1f)) { Text("Lembrei") }
+                        OutlinedButton(onClick = { if (onVerdict != null) onVerdict(false) else verdict = 2 }, modifier = Modifier.weight(1f)) { Text("Não lembrei") }
+                        Button(onClick = { if (onVerdict != null) onVerdict(true) else verdict = 1 }, modifier = Modifier.weight(1f)) { Text("Lembrei") }
                     }
                     1 -> Text("Boa! Essa já está na cabeça.", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
                     else -> Text("Sem problema. Leia de novo com calma e tente mais tarde.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                TextButton(onClick = { flip(false) }) { Text("Esconder a resposta") }
+                if (onVerdict == null) TextButton(onClick = { flip(false) }) { Text("Esconder a resposta") }
             }
         }
     }

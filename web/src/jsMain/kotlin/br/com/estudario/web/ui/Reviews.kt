@@ -228,6 +228,7 @@ fun ReviewSessionScreen(reviewId: Long) {
                         }
                     }
                 }
+                if (flipped) P({ classes("rv-hint"); attr("style", "margin-bottom:-4px") }) { B { Text("Você lembrou antes de virar o cartão?") } }
                 if (flipped) Div({ classes("rv-choice") }) {
                     Button({ classes("rv-btn", "no"); onClick { forgotten++; flipped = false; if (recallIndex < recall.lastIndex) recallIndex++ else advance() } }) { Icon("close"); Text("Não lembrei") }
                     Button({ classes("rv-btn", "yes"); onClick { recalled++; flipped = false; if (recallIndex < recall.lastIndex) recallIndex++ else advance() } }) { Icon("check"); Text("Lembrei") }
@@ -265,6 +266,8 @@ fun ReviewSessionScreen(reviewId: Long) {
 private fun ReviewQuestion(question: Question, index: Int, total: Int, selected: String?, answeredRight: Boolean?, onSelect: (String) -> Unit, onPrimary: () -> Unit) {
     val original = question.options.sortedBy { it.position }
     val order = remember(question.id) { br.com.estudario.domain.OptionShuffle.order(original.map { it.text }, Date.now().toLong() + question.id) }
+    // Alternativas riscadas, como no treino normal.
+    val crossed = remember(question.id) { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
     Div({ classes("rv-paper") }) {
         Span({ classes("rv-face-tag") }) { Text("QUESTÃO ${index + 1} DE $total") }
         QuestionStatement(question.statement)
@@ -277,13 +280,22 @@ private fun ReviewQuestion(question: Question, index: Int, total: Int, selected:
                     option.key == selected -> "chosen"
                     else -> null
                 }
-                Button({
-                    classes(*listOfNotNull("option", state).toTypedArray())
-                    if (answeredRight != null) attr("disabled", "")
-                    onClick { onSelect(option.key) }
-                }) {
-                    Span({ classes("key") }) { Text("ABCDEF"[pos].toString()) }
-                    Span { Inline(option.text) }
+                val isCrossed = crossed[option.key] == true && answeredRight == null
+                Div({ classes("option-row") }) {
+                    Button({
+                        classes(*listOfNotNull("option", state, if (isCrossed) "crossed" else null).toTypedArray())
+                        if (answeredRight != null) attr("disabled", "")
+                        onClick { if (isCrossed) crossed[option.key] = false else onSelect(option.key) }
+                        addEventListener("contextmenu") { e -> if (answeredRight == null) { e.preventDefault(); crossed[option.key] = !isCrossed } }
+                    }) {
+                        Span({ classes("key") }) { Text("ABCDEF"[pos].toString()) }
+                        Span { Inline(option.text) }
+                    }
+                    if (answeredRight == null) Button({
+                        classes("strike-btn", *listOfNotNull(if (isCrossed) "on" else null).toTypedArray())
+                        attr("title", if (isCrossed) "Desfazer risco" else "Riscar alternativa")
+                        onClick { crossed[option.key] = !isCrossed }
+                    }) { Icon("strikethrough_s") }
                 }
             }
         }

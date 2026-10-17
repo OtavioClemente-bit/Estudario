@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.FormatStrikethrough
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
@@ -21,6 +22,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -120,6 +122,8 @@ fun ReviewSessionScreen(
     var selected by remember { mutableStateOf<String?>(null) }
     var answered by remember { mutableStateOf<Boolean?>(null) }
     var correct by remember { mutableIntStateOf(0) }
+    // Alternativas riscadas, como no treino normal (tocar no risco de novo desfaz).
+    var crossed by remember { mutableStateOf(setOf<Long>()) }
     val step = steps[stepIndex.coerceAtMost(steps.lastIndex)]
     fun advance() { stepIndex = (stepIndex + 1).coerceAtMost(steps.lastIndex) }
 
@@ -142,13 +146,11 @@ fun ReviewSessionScreen(
                 }
                 item {
                     Text("PERGUNTA ${recallIndex + 1} DE ${recall.size}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color(0xFFC98A0B))
-                    br.com.estudario.ui.components.RecallCard(prompt.text, prompt.answer, revealKey = prompt.id)
-                }
-                item {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        ChoiceButton("Não lembrei", Icons.Outlined.Close, RvRed, filled = false, Modifier.weight(1f)) { forgotten++; if (recallIndex < recall.lastIndex) recallIndex++ else advance() }
-                        ChoiceButton("Lembrei", Icons.Outlined.Check, RvMint, filled = true, Modifier.weight(1f)) { recalled++; if (recallIndex < recall.lastIndex) recallIndex++ else advance() }
-                    }
+                    // Um par de botões só, dentro do cartão e depois de ver a resposta (antes eram dois pares).
+                    br.com.estudario.ui.components.RecallCard(prompt.text, prompt.answer, revealKey = prompt.id, onVerdict = { lembrou ->
+                        if (lembrou) recalled++ else forgotten++
+                        if (recallIndex < recall.lastIndex) recallIndex++ else advance()
+                    })
                 }
             }
             RvStep.SUMMARY -> {
@@ -185,16 +187,21 @@ fun ReviewSessionScreen(
                             option.key == selected -> MaterialTheme.colorScheme.primary
                             else -> MaterialTheme.colorScheme.outlineVariant
                         }
+                        val isCrossed = option.id in crossed && answered == null
                         Row(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(container).border(2.dp, border, RoundedCornerShape(16.dp))
-                                .clickable(enabled = answered == null) { selected = option.key }.padding(14.dp),
+                                .graphicsLayer { alpha = if (isCrossed) 0.45f else 1f }
+                                .clickable(enabled = answered == null) { if (isCrossed) crossed = crossed - option.id else selected = option.key }.padding(start = 14.dp, top = 14.dp, bottom = 14.dp, end = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Box(Modifier.size(30.dp).clip(CircleShape).background(border.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
                                 Text("ABCDEF"[pos].toString(), fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
                             }
                             Spacer(Modifier.width(12.dp))
-                            br.com.estudario.ui.components.StudyInlineText(option.text, Modifier.weight(1f), onTap = { if (answered == null) selected = option.key })
+                            br.com.estudario.ui.components.StudyInlineText(option.text, Modifier.weight(1f), onTap = { if (answered == null) { if (isCrossed) crossed = crossed - option.id else selected = option.key } }, style = if (isCrossed) MaterialTheme.typography.bodyLarge.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough) else MaterialTheme.typography.bodyLarge)
+                            if (answered == null) IconButton(onClick = { crossed = if (option.id in crossed) crossed - option.id else crossed + option.id; if (selected == option.key) selected = null }) {
+                                Icon(Icons.Outlined.FormatStrikethrough, if (isCrossed) "Desfazer risco" else "Riscar alternativa", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                 }
@@ -209,7 +216,7 @@ fun ReviewSessionScreen(
                 }
                 item {
                     if (answered == null) Button(enabled = selected != null, onClick = { scope.launch { answered = viewModel.answer(question, selected!!, sessionId); if (answered == true) correct++ } }, modifier = Modifier.fillMaxWidth()) { Text("Confirmar") }
-                    else Button(onClick = { if (questionIndex < questions.lastIndex) { questionIndex++; selected = null; answered = null } else advance() }, Modifier.fillMaxWidth()) {
+                    else Button(onClick = { crossed = emptySet(); if (questionIndex < questions.lastIndex) { questionIndex++; selected = null; answered = null } else advance() }, Modifier.fillMaxWidth()) {
                         Text(if (questionIndex < questions.lastIndex) "Próxima questão" else "Avaliar a revisão")
                     }
                 }
