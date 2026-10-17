@@ -199,7 +199,7 @@ export const LIBRARY_MIN = {
 // "TODO" só em maiúsculas: "todo"/"Todo" é palavra comum em português.
 const PLACEHOLDERS = {
   test: (value: string) =>
-    /lorem ipsum|a ser preenchid|\[inserir|\[completar|conte[uú]do gen[eé]rico/i.test(value) || /\bxxx\b/.test(value) || /\bTODO\b/.test(value),
+    /lorem ipsum|[[(]a ser preenchid|^a ser preenchid|\[inserir|\[completar|conte[uú]do gen[eé]rico/im.test(value) || /\bxxx\b/.test(value) || /\bTODO\b/.test(value),
 };
 const KEYS = ["e1", "e2", "e3", "e4", "e5", "e6"];
 
@@ -483,8 +483,8 @@ export function validateBoardNote(note: Json, material: Json): Json {
   c.strings(note.traps, "traps", 0, 8);
   const chapterTitles = new Set((material.chapters as Json[]).map((chapter) => String(chapter.title).trim()));
   const conceptKeys = new Set((material.errorConcepts as Json[]).map((concept) => String(concept.key)));
-  // Até 250: o recorte da banca guarda também o banco de questões daquela banca.
-  const questions = c.list(note.questions ?? [], "questions", 0, 250);
+  // Até 600: o recorte da banca guarda também o banco de questões daquela banca (e o Padrão, os lotes do banco 2).
+  const questions = c.list(note.questions ?? [], "questions", 0, 600);
   questions.forEach((question, index) => checkQuestion(c, question, `questions[${index}]`, chapterTitles, conceptKeys));
   checkStatementsUnique(c, questions, "questions", checkStatementsUnique(new Checker(), material.questions as Json[], "material"));
   if (c.problems.length > 0) throw new LibraryValidationError(c.problems);
