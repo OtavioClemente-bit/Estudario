@@ -152,19 +152,6 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
                 onDelete = { deleting = simulation },
             )
         }
-        official?.takeIf { !officialDone }?.let { prova ->
-            item(key = "official") {
-                OfficialCard(prova, busy = creating) {
-                    creating = true
-                    message = null
-                    scope.launch {
-                        runCatching { service.createOfficial(competition.id, prova) }
-                            .onFailure { message = it.message ?: "Não foi possível montar a prova oficial." }
-                        creating = false
-                    }
-                }
-            }
-        }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Novo simulado", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
@@ -177,7 +164,21 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
         if (current == null) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
         else SimulationMode.entries.forEach { mode ->
             item(key = "mode-${mode.name}") {
-                ModeCard(
+                // A primeira prova completa de um edital com prova pronta é a prova oficial.
+                val prova = official?.takeIf { mode == SimulationMode.FULL && !officialDone }
+                if (prova != null) OfficialFullCard(
+                    official = prova,
+                    lock = SimulationUnlock.lock(mode, current),
+                    busy = creating || active.any { it.status == "GENERATING" },
+                ) {
+                    creating = true
+                    message = null
+                    scope.launch {
+                        runCatching { service.createOfficial(competition.id, prova) }
+                            .onFailure { message = it.message ?: "Não foi possível montar a prova oficial." }
+                        creating = false
+                    }
+                } else ModeCard(
                     mode = mode,
                     lock = SimulationUnlock.lock(mode, current),
                     sizes = SimulationUnlock.sizes(mode, remainingParts?.let { it * 30 }),
@@ -260,9 +261,13 @@ private fun ExamCard(board: String?, pending: Boolean, url: String?, style: Stri
     }
 }
 
-/** A prova real do edital, pronta: destaque no topo enquanto a pessoa ainda não a fez. */
+/**
+ * "Prova completa" de um edital com prova pronta, enquanto a pessoa ainda não fez a primeira: no
+ * mesmo lugar e com a mesma liberação da prova completa, mas é a prova oficial (ordem, proporção e
+ * tempo da prova real). As próximas provas completas são geradas normalmente.
+ */
 @Composable
-private fun OfficialCard(official: OfficialSimulation, busy: Boolean, onCreate: () -> Unit) {
+private fun OfficialFullCard(official: OfficialSimulation, lock: SimulationLock, busy: Boolean, onCreate: () -> Unit) {
     val style = when (official.format) {
         "CERTO_ERRADO" -> "TRUE_FALSE"
         "MISTO" -> "MIXED"
@@ -270,37 +275,42 @@ private fun OfficialCard(official: OfficialSimulation, busy: Boolean, onCreate: 
     }
     val count = official.questions.size
     val subjects = official.questions.groupingBy { it.subject }.eachCount().entries.sortedByDescending { it.value }
-    Surface(shape = EstudarioShapes.spotlight, color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    ElevatedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.WorkspacePremium, null, tint = MaterialTheme.colorScheme.tertiary)
+                Icon(if (lock.unlocked) Icons.Outlined.WorkspacePremium else Icons.Outlined.Lock, null, tint = if (lock.unlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
                 Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Prova oficial do seu edital", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text(
-                        listOfNotNull("$count questões", "${BoardStyle.minutesFor(style, count)} min", official.board, BoardStyle.styleLabel(style)).joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                Text(SimulationMode.FULL.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = MaterialTheme.shapes.small) {
+                    Text("Prova oficial", Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                 }
             }
             Text(
-                "A prova inteira, montada a partir da prova real do concurso: mesma ordem, mesma proporção por matéria e o tempo da banca. " +
-                    "É o melhor primeiro simulado: mostra onde você está antes de tudo. Os próximos saem do banco de questões.",
-                style = MaterialTheme.typography.bodyMedium,
+                "Sua primeira prova completa é igual à prova do concurso: as $count questões na mesma ordem, na mesma proporção por matéria e no tempo da banca. " +
+                    "As próximas provas completas são montadas do seu edital inteiro, com questões novas.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
                 subjects.take(6).joinToString(" · ") { "${it.key} ${it.value}" } + if (subjects.size > 6) " · +${subjects.size - 6} matérias" else "",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (!lock.unlocked) {
+                LinearProgressIndicator({ lock.progress.coerceIn(0f, 1f) }, Modifier.fillMaxWidth(), strokeCap = StrokeCap.Round)
+                Text(lock.requirement, style = MaterialTheme.typography.labelMedium)
+                return@Column
+            }
             if (official.format == "CERTO_ERRADO") Text(
                 "Correção na regra Cebraspe: cada item errado anula um certo. Na dúvida, deixar em branco pode valer mais.",
                 style = MaterialTheme.typography.labelMedium,
             )
-            Button(onClick = onCreate, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Preparar a prova oficial")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Timer, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.width(4.dp))
+                Text(listOfNotNull("${BoardStyle.minutesFor(style, count)} min de prova", official.board, BoardStyle.styleLabel(style), "não usa a cota").joinToString(" · "), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text("Não usa a sua cota de simulados.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onClick = onCreate, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("Preparar a prova completa") }
         }
     }
 }

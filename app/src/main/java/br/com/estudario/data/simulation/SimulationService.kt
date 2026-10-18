@@ -377,7 +377,7 @@ class SimulationService(
                 SimulationEntity(
                     competitionId = competitionId,
                     mode = OFFICIAL_MODE,
-                    title = "Prova oficial · ${questions.size} questões",
+                    title = "Prova completa · prova oficial · ${questions.size} questões",
                     board = board,
                     style = style,
                     plannedQuestions = questions.size,
