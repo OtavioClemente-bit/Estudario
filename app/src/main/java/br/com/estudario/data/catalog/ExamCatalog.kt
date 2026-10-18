@@ -163,11 +163,17 @@ class ExamCatalogRepository(
         if (current != null && fresh && !force) return current
         try {
             val fields = "id,short_name,agency,role,board,year,edital_ref,source_url,notice,search_norm,subject_count,topic_count,ready_topic_count"
-            val body = http("${baseUrl.trimEnd('/')}/rest/v1/exam_catalog?select=$fields&status=eq.PUBLISHED&order=short_name.asc,role.asc")
-            val list = json.decodeFromString(ListSerializer(ExamCatalogEntry.serializer()), body)
+            // O servidor devolve no máximo 1.000 linhas por consulta: busca em páginas até acabar.
+            val list = mutableListOf<ExamCatalogEntry>()
+            while (true) {
+                val body = http("${baseUrl.trimEnd('/')}/rest/v1/exam_catalog?select=$fields&status=eq.PUBLISHED&order=short_name.asc,role.asc,id.asc&limit=$PAGE_SIZE&offset=${list.size}")
+                val page = json.decodeFromString(ListSerializer(ExamCatalogEntry.serializer()), body)
+                list += page
+                if (page.size < PAGE_SIZE) break
+            }
             memory = list
             fetchedAt = clock()
-            withContext(Dispatchers.IO) { writeCache(body) }
+            withContext(Dispatchers.IO) { writeCache(json.encodeToString(ListSerializer(ExamCatalogEntry.serializer()), list)) }
             list
         } catch (error: CancellationException) {
             throw error
@@ -212,6 +218,7 @@ class ExamCatalogRepository(
 
     companion object {
         const val MAX_AGE_MILLIS = 6L * 60 * 60 * 1000
+        private const val PAGE_SIZE = 1000
         private const val TIMEOUT_MILLIS = 15_000
 
         private suspend fun defaultGet(url: String, apiKey: String): String = withContext(Dispatchers.IO) {

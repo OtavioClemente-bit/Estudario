@@ -59,9 +59,16 @@ object Catalog {
     suspend fun entries(): List<CatalogEntry> {
         cache?.let { return it }
         val fields = "id,short_name,agency,role,board,year,search_norm,subject_count,topic_count,ready_topic_count"
-        val response = httpRequest("GET", "${WebConfig.SUPABASE_URL}/rest/v1/exam_catalog?select=$fields&status=eq.PUBLISHED&order=short_name.asc,role.asc", headers)
-        if (!response.ok) throw IllegalStateException("Não consegui carregar a lista de editais agora. Tente de novo.")
-        return snapshotJson.decodeFromString(ListSerializer(CatalogEntry.serializer()), response.body).also { cache = it }
+        // O servidor devolve no máximo 1.000 linhas por consulta: busca em páginas até acabar.
+        val list = mutableListOf<CatalogEntry>()
+        while (true) {
+            val response = httpRequest("GET", "${WebConfig.SUPABASE_URL}/rest/v1/exam_catalog?select=$fields&status=eq.PUBLISHED&order=short_name.asc,role.asc,id.asc&limit=1000&offset=${list.size}", headers)
+            if (!response.ok) throw IllegalStateException("Não consegui carregar a lista de editais agora. Tente de novo.")
+            val page = snapshotJson.decodeFromString(ListSerializer(CatalogEntry.serializer()), response.body)
+            list += page
+            if (page.size < 1000) break
+        }
+        return list.also { cache = it }
     }
 
     suspend fun subjects(id: String): List<CatalogSubject> {
