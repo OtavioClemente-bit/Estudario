@@ -9,6 +9,9 @@ import br.com.estudario.data.ai.AiFeature
 import br.com.estudario.data.ai.AiJobStatus
 import br.com.estudario.data.ai.AiProcessTimeoutException
 import br.com.estudario.data.ai.AiTextJobClient
+import br.com.estudario.data.catalog.CatalogLinks
+import br.com.estudario.data.catalog.ExamCatalogProvider
+import br.com.estudario.data.catalog.OfficialSimulation
 import br.com.estudario.data.local.AppDatabase
 import br.com.estudario.data.local.Difficulty
 import br.com.estudario.data.local.ErrorStatus
@@ -341,6 +344,80 @@ class SimulationService(
         }
     }
 
+    // ---------------------------------------------------------------------------------------- prova oficial
+
+    /**
+     * A prova oficial do edital do concurso, quando ele veio do catálogo e o edital tem prova pronta.
+     * null sem internet, sem edital do catálogo ou quando o edital não tem prova.
+     */
+    suspend fun officialSimulation(competitionId: Long): OfficialSimulation? {
+        val competition = appDao.competitionsOnce().firstOrNull { it.id == competitionId } ?: return null
+        val catalog = ExamCatalogProvider.get(context)
+        if (!catalog.isConfigured) return null
+        val catalogId = catalog.catalogIdFor(competition.name, CatalogLinks.get(context, competitionId)) ?: return null
+        return runCatching { catalog.officialSimulation(catalogId) }.getOrNull()
+    }
+
+    /**
+     * Grava a prova oficial como simulado pronto: as questões na ordem da prova real, cada uma no
+     * tópico do edital da pessoa que trata do assunto, com o tempo da banca. Não usa IA nem cota.
+     */
+    suspend fun createOfficial(competitionId: Long, official: OfficialSimulation): Long {
+        val leaves = leafTopics(competitionId)
+        if (leaves.isEmpty()) throw SimulationException("Importe o edital para fazer a prova oficial.")
+        val style = when (official.format) {
+            "CERTO_ERRADO" -> "TRUE_FALSE"
+            "MISTO" -> "MIXED"
+            else -> if (official.questions.all { it.options.size == 4 }) "FOUR_OPTIONS" else "FIVE_OPTIONS"
+        }
+        val questions = official.questions.sortedBy { it.n }
+        val board = official.board ?: examProfile(competitionId).board
+        return db.withTransaction {
+            val id = dao.insertSimulation(
+                SimulationEntity(
+                    competitionId = competitionId,
+                    mode = OFFICIAL_MODE,
+                    title = "Prova oficial · ${questions.size} questões",
+                    board = board,
+                    style = style,
+                    plannedQuestions = questions.size,
+                    timeLimitMinutes = BoardStyle.minutesFor(style, questions.size),
+                    status = "READY",
+                    partsJson = "[]",
+                    questionCount = questions.size,
+                ),
+            )
+            val keys = hashSetOf<String>()
+            questions.forEach { question ->
+                if (!keys.add(QuestionKey.of(question.statement))) return@forEach
+                val explanation = buildString {
+                    append(question.explanation)
+                    question.trap?.takeIf(String::isNotBlank)?.let { append("\n\n> **Armadilha:** ").append(it) }
+                }
+                val questionId = appDao.insertQuestion(
+                    QuestionEntity(
+                        topicId = OfficialTopicMatcher.topicFor(question, leaves),
+                        externalId = "sim-$id-oficial-q${question.n}",
+                        board = board,
+                        difficulty = runCatching { Difficulty.valueOf(question.difficulty.orEmpty()) }.getOrNull(),
+                        source = "Prova oficial · Estudário",
+                        statement = question.statement,
+                        explanation = explanation,
+                        tagsText = "simulado,prova-oficial",
+                        questionSourceType = QuestionSourceType.AUTHORIAL,
+                        simulationId = id,
+                    ),
+                )
+                appDao.insertOptions(question.options.mapIndexed { position, option ->
+                    QuestionOptionEntity(questionId = questionId, key = option.key, text = option.text, isCorrect = option.correct, position = position)
+                })
+            }
+            val stored = dao.questionsFor(id).size
+            dao.updateSimulation(dao.simulation(id)!!.copy(questionCount = stored, plannedQuestions = stored, timeLimitMinutes = BoardStyle.minutesFor(style, stored)))
+            id
+        }
+    }
+
     // ---------------------------------------------------------------------------------------- geração
 
     /** Retoma a geração de todos os simulados pendentes (ex.: o app foi fechado no meio). */
@@ -633,6 +710,9 @@ class SimulationService(
     }
 
     companion object {
+        /** Modo do simulado montado com a prova oficial do edital (fora de [SimulationMode]: não é gerado). */
+        const val OFFICIAL_MODE = "OFFICIAL"
+
         /** Quantas questões recentes entram na lista do que não repetir (6 mil chaves ~ 66 KB por parte). */
         const val SEEN_LIMIT = 6_000
         fun decodeAnswers(json: String): Map<Long, String> = runCatching {

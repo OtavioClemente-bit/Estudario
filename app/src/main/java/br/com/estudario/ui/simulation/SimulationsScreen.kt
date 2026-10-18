@@ -25,6 +25,8 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.WorkspacePremium
+import br.com.estudario.data.catalog.OfficialSimulation
 import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.CardDefaults
 import br.com.estudario.ui.brand.ElevatedCard
@@ -113,6 +115,11 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
     }
     val active = mine.filter { it.status in setOf("GENERATING", "PARTIAL", "READY", "IN_PROGRESS", "FAILED") }
     val finished = mine.filter { it.status == "FINISHED" }
+    // Prova oficial do edital (quando o concurso veio do catálogo e o edital tem prova pronta): é o
+    // primeiro simulado; depois de feita, os próximos saem do banco de questões.
+    var official by remember(competition.id) { mutableStateOf<OfficialSimulation?>(null) }
+    LaunchedEffect(competition.id) { official = service.officialSimulation(competition.id) }
+    val officialDone = mine.any { it.mode == SimulationService.OFFICIAL_MODE }
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
@@ -144,6 +151,19 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
                 onRetry = { service.retryFailed(simulation.id) },
                 onDelete = { deleting = simulation },
             )
+        }
+        official?.takeIf { !officialDone }?.let { prova ->
+            item(key = "official") {
+                OfficialCard(prova, busy = creating) {
+                    creating = true
+                    message = null
+                    scope.launch {
+                        runCatching { service.createOfficial(competition.id, prova) }
+                            .onFailure { message = it.message ?: "Não foi possível montar a prova oficial." }
+                        creating = false
+                    }
+                }
+            }
         }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -195,7 +215,7 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
         AlertDialog(
             onDismissRequest = { deleting = null },
             title = { Text("Descartar este simulado?") },
-            text = { Text("As questões dele somem. A cota já usada não volta.") },
+            text = { Text(if (simulation.mode == SimulationService.OFFICIAL_MODE) "As questões dele somem. A prova oficial volta a aparecer para você preparar de novo." else "As questões dele somem. A cota já usada não volta.") },
             confirmButton = { TextButton(onClick = { scope.launch { service.delete(simulation.id) }; deleting = null }) { Text("Descartar") } },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text("Manter") } },
         )
@@ -240,6 +260,51 @@ private fun ExamCard(board: String?, pending: Boolean, url: String?, style: Stri
     }
 }
 
+/** A prova real do edital, pronta: destaque no topo enquanto a pessoa ainda não a fez. */
+@Composable
+private fun OfficialCard(official: OfficialSimulation, busy: Boolean, onCreate: () -> Unit) {
+    val style = when (official.format) {
+        "CERTO_ERRADO" -> "TRUE_FALSE"
+        "MISTO" -> "MIXED"
+        else -> "FIVE_OPTIONS"
+    }
+    val count = official.questions.size
+    val subjects = official.questions.groupingBy { it.subject }.eachCount().entries.sortedByDescending { it.value }
+    Surface(shape = EstudarioShapes.spotlight, color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.WorkspacePremium, null, tint = MaterialTheme.colorScheme.tertiary)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Prova oficial do seu edital", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        listOfNotNull("$count questões", "${BoardStyle.minutesFor(style, count)} min", official.board, BoardStyle.styleLabel(style)).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+            Text(
+                "A prova inteira, montada a partir da prova real do concurso: mesma ordem, mesma proporção por matéria e o tempo da banca. " +
+                    "É o melhor primeiro simulado: mostra onde você está antes de tudo. Os próximos saem do banco de questões.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                subjects.take(6).joinToString(" · ") { "${it.key} ${it.value}" } + if (subjects.size > 6) " · +${subjects.size - 6} matérias" else "",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (official.format == "CERTO_ERRADO") Text(
+                "Correção na regra Cebraspe: cada item errado anula um certo. Na dúvida, deixar em branco pode valer mais.",
+                style = MaterialTheme.typography.labelMedium,
+            )
+            Button(onClick = onCreate, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Preparar a prova oficial")
+            }
+            Text("Não usa a sua cota de simulados.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
 @Composable
 private fun ActiveSimulationCard(simulation: SimulationEntity, onStart: () -> Unit, onRetry: () -> Unit, onDelete: () -> Unit) {
     val parts = SimulationService.decodeParts(simulation.partsJson)
@@ -254,7 +319,8 @@ private fun ActiveSimulationCard(simulation: SimulationEntity, onStart: () -> Un
                         when (simulation.status) {
                             "GENERATING" -> "Montando as questões${simulation.board?.let { " no estilo $it" } ?: ""}, conferindo leis e gabaritos… Pode fechar o app: avisamos quando ficar pronto."
                             "PARTIAL" -> "${simulation.questionCount} questões prontas. ${failed.size} parte(s) não saíram."
-                            "READY" -> "${simulation.questionCount} questões inéditas · ${simulation.timeLimitMinutes} min de prova"
+                            "READY" -> if (simulation.mode == SimulationService.OFFICIAL_MODE) "${simulation.questionCount} questões na ordem da prova real · ${simulation.timeLimitMinutes} min de prova"
+                                else "${simulation.questionCount} questões inéditas · ${simulation.timeLimitMinutes} min de prova"
                             "IN_PROGRESS" -> "Em andamento: ${simulation.answeredCount} de ${simulation.questionCount} respondidas"
                             else -> failed.firstOrNull()?.error ?: "Não foi possível gerar."
                         },

@@ -235,6 +235,8 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
                     ?: repository.addCompetition(fullName)
                 else -> repository.addCompetition(entry.shortName)
             }
+            // Guarda de qual edital do catálogo o concurso veio (para a prova oficial do edital).
+            br.com.estudario.data.catalog.CatalogLinks.save(app,competitionId, entry.id)
             val competitionName = dao.competitionsOnce().first { it.id == competitionId }.name
             app.database.withTransaction {
                 val existingSubjects = dao.subjectsFor(competitionId).associateBy { it.name.lowercase() }.toMutableMap()

@@ -368,4 +368,50 @@ for (let i = 0; i < staleCatalog.length; i += 50) {
   const list = staleCatalog.slice(i, i + 50).map((id) => `"${id}"`).join(",");
   await rest(`exam_catalog?id=in.(${encodeURIComponent(list)})`, "DELETE");
 }
-console.log(`Publicado: ${materials.size} matéria(s), ${aliasOwner.size} apelido(s), ${notes.length} recorte(s), ${catalogRows.length} edital(is) no catálogo.`);
+// Simulados oficiais (conteudo/simulados/<edital>.simulado-N.json): a prova inteira, na ordem real,
+// para o app usar como "Prova oficial" do edital. Banco ainda sem a tabela: pula com aviso.
+const hasSimulationTable = await fetch(`${url}/rest/v1/exam_simulation?select=id&limit=1`, {
+  headers: { apikey: key!, authorization: `Bearer ${key}` },
+}).then(async (r) => { await r.body?.cancel().catch(() => {}); return r.ok; }).catch(() => false);
+let simulationCount = 0;
+if (!hasSimulationTable) console.log("Aviso: o banco ainda não tem a tabela exam_simulation; simulados oficiais não enviados.");
+else {
+  const simulationRows: Json[] = [];
+  for await (const entry of Deno.readDir("conteudo/simulados")) {
+    const match = entry.name.match(/^(.+)\.simulado-(\d+)\.json$/);
+    if (!entry.isFile || !match) continue;
+    const sim = JSON.parse(await Deno.readTextFile(`conteudo/simulados/${entry.name}`)) as Json;
+    const catalogId = String(sim.edital ?? "");
+    if (!keepSet.has(catalogId)) { console.log(`Aviso: ${entry.name} aponta para edital fora do catálogo (${catalogId}).`); continue; }
+    const questions = (sim.questions as Json[]).map((q, index) => ({
+      n: Number(q.n ?? index + 1),
+      subject: String(q.disciplina ?? ""),
+      topic: q.topico ? String(q.topico) : null,
+      material: q.materia ? String(q.materia) : null,
+      format: q.format === "CERTO_ERRADO" ? "CERTO_ERRADO" : "MULTIPLE_CHOICE",
+      difficulty: ["FACIL", "MEDIA", "DIFICIL"].includes(String(q.difficulty)) ? q.difficulty : "MEDIA",
+      statement: q.textoBase ? `${q.textoBase}\n\n${q.statement}` : String(q.statement),
+      options: (q.options as Json[]).map((o) => ({ key: String(o.key), text: String(o.text), correct: o.correct === true })),
+      explanation: String(q.explanation ?? ""),
+      trap: q.pegadinha ? String(q.pegadinha) : null,
+    }));
+    const formats = new Set(questions.map((q) => q.format));
+    simulationRows.push({
+      id: `${match[1]}.simulado-${match[2]}`,
+      catalog_id: catalogId,
+      number: Number(match[2]),
+      board: sim.banca ? String(sim.banca).slice(0, 80) : null,
+      format: formats.size > 1 ? "MISTO" : formats.has("CERTO_ERRADO") ? "CERTO_ERRADO" : "MULTIPLA_ESCOLHA",
+      structure: sim.estrutura ? String(sim.estrutura).slice(0, 1000) : null,
+      item_count: questions.length,
+      questions,
+      status: "PUBLISHED",
+      updated_at: new Date().toISOString(),
+    });
+  }
+  for (const row of simulationRows) {
+    await rest("exam_simulation?on_conflict=id", "POST", [row], "resolution=merge-duplicates,return=minimal");
+  }
+  simulationCount = simulationRows.length;
+}
+console.log(`Publicado: ${materials.size} matéria(s), ${aliasOwner.size} apelido(s), ${notes.length} recorte(s), ${catalogRows.length} edital(is) no catálogo, ${simulationCount} simulado(s) oficial(is).`);

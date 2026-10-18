@@ -66,6 +66,38 @@ data class ExamCatalogSubject(
 private data class ExamCatalogSubjectsRow(val subjects: List<ExamCatalogSubject>)
 
 /**
+ * Prova oficial pronta de um edital (tabela `exam_simulation`): a prova inteira, na ordem e na
+ * proporção da prova real, com gabarito e explicação. Vira o primeiro simulado do concurso, sem IA.
+ */
+@Serializable
+data class OfficialSimulation(
+    val id: String,
+    @SerialName("catalog_id") val catalogId: String,
+    val board: String? = null,
+    /** CERTO_ERRADO, MULTIPLA_ESCOLHA ou MISTO. */
+    val format: String,
+    val structure: String? = null,
+    @SerialName("item_count") val itemCount: Int,
+    val questions: List<OfficialQuestion>,
+)
+
+@Serializable
+data class OfficialQuestion(
+    val n: Int,
+    val subject: String,
+    val topic: String? = null,
+    val format: String,
+    val difficulty: String? = null,
+    val statement: String,
+    val options: List<OfficialOption>,
+    val explanation: String,
+    val trap: String? = null,
+)
+
+@Serializable
+data class OfficialOption(val key: String, val text: String, val correct: Boolean)
+
+/**
  * Busca no catálogo como as pessoas digitam: "pm mg", "policia federal", "agente pf", "trt
  * analista". Cada palavra digitada precisa aparecer (no começo de alguma palavra) na sigla, no
  * órgão, no cargo, na banca ou nos sinônimos do edital. Siglas comuns são expandidas.
@@ -201,6 +233,34 @@ class ExamCatalogRepository(
         return subjects
     }
 
+    /** A prova oficial do edital (o simulado nº 1), ou null quando o edital não tem prova pronta. */
+    suspend fun officialSimulation(catalogId: String): OfficialSimulation? {
+        val encoded = URLEncoder.encode(catalogId, StandardCharsets.UTF_8.name())
+        val body = try {
+            http("${baseUrl.trimEnd('/')}/rest/v1/exam_simulation?select=id,catalog_id,board,format,structure,item_count,questions&catalog_id=eq.$encoded&status=eq.PUBLISHED&order=number.asc&limit=1")
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            throw ExamCatalogException("Não consegui baixar a prova oficial agora. Confira a internet e tente de novo.", error)
+        }
+        return runCatching { json.decodeFromString(ListSerializer(OfficialSimulation.serializer()), body) }
+            .getOrElse { throw ExamCatalogException("A prova oficial veio num formato inesperado. Tente de novo em instantes.", it) }
+            .firstOrNull()
+            ?.takeIf { it.questions.isNotEmpty() }
+    }
+
+    /**
+     * Edital do catálogo de onde o concurso veio: o id gravado na escolha ([linked]) ou, para
+     * concursos montados antes disso, o edital com o mesmo nome ("PF 2025" ou "PF 2025 · Agente").
+     */
+    suspend fun catalogIdFor(competitionName: String, linked: String?): String? {
+        linked?.let { return it }
+        val list = runCatching { entries() }.getOrNull() ?: cached() ?: return null
+        val name = ExamCatalogSearch.normalize(competitionName)
+        return list.firstOrNull { ExamCatalogSearch.normalize(it.title) == name }?.id
+            ?: list.filter { ExamCatalogSearch.normalize(it.shortName) == name }.singleOrNull()?.id
+    }
+
     private fun readCache(): List<ExamCatalogEntry>? = runCatching {
         val file = cacheFile?.takeIf { it.exists() } ?: return null
         json.decodeFromString(ListSerializer(ExamCatalogEntry.serializer()), file.readText())
@@ -244,6 +304,17 @@ class ExamCatalogRepository(
 }
 
 class ExamCatalogException(message: String, cause: Throwable? = null) : Exception(message, cause)
+
+/** Concurso local → edital do catálogo de onde ele foi montado (para achar a prova oficial). */
+object CatalogLinks {
+    private fun prefs(context: android.content.Context) =
+        context.applicationContext.getSharedPreferences("catalog_links", android.content.Context.MODE_PRIVATE)
+
+    fun save(context: android.content.Context, competitionId: Long, catalogId: String) =
+        prefs(context).edit().putString(competitionId.toString(), catalogId).apply()
+
+    fun get(context: android.content.Context, competitionId: Long): String? = prefs(context).getString(competitionId.toString(), null)
+}
 
 /** Uma instância por processo: a lista em memória vale para todas as telas. */
 object ExamCatalogProvider {
