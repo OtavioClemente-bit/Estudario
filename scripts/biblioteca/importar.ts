@@ -337,10 +337,11 @@ for (let i = 0; i < noteRows.length; i += 25) {
 // Rotas revisadas (conteudo/pedidos/rotas.json): tópico amplo de edital servido por 2 ou 3 matérias
 // juntas. Gravadas com o tamanho atual do catálogo, para o app não refazer a rota com IA.
 try {
-  const routes = JSON.parse(await Deno.readTextFile("conteudo/pedidos/rotas.json")) as { texto: string; ids: string[] }[];
+  const routes = JSON.parse(await Deno.readTextFile("conteudo/pedidos/rotas.json")) as { texto: string; ids: string[]; cobertura?: string }[];
   const routeRows = routes
     .filter((r) => r.ids.length > 0 && r.ids.every((id) => materials.has(id)))
-    .map((r) => ({ topic_norm: normalizeAlias(r.texto), subject_norm: "", topic_ids: r.ids, coverage: "FULL", catalog_size: materials.size, updated_at: new Date().toISOString() }));
+    // "PARTIAL": as matérias cobrem só parte do tópico; o resto fica com a IA.
+    .map((r) => ({ topic_norm: normalizeAlias(r.texto), subject_norm: "", topic_ids: r.ids, coverage: r.cobertura === "PARTIAL" ? "PARTIAL" : "FULL", catalog_size: materials.size, updated_at: new Date().toISOString() }));
   for (let i = 0; i < routeRows.length; i += 200) {
     await rest("library_topic_routes?on_conflict=topic_norm", "POST", routeRows.slice(i, i + 200), "resolution=merge-duplicates,return=minimal");
   }
