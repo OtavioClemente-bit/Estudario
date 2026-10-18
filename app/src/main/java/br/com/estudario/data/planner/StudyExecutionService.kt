@@ -112,12 +112,9 @@ class StudyExecutionService(
                 )
             }
         }
-        // Plano da IA não é redistribuído pelo motor (as tarefas dela são da pessoa): o automático
-        // leva a tarefa para o próximo dia de estudo da semana. Antes ele não fazia nada nesse caso.
-        if (task.origin == br.com.estudario.domain.planner.PlanOrigin.IMPORTED) {
-            return reprogram(taskId, nextStudyDay(task.planId))
-        }
-        return planService.replan(task.planId, ReplanReason.TASK_PARTIAL)
+        // "Deixar o plano encaixar" move só esta tarefa para o próximo dia de estudo. Antes refazia o
+        // plano inteiro e todas as atrasadas iam junto, mesmo as que a pessoa queria fazer hoje.
+        return reprogram(taskId, nextStudyDay(task.planId))
     }
 
     /** Próximo dia a partir de amanhã com horas de estudo e que não esteja trancado como folga. */

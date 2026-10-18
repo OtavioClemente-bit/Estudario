@@ -79,9 +79,9 @@ object Actions {
         val task = data.tasks.firstOrNull { it.id == taskId } ?: return data
         if (task.locked || task.status !in setOf("PLANEJADA", "EM_ANDAMENTO")) return data
         val plan = data.plans.firstOrNull { it.id == task.planId } ?: return data
-        // Plano trazido da IA não é redistribuído pelo motor: o automático leva para amanhã.
-        val day = targetDay ?: if (task.origin == "IMPORTED") Queries.todayEpoch() + 1 else null
-        if (day == null) return runCatching { Planning.replan(data, plan.id, br.com.estudario.domain.planner.ReplanReason.TASK_PARTIAL) }.getOrDefault(data)
+        // "Deixar o plano encaixar" move só esta tarefa para o próximo dia (antes refazia o plano
+        // inteiro e todas as atrasadas iam junto, mesmo as que a pessoa queria fazer hoje).
+        val day = targetDay ?: Queries.todayEpoch() + 1
         val at = now()
         val nextRevision = plan.revision + 1
         return data
