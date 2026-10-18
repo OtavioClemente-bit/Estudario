@@ -341,7 +341,9 @@ try {
   const routeRows = routes
     .filter((r) => r.ids.length > 0 && r.ids.every((id) => materials.has(id)))
     // "PARTIAL": as matérias cobrem só parte do tópico; o resto fica com a IA.
-    .map((r) => ({ topic_norm: normalizeAlias(r.texto), subject_norm: "", topic_ids: r.ids, coverage: r.cobertura === "PARTIAL" ? "PARTIAL" : "FULL", catalog_size: materials.size, updated_at: new Date().toISOString() }));
+    .map((r) => ({ topic_norm: normalizeAlias(r.texto), subject_norm: "", topic_ids: r.ids, coverage: r.cobertura === "PARTIAL" ? "PARTIAL" : "FULL", catalog_size: materials.size, updated_at: new Date().toISOString() }))
+    // Textos diferentes podem dar o mesmo topic_norm: fica uma linha por chave (o banco recusa repetida no mesmo envio).
+    .filter((row, i, all) => all.findIndex((other) => other.topic_norm === row.topic_norm) === i);
   for (let i = 0; i < routeRows.length; i += 200) {
     await rest("library_topic_routes?on_conflict=topic_norm", "POST", routeRows.slice(i, i + 200), "resolution=merge-duplicates,return=minimal");
   }
