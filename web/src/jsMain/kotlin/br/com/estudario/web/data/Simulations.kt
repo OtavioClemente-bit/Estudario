@@ -2,6 +2,7 @@ package br.com.estudario.web.data
 
 import br.com.estudario.domain.simulation.BlueprintTopic
 import br.com.estudario.domain.simulation.BoardStyle
+import br.com.estudario.domain.simulation.OfficialTopicMatcher
 import br.com.estudario.domain.simulation.SimulationBlueprint
 import br.com.estudario.domain.simulation.SimulationMode
 import br.com.estudario.domain.simulation.SimulationReadiness
@@ -273,6 +274,54 @@ object Simulations {
             "correctCount" to 0, "questionCount" to 0, "scorePercent" to null,
         )
         return data.append(Keys.SIMULATIONS, row) to id
+    }
+
+    /** Modo do simulado montado com a prova oficial do edital (fora de SimulationMode: não é gerado). */
+    const val OFFICIAL_MODE = "OFFICIAL"
+
+    /**
+     * Grava a prova oficial como a primeira prova completa, já pronta: as questões na ordem da prova
+     * real, cada uma no tópico do edital da pessoa, com o tempo da banca. Não usa IA nem cota.
+     */
+    fun createOfficial(data: Snapshot, competitionId: Long, official: OfficialSimulation): Pair<Snapshot, Long> {
+        val leaves = leafTopics(data, competitionId)
+        require(leaves.isNotEmpty()) { "Importe o edital para fazer a prova oficial." }
+        val style = when (official.format) {
+            "CERTO_ERRADO" -> "TRUE_FALSE"
+            "MISTO" -> "MIXED"
+            else -> if (official.questions.all { it.options.size == 4 }) "FOUR_OPTIONS" else "FIVE_OPTIONS"
+        }
+        val board = official.board ?: examProfile(data, competitionId).board
+        val id = data.nextId(Keys.SIMULATIONS)
+        val keys = hashSetOf<String>()
+        var questionId = data.nextId(Keys.QUESTIONS)
+        var optionId = (data.questions.flatMap { it.options }.maxOfOrNull { it.id } ?: 0L) + 1
+        val at = now()
+        val rows = official.questions.sortedBy { it.n }.mapNotNull { q ->
+            if (!keys.add(QuestionKey.of(q.statement))) return@mapNotNull null
+            val explanation = buildString {
+                append(q.explanation)
+                q.trap?.takeIf(String::isNotBlank)?.let { append("\n\n> **Armadilha:** ").append(it) }
+            }
+            val options = q.options.mapIndexed { position, o -> jsonOf("id" to optionId++, "key" to o.key, "text" to o.text, "correct" to o.correct, "position" to position) }
+            jsonOf(
+                "id" to questionId++, "topicId" to OfficialTopicMatcher.topicFor(q.subject, q.topic, q.statement, leaves), "externalId" to "sim-$id-oficial-q${q.n}",
+                "board" to board, "agency" to null, "year" to null, "difficulty" to q.difficulty?.takeIf { it in setOf("FACIL", "MEDIA", "DIFICIL") },
+                "source" to "Prova oficial · Estudário", "statement" to q.statement, "explanation" to explanation, "notes" to "", "tags" to "simulado,prova-oficial",
+                "importedAt" to at, "answerCount" to 0, "correctCount" to 0, "errorCount" to 0, "lastAnswer" to null, "lastAnsweredAt" to null, "favorite" to false,
+                "questionSourceType" to "AUTHORIAL", "sourceId" to null, "sourceUrl" to null, "normalizedHash" to null, "reviewAnchor" to null,
+                "errorConceptExternalId" to null, "hidden" to false, "simulationId" to id, "options" to JsonArray(options),
+            )
+        }
+        val count = rows.size
+        val row = jsonOf(
+            "id" to id, "competitionId" to competitionId, "mode" to OFFICIAL_MODE, "title" to "Prova completa · prova oficial · $count questões", "board" to board,
+            "style" to style, "plannedQuestions" to count, "timeLimitMinutes" to BoardStyle.minutesFor(style, count), "status" to "READY",
+            "partsJson" to "[]", "answersJson" to "{}", "flaggedJson" to "[]", "weakSpotsJson" to "[]",
+            "sourceSimulationId" to null, "createdAt" to at, "startedAt" to null, "finishedAt" to null, "elapsedSeconds" to 0, "answeredCount" to 0,
+            "correctCount" to 0, "questionCount" to count, "scorePercent" to null,
+        )
+        return data.append(Keys.SIMULATIONS, row).appendAll(mapOf(Keys.QUESTIONS to rows)) to id
     }
 
     // ---------------------------------------------------------------- geração

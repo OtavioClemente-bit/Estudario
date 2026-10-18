@@ -54,6 +54,12 @@ fun SimulationsScreen() {
     val finished = list.filter { it.status == "FINISHED" }
     var creating by remember { mutableStateOf<SimulationMode?>(null) }
     var editingProfile by remember { mutableStateOf(false) }
+    // A primeira prova completa de um edital com prova pronta é a prova oficial (ordem, proporção e
+    // tempo da prova real); as seguintes são geradas do edital inteiro.
+    var official by remember(competition.id) { mutableStateOf<br.com.estudario.web.data.OfficialSimulation?>(null) }
+    LaunchedEffect(competition.id, competition.name) { official = br.com.estudario.web.data.Catalog.officialSimulation(competition.name) }
+    val officialDone = list.any { it.mode == Simulations.OFFICIAL_MODE }
+    var officialError by remember { mutableStateOf<String?>(null) }
 
     // Retoma partes que estavam gerando quando a página foi fechada.
     LaunchedEffect(list.map { it.id to it.status }) {
@@ -74,13 +80,27 @@ fun SimulationsScreen() {
         SimulationMode.entries.forEach { mode ->
             androidx.compose.runtime.key(mode) {
                 val lock = SimulationUnlock.lock(mode, readiness)
+                val prova = official?.takeIf { mode == SimulationMode.FULL && !officialDone }
                 Div({ classes("card"); attr("style", if (lock.unlocked) "" else "opacity:.9") }) {
                     Div({ classes("row") }) {
                         Span({ classes("task-mark"); attr("style", if (lock.unlocked) "background:var(--primary-soft);color:var(--on-primary-soft)" else "background:var(--soft-2);color:var(--faint)") }) { Icon(if (lock.unlocked) modeIcon(mode) else "lock") }
-                        Div({ classes("grow") }) { H3 { Text(mode.title) }; P({ classes("small", "muted") }) { Text(mode.description) } }
+                        Div({ classes("grow") }) {
+                            Div({ classes("row") }) { H3 { Text(mode.title) }; if (prova != null) Chip("Prova oficial", "primary") }
+                            P({ classes("small", "muted") }) {
+                                Text(if (prova == null) mode.description else "Sua primeira prova completa é igual à prova do concurso: as ${prova.questions.size} questões na mesma ordem, na mesma proporção por matéria e no tempo da banca (${BoardStyle.minutesFor(if (prova.format == "CERTO_ERRADO") "TRUE_FALSE" else "FIVE_OPTIONS", prova.questions.size)} min). As próximas são montadas do seu edital inteiro.")
+                            }
+                            if (prova?.format == "CERTO_ERRADO") P({ classes("xs", "muted") }) { Text("Correção na regra Cebraspe: cada item errado anula um certo. Não usa a cota de simulados.") }
+                        }
                     }
                     Div({ attr("style", "margin-top:14px") }) {
-                        if (lock.unlocked) Btn("Montar simulado", { creating = mode }, style = "tonal", icon = "add", block = true, enabled = !Store.demo)
+                        if (lock.unlocked && prova != null) Btn("Preparar a prova completa", {
+                            try {
+                                var id = 0L
+                                Store.update { val (next, created) = Simulations.createOfficial(it, competition.id, prova); id = created; next }
+                                Router.go(Route.Simulation(id))
+                            } catch (e: Throwable) { officialError = e.message }
+                        }, style = "tonal", icon = "workspace_premium", block = true, enabled = !Store.demo)
+                        else if (lock.unlocked) Btn("Montar simulado", { creating = mode }, style = "tonal", icon = "add", block = true, enabled = !Store.demo)
                         else Div({ classes("stack", "tight") }) {
                             ProgressBar(lock.progress.toDouble())
                             Span({ classes("xs", "muted") }) { Text(lock.requirement) }
@@ -90,6 +110,7 @@ fun SimulationsScreen() {
             }
         }
     }
+    officialError?.let { Div({ classes("banner", "error") }) { Text(it) } }
     if (Store.demo) Div({ classes("banner", "info") }) { Icon("info"); Text("Na demonstração os simulados não são gerados. Entre com sua conta para montar o seu.") }
 
     if (list.isNotEmpty()) Card {

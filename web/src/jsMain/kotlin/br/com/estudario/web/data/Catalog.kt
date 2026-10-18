@@ -51,6 +51,35 @@ data class CatalogSubject(
 @Serializable
 private data class CatalogSubjectsRow(val subjects: List<CatalogSubject>)
 
+/** Prova oficial pronta de um edital (tabela exam_simulation), igual ao OfficialSimulation do app. */
+@Serializable
+data class OfficialSimulation(
+    val id: String,
+    @SerialName("catalog_id") val catalogId: String,
+    val board: String? = null,
+    /** CERTO_ERRADO, MULTIPLA_ESCOLHA ou MISTO. */
+    val format: String,
+    val structure: String? = null,
+    @SerialName("item_count") val itemCount: Int,
+    val questions: List<OfficialQuestion>,
+)
+
+@Serializable
+data class OfficialQuestion(
+    val n: Int,
+    val subject: String,
+    val topic: String? = null,
+    val format: String,
+    val difficulty: String? = null,
+    val statement: String,
+    val options: List<OfficialOption>,
+    val explanation: String,
+    val trap: String? = null,
+)
+
+@Serializable
+data class OfficialOption(val key: String, val text: String, val correct: Boolean)
+
 object Catalog {
     private var cache: List<CatalogEntry>? = null
 
@@ -80,6 +109,21 @@ object Catalog {
             .filter { it.name.isNotBlank() && it.topics.isNotEmpty() }
             .ifEmpty { throw IllegalStateException("Este edital não está mais disponível no catálogo.") }
     }
+
+    /**
+     * A prova oficial do edital de onde o concurso veio (achado pelo nome, que é o do catálogo:
+     * "PF 2025" ou "PF 2025 · Agente"), ou null sem edital do catálogo ou sem prova pronta.
+     */
+    suspend fun officialSimulation(competitionName: String): OfficialSimulation? = runCatching {
+        val all = entries()
+        val entry = all.firstOrNull { it.title.equals(competitionName, true) }
+            ?: all.filter { it.shortName.equals(competitionName, true) }.singleOrNull()
+            ?: return null
+        val fields = "id,catalog_id,board,format,structure,item_count,questions"
+        val response = httpRequest("GET", "${WebConfig.SUPABASE_URL}/rest/v1/exam_simulation?select=$fields&catalog_id=eq.${js("encodeURIComponent")(entry.id)}&status=eq.PUBLISHED&order=number.asc&limit=1", headers)
+        if (!response.ok) return null
+        snapshotJson.decodeFromString(ListSerializer(OfficialSimulation.serializer()), response.body).firstOrNull()?.takeIf { it.questions.isNotEmpty() }
+    }.getOrNull()
 
     /**
      * Para cada concurso cujas matérias ainda não têm avaliação, acha o edital do catálogo de mesmo

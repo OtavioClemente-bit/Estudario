@@ -27,6 +27,7 @@ import br.com.estudario.data.local.TopicEntity
 import br.com.estudario.data.local.TopicStatus
 import br.com.estudario.domain.simulation.BlueprintTopic
 import br.com.estudario.domain.simulation.BoardStyle
+import br.com.estudario.domain.simulation.OfficialTopicMatcher
 import br.com.estudario.domain.simulation.SimulationBlueprint
 import br.com.estudario.domain.simulation.SimulationMode
 import br.com.estudario.domain.simulation.SimulationReadiness
@@ -396,7 +397,7 @@ class SimulationService(
                 }
                 val questionId = appDao.insertQuestion(
                     QuestionEntity(
-                        topicId = OfficialTopicMatcher.topicFor(question, leaves),
+                        topicId = OfficialTopicMatcher.topicFor(question.subject, question.topic, question.statement, leaves),
                         externalId = "sim-$id-oficial-q${question.n}",
                         board = board,
                         difficulty = runCatching { Difficulty.valueOf(question.difficulty.orEmpty()) }.getOrNull(),
