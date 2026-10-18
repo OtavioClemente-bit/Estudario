@@ -1,5 +1,8 @@
 package br.com.estudario.ui.setup
 
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -297,5 +300,65 @@ private fun Notice(icon: androidx.compose.ui.graphics.vector.ImageVector, text: 
             Box(Modifier.padding(top = 1.dp)) { Icon(icon, null, Modifier.size(18.dp), tint = color) }
             Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
         }
+    }
+}
+
+/** O tamanho do catálogo, em destaque, no topo da escolha. */
+@Composable
+internal fun CatalogHero(total: Int) {
+    Surface(shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f), modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            br.com.estudario.ui.brand.BrandIcon(br.com.estudario.ui.brand.Glyph.Clipboard, size = 46.dp)
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text("${total.toString().reversed().chunked(3).joinToString(".").reversed()} editais prontos", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                Text("Matérias e tópicos já organizados, na ordem do edital.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+/** Atalhos das buscas mais comuns. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+internal fun CatalogQuickSearches(onPick: (String) -> Unit) {
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        listOf("TRT", "TJ", "PF", "PRF", "PM", "INSS", "Banco do Brasil", "Caixa", "Receita", "TCU").forEach { q ->
+            androidx.compose.material3.AssistChip(onClick = { onPick(q) }, label = { Text(q, fontWeight = FontWeight.Bold) })
+        }
+    }
+}
+
+/** Abas: os editais dos últimos dois anos (os que valem agora) ou todos. */
+@Composable
+internal fun CatalogTabs(recentOnly: Boolean, recentCount: Int, total: Int, recentLabel: String, onChange: (Boolean) -> Unit) {
+    androidx.compose.material3.TabRow(selectedTabIndex = if (recentOnly) 0 else 1, containerColor = androidx.compose.ui.graphics.Color.Transparent) {
+        androidx.compose.material3.Tab(recentOnly, { onChange(true) }, text = { Text("$recentLabel ($recentCount)", fontWeight = FontWeight.Bold) })
+        androidx.compose.material3.Tab(!recentOnly, { onChange(false) }, text = { Text("Todos ($total)", fontWeight = FontWeight.Bold) })
+    }
+}
+
+/** As bancas mais frequentes na lista atual, para filtrar. */
+@Composable
+internal fun CatalogBoardChips(entries: List<ExamCatalogEntry>, selected: String?, onSelect: (String?) -> Unit) {
+    val boards = entries.mapNotNull { it.board?.trim()?.takeIf(String::isNotBlank) }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(8)
+    if (boards.size < 2) return
+    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(boards.size) { i ->
+            val (b, n) = boards[i]
+            FilterChip(selected = selected == b, onClick = { onSelect(if (selected == b) null else b) }, label = { Text("$b · $n") })
+        }
+    }
+}
+
+/** Chama [onVisible] quando este elemento chega perto da tela (para carregar mais ao rolar). */
+@Composable
+internal fun Modifier.loadMoreWhenVisible(key: Any, onVisible: () -> Unit): Modifier {
+    val screen = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val fired = remember(key) { androidx.compose.runtime.mutableStateOf(false) }
+    return this.onGloballyPositioned { coords ->
+        val top = coords.boundsInWindow().top
+        if (!fired.value && top < (screen + 400) * density) { fired.value = true; onVisible() }
     }
 }

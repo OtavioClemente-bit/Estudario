@@ -521,7 +521,11 @@ private fun CompetitionStep(
     var selectedExamId by rememberSaveable(snapshot.competitionId) { mutableStateOf(snapshot.catalogExamId) }
     // Quem já digitou um concurso fora do catálogo volta direto para o formulário.
     var manual by rememberSaveable { mutableStateOf(snapshot.catalogExamId == null && snapshot.competitionName.isNotBlank()) }
-    val results = remember(query, catalog.entries) { br.com.estudario.data.catalog.ExamCatalogSearch.search(catalog.entries, query) }
+    // Busca sem teto de resultados (antes parava em 30: "TRT" não mostrava todos).
+    val results = remember(query, catalog.entries) { br.com.estudario.data.catalog.ExamCatalogSearch.search(catalog.entries, query, limit = Int.MAX_VALUE) }
+    val thisYear = java.time.LocalDate.now().year
+    var recentOnly by rememberSaveable { mutableStateOf(true) }
+    var board by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedEntry = catalog.entries.firstOrNull { it.id == selectedExamId }
     LaunchedEffect(name, role) {
         kotlinx.coroutines.delay(500)
@@ -557,11 +561,17 @@ private fun CompetitionStep(
             Spacer(Modifier.height(8.dp))
         }
         if (!manual) {
+            if (catalog.entries.isNotEmpty()) CatalogHero(catalog.entries.size)
             CatalogSearchField(query) { query = it }
-            CatalogCategoryChips(catalog.entries, category) { category = it; shownCount = 20 }
-            // Sem busca: o catálogo inteiro da área, dos editais mais completos para os menos.
-            val pool = if (query.isBlank()) catalog.entries.sortedWith(compareByDescending<br.com.estudario.data.catalog.ExamCatalogEntry> { it.readyPercent }.thenByDescending { it.year ?: 0 }) else results
-            val filtered = if (category == null) pool else pool.filter { it.category() == category }
+            if (query.isBlank()) CatalogQuickSearches { query = it }
+            val recent = { e: br.com.estudario.data.catalog.ExamCatalogEntry -> (e.year ?: 0) >= thisYear - 1 }
+            if (query.isBlank() && catalog.entries.isNotEmpty()) CatalogTabs(recentOnly, catalog.entries.count(recent), catalog.entries.size, "Recentes · $thisYear e ${thisYear - 1}") { recentOnly = it; shownCount = 20 }
+            val base = if (recentOnly && query.isBlank()) catalog.entries.filter(recent) else catalog.entries
+            CatalogCategoryChips(base, category) { category = it; shownCount = 20 }
+            CatalogBoardChips(base, board) { board = it; shownCount = 20 }
+            // Sem busca: os editais mais novos primeiro, e entre eles os mais completos.
+            val pool = if (query.isBlank()) base.sortedWith(compareByDescending<br.com.estudario.data.catalog.ExamCatalogEntry> { it.year ?: 0 }.thenByDescending { it.readyPercent }) else results
+            val filtered = pool.filter { (category == null || it.category() == category) && (board == null || it.board?.trim() == board) }
             if (filtered.isNotEmpty()) CatalogListHeader(filtered.size, searching = query.isNotBlank())
             filtered.take(shownCount).forEach { entry ->
                 ExamResultCard(entry, entry.id == selectedExamId) {
@@ -569,8 +579,11 @@ private fun CompetitionStep(
                 }
             }
             if (filtered.size > shownCount) {
-                OutlinedButton(onClick = { shownCount += 20 }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Mostrar mais ${minOf(20, filtered.size - shownCount)} de ${filtered.size - shownCount}")
+                // Carrega mais sozinho quando o fim da lista aparece na tela.
+                Row(Modifier.fillMaxWidth().padding(12.dp).loadMoreWhenVisible(shownCount) { shownCount += 30 }, horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text("Carregando mais editais…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (filtered.isEmpty()) {
