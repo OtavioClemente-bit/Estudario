@@ -447,9 +447,10 @@ private fun PlanPreview(result: Pair<Snapshot, String>?, onBack: () -> Unit, onO
 }
 
 /**
- * A escolha do edital: busca, filtro por área (com a quantidade de cada uma) e a lista em cartões,
- * dos editais mais completos para os menos. Cada cartão traz a sigla num selo colorido, o cargo,
- * órgão, banca e ano, o tamanho do edital e quanto dele já tem material pronto.
+ * A vitrine dos editais: um cabeçalho com o tamanho do catálogo e atalhos das buscas mais comuns,
+ * a busca sem limite de resultados, as abas Recentes / Todos, filtros por área e por banca, e a
+ * lista que vai carregando sozinha ao rolar (só o que está perto da tela é desenhado, então 2 mil
+ * editais não travam nada).
  */
 @Composable
 private fun CatalogPicker(
@@ -460,27 +461,51 @@ private fun CatalogPicker(
     busyId: String?,
     onPick: (CatalogEntry) -> Unit,
 ) {
+    val year = kotlin.js.Date().getFullYear()
+    var tab by remember { mutableStateOf("recentes") }
     var category by remember { mutableStateOf<br.com.estudario.domain.catalog.ExamCategory?>(null) }
-    var shown by remember(query, category) { mutableStateOf(24) }
+    var board by remember { mutableStateOf<String?>(null) }
+    var shown by remember(query, category, board, tab) { mutableStateOf(30) }
     Div({ classes("catalog") }) {
-        Div({ classes("catalog-search") }) {
-            Icon("search", plain = true)
-            Input(InputType.Search) {
-                classes("input"); placeholder("Buscar: pm mg, trt analista, pf agente…"); value(query)
-                attr("aria-label", "Buscar edital")
-                onInput { onQuery(it.value) }
+        Div({ classes("cat-hero") }) {
+            Div({ classes("cat-hero-text") }) {
+                Span({ classes("cat-hero-num") }) { Text(entries?.size?.let { "${formatThousands(it)} editais prontos" } ?: "Carregando o catálogo…") }
+                Span({ classes("cat-hero-sub") }) { Text("Matérias e tópicos já organizados, na ordem do edital. Escolha o seu e o plano sai pronto.") }
             }
-            if (query.isNotEmpty()) Button({ classes("icon-btn"); attr("aria-label", "Limpar busca"); onClick { onQuery("") } }) { Icon("close", plain = true) }
+            Div({ classes("catalog-search", "big") }) {
+                Icon("search", plain = true)
+                Input(InputType.Search) {
+                    classes("input"); placeholder("Busque pelo órgão, cargo ou sigla: trt analista, pf agente, pm mg…"); value(query)
+                    attr("aria-label", "Buscar edital")
+                    onInput { onQuery(it.value) }
+                }
+                if (query.isNotEmpty()) Button({ classes("icon-btn"); attr("aria-label", "Limpar busca"); onClick { onQuery("") } }) { Icon("close", plain = true) }
+            }
+            if (query.isBlank()) Div({ classes("cat-quick") }) {
+                Span({ classes("cat-quick-l") }) { Text("Mais procurados:") }
+                listOf("TRT", "TJ", "PF", "PRF", "PM", "INSS", "Banco do Brasil", "Caixa", "Receita", "TCU").forEach { q ->
+                    Button({ classes("cat-quick-chip"); onClick { onQuery(q) } }) { Text(q) }
+                }
+            }
         }
         if (entries == null) {
             if (error == null) Div({ classes("catalog-loading") }) { repeat(4) { Div({ classes("exam-card", "skeleton") }) } }
             return@Div
         }
-        val counts = entries.groupingBy { it.category }.eachCount()
-        Div({ classes("cat-chips"); attr("role", "tablist") }) {
-            Button({ classes(*listOfNotNull("fchip", if (category == null) "on" else null).toTypedArray()); onClick { category = null } }) {
-                Text("Todos"); Span({ classes("n") }) { Text("${entries.size}") }
+        // Abas: os editais dos últimos dois anos primeiro (os que estão valendo agora), ou todos.
+        val recent = { e: CatalogEntry -> (e.year ?: 0) >= year - 1 }
+        val recentCount = entries.count(recent)
+        Div({ classes("cat-tabs"); attr("role", "tablist") }) {
+            listOf("recentes" to "Recentes · $year e ${year - 1}", "todos" to "Todos os editais").forEach { (k, label) ->
+                Button({ classes(*listOfNotNull("cat-tab", if (tab == k) "on" else null).toTypedArray()); attr("role", "tab"); onClick { tab = k } }) {
+                    Text(label); Span({ classes("n") }) { Text(formatThousands(if (k == "recentes") recentCount else entries.size)) }
+                }
             }
+        }
+        val base = if (tab == "recentes" && query.isBlank()) entries.filter(recent) else entries
+        val counts = base.groupingBy { it.category }.eachCount()
+        Div({ classes("cat-chips") }) {
+            Button({ classes(*listOfNotNull("fchip", if (category == null) "on" else null).toTypedArray()); onClick { category = null } }) { Text("Todas as áreas") }
             br.com.estudario.domain.catalog.ExamCategory.present(counts.keys).forEach { c ->
                 key(c.name) {
                     Button({ classes(*listOfNotNull("fchip", if (category == c) "on" else null).toTypedArray()); onClick { category = if (category == c) null else c } }) {
@@ -489,21 +514,37 @@ private fun CatalogPicker(
                 }
             }
         }
-        val pool = if (query.isBlank()) entries.sortedWith(compareByDescending<CatalogEntry> { it.readyPercent }.thenByDescending { it.year ?: 0 }) else Catalog.search(entries, query, limit = 200)
-        val list = if (category == null) pool else pool.filter { it.category == category }
+        val boards = base.mapNotNull { it.board?.trim()?.takeIf(String::isNotBlank) }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(8)
+        if (boards.size > 1) Div({ classes("cat-boards") }) {
+            Span({ classes("cat-quick-l") }) { Text("Banca:") }
+            boards.forEach { (b, n) ->
+                Button({ classes(*listOfNotNull("cat-board", if (board == b) "on" else null).toTypedArray()); onClick { board = if (board == b) null else b } }) { Text(b); Span({ classes("n") }) { Text("$n") } }
+            }
+        }
+        val pool = if (query.isBlank()) base.sortedWith(compareByDescending<CatalogEntry> { it.year ?: 0 }.thenByDescending { it.readyPercent }) else Catalog.search(base, query, limit = Int.MAX_VALUE)
+        val list = pool.filter { (category == null || it.category == category) && (board == null || it.board?.trim() == board) }
         Div({ classes("catalog-head") }) {
-            B { Text(if (list.isEmpty()) "Nenhum edital encontrado" else if (query.isNotBlank()) "${list.size} ${if (list.size == 1) "edital encontrado" else "editais encontrados"}" else "${list.size} ${if (list.size == 1) "edital pronto" else "editais prontos"}") }
-            if (query.isBlank() && list.size > 1) Span({ classes("xs", "muted") }) { Text("mais completos primeiro") }
+            B { Text(if (list.isEmpty()) "Nenhum edital encontrado" else "${formatThousands(list.size)} ${if (list.size == 1) "edital" else "editais"}${if (query.isNotBlank()) " para “${query.trim()}”" else ""}") }
+            if (query.isBlank() && list.size > 1) Span({ classes("xs", "muted") }) { Text("mais novos primeiro") }
         }
         if (list.isEmpty()) P({ classes("muted", "small") }) { Text("Ainda não temos esse edital pronto. Envie o PDF do seu edital logo abaixo e eu monto as matérias para você.") }
         Div({ classes("exam-grid") }) {
             list.take(shown).forEach { entry -> key(entry.id) { ExamCard(entry, busyId == entry.id, busyId != null) { onPick(entry) } } }
         }
-        if (list.size > shown) Div({ classes("row"); attr("style", "justify-content:center") }) {
-            Btn("Mostrar mais ${minOf(24, list.size - shown)} de ${list.size - shown}", { shown += 24 }, style = "outline", icon = "expand_more")
-        }
+        // Carrega mais sozinho quando a pessoa chega perto do fim da lista.
+        if (list.size > shown) key(shown) { Div({
+            classes("cat-more")
+            ref { el ->
+                val io = js("new IntersectionObserver(function(e){ if (e[0].isIntersecting) el.__more(); }, { rootMargin: '600px' })")
+                el.asDynamic().__more = { shown += 30 }
+                io.observe(el)
+                onDispose { io.disconnect() }
+            }
+        }) { Spinner(); Span({ classes("small", "muted") }) { Text("Carregando mais editais…") } } }
     }
 }
+
+private fun formatThousands(n: Int): String = n.toString().reversed().chunked(3).joinToString(".").reversed()
 
 @Composable
 private fun ExamCard(entry: CatalogEntry, loading: Boolean, disabled: Boolean, onClick: () -> Unit) {
@@ -525,6 +566,7 @@ private fun ExamCard(entry: CatalogEntry, loading: Boolean, disabled: Boolean, o
             Span({ classes("exam-top") }) {
                 Span({ classes("exam-short") }) { Text(entry.shortName) }
                 entry.year?.let { Span({ classes(*listOfNotNull("exam-year", if (old) "old" else null).toTypedArray()) }) { Text(if (old) "$it · antigo" else "$it") } }
+                if (entry.year == year) Span({ classes("exam-new") }) { Text("NOVO") }
             }
             B({ classes("exam-role") }) { Text(entry.role) }
             val details = listOfNotNull(entry.agency.takeIf { !it.equals(entry.shortName, true) }, entry.board).joinToString(" · ")
