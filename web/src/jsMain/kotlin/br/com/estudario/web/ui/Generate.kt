@@ -187,7 +187,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                 if (got in 1 until asked) P({ classes("small", "muted") }) {
                     Text("Este tópico ainda não tinha questões prontas: vieram $got inéditas, escritas agora. Quando terminar, peça mais em lotes de 10.")
                 }
-                if (showQuestions) Btn("Treinar agora", { Generation.clear(topicId); onClose(); Router.go(Route.Quiz("topico-$topicId")) }, style = "primary", size = "lg", icon = "play_arrow")
+                if (showQuestions) Btn("Treinar agora", { Generation.clear(topicId); onClose(); Router.go(Route.Quiz("topico-$topicId-10")) }, style = "primary", size = "lg", icon = "play_arrow")
                 else Btn("Ver material", { Generation.clear(topicId); onClose(); Router.go(Route.Topic(topicId)) }, style = "primary", size = "lg", icon = "menu_book")
             }
             else -> Div({ classes("gen-body", "gen-working") }) {

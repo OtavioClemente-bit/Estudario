@@ -41,6 +41,8 @@ object Generation {
 
     fun start(topicId: Long, options: AiContent.Options) {
         if (running(topicId)) return
+        // Pede a permissão de aviso aqui, no clique de gerar (o navegador só deixa pedir num clique).
+        if (Notify.materialReadyOn && Notify.permission() == "default") Notify.request { }
         state[topicId] = AiContent.Progress.Checking
         val onlyQuestions = options.blocks == setOf("QUESTIONS")
         questionsOnly[topicId] = onlyQuestions
@@ -86,7 +88,9 @@ object Notify {
         if (!materialReadyOn) return
         val hidden = document.asDynamic().hidden == true || !document.hasFocus()
         if (hidden) flashTitle(if (onlyQuestions) "Questões prontas · Estudário" else "Material pronto · Estudário")
-        if (permission() == "granted" && hidden) {
+        // O aviso do sistema sai sempre que há permissão (antes só com a aba escondida, e a pessoa
+        // em outra janela ou noutro programa não via nada).
+        if (permission() == "granted") {
             runCatching {
                 val options = js("({})")
                 options.body = if (onlyQuestions) "Novas questões de \"$topicTitle\" prontas para treinar. Clique para abrir." else "\"$topicTitle\" já tem teoria, flashcards e questões. Clique para estudar."
