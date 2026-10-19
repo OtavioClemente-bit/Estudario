@@ -16,4 +16,4 @@ if [ -z "$KEY" ]; then
 fi
 
 SUPABASE_URL="https://$REF.supabase.co" SUPABASE_SERVICE_ROLE_KEY="$KEY" \
-  deno run --allow-read --allow-env --allow-net scripts/biblioteca/importar.ts --publicar
+  deno run --allow-read --allow-env --allow-net --allow-write=scripts/biblioteca/.publicado-cache.json scripts/biblioteca/importar.ts --publicar "$@"

@@ -275,6 +275,47 @@ async function restOnce(path: string, method: string, body?: unknown, prefer = "
   await response.body?.cancel().catch(() => {});
 }
 
+// Envio incremental (o plano grátis tem orçamento de Disk IO: regravar 265 mil apelidos e 4,6 mil
+// recortes a cada publicação o esgotava). Guarda um hash por linha já publicada e só envia o que mudou;
+// apaga só o que saiu. Sem o arquivo (primeira vez, outra máquina) ou com --tudo, envia tudo, como antes.
+const CACHE_PATH = "scripts/biblioteca/.publicado-cache.json";
+type Cache = Record<string, Record<string, string>>;
+let cache: Cache = {};
+if (!Deno.args.includes("--tudo")) {
+  try { cache = JSON.parse(await Deno.readTextFile(CACHE_PATH)) as Cache; } catch { cache = {}; }
+}
+const nextCache: Cache = {};
+// --so-registrar: o banco já está igual ao repositório (acabou de ser publicado); só grava o histórico local, sem enviar nada.
+const onlyMark = Deno.args.includes("--so-registrar");
+function hashOf(value: unknown): string {
+  const text = JSON.stringify(value);
+  let h1 = 0x811c9dc5, h2 = 0x01000193;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 0x01000193);
+    h2 = Math.imul(h2 ^ c, 0x5bd1e995);
+  }
+  return (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36) + text.length.toString(36);
+}
+/** Linhas novas ou alteradas desde a última publicação, e as chaves que saíram. */
+function diff<T extends Record<string, unknown>>(table: string, rows: T[], keyOf: (row: T) => string, ignore: string[] = ["updated_at"]) {
+  const before = cache[table];
+  const now: Record<string, string> = {};
+  const send: T[] = [];
+  for (const row of rows) {
+    const key = keyOf(row);
+    const h = hashOf(Object.fromEntries(Object.entries(row).filter(([field]) => !ignore.includes(field))));
+    now[key] = h;
+    if (!before || before[key] !== h) send.push(row);
+  }
+  const removed = before ? Object.keys(before).filter((key) => !(key in now)) : [];
+  if (onlyMark) return { send: [] as T[], removed: [] as string[], known: true, commit: () => { nextCache[table] = now; } };
+  return { send, removed, known: !!before, commit: () => { nextCache[table] = now; } };
+}
+async function saveCache() {
+  await Deno.writeTextFile(CACHE_PATH, JSON.stringify({ ...cache, ...nextCache }));
+}
+
 const META = new Set(["id", "subject", "title", "version", "status", "aliases"]);
 // Em lotes: com a biblioteca inteira num só envio, o banco cancela por tempo (statement timeout).
 const topicRows = [...materials.values()].map((m) => ({
@@ -287,9 +328,12 @@ const topicRows = [...materials.values()].map((m) => ({
   question_count: (m.questions as unknown[]).length,
   updated_at: new Date().toISOString(),
 }));
-for (let i = 0; i < topicRows.length; i += 10) {
-  await rest("library_topics?on_conflict=id", "POST", topicRows.slice(i, i + 10), "resolution=merge-duplicates,return=minimal");
+const topicDiff = diff("library_topics", topicRows, (r) => String(r.id));
+for (let i = 0; i < topicDiff.send.length; i += 10) {
+  await rest("library_topics?on_conflict=id", "POST", topicDiff.send.slice(i, i + 10), "resolution=merge-duplicates,return=minimal");
 }
+topicDiff.commit();
+await saveCache();
 
 // Apelidos e recortes espelham o repositório: o que saiu daqui sai do banco.
 // Banco ainda sem a coluna focus (migração não aplicada): envia sem foco, para nunca apagar os
@@ -302,24 +346,28 @@ if (!hasFocusColumn && focusByAlias.size > 0) console.log("Aviso: o banco ainda 
 // envio único estoura o tempo do banco, e apagar tudo antes deixaria a biblioteca sem apelidos.
 const aliasRows = [...aliasOwner].map(([alias_norm, topic_id]) =>
   hasFocusColumn ? { alias_norm, topic_id, focus: focusByAlias.get(alias_norm) ?? null } : { alias_norm, topic_id });
-for (let i = 0; i < aliasRows.length; i += 250) {
-  await rest("library_topic_aliases?on_conflict=alias_norm", "POST", aliasRows.slice(i, i + 250), "resolution=merge-duplicates,return=minimal");
+const aliasDiff = diff("library_topic_aliases", aliasRows as Record<string, unknown>[], (r) => String(r.alias_norm));
+for (let i = 0; i < aliasDiff.send.length; i += 250) {
+  await rest("library_topic_aliases?on_conflict=alias_norm", "POST", aliasDiff.send.slice(i, i + 250), "resolution=merge-duplicates,return=minimal");
 }
-const stale: string[] = [];
-for (let from = 0; ; from += 1000) {
-  const page = await fetch(`${url}/rest/v1/library_topic_aliases?select=alias_norm&order=alias_norm`, {
-    headers: { apikey: key!, authorization: `Bearer ${key}`, range: `${from}-${from + 999}` },
-  }).then((r) => r.json()) as { alias_norm: string }[];
-  for (const r of page) if (!aliasOwner.has(r.alias_norm)) stale.push(r.alias_norm);
-  if (page.length < 1000) break;
+let stale: string[] = aliasDiff.removed;
+if (!aliasDiff.known) {
+  // Sem histórico local: descobre no banco o que saiu (varredura completa, só desta vez).
+  stale = [];
+  for (let from = 0; ; from += 1000) {
+    const page = await fetch(`${url}/rest/v1/library_topic_aliases?select=alias_norm&order=alias_norm`, {
+      headers: { apikey: key!, authorization: `Bearer ${key}`, range: `${from}-${from + 999}` },
+    }).then((r) => r.json()) as { alias_norm: string }[];
+    for (const r of page) if (!aliasOwner.has(r.alias_norm)) stale.push(r.alias_norm);
+    if (page.length < 1000) break;
+  }
 }
 for (let i = 0; i < stale.length; i += 50) {
   const list = stale.slice(i, i + 50).map((a) => `"${a.replace(/"/g, '\\"')}"`).join(",");
   await rest(`library_topic_aliases?alias_norm=in.(${encodeURIComponent(list)})`, "DELETE");
 }
-// Só os recortes escritos aqui (MANUAL) são refeitos; os automáticos ficam, salvo quando um
-// recorte revisado da mesma banca os substitui (upsert abaixo).
-await rest("library_board_notes?origin=eq.MANUAL", "DELETE");
+aliasDiff.commit();
+await saveCache();
 // Em lotes: milhares de recortes num POST só estouram o tempo do banco.
 const noteRows = notes.map((n) => ({
   topic_id: n.topic,
@@ -331,9 +379,22 @@ const noteRows = notes.map((n) => ({
   note: n.value,
   origin: "MANUAL",
 }));
-for (let i = 0; i < noteRows.length; i += 25) {
-  await rest("library_board_notes?on_conflict=topic_id,board_norm,role_norm", "POST", noteRows.slice(i, i + 25), "resolution=merge-duplicates,return=minimal");
+const noteDiff = diff("library_board_notes", noteRows, (r) => `${r.topic_id}|${r.board_norm}|${r.role_norm}`);
+if (!noteDiff.known) {
+  // Sem histórico local: só os recortes escritos aqui (MANUAL) são refeitos; os automáticos ficam,
+  // salvo quando um recorte revisado da mesma banca os substitui (upsert abaixo).
+  await rest("library_board_notes?origin=eq.MANUAL", "DELETE");
+} else {
+  for (const removedKey of noteDiff.removed) {
+    const [topic, board, role] = removedKey.split("|");
+    await rest(`library_board_notes?origin=eq.MANUAL&topic_id=eq.${encodeURIComponent(topic)}&board_norm=eq.${encodeURIComponent(board)}&role_norm=eq.${encodeURIComponent(role)}`, "DELETE");
+  }
 }
+for (let i = 0; i < noteDiff.send.length; i += 25) {
+  await rest("library_board_notes?on_conflict=topic_id,board_norm,role_norm", "POST", noteDiff.send.slice(i, i + 25), "resolution=merge-duplicates,return=minimal");
+}
+noteDiff.commit();
+await saveCache();
 // Rotas revisadas (conteudo/pedidos/rotas.json): tópico amplo de edital servido por 2 ou 3 matérias
 // juntas. Gravadas com o tamanho atual do catálogo, para o app não refazer a rota com IA.
 try {
@@ -344,30 +405,39 @@ try {
     .map((r) => ({ topic_norm: normalizeAlias(r.texto), subject_norm: "", topic_ids: r.ids, coverage: r.cobertura === "PARTIAL" ? "PARTIAL" : "FULL", catalog_size: materials.size, updated_at: new Date().toISOString() }))
     // Textos diferentes podem dar o mesmo topic_norm: fica uma linha por chave (o banco recusa repetida no mesmo envio).
     .filter((row, i, all) => all.findIndex((other) => other.topic_norm === row.topic_norm) === i);
-  for (let i = 0; i < routeRows.length; i += 200) {
-    await rest("library_topic_routes?on_conflict=topic_norm", "POST", routeRows.slice(i, i + 200), "resolution=merge-duplicates,return=minimal");
+  const routeDiff = diff("library_topic_routes", routeRows, (r) => String(r.topic_norm));
+  for (let i = 0; i < routeDiff.send.length; i += 200) {
+    await rest("library_topic_routes?on_conflict=topic_norm", "POST", routeDiff.send.slice(i, i + 200), "resolution=merge-duplicates,return=minimal");
   }
+  routeDiff.commit();
+  await saveCache();
 } catch (error) {
   if (!(error instanceof Deno.errors.NotFound)) throw error;
 }
 // O catálogo também espelha o repositório: edital que saiu de conteudo/editais sai do app.
-for (let i = 0; i < catalogRows.length; i += 20) {
-  await rest("exam_catalog?on_conflict=id", "POST", catalogRows.slice(i, i + 20), "resolution=merge-duplicates,return=minimal");
+const catalogDiff = diff("exam_catalog", catalogRows as Record<string, unknown>[], (r) => String(r.id));
+for (let i = 0; i < catalogDiff.send.length; i += 20) {
+  await rest("exam_catalog?on_conflict=id", "POST", catalogDiff.send.slice(i, i + 20), "resolution=merge-duplicates,return=minimal");
 }
 // Apaga só os que saíram, em lotes: a lista inteira de ids no "not.in" estoura o tamanho da URL.
 const keepSet = new Set(catalogRows.map((row) => row.id as string));
-const staleCatalog: string[] = [];
-for (let from = 0; ; from += 1000) {
-  const page = await fetch(`${url}/rest/v1/exam_catalog?select=id&order=id`, {
-    headers: { apikey: key!, authorization: `Bearer ${key}`, range: `${from}-${from + 999}` },
-  }).then((r) => r.json()) as { id: string }[];
-  for (const r of page) if (!keepSet.has(r.id)) staleCatalog.push(r.id);
-  if (page.length < 1000) break;
+let staleCatalog: string[] = catalogDiff.removed;
+if (!catalogDiff.known) {
+  staleCatalog = [];
+  for (let from = 0; ; from += 1000) {
+    const page = await fetch(`${url}/rest/v1/exam_catalog?select=id&order=id`, {
+      headers: { apikey: key!, authorization: `Bearer ${key}`, range: `${from}-${from + 999}` },
+    }).then((r) => r.json()) as { id: string }[];
+    for (const r of page) if (!keepSet.has(r.id)) staleCatalog.push(r.id);
+    if (page.length < 1000) break;
+  }
 }
 for (let i = 0; i < staleCatalog.length; i += 50) {
   const list = staleCatalog.slice(i, i + 50).map((id) => `"${id}"`).join(",");
   await rest(`exam_catalog?id=in.(${encodeURIComponent(list)})`, "DELETE");
 }
+catalogDiff.commit();
+await saveCache();
 // Simulados oficiais (conteudo/simulados/<edital>.simulado-N.json): a prova inteira, na ordem real,
 // para o app usar como "Prova oficial" do edital. Banco ainda sem a tabela: pula com aviso.
 const hasSimulationTable = await fetch(`${url}/rest/v1/exam_simulation?select=id&limit=1`, {
@@ -409,9 +479,19 @@ else {
       updated_at: new Date().toISOString(),
     });
   }
-  for (const row of simulationRows) {
+  const simulationDiff = diff("exam_simulation", simulationRows, (r) => String(r.id));
+  for (const row of simulationDiff.send) {
     await rest("exam_simulation?on_conflict=id", "POST", [row], "resolution=merge-duplicates,return=minimal");
   }
+  simulationDiff.commit();
+  await saveCache();
   simulationCount = simulationRows.length;
 }
+const sent = Object.entries(nextCache).map(([table, rows]) => {
+  const before = cache[table];
+  const changed = before ? Object.entries(rows).filter(([k, h]) => before[k] !== h).length : Object.keys(rows).length;
+  return `${table.replace(/^library_|^exam_/, "")} ${changed}`;
+}).join(", ");
 console.log(`Publicado: ${materials.size} matéria(s), ${aliasOwner.size} apelido(s), ${notes.length} recorte(s), ${catalogRows.length} edital(is) no catálogo, ${simulationCount} simulado(s) oficial(is).`);
+if (onlyMark) console.log("Só registrado (nada enviado ao banco).");
+else console.log(`Linhas enviadas nesta publicação (o resto já estava igual no banco): ${sent}.`);
