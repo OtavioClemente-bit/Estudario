@@ -70,6 +70,20 @@ fun SimulationsScreen() {
         Btn("Banca e meta", { editingProfile = true }, style = "outline", icon = "tune", small = true)
     }
 
+    val profileRow = data.array("examProfiles").firstOrNull { ((it as? kotlinx.serialization.json.JsonObject)?.get("competitionId") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull() == competition.id } as? kotlinx.serialization.json.JsonObject
+    val foundBoard = profile.board?.takeIf { (profileRow?.get("boardPending") as? kotlinx.serialization.json.JsonPrimitive)?.content == "true" }
+    if (foundBoard != null) Div({ classes("sim-found") }) {
+        Icon("Lupa")
+        Div({ classes("grow") }) {
+            B { Text("O Estudário encontrou a banca $foundBoard na internet. Está certo?") }
+            Div({ classes("row"); attr("style", "gap:8px;margin-top:8px;flex-wrap:wrap") }) {
+                Btn("Confirmar", { Store.update { Simulations.saveExamProfile(it, competition.id, foundBoard, profile.targetPercent) } }, style = "primary", small = true, icon = "check")
+                Btn("Não é essa", { editingProfile = true }, style = "outline", small = true)
+                profileRow?.str("boardUrl")?.let { url -> org.jetbrains.compose.web.dom.A(href = url, { attr("target", "_blank"); attr("rel", "noopener"); classes("btn", "ghost", "small") }) { Text("Ver fonte") } }
+            }
+        }
+    }
+
     if (finished.isNotEmpty()) Div({ classes("grid", "cols-3") }) {
         Card(extra = "flat") { Stat("${finished.size}", "simulados entregues") }
         Card(extra = "flat") { Stat("${finished.mapNotNull { it.scorePercent }.maxOrNull() ?: 0}%", "melhor nota") }
@@ -113,6 +127,15 @@ fun SimulationsScreen() {
     officialError?.let { Div({ classes("banner", "error") }) { Text(it) } }
     if (Store.demo) Div({ classes("banner", "info") }) { Icon("info"); Text("Na demonstração os simulados não são gerados. Entre com sua conta para montar o seu.") }
 
+    val scores = finished.sortedBy { it.finishedAt ?: it.createdAt }.mapNotNull { it.scorePercent }
+    if (scores.size >= 2) Card {
+        CardHead("Seus resultados")
+        val first = scores.first(); val last = scores.last()
+        P({ classes("small") }) { Text(when { last > first -> "Você subiu ${last - first} pontos desde o primeiro simulado."; last < first -> "Caiu ${first - last} pontos desde o primeiro. Revanche e revisão ajudam a recuperar."; else -> "Nota estável desde o primeiro simulado." }) }
+        EvolutionChart(scores, profile.targetPercent)
+        P({ classes("xs", "muted") }) { Text("Linha tracejada: sua meta de ${profile.targetPercent}%") }
+    }
+
     if (list.isNotEmpty()) Card {
         CardHead("Seus simulados")
         Div({ classes("stack") }) {
@@ -127,6 +150,16 @@ fun SimulationsScreen() {
 @Composable
 private fun SimulationRow(simulation: Simulation) {
     val parts = Simulations.decodeParts(Simulations.row(Store.data, simulation.id)?.str("partsJson"))
+    var confirming by remember(simulation.id) { mutableStateOf(false) }
+    if (confirming) Modal(onDismiss = { confirming = false }) {
+        H2 { Text("Descartar este simulado?") }
+        P({ classes("muted") }) { Text(if (simulation.mode == Simulations.OFFICIAL_MODE) "As questões dele somem. A prova oficial volta a aparecer para você preparar de novo." else "As questões dele somem. A cota já usada não volta.") }
+        Div({ classes("row", "between") }) {
+            Btn("Manter", { confirming = false }, style = "ghost")
+            Btn("Descartar", { confirming = false; Store.update { Simulations.delete(it, simulation.id) } }, style = "danger", icon = "delete")
+        }
+    }
+    Div({ classes("sim-row") }) {
     Button({ classes("task"); onClick { Router.go(Route.Simulation(simulation.id)) } }) {
         Span({ classes("task-mark"); attr("style", "background:var(--primary-soft);color:var(--on-primary-soft)") }) { Icon("timer") }
         Div({ classes("task-body") }) {
@@ -145,6 +178,24 @@ private fun SimulationRow(simulation: Simulation) {
             else -> Chip("Falhou", "red")
         }
     }
+    IconButton("delete", "Descartar simulado") { confirming = true }
+    }
+}
+
+/** A linha das notas dos simulados, com a meta tracejada (como no app). */
+@Composable
+private fun EvolutionChart(scores: List<Int>, target: Int) {
+    val w = 600.0; val h = 140.0
+    val step = if (scores.size > 1) w / (scores.size - 1) else w
+    fun y(v: Int) = h - v / 100.0 * h
+    val points = scores.mapIndexed { i, v -> "${(i * step).toInt()},${y(v).toInt()}" }.joinToString(" ")
+    val svg = """<svg viewBox="-8 -8 616 156" preserveAspectRatio="none" style="width:100%;height:150px;display:block">
+        <line x1="0" x2="600" y1="${y(50)}" y2="${y(50)}" stroke="var(--line)" stroke-width="1"/>
+        <line x1="0" x2="600" y1="${y(target)}" y2="${y(target)}" stroke="#1FA97F" stroke-width="3" stroke-dasharray="12 10"/>
+        <polyline points="$points" fill="none" stroke="var(--primary)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+        ${scores.mapIndexed { i, v -> "<circle cx='${(i * step).toInt()}' cy='${y(v).toInt()}' r='6' fill='var(--primary)'/>" }.joinToString("")}
+    </svg>"""
+    androidx.compose.runtime.key(svg) { Div({ ref { el -> el.innerHTML = svg; onDispose { } } }) }
 }
 
 @Composable

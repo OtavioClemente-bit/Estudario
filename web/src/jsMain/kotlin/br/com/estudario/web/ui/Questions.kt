@@ -28,15 +28,24 @@ import org.w3c.dom.events.KeyboardEvent
 import kotlin.js.Date
 import kotlin.random.Random
 
-/** Os modos do Treinar no app. */
+/** Os modos do Treinar no app, com o mesmo texto de cada um. */
 private val modes = listOf(
     "smart" to "Treino inteligente",
-    "random" to "Aleatórias",
-    "new" to "Novas",
-    "wrong" to "Apenas erradas",
-    "mostwrong" to "Mais erradas",
+    "wrong" to "Refazer erros",
     "neverright" to "Nunca acertadas",
+    "mostwrong" to "Mais erradas",
+    "new" to "Questões novas",
     "favorites" to "Favoritas",
+    "random" to "Aleatórias",
+)
+private val modeInfo = mapOf(
+    "smart" to ("Brain" to "Mistura seus erros, os tópicos mais fracos e questões novas. O melhor para o dia a dia."),
+    "wrong" to ("Cycle" to "Só as questões que você errou, para fechar as lacunas."),
+    "neverright" to ("Warning" to "As que você ainda não acertou nenhuma vez."),
+    "mostwrong" to ("Target" to "As que você mais errou. Onde está o ponto fraco de verdade."),
+    "new" to ("Star" to "Só as que você nunca respondeu. Bom para avançar no conteúdo."),
+    "favorites" to ("Heart" to "As que você marcou para rever."),
+    "random" to ("Dice" to "Sorteio livre, sem critério."),
 )
 
 private val difficulties = listOf("all" to "Todas", "FACIL" to "Fácil", "MEDIA" to "Média", "DIFICIL" to "Difícil")
@@ -50,17 +59,72 @@ fun TrainScreen() {
     val topicsById = data.topics.associateBy { it.id }
     var mode by remember { mutableStateOf("smart") }
     var subject by remember { mutableStateOf(-1L) }
+    var topic by remember { mutableStateOf(-1L) }
     var board by remember { mutableStateOf("all") }
     var difficulty by remember { mutableStateOf("all") }
     var count by remember { mutableStateOf(10) }
     val boards = questions.mapNotNull { it.board?.trim()?.takeIf(String::isNotBlank) }.distinct().sorted()
     val due = Queries.dueReviews(data)
     val errors = Queries.pendingErrors(data)
-    val scope = "m-$mode~s-$subject~b-${js("encodeURIComponent")(board)}~d-$difficulty~n-$count"
+    val scope = "m-$mode~s-$subject~t-$topic~b-${js("encodeURIComponent")(board)}~d-$difficulty~n-$count"
     val available = pickQuestions(data, scope, preview = true).size
 
-    PageHead("Treinar questões", "Escolha a matéria, a banca e a dificuldade")
+    PageHead("Treinar questões", "Simulados, treinos recomendados e o seu treino do seu jeito")
     CompetitionTabs()
+
+    // Simulados: a porta de entrada fica no topo, como no app.
+    Button({ classes("train-sim"); onClick { Router.go(Route.Simulations) } }) {
+        Span({ classes("train-sim-ic") }) { Icon("Timer") }
+        Span({ classes("grow") }) {
+            Span({ classes("train-tag") }) { Text("SIMULADOS") }
+            B { Text("Prova inédita no estilo da sua banca") }
+            Span({ classes("small") }) { Text("Com cronômetro, gabarito no final e nota por matéria. Comece pelo diagnóstico.") }
+        }
+        Icon("chevron_right", plain = true)
+    }
+
+    if (questions.isNotEmpty()) {
+        // Diagnóstico: o acerto geral e o de cada matéria; tocar numa matéria abre um treino dela.
+        val bySubjectAll = questions.groupBy { topicsById[it.topicId]?.subjectId }
+        val answered = questions.sumOf { it.answerCount }
+        val right = questions.sumOf { it.correctCount }
+        val scores = subjects.mapNotNull { sb ->
+            val list = bySubjectAll[sb.id].orEmpty()
+            if (list.isEmpty()) null else Triple(sb, list.sumOf { it.answerCount }, list.sumOf { it.correctCount })
+        }
+        Card {
+            Div({ classes("train-diag") }) {
+                Div {
+                    Span({ classes("train-tag") }) { Text("SEU DIAGNÓSTICO") }
+                    B({ classes("train-diag-num") }) { Text(if (answered == 0) "—" else "${percent(right, answered)}%") }
+                    Span({ classes("small", "muted") }) { Text(if (answered == 0) "Resolva as primeiras questões para o diagnóstico mostrar seu acerto por matéria." else "de acerto em $answered respostas") }
+                }
+            }
+            // Recomendados: o que treinar agora, com o motivo escrito.
+            val weakest = scores.filter { it.second >= 5 }.minByOrNull { it.third.toDouble() / it.second }
+            val neverAnswered = questions.count { it.answerCount == 0 }
+            Div({ classes("train-recs") }) {
+                if (errors.isNotEmpty()) TrainTile("Cycle", "Refazer seus erros", "${errors.size} questões em que você mais erra do que acerta.", true) { Router.go(Route.Quiz("m-wrong~s--1~t--1~b-all~d-all~n-${errors.size.coerceIn(5, 20)}")) }
+                if (weakest != null && percent(weakest.third, weakest.second) < 70) TrainTile("Target", "Reforçar ${weakest.first.name}", "Sua matéria mais fraca: ${percent(weakest.third, weakest.second)}% de acerto em ${weakest.second} respostas.", true) { Router.go(Route.Quiz("m-smart~s-${weakest.first.id}~t--1~b-all~d-all~n-15")) }
+                TrainTile("Bolt", "Desafio do dia", "10 questões entre erros recorrentes, revisões atrasadas e tópicos de menor domínio.", false) { Router.go(Route.Quiz("m-smart~s--1~t--1~b-all~d-all~n-10")) }
+                if (neverAnswered > 0) TrainTile("Star", "Avançar com questões novas", "$neverAnswered questões que você ainda não viu.", false) { Router.go(Route.Quiz("m-new~s--1~t--1~b-all~d-all~n-10")) }
+            }
+            if (scores.isNotEmpty()) Div({ classes("train-subjects") }) {
+                scores.forEach { (sb, total, ok) ->
+                    androidx.compose.runtime.key(sb.id) {
+                        Button({ classes("train-subj"); onClick { Router.go(Route.Quiz("m-smart~s-${sb.id}~t--1~b-all~d-all~n-15")) } }) {
+                            Span({ classes("grow") }) {
+                                B({ classes("clamp-2") }) { Text(sb.name) }
+                                Span({ classes("xs", "muted") }) { Text("${bySubjectAll[sb.id].orEmpty().size} questões · $total respostas") }
+                            }
+                            Span({ classes("train-subj-pct") }) { Text(if (total == 0) "—" else "${percent(ok, total)}%") }
+                            Icon("play_arrow", plain = true)
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     Card(extra = "pad-lg") {
         if (questions.isEmpty()) {
@@ -70,9 +134,28 @@ fun TrainScreen() {
             return@Card
         }
         Div({ classes("stack", "loose") }) {
-            FilterBlock("Modo") { FilterChips(modes, mode) { mode = it } }
+            H2({ attr("style", "margin:0") }) { Text("Montar meu treino") }
+            FilterBlock("Modo") {
+                Div({ classes("train-modes") }) {
+                    modes.forEach { (key, label) ->
+                        val (icon, desc) = modeInfo[key] ?: ("quiz" to "")
+                        androidx.compose.runtime.key(key) {
+                            Button({ classes(*listOfNotNull("train-mode", if (mode == key) "on" else null).toTypedArray()); onClick { mode = key } }) {
+                                Span({ classes("train-mode-ic") }) { Icon(icon) }
+                                Span({ classes("grow") }) { B { Text(label) }; Span({ classes("xs", "muted") }) { Text(desc) } }
+                            }
+                        }
+                    }
+                }
+            }
             FilterBlock("Matéria") {
-                FilterChips(listOf(-1L to "Todas") + subjects.filter { s -> questions.any { topicsById[it.topicId]?.subjectId == s.id } }.map { it.id to it.name }, subject) { subject = it }
+                FilterChips(listOf(-1L to "Todas") + subjects.filter { s -> questions.any { topicsById[it.topicId]?.subjectId == s.id } }.map { it.id to it.name }, subject) { subject = it; topic = -1L }
+            }
+            if (subject >= 0) {
+                val topicsWithQuestions = data.topics.filter { t -> t.subjectId == subject && questions.any { it.topicId == t.id } }
+                if (topicsWithQuestions.isNotEmpty()) FilterBlock("Tópico") {
+                    FilterChips(listOf(-1L to "Todos") + topicsWithQuestions.map { it.id to it.title }, topic) { topic = it }
+                }
             }
             if (boards.isNotEmpty()) FilterBlock("Banca") { FilterChips(listOf("all" to "Todas") + boards.map { it to it }, board) { board = it } }
             FilterBlock("Dificuldade") { FilterChips(difficulties, difficulty) { difficulty = it } }
@@ -87,29 +170,7 @@ fun TrainScreen() {
         }
     }
 
-    // Visão por matéria: quanto já foi feito e o acerto.
-    val bySubject = questions.groupBy { topicsById[it.topicId]?.subjectId }
     TrainPreferences()
-    Card {
-        CardHead("Seu banco por matéria")
-        Div({ classes("stack") }) {
-            subjects.forEach { s ->
-                val list = bySubject[s.id].orEmpty()
-                if (list.isEmpty()) return@forEach
-                val total = list.sumOf { it.answerCount }
-                val right = list.sumOf { it.correctCount }
-                androidx.compose.runtime.key(s.id) {
-                    Div({ classes("stack", "tight") }) {
-                        Div({ classes("row", "between") }) {
-                            B({ classes("clamp-2") }) { Text(s.name) }
-                            Span({ classes("small", "muted", "nowrap") }) { Text("${list.size} questões${if (total > 0) " · ${percent(right, total)}%" else ""}") }
-                        }
-                        ProgressBar(if (total == 0) 0.0 else right.toDouble() / total, if (total > 0 && right * 100 / total >= 70) "green" else null)
-                    }
-                }
-            }
-        }
-    }
 }
 
 @Composable
@@ -155,12 +216,14 @@ fun pickQuestions(data: Snapshot, scope: String, preview: Boolean = false): List
     val params = scope.split('~').associate { part -> part.substringBefore('-') to part.substringAfter('-', "") }
     val mode = params["m"] ?: "smart"
     val subject = params["s"]?.toLongOrNull() ?: -1L
+    val topicFilter = params["t"]?.toLongOrNull() ?: -1L
     val board = params["b"]?.let { js("decodeURIComponent")(it) as String } ?: "all"
     val difficulty = params["d"] ?: "all"
     val count = params["n"]?.toIntOrNull()?.coerceIn(1, 100) ?: 10
     val errorCounts = data.errors.associate { it.questionId to it.errorCount }
     val filtered = pool.filter { q ->
         (subject < 0 || topicsById[q.topicId]?.subjectId == subject) &&
+            (topicFilter < 0 || q.topicId == topicFilter) &&
             (board == "all" || q.board?.trim() == board) &&
             (difficulty == "all" || q.difficulty == difficulty)
     }
