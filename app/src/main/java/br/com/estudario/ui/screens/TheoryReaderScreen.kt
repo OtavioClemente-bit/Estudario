@@ -49,7 +49,8 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
     var textScale by remember { mutableFloatStateOf(uiPrefs.getFloat("reader_scale", 1.05f)) }
     var bookFont by remember { mutableStateOf(uiPrefs.getBoolean("reader_book", true)) }
     var readerSettings by remember { mutableStateOf(false) }
-    var editingIndex by remember { mutableStateOf<Int?>(null) }
+    // Anotação aberta: o parágrafo e o trecho (o parágrafo inteiro ou só a parte selecionada).
+    var editing by remember { mutableStateOf<Pair<Int, String>?>(null) }
     var selected by remember(theoryId) { mutableStateOf<Int?>(null) }
     var reportIndex by remember { mutableStateOf<Int?>(null) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -84,15 +85,15 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
     reportIndex?.let { index ->
         br.com.estudario.ui.components.ReportErrorDialog(br.com.estudario.data.remote.ReportKind.THEORY, blocks.getOrElse(index) { "" }, theory.title, null, onDismiss = { reportIndex = null })
     }
-    editingIndex?.let { index ->
-        val existing = marks.firstOrNull { it.blockIndex == index }
-        var note by remember(index, existing?.id) { mutableStateOf(existing?.note.orEmpty()) }
+    editing?.let { (index, quote) ->
+        val existing = marks.firstOrNull { it.blockIndex == index && it.quote == quote }
+        var note by remember(index, quote, existing?.id) { mutableStateOf(existing?.note.orEmpty()) }
         AlertDialog(
-            onDismissRequest = { editingIndex = null },
-            title = { Text(if (existing == null) "Anotar e grifar" else "Sua anotação") },
-            text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(blocks.getOrElse(index) { "" }.replace("#", "").take(240), color = MaterialTheme.colorScheme.onSurfaceVariant); OutlinedTextField(note, { note = it }, label = { Text("Sua observação (opcional)") }, minLines = 3, maxLines = 7) } },
-            confirmButton = { TextButton(onClick = { viewModel.saveTheoryMark(existing?.copy(note = note) ?: TheoryMarkEntity(theoryId = theoryId, blockIndex = index, quote = blocks[index], note = note)); editingIndex = null }) { Text("Salvar") } },
-            dismissButton = { Row { if (existing != null) TextButton(onClick = { viewModel.deleteTheoryMark(existing); editingIndex = null }) { Text("Tirar grifo") }; TextButton(onClick = { editingIndex = null }) { Text("Cancelar") } } },
+            onDismissRequest = { editing = null },
+            title = { Text(if (existing == null) "Grifar com nota" else "Sua anotação") },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { Text("“" + plainPreview(quote).take(240) + "”", color = MaterialTheme.colorScheme.onSurfaceVariant); OutlinedTextField(note, { note = it }, label = { Text("Sua observação (opcional)") }, minLines = 3, maxLines = 7) } },
+            confirmButton = { TextButton(onClick = { viewModel.saveTheoryMark(existing?.copy(note = note) ?: TheoryMarkEntity(theoryId = theoryId, blockIndex = index, quote = quote, note = note)); editing = null }) { Text("Salvar") } },
+            dismissButton = { Row { if (existing != null) TextButton(onClick = { viewModel.deleteTheoryMark(existing); editing = null }) { Text("Tirar grifo") }; TextButton(onClick = { editing = null }) { Text("Cancelar") } } },
         )
     }
 
@@ -139,13 +140,13 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
         bottomBar = {
             val index = selected
             if (index != null && index in blocks.indices) {
-                val existing = marks.firstOrNull { it.blockIndex == index }
+                val blockMarks = marks.filter { it.blockIndex == index }
                 SelectionBar(
-                    highlighted = existing != null,
+                    highlighted = blockMarks.isNotEmpty(),
                     onHighlight = {
-                        if (existing != null) {
-                            viewModel.deleteTheoryMark(existing)
-                            scope.launch { snackbar.showSnackbar("Grifo removido.") }
+                        if (blockMarks.isNotEmpty()) {
+                            blockMarks.forEach { viewModel.deleteTheoryMark(it) }
+                            scope.launch { snackbar.showSnackbar(if (blockMarks.size > 1) "Grifos do parágrafo removidos." else "Grifo removido.") }
                         } else {
                             viewModel.saveTheoryMark(TheoryMarkEntity(theoryId = theoryId, blockIndex = index, quote = blocks[index], note = ""))
                             markHintSeen = true
@@ -154,7 +155,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                         }
                         selected = null
                     },
-                    onNote = { editingIndex = index; selected = null },
+                    onNote = { editing = index to (blockMarks.firstOrNull()?.quote ?: blocks[index]); selected = null },
                     onCopy = {
                         clipboard.setText(androidx.compose.ui.text.AnnotatedString(plainPreview(blocks[index])))
                         scope.launch { snackbar.showSnackbar("Trecho copiado.") }
@@ -196,7 +197,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
             Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Row(Modifier.padding(start = 14.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     br.com.estudario.ui.assistant.Folha(40.dp, mood = br.com.estudario.ui.assistant.FolhaMood.TALKING)
-                    Text("Toque em qualquer parágrafo para grifar, anotar ou copiar. Os grifos ficam no Caderno de estudo, no tópico desta teoria.", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    Text("Segure uma palavra e arraste para grifar só um trecho. Tocar no parágrafo grifa ele inteiro. Tudo vai para o Caderno de estudo.", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                     IconButton(onClick = { markHintSeen = true; readerPrefs.edit().putBoolean(MARK_HINT_SEEN, true).apply() }) { Icon(Icons.Outlined.Close, "Fechar dica") }
                 }
             }
@@ -205,7 +206,10 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             blocks.forEachIndexed { index, block ->
                 item(key = index) {
-                    val mark = marks.firstOrNull { it.blockIndex == index }
+                    val blockMarks = marks.filter { it.blockIndex == index }
+                    // Grifo do parágrafo inteiro (feito tocando nele) ou de trechos (feito selecionando).
+                    val mark = blockMarks.firstOrNull { it.quote == block }
+                    val partial = blockMarks.filter { it.quote != block }.map { it.quote }
                     val isSelected = selected == index
                     val highlighter = estudarioHighlighter()
                     // Grifo = faixa de marca-texto na lateral e fundo bem leve; seleção = contorno.
@@ -223,15 +227,26 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                             .height(IntrinsicSize.Min),
                         verticalAlignment = Alignment.Top,
                     ) {
-                        Box(Modifier.width(4.dp).fillMaxHeight().background(if (mark != null) highlighter else androidx.compose.ui.graphics.Color.Transparent))
+                        Box(Modifier.width(4.dp).fillMaxHeight().background(if (blockMarks.isNotEmpty()) highlighter else androidx.compose.ui.graphics.Color.Transparent))
                         val callout = br.com.estudario.ui.components.calloutKindOf(block)
                         val markdown: @Composable (Modifier, String) -> Unit = { m, text ->
                             br.com.estudario.ui.components.StudyMarkdown(
                                 text,
                                 m,
                                 textSizeSp = MaterialTheme.typography.bodyLarge.fontSize.value * textScale,
-                                onLongPress = { editingIndex = index; markHintSeen = true; readerPrefs.edit().putBoolean(MARK_HINT_SEEN, true).apply() },
                                 onTap = { selected = if (selected == index) null else index },
+                                highlights = partial,
+                                highlightColor = highlighter.copy(alpha = .45f),
+                                onSelectText = { quote, withNote ->
+                                    markHintSeen = true
+                                    readerPrefs.edit().putBoolean(MARK_HINT_SEEN, true).apply()
+                                    selected = null
+                                    if (withNote) editing = index to quote
+                                    else if (blockMarks.none { it.quote == quote }) {
+                                        viewModel.saveTheoryMark(TheoryMarkEntity(theoryId = theoryId, blockIndex = index, quote = quote, note = ""))
+                                        scope.launch { snackbar.showSnackbar("Trecho grifado. Fica no Caderno de estudo, no tópico desta teoria.") }
+                                    }
+                                },
                             )
                         }
                         if (callout != null) {
@@ -242,7 +257,11 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                             markdown(Modifier.weight(1f).padding(start = 10.dp, end = 12.dp, top = 10.dp, bottom = 10.dp), block)
                         }
                     }
-                    if (!mark?.note.isNullOrBlank()) Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(8.dp), modifier = Modifier.padding(start = 12.dp, top = 4.dp)) { Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { Icon(Icons.Outlined.EditNote, null); Text(mark!!.note, Modifier.weight(1f)) } }
+                    blockMarks.filter { it.note.isNotBlank() }.forEach { m ->
+                        Surface(onClick = { editing = index to m.quote }, color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(8.dp), modifier = Modifier.padding(start = 12.dp, top = 4.dp)) {
+                            Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { Icon(Icons.Outlined.EditNote, null); Text(m.note, Modifier.weight(1f)) }
+                        }
+                    }
                 }
             }
             item {

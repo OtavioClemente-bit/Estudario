@@ -106,6 +106,12 @@ class MainActivity : ComponentActivity() {
                 br.com.estudario.ui.components.LevelUpShowcase()
                 return@setContent
             }
+            // Leitor da primeira teoria (só debug/preview, depois do seedDemo): `--ez readerShowcase true`, para testar grifos.
+            if (BuildConfig.DEBUG && intent?.getBooleanExtra("readerShowcase", false) == true) {
+                val theories by viewModel.theories.collectAsState()
+                theories.firstOrNull()?.let { br.com.estudario.ui.screens.TheoryReaderScreen(viewModel, it.id, showInternalTopBar = false, onBack = {}) }
+                return@setContent
+            }
             if (BuildConfig.DEBUG && intent?.getBooleanExtra("badgeShowcase", false) == true) {
                 br.com.estudario.ui.components.BadgeShowcase()
                 return@setContent

@@ -50,16 +50,27 @@ fun StudyInlineText(
  * tabelas e fórmulas LaTeX (`$$...$$`, na linha ou em bloco). As cores seguem o tema do app.
  */
 @Composable
-fun StudyMarkdown(markdown: String, modifier: Modifier = Modifier, textSizeSp: Float? = null, onLongPress: (() -> Unit)? = null, onTap: (() -> Unit)? = null, textColor: androidx.compose.ui.graphics.Color? = null, centered: Boolean = false) {
+fun StudyMarkdown(
+    markdown: String,
+    modifier: Modifier = Modifier,
+    textSizeSp: Float? = null,
+    onLongPress: (() -> Unit)? = null,
+    onTap: (() -> Unit)? = null,
+    textColor: androidx.compose.ui.graphics.Color? = null,
+    centered: Boolean = false,
+    highlights: List<String> = emptyList(),
+    highlightColor: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color(0x73FFC857),
+    onSelectText: ((quote: String, withNote: Boolean) -> Unit)? = null,
+) {
     // Gráficos (```grafico) são desenhados pelo app; o resto segue no Markdown.
     val parts = remember(markdown) { splitCharts(centerLoneFormulas(markdown)) }
     if (parts.size == 1 && parts[0].second == null) {
-        MarkdownTextView(parts[0].first, modifier, textSizeSp, onLongPress, onTap, textColor, centered)
+        MarkdownTextView(parts[0].first, modifier, textSizeSp, onLongPress, onTap, textColor, centered, highlights, highlightColor, onSelectText)
         return
     }
     androidx.compose.foundation.layout.Column(modifier) {
         parts.forEach { (text, chart) ->
-            if (chart != null) StudyChartView(chart) else MarkdownTextView(text, androidx.compose.ui.Modifier.fillMaxWidth(), textSizeSp, onLongPress, onTap, textColor, centered)
+            if (chart != null) StudyChartView(chart) else MarkdownTextView(text, androidx.compose.ui.Modifier.fillMaxWidth(), textSizeSp, onLongPress, onTap, textColor, centered, highlights, highlightColor, onSelectText)
         }
     }
 }
@@ -68,7 +79,19 @@ fun StudyMarkdown(markdown: String, modifier: Modifier = Modifier, textSizeSp: F
 val LocalReaderBook = androidx.compose.runtime.staticCompositionLocalOf { false }
 
 @Composable
-private fun MarkdownTextView(markdown: String, modifier: Modifier, textSizeSp: Float?, onLongPress: (() -> Unit)?, onTap: (() -> Unit)?, textColor: androidx.compose.ui.graphics.Color? = null, centered: Boolean = false) {
+private fun MarkdownTextView(
+    markdown: String,
+    modifier: Modifier,
+    textSizeSp: Float?,
+    onLongPress: (() -> Unit)?,
+    onTap: (() -> Unit)?,
+    textColor: androidx.compose.ui.graphics.Color? = null,
+    centered: Boolean = false,
+    highlights: List<String> = emptyList(),
+    highlightColor: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Transparent,
+    onSelectText: ((String, Boolean) -> Unit)? = null,
+) {
+    val selectable = onSelectText != null
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val size = textSizeSp ?: MaterialTheme.typography.bodyLarge.fontSize.value
@@ -86,6 +109,8 @@ private fun MarkdownTextView(markdown: String, modifier: Modifier, textSizeSp: F
                 includeFontPadding = false
                 // A mesma letra do resto do app; sem isso o Android usa a fonte do sistema aqui dentro.
                 androidx.core.content.res.ResourcesCompat.getFont(viewContext, br.com.estudario.R.font.nunito_family)?.let { typeface = it }
+                // Leitura: segurar e arrastar seleciona só o trecho (uma palavra, meia frase, um item da lista).
+                if (selectable) setTextIsSelectable(true)
             }
         },
         update = { view ->
@@ -98,10 +123,17 @@ private fun MarkdownTextView(markdown: String, modifier: Modifier, textSizeSp: F
             view.setTextColor(ink.toArgb())
             view.setLinkTextColor(colors.primary.toArgb())
             view.setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
-            markwon.setMarkdown(view, text)
-            centerInlineFormulas(view, markwon.configuration().theme())
+            // Só redesenha o texto quando ele (ou os grifos) mudam: assim uma seleção em andamento não some.
+            val stamp = listOf(text, size, ink.toArgb(), book, colors.primary.toArgb(), highlights, highlightColor.toArgb())
+            if (view.tag != stamp) {
+                view.tag = stamp
+                markwon.setMarkdown(view, text)
+                centerInlineFormulas(view, markwon.configuration().theme())
+                paintHighlights(view, highlights, highlightColor.toArgb())
+            }
+            if (onSelectText != null) view.customSelectionActionModeCallback = highlightActions(view, onSelectText)
             // Segurar o trecho é o gesto de marcar: o TextView recebe o toque, então o aviso vem dele.
-            if (onLongPress != null) {
+            if (onLongPress != null && !selectable) {
                 view.isLongClickable = true
                 view.setOnLongClickListener { v -> v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); onLongPress(); true }
             } else {
@@ -164,6 +196,51 @@ private fun studyMarkwon(context: Context, colors: ColorScheme, textSizeSp: Floa
         })
         .build()
 }
+
+/** Pinta de marca-texto, no próprio texto, cada trecho grifado (achado mesmo com espaços e quebras diferentes). */
+private fun paintHighlights(view: TextView, quotes: List<String>, color: Int) {
+    if (quotes.isEmpty()) return
+    val spannable = view.text as? android.text.Spannable ?: return
+    val plain = spannable.toString()
+    quotes.forEach { quote ->
+        val range = findQuote(plain, quote) ?: return@forEach
+        spannable.setSpan(android.text.style.BackgroundColorSpan(color), range.first, range.last + 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    }
+}
+
+/** Onde o trecho está no texto já desenhado; aceita diferença de espaços, quebras e marcadores de lista. */
+internal fun findQuote(plain: String, quote: String): IntRange? {
+    val q = quote.trim()
+    if (q.isEmpty()) return null
+    plain.indexOf(q).takeIf { it >= 0 }?.let { return it until it + q.length }
+    val words = q.split(Regex("""[s•·]+""")).filter { it.isNotBlank() }
+    if (words.isEmpty()) return null
+    val pattern = words.joinToString("""[s•·​]+""") { Regex.escape(it) }
+    return runCatching { Regex(pattern).find(plain)?.range }.getOrNull()
+}
+
+/** O menu da seleção ganha "Grifar" e "Grifar com nota" na frente (Copiar e o resto continuam). */
+private fun highlightActions(view: TextView, onSelect: (String, Boolean) -> Unit) = object : android.view.ActionMode.Callback {
+    override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
+        menu.add(android.view.Menu.NONE, MENU_HIGHLIGHT, 0, "Grifar").setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
+        menu.add(android.view.Menu.NONE, MENU_HIGHLIGHT_NOTE, 1, "Grifar com nota").setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_IF_ROOM)
+        return true
+    }
+    override fun onPrepareActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = false
+    override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem): Boolean {
+        if (item.itemId != MENU_HIGHLIGHT && item.itemId != MENU_HIGHLIGHT_NOTE) return false
+        val start = minOf(view.selectionStart, view.selectionEnd).coerceAtLeast(0)
+        val end = maxOf(view.selectionStart, view.selectionEnd).coerceAtMost(view.text.length)
+        val quote = if (end > start) view.text.subSequence(start, end).toString().trim() else ""
+        mode.finish()
+        if (quote.isNotBlank()) onSelect(quote, item.itemId == MENU_HIGHLIGHT_NOTE)
+        return true
+    }
+    override fun onDestroyActionMode(mode: android.view.ActionMode) {}
+}
+
+private const val MENU_HIGHLIGHT = 0x6772_01
+private const val MENU_HIGHLIGHT_NOTE = 0x6772_02
 
 /**
  * Ajusta o que as IAs costumam escrever para o que o leitor entende: `\( \)` e `\[ \]` viram

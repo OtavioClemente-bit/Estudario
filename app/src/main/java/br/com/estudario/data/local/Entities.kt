@@ -163,7 +163,7 @@ data class TheoryDocumentEntity(
 @Entity(
     tableName = "theory_marks",
     foreignKeys = [ForeignKey(entity = TheoryDocumentEntity::class, parentColumns = ["id"], childColumns = ["theoryId"], onDelete = ForeignKey.CASCADE)],
-    indices = [Index("theoryId"), Index(value = ["theoryId", "blockIndex"], unique = true)],
+    indices = [Index("theoryId"), Index(value = ["theoryId", "blockIndex"])],
 )
 data class TheoryMarkEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
