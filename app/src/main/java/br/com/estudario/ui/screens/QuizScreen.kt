@@ -508,7 +508,7 @@ private fun QuizResult(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SwipeToEliminate(crossed: Boolean, enabled: Boolean, onToggle: () -> Unit, content: @Composable () -> Unit) {
+internal fun SwipeToEliminate(crossed: Boolean, enabled: Boolean, onToggle: () -> Unit, content: @Composable () -> Unit) {
     val toggle by rememberUpdatedState(onToggle)
     val state = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->

@@ -188,10 +188,12 @@ fun ReviewSessionScreen(
                             else -> MaterialTheme.colorScheme.outlineVariant
                         }
                         val isCrossed = option.id in crossed && answered == null
+                        // Riscar como nas outras questões: arrastar a alternativa para o lado.
+                        SwipeToEliminate(isCrossed, enabled = answered == null, onToggle = { crossed = if (option.id in crossed) crossed - option.id else crossed + option.id; if (selected == option.key) selected = null }) {
                         Row(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(container).border(2.dp, border, RoundedCornerShape(16.dp))
                                 .graphicsLayer { alpha = if (isCrossed) 0.45f else 1f }
-                                .clickable(enabled = answered == null) { if (isCrossed) crossed = crossed - option.id else selected = option.key }.padding(start = 14.dp, top = 14.dp, bottom = 14.dp, end = 4.dp),
+                                .clickable(enabled = answered == null) { if (isCrossed) crossed = crossed - option.id else selected = option.key }.padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Box(Modifier.size(30.dp).clip(CircleShape).background(border.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
@@ -199,9 +201,7 @@ fun ReviewSessionScreen(
                             }
                             Spacer(Modifier.width(12.dp))
                             br.com.estudario.ui.components.StudyInlineText(option.text, Modifier.weight(1f), onTap = { if (answered == null) { if (isCrossed) crossed = crossed - option.id else selected = option.key } }, style = if (isCrossed) MaterialTheme.typography.bodyLarge.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough) else MaterialTheme.typography.bodyLarge)
-                            if (answered == null) IconButton(onClick = { crossed = if (option.id in crossed) crossed - option.id else crossed + option.id; if (selected == option.key) selected = null }) {
-                                Icon(Icons.Outlined.FormatStrikethrough, if (isCrossed) "Desfazer risco" else "Riscar alternativa", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
+                        }
                         }
                     }
                 }
