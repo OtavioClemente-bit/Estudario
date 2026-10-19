@@ -37,4 +37,26 @@ class OptionShuffleTest {
         assertEquals("A alternativa A está correta. A letra C erra ao dizer que é reversível.\nB) incorreta.", out)
         assertEquals("A", OptionShuffle.displayLetter(order, 2))
     }
+
+    @Test
+    fun explicacaoComLetrasSoltasAcompanhaAOrdemNova() {
+        // Ordem mostrada: original E, A, B, C, D. Assim A→B, B→C, C→D, D→E, E→A.
+        val order = listOf(4, 0, 1, 2, 3)
+        val keys = listOf("A", "B", "C", "D", "E")
+        val text = "Gabarito D. A (incorreta): igual período. B (incorreta): só uma vez. C (incorreta): não. " +
+            "D (correta): art. 12. E (incorreta): excede."
+        assertEquals(
+            "Gabarito E. B (incorreta): igual período. C (incorreta): só uma vez. D (incorreta): não. " +
+                "E (correta): art. 12. A (incorreta): excede.",
+            OptionShuffle.relabel(text, keys, order),
+        )
+        assertEquals(
+            "Gabarito C. C: correta. B erra o prazo; D e E confundem. A presença do artigo não muda.",
+            OptionShuffle.relabel("Gabarito B. B: correta. A erra o prazo; C e D confundem. A presença do artigo não muda.", keys, order),
+        )
+        assertEquals(
+            "C está correta. E assim por diante; a letra B erra.",
+            OptionShuffle.relabel("B está correta. E assim por diante; a letra A erra.", keys, order),
+        )
+    }
 }

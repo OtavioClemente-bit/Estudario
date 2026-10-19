@@ -49,12 +49,42 @@ object OptionShuffle {
     fun relabel(explanation: String, originalKeys: List<String>, order: List<Int>): String {
         if (order == originalKeys.indices.toList()) return explanation
         val map = originalKeys.mapIndexed { i, key -> key.uppercase() to displayLetter(order, i) }.toMap()
-        fun swap(letter: String) = map[letter.uppercase()] ?: letter
-        return explanation
-            .replace(Regex("""\b(alternativas?|letras?|opç(?:ão|ões)|assertivas?|gabarito)(\s+)([A-E])\b""", RegexOption.IGNORE_CASE)) { m ->
-                m.groupValues[1] + m.groupValues[2] + swap(m.groupValues[3])
-            }
-            .replace(Regex("""\(([A-E])\)""")) { m -> "(" + swap(m.groupValues[1]) + ")" }
-            .replace(Regex("""(^|\n|[.;:]\s+|\*\*)([A-E])\)""")) { m -> m.groupValues[1] + swap(m.groupValues[2]) + ")" }
+        // Uma passada só, letra por letra, para nenhuma ser trocada duas vezes.
+        val out = StringBuilder(explanation.length)
+        explanation.forEachIndexed { i, ch ->
+            out.append(if (ch in 'A'..'E' && isLetterReference(explanation, i)) map[ch.toString()] ?: ch.toString() else ch.toString())
+        }
+        return out.toString()
+    }
+
+    // Verbos e palavras que, logo depois de "A", mostram que é a alternativa A e não o artigo ("A erra", "A e C").
+    private val afterLetter = Regex(
+        """^(\s*\)|\s*\(|\s*:|\s*[,;.]|\s+[–—-]\s|\s+(e|ou)\s+[A-E](?![A-Za-zÀ-ÿ\d])|\s+(é|são|está|estão|não|também|erra|erram|traz|trazem|troca|trocam|confunde|confundem|inverte|invertem|ignora|ignoram|usa|usam|atribui|atribuem|apresenta|descreve|combina|generaliza|soma|omite|omitem|considera|calcula|resulta|aplica|desloca|mantém|informa|expressa|enuncia|reúne|embaralha|inclui|incluem|decorre|nega|inventa|supõe|trata|limita|faz|leva|afirma|diz|contraria|contradiz|equipara|equiparam|exige|exigem|restringe|reduz|amplia|mistura|cita|indica|indicam|traduz|acerta|falha|falham|peca|pecam|extrapola|extrapolam|desconsidera|desconsideram|corresponde|correspondem|seria|seriam|fica|ficam|permanece|parte|partem|associa|associam|transforma|transformam|substitui|altera|alteram|retoma|recupera|presume|presumem|exagera|exageram|acrescenta|acrescentam|inverteu|errou)(?![A-Za-zÀ-ÿ\d]))""",
+    )
+    private val beforeLetter = Regex(
+        """((alternativas?|letras?|opç(ão|ões)|assertivas?|gabarito|resposta)\s*:?\s*|[A-E]\s*(,|e|ou)\s*|[A-E],\s+[A-E]\s+e\s+)$""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    /**
+     * A letra na posição [i] é uma alternativa citada? B a E sozinhas quase sempre são; "A" pode ser
+     * o artigo, então só conta quando o contexto mostra a alternativa ("A erra", "A e C", "(A)", "Gabarito A").
+     */
+    private fun isLetterReference(text: String, i: Int): Boolean {
+        val before = text.getOrNull(i - 1)
+        val after = text.getOrNull(i + 1)
+        if (before != null && (before.isLetterOrDigit() || before in "º°ª/-_'’")) return false
+        if (after != null && (after.isLetterOrDigit() || after in "º°ª/'’")) return false
+        // Letra seguida de ponto e outra letra/número é sigla ou abreviação ("E.U.A.", "D.O.U.").
+        if (after == '.' && text.getOrNull(i + 2)?.isLetterOrDigit() == true) return false
+        val head = text.substring(maxOf(0, i - 40), i)
+        val tail = text.substring(i + 1, minOf(text.length, i + 40))
+        if (beforeLetter.containsMatchIn(head)) return true
+        return when (text[i]) {
+            'A' -> afterLetter.containsMatchIn(tail)
+            // "E" pode ser a conjunção no começo de frase ("E assim..."): só quando o contexto confirma.
+            'E' -> afterLetter.containsMatchIn(tail) || !(tail.startsWith(" ") && tail.getOrNull(1)?.isLowerCase() == true)
+            else -> true
+        }
     }
 }
