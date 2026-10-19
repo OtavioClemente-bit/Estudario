@@ -1,0 +1,1896 @@
+{
+  "id": "informatica.apis-rest-integracao",
+  "subject": "Informática",
+  "title": "APIs e integração de sistemas: REST, JSON, OpenAPI e webhooks",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "APIs e integração de sistemas: REST, JSON, OpenAPI e webhooks",
+    "Evento negocial.",
+    "Integração de sistemas."
+  ],
+  "scope": {
+    "covers": "Conceitos de APIs e integração, semântica de HTTP (métodos, cabeçalhos e códigos), estilo REST (recursos, stateless, idempotência, concorrência, versionamento e paginação), JSON/XML, validação por JSON Schema, OpenAPI/Swagger, autenticação/autorização (API key, OAuth 2.0, JWT), webhooks, eventos negociais, mensageria, SOAP, GraphQL, microsserviços, API gateway, riscos OWASP e práticas de segurança de APIs.",
+    "excludes": "Engenharia de software geral, padrões de arquitetura de aplicações em profundidade, modelagem completa de microsserviços, implementação avançada de brokers, desenvolvimento de clientes e servidores numa linguagem específica e administração de infraestrutura."
+  },
+  "theoryTitle": "Teoria completa de APIs REST, documentação, integração e segurança",
+  "chapters": [
+    {
+      "title": "Fundamentos de APIs e protocolo HTTP",
+      "markdown": "## 1. API, serviço e integração\n\n**API (Application Programming Interface)** é um contrato que expõe operações e dados de um componente a outros sistemas. Pode existir como biblioteca local, interface de sistema operacional ou API remota. Nesta matéria, o foco são **APIs de rede**, sobretudo aquelas que usam HTTP. *Integração de sistemas* é a cooperação entre aplicações para transferir dados ou desencadear processos: por exemplo, um portal de matrícula consulta o cadastro de estudantes e informa ao financeiro a matrícula confirmada. Uma API não é sinônimo de banco de dados nem de interface gráfica: ela controla o que o consumidor pode solicitar, em qual formato e sob quais condições.\n\nPapéis típicos: **cliente/consumidor** inicia a chamada, **servidor/provedor** oferece a capacidade, **endpoint** combina endereço e operação, **contrato** define parâmetros, respostas, erros e requisitos de segurança. A integração pode ser **síncrona** (cliente aguarda resposta) ou **assíncrona** (emite solicitação/evento e recebe resultado posteriormente). A primeira simplifica a interação imediata, mas acopla o tempo de resposta à disponibilidade do provedor; a segunda exige correlação, retentativas e consistência eventual. Exemplo: `GET https://api.exemplo.test/v1/alunos/42` consulta um recurso; `POST /v1/matriculas` pode solicitar a criação de uma matrícula. O domínio `.test` é reservado para exemplos.\n\n## 2. Modelo de mensagens HTTP\n\nHTTP opera por mensagens de **requisição** e **resposta**. A requisição identifica método, alvo, cabeçalhos e, quando cabível, corpo; a resposta contém **código de status**, cabeçalhos e eventualmente corpo. URI localiza o recurso; segmentos de caminho usualmente identificam entidades, como `/alunos/42`; parâmetros de consulta refinam critérios, como `?status=ativo&pagina=2`. O uso de HTTPS acrescenta proteção de transporte por TLS; não substitui autorização dos dados solicitados.\n\nOs métodos mais cobrados são: **GET**, obtém representação sem pedir alteração de estado; **HEAD**, solicita metadados semelhantes aos de GET, mas sem corpo de resposta; **POST**, submete dados para processamento ou criação de subordinado; **PUT**, cria ou substitui o estado do recurso identificado quando essa operação é suportada; **PATCH**, aplica modificações parciais conforme o formato do documento de alteração; **DELETE**, solicita a remoção do vínculo ou recurso; **OPTIONS**, informa opções de comunicação. **Segurança do método** (*safe*) significa que a operação não pede alteração de estado: GET/HEAD/OPTIONS são classificados como seguros. **Idempotência** significa que repetir a mesma requisição tem o mesmo efeito pretendido que executá-la uma vez: GET, HEAD, PUT e DELETE são idempotentes pela semântica padronizada; POST e PATCH não têm garantia geral dessa propriedade. A resposta pode variar entre tentativas, e logs podem ser diferentes, sem violar idempotência. Um `DELETE` que devolve 204 na primeira execução e 404 na segunda ainda pode ser idempotente.\n\n## 3. Status e cabeçalhos\n\nFamílias de status: **1xx** informativa; **2xx** êxito; **3xx** redirecionamento; **4xx** problema atribuído à requisição do cliente; **5xx** falha do servidor/intermediário. Destacam-se: `200 OK` (resposta bem-sucedida); `201 Created` (recurso criado; cabeçalho `Location` pode apontar sua URI); `202 Accepted` (aceito para processamento, **não** significa concluído); `204 No Content` (sucesso sem conteúdo); `301/308` (redirecionamento permanente), `302/307` (temporário; 307 e 308 preservam o método); `304 Not Modified` (resposta condicional para reutilizar representação em cache); `400 Bad Request`; `401 Unauthorized` (credenciais de autenticação ausentes ou inválidas, conforme o esquema); `403 Forbidden` (servidor compreendeu, mas recusa autorizar); `404 Not Found`; `405 Method Not Allowed` (método não permitido para o recurso); `409 Conflict` (conflito com estado atual); `412 Precondition Failed` (pré-condição, como `If-Match`, falhou); `415 Unsupported Media Type`; `422 Unprocessable Content` (conteúdo sintaticamente compreendido, mas instruções semanticamente inviáveis); `429 Too Many Requests`; `500 Internal Server Error`, `502 Bad Gateway`, `503 Service Unavailable` e `504 Gateway Timeout`.\n\n**Cabeçalhos**: `Content-Type` descreve a mídia do corpo **enviado**, por exemplo `application/json`; `Accept` expressa tipos aceitos na **resposta**; `Authorization: Bearer ...` transporta credencial; `Location` pode indicar recurso criado; `Cache-Control` orienta o cache; `ETag` identifica uma versão da representação; `If-None-Match` auxilia leitura condicional e `If-Match` auxilia atualização condicional; `Retry-After`, quando fornecido, sugere tempo para nova tentativa; `Idempotency-Key` é recurso adotado por algumas APIs para deduplicar determinadas operações, mas não é garantia universal implícita de todo POST. Cabeçalhos HTTP têm nomes insensíveis a maiúsculas/minúsculas.\n\n**Como cai na prova:** a banca confunde `401` com `403`, trata `202` como processamento terminado, ou supõe que `Content-Type` escolhe o formato da resposta. Lembre: `Accept` negocia o desejado na resposta; `Content-Type` caracteriza o corpo existente. Para entender um erro real, combine método, status e contrato, sem concluir apenas pelo código que toda operação teve rollback completo."
+    },
+    {
+      "title": "Arquitetura REST e desenho de recursos",
+      "markdown": "## 1. O que significa REST\n\n**REST (Representational State Transfer)** é um estilo arquitetural descrito por Roy Fielding, não um protocolo concorrente do HTTP e não um formato de arquivo. Suas restrições incluem **cliente-servidor**, **ausência de estado de sessão no servidor por requisição** (*stateless*), **capacidade de cache**, **interface uniforme**, **sistema em camadas** e **código sob demanda** opcional. A chamada deve carregar informações suficientes para ser compreendida sem depender de uma sessão conversacional mantida pelo servidor; isso não impede armazenamento persistente de alunos ou pedidos. A **interface uniforme** envolve identificação de recursos, manipulação por representações, mensagens autodescritivas e hipermídia como mecanismo de estado da aplicação. Muitas APIs comerciais adotam convenções REST sobre HTTP sem implementar integralmente hipermídia; por isso, rotular algo como “REST” não comprova conformidade estrita a todas as restrições.\n\n**Recurso** representa uma entidade ou coleção com URI estável. Exemplos: `/alunos` (coleção), `/alunos/42` (item), `/alunos/42/matriculas` (relacionamento), `/matriculas/853` (matrícula específica). URIs em substantivos geralmente deixam as operações a cargo dos métodos: `GET /matriculas/853` consulta; `DELETE /matriculas/853` pede exclusão. Processos de negócio podem ser modelados como recursos ou ações explícitas quando necessário, sem fingir que todo domínio é um CRUD. A **representação** JSON de um recurso não se confunde com a identidade desse recurso. Um mesmo recurso pode ter várias representações negociadas por mídia e idioma.\n\n## 2. Semântica, repetição e concorrência\n\nExemplo de criação: `POST /v1/matriculas` com corpo `{ \"alunoId\": 42, \"cursoId\": 7 }`; um sucesso de criação costuma resultar em `201 Created` e referência à matrícula. Para alterar a matrícula identificada, `PUT /v1/matriculas/853` representa a substituição do estado-alvo conforme o contrato; `PATCH /v1/matriculas/853` descreve mudança parcial, como atualizar apenas a situação. Um `PUT` repetido com corpo idêntico não deve somar créditos ou disparar duas cobranças como efeito solicitado. Já `POST /pagamentos` pode registrar cobranças duplicadas se repetido sem mecanismo de deduplicação. *Idempotência* não significa “sempre devolve o mesmo status” nem “nunca executa internamente algo duas vezes”.\n\nNo trabalho concorrente, considere que dois clientes podem ler a mesma versão de um cadastro. A resposta pode trazer `ETag: \"r8\"`; atualização com `If-Match: \"r8\"` deve falhar com `412 Precondition Failed` se a pré-condição não vale mais. Isso ajuda a evitar **sobrescrita perdida**. Para `GET` condicional, `If-None-Match` pode levar a `304 Not Modified` se a representação em cache permanecer válida. Não confunda validação de versão com autenticação.\n\n## 3. Paginação, filtros e versionamento\n\nListar milhares de registros em uma resposta prejudica tempo de processamento e tráfego. **Paginação por página/deslocamento** usa algo como `GET /alunos?page=3&limit=20` ou `offset=40&limit=20`. É simples, mas inserções ou exclusões entre páginas podem provocar saltos ou duplicatas. **Paginação por cursor** usa marcador opaco (`?cursor=abc`) retornado pela própria API; facilita percorrer conjuntos mutáveis se o contrato definir ordenação e estabilidade. Resultados podem incluir `items`, `nextCursor` e metadados, ou links `next`. **Filtro** seleciona subconjuntos (`?status=ativo`), **ordenação** estabelece critério (`?sort=nome`), e ambas precisam ser documentadas. O limite máximo por página protege a API contra consultas excessivas.\n\n**Versionamento** preserva contratos frente a mudanças incompatíveis. Estratégias frequentes: URI (`/v1/alunos`), cabeçalho personalizado ou negociação de mídia. Nenhuma estratégia é imposição geral de REST. Alterações **compatíveis** costumam incluir acréscimo de campo opcional; remoção de campo obrigatório, troca de tipo ou mudança de significado são potencialmente incompatíveis. Clientes devem tolerar campos adicionais quando o contrato permitir, e provedores devem estabelecer políticas de depreciação, compatibilidade e migração. Uma versão de endpoint não deve ser confundida com versão de registro via `ETag`.\n\n## 4. Conceitos-chave em edital\n\nREST se preocupa com transferência de **representações** de recursos e semântica de interação; não impõe JSON, pois recursos podem ser representados em XML, texto ou outros formatos. A API pode operar por HTTP sem ser RESTful; usar `POST` para todas as operações não atende à semântica uniforme esperada. HTTPS, documentação OpenAPI e respostas JSON são práticas frequentes, mas não demonstram, isoladamente, as restrições arquiteturais. **Pegadinha:** a banca diz que stateless proíbe qualquer armazenamento no servidor. Está errado: proíbe a dependência de estado de sessão conversacional entre requisições, não o banco de dados da aplicação."
+    },
+    {
+      "title": "Formatos JSON e XML e validação de contratos",
+      "markdown": "## 1. JSON: sintaxe, tipos e armadilhas\n\n**JSON (JavaScript Object Notation)** é um formato textual de troca de dados, independente de linguagem na prática. Os tipos de valor são objeto, array, string, number, boolean e null. Objetos possuem pares `\"chave\": valor` delimitados por `{}`; arrays possuem valores ordenados delimitados por `[]`; strings e nomes de propriedade usam **aspas duplas**. Exemplos:\n\n```json\n{\n  \"id\": 42,\n  \"nome\": \"Lia\",\n  \"ativo\": true,\n  \"nota\": null,\n  \"turmas\": [\"A\", \"B\"],\n  \"contato\": { \"email\": \"lia@example.test\" }\n}\n```\n\nSão inválidos no JSON padrão: comentários (`//`), vírgula final depois do último elemento, aspas simples como delimitadores de string, `undefined`, `NaN` e chaves sem aspas. Valores `true`, `false` e `null` são escritos em minúsculas. O formato permite espaço em branco entre tokens e escapes como `\\n` em strings. Um texto JSON válido pode ter no topo um número, string ou booleano; embora APIs frequentemente escolham objeto ou array por convenção. Nomes duplicados no mesmo objeto são desaconselhados porque o comportamento dos processadores pode variar. JSON não expressa por si só datas, tipos binários ou relações referenciais: aplicações documentam convenções, como data em string ISO 8601.\n\n## 2. XML: estrutura e comparação\n\n**XML (Extensible Markup Language)** representa documentos com elementos aninhados, atributos, texto e namespaces. Uma estrutura como `<aluno ativo=\"true\"><nome>Lia</nome></aluno>` usa elemento-raiz, marcações de abertura/fechamento e atributo textual. Documento XML precisa respeitar regras de boa formação: aninhamento correto, um único elemento raiz do documento, nomes válidos, e aspas em valores de atributo. **XML Schema (XSD)** é uma tecnologia de validação estrutural para XML, distinta de **JSON Schema**, que valida instâncias JSON. XML possui mecanismos como namespaces e esquemas expressivos; também traz considerações específicas de segurança, como processamento indevido de entidades externas (**XXE**) quando parsers são configurados de maneira insegura.\n\nJSON é popular para APIs HTTP por sua sintaxe concisa e facilidade de consumo; XML aparece em integrações legadas, documentos formais e serviços SOAP. Afirmar que JSON é sempre mais seguro, que XML só funciona com SOAP ou que REST exige JSON é incorreto. `Content-Type: application/json` e `Content-Type: application/xml` distinguem representações. O servidor deve verificar o tipo recebido, o tamanho e a conformidade do conteúdo, mesmo que o cliente tenha realizado validações.\n\n## 3. JSON Schema e contrato de dados\n\n**JSON Schema** descreve restrições verificáveis sobre uma instância JSON. Propriedades comuns: `type`, `properties`, `required`, `items`, `minLength`, `minimum`, `enum` e `additionalProperties`. Exemplo de esquema ilustrativo:\n\n```json\n{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"type\": \"object\",\n  \"required\": [\"id\", \"nome\"],\n  \"properties\": {\n    \"id\": {\"type\": \"integer\", \"minimum\": 1},\n    \"nome\": {\"type\": \"string\", \"minLength\": 1},\n    \"ativo\": {\"type\": \"boolean\"}\n  },\n  \"additionalProperties\": false\n}\n```\n\nA instância `{ \"id\": 2, \"nome\": \"Rui\" }` atende ao esquema porque `ativo` foi definido, mas **não** está em `required`. Já `{ \"id\": 0, \"nome\": \"Rui\" }` falha por `minimum`, e `{ \"id\": 2, \"nome\": \"\" }` falha por `minLength`. Se `additionalProperties` for `false`, uma chave não declarada poderá causar erro de validação. Em JSON Schema, `properties` **não** torna todos os campos obrigatórios; essa tarefa é de `required`. A palavra-chave `format` pode ter comportamento de anotação ou verificação conforme vocabulário e validador; não presuma sempre que uma string `format: email` foi checada estritamente. Também vale distinguir **validade sintática** de **validade semântica**: `{ \"idade\": -10 }` pode ser JSON sintaticamente válido, mas inválido conforme regra de domínio/esquema.\n\n## 4. Integração com contratos e testes\n\n**Validação de entrada** ajuda a barrar dados inválidos; **validação de saída** ajuda a detectar rompimento de contrato. **Testes de contrato** verificam se produtor e consumidor concordam sobre nomes, tipos, campos obrigatórios, códigos de status e exemplos. Ao mudar `\"valor\": 10` para `\"valor\": \"10\"`, o JSON continua sintaticamente válido, mas a integração pode quebrar por mudança de tipo. Esquema documentado não substitui testes de autorização, limites e lógica de negócio. **Dica de prova:** JSON é *formato de dados*, JSON Schema é *vocabulário de validação*, e OpenAPI é *descrição de operações e contratos de APIs HTTP*; os três têm funções diferentes."
+    },
+    {
+      "title": "OpenAPI, autenticação e autorização",
+      "markdown": "## 1. OpenAPI e ecossistema Swagger\n\n**OpenAPI Specification (OAS)** estabelece uma forma padronizada e independente de linguagem para descrever APIs HTTP: caminhos, métodos, parâmetros, cabeçalhos, corpos, respostas, esquemas de dados e mecanismos de segurança. Uma descrição pode ser escrita em **YAML ou JSON**. Campos comuns: `openapi` (versão da especificação), `info` (nome e versão documental), `servers` (servidores), `paths` (operações) e `components` (componentes reutilizáveis, como esquemas ou security schemes). Exemplo pedagógico resumido:\n\n```yaml\nopenapi: 3.1.0\ninfo:\n  title: API de alunos\n  version: 1.0.0\npaths:\n  /alunos/{id}:\n    get:\n      parameters:\n        - name: id\n          in: path\n          required: true\n          schema:\n            type: integer\n      responses:\n        '200':\n          description: Aluno encontrado\n        '404':\n          description: Aluno inexistente\n```\n\nA **especificação** OpenAPI não é o mesmo que uma ferramenta. **Swagger UI** transforma uma descrição em documentação navegável; **Swagger Editor** permite editar/validar descrições; ferramentas de geração podem criar clientes ou esqueletos de servidor. O termo “Swagger” também é historicamente associado à especificação anterior à denominação OpenAPI. Descrever uma API não implementa endpoints, não garante que o servidor siga o contrato e não prova que autenticação funcione. **Contract-first** é desenhar o contrato antes do código; **code-first** parte da implementação e gera/atualiza a descrição. Em ambos, evitar descompasso entre comportamento real e documentação é essencial.\n\n## 2. Autenticação, autorização e credenciais\n\n**Autenticação** verifica a identidade do sujeito/aplicação; **autorização** decide ações e objetos acessíveis. Uma identidade autenticada pode receber `403` ao tentar consultar a conta de outro usuário. **API key** é um segredo identificador de consumidor/aplicação, utilizado conforme contrato, frequentemente em cabeçalho; isoladamente pode não identificar um usuário nem especificar permissões refinadas. Deve ser protegida como credencial: armazenar com segurança, rotacionar e evitar exposição em URLs, repositórios e logs.\n\n**OAuth 2.0** é um **framework de autorização delegada**: o consumidor obtém um *access token* para acessar recursos com escopo e condições limitados, sem precisar receber a senha do proprietário do recurso. Papéis essenciais: *resource owner* (titular), *client* (aplicativo), *authorization server* (emite token) e *resource server* (protege recurso). Um fluxo conhecido é **authorization code com PKCE**, adequado a aplicações que envolvem usuário e precisam proteger o código contra interceptação. Para comunicações serviço-a-serviço, existe **client credentials**, quando o cliente acessa em seu próprio nome, nos limites autorizados. **Scopes** representam permissões delegadas, mas não dispensam checagem de autorização por registro. OAuth 2.0 não é, por si só, protocolo de autenticação de usuário; **OpenID Connect**, construído sobre OAuth 2.0, acrescenta camada de identidade (noções).\n\n## 3. Tokens bearer e JWT\n\nUm *bearer token* concede acesso a quem o apresenta; em HTTP costuma ser enviado como `Authorization: Bearer <token>`. Por isso, vazamento de token representa risco imediato. **JWT (JSON Web Token)** é um **formato** compacto de declarações (*claims*), comum mas não obrigatório em OAuth: access tokens podem ser opacos. Um JWT frequentemente tem `header.payload.signature`, com partes codificadas em Base64URL; codificação **não equivale a criptografia**. JWTs assinados verificam integridade/autenticidade conforme algoritmo e chave, mas o conteúdo costuma ser legível por quem possui o token. JWTs também podem ter formato criptografado, conforme o padrão aplicável; portanto é errado dizer que “todo JWT é cifrado” ou que “JWT não pode ser cifrado”.\n\nClaims conhecidos incluem `iss` (emissor), `sub` (sujeito), `aud` (público-alvo), `exp` (expiração), `nbf` (não antes de) e `iat` (emissão). Validação adequada examina assinatura e algoritmo permitido, emissor esperado, público-alvo, validade temporal e permissões aplicáveis. **Decodificar** as três partes não equivale a validar. Token assinado e válido não autoriza automaticamente acessar qualquer objeto: requer controle de acesso no backend. Tokens de curta duração e rotação/revogação de credenciais reduzem exposição, quando compatíveis com o projeto.\n\n## 4. Questões típicas de edital\n\nUma banca pode perguntar se o Swagger “é o protocolo que executa REST”, se OAuth substitui HTTPS, ou se a simples presença de JWT autoriza o pedido: todas essas inferências são falsas. OpenAPI **documenta**; HTTP **transporta**; OAuth 2.0 **estrutura delegação de autorização**; JWT **transporta claims em formato específico**; HTTPS **protege trânsito**. `401` costuma caber quando é necessário autenticar corretamente; `403` quando a operação não é autorizada. O cabeçalho `WWW-Authenticate` tem papel nos desafios de autenticação de `401` conforme o mecanismo."
+    },
+    {
+      "title": "Webhooks, eventos e alternativas de integração",
+      "markdown": "## 1. Integração síncrona versus orientação a eventos\n\nNuma chamada **síncrona**, o cliente requisita e aguarda uma resposta imediata. Exemplo: consultar situação de inscrição na API externa. No modelo **assíncrono**, a aplicação registra uma tarefa ou publica um evento e prossegue; o resultado pode chegar por callback/webhook, consulta de status ou mensageria. `202 Accepted` pode sinalizar aceitação sem execução concluída. Escolha exige considerar latência, falhas transitórias, rastreabilidade, duplicações e consistência. No domínio de negócio, **evento negocial** representa um fato ocorrido: `MatriculaConfirmada`, `PagamentoAprovado`, `PedidoDespachado`. É preferível nomeá-lo como ocorrência passada, e não intenção vaga (`FazerPagamento`). Eventos podem incluir `eventId`, `occurredAt`, tipo, versão de esquema e referência à entidade afetada, sem transportar dados pessoais desnecessários.\n\n## 2. Webhooks\n\n**Webhook** é o envio de notificação HTTP a um endereço previamente registrado quando um evento ocorre. Ao invés de o consumidor perguntar repetidamente “há novidade?” (*polling*), o provedor **envia** um `POST` para o receptor, segundo contrato específico. Fluxo: sistema A registra evento de pedido pago → A envia notificação assinada ao endpoint B → B autentica origem, registra o `eventId`, responde rapidamente com sucesso → B processa a atualização, eventualmente por fila. O código de sucesso HTTP indica o recebimento aceito conforme acordo; não prova que todas as etapas futuras foram concluídas. Provedores costumam repetir tentativas após falhas ou timeouts, logo consumidores devem operar de maneira **idempotente por identificador do evento** e suportar entrega duplicada e fora de ordem.\n\nSegurança de webhook exige validar origem por método adequado (por exemplo, **assinatura HMAC** calculada com segredo compartilhado, verificando os **bytes exatos** do corpo e o cabeçalho de assinatura conforme protocolo), proteger comunicação com HTTPS, limitar tamanho, validar esquema e mitigar **replay** com timestamp/janela e identificação única. Um segredo dentro do próprio JSON que o remetente controla não substitui assinatura confiável. Verificações de IP podem complementar, mas não bastam isoladamente quando o provedor não garante faixas. O receptor deve evitar URL fornecida arbitrariamente pelo usuário sem controles, pois callbacks podem introduzir risco de **SSRF** quando o servidor acessa destinos internos. Não se deve confiar apenas no status `200` para confirmar integridade de dados recebidos.\n\n## 3. Filas, mensageria e confiabilidade\n\n**Fila** organiza mensagens para consumidores; um **broker** oferece intermediação e pode suportar tópicos, assinaturas, confirmação de processamento e reentrega. Em padrão *point-to-point*, uma mensagem normalmente destina-se a um consumidor do grupo; em **publish/subscribe**, vários assinantes recebem cópias conforme o sistema. Conceitos: **producer** publica, **consumer** processa, **ack** confirma recebimento/processamento conforme implementação, **dead-letter queue (DLQ)** recebe mensagens que excederam tentativas, e **retry com backoff** reduz sobrecarga. Garantias de entrega **at-most-once** (pode perder; sem repetição), **at-least-once** (reduz perdas com possibilidade de duplicata) e **exactly-once** (dependente do escopo e implementação) não dispensam cuidado com efeitos externos. Para operar de modo robusto, deduplique pelo identificador da operação e pense em compensações para falhas distribuídas.\n\n**Orquestração** centraliza decisões sobre etapas de um fluxo; **coreografia** usa reações distribuídas a eventos. Em ambos os casos, importe distinguir **comando** (“efetue matrícula”) de **evento** (“matrícula efetuada”). Integração assíncrona pode alcançar **consistência eventual**: dois serviços podem exibir estados diferentes temporariamente, sem significar que uma leitura local esteja necessariamente corrompida.\n\n## 4. SOAP, GraphQL e APIs REST\n\n**SOAP** é protocolo de mensagens estruturadas XML, com envelope, cabeçalho/corpo e tratamento de falhas; integrações frequentemente descrevem contratos por **WSDL**, embora SOAP e WSDL sejam conceitos distintos. SOAP pode ser transportado por HTTP e não deve ser resumido a “HTTP + JSON”. **REST** é estilo de arquitetura, geralmente com HTTP em APIs web, não um protocolo concorrente do SOAP. Comparações típicas: SOAP costuma impor formatos e convenções de envelope; REST enfatiza semântica de recursos e métodos HTTP. Não conclua que SOAP é sempre mais lento ou inseguro: implementação e requisitos importam.\n\n**GraphQL** é linguagem de consulta e sistema de tipos para APIs: cliente pede campos específicos por `query`, alterações podem ser expressas por `mutation` e atualizações por `subscription`. Pode ser oferecido via HTTP, muitas vezes por endpoint único; isso é convenção comum, não definição de segurança nem necessidade de serviço único. GraphQL reduz parte da obtenção excessiva de dados, mas introduz riscos como consultas caras, profundidade elevada e falhas de autorização por campo/objeto. GraphQL não substitui autenticação e controle de acesso. **Microsserviços** são unidades de serviço implantáveis com limites de responsabilidade; podem falar por HTTP, filas ou outros meios. **API gateway** é entrada que pode centralizar roteamento, TLS, autenticação auxiliar, limitação de taxa, observabilidade e transformação, sem substituir políticas de autorização sensíveis dentro de cada serviço. Evite confundir “microsserviço” com “ter obrigatoriamente API REST”."
+    },
+    {
+      "title": "Segurança e operação de APIs",
+      "markdown": "## 1. Princípios gerais de proteção\n\nSegurança de API combina **confidencialidade** (evitar divulgação), **integridade** (evitar adulteração), **disponibilidade** (manter serviço utilizável), autenticação, autorização e rastreabilidade. Faça **TLS/HTTPS**, validação de entrada, controle por função e por objeto, minimização de dados, monitoramento e gestão de segredos. **CORS** é mecanismo de política de navegador que permite ou restringe leitura de respostas por páginas de outras origens; não é autenticação e não impede clientes não navegadores de chamar endpoints. Criptografar o transporte também não elimina risco de expor dados de outro usuário por falha de autorização. Um token válido identifica, no máximo, um contexto de acesso; verificar **propriedade/escopo do objeto solicitado** permanece obrigatório.\n\n## 2. Principais riscos de APIs na visão OWASP\n\nO projeto **OWASP API Security Top 10 (edição 2023)** chama atenção para riscos recorrentes. **BOLA (Broken Object Level Authorization)** ocorre quando um usuário autenticado consulta objeto alheio alterando o identificador: `GET /contas/8` funciona mesmo sem vínculo autorizado. Defesa: validar autorização para **cada objeto**, no servidor. **Broken Authentication** envolve falhas no ciclo de credenciais/tokens, recuperações de conta e sessões. **Broken Object Property Level Authorization** abrange exposição ou alteração indevida de **campos/propriedades** (por exemplo, usuário comum enviar `\"isAdmin\": true` por *mass assignment*). **Unrestricted Resource Consumption** refere-se à falta de limites em tamanho de resposta, requisições, CPU, memória, custo ou número de consultas. **Broken Function Level Authorization** permite que sujeito sem privilégio acesse operações administrativas (`DELETE /usuarios/7`).\n\nOutros grupos relevantes: **Unrestricted Access to Sensitive Business Flows** permite automatizar abusivamente inscrições, reservas ou compras; **SSRF (Server-Side Request Forgery)** faz servidor alcançar URLs internas/indevidas ao processar endereços externos; **Security Misconfiguration** inclui configuração permissiva, mensagens detalhadas em produção e cabeçalhos inadequados; **Improper Inventory Management** surge de endpoints legados, versões desconhecidas ou documentação de inventário desatualizada; **Unsafe Consumption of APIs** é confiar cegamente em serviços externos sem tratar conteúdo, disponibilidade e permissões. A classificação da OWASP serve como guia de riscos, não substitui análise contextual. Os nomes não devem ser confundidos com outros rankings gerais de segurança.\n\n## 3. Práticas de mitigação aplicadas\n\n1. **Autorização no servidor**: verifique identidade, ação, escopo e propriedade do objeto antes de retornar ou modificar dados. Nunca confie em um campo `role` enviado pelo cliente. Construa listas de propriedades permitidas para escrita/retorno.\n2. **Validação e limites**: imponha tamanho máximo de corpo, limites de página, timeouts, cotas e rate limiting; aplique controles por sujeito, IP ou aplicação conforme risco. `429 Too Many Requests` pode sinalizar excesso de solicitações, mas limites não substituem análise de abuso negocial.\n3. **Proteção de credenciais**: HTTPS, armazenamento seguro, acesso mínimo, rotação, expiração, autenticação adequada e retirada de segredos de URLs/logs. JWT requer validação criptográfica e de claims; APIs key e tokens devem ser tratados como segredos.\n4. **Integração defensiva**: valide também respostas de terceiros, imponha limites a redirects, controle destinos de webhooks para evitar SSRF, verifique assinatura e prevenção de replay nos eventos recebidos.\n5. **Observabilidade**: registre identificador de correlação, método, rota lógica, status, latência e informações de erro sem vazar senhas, tokens ou dados sensíveis. Alertas para padrões anômalos e inventário versionado ajudam a detectar vulnerabilidades.\n6. **Resiliência**: defina timeout, retry criterioso com backoff e jitter, circuit breaker quando apropriado, e deduplicação em operações não idempotentes. Repetir automaticamente `POST` de cobrança após timeout sem chave/deduplicação pode duplicar o débito. Transações distribuídas exigem desenho explícito de compensação e reconciliação.\n\n## 4. Casos integrados para concurso\n\n**Caso A — acesso horizontal indevido:** Ana possui token válido; altera `/alunos/12` para `/alunos/13` e obtém dados de outra pessoa. É **BOLA**, não simples falha de login; solução é verificar autorização por objeto. **Caso B — elevação por campo:** formulário aceita `isAdmin` no JSON e grava diretamente no cadastro; problema de autorização por propriedade e atribuição excessiva (*mass assignment*). **Caso C — cobrança duplicada:** gateway reenvia um `POST` após timeout; sem deduplicação, duas cobranças aparecem. Mecanismos como chave de idempotência na API e registro transacional de operação reduzem esse risco. **Caso D — webhook falso:** atacante envia JSON idêntico ao evento sem assinatura válida; destinatário não deve atualizar o pedido apenas porque o corpo parece correto. **Caso E — inventário oculto:** rota `/v0/admin` continua pública após nova versão; inventário e políticas de desativação devem contemplar versões legadas.\n\n**Revisão crítica:** trocar HTTP por HTTPS protege o canal, mas não corrige BOLA; adotar OpenAPI ajuda o contrato, mas não corrige documentação desatualizada automaticamente; introduzir filas melhora desacoplamento temporal, mas não garante execução exatamente uma vez de um pagamento; incluir um JWT assinado não substitui a validação de `aud` e de permissão ao recurso. Nas provas, identifique *qual camada* falhou: sintaxe de mensagem, semântica HTTP, contrato, identidade, autorização, entrega assíncrona ou segurança operacional."
+    }
+  ],
+  "summary": "**API** é contrato para interação programática; integração pode ser síncrona (resposta imediata) ou assíncrona (processamento posterior). Em **HTTP**, `GET` lê, `POST` submete, `PUT` substitui, `PATCH` altera parcialmente e `DELETE` remove; GET, HEAD, OPTIONS, PUT e DELETE são idempotentes na semântica padrão. `200` indica êxito, `201` criação, `202` aceitação sem conclusão garantida, `204` êxito sem conteúdo, `401` falta de autenticação válida, `403` recusa de acesso e `429` excesso de requisições. `Accept` seleciona tipos de resposta; `Content-Type` descreve o corpo.\n\n**REST** é estilo arquitetural, não protocolo nem exigência de JSON. Organiza recursos por URIs, interface uniforme, cliente-servidor, stateless, cache e camadas. **ETag/If-Match** apoiam concorrência otimista; paginação usa offset ou cursor; versionamento gere alterações incompatíveis. **JSON** usa aspas duplas e tipos objeto, array, string, number, boolean e null; **JSON Schema** valida instâncias e `required` define obrigatoriedade. **XML** possui marcação hierárquica e schemas próprios. **OpenAPI** especifica contratos HTTP; **Swagger UI** apresenta-os.\n\n**OAuth 2.0** trata autorização delegada; **API key** identifica/autentica consumidor conforme contrato; **JWT** é formato de claims e assinar não significa cifrar. **Webhooks** notificam eventos por HTTP e exigem assinatura, deduplicação e resistência a replay. **Filas** podem redeliver; at-least-once admite duplicatas. **SOAP** usa mensagens XML; **GraphQL** oferece consultas tipadas; **API gateway** aplica controles transversais, sem dispensar controles de autorização no serviço. Entre riscos centrais da **OWASP** estão BOLA, autorização por propriedade/função, falhas de autenticação, abuso de recursos, SSRF e exposição de APIs legadas. Em prova, diferencie transporte, contrato, autenticação, autorização e entrega distribuída.",
+  "flashcards": [
+    {
+      "front": "O que diferencia uma API de uma interface gráfica?",
+      "back": "API oferece contrato programático para interação; interface gráfica serve à interação humana."
+    },
+    {
+      "front": "Qual é a diferença entre Accept e Content-Type?",
+      "back": "Accept indica representações aceitáveis na resposta; Content-Type indica o tipo do corpo transmitido."
+    },
+    {
+      "front": "Quais métodos HTTP são idempotentes pela semântica padrão?",
+      "back": "GET, HEAD, OPTIONS, PUT e DELETE; POST e PATCH não possuem garantia geral de idempotência."
+    },
+    {
+      "front": "Qual a diferença entre 401 e 403?",
+      "back": "401 aponta necessidade/falha de autenticação; 403 indica recusa de autorização para o recurso."
+    },
+    {
+      "front": "O que significa 202 Accepted?",
+      "back": "A requisição foi aceita para processamento; não implica processamento concluído."
+    },
+    {
+      "front": "O que significa stateless em REST?",
+      "back": "Cada requisição contém contexto suficiente, sem depender do estado de sessão conversacional no servidor."
+    },
+    {
+      "front": "PUT e PATCH são sinônimos?",
+      "back": "Não. PUT representa criação/substituição do estado do recurso-alvo; PATCH aplica alterações parciais descritas por um documento de patch."
+    },
+    {
+      "front": "O que representa ETag associado a If-Match?",
+      "back": "Um validador de versão para impedir alterações com base em representação obsoleta."
+    },
+    {
+      "front": "Qual vantagem e risco da paginação por offset?",
+      "back": "É simples; porém inserções e exclusões durante a navegação podem causar repetições ou lacunas."
+    },
+    {
+      "front": "JSON admite comentários e aspas simples como sintaxe padrão?",
+      "back": "Não. Comentários não são parte de JSON e strings/chaves exigem aspas duplas."
+    },
+    {
+      "front": "O que torna um campo obrigatório no JSON Schema?",
+      "back": "A palavra-chave required, não a mera presença em properties."
+    },
+    {
+      "front": "JSON Schema e OpenAPI são a mesma coisa?",
+      "back": "Não. JSON Schema valida estrutura de valores; OpenAPI descreve operações e contratos de APIs HTTP."
+    },
+    {
+      "front": "Qual é a função do Swagger UI?",
+      "back": "Renderizar documentação navegável a partir da descrição da API, frequentemente OpenAPI."
+    },
+    {
+      "front": "OAuth 2.0 é um formato de token ou framework?",
+      "back": "É um framework de autorização; o token pode ser opaco ou estruturado, como JWT."
+    },
+    {
+      "front": "Todo JWT é secreto só por estar em Base64URL?",
+      "back": "Não. Codificação não cifra o payload; JWT assinado frequentemente é legível."
+    },
+    {
+      "front": "O que valida um access token JWT?",
+      "back": "Assinatura/algoritmo permitido, emissor, audiência, validade temporal e autorização aplicável."
+    },
+    {
+      "front": "O que distingue evento negocial de comando?",
+      "back": "Evento descreve fato ocorrido; comando expressa pedido/intenção de ação."
+    },
+    {
+      "front": "Como evitar processar um webhook duplicado?",
+      "back": "Registrar eventId e tornar o processamento idempotente, além de validar assinatura."
+    },
+    {
+      "front": "O que é entrega at-least-once?",
+      "back": "Busca entregar ao menos uma vez, mas admite duplicatas; consumidor deve tolerá-las."
+    },
+    {
+      "front": "SOAP exige JSON?",
+      "back": "Não. SOAP utiliza estrutura de mensagens baseada em XML."
+    },
+    {
+      "front": "Para que serve GraphQL?",
+      "back": "Permite ao cliente consultar campos declarados num esquema tipado e executar operações definidas pelo serviço."
+    },
+    {
+      "front": "Qual é a função de um API gateway?",
+      "back": "Centralizar entrada, roteamento e controles transversais; não substitui autorização em cada serviço."
+    },
+    {
+      "front": "O que é BOLA?",
+      "back": "Falha de autorização por objeto: o solicitante acessa recurso alheio ao alterar seu identificador."
+    },
+    {
+      "front": "CORS equivale a autenticação?",
+      "back": "Não. É uma política aplicável a navegadores; não substitui autorização no servidor."
+    }
+  ],
+  "tips": [
+    "Associe GET a leitura, POST a submissão, PUT a substituição e PATCH a mudança parcial; analise efeitos e idempotência separadamente.",
+    "Em questão de código HTTP, leia a família do status primeiro e só depois o detalhe: 202 não é 201 nem processamento finalizado.",
+    "Identifique a camada: HTTP transporta, REST organiza interação, JSON serializa, JSON Schema valida, OpenAPI documenta.",
+    "Em autorização, pergunte tanto “quem chama?” quanto “esse sujeito pode acessar ESTE objeto e ESTA propriedade?”.",
+    "Para webhooks, memorize a tríade: assinatura/autenticidade, prevenção de replay, deduplicação de entregas.",
+    "Quando vir token JWT, diferencie decodificação de verificação criptográfica e checagem de claims.",
+    "Observe que paginação, versionamento e rate limit são estratégias de contrato e operação, não requisitos exclusivos de REST.",
+    "Em perguntas sobre sincronismo, “aceito na fila” não significa “processado com sucesso”."
+  ],
+  "traps": [
+    "\"DELETE não é idempotente porque a segunda execução pode dar 404\" — falso: idempotência descreve efeito pretendido, não a igualdade das respostas.",
+    "\"REST exige JSON e HTTPS\" — falso: REST é estilo arquitetural; formatos de representação e segurança de transporte são decisões separadas.",
+    "\"401 significa usuário autenticado sem permissão\" — em regra essa é a situação associada a 403; 401 refere-se a autenticação.",
+    "\"Definir campo em properties o torna obrigatório\" — falso; JSON Schema usa required para isso.",
+    "\"Swagger cria os endpoints automaticamente só por documentá-los\" — falso; documentação não garante implementação.",
+    "\"JWT codificado em Base64URL protege o sigilo dos dados\" — falso; assinatura e criptografia têm propósitos distintos.",
+    "\"Receber um webhook uma vez é garantido por HTTP\" — falso; retentativas e duplicatas dependem dos provedores.",
+    "\"CORS impede acesso por qualquer aplicativo\" — falso; a política atua na leitura pelo navegador, não na autenticação de clientes."
+  ],
+  "activeRecall": [
+    {
+      "question": "Um POST foi aceito e gerou tarefa, mas ainda não executou. Qual status se ajusta?",
+      "answer": "202 Accepted, desde que o contrato indique acompanhamento ou processamento posterior."
+    },
+    {
+      "question": "Qual método é idempotente mesmo que a segunda tentativa retorne 404?",
+      "answer": "DELETE: o efeito solicitado de remover o recurso permanece satisfeito após a primeira remoção."
+    },
+    {
+      "question": "Como evitar sobrescrita de atualização concorrente baseada em versão antiga?",
+      "answer": "Use ETag e atualização condicional com If-Match; falha na pré-condição pode produzir 412."
+    },
+    {
+      "question": "Dê um exemplo de JSON válido com valores de tipos diferentes.",
+      "answer": "{\"id\": 7, \"ativo\": true, \"tags\": [\"a\"], \"nota\": null}."
+    },
+    {
+      "question": "O que muda quando uma propriedade está em properties, mas ausente em required?",
+      "answer": "Ela é reconhecida/validada quando presente, porém pode ser omitida."
+    },
+    {
+      "question": "Explique OpenAPI versus Swagger UI.",
+      "answer": "OpenAPI é a especificação de descrição; Swagger UI é ferramenta que a apresenta de forma navegável."
+    },
+    {
+      "question": "Uma API recebeu JWT com assinatura correta, mas token foi emitido para outra audiência. O que fazer?",
+      "answer": "Recusar token: validar aud esperado é parte essencial da aceitação de JWT."
+    },
+    {
+      "question": "Quais controles usar contra webhook forjado e duplicado?",
+      "answer": "Verificar assinatura de corpo, janela de tempo/nonce ou eventId, HTTPS e deduplicação transacional."
+    },
+    {
+      "question": "Diferencie REST, SOAP e GraphQL em uma frase.",
+      "answer": "REST é estilo arquitetural; SOAP é protocolo de mensagens XML; GraphQL é linguagem de consultas e sistema de tipos para APIs."
+    },
+    {
+      "question": "Usuário autenticado acessou outro cadastro ao alterar ID. Qual risco?",
+      "answer": "BOLA: ausência de checagem de autorização ao objeto solicitado."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Semântica HTTP e idempotência",
+      "summary": "Confundir status 201/202/204, 401/403, GET/PUT/PATCH ou interpretar idempotência como resposta idêntica. A propriedade diz respeito ao efeito solicitado."
+    },
+    {
+      "key": "e2",
+      "title": "Restrições REST e contratos de recursos",
+      "summary": "Tratar REST como protocolo ou exigir JSON; esquecer stateless, recursos, versionamento, paginação e tratamento de concorrência."
+    },
+    {
+      "key": "e3",
+      "title": "Sintaxe JSON e validação",
+      "summary": "Aceitar aspas simples, comentários ou vírgula final; confundir properties com required, validação sintática com semântica e XML Schema com JSON Schema."
+    },
+    {
+      "key": "e4",
+      "title": "OpenAPI, OAuth e JWT",
+      "summary": "Confundir documentação com implementação, delegação OAuth com autenticação, JWT assinado com JWT cifrado, e decodificação com validação."
+    },
+    {
+      "key": "e5",
+      "title": "Webhooks e processamento distribuído",
+      "summary": "Supor entrega uma única vez, evento igual a comando ou que confirmação de recebimento equivale a conclusão; esquecer assinatura, duplicação e replay."
+    },
+    {
+      "key": "e6",
+      "title": "Autorização e riscos OWASP",
+      "summary": "Confundir autenticação com autorização por objeto/propriedade; confiar em CORS, HTTPS ou gateway como solução completa de acesso indevido."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma API devolveu uma representação de aluno consultada pelo endpoint GET /alunos/42. Qual código expressa êxito comum com corpo de resposta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "200 OK",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "201 Created",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "202 Accepted",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "204 No Content",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "409 Conflict",
+          "correct": false
+        }
+      ],
+      "explanation": "O status 200 OK é apropriado para uma leitura GET bem-sucedida com representação. 201 está ligado à criação, 202 à aceitação para processamento futuro, 204 não traz corpo e 409 representa conflito com o estado atual. O verbo GET por si só não determina que a resposta sempre será 200, mas o cenário descreve essa condição.",
+      "section": "Fundamentos de APIs e protocolo HTTP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação envia JSON no corpo e deseja receber JSON na resposta. Qual par de cabeçalhos expressa corretamente essas intenções?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Accept: text/plain e Content-Type: image/png",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Content-Type: application/json e Accept: application/json",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Authorization: application/json e Location: application/json",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ETag: application/json e Host: application/json",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "If-Match: application/json e Retry-After: application/json",
+          "correct": false
+        }
+      ],
+      "explanation": "Content-Type identifica a mídia da representação enviada no corpo, enquanto Accept informa o formato desejado na resposta. Authorization transporta credenciais, Location identifica recurso, ETag fornece validador e Retry-After sugere intervalo. Inverter os papéis de Content-Type e Accept é pegadinha recorrente.",
+      "section": "Fundamentos de APIs e protocolo HTTP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso representa uma matrícula individual em um desenho de URI orientado a recursos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "/fazerMatriculaAgora",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "/getMatricula",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "/matriculas/853",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "/executarAcao?id=853",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "/database/matricula/select",
+          "correct": false
+        }
+      ],
+      "explanation": "O caminho /matriculas/853 identifica um recurso individual por substantivo e identificador, favorecendo aplicação de métodos HTTP adequados. Caminhos de verbo e instruções de banco podem funcionar tecnicamente, mas não ilustram tão bem a modelagem orientada a recursos pretendida na questão.",
+      "section": "Arquitetura REST e desenho de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual das alternativas é um documento JSON sintaticamente válido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "{'ativo': true}",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "({\"ativo\": true})",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "{\"ativo\": True}",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "{\"ativo\": true, \"notas\": [7, 8]}",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "{\"ativo\": true,}",
+          "correct": false
+        }
+      ],
+      "explanation": "O JSON válido usa aspas duplas para nomes e strings e os literais true/false/null em minúsculas. Aspas simples, envoltório de expressão JavaScript, literal True com maiúscula e vírgula sobrando antes de fechar o objeto não pertencem à sintaxe do JSON definida na RFC 8259.",
+      "section": "Formatos JSON e XML e validação de contratos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer publicar uma interface navegável de documentação já descrita em OpenAPI. Qual ferramenta se alinha diretamente a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Banco de dados relacional",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Servidor SMTP",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Compilador de linguagem C",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Protocolo SOAP",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Swagger UI",
+          "correct": true
+        }
+      ],
+      "explanation": "Swagger UI apresenta uma descrição OpenAPI de maneira navegável, permitindo examinar rotas, parâmetros e respostas. Não é banco, SMTP, compilador nem protocolo SOAP. A ferramenta de documentação não cria automaticamente a lógica de negócios do backend: ela renderiza e facilita o consumo do contrato.",
+      "section": "OpenAPI, autenticação e autorização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No uso comum de APIs protegidas por OAuth 2.0, qual cabeçalho apresenta um access token bearer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Authorization: Bearer <token>",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Content-Type: Bearer <token>",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Accept: Bearer <token>",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Location: Bearer <token>",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ETag: Bearer <token>",
+          "correct": false
+        }
+      ],
+      "explanation": "Authorization com o esquema Bearer é a forma usual de apresentar um bearer access token à API. Content-Type e Accept se referem a formatos de conteúdo, Location a endereço de recurso e ETag a validação de representação. O token deve ser protegido como credencial, especialmente durante transporte e armazenamento.",
+      "section": "OpenAPI, autenticação e autorização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O sistema de pagamentos envia um POST ao sistema de pedidos quando uma cobrança é aprovada, sem que o sistema de pedidos faça consultas periódicas. Esse mecanismo é conhecido como:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "polling contínuo",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "webhook",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "compilação distribuída",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "resolução DNS",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "backup incremental",
+          "correct": false
+        }
+      ],
+      "explanation": "Webhook é a notificação HTTP acionada por evento para um endpoint previamente configurado, invertendo a necessidade de consultar repetidamente o provedor. Polling é consulta periódica iniciada pelo consumidor; as outras opções não descrevem notificação de evento de negócio por HTTP.",
+      "section": "Webhooks, eventos e alternativas de integração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário autenticado altera /contas/10 para /contas/11 e visualiza conta que não lhe pertence. Qual classe de falha é mais específica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas indisponibilidade temporária do serviço sem qualquer relação com os controles de acesso ao registro",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Falha de sintaxe JSON",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Broken Object Level Authorization (BOLA)",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Erro de DNS",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cache-Control ausente",
+          "correct": false
+        }
+      ],
+      "explanation": "BOLA ocorre quando a autorização não é verificada para o objeto concreto solicitado, permitindo acesso por alteração de ID. Autenticar a pessoa não basta; é preciso validar vínculo e permissão sobre a conta 11. As demais alternativas não explicam o acesso horizontal indevido a registro de terceiro.",
+      "section": "Segurança e operação de APIs",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após o cliente enviar DELETE /arquivos/5, a API responde 204. Na segunda tentativa idêntica, retorna 404. Qual análise é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "DELETE deixa de ser idempotente sempre que a segunda requisição retorna 404 em vez do status 204 obtido na primeira tentativa",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DELETE é seguro e nunca altera estado",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A segunda tentativa desfaz a primeira remoção",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DELETE pode continuar idempotente porque o efeito solicitado não se repete",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "DELETE é equivalente a POST",
+          "correct": false
+        }
+      ],
+      "explanation": "Idempotência compara o efeito pretendido no servidor depois de uma ou várias execuções iguais, não exige respostas iguais. O arquivo permanece removido e, portanto, a segunda resposta 404 não torna DELETE não idempotente. DELETE altera estado e não é método seguro; também não se confunde com POST.",
+      "section": "Fundamentos de APIs e protocolo HTTP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente envia um corpo JSON bem formado, mas usa Content-Type: application/xml, e o servidor não aceita essa mídia. Qual status se relaciona mais diretamente ao problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "304 Not Modified",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "401 Unauthorized",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "409 Conflict",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "503 Service Unavailable",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "415 Unsupported Media Type",
+          "correct": true
+        }
+      ],
+      "explanation": "415 Unsupported Media Type indica que o servidor não oferece suporte ao formato de representação declarado/recebido para aquela operação. 304 trata de cache condicional, 401 de autenticação, 409 de conflito de estado e 503 de indisponibilidade. A simples validade sintática do conteúdo não corrige o tipo de mídia incompatível.",
+      "section": "Fundamentos de APIs e protocolo HTTP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma atualização deve ser rejeitada caso outro operador já tenha alterado o cadastro desde a última leitura. Qual técnica atende diretamente ao controle otimista?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar If-Match com o ETag conhecido",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar somente Accept no GET",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar mais campos ao JSON sem controle",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar GET por HEAD para alterar recurso",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar completamente o cache",
+          "correct": false
+        }
+      ],
+      "explanation": "If-Match aplica uma pré-condição sobre o validador de versão, como ETag, e pode produzir 412 se a versão divergiu. Isso evita sobrescrita perdida por escrita baseada em estado antigo. Accept negocia mídia; HEAD não deve alterar recurso; adicionar campos e desligar cache não solucionam a concorrência.",
+      "section": "Arquitetura REST e desenho de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em listagem de registros que recebe muitas inserções, a equipe quer navegação sequencial com marcador opaco retornado pelo servidor. Qual estratégia é descrita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Requisição POST sem paginação",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Paginação por cursor",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Serialização SOAP",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Negociação por OAuth",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Recurso imutável sem filtro",
+          "correct": false
+        }
+      ],
+      "explanation": "Paginação por cursor utiliza marcador opaco emitido pela API para buscar os próximos itens. Dependendo do contrato e ordenação, ajuda em conjuntos mutáveis em comparação ao deslocamento simples, que pode gerar duplicações ou lacunas. Não elimina automaticamente todos os problemas de consistência.",
+      "section": "Arquitetura REST e desenho de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um JSON Schema contém properties.nome com type string, mas required inclui apenas id. Qual conclusão se segue?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "nome é obrigatório por estar em properties",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "nome pode assumir qualquer tipo quando presente",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "nome é opcional, mas deve ser string quando informado",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "id é opcional porque falta em properties",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "o documento é XML Schema",
+          "correct": false
+        }
+      ],
+      "explanation": "A palavra-chave required determina quais propriedades devem aparecer; properties determina como validar as propriedades nomeadas quando presentes. Portanto nome é opcional, mas, se informado, precisa cumprir type string. A inclusão de id em required independe do tipo de outra propriedade.",
+      "section": "Formatos JSON e XML e validação de contratos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa access token OAuth 2.0 estruturado como JWT. Qual medida permanece necessária antes de aceitar uma requisição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confiar apenas no cabeçalho e no payload do JWT, sem verificar a assinatura ou a validade do emissor indicado",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Assumir que base64URL criptografou o payload",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar escopos porque já existe login",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Validar assinatura, emissor, público-alvo, expiração e autorização do objeto",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aceitar qualquer algoritmo definido pelo usuário no token",
+          "correct": false
+        }
+      ],
+      "explanation": "O servidor deve validar o JWT criptograficamente com algoritmo permitido e conferir emissor, audiência e validade, além da permissão efetiva sobre o objeto. Base64URL não garante sigilo; confiar em cabeçalho controlado por atacante ou ignorar escopos e autorização expõe o serviço a fraude e vazamento.",
+      "section": "OpenAPI, autenticação e autorização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um provedor reenviou duas vezes um webhook PagamentoAprovado porque não recebeu resposta da primeira tentativa. Qual solução melhor evita dois registros?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar HTTPS",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aceitar apenas requisições HTTP GET para impedir que o mesmo provedor reenvie o evento em caso de timeout",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Confiar em ordem temporal absoluta de entrega",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reprocessar sempre e somar duas vezes",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Guardar eventId e deduplicar transacionalmente no consumidor",
+          "correct": true
+        }
+      ],
+      "explanation": "Deduplicação pelo identificador estável do evento, associada a transação de atualização, evita que reentregas causem efeitos financeiros duplicados. HTTP e provedores podem repetir notificações; retirar TLS, trocar método ou supor ordem perfeita não constitui mecanismo confiável de idempotência.",
+      "section": "Webhooks, eventos e alternativas de integração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma integração publica MatriculaConfirmada após gravar o registro, e outros sistemas reagem ao fato. Qual classificação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É evento negocial, não comando de execução futura",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É sempre chamada síncrona",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É obrigatoriamente um método HTTP GET",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É descrição de endpoint OpenAPI",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É assinatura JWT",
+          "correct": false
+        }
+      ],
+      "explanation": "MatriculaConfirmada descreve fato de domínio ocorrido, portanto é evento negocial; um comando teria forma de intenção como ConfirmarMatricula. O evento pode ser transportado por fila ou webhook de modo assíncrono, não exige GET e não deve ser confundido com documentação OpenAPI ou token.",
+      "section": "Webhooks, eventos e alternativas de integração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API apresenta CORS restritivo, mas endpoint permite ler documentos de terceiros a qualquer cliente que saiba o identificador. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "CORS protege clientes móveis e elimina BOLA",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A API permanece vulnerável à falta de autorização por objeto",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "HTTPS torna o identificador secreto mesmo a terceiros autenticados",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O problema se resolve mudando 200 para 201",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Basta documentar o recurso no Swagger",
+          "correct": false
+        }
+      ],
+      "explanation": "CORS é uma política aplicada por navegadores à leitura entre origens; não substitui controles de acesso no servidor. Cliente não navegador ainda pode enviar requisições, e o endpoint precisa verificar permissão ao objeto em todas as chamadas. HTTPS e documentação não corrigem falha de autorização.",
+      "section": "Segurança e operação de APIs",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário comum envia {\"nome\":\"Rui\",\"isAdmin\":true} e o backend grava todos os campos do corpo sem lista de propriedades permitidas. Qual risco foi explorado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente cache desatualizado",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Erro de serialização XML",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Falha de autorização por propriedade e mass assignment",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Redirecionamento 307",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Invalidação por ETag",
+          "correct": false
+        }
+      ],
+      "explanation": "Atribuição excessiva (mass assignment) ocorre quando propriedades controladas pelo cliente são vinculadas diretamente a objetos internos; se isAdmin puder ser alterado sem autorização, há falha de autorização por propriedade. Validar campos graváveis segundo o papel do usuário reduz o risco; cache e redirecionamento não explicam o ataque.",
+      "section": "Segurança e operação de APIs",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API responde 202 e fornece /tarefas/900 como URI para consulta de andamento. O operador afirma que toda alteração já foi efetivada. Qual resposta técnica é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "202 prova sucesso final da tarefa",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "202 obriga o servidor a responder 201 no próximo GET",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "202 é uma resposta de erro do cliente",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "202 indica aceitação para processamento, sem garantir conclusão",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "202 é sinônimo de 204 No Content",
+          "correct": false
+        }
+      ],
+      "explanation": "202 Accepted informa que a solicitação foi aceita para processamento, que pode ocorrer posteriormente ou nem alcançar sucesso final. A consulta ao recurso de status é uma estratégia de acompanhamento. Não há equivalência com 201 de criação, 204 de ausência de corpo ou erro 4xx.",
+      "section": "Fundamentos de APIs e protocolo HTTP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema envia o mesmo POST /cobrancas duas vezes após timeout e passa Idempotency-Key com o mesmo valor. Qual conclusão é tecnicamente correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todo POST HTTP é sempre idempotente por definição, pois o protocolo elimina operações duplicadas sem necessidade de suporte do servidor",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A chave transforma qualquer API em REST estrito",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A chave é sinônimo de ETag",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O intermediário garante exactly-once ponta a ponta",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A deduplicação depende de contrato e implementação do servidor, não do mero nome do cabeçalho",
+          "correct": true
+        }
+      ],
+      "explanation": "Idempotency-Key pode ser usado por provedores para associar tentativas à mesma operação, mas sua eficácia depende de implementação, escopo, persistência e contrato documentado. POST não se torna idempotente por padrão; tampouco existe garantia universal de exatamente uma execução de efeitos externos por simples presença do cabeçalho.",
+      "section": "Arquitetura REST e desenho de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um esquema JSON Schema draft 2020-12 define type object, required [\"id\"], properties.id {type integer, minimum 1}, additionalProperties false. Qual instância deve validar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "{\"id\": 1}",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "{\"id\": 0}",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "{\"id\": \"1\"}",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "{\"id\": 1, \"extra\": true}",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "{\"nome\": \"Ana\"}",
+          "correct": false
+        }
+      ],
+      "explanation": "A instância {\"id\":1} satisfaz obrigatoriedade, tipo inteiro, mínimo 1 e não inclui propriedades extras. id 0 viola minimum; id string viola type; extra viola additionalProperties false; e a última instância não possui o campo obrigatório id. A questão exige verificar requisitos cumulativamente.",
+      "section": "Formatos JSON e XML e validação de contratos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma plataforma aceita JWT assinado para api-a e o reutiliza na api-b, que confere apenas a assinatura. Qual controle falta de modo mais evidente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inserir comentários dentro do JWT para que o próprio token informe ao servidor a audiência que deve aceitar",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar se o público-alvo (aud) corresponde à API receptora",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Transformar o JWT em XML",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir Authorization por Accept",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover a claim de expiração",
+          "correct": false
+        }
+      ],
+      "explanation": "A claim aud delimita destinatários esperados do token; verificar só assinatura permite que token válido para um serviço seja aceito indevidamente em outro. Também é importante validar iss, exp e políticas de autorização. Trocar formato ou cabeçalho não substitui validação do público-alvo.",
+      "section": "OpenAPI, autenticação e autorização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um consumidor de eventos precisa aplicar atualização em banco e confirmar mensagem do broker; queda ocorre entre as duas ações. Qual abordagem é mais resiliente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Prometer execução exatamente uma vez para todos os efeitos externos apenas por configurar entrega exactly-once no broker, sem controle transacional",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover eventId para simplificar",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Implementar operação idempotente e confirmação conforme o processamento, com retentativas seguras",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Tratar qualquer timeout como prova de não execução",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confiar que filas preservam ordem total em todos os cenários",
+          "correct": false
+        }
+      ],
+      "explanation": "A falha entre gravar efeito e confirmar a mensagem pode provocar reentrega e execução repetida. Idempotência baseada em identificador e transação apropriada, combinada com política de confirmação, permite retry seguro. Garantias abstratas do broker não eliminam necessariamente efeitos duplicados em sistemas externos.",
+      "section": "Webhooks, eventos e alternativas de integração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API processa URL fornecida por cliente para buscar imagem e permite alcançar endereço de metadados internos da nuvem. Que risco a situação exemplifica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "BOLA, exclusivamente por ID de usuário",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Erro de required no JSON Schema",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cache poisoning exclusivamente",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Server-Side Request Forgery (SSRF)",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Problema de media type 415",
+          "correct": false
+        }
+      ],
+      "explanation": "SSRF ocorre quando um servidor realiza requisições a destinos influenciados por atacante, inclusive redes internas ou serviços de metadados, sob identidade e conectividade do backend. Defesas incluem allowlist de destinos, bloqueio de endereços internos, controle de redirects e resolução de DNS segura. Não é falha típica de schema ou status 415.",
+      "section": "Segurança e operação de APIs",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cabeçalho Accept indica tipos de mídia que o cliente considera aceitáveis para a resposta HTTP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item é certo: Accept é usado na negociação de conteúdo para expressar representações aceitas pelo cliente, como application/json. O cabeçalho Content-Type, por contraste, identifica o tipo do corpo da mensagem enviada. A banca costuma inverter os dois papéis; ambos podem aparecer numa mesma requisição.",
+      "section": "Fundamentos de APIs e protocolo HTTP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O código 201 Created sinaliza tipicamente a criação de um recurso em decorrência de requisição bem-sucedida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item é certo: 201 Created expressa que a requisição foi atendida e resultou na criação de um ou mais recursos. O cabeçalho Location pode indicar o recurso principal criado. A ocorrência de criação não implica que toda requisição POST deva sempre retornar 201; o status depende do comportamento efetivo.",
+      "section": "Fundamentos de APIs e protocolo HTTP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em REST, stateless significa que o servidor é proibido de manter banco de dados persistente com cadastros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item é errado: stateless se refere à independência do contexto conversacional de uma requisição em relação à anterior. O servidor pode manter dados persistentes de recursos, como cadastros e matrículas. O cliente deve enviar informações de autenticação e contexto relevantes para cada solicitação conforme o contrato.",
+      "section": "Arquitetura REST e desenho de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JSON válido, literais booleanos são representados como true e false, em minúsculas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item é certo: JSON define os literais true e false, além de null, todos em minúsculas. Escrever True ou False, como pode ocorrer em outras linguagens, não corresponde à gramática JSON. Objetos usam pares com nomes entre aspas duplas e arrays separam os itens por vírgula.",
+      "section": "Formatos JSON e XML e validação de contratos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A especificação OpenAPI permite descrever endpoints, parâmetros e respostas de uma API HTTP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item é certo: OpenAPI padroniza descrição de caminhos, operações, parâmetros, representações e respostas, permitindo documentação, testes e geração de clientes por ferramentas. Isso não significa que um documento OpenAPI execute o serviço ou garanta automaticamente aderência do servidor ao contrato.",
+      "section": "OpenAPI, autenticação e autorização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "JWT é sempre um conteúdo cifrado que impede qualquer pessoa que possua o token de ler seus claims.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item é errado: JWT frequentemente representa claims em payload codificado em Base64URL e assinado, o que protege integridade, mas não fornece sigilo. Existem JWTs cifrados por mecanismos apropriados, porém a criptografia não é propriedade automática de todo JWT.",
+      "section": "OpenAPI, autenticação e autorização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Webhook é uma forma de notificação orientada a eventos, normalmente enviada por HTTP a um receptor cadastrado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item é certo: no padrão webhook, o provedor desencadeia requisições quando ocorre evento de interesse, reduzindo necessidade de polling. A entrega pode ser repetida após falhas, exigindo verificação de autenticidade e deduplicação para impedir processamento indevido.",
+      "section": "Webhooks, eventos e alternativas de integração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de HTTPS dispensa verificar se um usuário autenticado tem permissão sobre cada objeto consultado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item é errado: HTTPS protege o canal de comunicação, mas não estabelece a autorização de quem recebe os dados. Uma API pode usar HTTPS e ainda expor registros de outros usuários por BOLA. A permissão do sujeito sobre o recurso deve ser validada pelo backend.",
+      "section": "Segurança e operação de APIs",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um DELETE pode ser idempotente mesmo que o status da segunda resposta seja diferente do status da primeira.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item é certo: idempotência é propriedade do efeito pretendido por requisições idênticas, não da igualdade das respostas. Excluir um recurso pode retornar 204 primeiro e 404 depois, mantendo o resultado de recurso removido. A resposta precisa ser interpretada com a semântica do método.",
+      "section": "Fundamentos de APIs e protocolo HTTP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao responder 202 Accepted, o servidor garante que o trabalho assíncrono já foi concluído com sucesso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item é errado: 202 indica aceitação para processamento, mas o trabalho pode estar pendente e não há compromisso semântico de conclusão bem-sucedida. Serviços podem oferecer endpoint de acompanhamento, webhook ou consulta posterior para informar o resultado. Não confunda aceitação com efetivação.",
+      "section": "Fundamentos de APIs e protocolo HTTP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A paginação por deslocamento pode gerar duplicidades ou omissões durante a navegação se o conjunto for alterado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item é certo: quando registros são inseridos ou excluídos entre requisições, índices deslocados podem repetir ou pular elementos na paginação por offset. Estratégias por cursor e ordenação bem definida podem reduzir esse problema, mas também exigem contrato e implementação adequados.",
+      "section": "Arquitetura REST e desenho de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Todo serviço HTTP que retorna JSON implementa, necessariamente, todas as restrições arquiteturais REST.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item é errado: uso de HTTP e JSON não comprova interface uniforme, ausência de estado conversacional, cache, camadas e hipermídia. REST é estilo arquitetural e não formato de representação. É possível oferecer API HTTP com JSON sem atender integralmente às restrições REST.",
+      "section": "Arquitetura REST e desenho de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JSON Schema, required indica a presença obrigatória de propriedades, enquanto properties descreve a validação delas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item é certo: required contém nomes cuja presença se exige, e properties associa esquemas às propriedades indicadas quando elas são encontradas. Declarar apenas properties.nome não torna nome obrigatório. Validação sintática de JSON e regras de JSON Schema são etapas distintas.",
+      "section": "Formatos JSON e XML e validação de contratos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "OAuth 2.0 estabelece framework para autorização delegada; seu access token não precisa, obrigatoriamente, ser JWT.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item é certo: o OAuth 2.0 define papéis e fluxos para obtenção de autorização limitada, mas não exige que todo access token tenha estrutura JWT. Tokens opacos também são usados. Mesmo se o token for JWT, o servidor precisa conferir validade e permissões específicas.",
+      "section": "OpenAPI, autenticação e autorização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A entrega at-least-once de uma fila elimina a possibilidade de processamento duplicado de um mesmo evento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item é errado: at-least-once privilegia a entrega, mas admite redelivery e duplicação após falhas ou perdas de confirmação. Consumidores devem usar identificadores estáveis, operações idempotentes e armazenamento adequado para evitar efeitos repetidos, especialmente em transações financeiras.",
+      "section": "Webhooks, eventos e alternativas de integração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um evento MatriculaConfirmada descreve fato ocorrido; o comando ConfirmarMatricula expressaria uma solicitação de ação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item é certo: eventos de negócio registram fatos do domínio e são normalmente nomeados no passado; comandos pedem execução de trabalho. Essa distinção melhora desenho de integrações e compreensão de consistência, mas a escolha do transporte pode ser HTTP, filas ou outro canal.",
+      "section": "Webhooks, eventos e alternativas de integração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "CORS é mecanismo de autenticação capaz de bloquear diretamente todo cliente não navegador que chame uma API.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item é errado: CORS trata permissões de acesso a respostas por scripts no contexto do navegador. Clientes como scripts de servidor, ferramentas CLI e aplicativos podem enviar chamadas independentemente dessa política. Autenticação e autorização exigem controles próprios no backend.",
+      "section": "Segurança e operação de APIs",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A falha de autorização por propriedade pode permitir gravar atributos sensíveis não autorizados, como isAdmin.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item é certo: uma API que vincula diretamente todo o JSON a um modelo pode permitir mass assignment de campos indevidos. A correção envolve definir propriedades editáveis por operação e papel, validar no servidor e separar dados internos das representações públicas.",
+      "section": "Segurança e operação de APIs",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método PATCH possui garantia geral de idempotência pela semântica HTTP, assim como PUT.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item é errado: PUT é idempotente na semântica padronizada, enquanto PATCH não tem garantia geral; um documento patch pode expressar incrementos ou operações cumulativas. Uma implementação particular pode desenhar patches idempotentes, mas isso não transforma PATCH em método universalmente idempotente.",
+      "section": "Fundamentos de APIs e protocolo HTTP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "If-Match associado a ETag permite expressar condição para atualização e evitar sobrescrita com base em versão obsoleta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item é certo: If-Match faz uma requisição depender da correspondência com um validador da representação, como ETag. Se a condição falhar, 412 Precondition Failed é resposta pertinente. O mecanismo aborda concorrência otimista, mas não verifica sozinho permissão do usuário.",
+      "section": "Arquitetura REST e desenho de recursos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No JSON Schema, additionalProperties: false pode impedir propriedades não previstas no esquema, conforme seu escopo de aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item é certo: additionalProperties false é usado para rejeitar membros adicionais não abrangidos pelas regras aplicáveis naquele esquema. Seu comportamento exato em composições depende da semântica da especificação; não significa “todas as propriedades são obrigatórias”, função de required.",
+      "section": "Formatos JSON e XML e validação de contratos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Conferir apenas a assinatura de um JWT sempre basta para garantir que ele foi emitido para o recurso e a operação corretos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item é errado: assinatura válida não dispensa validar público-alvo (aud), emissor (iss), vigência temporal (exp/nbf) e autorização concreta sobre recurso e ação. Aceitar token válido para outro serviço ou permitir ação além do escopo é falha que continua possível mesmo com assinatura criptograficamente correta.",
+      "section": "OpenAPI, autenticação e autorização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Webhooks que carregam eventId dispensam autenticação de origem, já que o identificador prova que a mensagem partiu do provedor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item é errado: eventId facilita correlação e deduplicação, mas um atacante pode forjar identificadores. A origem e integridade devem ser verificadas segundo contrato, por exemplo com assinatura HMAC do corpo e controles de tempo, além de HTTPS e limites para evitar replay ou abuso.",
+      "section": "Webhooks, eventos e alternativas de integração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API que aceita URL arbitrária para que o backend faça solicitações pode estar sujeita a SSRF, mesmo com login obrigatório.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item é certo: SSRF explora capacidade de o servidor acessar destinos escolhidos ou influenciados por atacante, inclusive rede interna. Exigir login pode reduzir superfície, mas não elimina o problema. São úteis listas de destinos, restrição de IP interno, controle de redirecionamentos e DNS.",
+      "section": "Segurança e operação de APIs",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9110: HTTP Semantics",
+      "publisher": "Internet Engineering Task Force / RFC Editor",
+      "reference": "RFC 9110, métodos, cabeçalhos e semântica de códigos HTTP",
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "accessedAt": "2026-10-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Architectural Styles and the Design of Network-based Software Architectures",
+      "publisher": "University of California, Irvine — Roy T. Fielding",
+      "reference": "Capítulo 5: Representational State Transfer (REST)",
+      "url": "https://ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm",
+      "accessedAt": "2026-10-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 8259: The JavaScript Object Notation (JSON) Data Interchange Format",
+      "publisher": "Internet Engineering Task Force / RFC Editor",
+      "reference": "RFC 8259, sintaxe e mídia application/json",
+      "url": "https://www.rfc-editor.org/rfc/rfc8259.html",
+      "accessedAt": "2026-10-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "JSON Schema Draft 2020-12",
+      "publisher": "JSON Schema",
+      "reference": "Core e Validation — especificação draft 2020-12",
+      "url": "https://json-schema.org/draft/2020-12/",
+      "accessedAt": "2026-10-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Extensible Markup Language (XML) 1.0 (Fifth Edition)",
+      "publisher": "World Wide Web Consortium (W3C)",
+      "reference": "Recomendação XML 1.0",
+      "url": "https://www.w3.org/TR/xml/",
+      "accessedAt": "2026-10-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenAPI Specification",
+      "publisher": "OpenAPI Initiative",
+      "reference": "Especificação OAS — índice de versões oficiais",
+      "url": "https://spec.openapis.org/oas/",
+      "accessedAt": "2026-10-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 6749: The OAuth 2.0 Authorization Framework",
+      "publisher": "Internet Engineering Task Force / RFC Editor",
+      "reference": "RFC 6749, papéis e fluxos básicos de autorização",
+      "url": "https://www.rfc-editor.org/rfc/rfc6749.html",
+      "accessedAt": "2026-10-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 6750: The OAuth 2.0 Authorization Framework: Bearer Token Usage",
+      "publisher": "Internet Engineering Task Force / RFC Editor",
+      "reference": "RFC 6750, token bearer no cabeçalho Authorization",
+      "url": "https://www.rfc-editor.org/rfc/rfc6750.html",
+      "accessedAt": "2026-10-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 7519: JSON Web Token (JWT)",
+      "publisher": "Internet Engineering Task Force / RFC Editor",
+      "reference": "RFC 7519, tokens JWT e claims",
+      "url": "https://www.rfc-editor.org/rfc/rfc7519.html",
+      "accessedAt": "2026-10-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SOAP Version 1.2 Part 1: Messaging Framework (Second Edition)",
+      "publisher": "World Wide Web Consortium (W3C)",
+      "reference": "SOAP 1.2, mensagens baseadas em XML",
+      "url": "https://www.w3.org/TR/soap12-part1/",
+      "accessedAt": "2026-10-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GraphQL Specification",
+      "publisher": "GraphQL Foundation",
+      "reference": "GraphQL — tipos, queries e mutations",
+      "url": "https://spec.graphql.org/October2021/",
+      "accessedAt": "2026-10-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP API Security Top 10 – 2023",
+      "publisher": "OWASP Foundation",
+      "reference": "API Security Top 10, riscos de segurança de APIs",
+      "url": "https://owasp.org/API-Security/editions/2023/en/0x11-t10/",
+      "accessedAt": "2026-10-18"
+    }
+  ]
+}
