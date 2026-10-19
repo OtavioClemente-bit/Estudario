@@ -19,15 +19,16 @@ import org.jetbrains.compose.web.dom.TextArea
  * app, no site e no backup sem mudar o banco.
  */
 object NoteTags {
-    val all = listOf("Macete", "Resumo", "Dúvida", "Pegadinha", "Lei seca")
-    private val prefix = Regex("""^\[(Macete|Resumo|Dúvida|Pegadinha|Lei seca)\]\s*""")
+    val all = listOf("Macete", "Resumo", "Dúvida", "Pegadinha", "Letra da lei")
+    private val prefix = Regex("""^\[(Macete|Resumo|Dúvida|Pegadinha|Letra da lei|Lei seca)\]\s*""")
     fun split(text: String): Pair<String?, String> {
         val m = prefix.find(text) ?: return null to text
-        return m.groupValues[1] to text.substring(m.range.last + 1)
+        // "Lei seca" foi o nome antigo de "Letra da lei".
+        return m.groupValues[1].replace("Lei seca", "Letra da lei") to text.substring(m.range.last + 1)
     }
     fun join(tag: String?, body: String): String = if (tag == null) body.trim() else "[$tag] ${body.trim()}"
     fun cls(tag: String?): String = when (tag) {
-        "Macete" -> "t-macete"; "Resumo" -> "t-resumo"; "Dúvida" -> "t-duvida"; "Pegadinha" -> "t-pegadinha"; "Lei seca" -> "t-lei"; else -> "t-none"
+        "Macete" -> "t-macete"; "Resumo" -> "t-resumo"; "Dúvida" -> "t-duvida"; "Pegadinha" -> "t-pegadinha"; "Letra da lei" -> "t-lei"; else -> "t-none"
     }
 }
 

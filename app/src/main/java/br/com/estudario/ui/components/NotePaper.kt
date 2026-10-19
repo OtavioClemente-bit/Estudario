@@ -42,12 +42,13 @@ import java.util.Locale
  * app, no site e no backup sem mudar o banco.
  */
 object NoteTags {
-    val all = listOf("Macete", "Resumo", "Dúvida", "Pegadinha", "Lei seca")
-    private val prefix = Regex("""^\[(Macete|Resumo|Dúvida|Pegadinha|Lei seca)\]\s*""")
+    val all = listOf("Macete", "Resumo", "Dúvida", "Pegadinha", "Letra da lei")
+    private val prefix = Regex("""^\[(Macete|Resumo|Dúvida|Pegadinha|Letra da lei|Lei seca)\]\s*""")
 
     fun split(text: String): Pair<String?, String> {
         val m = prefix.find(text) ?: return null to text
-        return m.groupValues[1] to text.substring(m.range.last + 1)
+        // "Lei seca" foi o nome antigo de "Letra da lei".
+        return m.groupValues[1].replace("Lei seca", "Letra da lei") to text.substring(m.range.last + 1)
     }
 
     fun join(tag: String?, body: String): String = if (tag == null) body.trim() else "[$tag] ${body.trim()}"
@@ -58,7 +59,7 @@ object NoteTags {
         "Resumo" -> Color(0xFF1FA97F)
         "Dúvida" -> Color(0xFF2F8FE0)
         "Pegadinha" -> Color(0xFFE5484D)
-        "Lei seca" -> Color(0xFFD98A00)
+        "Letra da lei" -> Color(0xFFD98A00)
         else -> Color(0xFF8A8FA3)
     }
 }
