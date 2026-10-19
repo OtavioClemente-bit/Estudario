@@ -87,6 +87,15 @@ fun CelebrationHost() {
         // página com o dia já cumprido gastava o dia sem mostrar nada, e depois só vinha o emblema).
         if (!ready || !todayDone || last == today) return@LaunchedEffect
         write(KEY_DAY, today)
+        // Só comemora o dia que acabou de ser cumprido aqui: se a primeira atividade de hoje foi há
+        // mais tempo (no app, chegada pela sincronização), ele já foi comemorado lá.
+        val start = Queries.startOfToday()
+        val first = listOfNotNull(
+            Store.data.attempts.filter { it.answeredAt >= start }.minOfOrNull { it.answeredAt },
+            Store.data.reviewHistory.filter { it.reviewedAt >= start }.minOfOrNull { it.reviewedAt },
+            Store.data.executions.filter { it.completedAt >= start }.minOfOrNull { it.completedAt },
+        ).minOrNull()
+        if (first != null && kotlin.js.Date.now() - first > 15 * 60_000.0) return@LaunchedEffect
         val letters = listOf("S", "T", "Q", "Q", "S", "S", "D")
         val week = view.streak.week.filter { !it.future }.takeLast(7).map { letters[it.date.dayOfWeek.ordinal] to it.done }
         // A sequência vem antes dos emblemas; se algo já está na tela, ela entra logo depois dele.

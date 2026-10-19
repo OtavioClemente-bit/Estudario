@@ -367,6 +367,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * sequência do dia são registrados em silêncio: vieram do histórico, não foram conquistados agora.
      */
     @Volatile private var celebrationsMutedUntil = 0L
+    /** A primeira atividade de hoje foi nos últimos 15 minutos (o dia acabou de começar a contar). */
+    private suspend fun dayJustStarted(): Boolean = withContext(Dispatchers.IO) {
+        val start = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val dao = app.database.dao()
+        val first = listOfNotNull(
+            dao.attemptsOnce().filter { it.answeredAt >= start }.minOfOrNull { it.answeredAt },
+            dao.reviewHistoryOnce().filter { it.reviewedAt >= start }.minOfOrNull { it.reviewedAt },
+            app.database.plannerDao().executionsOnce().filter { it.completedAt >= start }.minOfOrNull { it.completedAt },
+        ).minOrNull() ?: return@withContext true
+        System.currentTimeMillis() - first < 15 * 60_000L
+    }
+
     private fun celebrationsMuted() = System.currentTimeMillis() < celebrationsMutedUntil ||
         // O que acabou de chegar da sincronização já foi comemorado no aparelho em que aconteceu.
         System.currentTimeMillis() - app.cloudSync.lastRemoteApplyAt < RESTORE_QUIET_MILLIS
@@ -395,12 +407,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             streak.filterNotNull().collect { summary ->
                 val today = LocalDate.now().toEpochDay()
                 if (!summary.todayDone || celebratedDay == today) return@collect
-                // Silenciado (logo depois de sincronizar ou restaurar): espera passar em vez de perder
-                // a comemoração do dia (antes, o dia era gasto e depois só aparecia o emblema).
-                while (celebrationsMuted() && System.currentTimeMillis() < celebrationsMutedUntil.coerceAtMost(System.currentTimeMillis() + 60_000)) kotlinx.coroutines.delay(1_000)
-                if (celebrationsMuted()) return@collect
                 celebratedDay = today
                 app.preferences.setLastCelebratedDay(today)
+                // Só comemora o dia que acabou de ser cumprido aqui: se a primeira atividade de hoje
+                // foi há mais tempo (no site ou em outro aparelho, chegada pela sincronização), o dia
+                // já foi comemorado lá e não conta de novo.
+                if (celebrationsMuted() || !dayJustStarted()) return@collect
                 _celebration.value = StreakCelebration(summary, celebrationReason(summary), progress.value?.xpToday ?: 0)
             }
         }
