@@ -695,12 +695,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                 }
                 topicNotes.forEach { note ->
                     item(key = "note-${note.id}") {
-                        Surface(onClick = { editingNote = note }, shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = .5f), modifier = Modifier.fillMaxWidth()) {
-                            Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Icon(Icons.Outlined.EditNote, null, tint = MaterialTheme.colorScheme.secondary)
-                                Text(note.text, Modifier.weight(1f), maxLines = 6, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                            }
-                        }
+                        br.com.estudario.ui.components.NotePaperCard(note.text, note.createdAt, onClick = { editingNote = note })
                     }
                 }
             }

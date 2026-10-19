@@ -46,7 +46,8 @@ fun NotebookScreen() {
     val favDecks = data.summaries.filter { it.kind == "RAPIDO" && it.favorite && it.topicId in scope }
     val tips = data.snippets.filter { it.favorite && it.kind != "RECUPERACAO" && it.topicId in scope }
     val notes = data.notes.filter { it.topicId == null || it.topicId in scope }.sortedByDescending { it.createdAt }
-    val counts = mapOf("grifos" to marks.size, "questoes" to favQuestions.size, "flashcards" to recallCards.size + favDecks.size, "dicas" to tips.size, "notas" to notes.size)
+    val markNotes = marks.filter { it.note.isNotBlank() }
+    val counts = mapOf("grifos" to marks.size, "questoes" to favQuestions.size, "flashcards" to recallCards.size + favDecks.size, "dicas" to tips.size, "notas" to notes.size + markNotes.size)
 
     PageHead("Caderno de estudo", "Tudo o que você grifou, salvou e favoritou enquanto estudava")
     CompetitionTabs()
@@ -103,7 +104,7 @@ fun NotebookScreen() {
         }
         "dicas" -> if (tips.isEmpty()) Empty("lightbulb", "Nenhuma dica salva", "Favorite dicas e pegadinhas no tópico para juntar tudo aqui.")
         else ByTopic(tips.groupBy { it.topicId }) { tip -> SavedCard(tip.id, null, tip.text, tip.answer) }
-        else -> NotesTab(notes.map { Triple(it.id, it.topicId, it.text) }, topics.values.filter { t -> data.topics.none { it.parentTopicId == t.id } }.map { it.id to it.title })
+        else -> NotesTab(notes, markNotes, { theories[it.theoryId]?.topicId }, topics.values.filter { t -> data.topics.none { it.parentTopicId == t.id } }.map { it.id to it.title })
     }
 }
 
@@ -123,50 +124,58 @@ private fun SavedCard(id: Long, topic: String?, text: String, answer: String?) {
     }
 }
 
+/**
+ * Anotações: as livres e as notas feitas nos trechos da teoria, juntas, mais novas primeiro, por
+ * tópico. Cada uma é um pedaço de folha pautada; tocar abre a folha para editar.
+ */
 @Composable
-private fun NotesTab(notes: List<Triple<Long, Long?, String>>, topics: List<Pair<Long, String>>) {
-    var editing by remember { mutableStateOf<Long?>(null) }
-    var text by remember { mutableStateOf("") }
-    var topicId by remember { mutableStateOf<Long?>(null) }
+private fun NotesTab(
+    notes: List<br.com.estudario.web.data.UserNote>,
+    markNotes: List<br.com.estudario.web.data.TheoryMark>,
+    topicOfMark: (br.com.estudario.web.data.TheoryMark) -> Long?,
+    topics: List<Pair<Long, String>>,
+) {
+    var editing by remember { mutableStateOf<br.com.estudario.web.data.UserNote?>(null) }
+    var creating by remember { mutableStateOf(false) }
+    var editingMark by remember { mutableStateOf<br.com.estudario.web.data.TheoryMark?>(null) }
     val names = topics.toMap()
-    Card {
-        CardHead(if (editing == null) "Nova anotação" else "Editar anotação")
-        Select({
-            classes("input")
-            onChange { topicId = it.value?.toLongOrNull() }
-        }) {
-            Option("", { if (topicId == null) selected() }) { Text("Geral (sem tópico)") }
-            topics.forEach { (id, title) -> Option("$id", { if (topicId == id) selected() }) { Text(title) } }
-        }
-        TextArea(text, {
-            attr("maxlength", "4000")
-            classes("input"); attr("rows", "4"); attr("placeholder", "Escreva o que quer lembrar…")
-            attr("style", "margin-top:8px;width:100%")
-            onInput { text = it.value }
-        })
-        Div({ classes("row"); attr("style", "margin-top:8px") }) {
-            Btn("Salvar", {
-                val id = editing ?: 0L
-                val value = text.trim()
-                Store.update { Actions.saveNote(it, id, topicId, value) }
-                editing = null; text = ""; topicId = null
-                Toast.show("Anotação salva")
-            }, style = "primary", icon = "save", enabled = text.isNotBlank())
-            if (editing != null) Btn("Cancelar", { editing = null; text = ""; topicId = null }, style = "ghost")
-        }
+    if (creating || editing != null) {
+        val n = editing
+        NotePaperEditor(
+            initialText = n?.text.orEmpty(), isNew = n == null, createdAt = n?.createdAt,
+            onDismiss = { creating = false; editing = null },
+            onSave = { text, topicId ->
+                Store.update { Actions.saveNote(it, n?.id ?: 0L, topicId, text) }
+                creating = false; editing = null
+                Toast.show("Anotação salva no Caderno")
+            },
+            onDelete = n?.let { note -> { Store.update { Actions.deleteNote(it, note.id) }; editing = null; Toast.show("Anotação apagada") } },
+            topics = topics, initialTopicId = n?.topicId,
+        )
     }
-    if (notes.isEmpty()) Empty("edit_note", "Nenhuma anotação", "Suas anotações livres aparecem aqui.")
-    notes.forEach { (id, topic, body) ->
-        key(id) {
-            Card {
-                Div({ classes("row", "between") }) {
-                    Chip(topic?.let { names[it] } ?: "Geral", icon = "edit_note")
-                    Div({ classes("row") }) {
-                        IconButton("edit", "Editar") { editing = id; text = body; topicId = topic }
-                        IconButton("delete", "Apagar") { Store.update { Actions.deleteNote(it, id) } }
-                    }
-                }
-                P({ attr("style", "white-space:pre-wrap;margin-top:8px") }) { Text(body) }
+    editingMark?.let { m ->
+        NotePaperEditor(
+            initialText = m.note, isNew = false, createdAt = m.createdAt,
+            onDismiss = { editingMark = null },
+            onSave = { text, _ -> Store.update { Actions.setTheoryMarkNote(it, m.id, text) }; editingMark = null; Toast.show("Nota salva") },
+            onDelete = { Store.update { Actions.setTheoryMarkNote(it, m.id, "") }; editingMark = null; Toast.show("Nota apagada (o grifo ficou)") },
+            quote = m.quote, fixedPlace = topicOfMark(m)?.let { names[it] } ?: "Teoria",
+            deleteLabel = "Apagar a nota (o grifo fica)",
+        )
+    }
+    Button({ classes("note-new"); onClick { creating = true } }) {
+        Span({ classes("note-new-ic") }) { Icon("edit_note") }
+        Span({ classes("grow") }) { B { Text("Nova anotação") }; Span({ classes("small", "muted") }) { Text("Macete, resumo, dúvida… com suas palavras. Na teoria, selecione um trecho e use Grifar com nota.") } }
+        Icon("add", plain = true)
+    }
+    if (notes.isEmpty() && markNotes.isEmpty()) { Empty("edit_note", "Nenhuma anotação ainda", "Suas anotações e as notas dos trechos grifados aparecem aqui."); return }
+    val rows: List<Pair<Long?, Any>> = (notes.map { it.topicId to (it as Any) } + markNotes.map { topicOfMark(it) to (it as Any) })
+        .sortedByDescending { (_, v) -> (v as? br.com.estudario.web.data.UserNote)?.createdAt ?: (v as br.com.estudario.web.data.TheoryMark).createdAt }
+    ByTopic(rows.groupBy({ it.first }, { it.second })) { row ->
+        when (row) {
+            is br.com.estudario.web.data.UserNote -> NotePaperCard(row.text, row.createdAt, onClick = { editing = row })
+            is br.com.estudario.web.data.TheoryMark -> NotePaperCard(row.note, row.createdAt, onClick = { editingMark = row }, quote = row.quote) {
+                topicOfMark(row)?.let { t -> Button({ classes("note-open"); onClick { TheoryJump.go(t, row.theoryId, row.blockIndex, row.quote) } }) { Icon("menu_book"); Text("Abrir na teoria") } }
             }
         }
     }

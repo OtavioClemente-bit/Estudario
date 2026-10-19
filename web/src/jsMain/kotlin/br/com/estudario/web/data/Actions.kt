@@ -338,6 +338,10 @@ object Actions {
     fun toggleSummaryFavorite(data: Snapshot, id: Long): Snapshot =
         data.edit(Keys.SUMMARIES) { if (it.idIs(id)) it.with("favorite" to JsonPrimitive(!(it.bool("favorite") ?: false)), "updatedAt" to JsonPrimitive(now())) else it }
 
+    /** Troca só a nota de um grifo (vazia tira a nota e mantém o grifo). */
+    fun setTheoryMarkNote(data: Snapshot, id: Long, note: String): Snapshot =
+        data.edit("theoryMarks") { if (it.idIs(id)) it.with("note" to JsonPrimitive(note.trim().take(4000))) else it }
+
     fun deleteTheoryMark(data: Snapshot, id: Long): Snapshot = data.edit("theoryMarks") { if (it.idIs(id)) null else it }
 
     /** Grifo de um trecho da teoria (o mesmo registro do app): vai para o Caderno de estudo. */

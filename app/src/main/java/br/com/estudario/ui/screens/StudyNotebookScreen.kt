@@ -124,6 +124,7 @@ fun StudyNotebookScreen(
     var tab by rememberSaveable { mutableStateOf(NotebookTab.MARKS) }
     var query by rememberSaveable { mutableStateOf("") }
     var editingNote by remember { mutableStateOf<UserNoteEntity?>(null) }
+    var editingMarkNote by remember { mutableStateOf<br.com.estudario.data.local.TheoryMarkEntity?>(null) }
     var deckFor by remember { mutableStateOf<SummaryEntity?>(null) }
     var cardsFor by remember { mutableStateOf<Place?>(null) }
     // Blocos fechados pela pessoa (o padrão é tudo aberto).
@@ -148,7 +149,7 @@ fun StudyNotebookScreen(
         NotebookTab.QUESTIONS to favoriteQuestions.size,
         NotebookTab.FLASHCARDS to savedCards.size + savedDecks.size,
         NotebookTab.TIPS to tips.size,
-        NotebookTab.NOTES to notes.size,
+        NotebookTab.NOTES to notes.size + marks.count { it.note.isNotBlank() },
     )
 
     deckFor?.let { deck -> SummaryFlashcardDeck(viewModel, deck, topicById[deck.topicId]?.title ?: deck.title, onDismiss = { deckFor = null }) }
@@ -162,6 +163,18 @@ fun StudyNotebookScreen(
             onDismiss = { cardsFor = null },
             isCardSaved = { card -> cards.any { it.text == card.front && it.answer.orEmpty() == card.back } },
             onToggleCard = { card -> cards.firstOrNull { it.text == card.front && it.answer.orEmpty() == card.back }?.let(viewModel::deleteSnippet) },
+        )
+    }
+    // Nota feita num trecho da teoria: edita só a nota; apagar tira a nota e mantém o grifo.
+    editingMarkNote?.let { mark ->
+        br.com.estudario.ui.components.NotePaperEditor(
+            initialText = mark.note, isNew = false, createdAt = mark.createdAt,
+            onDismiss = { editingMarkNote = null },
+            onSave = { text, _ -> viewModel.saveTheoryMark(mark.copy(note = text)); editingMarkNote = null },
+            onDelete = { viewModel.saveTheoryMark(mark.copy(note = "")); editingMarkNote = null },
+            quote = plainPreview(mark.quote),
+            fixedPlace = topicById[theoryById[mark.theoryId]?.topicId]?.title ?: "Teoria",
+            deleteLabel = "Apagar a nota (o grifo fica)",
         )
     }
     editingNote?.let { note ->
@@ -296,13 +309,17 @@ fun StudyNotebookScreen(
                     }
                 }
                 NotebookTab.NOTES -> {
-                    val rows = notes.filter { matches(it.text, it.topicId?.let(topicById::get)?.title) }
-                    if (rows.isEmpty()) emptyItem(NotebookTab.NOTES.icon, "Nenhuma anotação ainda", "Escreva com suas palavras: resumos, macetes, dúvidas para tirar. Ligue ao tópico para achar depois.", needle.isNotEmpty())
-                    grouped(rows, { place(it.topicId) }, collapsed, onOpenTopic) { note ->
-                        ElevatedCard(onClick = { editingNote = note }, modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(note.text, maxLines = 8, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
-                                Text(dateFormat.format(Date(note.createdAt)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    // As anotações livres e as notas feitas nos trechos da teoria, juntas e mais novas primeiro.
+                    val rows = (notes.filter { matches(it.text, it.topicId?.let(topicById::get)?.title) }.map { it as Any } +
+                        marks.filter { it.note.isNotBlank() && matches(it.note, it.quote, topicById[theoryById[it.theoryId]?.topicId]?.title) }.map { it as Any })
+                        .sortedByDescending { (it as? UserNoteEntity)?.createdAt ?: (it as br.com.estudario.data.local.TheoryMarkEntity).createdAt }
+                    if (rows.isEmpty()) emptyItem(NotebookTab.NOTES.icon, "Nenhuma anotação ainda", "Escreva com suas palavras: macetes, resumos, dúvidas. Na leitura, selecione um trecho e escolha Grifar com nota: ela também aparece aqui.", needle.isNotEmpty())
+                    grouped(rows, { if (it is UserNoteEntity) place(it.topicId) else place(theoryById[(it as br.com.estudario.data.local.TheoryMarkEntity).theoryId]?.topicId) }, collapsed, onOpenTopic) { row ->
+                        if (row is UserNoteEntity) br.com.estudario.ui.components.NotePaperCard(row.text, row.createdAt, onClick = { editingNote = row })
+                        else (row as br.com.estudario.data.local.TheoryMarkEntity).let { mark ->
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                br.com.estudario.ui.components.NotePaperCard(mark.note, mark.createdAt, onClick = { editingMarkNote = mark }, quote = plainPreview(mark.quote))
+                                Text("Abrir na teoria", Modifier.padding(start = 12.dp).clickable { onOpenTheory(mark.theoryId, mark.blockIndex) }, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
                             }
                         }
                     }
@@ -437,41 +454,17 @@ private fun EmptyHint(@Suppress("UNUSED_PARAMETER") icon: androidx.compose.ui.gr
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+/** A anotação livre abre na folha de caderno do Estudário (a mesma da nota de um trecho). */
 @Composable
 internal fun NoteEditor(note: UserNoteEntity, topics: List<TopicEntity>, onDismiss: () -> Unit, onSave: (UserNoteEntity) -> Unit, onDelete: () -> Unit) {
-    var text by remember(note.id) { mutableStateOf(note.text) }
-    var topicId by remember(note.id) { mutableStateOf(note.topicId) }
-    var pickerOpen by remember { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (note.id == 0L) "Nova anotação" else "Anotação") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ExposedDropdownMenuBox(expanded = pickerOpen, onExpandedChange = { pickerOpen = it }) {
-                    OutlinedTextField(
-                        value = topics.firstOrNull { it.id == topicId }?.title ?: "Sem tópico",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Tópico") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(pickerOpen) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                    )
-                    ExposedDropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
-                        DropdownMenuItem(text = { Text("Sem tópico") }, onClick = { topicId = null; pickerOpen = false })
-                        topics.sortedBy { it.title }.forEach { topic ->
-                            DropdownMenuItem(text = { Text(topic.title, maxLines = 2, overflow = TextOverflow.Ellipsis) }, onClick = { topicId = topic.id; pickerOpen = false })
-                        }
-                    }
-                }
-                OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), label = { Text("Sua anotação") }, minLines = 5, maxLines = 12)
-            }
-        },
-        confirmButton = { TextButton(onClick = { onSave(note.copy(text = text, topicId = topicId)) }, enabled = text.isNotBlank()) { Text("Salvar") } },
-        dismissButton = {
-            Row {
-                if (note.id != 0L) TextButton(onClick = onDelete) { Text("Excluir") }
-                TextButton(onClick = onDismiss) { Text("Cancelar") }
-            }
-        },
+    br.com.estudario.ui.components.NotePaperEditor(
+        initialText = note.text,
+        isNew = note.id == 0L,
+        createdAt = note.createdAt,
+        onDismiss = onDismiss,
+        onSave = { text, topicId -> onSave(note.copy(text = text, topicId = topicId)) },
+        onDelete = if (note.id != 0L) onDelete else null,
+        topics = topics,
+        initialTopicId = note.topicId,
     )
 }

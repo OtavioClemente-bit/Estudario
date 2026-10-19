@@ -510,6 +510,7 @@ private fun TheoryReader(theory: Theory) {
     // Clique num trecho já grifado: a barrinha oferece tirar o grifo ali mesmo.
     var clickedMark by remember(theory.id) { mutableStateOf<Triple<Long, Double, Double>?>(null) }
     var noteFor by remember(theory.id) { mutableStateOf<TextPick?>(null) }
+    var editMarkNote by remember(theory.id) { mutableStateOf<br.com.estudario.web.data.TheoryMark?>(null) }
     DisposableEffect(theory.id) {
         val check: (org.w3c.dom.events.Event) -> Unit = {
             window.setTimeout({
@@ -689,6 +690,7 @@ private fun TheoryReader(theory: Theory) {
                     clickedMark = null
                 }
             }) { Icon("ink_eraser"); Text("Tirar grifo") }
+            Button({ classes("grifo-btn"); onClick { editMarkNote = mark; clickedMark = null } }) { Icon("edit_note"); Text(if (mark.note.isBlank()) "Anotar" else "Ver nota") }
             if (mark.note.isNotBlank()) Span({ classes("grifo-note") }) { Text(mark.note.take(80)) }
         }
     }
@@ -703,17 +705,24 @@ private fun TheoryReader(theory: Theory) {
             Button({ classes("grifo-btn"); onClick { noteFor = p; picked = null } }) { Icon("edit_note"); Text("Grifar com nota") }
         }
     }
+    // Grifar com nota abre a folha de caderno; a nota vai para Anotações no Caderno de estudo.
     noteFor?.let { p ->
-        var note by remember(p) { mutableStateOf("") }
-        Modal(onDismiss = { noteFor = null }) {
-            H2 { Text("Grifar com nota") }
-            Div({ classes("grifo-quote") }) { Text("“${p.quote.take(400)}${if (p.quote.length > 400) "…" else ""}”") }
-            TextArea(note, { classes("input"); attr("rows", "3"); attr("maxlength", "1000"); attr("placeholder", "Por que esse trecho importa? (opcional)"); attr("style", "width:100%"); onInput { note = it.value } })
-            Div({ classes("row", "end") }) {
-                Btn("Cancelar", { noteFor = null }, style = "ghost")
-                Btn("Salvar grifo", { saveMark(p, note); noteFor = null }, style = "primary", icon = "format_ink_highlighter")
-            }
-        }
+        NotePaperEditor(
+            initialText = "", isNew = true, createdAt = null,
+            onDismiss = { noteFor = null },
+            onSave = { text, _ -> saveMark(p, text); noteFor = null },
+            quote = p.quote, fixedPlace = theory.title.ifBlank { "Teoria" },
+        )
+    }
+    editMarkNote?.let { m ->
+        NotePaperEditor(
+            initialText = m.note, isNew = m.note.isBlank(), createdAt = m.createdAt,
+            onDismiss = { editMarkNote = null },
+            onSave = { text, _ -> Store.update { Actions.setTheoryMarkNote(it, m.id, text) }; editMarkNote = null; Toast.show("Nota salva no Caderno") },
+            onDelete = if (m.note.isNotBlank()) ({ Store.update { Actions.setTheoryMarkNote(it, m.id, "") }; editMarkNote = null }) else null,
+            quote = m.quote, fixedPlace = theory.title.ifBlank { "Teoria" },
+            deleteLabel = "Apagar a nota (o grifo fica)",
+        )
     }
 }
 

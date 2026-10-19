@@ -88,12 +88,21 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
     editing?.let { (index, quote) ->
         val existing = marks.firstOrNull { it.blockIndex == index && it.quote == quote }
         var note by remember(index, quote, existing?.id) { mutableStateOf(existing?.note.orEmpty()) }
-        AlertDialog(
-            onDismissRequest = { editing = null },
-            title = { Text(if (existing == null) "Grifar com nota" else "Sua anotação") },
-            text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { Text("“" + plainPreview(quote).take(240) + "”", color = MaterialTheme.colorScheme.onSurfaceVariant); OutlinedTextField(note, { note = it }, label = { Text("Sua observação (opcional)") }, minLines = 3, maxLines = 7) } },
-            confirmButton = { TextButton(onClick = { viewModel.saveTheoryMark(existing?.copy(note = note) ?: TheoryMarkEntity(theoryId = theoryId, blockIndex = index, quote = quote, note = note)); editing = null }) { Text("Salvar") } },
-            dismissButton = { Row { if (existing != null) TextButton(onClick = { viewModel.deleteTheoryMark(existing); editing = null }) { Text("Tirar grifo") }; TextButton(onClick = { editing = null }) { Text("Cancelar") } } },
+        // A nota do trecho abre na folha de caderno; salvar grifa o trecho e guarda a nota em Anotações.
+        br.com.estudario.ui.components.NotePaperEditor(
+            initialText = note,
+            isNew = existing?.note.isNullOrBlank(),
+            createdAt = existing?.createdAt,
+            onDismiss = { editing = null },
+            onSave = { text, _ ->
+                viewModel.saveTheoryMark(existing?.copy(note = text) ?: TheoryMarkEntity(theoryId = theoryId, blockIndex = index, quote = quote, note = text))
+                editing = null
+                scope.launch { snackbar.showSnackbar("Nota salva. Está no Caderno de estudo, em Anotações.") }
+            },
+            onDelete = existing?.let { e -> { viewModel.deleteTheoryMark(e); editing = null } },
+            quote = plainPreview(quote),
+            fixedPlace = theory.title,
+            deleteLabel = "Tirar o grifo e a nota",
         )
     }
 
