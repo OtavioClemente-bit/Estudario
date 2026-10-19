@@ -1468,8 +1468,10 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
   }
   async libraryBoardNote(topicId: string, boardNorm: string, roleNorm: string): Promise<Record<string, unknown> | null> {
     if (!boardNorm) return null;
-    const roles = ['""', roleNorm ? `"${roleNorm}"` : null].filter(Boolean).join(",");
-    const response = await this.rest(`library_board_notes?select=note&topic_id=eq.${encodeURIComponent(topicId)}&board_norm=eq.${encodeURIComponent(boardNorm)}&role_norm=in.(${encodeURIComponent(roles)})&order=role_norm.desc&limit=1`);
+    // O PostgREST não acha texto vazio com in.("") (voltava sempre vazio e nenhum recorte era usado):
+    // o recorte sem cargo vai como role_norm.eq. (vazio) dentro de um or.
+    const roles = ["role_norm.eq.", roleNorm ? `role_norm.eq."${roleNorm.replace(/"/g, "")}"` : null].filter(Boolean).join(",");
+    const response = await this.rest(`library_board_notes?select=note&topic_id=eq.${encodeURIComponent(topicId)}&board_norm=eq.${encodeURIComponent(boardNorm)}&or=(${encodeURIComponent(roles)})&order=role_norm.desc&limit=1`);
     if (!response.ok) {
       await response.body?.cancel().catch(() => {});
       return null;
