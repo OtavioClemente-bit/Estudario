@@ -49,6 +49,22 @@ import org.jetbrains.compose.web.dom.Text
  */
 @Composable
 fun Folha(mood: String = "happy", size: Int = 96, extraStyle: String = "", live: Boolean = size >= LIVE_FOLHA_MIN_SIZE) {
+    if (live && size >= FOLHA_3D_MIN_SIZE) {
+        // Tamanho de personagem: o Folha 3D (folha3d.js). Sem WebGL ou com muitos na tela, o próprio
+        // elemento cai para o Folha 2D.
+        TagElement<org.w3c.dom.HTMLElement>(
+            elementBuilder = ElementBuilder.createBuilder("estudario-folha3d"),
+            applyAttrs = {
+                classes("folha", "folha-3d")
+                attr("mood", mood)
+                attr("size", size.toString())
+                attr("intro", "off")
+                if (extraStyle.isNotBlank()) attr("style", extraStyle)
+            },
+            content = null,
+        )
+        return
+    }
     if (live) {
         TagElement<org.w3c.dom.HTMLElement>(
             elementBuilder = ElementBuilder.createBuilder("estudario-folha"),
@@ -74,6 +90,7 @@ fun Folha(mood: String = "happy", size: Int = 96, extraStyle: String = "", live:
 }
 
 private const val LIVE_FOLHA_MIN_SIZE = 48
+private const val FOLHA_3D_MIN_SIZE = 96
 
 /**
  * Fala do Folha: o mascote com um balão, como nas telas do app. Falando, ele mexe a boca pelo
