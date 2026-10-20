@@ -249,7 +249,15 @@ function checkQuestion(c: Checker, question: Json, field: string, chapterTitles:
   options.forEach((option, index) => c.text(option.text, `${field}.options[${index}].text`, 1, 2_000));
   const texts = options.map((option) => String(option.text ?? "").trim().toLowerCase());
   if (new Set(texts).size !== texts.length) c.fail(`${field}: alternativas repetidas`);
-  c.text(question.explanation, `${field}.explanation`, LIBRARY_MIN.explanationChars, 8_000);
+  // Com comentário em cada alternativa, o aluno lê a explicação seguida dos comentários
+  // (deliverQuestion): o mínimo vale para o conjunto, e a explicação sozinha só precisa do fundamento.
+  if (question.format === "MULTIPLE_CHOICE" && options.length > 0 && hasOptionComments(question) && String(question.explanation ?? "").trim().length < LIBRARY_MIN.explanationChars) {
+    c.text(question.explanation, `${field}.explanation`, 40, 8_000);
+    const delivered = String(question.explanation ?? "").length + options.reduce((sum, option) => sum + String(option.comentario).trim().length, 0);
+    if (delivered < LIBRARY_MIN.explanationChars + 60) c.fail(`${field}: explicação e comentários das alternativas curtos demais (mínimo ${LIBRARY_MIN.explanationChars + 60} somados)`);
+  } else {
+    c.text(question.explanation, `${field}.explanation`, LIBRARY_MIN.explanationChars, 8_000);
+  }
   if (!["FACIL", "MEDIA", "DIFICIL"].includes(String(question.difficulty))) c.fail(`${field}.difficulty: use FACIL, MEDIA ou DIFICIL`);
   if (!chapterTitles.has(String(question.section ?? "").trim())) c.fail(`${field}.section: precisa ser o título exato de um capítulo`);
   if (question.errorConceptKey !== null && !conceptKeys.has(String(question.errorConceptKey))) {
@@ -713,6 +721,14 @@ export function assembleFromLibrary(
     // Do recorte da banca, também só as do tópico ou dos capítulos entregues.
     const boardInFocus = boardPool.filter((q) => sameTopic.includes(q) || titles.has(String(q.section).trim()));
     ordered = [...byLevel([], direct), ...byLevel(boardInFocus, sameChapter), ...(focusChapters.length > 0 ? [] : byLevel([], rest))];
+  }
+  // Misturado: o "Padrão das provas" costuma ser só A–E e vinha antes de tudo, então o aluno não via
+  // nenhum Certo/Errado. Reserva cerca de 30% para C/E quando o banco tiver.
+  if (options.questionStyle === "MIXED") {
+    const trueFalse = ordered.filter((q) => q.format === "TRUE_FALSE");
+    const share = Math.min(trueFalse.length, Math.round(options.questionCount * 0.3));
+    const picked = new Set([...trueFalse.slice(0, share), ...ordered.filter((q) => q.format !== "TRUE_FALSE").slice(0, options.questionCount - share)]);
+    ordered = [...ordered.filter((q) => picked.has(q)), ...ordered.filter((q) => !picked.has(q))];
   }
   const questions = ordered
     .slice(0, options.questionCount)

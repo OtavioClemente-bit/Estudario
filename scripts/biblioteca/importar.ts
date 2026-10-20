@@ -96,6 +96,13 @@ const missing: string[] = [];
 const materialAliases = new Set(aliasOwner.keys());
 const ambiguous = new Set<string>();
 const qualifiedAmbiguous = new Set<string>();
+const qualifiedVotes = new Map<string, Map<string, number>>();
+const plainVotes = new Map<string, Map<string, number>>();
+function vote(votes: Map<string, Map<string, number>>, alias: string, id: string) {
+  const byId = votes.get(alias) ?? new Map<string, number>();
+  byId.set(id, (byId.get(id) ?? 0) + 1);
+  votes.set(alias, byId);
+}
 /** Apelido com disciplina → texto do tópico sem ela (o foco do tópico vale para os dois). */
 const qualifiedPlain = new Map<string, string>();
 for (const { path, value } of await jsonFiles("editais")) {
@@ -122,33 +129,26 @@ for (const { path, value } of await jsonFiles("editais")) {
       // este primeiro, então um nome genérico ("Princípios básicos.") cai na matéria certa da
       // disciplina em vez da primeira matéria que tem esse nome (que era a de física).
       const qualified = `${normalizeAlias(String(subject.nome ?? ""))} ${alias}`.trim();
-      if (qualified !== alias && qualified.length <= 400 && !qualifiedAmbiguous.has(qualified) && !materialAliases.has(qualified)) {
-        const owner = aliasOwner.get(qualified);
-        if (owner && owner !== id) {
-          aliasOwner.delete(qualified);
-          qualifiedAmbiguous.add(qualified);
-        } else {
-          aliasOwner.set(qualified, id);
-          qualifiedPlain.set(qualified, alias);
-        }
+      if (qualified !== alias && qualified.length <= 400 && !materialAliases.has(qualified)) {
+        vote(qualifiedVotes, qualified, id);
+        qualifiedPlain.set(qualified, alias);
       }
       // O banco guarda apelidos de até 400 caracteres; tópico de edital mais longo que isso é
       // atendido pela enciclopédia (rota tópico → matérias), não pelo apelido.
       if (alias.length > 400) continue;
-      // Texto genérico ("Provas.", "Competência.") que editais diferentes ligam a matérias
-      // diferentes não vira apelido: o apelido é global e não sabe de que edital veio. Se o
-      // texto for apelido próprio de uma matéria, continua dela.
-      if (ambiguous.has(alias)) continue;
-      const owner = aliasOwner.get(alias);
-      if (owner && owner !== id) {
-        if (!materialAliases.has(alias)) {
-          aliasOwner.delete(alias);
-          ambiguous.add(alias);
-        }
-        continue;
-      }
-      aliasOwner.set(alias, id);
+      // Apelido próprio de uma matéria continua dela.
+      if (materialAliases.has(alias)) continue;
+      vote(plainVotes, alias, id);
     }
+  }
+}
+// Texto que editais diferentes ligam a matérias diferentes fica com a matéria da maioria. Antes
+// o apelido era descartado e o tópico ia inteiro para a IA (3,8% das ligações), mesmo com matéria.
+for (const votes of [qualifiedVotes, plainVotes]) {
+  for (const [alias, byId] of votes) {
+    const [winner] = [...byId].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]))[0];
+    aliasOwner.set(alias, winner);
+    if (byId.size > 1) (votes === plainVotes ? ambiguous : qualifiedAmbiguous).add(alias);
   }
 }
 
@@ -230,7 +230,7 @@ for (const { path, value } of await jsonFiles("editais")) {
 
 console.log(`Matérias: ${materials.size} · Recortes: ${notes.length} · Apelidos: ${aliasOwner.size} · Editais no catálogo: ${catalogRows.length}`);
 console.log(`Apelidos com foco (tópico estreito): ${focusByAlias.size}`);
-if (ambiguous.size > 0) console.log(`Textos de edital ligados a matérias diferentes (ficam sem apelido): ${ambiguous.size}`);
+if (ambiguous.size > 0) console.log(`Textos de edital ligados a matérias diferentes (ficam com a matéria da maioria): ${ambiguous.size}`);
 if (missing.length > 0) {
   console.log(`\nTópicos de edital ainda sem matéria (${missing.length}):`);
   missing.forEach((line) => console.log(`  - ${line}`));
