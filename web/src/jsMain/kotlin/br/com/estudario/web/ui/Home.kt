@@ -470,7 +470,9 @@ fun taskColors(type: String): Pair<String, String> = when (type) {
 /** Concluir uma tarefa: tempo e acertos com o contador de mais e menos, como no app. */
 @Composable
 fun CompleteTaskDialog(task: PlanTask, onClose: () -> Unit) {
-    var minutes by remember { mutableStateOf(task.minutes) }
+    // Foco rodando desta tarefa (ou do tópico dela): concluir encerra o foco e usa o tempo medido.
+    val focusOfTask = TopicFocus.active && (TopicFocus.taskId == task.id || (TopicFocus.taskId == null && TopicFocus.topicId != null && TopicFocus.topicId == task.topicId))
+    var minutes by remember { mutableStateOf(if (focusOfTask) TopicFocus.elapsedMinutes.coerceAtLeast(1) else task.minutes) }
     var questions by remember { mutableStateOf(task.questions) }
     var correct by remember { mutableStateOf(0) }
     Modal(onDismiss = onClose) {
@@ -493,10 +495,12 @@ fun CompleteTaskDialog(task: PlanTask, onClose: () -> Unit) {
                 Stepper(correct, { correct = it }, step = 1, min = 0, max = questions, label = "Acertos")
             }
         }
+        if (focusOfTask) Div({ classes("banner", "info") }) { Icon("timer"); Text("O modo foco desta tarefa está rodando (${Queries.minutesLabel(TopicFocus.elapsedMinutes.coerceAtLeast(1))}). Ao concluir, ele é encerrado e esse tempo entra aqui.") }
         if (minutes < task.minutes) Div({ classes("banner", "info") }) { Icon("info"); Text("Menos tempo que o planejado: a tarefa fica em andamento para você continuar depois, como no app.") }
         Div({ classes("row", "end") }) {
             Btn("Cancelar", onClose, style = "ghost")
             Btn("Concluir", {
+                if (focusOfTask) TopicFocus.stop()
                 Store.update { data ->
                     val worked = Actions.completeTask(data, task.id, minutes, questions, correct.coerceIn(0, questions))
                     // Teoria concluída no plano também marca o tópico como estudado (e agenda as revisões).

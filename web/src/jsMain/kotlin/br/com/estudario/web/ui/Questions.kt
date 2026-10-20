@@ -313,8 +313,15 @@ fun QuizScreen(scope: String) {
                 P({ classes("muted") }) { Text("$right de ${results.size} certas. ${if (results.size - right > 0) "As erradas foram para o caderno de erros e voltam em 3 dias." else "Nenhuma foi para o caderno de erros."}") }
                 Xp(xp)
                 Div({ classes("row", "wrap"); attr("style", "justify-content:center;margin-top:8px") }) {
-                    Btn("Treinar de novo", { Router.go(Route.Train) }, style = "outline", icon = "refresh")
-                    Btn("Voltar ao início", { Router.go(Route.Home) }, icon = "home")
+                    // Treino de um tópico volta para o conteúdo dele (o foco pode estar rodando lá, e é lá que se conclui).
+                    val topicBack = scope.removePrefix("topico-").substringBefore("-").toLongOrNull()?.takeIf { scope.startsWith("topico-") }
+                    if (topicBack != null) {
+                        Btn("Treinar de novo", { Router.go(Route.Quiz("topico-$topicBack-${results.size.coerceAtLeast(5)}")) }, style = "outline", icon = "refresh")
+                        Btn("Voltar ao conteúdo", { Router.go(Route.Topic(topicBack)) }, style = "primary", icon = "menu_book")
+                    } else {
+                        Btn("Treinar de novo", { Router.go(Route.Train) }, style = "outline", icon = "refresh")
+                        Btn("Voltar ao início", { Router.go(Route.Home) }, icon = "home")
+                    }
                 }
             }
         }
@@ -369,7 +376,7 @@ fun QuizScreen(scope: String) {
     }
 
     Div({ classes("row", "between") }) {
-        Btn("Sair", { Router.go(Route.Train) }, style = "ghost", small = true, icon = "close")
+        Btn("Sair", { scope.removePrefix("topico-").substringBefore("-").toLongOrNull()?.takeIf { scope.startsWith("topico-") }?.let { Router.go(Route.Topic(it)) } ?: Router.go(Route.Train) }, style = "ghost", small = true, icon = "close")
         Span({ classes("strong", "muted") }) { Text("${index + 1} de ${initial.size}") }
         Div({ classes("row") }) {
             // Os contadores saltam quando mudam (a chave nova recria o elemento e a animação roda).

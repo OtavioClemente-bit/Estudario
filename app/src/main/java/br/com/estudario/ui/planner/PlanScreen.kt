@@ -120,8 +120,16 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
     }
     if (wizard) PlanWizardScreen(competitions, subjects, topics, { wizard = false }) { viewModel.createPlan(it) }
     if (editAvailability) AvailabilityEditorDialog(state.availability, { editAvailability = false }) { viewModel.updateAvailability(it) }
+    // Foco rodando desta tarefa (ou do tópico dela): concluir encerra o foco e usa o tempo medido.
+    val focusNow by appViewModel.focusSession.collectAsState()
     completion?.let { row ->
-        TaskExecutionDialog(row, null, { completion = null }) { viewModel.complete(row.entity.id, it) }
+        val focusOfTask = focusNow.active && (focusNow.taskId == row.entity.id || (focusNow.taskId == null && focusNow.topicId != null && focusNow.topicId == row.entity.topicId))
+        TaskExecutionDialog(row, if (focusOfTask) focusNow.elapsedMinutes().coerceAtLeast(1) else null, { completion = null }, focusRunning = focusOfTask) { input ->
+            scope.launch {
+                if (focusOfTask) runCatching { appViewModel.stopFocus() }
+                viewModel.complete(row.entity.id, input)
+            }
+        }
     }
     reprogram?.let { row -> ReprogramDialog(row.entity.taskTitlePtBr(), { reprogram = null }) { viewModel.reprogram(row.entity.id, it) } }
     skip?.let { row -> ReasonDialog({ skip = null }) { viewModel.skip(row.entity.id, it) } }

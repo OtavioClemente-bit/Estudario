@@ -15,7 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 
 @Composable
-fun TaskExecutionDialog(task: PlannerTaskUi, measuredMinutes: Int? = null, onDismiss: () -> Unit, onConfirm: (CompleteTaskInput) -> Unit) {
+fun TaskExecutionDialog(task: PlannerTaskUi, measuredMinutes: Int? = null, onDismiss: () -> Unit, focusRunning: Boolean = false, onConfirm: (CompleteTaskInput) -> Unit) {
     // Quando a sessão veio do modo foco, os minutos já vêm do cronômetro, nada de chutar.
     var minutes by remember { mutableStateOf((measuredMinutes?.takeIf { it > 0 } ?: task.entity.plannedMinutes).toString()) }
     var questions by remember { mutableStateOf(task.entity.plannedQuestions.toString()) }
@@ -36,7 +36,7 @@ fun TaskExecutionDialog(task: PlannerTaskUi, measuredMinutes: Int? = null, onDis
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(minutes, { minutes = it }, label = { Text("Minutos realizados") }, singleLine = true)
             if (measuredMinutes != null && measuredMinutes > 0) Text(
-                "Tempo medido no modo foco: $measuredMinutes min.",
+                if (focusRunning) "O modo foco desta tarefa está rodando ($measuredMinutes min). Ao salvar, ele é encerrado e esse tempo entra aqui." else "Tempo medido no modo foco: $measuredMinutes min.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
             )
