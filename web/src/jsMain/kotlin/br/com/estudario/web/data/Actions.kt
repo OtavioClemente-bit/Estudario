@@ -84,8 +84,16 @@ object Actions {
         val day = targetDay ?: Queries.todayEpoch() + 1
         val at = now()
         val nextRevision = plan.revision + 1
+        // A teoria vem antes das questões e revisões do mesmo tópico (como no app): teoria levada para
+        // um dia leva junto as pendentes dele marcadas antes; questão levada para antes da teoria traz a teoria.
+        val pendingSiblings = data.tasks.filter { it.id != taskId && it.topicId != null && it.topicId == task.topicId && it.planId == task.planId && !it.locked && it.status in setOf("PLANEJADA", "EM_ANDAMENTO") }
+        val alsoMove: Set<String> = when {
+            task.topicId == null -> emptySet()
+            task.type == "THEORY" -> pendingSiblings.filter { it.type != "THEORY" && it.day < day }.mapTo(hashSetOf()) { it.id }
+            else -> pendingSiblings.filter { it.type == "THEORY" && it.day > day }.mapTo(hashSetOf()) { it.id }
+        }
         return data
-            .edit(Keys.TASKS) { if (it.idIs(taskId)) it.with("day" to JsonPrimitive(day), "updatedRevision" to JsonPrimitive(nextRevision), "updatedAt" to JsonPrimitive(at)) else it }
+            .edit(Keys.TASKS) { if (it.idIs(taskId) || alsoMove.any { id -> it.idIs(id) }) it.with("day" to JsonPrimitive(day), "updatedRevision" to JsonPrimitive(nextRevision), "updatedAt" to JsonPrimitive(at)) else it }
             .edit(Keys.PLANS) { if (it.idIs(plan.id)) it.with("revision" to JsonPrimitive(nextRevision), "updatedAt" to JsonPrimitive(at)) else it }
             .append(Keys.PLAN_REVISIONS, jsonOf("planId" to plan.id, "revision" to nextRevision, "base" to plan.revision, "reason" to "TASK_REPROGRAMMED", "proposalId" to null, "summary" to task.id, "createdAt" to at))
     }

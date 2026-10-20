@@ -102,7 +102,9 @@ class StudyExecutionService(
                 require(planner.claimRevision(plan.id, plan.revision, System.currentTimeMillis()) == 1)
                 // Atrasada levada para outro dia volta a ser só planejada (não fica marcada como não feita).
                 val status = if (task.status == br.com.estudario.domain.planner.PlanTaskStatus.NAO_REALIZADA) br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA else task.status
-                planner.updateTask(task.copy(scheduledEpochDay = targetDate.toEpochDay(), status = status, updatedRevision = plan.revision + 1, updatedAt = System.currentTimeMillis()))
+                val moved = task.copy(scheduledEpochDay = targetDate.toEpochDay(), status = status, updatedRevision = plan.revision + 1, updatedAt = System.currentTimeMillis())
+                planner.updateTask(moved)
+                keepTheoryFirst(moved, plan.revision + 1)
                 planner.insertRevision(StudyPlanRevisionEntity(plan.id, plan.revision + 1, plan.revision, "TASK_REPROGRAMMED", summary = task.id))
                 PlanningProposal(
                     id = "manual:${task.id}:${plan.revision + 1}", planId = plan.id, baseRevision = plan.revision + 1,
@@ -115,6 +117,33 @@ class StudyExecutionService(
         // "Deixar o plano encaixar" move só esta tarefa para o próximo dia de estudo. Antes refazia o
         // plano inteiro e todas as atrasadas iam junto, mesmo as que a pessoa queria fazer hoje.
         return reprogram(taskId, nextStudyDay(task.planId))
+    }
+
+    /**
+     * A teoria de um tópico vem antes das questões e revisões dele. Teoria levada para um dia: as
+     * pendentes do mesmo tópico marcadas antes vão para esse dia, depois dela. Questão levada para
+     * antes da teoria pendente: a teoria vem junto, na frente.
+     */
+    private suspend fun keepTheoryFirst(moved: br.com.estudario.data.local.planner.PlanTaskEntity, revision: Long) {
+        val topicId = moved.topicId ?: return
+        val pending = setOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO, br.com.estudario.domain.planner.PlanTaskStatus.NAO_REALIZADA)
+        val theory = br.com.estudario.domain.planner.PlanTaskType.THEORY
+        val siblings = planner.tasksForOnce(moved.planId).filter { it.id != moved.id && it.topicId == topicId && it.status in pending && !it.locked }
+        val day = moved.scheduledEpochDay
+        val now = System.currentTimeMillis()
+        if (moved.type == theory) {
+            siblings.filter { it.type != theory && (it.scheduledEpochDay < day || (it.scheduledEpochDay == day && it.sequence <= moved.sequence)) }
+                .sortedWith(compareBy({ it.scheduledEpochDay }, { it.sequence }))
+                .forEachIndexed { i, follower ->
+                    val status = if (follower.status == br.com.estudario.domain.planner.PlanTaskStatus.NAO_REALIZADA) br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA else follower.status
+                    planner.updateTask(follower.copy(scheduledEpochDay = day, sequence = moved.sequence + 1 + i, status = status, updatedRevision = revision, updatedAt = now))
+                }
+        } else {
+            val first = siblings.firstOrNull { it.type == theory } ?: return
+            if (first.scheduledEpochDay > day || (first.scheduledEpochDay == day && first.sequence >= moved.sequence)) {
+                planner.updateTask(first.copy(scheduledEpochDay = day, sequence = moved.sequence - 1, updatedRevision = revision, updatedAt = now))
+            }
+        }
     }
 
     /** Próximo dia a partir de amanhã com horas de estudo e que não esteja trancado como folga. */

@@ -60,6 +60,19 @@ fun CalendarScreen(
     }
 }
 
+/** No mesmo dia, a teoria de um tópico aparece antes das questões e revisões dele (o resto fica na ordem do plano). */
+internal fun List<PlannerTaskUi>.theoryFirst(): List<PlannerTaskUi> {
+    val theory = br.com.estudario.domain.planner.PlanTaskType.THEORY
+    val out = mutableListOf<PlannerTaskUi>()
+    forEach { t ->
+        if (t in out) return@forEach
+        val topic = t.entity.topicId
+        if (t.entity.type != theory && topic != null) firstOrNull { it.entity.type == theory && it.entity.topicId == topic && it !in out }?.let { out += it }
+        out += t
+    }
+    return out
+}
+
 @Composable
 private fun DayPlanView(
     state: ActivePlanUiState,
@@ -77,7 +90,7 @@ private fun DayPlanView(
     // Só as tarefas vigentes do dia. Ao refazer o plano, as antigas ficam no histórico como
     // reprogramadas; listá-las junto dobrava o dia (3h viravam 6h), repetia a teoria e punha
     // questões antigas na frente da teoria nova.
-    val tasksForSelectedDate = state.tasks.plannedLoadTasks().filter { it.entity.scheduledEpochDay == selectedDate.toEpochDay() }
+    val tasksForSelectedDate = state.tasks.plannedLoadTasks().filter { it.entity.scheduledEpochDay == selectedDate.toEpochDay() }.theoryFirst()
     val plannedMinutes = tasksForSelectedDate.plannedLoadMinutes()
     val actualMinutes = tasksForSelectedDate.sumOf { it.actualMinutes }
     
