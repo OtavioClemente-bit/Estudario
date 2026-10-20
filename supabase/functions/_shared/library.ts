@@ -768,7 +768,12 @@ export function assembleFromLibrary(
     (outside.length > 0 && outside.some((term) => term.test(JSON.stringify(value ?? "")))) || (fits !== null && !fits(value));
   const board = typeof note?.board === "string" ? note.board : input.board;
   const who = normalizeBoard(board) === GENERAL_BOARD_NORM ? "prova" : board;
-  const howItFalls = typeof note?.howItFalls === "string" ? note.howItFalls : null;
+  // O texto da banca fala da matéria inteira: com recorte, ficam só as frases do assunto entregue.
+  const fullHowItFalls = typeof note?.howItFalls === "string" ? note.howItFalls : null;
+  const keptHowItFalls = fullHowItFalls && (outside.length > 0 || fits !== null)
+    ? fullHowItFalls.split(/(?<=[.!?])\s+/).filter((sentence) => !mentionsOutside(sentence)).join(" ").trim()
+    : fullHowItFalls;
+  const howItFalls = keptHowItFalls === fullHowItFalls || (keptHowItFalls && keptHowItFalls.length >= 80) ? keptHowItFalls : null;
   let summary = wants("SUMMARY") ? String(material.summary) : "";
   if (summary && (outside.length > 0 || fits !== null)) {
     const kept = summary.split(/(?<=[.!?])\s+/).filter((sentence) => !mentionsOutside(sentence)).join(" ").trim();
