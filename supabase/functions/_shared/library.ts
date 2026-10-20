@@ -782,11 +782,25 @@ export function assembleFromLibrary(
   const inFocus = <T>(items: T[]) => outside.length === 0 && fits === null ? items : items.filter((item) => !mentionsOutside(item));
   const merged = (field: "tips" | "traps") =>
     wants("TIPS_TRAPS") ? [...new Set([...inFocus((note?.[field] as string[]) ?? []), ...inFocus(material[field] as string[])])].slice(0, 8) : [];
-  // Com recorte, só os cartões do que a teoria entregue ensina, mesmo que sejam poucos: completar com
-  // o baralho inteiro trazia cartão de assunto que o material não explicou. Quase nenhum: vai o inteiro.
-  const focusedCards = inFocus(material.flashcards as Json[]);
-  const cards = focusedCards.length >= MIN_FOCUSED_FLASHCARDS ? focusedCards : (material.flashcards as Json[]);
-  const recall = inFocus(material.activeRecall as Json[]);
+  // Com recorte, só os cartões do que a teoria entregue ensina, mesmo que sejam poucos. Nunca o baralho
+  // inteiro: o aluno decorava cartão de capítulo que nem estava estudando. Poucos demais: entram os
+  // que mais tocam o assunto dos capítulos entregues (metade ou mais do vocabulário próprio deles),
+  // nunca os de capítulo alheio.
+  const ratio = wholeTheory ? null : chapterAffinityRatio(allChapters, allChapters.map((chapter, i) => focused.includes(chapter) ? i : -1).filter((i) => i >= 0));
+  const closest = (items: Json[]) => {
+    const kept = inFocus(items);
+    if (ratio === null || kept.length >= MIN_FOCUSED_FLASHCARDS) return kept;
+    const near = items
+      .filter((item) => !kept.includes(item) && !(outside.length > 0 && outside.some((term) => term.test(JSON.stringify(item)))))
+      .map((item) => ({ item, r: ratio(item) }))
+      .filter(({ r }) => r >= 0.5)
+      .sort((a, b) => b.r - a.r)
+      .map(({ item }) => item);
+    const extra = new Set(near.slice(0, MIN_FOCUSED_FLASHCARDS - kept.length));
+    return items.filter((item) => kept.includes(item) || extra.has(item));
+  };
+  const cards = closest(material.flashcards as Json[]);
+  const recall = closest(material.activeRecall as Json[]);
 
   const content: Json = {
     schemaVersion: AI_TOPIC_CONTENT_SCHEMA_VERSION,
@@ -803,7 +817,7 @@ export function assembleFromLibrary(
     flashcards: wants("QUICK_REVIEW") ? cards.slice(0, 30) : [],
     tips: merged("tips"),
     traps: merged("traps"),
-    activeRecall: wants("ACTIVE_RECALL") ? (recall.length > 0 ? recall : (material.activeRecall as Json[])).slice(0, 10) : [],
+    activeRecall: wants("ACTIVE_RECALL") ? recall.slice(0, 10) : [],
     errorConcepts: structuredClone(material.errorConcepts),
     questions,
     sources: (material.sources as Json[]).slice(0, 12),
@@ -841,6 +855,12 @@ function affinityWords(text: string): string[] {
  * Em direito os assuntos são palavras comuns ("mutação", "eficácia contida"), que outsideTerms não pega.
  */
 export function chapterAffinity(chapters: Json[], focusedIdx: number[]): (item: unknown) => boolean {
+  const ratio = chapterAffinityRatio(chapters, focusedIdx);
+  return (item: unknown) => ratio(item) >= 0.8;
+}
+
+/** Quanto o item é dos capítulos entregues: 1 = é deles (ou assunto geral), 0 = é só de capítulo de fora. */
+export function chapterAffinityRatio(chapters: Json[], focusedIdx: number[]): (item: unknown) => number {
   const sets = chapters.map((chapter) => new Set(affinityWords(`${chapter.title} ${chapter.markdown}`)));
   const df = new Map<string, number>();
   for (const set of sets) for (const word of set) df.set(word, (df.get(word) ?? 0) + 1);
@@ -853,9 +873,9 @@ export function chapterAffinity(chapters: Json[], focusedIdx: number[]): (item: 
       return score;
     });
     const best = Math.max(...scores);
-    if (best <= 0) return true;
+    if (best <= 0) return 1;
     const inside = Math.max(...focusedIdx.map((i) => scores[i] ?? 0));
-    return inside >= best * 0.8;
+    return inside / best;
   };
 }
 
