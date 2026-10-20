@@ -107,6 +107,9 @@ if (cmd === "ligar") {
     return fs.existsSync(path.join(REC, d)) ? d : null;
   };
   const total = {};
+  // Cada recorte é lido uma vez e gravado uma vez no fim: regravar o arquivo a cada questão fazia o
+  // Windows travar a escrita (UNKNOWN) no meio da passada.
+  const abertos = new Map();
   for (const s of simulados()) {
     const banca = dirBanca(s.j.banca) ?? "geral";
     for (const q of s.j.questions) {
@@ -118,14 +121,22 @@ if (cmd === "ligar") {
       // Só entra em recorte que já existe (recorte novo precisa de incidência e "como cai" escritos à mão).
       if (!alvo) continue;
       const p = path.join(REC, alvo, `${m.id}.json`);
-      const r = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf8")) : { topic: m.id, board: s.j.banca, role: null, version: 1, incidence: null, howItFalls: null, tips: [], traps: [], questions: [] };
-      if (r.questions.some((x) => x.statement === q.statement)) continue;
+      const r = abertos.get(p) ?? (fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf8")) : { topic: m.id, board: s.j.banca, role: null, version: 1, incidence: null, howItFalls: null, tips: [], traps: [], questions: [] });
+      abertos.set(p, r);
+      // Compara também o texto que vai para o banco (com o texto-base na frente): comparar só o
+      // enunciado deixava uma segunda execução duplicar as questões de leitura.
+      const comBase = q.textoBase ? `${q.textoBase}\n\n${q.statement}` : q.statement;
+      // Mesma regra da conferência (sem diferença de maiúsculas e espaços nas pontas) e o teto de 600.
+      const chave = (t) => String(t ?? "").trim().toLowerCase();
+      // A conferência também recusa questão igual a uma da própria matéria.
+      if (m.questions.some((x) => chave(x.statement) === chave(q.statement) || chave(x.statement) === chave(comBase))) continue;
+      if (r.questions.length >= 600 || r.questions.some((x) => chave(x.statement) === chave(q.statement) || chave(x.statement) === chave(comBase))) continue;
       // capítulo da matéria pelo vocabulário
       const w = new Set(palavras(`${q.topico ?? ""} ${q.statement}`));
       let sec = m.chapters[0].title, bs = -1;
       for (const c of m.chapters) { const sc = palavras(c.title + " " + c.markdown.slice(0, 3000)).filter((x) => w.has(x)).length; if (sc > bs) { bs = sc; sec = c.title; } }
       const ce = q.format === "CERTO_ERRADO";
-      const texto = q.textoBase ? `${q.textoBase}\n\n${q.statement}` : q.statement;
+      const texto = comBase;
       if (texto.length > 4000 || texto.trim().length < 20) continue;
       r.questions.push({
         topico: q.topico ?? null, estilo: String(s.j.banca ?? "").toUpperCase(), statement: texto,
@@ -137,11 +148,16 @@ if (cmd === "ligar") {
         section: sec, errorConceptKey: null, sourceType: "AUTHORIAL", sourceUrl: null, board: null, agency: null, year: null,
         simulado: path.basename(s.f, ".json"),
       });
-      r.version = (r.version ?? 1) + 1;
-      fs.mkdirSync(path.dirname(p), { recursive: true });
-      fs.writeFileSync(p, JSON.stringify(r, null, 2) + "\n");
+      r.mudou = true;
       total[banca] = (total[banca] ?? 0) + 1;
     }
+  }
+  for (const [p, r] of abertos) {
+    if (!r.mudou) continue;
+    delete r.mudou;
+    r.version = (r.version ?? 1) + 1;
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, JSON.stringify(r, null, 2) + "\n");
   }
   console.log("questões levadas ao banco, por banca:", JSON.stringify(total));
 } else {
