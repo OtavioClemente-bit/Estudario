@@ -422,9 +422,12 @@ private fun SubjectHeader(name: String, count: Int, topics: Int, open: Boolean, 
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
     ) {
         Row(Modifier.padding(start = 12.dp, end = 6.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(40.dp).background(scheme.primary, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                Text(name.trim().take(1).uppercase(), color = scheme.onPrimary, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-            }
+            // O desenho da matéria (turma do Folha), igual ao do edital e do início.
+            br.com.estudario.ui.brand.SubjectArtTile(
+                br.com.estudario.domain.catalog.SubjectArt.iconFor(name),
+                br.com.estudario.ui.components.subjectAccentColor(name, br.com.estudario.ui.theme.estudarioColors().subjectPalette),
+                44.dp,
+            )
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text("$count ${if (count == 1) "item" else "itens"} · $topics ${if (topics == 1) "tópico" else "tópicos"}", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)

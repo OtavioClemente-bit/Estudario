@@ -305,7 +305,8 @@ fun <T> BySubject(
                         attr("role", "button"); attr("tabindex", "0"); attr("aria-expanded", open.toString())
                         onClick { opened[id] = !open }
                     }) {
-                        Span({ classes("nb-initial") }) { Text(name.trim().take(1).uppercase()) }
+                        // O desenho da matéria (turma do Folha), igual ao do edital e do início.
+                        Span({ classes("hs-art"); attr("style", "--c:${subjectColor(name)}") }) { Icon(br.com.estudario.domain.catalog.SubjectArt.iconFor(name)) }
                         Div({ classes("grow"); attr("style", "min-width:0") }) {
                             B({ classes("clamp-2") }) { Text(name) }
                             Div({ classes("xs", "muted") }) { Text("$count ${if (count == 1) "item" else "itens"} · ${entries.size} ${if (entries.size == 1) "tópico" else "tópicos"}") }
