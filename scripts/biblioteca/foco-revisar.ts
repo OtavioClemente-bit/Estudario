@@ -25,7 +25,7 @@ if (cmd === "proximas") {
     let m: any; try { m = materia(j.materia); } catch { continue; }
     console.log(`\n### ${j.materia} — ${m.title}`);
     m.chapters.forEach((c: any, i: number) => console.log(`  cap ${i}: ${String(c.title).replace(/^\d+\.\s*/, "")}`));
-    inteiras(j).forEach((t, i) => console.log(`  ${i + 1}) ${t.slice(0, 170)}`));
+    inteiras(j).forEach((t, i) => console.log(`  ${i + 1}) ${t.slice(0, 120)}`));
   }
   console.log(`\n(pendentes: ${pend.length})`);
 } else if (cmd === "feitas") {
@@ -39,7 +39,7 @@ if (cmd === "proximas") {
     let m: any; try { m = materia(j.materia); } catch { return; }
     console.log(`\n### [${de + k}] ${j.materia} — ${m.title}`);
     m.chapters.forEach((c: any, i: number) => console.log(`  cap ${i}: ${String(c.title).replace(/^\d+\.\s*/, "")}`));
-    inteiras(j).forEach((t, i) => console.log(`  ${i + 1}) ${t.slice(0, 170)}`));
+    inteiras(j).forEach((t, i) => console.log(`  ${i + 1}) ${t.slice(0, 120)}`));
   });
   console.log(`\n(total de matérias com tópicos inteiros: ${comInteira.length})`);
 } else if (cmd === "aplicar") {
