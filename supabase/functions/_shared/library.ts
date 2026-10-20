@@ -719,7 +719,12 @@ export function assembleFromLibrary(
     // Recorte por capítulo: só as questões dele (as que faltarem a IA completa sobre a mesma teoria);
     // as de outros capítulos falariam de assunto que a teoria recortada nem traz.
     // Do recorte da banca, também só as do tópico ou dos capítulos entregues.
-    const boardInFocus = boardPool.filter((q) => sameTopic.includes(q) || titles.has(String(q.section).trim()));
+    // O "Padrão das provas" junta questões da matéria inteira, às vezes com a seção errada: só as que
+    // falam do assunto dos capítulos do recorte.
+    const questionFits = focusChapters.length > 0 && focusChapters.length < allChapters.length ? chapterAffinity(allChapters, focusChapters) : null;
+    const boardInFocus = boardPool.filter((q) =>
+      (sameTopic.includes(q) || titles.has(String(q.section).trim())) &&
+      (questionFits === null || questionFits(`${q.statement} ${((q.options as Json[]) ?? []).map((o) => o.text).join(" ")}`)));
     ordered = [...byLevel([], direct), ...byLevel(boardInFocus, sameChapter), ...(focusChapters.length > 0 ? [] : byLevel([], rest))];
   }
   // Misturado: o "Padrão das provas" costuma ser só A–E e vinha antes de tudo, então o aluno não via
@@ -758,12 +763,14 @@ export function assembleFromLibrary(
   // da teoria o capítulo de Flyway e mandar flashcard de Flyway deixava o material incoerente.
   const wholeTheory = focused.length === allChapters.length || (focused.length === 1 && !splitChapter(focused[0]));
   const outside = wholeTheory ? [] : outsideTerms(allChapters.filter((chapter) => !focused.includes(chapter)), focused);
-  const mentionsOutside = (value: unknown) => outside.length > 0 && outside.some((term) => term.test(JSON.stringify(value ?? "")));
+  const fits = wholeTheory ? null : chapterAffinity(allChapters, allChapters.map((chapter, i) => focused.includes(chapter) ? i : -1).filter((i) => i >= 0));
+  const mentionsOutside = (value: unknown) =>
+    (outside.length > 0 && outside.some((term) => term.test(JSON.stringify(value ?? "")))) || (fits !== null && !fits(value));
   const board = typeof note?.board === "string" ? note.board : input.board;
   const who = normalizeBoard(board) === GENERAL_BOARD_NORM ? "prova" : board;
   const howItFalls = typeof note?.howItFalls === "string" ? note.howItFalls : null;
   let summary = wants("SUMMARY") ? String(material.summary) : "";
-  if (summary && outside.length > 0) {
+  if (summary && (outside.length > 0 || fits !== null)) {
     const kept = summary.split(/(?<=[.!?])\s+/).filter((sentence) => !mentionsOutside(sentence)).join(" ").trim();
     if (kept.length >= 80) summary = kept;
   }
@@ -772,9 +779,9 @@ export function assembleFromLibrary(
   } else if (howItFalls && wants("SUMMARY")) {
     summary = `**Como a ${who} cobra:** ${howItFalls}\n\n${summary}`;
   }
-  const inFocus = <T>(items: T[]) => outside.length === 0 ? items : items.filter((item) => !mentionsOutside(item));
+  const inFocus = <T>(items: T[]) => outside.length === 0 && fits === null ? items : items.filter((item) => !mentionsOutside(item));
   const merged = (field: "tips" | "traps") =>
-    wants("TIPS_TRAPS") ? [...new Set([...((note?.[field] as string[]) ?? []), ...inFocus(material[field] as string[])])].slice(0, 8) : [];
+    wants("TIPS_TRAPS") ? [...new Set([...inFocus((note?.[field] as string[]) ?? []), ...inFocus(material[field] as string[])])].slice(0, 8) : [];
   // Com recorte, só os cartões do que a teoria entregue ensina, mesmo que sejam poucos: completar com
   // o baralho inteiro trazia cartão de assunto que o material não explicou. Quase nenhum: vai o inteiro.
   const focusedCards = inFocus(material.flashcards as Json[]);
@@ -822,6 +829,36 @@ export function assembleFromLibrary(
  * recorte: escritos com maiúscula no meio da frase pelo menos duas vezes lá e ausentes da teoria
  * entregue. Servem para tirar do resumo, dos flashcards e das dicas o que a teoria recortada não traz.
  */
+const AFFINITY_STOP = new Set("para pela pelo pelos pelas como mais menos entre sobre sem com que quando onde qual quais cada todo toda todos todas outro outra outros outras este esta esse essa isso isto aquele aquela seus suas sua seu deve pode podem sendo forma caso casos regra regras prova questao questoes banca exemplo assim apenas ainda tambem porque pois nao sim ser sao foi tem ter".split(" "));
+function affinityWords(text: string): string[] {
+  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().match(/[a-z0-9]{4,}/g)?.filter((w) => !AFFINITY_STOP.has(w)) ?? [];
+}
+
+/**
+ * Para um recorte por capítulo: diz se um item (flashcard, dica, frase do resumo...) é do assunto
+ * dos capítulos entregues. Cada item vai para o capítulo cujo vocabulário próprio (palavras que não
+ * aparecem em todos os capítulos) ele mais usa; sem vocabulário próprio, fica (é assunto geral).
+ * Em direito os assuntos são palavras comuns ("mutação", "eficácia contida"), que outsideTerms não pega.
+ */
+export function chapterAffinity(chapters: Json[], focusedIdx: number[]): (item: unknown) => boolean {
+  const sets = chapters.map((chapter) => new Set(affinityWords(`${chapter.title} ${chapter.markdown}`)));
+  const df = new Map<string, number>();
+  for (const set of sets) for (const word of set) df.set(word, (df.get(word) ?? 0) + 1);
+  const n = chapters.length;
+  return (item: unknown) => {
+    const words = new Set(affinityWords(typeof item === "string" ? item : JSON.stringify(item ?? "")));
+    const scores = sets.map((set) => {
+      let score = 0;
+      for (const word of words) if (set.has(word)) score += Math.log(n / (df.get(word) ?? n));
+      return score;
+    });
+    const best = Math.max(...scores);
+    if (best <= 0) return true;
+    const inside = Math.max(...focusedIdx.map((i) => scores[i] ?? 0));
+    return inside >= best * 0.8;
+  };
+}
+
 export function outsideTerms(outside: Json[], inside: Json[]): RegExp[] {
   const insideText = inside.map((chapter) => `${chapter.title} ${chapter.markdown}`).join(" ").toLowerCase();
   const counts = new Map<string, number>();
