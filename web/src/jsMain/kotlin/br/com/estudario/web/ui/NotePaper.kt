@@ -136,3 +136,38 @@ fun NotePaperCard(text: String, createdAt: Long, onClick: () -> Unit, quote: Str
         footer?.invoke()
     }
 }
+
+/**
+ * A nota aberta para ler: a folha pautada com a etiqueta, o lugar, o trecho (se for de um trecho), o
+ * texto inteiro e as ações Editar e Excluir (com confirmação).
+ */
+@Composable
+fun NoteView(text: String, createdAt: Long, place: String, quote: String?, onEdit: () -> Unit, onDelete: () -> Unit, onClose: () -> Unit, onOpen: (() -> Unit)? = null) {
+    val (tag, body) = NoteTags.split(text)
+    var confirm by remember { mutableStateOf(false) }
+    Modal(onDismiss = onClose, extraClass = "note-sheet") {
+        Div({ classes("note-head") }) {
+            Div({ classes("grow") }) {
+                Div({ classes("row"); attr("style", "gap:8px") }) {
+                    B({ classes("note-title") }) { Text(if (quote != null) "Nota do trecho" else "Sua anotação") }
+                    if (tag != null) Span({ classes("note-pill", NoteTags.cls(tag)) }) { Text(tag.uppercase()) }
+                }
+                Div({ classes("xs", "muted") }) { Text("$place · ${noteDate(createdAt)}") }
+            }
+            IconButton("close", "Fechar") { onClose() }
+        }
+        if (!quote.isNullOrBlank()) Div({ classes("note-quote") }) { Text("“${quote.trim()}”") }
+        Div({ classes("note-read") }) { Text(body) }
+        if (confirm) Div({ classes("note-confirm") }) {
+            Span({ classes("grow", "small") }) { Text(if (quote != null) "Excluir esta nota? O trecho continua grifado." else "Excluir esta anotação? Ela sai do app, do site e do Caderno.") }
+            Btn("Manter", { confirm = false }, style = "ghost", small = true)
+            Btn("Excluir", { onDelete() }, style = "danger", small = true)
+        }
+        Div({ classes("note-foot") }) {
+            Btn("Excluir", { confirm = true }, style = "ghost", icon = "delete")
+            Span({ classes("grow") })
+            if (onOpen != null) Btn("Abrir na teoria", onOpen, style = "ghost", icon = "menu_book")
+            Btn("Editar", onEdit, style = "primary", icon = "edit")
+        }
+    }
+}

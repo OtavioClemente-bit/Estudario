@@ -61,16 +61,18 @@ fun StudyMarkdown(
     highlights: List<String> = emptyList(),
     highlightColor: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color(0x73FFC857),
     onSelectText: ((quote: String, withNote: Boolean) -> Unit)? = null,
+    notedHighlights: Set<String> = emptySet(),
+    onHighlightTap: ((quote: String) -> Unit)? = null,
 ) {
     // Gráficos (```grafico) são desenhados pelo app; o resto segue no Markdown.
     val parts = remember(markdown) { splitCharts(centerLoneFormulas(markdown)) }
     if (parts.size == 1 && parts[0].second == null) {
-        MarkdownTextView(parts[0].first, modifier, textSizeSp, onLongPress, onTap, textColor, centered, highlights, highlightColor, onSelectText)
+        MarkdownTextView(parts[0].first, modifier, textSizeSp, onLongPress, onTap, textColor, centered, highlights, highlightColor, onSelectText, notedHighlights, onHighlightTap)
         return
     }
     androidx.compose.foundation.layout.Column(modifier) {
         parts.forEach { (text, chart) ->
-            if (chart != null) StudyChartView(chart) else MarkdownTextView(text, androidx.compose.ui.Modifier.fillMaxWidth(), textSizeSp, onLongPress, onTap, textColor, centered, highlights, highlightColor, onSelectText)
+            if (chart != null) StudyChartView(chart) else MarkdownTextView(text, androidx.compose.ui.Modifier.fillMaxWidth(), textSizeSp, onLongPress, onTap, textColor, centered, highlights, highlightColor, onSelectText, notedHighlights, onHighlightTap)
         }
     }
 }
@@ -90,6 +92,8 @@ private fun MarkdownTextView(
     highlights: List<String> = emptyList(),
     highlightColor: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Transparent,
     onSelectText: ((String, Boolean) -> Unit)? = null,
+    notedHighlights: Set<String> = emptySet(),
+    onHighlightTap: ((String) -> Unit)? = null,
 ) {
     val selectable = onSelectText != null
     val context = LocalContext.current
@@ -124,13 +128,18 @@ private fun MarkdownTextView(
             view.setLinkTextColor(colors.primary.toArgb())
             view.setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
             // Só redesenha o texto quando ele (ou os grifos) mudam: assim uma seleção em andamento não some.
-            val stamp = listOf(text, size, ink.toArgb(), book, colors.primary.toArgb(), highlights, highlightColor.toArgb())
+            val stamp = listOf(text, size, ink.toArgb(), book, colors.primary.toArgb(), highlights, highlightColor.toArgb(), notedHighlights)
             if (view.tag != stamp) {
                 view.tag = stamp
                 markwon.setMarkdown(view, text)
                 centerInlineFormulas(view, markwon.configuration().theme())
-                paintHighlights(view, highlights, highlightColor.toArgb())
+                paintedRanges[view] = paintHighlights(view, highlights, highlightColor.toArgb(), notedHighlights)
             }
+            // Guarda onde o dedo tocou: no clique, um trecho grifado abre a nota dele.
+            if (onHighlightTap != null) view.setOnTouchListener { v, e ->
+                if (e.action == android.view.MotionEvent.ACTION_DOWN) touchAt[v as TextView] = floatArrayOf(e.x, e.y)
+                false
+            } else view.setOnTouchListener(null)
             if (onSelectText != null) view.customSelectionActionModeCallback = highlightActions(view, onSelectText)
             // Segurar o trecho é o gesto de marcar: o TextView recebe o toque, então o aviso vem dele.
             if (onLongPress != null && !selectable) {
@@ -140,7 +149,14 @@ private fun MarkdownTextView(
                 view.setOnLongClickListener(null)
             }
             // Toque simples seleciona o trecho (na leitura da teoria). Link continua abrindo normalmente.
-            if (onTap != null) view.setOnClickListener { if (view.selectionStart == -1 || view.selectionStart == view.selectionEnd) onTap() } else view.setOnClickListener(null)
+            if (onTap != null || onHighlightTap != null) view.setOnClickListener {
+                if (view.selectionStart != -1 && view.selectionStart != view.selectionEnd) return@setOnClickListener
+                val hit = if (onHighlightTap == null) null else touchAt[view]?.let { (x, y) ->
+                    val offset = view.getOffsetForPosition(x, y)
+                    paintedRanges[view].orEmpty().firstOrNull { offset in it.first }?.second
+                }
+                if (hit != null) onHighlightTap?.invoke(hit) else onTap?.invoke()
+            } else view.setOnClickListener(null)
         },
     )
 }
@@ -197,14 +213,22 @@ private fun studyMarkwon(context: Context, colors: ColorScheme, textSizeSp: Floa
         .build()
 }
 
-/** Pinta de marca-texto, no próprio texto, cada trecho grifado (achado mesmo com espaços e quebras diferentes). */
-private fun paintHighlights(view: TextView, quotes: List<String>, color: Int) {
-    if (quotes.isEmpty()) return
-    val spannable = view.text as? android.text.Spannable ?: return
+private val paintedRanges = java.util.WeakHashMap<TextView, List<Pair<IntRange, String>>>()
+private val touchAt = java.util.WeakHashMap<TextView, FloatArray>()
+
+/**
+ * Pinta de marca-texto, no próprio texto, cada trecho grifado (achado mesmo com espaços e quebras
+ * diferentes); os que têm nota ganham também um sublinhado. Devolve onde cada trecho ficou.
+ */
+private fun paintHighlights(view: TextView, quotes: List<String>, color: Int, noted: Set<String>): List<Pair<IntRange, String>> {
+    if (quotes.isEmpty()) return emptyList()
+    val spannable = view.text as? android.text.Spannable ?: return emptyList()
     val plain = spannable.toString()
-    quotes.forEach { quote ->
-        val range = findQuote(plain, quote) ?: return@forEach
+    return quotes.mapNotNull { quote ->
+        val range = findQuote(plain, quote) ?: return@mapNotNull null
         spannable.setSpan(android.text.style.BackgroundColorSpan(color), range.first, range.last + 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (quote in noted) spannable.setSpan(android.text.style.UnderlineSpan(), range.first, range.last + 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        range to quote
     }
 }
 

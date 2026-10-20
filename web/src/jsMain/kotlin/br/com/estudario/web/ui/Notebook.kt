@@ -161,6 +161,18 @@ private fun NotesTab(
     var editing by remember { mutableStateOf<br.com.estudario.web.data.UserNote?>(null) }
     var creating by remember { mutableStateOf(false) }
     var editingMark by remember { mutableStateOf<br.com.estudario.web.data.TheoryMark?>(null) }
+    var viewing by remember { mutableStateOf<Any?>(null) }
+    when (val v = viewing) {
+        is br.com.estudario.web.data.UserNote -> NoteView(v.text, v.createdAt, v.topicId?.let { tid -> topics.firstOrNull { it.first == tid }?.second } ?: "Geral", null,
+            onEdit = { editing = v; viewing = null },
+            onDelete = { Store.update { Actions.deleteNote(it, v.id) }; viewing = null; Toast.show("Anotação excluída") },
+            onClose = { viewing = null })
+        is br.com.estudario.web.data.TheoryMark -> NoteView(v.note, v.createdAt, topicOfMark(v)?.let { tid -> topics.firstOrNull { it.first == tid }?.second } ?: "Teoria", v.quote,
+            onEdit = { editingMark = v; viewing = null },
+            onDelete = { Store.update { Actions.setTheoryMarkNote(it, v.id, "") }; viewing = null; Toast.show("Nota excluída (o grifo ficou)") },
+            onClose = { viewing = null },
+            onOpen = topicOfMark(v)?.let { t -> { viewing = null; TheoryJump.go(t, v.theoryId, v.blockIndex, v.quote) } })
+    }
     val names = topics.toMap()
     if (creating || editing != null) {
         val n = editing
@@ -196,8 +208,8 @@ private fun NotesTab(
         .sortedByDescending { (_, v) -> (v as? br.com.estudario.web.data.UserNote)?.createdAt ?: (v as br.com.estudario.web.data.TheoryMark).createdAt }
     BySubject(rows.groupBy({ it.first }, { it.second }), review = { list, name -> onReview("$name · Anotações", list) }, reviewAll = { list -> onReview("Caderno · Anotações", list) }, reviewLabel = "Revisar as anotações uma por uma") { row ->
         when (row) {
-            is br.com.estudario.web.data.UserNote -> NotePaperCard(row.text, row.createdAt, onClick = { editing = row })
-            is br.com.estudario.web.data.TheoryMark -> NotePaperCard(row.note, row.createdAt, onClick = { editingMark = row }, quote = row.quote) {
+            is br.com.estudario.web.data.UserNote -> NotePaperCard(row.text, row.createdAt, onClick = { viewing = row })
+            is br.com.estudario.web.data.TheoryMark -> NotePaperCard(row.note, row.createdAt, onClick = { viewing = row }, quote = row.quote) {
                 topicOfMark(row)?.let { t -> Button({ classes("note-open"); onClick { TheoryJump.go(t, row.theoryId, row.blockIndex, row.quote) } }) { Icon("menu_book"); Text("Abrir na teoria") } }
             }
         }

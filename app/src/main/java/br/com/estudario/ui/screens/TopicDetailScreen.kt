@@ -121,9 +121,18 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
     val sessionAttempts = attempts.filter { it.questionId in questionIds && it.answeredAt >= studyStartedAt }
     var showContentPrompt by remember { mutableStateOf(false) }
     var editingNote by remember { mutableStateOf<br.com.estudario.data.local.UserNoteEntity?>(null) }
+    var viewingNote by remember { mutableStateOf<br.com.estudario.data.local.UserNoteEntity?>(null) }
     var deckFor by remember { mutableStateOf<br.com.estudario.data.local.SummaryEntity?>(null) }
     deckFor?.let { deck ->
         br.com.estudario.ui.components.SummaryFlashcardDeck(viewModel, deck, topics.firstOrNull { it.id == deck.topicId }?.title ?: deck.title, onDismiss = { deckFor = null })
+    }
+    viewingNote?.let { v ->
+        br.com.estudario.ui.components.NoteViewSheet(
+            text = v.text, createdAt = v.createdAt, place = topics.firstOrNull { it.id == v.topicId }?.title ?: "Geral",
+            onDismiss = { viewingNote = null },
+            onEdit = { viewingNote = null; editingNote = v },
+            onDelete = { viewModel.deleteNote(v); viewingNote = null },
+        )
     }
     editingNote?.let { note ->
         NoteEditor(note, topics, onDismiss = { editingNote = null }, onSave = { viewModel.saveNote(it); editingNote = null }, onDelete = { viewModel.deleteNote(note); editingNote = null })
@@ -695,7 +704,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                 }
                 topicNotes.forEach { note ->
                     item(key = "note-${note.id}") {
-                        br.com.estudario.ui.components.NotePaperCard(note.text, note.createdAt, onClick = { editingNote = note })
+                        br.com.estudario.ui.components.NotePaperCard(note.text, note.createdAt, onClick = { viewingNote = note })
                     }
                 }
             }

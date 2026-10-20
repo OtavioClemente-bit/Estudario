@@ -51,6 +51,8 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
     var readerSettings by remember { mutableStateOf(false) }
     // Anotação aberta: o parágrafo e o trecho (o parágrafo inteiro ou só a parte selecionada).
     var editing by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    // Nota aberta para ler (tocando no trecho grifado ou no balão da nota).
+    var viewingId by remember { mutableStateOf<Long?>(null) }
     var selected by remember(theoryId) { mutableStateOf<Int?>(null) }
     var reportIndex by remember { mutableStateOf<Int?>(null) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -84,6 +86,18 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
 
     reportIndex?.let { index ->
         br.com.estudario.ui.components.ReportErrorDialog(br.com.estudario.data.remote.ReportKind.THEORY, blocks.getOrElse(index) { "" }, theory.title, null, onDismiss = { reportIndex = null })
+    }
+    viewingId?.let { id ->
+        val m = marks.firstOrNull { it.id == id }
+        if (m == null) viewingId = null
+        else br.com.estudario.ui.components.NoteViewSheet(
+            text = m.note, createdAt = m.createdAt, place = theory.title,
+            onDismiss = { viewingId = null },
+            onEdit = { viewingId = null; editing = m.blockIndex to m.quote },
+            onDelete = { viewModel.saveTheoryMark(m.copy(note = "")); viewingId = null; scope.launch { snackbar.showSnackbar("Nota excluída. O trecho continua grifado.") } },
+            quote = plainPreview(m.quote),
+            onRemoveHighlight = { viewModel.deleteTheoryMark(m); viewingId = null; scope.launch { snackbar.showSnackbar("Grifo e nota tirados.") } },
+        )
     }
     editing?.let { (index, quote) ->
         val existing = marks.firstOrNull { it.blockIndex == index && it.quote == quote }
@@ -245,6 +259,11 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                                 textSizeSp = MaterialTheme.typography.bodyLarge.fontSize.value * textScale,
                                 onTap = { selected = if (selected == index) null else index },
                                 highlights = partial,
+                                notedHighlights = blockMarks.filter { it.note.isNotBlank() }.mapTo(hashSetOf()) { it.quote },
+                                onHighlightTap = { q ->
+                                    val m = blockMarks.firstOrNull { it.quote == q }
+                                    if (m != null) { if (m.note.isNotBlank()) viewingId = m.id else editing = index to q }
+                                },
                                 highlightColor = highlighter.copy(alpha = .45f),
                                 onSelectText = { quote, withNote ->
                                     markHintSeen = true
@@ -267,7 +286,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                         }
                     }
                     blockMarks.filter { it.note.isNotBlank() }.forEach { m ->
-                        Surface(onClick = { editing = index to m.quote }, color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(8.dp), modifier = Modifier.padding(start = 12.dp, top = 4.dp)) {
+                        Surface(onClick = { viewingId = m.id }, color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(8.dp), modifier = Modifier.padding(start = 12.dp, top = 4.dp)) {
                             Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { Icon(Icons.Outlined.EditNote, null); Text(m.note, Modifier.weight(1f)) }
                         }
                     }

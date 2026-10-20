@@ -127,6 +127,7 @@ fun StudyNotebookScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var editingNote by remember { mutableStateOf<UserNoteEntity?>(null) }
     var editingMarkNote by remember { mutableStateOf<br.com.estudario.data.local.TheoryMarkEntity?>(null) }
+    var viewing by remember { mutableStateOf<Any?>(null) }
     var deckFor by remember { mutableStateOf<SummaryEntity?>(null) }
     var cardsFor by remember { mutableStateOf<Place?>(null) }
     var reviewing by remember { mutableStateOf<Pair<String, List<ReviewCard>>?>(null) }
@@ -202,6 +203,22 @@ fun StudyNotebookScreen(
             quote = plainPreview(mark.quote),
             fixedPlace = topicById[theoryById[mark.theoryId]?.topicId]?.title ?: "Teoria",
             deleteLabel = "Apagar a nota (o grifo fica)",
+        )
+    }
+    when (val v = viewing) {
+        is UserNoteEntity -> br.com.estudario.ui.components.NoteViewSheet(
+            text = v.text, createdAt = v.createdAt, place = place(v.topicId).title,
+            onDismiss = { viewing = null },
+            onEdit = { viewing = null; editingNote = v },
+            onDelete = { viewModel.deleteNote(v); viewing = null },
+        )
+        is br.com.estudario.data.local.TheoryMarkEntity -> br.com.estudario.ui.components.NoteViewSheet(
+            text = v.note, createdAt = v.createdAt, place = place(theoryById[v.theoryId]?.topicId).title,
+            onDismiss = { viewing = null },
+            onEdit = { viewing = null; editingMarkNote = v },
+            onDelete = { viewModel.saveTheoryMark(v.copy(note = "")); viewing = null },
+            quote = plainPreview(v.quote),
+            onOpen = { viewing = null; onOpenTheory(v.theoryId, v.blockIndex) },
         )
     }
     editingNote?.let { note ->
@@ -349,10 +366,10 @@ fun StudyNotebookScreen(
                         .sortedByDescending { (it as? UserNoteEntity)?.createdAt ?: (it as br.com.estudario.data.local.TheoryMarkEntity).createdAt }
                     if (rows.isEmpty()) emptyItem(NotebookTab.NOTES.icon, "Nenhuma anotação ainda", "Escreva com suas palavras: macetes, resumos, dúvidas. Na leitura, selecione um trecho e escolha Grifar com nota: ela também aparece aqui.", needle.isNotEmpty())
                     grouped(rows, { if (it is UserNoteEntity) place(it.topicId) else place(theoryById[(it as br.com.estudario.data.local.TheoryMarkEntity).theoryId]?.topicId) }, expanded, onOpenTopic, onReview = onReviewSubject) { row ->
-                        if (row is UserNoteEntity) br.com.estudario.ui.components.NotePaperCard(row.text, row.createdAt, onClick = { editingNote = row })
+                        if (row is UserNoteEntity) br.com.estudario.ui.components.NotePaperCard(row.text, row.createdAt, onClick = { viewing = row })
                         else (row as br.com.estudario.data.local.TheoryMarkEntity).let { mark ->
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                br.com.estudario.ui.components.NotePaperCard(mark.note, mark.createdAt, onClick = { editingMarkNote = mark }, quote = plainPreview(mark.quote))
+                                br.com.estudario.ui.components.NotePaperCard(mark.note, mark.createdAt, onClick = { viewing = mark }, quote = plainPreview(mark.quote))
                                 Text("Abrir na teoria", Modifier.padding(start = 12.dp).clickable { onOpenTheory(mark.theoryId, mark.blockIndex) }, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
                             }
                         }

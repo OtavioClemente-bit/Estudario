@@ -499,6 +499,7 @@ private fun TheoryReader(theory: Theory) {
             o.block = TheoryJump.blockOf(blocks, m.quote, m.blockIndex)
             o.quote = m.quote
             o.id = m.id.toDouble()
+            o.note = m.note.isNotBlank()
             o
         }.toTypedArray()
         // Em dynamic, "?.invoke()" vira chamada ao método invoke (inexistente) e derruba a tela: chamar direto.
@@ -511,6 +512,29 @@ private fun TheoryReader(theory: Theory) {
     var clickedMark by remember(theory.id) { mutableStateOf<Triple<Long, Double, Double>?>(null) }
     var noteFor by remember(theory.id) { mutableStateOf<TextPick?>(null) }
     var editMarkNote by remember(theory.id) { mutableStateOf<br.com.estudario.web.data.TheoryMark?>(null) }
+    // Passar o mouse num trecho com nota mostra a nota (só leitura); clicar fixa o cartão com as ações.
+    var hoverMark by remember(theory.id) { mutableStateOf<Triple<Long, Double, Double>?>(null) }
+    DisposableEffect(theory.id) {
+        var pending = false
+        var lastX = 0.0; var lastY = 0.0
+        val move: (org.w3c.dom.events.Event) -> Unit = { e ->
+            val m = e as org.w3c.dom.events.MouseEvent
+            lastX = m.clientX.toDouble(); lastY = m.clientY.toDouble()
+            if (!pending) {
+                pending = true
+                window.requestAnimationFrame {
+                    pending = false
+                    val markAt = window.asDynamic().estudarioMarkAt
+                    val id = if (markAt == null || markAt == undefined) null else markAt(theory.id, lastX, lastY)
+                    val markId = (id as? Number)?.toLong()
+                    val hasNote = markId != null && Store.data.theoryMarks.any { it.id == markId && it.note.isNotBlank() }
+                    hoverMark = if (hasNote) (if (hoverMark?.first == markId) hoverMark else Triple(markId!!, lastX, lastY)) else null
+                }
+            }
+        }
+        document.addEventListener("mousemove", move)
+        onDispose { document.removeEventListener("mousemove", move) }
+    }
     DisposableEffect(theory.id) {
         val check: (org.w3c.dom.events.Event) -> Unit = {
             window.setTimeout({
@@ -674,9 +698,22 @@ private fun TheoryReader(theory: Theory) {
             }
         }
     }
+    // Prévia da nota ao passar o mouse.
+    hoverMark?.let { (markId, x, y) ->
+        val mark = theoryMarks.firstOrNull { it.id == markId }
+        if (mark != null && mark.note.isNotBlank() && clickedMark == null && picked == null) NotePop(mark, x, y, peek = true)
+    }
     clickedMark?.let { (markId, x, y) ->
         val mark = theoryMarks.firstOrNull { it.id == markId }
-        if (mark != null && picked == null) Div({
+        // Trecho com nota: o cartão da nota, com editar, excluir a nota e tirar o grifo.
+        if (mark != null && picked == null && mark.note.isNotBlank()) NotePop(
+            mark, x, y, peek = false,
+            onEdit = { editMarkNote = mark; clickedMark = null },
+            onDeleteNote = { if (Store.demo) Toast.show("Entre com sua conta para mexer nas notas.") else { Store.update { Actions.setTheoryMarkNote(it, markId, "") }; Toast.show("Nota excluída (o grifo ficou)") }; clickedMark = null },
+            onRemoveMark = { if (Store.demo) Toast.show("Entre com sua conta para mexer nos grifos.") else { Store.update { Actions.deleteTheoryMark(it, markId) }; Toast.show("Grifo e nota tirados") }; clickedMark = null },
+            onClose = { clickedMark = null },
+        )
+        else if (mark != null && picked == null) Div({
             classes("grifo-bar")
             attr("style", "left:${x}px;top:${(y - 54).coerceAtLeast(8.0)}px")
             addEventListener("mousedown") { it.preventDefault() }
@@ -723,6 +760,55 @@ private fun TheoryReader(theory: Theory) {
             quote = m.quote, fixedPlace = theory.title.ifBlank { "Teoria" },
             deleteLabel = "Apagar a nota (o grifo fica)",
         )
+    }
+}
+
+/**
+ * O cartão da nota de um trecho, perto de onde a pessoa apontou: a etiqueta, a nota inteira e a data.
+ * Na prévia (mouse por cima) é só leitura; clicando, ganha Editar, Excluir nota e Tirar grifo.
+ */
+@Composable
+private fun NotePop(
+    mark: br.com.estudario.web.data.TheoryMark,
+    x: Double,
+    y: Double,
+    peek: Boolean,
+    onEdit: () -> Unit = {},
+    onDeleteNote: () -> Unit = {},
+    onRemoveMark: () -> Unit = {},
+    onClose: () -> Unit = {},
+) {
+    var confirm by remember(mark.id) { mutableStateOf(false) }
+    val (tag, body) = NoteTags.split(mark.note)
+    val w = window.innerWidth.toDouble()
+    val left = x.coerceIn(170.0, (w - 170.0).coerceAtLeast(170.0))
+    val below = y < window.innerHeight * 0.6
+    Div({
+        classes(*listOfNotNull("note-pop", NoteTags.cls(tag), if (peek) "peek" else null).toTypedArray())
+        attr("style", "left:${left}px;" + if (below) "top:${y + 18}px" else "bottom:${window.innerHeight - y + 18}px")
+        addEventListener("click") { it.stopPropagation() }
+        addEventListener("mousedown") { if (!peek) it.stopPropagation() }
+    }) {
+        Div({ classes("note-pop-top") }) {
+            Icon("edit_note")
+            B { Text("Sua nota") }
+            if (tag != null) Span({ classes("note-pill") }) { Text(tag.uppercase()) }
+            Span({ classes("grow") })
+            Span({ classes("xs", "muted") }) { Text(noteDate(mark.createdAt)) }
+            if (!peek) IconButton("close", "Fechar") { onClose() }
+        }
+        Div({ classes("note-pop-body") }) { Text(body) }
+        if (peek) Div({ classes("xs", "muted") }) { Text("Clique no trecho para editar ou excluir") }
+        else if (confirm) Div({ classes("note-confirm"); attr("style", "margin:0") }) {
+            Span({ classes("grow", "small") }) { Text("Excluir esta nota? O trecho continua grifado.") }
+            Btn("Manter", { confirm = false }, style = "ghost", small = true)
+            Btn("Excluir", { onDeleteNote() }, style = "danger", small = true)
+        }
+        else Div({ classes("note-pop-actions") }) {
+            Btn("Editar", onEdit, style = "primary", small = true, icon = "edit")
+            Btn("Excluir nota", { confirm = true }, style = "ghost", small = true, icon = "delete")
+            Btn("Tirar grifo", onRemoveMark, style = "ghost", small = true, icon = "ink_eraser")
+        }
     }
 }
 

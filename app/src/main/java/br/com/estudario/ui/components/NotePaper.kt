@@ -296,3 +296,84 @@ fun NotePaperCard(text: String, createdAt: Long, onClick: () -> Unit, quote: Str
         }
     }
 }
+
+/**
+ * A nota aberta para ler, numa folha de caderno que sobe de baixo: a etiqueta, onde ela mora, o
+ * trecho grifado (se for nota de um trecho), o texto inteiro (dá para selecionar e copiar) e as ações
+ * Editar, Excluir (com confirmação) e, quando couber, Tirar grifo e Abrir na teoria.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NoteViewSheet(
+    text: String,
+    createdAt: Long,
+    place: String,
+    onDismiss: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    quote: String? = null,
+    onRemoveHighlight: (() -> Unit)? = null,
+    onOpen: (() -> Unit)? = null,
+) {
+    val (tag, body) = remember(text) { NoteTags.split(text) }
+    var confirm by remember { mutableStateOf(false) }
+    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scheme = MaterialTheme.colorScheme
+    val dark = scheme.surface.red < 0.5f
+    val paper = if (dark) Color(0xFF1E1D2B) else Color(0xFFFFFDF6)
+    val line = if (dark) Color(0x2E9AA4FF) else Color(0x335B8DEF)
+    val margin = if (dark) Color(0x66FF7A85) else Color(0x80E5484D)
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    if (confirm) AlertDialog(
+        onDismissRequest = { confirm = false },
+        title = { Text(if (quote != null) "Excluir esta nota?" else "Excluir esta anotação?") },
+        text = { Text(if (quote != null) "O trecho continua grifado." else "Ela sai do app, do site e do Caderno de estudo.") },
+        confirmButton = { TextButton(onClick = { confirm = false; onDelete() }) { Text("Excluir", color = scheme.error) } },
+        dismissButton = { TextButton(onClick = { confirm = false }) { Text("Manter") } },
+    )
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = paper, dragHandle = { BottomSheetDefaults.DragHandle(color = margin) }) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 12.dp)) {
+            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            if (quote != null) "Nota do trecho" else "Sua anotação",
+                            Modifier.drawBehind { drawRect(Color(0x73FFC857), topLeft = Offset(-4.dp.toPx(), size.height * 0.45f), size = androidx.compose.ui.geometry.Size(size.width + 8.dp.toPx(), size.height * 0.5f)) },
+                            style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black,
+                        )
+                        if (tag != null) Surface(shape = RoundedCornerShape(50), color = NoteTags.color(tag)) {
+                            Text(tag.uppercase(), Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.White)
+                        }
+                    }
+                    Text("$place · ${noteDate.format(Date(createdAt))}", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "Fechar") }
+            }
+            if (!quote.isNullOrBlank()) Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp).clip(RoundedCornerShape(10.dp)).background(Color(0x33FFC857)).height(IntrinsicSize.Min),
+            ) {
+                Box(Modifier.width(4.dp).fillMaxHeight().background(Color(0xFFF2A900)))
+                Text("“" + quote.trim() + "”", Modifier.padding(10.dp), style = MaterialTheme.typography.bodyMedium, maxLines = 6, overflow = TextOverflow.Ellipsis)
+            }
+            val lineSp = 28.sp
+            val linePx = with(density) { lineSp.toPx() }
+            Box(
+                Modifier.fillMaxWidth().heightIn(min = 160.dp, max = 420.dp)
+                    .ruledPaper(line, margin, linePx, with(density) { 10.dp.toPx() } - linePx * 0.22f, with(density) { 34.dp.toPx() })
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                androidx.compose.foundation.text.selection.SelectionContainer {
+                    Text(body, Modifier.fillMaxWidth().padding(start = 44.dp, end = 20.dp, top = 10.dp, bottom = 12.dp), style = TextStyle(fontSize = 17.sp, lineHeight = lineSp, fontFamily = br.com.estudario.ui.theme.Nunito, color = scheme.onSurface))
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = { confirm = true }) { Icon(Icons.Outlined.DeleteOutline, null, Modifier.size(18.dp), tint = scheme.error); Spacer(Modifier.width(4.dp)); Text("Excluir", color = scheme.error) }
+                if (onRemoveHighlight != null) TextButton(onClick = onRemoveHighlight) { Text("Tirar grifo") }
+                if (onOpen != null) TextButton(onClick = onOpen) { Text("Abrir na teoria") }
+            }
+            Button(onClick = onEdit, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(50.dp), shape = RoundedCornerShape(14.dp)) {
+                Text("Editar", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
