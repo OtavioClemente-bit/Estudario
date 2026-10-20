@@ -416,7 +416,8 @@ fun TaskRow(task: PlanTask, onComplete: () -> Unit) {
             }
             Span({ classes("type-chip") }) { Icon(taskIcon(task.type)); Text(Queries.taskTypeLabel(task.type)) }
         }
-        Div({ classes("mission-title"); attr("role", "button"); attr("tabindex", "0"); onClick { openTask(task) } }) { Text(taskTitle(task)) }
+        // O nome abre o conteúdo do tópico (concluída ou não); os botões continuam começando a tarefa.
+        Div({ classes("mission-title"); attr("role", "button"); attr("tabindex", "0"); attr("title", if (task.topicId != null) "Abrir o conteúdo" else ""); onClick { if (task.topicId != null) Router.go(Route.Topic(task.topicId)) else openTask(task) } }) { Text(taskTitle(task)) }
         Div({ classes("mission-meta") }) {
             Span { Text(Queries.minutesLabel(task.minutes)) }
             if (task.questions > 0) Span { Text("${task.questions} questões") }

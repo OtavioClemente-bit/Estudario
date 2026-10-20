@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -29,6 +30,9 @@ import br.com.estudario.ui.planner.PlannerTaskUi
 import br.com.estudario.ui.planner.completionActionPtBr
 import br.com.estudario.ui.planner.displayNamePtBr
 import br.com.estudario.ui.planner.minutesLabelPtBr
+
+/** Abre o tópico de uma tarefa ao tocar no nome dela (dado pelo plano; concluída ou não). */
+val LocalOpenTaskTopic = androidx.compose.runtime.staticCompositionLocalOf<((Long) -> Unit)?> { null }
 
 @Composable
 fun MissionCard(
@@ -120,11 +124,15 @@ fun MissionCard(
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Tocar no nome abre o conteúdo do tópico, mesmo com a tarefa concluída.
+                val openTopic = LocalOpenTaskTopic.current
+                val topicId = task.topicId
                 Text(
                     text = task.taskTitlePtBr(),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Black,
                     color = MaterialTheme.colorScheme.onSurface,
+                    modifier = if (openTopic != null && topicId != null) Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp)).clickable(onClickLabel = "Abrir o conteúdo") { openTopic(topicId) } else Modifier,
                 )
                 
                 // FlowRow: "45 min • 20 qts • Prioridade alta" não cabe numa linha em tela estreita

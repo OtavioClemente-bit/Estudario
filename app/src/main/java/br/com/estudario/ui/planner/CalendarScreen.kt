@@ -40,6 +40,7 @@ fun CalendarScreen(
     onEditAvailability: () -> Unit = {},
     onShiftRoadmapEnd: (Long) -> Unit = {},
 ) {
+    androidx.compose.runtime.CompositionLocalProvider(br.com.estudario.ui.components.LocalOpenTaskTopic provides onOpenTopic) {
     // Os chips "Acompanhe seu plano" (Hoje/Semana/Mês/Visão geral) escolhem qual destas visões
     // aparece, antes eles só destacavam o próprio chip e a tela sempre mostrava o dia selecionado.
     when (state.selectedSection) {
@@ -55,6 +56,7 @@ fun CalendarScreen(
         PlanSection.WEEK -> WeekPlanView(state = state, onFocus = onFocus, onReprogram = onReprogram, onSkip = onSkip, onGenerate = onGenerate, header = header)
         PlanSection.MONTH -> MonthPlanView(state = state, onFocus = onFocus, onReprogram = onReprogram, onSkip = onSkip, onGenerate = onGenerate, header = header)
         PlanSection.YEAR -> OverviewPlanView(state = state, header = header, onEditAvailability = onEditAvailability, onShiftRoadmapEnd = onShiftRoadmapEnd)
+    }
     }
 }
 
