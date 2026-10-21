@@ -22,16 +22,21 @@ im.onload = () => {
   const parts = {
     shoeL0: { poly: [[110,518],[285,518],[285,545],[110,545]], ok: (p) => !isSleeve(p) && lum(p) > 120, pivot: [200, 612], fill: false, as: "shoeL" },
     shoeR0: { poly: [[322,518],[500,518],[500,545],[322,545]], ok: (p) => !isSleeve(p) && lum(p) > 120, pivot: [412, 612], fill: false, as: "shoeR" },
+    cheekL: { poly: [[150,312],[226,312],[226,356],[150,356]], ok: (q) => q[0] - q[1] > 28 && q[0] - q[2] > 12, pivot: [192, 334], fill: true, dil: 3 },
+    cheekR: { poly: [[400,312],[470,312],[470,358],[400,358]], ok: (q) => q[0] - q[1] > 28 && q[0] - q[2] > 12, pivot: [436, 336], fill: true, dil: 3 },
+    hipL: { poly: [[236,447],[294,447],[294,472],[236,472]], ok: () => true, pivot: [262, 452], fill: true, dil: 1, drop: true, dirs: "h" },
+    hipR: { poly: [[328,447],[380,447],[380,472],[328,472]], ok: () => true, pivot: [352, 452], fill: true, dil: 1, drop: true, dirs: "h" },
     tassel: { poly: [[420,118],[460,118],[460,150],[476,160],[476,234],[416,234],[416,160],[428,150]], ok: (p) => isGold(p), pivot: [445, 128], fill: true, dil: 3 },
     cap: { poly: [[172,52],[456,52],[456,128],[432,150],[402,166],[372,178],[318,199],[264,180],[238,170],[205,152],[172,138]], ok: (p, x, y) => !(isPage(p) && y > 158), pivot: [318, 186], fill: true, dil: 2 },
+    tasShadow: { poly: [[412,150],[485,150],[485,240],[412,240]], ok: (q) => !isGold(q) && lum(q) < 228 && lum(q) > 120 && Math.max(q[0], q[1], q[2]) - Math.min(q[0], q[1], q[2]) < 40, pivot: [445, 180], fill: true, dil: 2, drop: true },
     ribbon: { poly: [[298,424],[342,424],[342,506],[298,506]], ok: (p) => isTeal(p), pivot: [320, 440], fill: true, dil: 2 },
     mouth: { poly: [[280,314],[346,314],[346,362],[280,362]], ok: (p) => !isPage(p) || Math.max(p[0], p[1], p[2]) - Math.min(p[0], p[1], p[2]) > 45, pivot: [312, 320], fill: true, dil: 3 },
     eyeL: { poly: [[184,260],[268,260],[268,312],[184,312]], ok: (p) => lum(p) < 150, pivot: [226, 300], fill: true, dil: 3 },
     eyeR: { poly: [[356,260],[442,260],[442,312],[356,312]], ok: (p) => lum(p) < 150, pivot: [399, 300], fill: true, dil: 3 },
-    armL: { poly: [[0,180],[99,180],[99,298],[123,298],[123,360],[92,362],[0,330]], ok: (p, x) => x < 99 || isSleeve(p), pivot: [108, 330], fill: true, dil: 2 },
+    armL: { poly: [[0,180],[99,180],[99,298],[123,298],[123,360],[92,362],[0,330]], ok: (p, x) => x < 99 || !isPage(p), pivot: [108, 330], fill: true, dil: 2, dirs: "v" },
     armR: { poly: [[523,236],[606,236],[606,372],[523,372]], ok: () => true, pivot: [522, 346], fill: false, extendX: [524, 506] },
-    legL: { poly: [[215,459],[305,459],[305,537],[215,537]], ok: () => true, pivot: [262, 452], fill: false, extendY: [460, 438] },
-    legR: { poly: [[325,459],[412,459],[412,537],[325,537]], ok: () => true, pivot: [366, 452], fill: false, extendY: [460, 438] },
+    legL: { poly: [[215,459],[305,459],[305,537],[215,537]], ok: () => true, pivot: [262, 452], fill: false, extendY: [460, 438], extendDown: [524, 562] },
+    legR: { poly: [[325,459],[412,459],[412,537],[325,537]], ok: () => true, pivot: [366, 452], fill: false, extendY: [460, 438], extendDown: [524, 562] },
     shoeL: { poly: [[110,530],[285,530],[285,650],[110,650]], ok: () => true, pivot: [200, 612], fill: false },
     shoeR: { poly: [[322,530],[500,530],[500,650],[322,650]], ok: () => true, pivot: [412, 612], fill: false },
   };
@@ -46,12 +51,13 @@ im.onload = () => {
   const FILES = {}, LAYOUT = { view: [FX, FY, FW, FH], parts: {} };
   const layer = (data, x0, y0, w, h) => { const cc = document.createElement("canvas"); cc.width = w; cc.height = h; const id = new ImageData(w, h); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const s = ((y + y0) * FW + x + x0) * 4, d = (y * w + x) * 4; for (let k = 0; k < 4; k++) id.data[d + k] = data[s + k]; } cc.getContext("2d").putImageData(id, 0, 0); return cc.toDataURL("image/png"); };
   names.forEach((name, k) => {
-    if (parts[name].as) return;
+    if (parts[name].as || parts[name].drop) return;
     const pt = parts[name], data = new Uint8ClampedArray(N * 4);
     let minx = FW, miny = FH, maxx = 0, maxy = 0;
     for (let i = 0; i < N; i++) if (owner[i] === k) { for (let q = 0; q < 4; q++) data[i * 4 + q] = src[i * 4 + q]; const x = i % FW, y = (i / FW) | 0; minx = Math.min(minx, x); maxx = Math.max(maxx, x); miny = Math.min(miny, y); maxy = Math.max(maxy, y); }
     // Prolonga a raiz da perna/braço por trás da capa, para não abrir fresta quando gira.
     if (pt.extendY) { const [from, to] = pt.extendY.map((v) => v - FY); for (let y = to; y < from; y++) for (let x = 0; x < FW; x++) { const s = (from * FW + x) * 4, d = (y * FW + x) * 4; if (data[s + 3]) for (let q = 0; q < 4; q++) data[d + q] = data[s + q]; } miny = Math.min(miny, to); }
+    if (pt.extendDown) { const [from, to] = pt.extendDown.map((v) => v - FY); for (let y = from + 1; y <= Math.min(to, FH - 1); y++) for (let x = 0; x < FW; x++) { const s = (from * FW + x) * 4, d = (y * FW + x) * 4; if (data[s + 3] > 200 && isSleeve([data[s], data[s + 1], data[s + 2]])) for (let q = 0; q < 4; q++) data[d + q] = data[s + q]; } maxy = Math.max(maxy, Math.min(to, FH - 1)); }
     if (pt.extendX) { const [from, to] = pt.extendX.map((v) => v - FX); for (let x = to; x < from; x++) for (let y = 0; y < FH; y++) { const s = (y * FW + from) * 4, d = (y * FW + x) * 4; if (data[s + 3] > 200 && isSleeve([data[s], data[s + 1], data[s + 2]])) for (let q = 0; q < 4; q++) data[d + q] = data[s + q]; } minx = Math.min(minx, to); }
     const pad = 2; minx = Math.max(0, minx - pad); miny = Math.max(0, miny - pad); maxx = Math.min(FW - 1, maxx + pad); maxy = Math.min(FH - 1, maxy + pad);
     FILES[name] = layer(data, minx, miny, maxx - minx + 1, maxy - miny + 1);
@@ -72,7 +78,8 @@ im.onload = () => {
     const i = y * FW + x; if (!hole2[i]) continue;
     if (!inPoly(BOOK, x + FX, y + FY)) { body[i * 4 + 3] = 0; continue; }
     let acc = [0, 0, 0, 0], wsum = 0;
-    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+    const hp = owner[i] >= 0 ? parts[names[owner[i]]] : null, dirs = hp && hp.dirs === "v" ? [[0,1],[0,-1]] : hp && hp.dirs === "h" ? [[1,0],[-1,0]] : [[1,0],[-1,0],[0,1],[0,-1]];
+    for (const [dx, dy] of dirs) {
       let nx = x, ny = y, d = 0;
       while (true) { nx += dx; ny += dy; d++; if (nx < 0 || ny < 0 || nx >= FW || ny >= FH || d > 200) { d = -1; break; } const j = ny * FW + nx; if (!hole2[j]) break; }
       if (d < 0) continue;
@@ -88,6 +95,17 @@ im.onload = () => {
     // fundo cinza preso entre a aba do capelo e o alto das folhas
     else if (sx > 380 && sx < 455 && sy < 176) { const p = [body[i], body[i + 1], body[i + 2]]; if (Math.max(...p) - Math.min(...p) < 18 && lum(p) < 215) body[i + 3] = 0; }
   }
+  // Borda do livro onde saíam pernas/braços: a linha clara de contraluz da arte some (cor de dentro).
+  { const solid = (x, y) => body[(y * FW + x) * 4 + 3] > 0, b2 = new Uint8ClampedArray(body);
+    for (let y = 3; y < FH - 3; y++) for (let x = 3; x < FW - 3; x++) {
+      const i = (y * FW + x) * 4; if (!body[i + 3]) continue;
+      let edge = 0; for (let d = 1; d <= 2; d++) for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) if (!solid(x + dx * d, y + dy * d)) edge = edge || d;
+      if (!edge) continue;
+      let n = 0, s0 = 0, s1 = 0, s2 = 0;
+      for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) { const xx = x + dx, yy = y + dy; if (xx < 3 || yy < 3 || xx >= FW - 3 || yy >= FH - 3) continue; let inner = true; for (const [ex, ey] of [[3,0],[-3,0],[0,3],[0,-3]]) if (!solid(xx + ex, yy + ey)) { inner = false; break; } if (inner) { const j = (yy * FW + xx) * 4; s0 += body[j]; s1 += body[j + 1]; s2 += body[j + 2]; n++; } }
+      if (n) { const k = edge === 1 ? 1 : 0.5; b2[i] = body[i] * (1 - k) + s0 / n * k; b2[i + 1] = body[i + 1] * (1 - k) + s1 / n * k; b2[i + 2] = body[i + 2] * (1 - k) + s2 / n * k; }
+    }
+    body.set(b2); }
   FILES.body = layer(body, 0, 0, FW, FH);
   LAYOUT.parts.body = { x: 0, y: 0, w: FW, h: FH, pivot: P(313, 600) };
   // Máscara de conferência: cada parte numa cor.
