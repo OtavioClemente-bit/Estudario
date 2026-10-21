@@ -256,7 +256,7 @@ object AiContent {
 
         val questions = mutableListOf<JsonObject>()
         var questionId = next.nextId(Keys.QUESTIONS)
-        var optionId = (next.questions.flatMap { it.options }.maxOfOrNull { it.id } ?: 0L) + 1
+        var optionId = (next.questions.flatMap { it.options }.maxOfOrNull { it.id } ?: 0L) + Snapshot.ID_GAP
         val knownHashes = next.array(Keys.QUESTIONS).mapNotNullTo(hashSetOf()) { (it as? JsonObject)?.str("normalizedHash") }
         proposal.arr("questions").mapNotNull { it as? JsonObject }.forEachIndexed { index, question ->
             val statement = question["statement"].text() ?: return@forEachIndexed

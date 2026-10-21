@@ -75,10 +75,17 @@ class Snapshot private constructor(val root: JsonObject) {
         return Snapshot(JsonObject(next))
     }
 
-    /** Próximo id numérico livre de uma tabela (mesma regra do autoincremento do Room). */
-    fun nextId(key: String): Long = (array(key).maxOfOrNull { ((it as? JsonObject)?.get("id") as? JsonPrimitive)?.longOrNull ?: 0L } ?: 0L) + 1
+    /**
+     * Próximo id numérico de uma tabela, [ID_GAP] acima do maior. O celular numera o que cria com
+     * maior + 1; se o site usasse o mesmo número, o que os dois criassem ao mesmo tempo (matéria
+     * gerada aqui, questão respondida lá) teria o mesmo id e, ao juntar, um dos dois sumia.
+     */
+    fun nextId(key: String): Long = (array(key).maxOfOrNull { ((it as? JsonObject)?.get("id") as? JsonPrimitive)?.longOrNull ?: 0L } ?: 0L) + ID_GAP
 
     companion object {
+        /** Folga entre os ids do celular e os do site (ver [nextId]). */
+        const val ID_GAP = 100_000L
+
         fun parse(text: String): Snapshot {
             val root = snapshotJson.parseToJsonElement(text).jsonObject
             val format = root.str("format")

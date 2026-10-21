@@ -295,7 +295,7 @@ object Simulations {
         val id = data.nextId(Keys.SIMULATIONS)
         val keys = hashSetOf<String>()
         var questionId = data.nextId(Keys.QUESTIONS)
-        var optionId = (data.questions.flatMap { it.options }.maxOfOrNull { it.id } ?: 0L) + 1
+        var optionId = (data.questions.flatMap { it.options }.maxOfOrNull { it.id } ?: 0L) + Snapshot.ID_GAP
         val at = now()
         val rows = official.questions.sortedBy { it.n }.mapNotNull { q ->
             if (!keys.add(QuestionKey.of(q.statement))) return@mapNotNull null
@@ -412,7 +412,7 @@ object Simulations {
         val existing = data.questions.filter { it.simulationId == simulationId }.mapTo(hashSetOf()) { q -> (data.array(Keys.QUESTIONS).firstOrNull { (it as? JsonObject)?.long("id") == q.id } as? JsonObject)?.str("externalId") }
         val keys = data.questions.filter { it.simulationId == simulationId }.mapTo(hashSetOf()) { QuestionKey.of(it.statement) }
         var questionId = data.nextId(Keys.QUESTIONS)
-        var optionId = (data.questions.flatMap { it.options }.maxOfOrNull { it.id } ?: 0L) + 1
+        var optionId = (data.questions.flatMap { it.options }.maxOfOrNull { it.id } ?: 0L) + Snapshot.ID_GAP
         val at = now()
         val rows = (proposal["questions"] as? JsonArray).orEmpty().mapIndexedNotNull { index, element ->
             val question = element as? JsonObject ?: return@mapIndexedNotNull null

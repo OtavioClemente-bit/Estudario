@@ -20,6 +20,22 @@ class SnapshotMergeTest {
         return (0 until rows.length()).map { rows.getJSONObject(it) }.firstOrNull { it.getString("id") == id }
     }
 
+    /**
+     * Linhas novas dos dois lados com o mesmo id viram uma só. Por isso o site numera o que cria
+     * longe dos ids do celular (Snapshot.ID_GAP no app web).
+     */
+    @Test
+    fun materiaCriadaNosDoisLadosComMesmoIdPerdeUma() {
+        fun theory(id: Long, text: String) = JSONObject().put("id", id).put("topicId", 1).put("markdown", text).put("updatedAt", 5)
+        val base = JSONObject().put("theories", JSONArray())
+        val phone = JSONObject().put("theories", JSONArray(listOf(theory(1, "do celular"))))
+        val site = JSONObject().put("theories", JSONArray(listOf(theory(1, "do site"))))
+
+        val merged = SnapshotMerge.merge(base, phone, site)
+
+        assertEquals(1, merged.getJSONArray("theories").length())
+    }
+
     @Test
     fun cadaLadoConcluiUmaTarefaENenhumaSePerde() {
         val base = snapshot(task("a", "PLANEJADA"), task("b", "PLANEJADA"))
