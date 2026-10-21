@@ -43,17 +43,15 @@ import org.jetbrains.compose.web.dom.Text
 // ------------------------------------------------------------------ Folha (o mascote)
 
 /**
- * O Folha da arte oficial (design/mascote/folha-turnaround.webp). Do tamanho de personagem para cima ele é
- * o modelo 3D feito em cima da arte (mascote3d.js: respira, dança, acena, fala, pula ao toque; sem WebGL
- * cai para o recorte animado de mascote.js);
- * miniatura dentro de botão fica a vista de frente parada, para uma lista cheia de botões não virar
- * dezenas de animações.
+ * O Folha. Do tamanho de personagem para cima ele é o mesmo do app, vivo (folha-live.js: respira,
+ * pisca, olha em volta, pula ao toque); miniatura dentro de botão fica como desenho parado, para
+ * uma lista cheia de botões não virar dezenas de animações.
  */
 @Composable
 fun Folha(mood: String = "happy", size: Int = 96, extraStyle: String = "", live: Boolean = size >= LIVE_FOLHA_MIN_SIZE) {
     if (live) {
         TagElement<org.w3c.dom.HTMLElement>(
-            elementBuilder = ElementBuilder.createBuilder("estudario-mascote3d"),
+            elementBuilder = ElementBuilder.createBuilder("estudario-folha"),
             applyAttrs = {
                 classes("folha", "folha-live")
                 attr("mood", mood)
@@ -64,9 +62,13 @@ fun Folha(mood: String = "happy", size: Int = 96, extraStyle: String = "", live:
         )
         return
     }
-    Img(src = "mascote-front.png", alt = "", attrs = {
+    val src = remember(mood, size) {
+        val svg = runCatching { window.asDynamic().folhaSvg(kotlin.js.json("mood" to mood, "size" to size)) as? String }.getOrNull()
+        svg?.let { "data:image/svg+xml;charset=utf-8," + js("encodeURIComponent")(it) as String } ?: "icon.png"
+    }
+    Img(src = src, alt = "", attrs = {
         classes("folha")
-        attr("style", "width:${size}px;height:${size}px;object-fit:contain;$extraStyle")
+        attr("style", "width:${size}px;height:${size}px;$extraStyle")
         attr("aria-hidden", "true")
     })
 }
