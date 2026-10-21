@@ -157,7 +157,8 @@ fun LoginScreen() {
     val (mood, speech) = when {
         busy -> "thinking" to "Abrindo o seu caderno…"
         error != null -> "sad" to "Ih, não deu. Tenta de novo?"
-        fleeLine != null -> (if (fleeing) "happy" else "talking") to fleeLine!!
+        // Fugindo, ele corre de verdade (pés e braços); o CSS só espelha para o lado da fuga.
+        fleeLine != null -> (if (fleeing) "run" else "talking") to fleeLine!!
         else -> lines[line]
     }
 
