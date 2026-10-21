@@ -6,7 +6,7 @@ questões daquele tópico, depois o resto. Seu trabalho é dizer, tópico por t�
 
 ## Entrada
 Para cada matéria do seu lote há um arquivo `<id>.json` (na pasta que você recebeu) com: `titulo`,
-`escopo`, `capitulos` (índice e título), `questoes` (id, capítulo, começo do enunciado) e `topicos`
+`escopo`, `capitulos` (índice e título), `questoes` (id = "q" + posição a partir de 1, capítulo, começo do enunciado) e `topicos`
 (os textos de edital ligados a ela). Se precisar, leia a matéria completa em
 `conteudo/materias/<área>/<nome>.json` (id `<área>.<nome>`).
 
