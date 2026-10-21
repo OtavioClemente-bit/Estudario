@@ -96,7 +96,7 @@ function loadModel() {
   if (MODEL) return MODEL;
   // Baixa o GLB e faz o parse com o TextureLoader comum (sem createImageBitmap/fetch de blob:, que o
   // CSP do app barra): sem createImageBitmap na hora em que o parser nasce, o three usa <img>.
-  MODEL = fetch(base + "folha.glb").then((r) => { if (!r.ok) throw new Error("folha.glb " + r.status); return r.arrayBuffer(); }).then((buf) => new Promise((res, rej) => {
+  MODEL = fetch((typeof window !== "undefined" && window.ESTUDARIO_FOLHA_GLB) || base + "folha.glb").then((r) => { if (!r.ok) throw new Error("folha.glb " + r.status); return r.arrayBuffer(); }).then((buf) => new Promise((res, rej) => {
     const cib = window.createImageBitmap;
     try { window.createImageBitmap = undefined; } catch (_) { /* ok */ }
     new GLTFLoader().parse(buf, base, (g) => {
