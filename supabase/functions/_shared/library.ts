@@ -764,14 +764,28 @@ export function assembleFromLibrary(
   const wholeTheory = focused.length === allChapters.length || (focused.length === 1 && !splitChapter(focused[0]));
   const outside = wholeTheory ? [] : outsideTerms(allChapters.filter((chapter) => !focused.includes(chapter)), focused);
   const fits = wholeTheory ? null : chapterAffinity(allChapters, allChapters.map((chapter, i) => focused.includes(chapter) ? i : -1).filter((i) => i >= 0));
+  // Palavra (radical) que só aparece nos capítulos de fora: "interrupção mascarável" num recorte de
+  // processos e threads. O item que a usa fala de algo que a teoria entregue não explica.
+  const absent = wholeTheory ? null : outsideOnlyStems(allChapters.filter((chapter) => !focused.includes(chapter)), focused);
+  const usesAbsent = (value: unknown) => absent !== null && absent.size > 0 && new Set(stems(typeof value === "string" ? value : JSON.stringify(value ?? "")).filter((stem) => absent.has(stem))).size >= 3;
   const mentionsOutside = (value: unknown) =>
-    (outside.length > 0 && outside.some((term) => term.test(JSON.stringify(value ?? "")))) || (fits !== null && !fits(value));
+    (outside.length > 0 && outside.some((term) => term.test(JSON.stringify(value ?? "")))) || (fits !== null && !fits(value)) || usesAbsent(value);
+  // O recorte da banca foi escrito à parte e às vezes cobra o que a matéria nem explica ("interrupção
+  // mascarável", "escalonamento cooperativo" num material sem isso). Dica, pegadinha ou frase do
+  // recorte apoiada em termos que a teoria entregue não usa fica de fora.
+  const taught = new Set(stems(focused.map((chapter) => `${chapter.title} ${chapter.markdown}`).join(" ")));
+  const unexplained = (value: unknown) => {
+    if (wholeTheory) return false;
+    const own = [...new Set(stems(typeof value === "string" ? value : JSON.stringify(value ?? "")))].filter((stem) => !NOTE_PHRASING.has(stem));
+    const missing = own.filter((stem) => !taught.has(stem)).length;
+    return missing >= 3 && missing / Math.max(own.length, 1) >= 0.35;
+  };
   const board = typeof note?.board === "string" ? note.board : input.board;
   const who = normalizeBoard(board) === GENERAL_BOARD_NORM ? "prova" : board;
   // O texto da banca fala da matéria inteira: com recorte, ficam só as frases do assunto entregue.
   const fullHowItFalls = typeof note?.howItFalls === "string" ? note.howItFalls : null;
-  const keptHowItFalls = fullHowItFalls && (outside.length > 0 || fits !== null)
-    ? fullHowItFalls.split(/(?<=[.!?])\s+/).filter((sentence) => !mentionsOutside(sentence)).join(" ").trim()
+  const keptHowItFalls = fullHowItFalls
+    ? fullHowItFalls.split(/(?<=[.!?])\s+/).filter((sentence) => !mentionsOutside(sentence) && !unexplained(sentence)).join(" ").trim()
     : fullHowItFalls;
   const howItFalls = keptHowItFalls === fullHowItFalls || (keptHowItFalls && keptHowItFalls.length >= 80) ? keptHowItFalls : null;
   let summary = wants("SUMMARY") ? String(material.summary) : "";
@@ -786,7 +800,7 @@ export function assembleFromLibrary(
   }
   const inFocus = <T>(items: T[]) => outside.length === 0 && fits === null ? items : items.filter((item) => !mentionsOutside(item));
   const merged = (field: "tips" | "traps") =>
-    wants("TIPS_TRAPS") ? [...new Set([...inFocus((note?.[field] as string[]) ?? []), ...inFocus(material[field] as string[])])].slice(0, 8) : [];
+    wants("TIPS_TRAPS") ? [...new Set([...inFocus((note?.[field] as string[]) ?? []).filter((item) => !unexplained(item)), ...inFocus(material[field] as string[])])].slice(0, 8) : [];
   // Com recorte, só os cartões do que a teoria entregue ensina, mesmo que sejam poucos. Nunca o baralho
   // inteiro: o aluno decorava cartão de capítulo que nem estava estudando. Poucos demais: entram os
   // que mais tocam o assunto dos capítulos entregues (metade ou mais do vocabulário próprio deles),
@@ -796,7 +810,7 @@ export function assembleFromLibrary(
     const kept = inFocus(items);
     if (ratio === null || kept.length >= MIN_FOCUSED_FLASHCARDS) return kept;
     const near = items
-      .filter((item) => !kept.includes(item) && !(outside.length > 0 && outside.some((term) => term.test(JSON.stringify(item)))))
+      .filter((item) => !kept.includes(item) && !(outside.length > 0 && outside.some((term) => term.test(JSON.stringify(item)))) && !usesAbsent(item))
       .map((item) => ({ item, r: ratio(item) }))
       .filter(({ r }) => r >= 0.5)
       .sort((a, b) => b.r - a.r)
@@ -882,6 +896,28 @@ export function chapterAffinityRatio(chapters: Json[], focusedIdx: number[]): (i
     const inside = Math.max(...focusedIdx.map((i) => scores[i] ?? 0));
     return inside / best;
   };
+}
+
+/** Palavras de redação dos recortes ("alternativa", "afirma"...), que não são assunto. */
+const NOTE_PHRASING = new Set(("alternativa alternativas afirma afirmação afirmativa afirmativas enunciado item itens verifique "
+  + "confira observe considere avalie pergunte procure quando aparecer encontrar citarem situação imagine errado errada correta "
+  + "correto certo resposta resolver atenção cobra cobrar cobrança costuma frequente mistura misturam generalização falsa "
+  + "verdadeira verdadeiros qualificadores absolutos sempre nunca necessariamente apenas somente todas qualquer detalhe "
+  + "palavra trecho afirmar escreve prova provas questão questões formato preparação núcleo estudo treino técnico "
+  + "possibilidade instante condições sistema determinado característica justamente impede garantia motivar mudança "
+  + "também outra outro alguma algum diferença distinguir distinção conceito conceitos").split(" ").flatMap((word) => stems(word)));
+
+function stems(text: string): string[] {
+  return affinityWords(text).filter((word) => word.length >= 5).map((word) => word.slice(0, 7));
+}
+
+/** Radicais usados nos capítulos de fora do recorte e em nenhum lugar da teoria entregue. */
+export function outsideOnlyStems(outside: Json[], inside: Json[]): Set<string> {
+  const insideStems = new Set(stems(inside.map((chapter) => `${chapter.title} ${chapter.markdown}`).join(" ")));
+  const counts = new Map<string, number>();
+  for (const stem of stems(outside.map((chapter) => `${chapter.title} ${chapter.markdown}`).join(" "))) if (!insideStems.has(stem)) counts.set(stem, (counts.get(stem) ?? 0) + 1);
+  // Só os termos do assunto de fora (repetidos lá), não palavra solta de redação.
+  return new Set([...counts].filter(([, count]) => count >= 2).map(([stem]) => stem));
 }
 
 export function outsideTerms(outside: Json[], inside: Json[]): RegExp[] {
