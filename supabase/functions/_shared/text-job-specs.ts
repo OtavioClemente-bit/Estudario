@@ -25,7 +25,7 @@ import { type ExpectedVersions, validateStudyPlan, validateTopicContent } from "
 import { applyReview, type ContentReview, runContentReview } from "./content-review.ts";
 import { resolveOpenAiModel } from "./openai-provider.ts";
 import { CACHE_MAX_AGE_DAYS, contentCacheKey } from "./content-cache.ts";
-import { assembleFromLibrary, composeMaterials, GENERAL_BOARD_NORM, inferFocus, LIBRARY_MODEL_VERSION, lookupAliases, normalizeAlias, normalizeBoard } from "./library.ts";
+import { assembleFromLibrary, composeMaterials, foreignStateMaterial, GENERAL_BOARD_NORM, inferFocus, LIBRARY_MODEL_VERSION, lookupAliases, normalizeAlias, normalizeBoard } from "./library.ts";
 import { planSimulationFromLibrary } from "./simulation-library.ts";
 import { routeTopic } from "./topic-router.ts";
 import type { LibraryHit } from "../ai-syllabus-worker/index.ts";
@@ -125,6 +125,8 @@ async function libraryContent(
   if (!store.libraryLookup) return null;
   const aliases = lookupAliases(input);
   let found = await store.libraryLookup(aliases, normalizeBoard(input.board), normalizeAlias(input.role));
+  // Matéria de outro estado (texto curto ligado em editais de lá) não serve: vai para a rota ou para a IA.
+  if (found && foreignStateMaterial(found.topicId, [input.competitionName, input.agency, input.subjectName, ...input.topicPath])) found = null;
   // Matéria (e material) a que o recorte automático da banca se refere; num tópico montado de
   // várias matérias, é a primeira.
   let primary = found ? { topicId: found.topicId, material: found.material } : null;

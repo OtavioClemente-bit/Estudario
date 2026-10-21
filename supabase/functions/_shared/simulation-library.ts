@@ -1,4 +1,4 @@
-import { deliverQuestion, fitsStyle, GENERAL_BOARD_NORM, inferFocus, type LibraryFocus, lookupAliases, normalizeAlias, normalizeBoard, shuffled, topicWords } from "./library.ts";
+import { deliverQuestion, fitsStyle, foreignStateMaterial, GENERAL_BOARD_NORM, inferFocus, type LibraryFocus, lookupAliases, normalizeAlias, normalizeBoard, shuffled, topicWords } from "./library.ts";
 import { questionKey, type RematchSource, type SimulationItem, type SimulationJobInput } from "./simulation.ts";
 
 // Simulado montado da biblioteca: as questões prontas e conferidas de cada tópico da planta, sem
@@ -169,6 +169,8 @@ async function hitFor(store: SimulationLibraryStore, subjectName: string | null,
   const boardNorm = normalizeBoard(input.board);
   const hit = await store.libraryLookup(lookupAliases({ topicPath, subjectName }), boardNorm, normalizeAlias(input.role)).catch(() => null);
   if (!hit) return null;
+  // Matéria de outro estado não entra na prova de quem não é de lá.
+  if (foreignStateMaterial(hit.topicId, [input.competitionName, input.agency, subjectName, ...topicPath])) return null;
   if (!hit.note) hit.note = await store.libraryBoardNote?.(hit.topicId, GENERAL_BOARD_NORM, "").catch(() => null) ?? null;
   return hit;
 }

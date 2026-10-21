@@ -155,6 +155,34 @@ export function normalizeBoard(value: string | null | undefined): string {
 }
 
 /** Textos do pedido que podem bater num apelido, do mais específico ao mais geral. */
+// Matérias de um estado (área = estado): nome, sigla e capital, já normalizados como os apelidos.
+// Pará e Sergipe ficam sem a palavra solta ("para", "se" são palavras comuns).
+const STATE_MARKERS: Record<string, string[]> = {
+  "acre": ["acre", "ac", "rio branco"], "alagoas": ["alagoas", "al", "maceio"], "amapa": ["amapa", "ap", "macapa"],
+  "amazonas": ["amazonas", "am", "manaus"], "bahia": ["bahia", "ba", "salvador"], "ceara": ["ceara", "ce", "fortaleza"],
+  "distrito-federal": ["distrito federal", "df", "brasilia"], "espirito-santo": ["espirito santo", "es", "vitoria"],
+  "goias": ["goias", "go", "goiania"], "maranhao": ["maranhao", "ma", "sao luis"], "mato-grosso": ["mato grosso", "mt", "cuiaba"],
+  "mato-grosso-do-sul": ["mato grosso do sul", "ms", "campo grande"], "minas-gerais": ["minas gerais", "mg", "belo horizonte"],
+  "para": ["estado do para", "pa", "belem"], "paraiba": ["paraiba", "pb", "joao pessoa"], "parana": ["parana", "pr", "curitiba"],
+  "pernambuco": ["pernambuco", "pe", "recife"], "piaui": ["piaui", "pi", "teresina"], "rio-de-janeiro": ["rio de janeiro", "rj"],
+  "rio-grande-do-norte": ["rio grande do norte", "rn", "natal"], "rio-grande-do-sul": ["rio grande do sul", "rs", "porto alegre"],
+  "rondonia": ["rondonia", "ro", "porto velho"], "roraima": ["roraima", "rr", "boa vista"], "santa-catarina": ["santa catarina", "sc", "florianopolis"],
+  "sao-paulo": ["sao paulo", "sp"], "sergipe": ["sergipe", "aracaju"], "tocantins": ["tocantins", "to", "palmas"],
+};
+
+/**
+ * Matéria de um estado servida a pedido de outro lugar: o texto curto do tópico ("Hidrografia.")
+ * foi ligado em editais de Minas e virou apelido de "Hidrografia de Minas Gerais"; quem estuda
+ * Ji-Paraná receberia os rios de Minas. A matéria estadual só vale quando o estado (nome, sigla
+ * ou capital) aparece no concurso, no órgão, na disciplina ou no tópico.
+ */
+export function foreignStateMaterial(topicId: string, context: Array<string | null | undefined>): boolean {
+  const markers = STATE_MARKERS[String(topicId).split(".")[0]];
+  if (!markers) return false;
+  const text = ` ${context.map((part) => normalizeAlias(part)).join(" ")} `;
+  return !markers.some((marker) => text.includes(` ${marker} `));
+}
+
 export function lookupAliases(input: Pick<ContentJobInput, "topicPath"> & { subjectName?: string | null }): string[] {
   const path = input.topicPath.map(normalizeAlias).filter((part) => part.length > 0);
   // Tópico de nome curto ("Java") dentro de uma matéria ("Linguagens de Programação"): tenta também
