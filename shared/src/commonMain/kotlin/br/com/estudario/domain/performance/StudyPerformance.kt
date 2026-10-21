@@ -174,7 +174,9 @@ object StudyPerformanceEvaluator {
             dayAttempts[day] = (dayAttempts[day] ?: 0) + 1
             if (attempt.correct) dayCorrect[day] = (dayCorrect[day] ?: 0) + 1
         }
-        (input.studySessions + input.questionSessions).forEach { session ->
+        // Mesmo cálculo do site (Queries.dailyActivity): o tempo da bateria de questões não entra,
+        // porque já volta como execução da tarefa do plano e conta o tempo com o app parado.
+        input.studySessions.forEach { session ->
             val day = dayOf(session.completedAt) ?: return@forEach
             dayMinutes[day] = (dayMinutes[day] ?: 0) + session.durationSeconds / 60
         }

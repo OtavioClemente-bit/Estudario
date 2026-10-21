@@ -50,6 +50,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -117,7 +119,12 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
             planningPrioritiesBySubjectId = planData.planningPrioritiesBySubjectId,
             planningPrioritiesByExternalId = planData.planningPrioritiesByExternalId,
         )
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, InitialSetupUiState())
+    }
+        // Montar o edital grava dezenas de matérias e tópicos; cada gravação refaz este cálculo com o
+        // banco de questões inteiro. Fora da thread principal e só com o último valor, a tela não trava.
+        .conflate()
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, InitialSetupUiState())
 
     private val _operation = MutableStateFlow<SetupOperation>(SetupOperation.Idle)
     val operation: StateFlow<SetupOperation> = _operation.asStateFlow()

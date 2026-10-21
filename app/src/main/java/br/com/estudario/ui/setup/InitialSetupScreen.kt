@@ -565,13 +565,16 @@ private fun CompetitionStep(
             CatalogSearchField(query) { query = it }
             if (query.isBlank()) CatalogQuickSearches { query = it }
             val recent = { e: br.com.estudario.data.catalog.ExamCatalogEntry -> (e.year ?: 0) >= thisYear - 1 }
-            if (query.isBlank() && catalog.entries.isNotEmpty()) CatalogTabs(recentOnly, catalog.entries.count(recent), catalog.entries.size, "Recentes · $thisYear e ${thisYear - 1}") { recentOnly = it; shownCount = 20 }
-            val base = if (recentOnly && query.isBlank()) catalog.entries.filter(recent) else catalog.entries
+            // Catálogo tem centenas de editais: ordenar e filtrar só quando a lista ou o filtro muda,
+            // não a cada toque num cartão (era o que travava a escolha do edital).
+            val recentCount = remember(catalog.entries, thisYear) { catalog.entries.count(recent) }
+            if (query.isBlank() && catalog.entries.isNotEmpty()) CatalogTabs(recentOnly, recentCount, catalog.entries.size, "Recentes · $thisYear e ${thisYear - 1}") { recentOnly = it; shownCount = 20 }
+            val base = remember(catalog.entries, recentOnly, query.isBlank(), thisYear) { if (recentOnly && query.isBlank()) catalog.entries.filter(recent) else catalog.entries }
             CatalogCategoryChips(base, category) { category = it; shownCount = 20 }
             CatalogBoardChips(base, board) { board = it; shownCount = 20 }
             // Sem busca: os editais mais novos primeiro, e entre eles os mais completos.
-            val pool = if (query.isBlank()) base.sortedWith(compareByDescending<br.com.estudario.data.catalog.ExamCatalogEntry> { it.year ?: 0 }.thenByDescending { it.readyPercent }) else results
-            val filtered = pool.filter { (category == null || it.category() == category) && (board == null || it.board?.trim() == board) }
+            val pool = remember(base, results, query.isBlank()) { if (query.isBlank()) base.sortedWith(compareByDescending<br.com.estudario.data.catalog.ExamCatalogEntry> { it.year ?: 0 }.thenByDescending { it.readyPercent }) else results }
+            val filtered = remember(pool, category, board) { pool.filter { (category == null || it.category() == category) && (board == null || it.board?.trim() == board) } }
             if (filtered.isNotEmpty()) CatalogListHeader(filtered.size, searching = query.isNotBlank())
             filtered.take(shownCount).forEach { entry ->
                 ExamResultCard(entry, entry.id == selectedExamId) {

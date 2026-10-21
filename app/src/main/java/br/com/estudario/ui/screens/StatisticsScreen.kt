@@ -256,7 +256,7 @@ private fun TrendChip(delta: Int) {
 
 @Composable
 private fun KpiRow(result: StudyPerformanceResult) {
-    val minutes = result.current.studyMinutes + result.current.questionMinutes + result.current.planExecutionMinutes
+    val minutes = result.current.studyMinutes + result.current.planExecutionMinutes
     val days = result.period.days
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Kpi(Icons.Outlined.Schedule, formatHours(minutes), "estudadas", Color(0xFF5B5BD6), Modifier.weight(1f))
