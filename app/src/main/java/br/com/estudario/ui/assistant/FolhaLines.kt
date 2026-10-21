@@ -27,6 +27,22 @@ object FolhaLines {
 
     fun forAnswer(correct: Boolean, seed: Long): String = (if (correct) this.correct else wrong).pick(seed)
 
+    /** Acertou logo depois de errar: o Folha solta o ar ("ufa"). */
+    fun forRelief(seed: Long): String = listOf(
+        "Ufa! Errou a anterior, mas essa você virou. É assim que se aprende.",
+        "Ufa! Recuperou na hora. Essa sacudida faz bem.",
+        "Ufa, voltou pro trilho! Bora manter.",
+        "Viu? Um erro não define a bateria. Mandou bem agora.",
+    ).pick(seed)
+
+    /** Muitos acertos seguidos: o Folha pega fogo junto. */
+    fun forFire(seed: Long): String = listOf(
+        "Tá pegando fogo! Ninguém te segura hoje.",
+        "Sequência absurda! A banca que se cuide.",
+        "Em chamas! Continua nesse ritmo que a vaga é sua.",
+        "Isso é constância de quem passa. Próxima!",
+    ).pick(seed)
+
     /** Fim da bateria: a fala depende de como foi. */
     fun forResult(percent: Int, seed: Long): String = when {
         percent >= 90 -> listOf(

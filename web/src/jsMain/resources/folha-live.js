@@ -12,7 +12,9 @@
 //    pequeno (menos de 72 px), some o detalhe miúdo e os traços engrossam.
 // O canvas sobra para fora da caixa (MARGIN), para mão e borla nunca serem cortadas.
 //
-// Uso: <estudario-folha mood="idle|thinking|talking|happy|sad|wave|point|wink" size="96" clickable>
+// Uso: <estudario-folha mood="idle|thinking|talking|happy|sad|wave|point|wink|surprised|proud|focus|sleepy|relieved|ecstatic"
+//        size="96" [say="texto"] [cover|ribbon|acc="id do armário"] [plain] [noenter]>
+// Armário e contexto do dia: window.folhaSetLook({ cover, ribbon, acc, streak, atRisk }); saída: window.folhaLeave(raiz, fim).
 // Toque: amassa, pula e pisca. el.gulp (0..1) abre a boca para "engolir" folhas (tela de processamento).
 // Um laço de animação só para todos, parado fora da tela; quadro fixo para quem pede menos movimento.
 (function () {
@@ -26,6 +28,37 @@
   const SMALL = 72;                           // abaixo disso (px), desenho simplificado
 
   const reduceMotion = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : { matches: false };
+
+  // ------------------------------------------------------------------ armário (FolhaWardrobe.kt) e contexto do dia
+  // Capas: degradê da capa (claro, meio, escuro), a sombra de baixo e a cor das cantoneiras.
+  const COVERS = {
+    indigo: { c: ["#5247E0", "#3A2FC4", "#2A209E"], under: "#1A1370", corner: "gold" },
+    esmeralda: { c: ["#36C897", "#1F9E75", "#147A5A"], under: "#0B4F3A", corner: "gold" },
+    rubi: { c: ["#E8566D", "#C42F4B", "#961D37"], under: "#5E0F22", corner: "gold" },
+    ametista: { c: ["#AA68EE", "#8746D3", "#662DAB"], under: "#3E1670", corner: "gold" },
+    couro: { c: ["#BC7D4E", "#965A31", "#6D3D1F"], under: "#43240E", corner: "gold", stitch: true },
+    grafite: { c: ["#61667C", "#43475C", "#2D3042"], under: "#1A1C28", corner: "silver" },
+    noite: { c: ["#36388A", "#212059", "#121138"], under: "#07061E", corner: "silver", stars: true },
+    ouro: { c: ["#FFDD84", "#EBB13A", "#BD8214"], under: "#7A4F05", corner: "silver", shine: true },
+  };
+  const RIBBONS = {
+    menta: [MINT_DARK, MINT, "#C6F7E2"], ceu: ["#3D8BEA", "#6FB0FF", "#D6EAFF"], coral: ["#E2604A", "#FF8C75", "#FFD6CC"],
+    lilas: ["#9466DD", "#B995F5", "#ECDFFF"], dourada: ["#C98A12", GOLD, "#FFEBB5"],
+  };
+  // O que a pessoa escolheu e o contexto do dia; o site atualiza por window.folhaSetLook (veja o fim do arquivo).
+  // streak: dias seguidos (medalha no capelo a partir de 7); atRisk: a sequência pode cair hoje; hour: para testes.
+  const LOOK = { cover: "indigo", ribbon: "menta", acc: "nenhum", streak: 0, atRisk: false, hour: null };
+  function resolveLook(el) {
+    const a = (n) => (el && el.getAttribute(n)) || LOOK[n];
+    const h = LOOK.hour != null ? LOOK.hour : new Date().getHours();
+    const plain = el && el.hasAttribute("plain");     // vitrine do armário: só o item, sem medalha nem hora do dia
+    return {
+      cover: COVERS[a("cover")] || COVERS.indigo, ribbon: RIBBONS[a("ribbon")] || RIBBONS.menta, acc: a("acc"),
+      streak: plain ? 0 : LOOK.streak, atRisk: !plain && LOOK.atRisk,
+      morning: !plain && h >= 5 && h < 11, night: !plain && (h >= 22 || h < 5),
+    };
+  }
+  const sstep = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
 
   // ------------------------------------------------------------------ cor e formas básicas
   function hex(c) { const n = parseInt(c.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
@@ -90,7 +123,9 @@
   // ------------------------------------------------------------------ poses
   // Valores numéricos vão por mola de uma pose para outra; a forma da mão troca com um "pop".
   const REST_L = [4, 78], REST_R = [96, 78];
-  function pose(mood, t, look, fid) {
+  // ctx: tm = segundos desde que o humor começou (cenas com começo, meio e fim); worried = sequência em risco.
+  function pose(mood, t, look, fid, ctx) {
+    const tm = ctx && ctx.tm != null ? ctx.tm : 9;
     const p = {
       hop: sin(t * 2.1) * 1.4, tilt: sin(t * 0.9) * 1.2,
       hL: [REST_L[0], REST_L[1] + sin(t * 2.1) * 1.2], hR: [REST_R[0], REST_R[1] - sin(t * 2.1) * 1.2],
@@ -100,6 +135,8 @@
       mW: 5, mCurve: 3.4, mOpen: 0, cheek: 0.45, capRot: 0, tongue: 0,
     };
     const env = (u) => { u = clamp(u, 0, 1); return sin(PI * u) ** 0.7; };
+    // sequência em risco (fim do dia, meta ainda não batida): parado, fica preocupadinho
+    if (mood === "idle" && ctx && ctx.worried) { p.browIn = 0.6; p.browY = 0.3; p.mW = 3.8; p.mCurve = 0.6; p.cheek = 0.35; }
     // manias do parado: depois de um tempo quieto ele faz alguma coisa sozinho
     if (mood === "idle" && fid) {
       const e = env(fid.u);
@@ -172,6 +209,20 @@
       p.hL = [6, 85]; p.hR = [94, 85]; p.rotL = 30; p.rotR = -30; p.bendL = p.bendR = 4;
       p.up = 0.42; p.droop = 1; p.pupil = 0.9; p.lookY = 0.9;
       p.browIn = 1; p.browY = 0.6; p.mW = 4.6; p.mCurve = -3.4; p.cheek = 0.3;
+    } else if (mood === "relieved") {
+      // "Ufa!": de olhos fechados, passa a mão na testa e solta o ar; depois relaxa num sorriso
+      const w = 1 - sstep((tm - 2.1) / 0.6), sw = 0.5 + 0.5 * sin(tm * 4.4 - 1.2);
+      p.hop = lerp(-0.6, 1.4, w) + sin(t * 2) * 0.4; p.tilt = lerp(-1.5, 2.5, w);
+      p.hR = [lerp(96, lerp(80, 60, sw), w), lerp(76, 50, w)]; p.shapeR = w > 0.4 ? "open" : "mitt"; p.rotR = -95 * w; p.bendR = lerp(2, -7, w);
+      p.hL = [lerp(5, 8, w), lerp(76, 82, w)];
+      p.up = lerp(0, 1, w); p.low = lerp(0.5, 0, w); p.browIn = 0.45 * w; p.browY = lerp(-1.2, -0.4, w);
+      p.mW = lerp(5.4, 2.3, w); p.mCurve = lerp(4.2, 0, w); p.mOpen = lerp(0.3, 0.45, w); p.cheek = lerp(0.65, 0.55, w);
+    } else if (mood === "ecstatic") {
+      // em chamas (muitos acertos seguidos): olhos de estrela, pulos altos e socos no ar alternados
+      const a = sin(t * 6.2);
+      p.hop = -abs(a) * 7; p.tilt = sin(t * 3.1) * 3;
+      p.hL = [0, 40 - Math.max(0, a) * 7]; p.hR = [100, 40 - Math.max(0, -a) * 7]; p.shapeL = p.shapeR = "fist"; p.rotL = -24; p.rotR = 24; p.bendL = p.bendR = -6;
+      p.pupil = 1.3; p.browY = -3; p.mW = 6.8; p.mCurve = 5.4; p.mOpen = 1.15; p.cheek = 0.85;
     }
     return p;
   }
@@ -208,31 +259,49 @@
     g.translate(50, 88); g.scale(squashX / Math.sqrt(stretch), squashY * stretch); g.translate(-50, -88);
     g.translate(50, 80); g.rotate(tilt * PI / 180); g.translate(-50, -80);
     // quem fica na frente do livro: as duas mãos folheando ou com a cara de susto; só a do lápis no foco
-    const front = mood === "thinking" || mood === "surprised" ? "LR" : mood === "focus" ? "R" : "";
+    const look = s.look || resolveLook(null);
+    // na frente do livro: as duas mãos folheando, no susto ou passando na testa (ufa); só a do lápis no foco
+    const front = mood === "thinking" || mood === "surprised" ? "LR" : mood === "focus" || mood === "relieved" ? "R" : "";
     drawArms(g, s, "LR".replace(new RegExp("[" + (front || "_") + "]", "g"), ""));
-    drawBook(g, t, mood, small);
+    drawBook(g, t, mood, small, look);
     drawPageLines(g, t, mood, small);
     if (!small) drawDogEar(g, t, mood);
     if (mood === "thinking") drawTurningPage(g, t);
     drawFace(g, s);
+    if (look.acc === "oculos") drawGlasses(g, P, small);
+    if (look.acc === "gravata") drawBowTie(g, small);
+    const nightcap = look.night && (mood === "idle" || mood === "sleepy");
     g.save(); g.translate(50, 38); g.rotate((P.capRot || 0) * PI / 180); g.translate(-50, -38);
-    drawCap(g, t, tilt, s.vy);
+    if (nightcap) drawNightcap(g, t, tilt, s.vy);
+    else {
+      drawCap(g, t, tilt, s.vy);
+      if (look.acc === "lapis") drawPencilAt(g, 25, 44.5, 41.5, 36, small ? 1.5 : 1.15);   // lápis atrás da "orelha"
+      if (look.acc === "louros") drawLaurels(g, small);
+      if (look.acc === "estrela") drawStarPin(g, t, small);
+      if (look.streak >= 7 && !small) drawStreakMedal(g, t, look.streak, tilt);
+    }
     g.restore();
     if (front) drawArms(g, s, front);
+    if (mood === "relieved" && !small) drawRelief(g, s.tm || 0);
+    if (look.atRisk && mood === "idle" && !small) drawSweat(g, t);
     g.restore();
+    if (!small && look.morning && /^(idle|talking|thinking|focus|wave|point|proud)$/.test(mood)) drawMug(g, t);
+    if (!small && look.night && /^(idle|sleepy|focus|thinking)$/.test(mood)) drawMoon(g, t);
     if (mood === "happy") drawCelebration(g, t, small);
+    if (mood === "ecstatic") { drawFlames(g, t, small); drawCelebration(g, t, small); }
     if (mood === "proud") drawSparkles(g, t, small);
     if (mood === "sleepy") drawZzz(g, t, small);
     if (mood === "dizzy") drawDizzyStars(g, t);
     if (mood === "focus" && !small) drawFocusMarks(g, t);
   }
 
-  function drawCorners(g) {
+  function drawCorners(g, metal) {
+    const stops = metal === "silver" ? ["#FFFFFF", "#CDD0DC", "#8E92A6"] : ["#FFE3A0", GOLD, "#C98A12"];
     const corner = (x, y, sx, sy) => {
       const p = new Path2D();
       p.moveTo(x, y + sy * 6.5); p.lineTo(x, y + sy * 1.2); p.quadraticCurveTo(x, y, x + sx * 1.2, y); p.lineTo(x + sx * 6.5, y);
       p.lineTo(x + sx * 6.5, y + sy * 1.9); p.lineTo(x + sx * 1.9, y + sy * 1.9); p.lineTo(x + sx * 1.9, y + sy * 6.5); p.closePath();
-      g.fillStyle = vGrad(g, ["#FFE3A0", GOLD, "#C98A12"], Math.min(y, y + sy * 6.5), Math.max(y, y + sy * 6.5)); g.fill(p);
+      g.fillStyle = vGrad(g, stops, Math.min(y, y + sy * 6.5), Math.max(y, y + sy * 6.5)); g.fill(p);
       g.strokeStyle = "rgba(120,70,0,0.35)"; g.lineWidth = 0.3; g.stroke(p);
       circle(g, "rgba(255,255,255,0.75)", 0.45, x + sx * 0.95, y + sy * 0.95);
     };
@@ -249,27 +318,41 @@
     stroke(g, fold, rgba(GUTTER, 0.18), 0.25);
   }
 
-  function drawBook(g, t, mood, small) {
-    const cover = coverPath();
+  function drawBook(g, t, mood, small, look) {
+    const cover = coverPath(), C = look.cover;
     // contorno macio: claro por fora (fundo escuro) e tinta por dentro (fundo claro)
     stroke(g, cover, "rgba(255,255,255,0.28)", small ? 3 : 2);
-    stroke(g, cover, "rgba(14,10,69,0.85)", small ? 1.6 : 1);
-    g.save(); g.translate(0, 1.7); g.fillStyle = "#1A1370"; g.fill(cover); g.restore();
-    g.fillStyle = vGrad(g, ["#5247E0", "#3A2FC4", "#2A209E"], 41, 93); g.fill(cover);
+    stroke(g, cover, rgba(C.under, 0.85), small ? 1.6 : 1);
+    g.save(); g.translate(0, 1.7); g.fillStyle = C.under; g.fill(cover); g.restore();
+    g.fillStyle = vGrad(g, C.c, 41, 93); g.fill(cover);
     const lg = g.createLinearGradient(8, 44, 40, 70); lg.addColorStop(0, "rgba(255,255,255,0.14)"); lg.addColorStop(1, "rgba(255,255,255,0)");
     g.fillStyle = lg; g.fill(cover);
     if (!small) {
       g.save(); g.clip(cover);
-      for (let x = -50; x < 100; x += 1.5) { line(g, "rgba(255,255,255,0.045)", x, 40, x + 54, 95, 0.3, false); line(g, "rgba(0,0,0,0.06)", x + 54, 40, x, 95, 0.3, false); }
+      if (C.stitch) {         // couro: granulado e costura pontilhada rente à borda
+        for (const s of GRAIN) circle(g, `rgba(40,18,4,${s.a * 1.3})`, s.r * 1.3, s.x < 50 ? 8.5 + (s.x - 15) * 0.1 : 91.5 - (85 - s.x) * 0.1, s.y + 6);
+        g.save(); g.setLineDash([1.1, 0.9]);
+        const st = new Path2D();
+        st.moveTo(10.2, 45.8); st.lineTo(10.2, 87.4); st.bezierCurveTo(22, 85.3, 38, 86.2, 50, 91.4); st.bezierCurveTo(62, 86.2, 78, 85.3, 89.8, 87.4); st.lineTo(89.8, 45.8);
+        stroke(g, st, "rgba(255,226,180,0.75)", 0.35); g.restore();
+      } else for (let x = -50; x < 100; x += 1.5) { line(g, "rgba(255,255,255,0.045)", x, 40, x + 54, 95, 0.3, false); line(g, "rgba(0,0,0,0.06)", x + 54, 40, x, 95, 0.3, false); }
+      if (C.stars) for (const [x, y, r] of [[9.8, 50, 0.35], [10.6, 63, 0.25], [9.6, 76, 0.4], [90.2, 55, 0.3], [89.6, 70, 0.4], [90.4, 82, 0.25], [24, 88.6, 0.3], [40, 90.4, 0.35], [62, 90.2, 0.3], [77, 88.4, 0.35]]) {
+        circle(g, `rgba(255,248,214,${0.55 + 0.45 * abs(sin(t * 1.3 + x))})`, r, x, y);
+      }
+      if (C.shine) {          // ouro: um brilho passando de tempos em tempos
+        const sx = -30 + ((t * 0.32) % 1) * 170, sh = g.createLinearGradient(sx, 40, sx + 18, 95);
+        sh.addColorStop(0, "rgba(255,255,255,0)"); sh.addColorStop(0.5, "rgba(255,255,255,0.55)"); sh.addColorStop(1, "rgba(255,255,255,0)");
+        g.fillStyle = sh; g.fill(cover);
+      }
       g.restore();
     }
     for (const side of [-1, 1]) {
       const ed = new Path2D(), x0 = 50 + side * 41.5;
       ed.moveTo(x0, 43.5); ed.lineTo(x0 + side * 1.6, 44.4); ed.lineTo(x0 + side * 1.6, 88.2); ed.lineTo(x0, 89); ed.closePath();
-      g.fillStyle = vGrad(g, ["#2A209E", "#1A1370"], 44, 89); g.fill(ed);
+      g.fillStyle = vGrad(g, [C.c[2], C.under], 44, 89); g.fill(ed);
     }
-    if (!small) drawCorners(g);
-    drawRibbon(g, t, mood);
+    if (!small) drawCorners(g, C.corner);
+    drawRibbon(g, t, mood, look.ribbon);
 
     for (const side of [-1, 1]) {
       const block = pageBlock(side, 3.6);
@@ -372,6 +455,13 @@
         const sp = new Path2D(), a0 = t * 7 * side;
         for (let i = 0; i <= 40; i++) { const a = a0 + i * 0.42, rr = 0.25 + i * 0.12; i ? sp.lineTo(x + cos(a) * rr, y + sin(a) * rr * 1.15) : sp.moveTo(x + cos(a) * rr, y + sin(a) * rr * 1.15); }
         stroke(g, sp, INK, small ? 1.6 : 1.2); return;
+      }
+      if (mood === "ecstatic" && blink < 0.5) {   // olhos de estrela, pulsando
+        const st = star5(g, x, y, (small ? 6.4 : 5.8) * (1 + 0.1 * sin(t * 9)));
+        g.fillStyle = vGrad(g, ["#FFF1BF", GOLD, "#E39A1E"], y - 6, y + 5); g.fill(st);
+        g.strokeStyle = INK; g.lineWidth = small ? 1.2 : 0.8; g.lineJoin = "round"; g.stroke(st);
+        if (!small) circle(g, "rgba(255,255,255,0.9)", 0.9, x - 1.2, y - 1.6);
+        return;
       }
       const rx = 4.4 * P.eyeScale * (small ? 1.18 : 1), ry = 5.8 * P.eyeScale * (small ? 1.1 : 1);
       const up = clamp(Math.max(P.up, blink, extraLid), 0, 1), low = clamp(P.low * (1 - blink), 0, 1);
@@ -491,7 +581,8 @@
     circle(g, GOLD, 1.8, bx, by); circle(g, "#FFE3A0", 0.7, bx - 0.5, by - 0.5);
   }
 
-  function drawRibbon(g, t, mood) {
+  function drawRibbon(g, t, mood, colors) {
+    const [dark, base, light] = colors || RIBBONS.menta;
     const sad = mood === "sad", sway = sad ? 0 : sin(t * 1.9 + 0.6) * 1.3;
     const w = 3.4, x0 = 51.4, lieTop = 86, edge = 94.6, hang = sad ? 3.2 : 5.4;
     const tipY = edge + hang, tipX = x0 + 0.5 + sway;
@@ -502,10 +593,162 @@
     r.quadraticCurveTo(x0 + 0.3 + sway * 0.3, edge + hang * 0.5, x0 + 0.3, edge);
     r.closePath();
     g.save(); g.translate(0.7, 0.5); g.fillStyle = "rgba(14,10,69,0.35)"; g.fill(r); g.restore();
-    g.fillStyle = hGrad(g, [MINT_DARK, MINT, "#C6F7E2", MINT], x0, x0 + w + 0.6 + sway); g.fill(r);
+    g.fillStyle = hGrad(g, [dark, base, light, base], x0, x0 + w + 0.6 + sway); g.fill(r);
     g.fillStyle = vGrad(g, ["rgba(14,10,69,0.45)", "rgba(14,10,69,0)"], 88, 91.5); g.fillRect(x0, 88, w + 0.3, 3.5);
     line(g, "rgba(255,255,255,0.55)", x0 + 0.5, edge - 0.4, x0 + w, edge - 0.4, 0.5, false);
-    g.fillStyle = vGrad(g, ["rgba(31,122,90,0.55)", "rgba(31,122,90,0)"], edge, edge + 1.8); g.fillRect(x0 + 0.3, edge, w, 1.8);
+    g.fillStyle = vGrad(g, [rgba(dark, 0.55), rgba(dark, 0)], edge, edge + 1.8); g.fillRect(x0 + 0.3, edge, w, 1.8);
+  }
+
+  // ------------------------------------------------------------------ acessórios do armário
+  function drawPencilAt(g, x0, y0, x1, y1, r) {
+    // lápis da ponta (x0, y0) até a borracha (x1, y1)
+    const L = Math.hypot(x1 - x0, y1 - y0);
+    g.save(); g.translate(x0, y0); g.rotate(Math.atan2(y1 - y0, x1 - x0));
+    g.fillStyle = INK; g.beginPath(); g.moveTo(0, 0); g.lineTo(1.2, -r * 0.45); g.lineTo(1.2, r * 0.45); g.closePath(); g.fill();
+    g.fillStyle = "#F0D3A8"; g.beginPath(); g.moveTo(1.1, -r * 0.42); g.lineTo(3.2, -r); g.lineTo(3.2, r); g.lineTo(1.1, r * 0.42); g.closePath(); g.fill();
+    g.fillStyle = GOLD; g.fillRect(3.2, -r, L - 6.4, r * 2);
+    g.fillStyle = "#E39A1E"; g.fillRect(3.2, r * 0.15, L - 6.4, r * 0.85);
+    g.fillStyle = "#C8CAD6"; g.fillRect(L - 3.2, -r, 1.5, r * 2);
+    g.fillStyle = "#F59AB8"; g.beginPath(); g.ellipse(L - 1.0, 0, 1.4, r, 0, 0, 2 * PI); g.fill();
+    g.restore();
+  }
+  function drawGlasses(g, P, small) {
+    // óculos redondos de leitura: acompanham o rosto (menos que os olhos)
+    const dx = P.lookX * 0.7, dy = P.lookY * 0.5, w = small ? 1.5 : 0.95, frame = "#B47A1C";
+    for (const cx of [31, 69]) {
+      const x = cx + dx, y = 61 + dy;
+      g.beginPath(); g.ellipse(x, y, 7, 6.8, 0, 0, 2 * PI); g.fillStyle = "rgba(255,255,255,0.10)"; g.fill();
+      g.strokeStyle = frame; g.lineWidth = w; g.stroke();
+      if (!small) { g.beginPath(); g.ellipse(x, y, 5.6, 5.4, 0, PI * 1.08, PI * 1.42); g.strokeStyle = "rgba(255,255,255,0.8)"; g.lineWidth = 0.55; g.lineCap = "round"; g.stroke(); }
+    }
+    const br = new Path2D(); br.moveTo(38 + dx, 60 + dy); br.quadraticCurveTo(50 + dx, 56.6 + dy, 62 + dx, 60 + dy); stroke(g, br, frame, w);
+    line(g, frame, 24 + dx, 59.5 + dy, 18.5, 58, w); line(g, frame, 76 + dx, 59.5 + dy, 81.5, 58, w);
+  }
+  function drawBowTie(g, small) {
+    const x = 50, y = 83.4, red = "#E0475E", dk = "#A8233A";
+    for (const side of [-1, 1]) {
+      const p = new Path2D(); p.moveTo(x, y); p.quadraticCurveTo(x + side * 3, y - 3.6, x + side * 6, y - 2.6); p.quadraticCurveTo(x + side * 6.8, y, x + side * 6, y + 2.6); p.quadraticCurveTo(x + side * 3, y + 3.6, x, y); p.closePath();
+      g.fillStyle = hGrad(g, side < 0 ? [red, dk] : [dk, red], side < 0 ? x - 6 : x, side < 0 ? x : x + 6); g.fill(p);
+      if (!small) { const f = new Path2D(); f.moveTo(x + side * 1.5, y - 0.6); f.quadraticCurveTo(x + side * 3.6, y - 1.2, x + side * 5, y - 0.4); stroke(g, f, "rgba(255,255,255,0.35)", 0.35); }
+    }
+    g.beginPath(); g.ellipse(x, y, 1.6, 1.9, 0, 0, 2 * PI); g.fillStyle = dk; g.fill();
+    circle(g, "rgba(255,255,255,0.35)", 0.45, x - 0.5, y - 0.7);
+  }
+  function drawLaurels(g, small) {
+    // coroa de louros dourada: dois ramos abraçando a base do capelo, de baixo (meio) para cima (lados)
+    const n = small ? 4 : 6;
+    for (const side of [-1, 1]) {
+      const P0 = [50 + side * 3, 45], P1 = [50 + side * 15, 45.5], P2 = [50 + side * 16.5, 33];
+      const at = (u) => [(1 - u) ** 2 * P0[0] + 2 * (1 - u) * u * P1[0] + u * u * P2[0], (1 - u) ** 2 * P0[1] + 2 * (1 - u) * u * P1[1] + u * u * P2[1]];
+      const stem = new Path2D(); stem.moveTo(...P0); stem.quadraticCurveTo(...P1, ...P2); stroke(g, stem, "#B07A12", small ? 0.9 : 0.55);
+      for (let i = 1; i <= n; i++) {
+        const u = i / n, [x, y] = at(u), [x2, y2] = at(Math.min(1, u + 0.02)), tang = Math.atan2(y2 - y, x2 - x);
+        for (const k of i === n ? [0] : [-1, 1]) {
+          g.save(); g.translate(x, y); g.rotate(tang + k * 0.75);
+          const leaf = new Path2D(); leaf.ellipse(1.5, 0, 1.9, 0.85, 0, 0, 2 * PI);
+          g.fillStyle = hGrad(g, ["#C98A12", GOLD, "#FFE3A0"], 0, 3.2); g.fill(leaf);
+          if (!small) { g.strokeStyle = "rgba(120,70,0,0.35)"; g.lineWidth = 0.22; g.stroke(leaf); }
+          g.restore();
+        }
+      }
+    }
+  }
+  function star5(g, x, y, r, sy = 1) {
+    const p = new Path2D();
+    for (let i = 0; i < 10; i++) { const a = -PI / 2 + i * PI / 5, rr = i % 2 ? r * 0.45 : r; i ? p.lineTo(x + cos(a) * rr, y + sin(a) * rr * sy) : p.moveTo(x + cos(a) * rr, y + sin(a) * rr * sy); }
+    p.closePath(); return p;
+  }
+  function drawStarPin(g, t, small) {
+    const s = star5(g, 37, 28.4, small ? 4 : 3.2, 0.62);
+    g.fillStyle = vGrad(g, ["#FFF1BF", GOLD, "#C98A12"], 25, 31); g.fill(s);
+    g.strokeStyle = "rgba(120,70,0,0.45)"; g.lineWidth = 0.3; g.stroke(s);
+    if (!small) { const k = Math.max(0, sin(t * 1.7)) ** 6; if (k > 0.02) star4(g, 38.6, 26.8, 2.2 * k, `rgba(255,255,255,${0.95 * k})`); }
+  }
+  function drawStreakMedal(g, t, days, tilt) {
+    // medalha da sequência pendurada na aba do capelo: bronze (7+), prata (30+), ouro (100+)
+    const m = days >= 100 ? ["#FFF1BF", GOLD, "#B97E12"] : days >= 30 ? ["#FFFFFF", "#CDD0DC", "#8E92A6"] : ["#F6C79A", "#D08B4E", "#94562A"];
+    const sw = sin(t * 2.2 + 1) * 1.2 - tilt * 0.4, x = 25.5, y = 31, mx = x + sw * 0.4, my = y + 8;
+    const rb = new Path2D(); rb.moveTo(x - 1.2, y); rb.lineTo(x + 1.2, y); rb.lineTo(mx + 0.9, my - 2); rb.lineTo(mx - 0.9, my - 2); rb.closePath();
+    g.fillStyle = "#E0475E"; g.fill(rb); line(g, "rgba(255,255,255,0.6)", x, y + 0.2, mx, my - 2.2, 0.35);
+    circle(g, m[2], 2.9, mx, my + 0.3);
+    g.beginPath(); g.arc(mx, my, 2.6, 0, 2 * PI); g.fillStyle = vGrad(g, m, my - 2.6, my + 2.6); g.fill();
+    const fl = new Path2D(); fl.moveTo(mx, my - 1.6); fl.quadraticCurveTo(mx + 1.5, my, mx, my + 1.4); fl.quadraticCurveTo(mx - 1.5, my, mx, my - 1.6);
+    g.fillStyle = rgba(m[2], 0.9); g.fill(fl);
+  }
+  function drawNightcap(g, t, tilt, vy) {
+    // touca de dormir listrada (à noite, parado ou cochilando), com pompom que balança
+    const sw = sin(t * 1.6) * 1.6 - tilt * 0.6 + clamp(vy * 0.05, -3, 3), tx = 79 + sw, ty = 35 + abs(sw) * 0.3;
+    const cone = new Path2D(); cone.moveTo(36.5, 41); cone.quadraticCurveTo(38, 23, 55, 21.5); cone.quadraticCurveTo(70 + sw * 0.4, 21, tx, ty);
+    cone.quadraticCurveTo(68 + sw * 0.3, 28, 62.5, 31); cone.quadraticCurveTo(63, 36, 63.5, 41); cone.closePath();
+    g.save(); g.clip(cone);
+    g.fillStyle = "#4B3FD8"; g.fillRect(20, 10, 70, 40);
+    for (let i = -6; i < 12; i++) { const b = new Path2D(), x = 20 + i * 6; b.moveTo(x, 50); b.lineTo(x + 3, 50); b.lineTo(x + 23, 10); b.lineTo(x + 20, 10); b.closePath(); g.fillStyle = "#DCD7FA"; g.fill(b); }
+    g.fillStyle = vGrad(g, ["rgba(255,255,255,0.18)", "rgba(14,10,69,0.25)"], 20, 42); g.fillRect(20, 10, 70, 40);
+    g.restore();
+    stroke(g, cone, "rgba(14,10,69,0.35)", 0.4);
+    const rim = new Path2D(); rim.moveTo(35, 41.5); rim.quadraticCurveTo(50, 37, 65, 41.5); rim.quadraticCurveTo(66.5, 44, 64.5, 45.4); rim.quadraticCurveTo(50, 41.4, 35.5, 45.4); rim.quadraticCurveTo(33.5, 44, 35, 41.5);
+    g.fillStyle = vGrad(g, ["#FFFFFF", "#E4E0F2"], 38, 46); g.fill(rim); stroke(g, rim, "rgba(14,10,69,0.2)", 0.3);
+    const pom = g.createRadialGradient(tx - 1, ty, 0.3, tx, ty + 1, 3.2); pom.addColorStop(0, "#FFFFFF"); pom.addColorStop(1, "#D9D4EE");
+    g.beginPath(); g.arc(tx, ty + 1, 3, 0, 2 * PI); g.fillStyle = pom; g.fill();
+  }
+  function drawRelief(g, tm) {
+    // "ufa": nuvenzinha de ar saindo da boca e gota de suor voando da testa
+    const a = clamp((tm - 0.5) / 1.4, 0, 1);
+    if (a > 0 && a < 1) for (let i = 0; i < 3; i++) {
+      const u = clamp(a * 1.4 - i * 0.18, 0, 1); if (u <= 0 || u >= 1) continue;
+      circle(g, `rgba(255,255,255,${0.85 * (1 - u)})`, 1.4 + u * 2.4 - i * 0.3, 44 - u * 16 - i * 2.5, 75 + u * 4 + i);
+      circle(g, `rgba(170,165,215,${0.35 * (1 - u)})`, 1.4 + u * 2.4 - i * 0.3, 44 - u * 16 - i * 2.5, 75 + u * 4 + i + 0.4);
+    }
+    const d = clamp((tm - 0.9) / 0.8, 0, 1);
+    if (d > 0 && d < 1) {
+      const x = 74 + d * 12, y = 50 - sin(PI * d) * 7 + d * 6;
+      const p = new Path2D(); p.moveTo(x, y - 2); p.quadraticCurveTo(x + 1.6, y + 0.4, x, y + 1.1); p.quadraticCurveTo(x - 1.6, y + 0.4, x, y - 2);
+      g.fillStyle = `rgba(126,200,255,${1 - d * 0.6})`; g.fill(p);
+    }
+  }
+  function drawSweat(g, t) {
+    // sequência em risco: uma gotinha de suor de vez em quando
+    const ph = (t % 4.5) / 4.5; if (ph > 0.55) return;
+    const a = ph < 0.1 ? ph / 0.1 : 1 - Math.max(0, ph - 0.4) / 0.15, y = 51 + ph * 6;
+    const p = new Path2D(); p.moveTo(80, y - 2.2); p.quadraticCurveTo(81.8, y + 0.4, 80, y + 1.2); p.quadraticCurveTo(78.2, y + 0.4, 80, y - 2.2);
+    g.fillStyle = `rgba(126,200,255,${0.9 * a})`; g.fill(p); circle(g, `rgba(255,255,255,${0.8 * a})`, 0.35, 79.6, y - 0.1);
+  }
+  function drawMug(g, t) {
+    // de manhã: a caneca de café do lado do livro, fumegando
+    const x = 99, y = 85.5, w = 8.4, h = 9.2;
+    g.save(); g.translate(x + w / 2, 95); g.scale(1, 0.22); circle(g, rgba(INK, 0.22), 6, 0, 0); g.restore();
+    const hd = new Path2D(); hd.ellipse(x + w + 0.2, y + 4.4, 2.6, 2.8, 0, -PI / 2, PI / 2); stroke(g, hd, "#E9E5F5", 1.5); stroke(g, hd, rgba(INK, 0.25), 0.3);
+    const body = new Path2D(); body.moveTo(x, y); body.lineTo(x + w, y); body.lineTo(x + w - 0.3, y + h - 1.6); body.quadraticCurveTo(x + w - 0.5, y + h, x + w - 2, y + h); body.lineTo(x + 2, y + h); body.quadraticCurveTo(x + 0.5, y + h, x + 0.3, y + h - 1.6); body.closePath();
+    g.fillStyle = hGrad(g, ["#FFFFFF", "#F2EFFA", "#D9D4EE"], x, x + w); g.fill(body);
+    g.save(); g.clip(body); g.fillStyle = "#3A2FC4"; g.fillRect(x, y + 3.6, w, 2.4); g.restore();
+    oval(g, "#6B4226", x + 0.5, y - 0.7, w - 1, 1.8); oval(g, "rgba(255,230,200,0.35)", x + 1.6, y - 0.5, 2.4, 0.6);
+    stroke(g, body, rgba(INK, 0.25), 0.3);
+    for (let i = 0; i < 2; i++) {
+      const ph = (t * 0.45 + i * 0.5) % 1, a = sin(PI * ph) * 0.55, sx = x + 2.6 + i * 3;
+      const st = new Path2D(); st.moveTo(sx, y - 1.5 - ph * 3); st.bezierCurveTo(sx - 1.5, y - 3 - ph * 4, sx + 1.5, y - 5 - ph * 4, sx, y - 7 - ph * 5);
+      stroke(g, st, `rgba(255,255,255,${a})`, 0.8); stroke(g, st, `rgba(120,110,170,${a * 0.35})`, 0.3);
+    }
+  }
+  function drawMoon(g, t) {
+    // à noite: lua minguante e duas estrelinhas piscando
+    g.save();
+    const cut = new Path2D(); cut.rect(-40, -40, 180, 180); cut.arc(13.6, 11.2, 4.6, 0, 2 * PI);
+    g.clip(cut, "evenodd");
+    g.beginPath(); g.arc(11, 13, 5, 0, 2 * PI); g.fillStyle = vGrad(g, ["#FFF4C8", "#FFD877"], 8, 18); g.fill();
+    g.restore();
+    star4(g, 21, 7, 1.3 + 0.5 * sin(t * 2.1), "rgba(255,230,150,0.9)");
+    star4(g, 4, 22, 1 + 0.4 * sin(t * 1.7 + 2), "rgba(255,230,150,0.8)");
+  }
+  function drawFlames(g, t, small) {
+    // em chamas: labaredas tremulando dos dois lados
+    for (let i = 0; i < (small ? 2 : 4); i++) {
+      const side = i % 2 ? 1 : -1, row = Math.floor(i / 2);
+      const x = 50 + side * (44 + row * 6), base = 92 - row * 14, hgt = 9 + 2.5 * sin(t * 9 + i * 1.7) + (small ? 3 : 0), wd = 3.4 + (small ? 1 : 0);
+      const p = new Path2D(); p.moveTo(x - wd, base); p.bezierCurveTo(x - wd * 1.1, base - hgt * 0.5, x - wd * 0.2 + sin(t * 7 + i) * 0.8, base - hgt * 0.7, x + sin(t * 6 + i) * 1.2, base - hgt);
+      p.bezierCurveTo(x + wd * 0.6, base - hgt * 0.6, x + wd * 1.1, base - hgt * 0.45, x + wd, base); p.quadraticCurveTo(x, base + 1.8, x - wd, base);
+      g.fillStyle = vGrad(g, ["#FFE07A", "#FF9F3A", "#F2552C"], base - hgt, base); g.fill(p);
+      const c = new Path2D(); c.ellipse(x, base - hgt * 0.28, wd * 0.45, hgt * 0.26, 0, 0, 2 * PI); g.fillStyle = "rgba(255,248,200,0.85)"; g.fill(c);
+    }
   }
 
   function star4(g, x, y, r, color) {
@@ -626,7 +869,7 @@
   function wake() { if (!rafId && live.size) rafId = requestAnimationFrame(tick); }
 
   const MOODS = { idle: "idle", thinking: "thinking", talking: "talking", happy: "happy", sad: "sad", wave: "wave", point: "point", wink: "idle",
-    surprised: "surprised", proud: "proud", focus: "focus", sleepy: "sleepy", dizzy: "dizzy" };
+    surprised: "surprised", proud: "proud", focus: "focus", sleepy: "sleepy", dizzy: "dizzy", relieved: "relieved", ecstatic: "ecstatic" };
 
   // Onde está o ponteiro e quando a pessoa mexeu pela última vez (para os olhos seguirem e para ele cochilar).
   const POINTER = { x: 0, y: 0, at: -1e9 };
@@ -635,6 +878,7 @@
   ["pointermove", "pointerdown"].forEach((ev) => window.addEventListener(ev, touch, { passive: true }));
   ["keydown", "scroll", "wheel", "touchstart"].forEach((ev) => window.addEventListener(ev, () => { lastActivity = performance.now(); }, { passive: true }));
   const DOZE_AFTER = 40000;            // parado 40 s sem ninguém mexer: cochila
+  const LEAVE_WAVE = 480, LEAVE_MS = 760;  // saída: tchau, depois some subindo
 
   // Fala: o mesmo ritmo do FolhaTalking (16 ms por letra, pausas em espaço, vírgula e ponto).
   function speechPlan(text) {
@@ -676,6 +920,8 @@
         this.setAttribute("role", "img");
         if (!this.hasAttribute("aria-label")) this.setAttribute("aria-label", "Folha, do Estudário");
         this.addEventListener("click", () => this.poke());
+        // chega pulando na tela (cai de leve, amassa ao pousar), a não ser que peça para entrar parado
+        if (!reduceMotion.matches && !this.hasAttribute("noenter")) this._enterAt = performance.now();
       }
       this._size();
       if ("IntersectionObserver" in window) {
@@ -701,6 +947,12 @@
       this._taps = (this._taps || []).filter((x) => now - x < 1400); this._taps.push(now);
       if (this._taps.length >= 4) { this._dizzyUntil = now + 2200; this._taps = []; }
       live.add(this); wake();
+    }
+
+    /** Saída: acena tchau e sobe sumindo. Quem fecha a tela espera LEAVE_MS (veja folhaLeave). */
+    leave() {
+      if (reduceMotion.matches) return;
+      this._leaveAt = performance.now(); live.add(this); wake();
     }
 
     _size() {
@@ -776,11 +1028,14 @@
     }
 
     // Avança as molas até a pose do humor. Na troca de humor: antecipação (amassa) e "pop" nas mãos.
-    _advance(mood, t, dt, fid) {
-      const T = pose(mood, t, this._look, fid);
+    _advance(mood, t, dt, fid, ctx) {
+      const T = pose(mood, t, this._look, fid, ctx);
       const flat = { ...T, hL0: T.hL[0], hL1: T.hL[1], hR0: T.hR[0], hR1: T.hR[1] };
       delete flat.hL; delete flat.hR; delete flat.shapeL; delete flat.shapeR;
-      if (!this._st) { this._st = { x: { ...flat }, v: {} }; this._mood = mood; this._shape = { L: T.shapeL, R: T.shapeR }; }
+      if (!this._st) {
+        this._st = { x: { ...flat }, v: {} }; this._mood = mood; this._shape = { L: T.shapeL, R: T.shapeR };
+        this._enterPending = !!this._enterAt;
+      }
       if (mood !== this._mood) {
         this._mood = mood;
         this._sq.v.s = (this._sq.v.s || 0) + 9;                                    // antecipação: agacha antes de mudar
@@ -792,6 +1047,7 @@
         this._pop[side] = Math.max(0, this._pop[side] - dt * 4);
       }
       if (dt <= 0) { this._st.x = { ...flat }; this._st.v = {}; return; }
+      if (this._enterPending) { this._enterPending = false; this._st.x.hop = -16; this._st.x.hL1 -= 10; this._st.x.hR1 -= 10; }   // entrada: vem do alto
       const steps = Math.ceil(dt / (1 / 120)), h = dt / steps;
       const handK = mood === "thinking" ? 700 : mood === "focus" ? 600 : 120;
       for (let i = 0; i < steps; i++) for (const k in flat) springTo(this._st, k, flat[k], h, FAST.has(k) ? 420 : SLOW.has(k) ? handK : 200);
@@ -811,13 +1067,24 @@
       else if (!still && mood === "idle" && now - lastActivity > DOZE_AFTER) mood = "sleepy";
       if (this._wasAsleep && mood !== "sleepy") { this._bounceAt = now; this._lastFid = null; }   // acordou num susto
       this._wasAsleep = mood === "sleepy" && this.mood === "idle";
+      // saída: tchau por um instante, depois sobe sumindo
+      let fade = this._enterAt ? clamp((now - this._enterAt) / 160, 0, 1) : 1, rise = 0;
+      if (this._leaveAt) {
+        const el = now - this._leaveAt; mood = "wave";
+        if (el > LEAVE_WAVE) { const u = clamp((el - LEAVE_WAVE) / (LEAVE_MS - LEAVE_WAVE), 0, 1); fade = 1 - u; rise = u * u * 30; }
+      }
+      this._canvas.style.opacity = fade < 1 ? String(fade) : "";
+      this._canvas.style.transform = rise ? `translateY(${-rise}%)` : "";
+      if (mood !== this._moodName) { this._moodName = mood; this._moodAt = now; }
+      const look = resolveLook(this);
       const t = still ? 0.35 : (now - this._start) / 1000;
       const dt = still || !this._last ? 0 : Math.min(0.05, (now - this._last) / 1000);
       this._last = now;
       if (!still) { this._updateBlink(now); this._updateLook(now, mood); }
       else { this._look.x = 0.3; this._look.y = -0.2; }
       if (this._wink && now > this._winkUntil) this._wink = false;
-      this._advance(mood, t, dt, still ? null : this._fidget(now, mood));
+      const tm = still ? 9 : (now - this._moodAt) / 1000;
+      this._advance(mood, t, dt, still ? null : this._fidget(now, mood), { tm, worried: look.atRisk });
       // fala: a boca segue a letra atual do texto (com mola, para não tremer)
       let speech = null;
       if (this._say && mood === "talking") {
@@ -843,7 +1110,7 @@
         popL: this._pop.L, popR: this._pop.R,
         squash: Math.max(this._bounce(now), (this.gulp || 0) * 0.45) + clamp(this._sq.x.s * 0.1, -0.2, 0.25),
         gulp: still ? 0 : (this.gulp || 0),
-        speech,
+        speech, look, tm,
       });
       if (still && this._bounceAt < 0) live.delete(this);
     }
@@ -856,15 +1123,38 @@
   const STATIC = new Map();
   window.folhaPng = function (o) {
     const mood = MOODS[(o && o.mood) || "happy"] || "idle", size = Math.max(8, Math.round((o && o.size) || 96));
-    const dpr = Math.min(window.devicePixelRatio || 1, 2.5), key = mood + ":" + size + ":" + dpr;
+    // { cover, ribbon, acc } no pedido: vitrine do armário (só o item, sem medalha nem hora do dia)
+    const shelf = o && (o.cover || o.ribbon || o.acc);
+    const look = resolveLook(null);
+    if (shelf) Object.assign(look, { cover: COVERS[o.cover || LOOK.cover] || COVERS.indigo, ribbon: RIBBONS[o.ribbon || LOOK.ribbon] || RIBBONS.menta, acc: o.acc || LOOK.acc, streak: 0, atRisk: false, morning: false, night: false });
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const key = shelf ? [mood, size, dpr, "shelf", o.cover || LOOK.cover, o.ribbon || LOOK.ribbon, o.acc || LOOK.acc].join(":")
+      : [mood, size, dpr, LOOK.cover, LOOK.ribbon, LOOK.acc, look.streak >= 100 ? 3 : look.streak >= 30 ? 2 : look.streak >= 7 ? 1 : 0, look.night, look.morning].join(":");
     if (STATIC.has(key)) return STATIC.get(key);
-    const T = pose(mood === "thinking" ? "idle" : mood, 0.35, { x: 0.3, y: -0.2 });
+    const T = pose(mood === "thinking" ? "idle" : mood, 0.35, { x: 0.3, y: -0.2 }, null, { tm: 9 });
     const P = { ...T, hL0: T.hL[0], hL1: T.hL[1], hR0: T.hR[0], hR1: T.hR[1] };
     const c = document.createElement("canvas"); c.width = c.height = Math.round(size * dpr);
     const g = c.getContext("2d"), k = c.width / 100, fit = 0.9;      // cabe a mão para o alto dentro da caixa
     g.setTransform(k * fit, 0, 0, k * fit, c.width * (1 - fit) / 2, c.width * (1 - fit) / 2 + k * 2);
-    drawFolha(g, { t: 0.35, mood: mood === "thinking" ? "idle" : mood, small: size < SMALL, P, vy: 0, blink: 0, wink: mood === "wink" ? 1 : 0, popL: 0, popR: 0, squash: 0, gulp: 0 });
+    drawFolha(g, { t: 0.35, mood: mood === "thinking" ? "idle" : mood, small: size < SMALL, P, vy: 0, blink: 0, wink: mood === "wink" ? 1 : 0, popL: 0, popR: 0, squash: 0, gulp: 0, look, tm: 9 });
     const url = c.toDataURL("image/png"); STATIC.set(key, url); return url;
+  };
+
+  // O site avisa o que a pessoa escolheu no armário e o contexto do dia: { cover, ribbon, acc, streak, atRisk }.
+  window.folhaSetLook = function (o) {
+    let changed = false;
+    for (const k in o || {}) if (k in LOOK && LOOK[k] !== o[k]) { LOOK[k] = o[k]; changed = true; }
+    if (!changed) return;
+    document.querySelectorAll("estudario-folha").forEach((el) => { if (el.isConnected) live.add(el); });
+    wake();
+    window.dispatchEvent(new Event("folha-look"));
+  };
+  // Saída das telas que fecham: os Folhas dentro de `root` acenam e somem; `done` roda quando terminam.
+  window.folhaLeave = function (root, done) {
+    const els = root ? Array.from(root.querySelectorAll("estudario-folha")) : [];
+    if (!els.length || reduceMotion.matches) { done(); return; }
+    els.forEach((el) => el.leave());
+    setTimeout(done, LEAVE_MS);
   };
   if (reduceMotion.addEventListener) reduceMotion.addEventListener("change", () => {
     document.querySelectorAll("estudario-folha").forEach((el) => { if (el.isConnected) live.add(el); });

@@ -344,18 +344,34 @@ fun QuizScreen(
                 }
                 ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = androidx.compose.ui.graphics.lerp(MaterialTheme.colorScheme.surface, tone, if (darkUi) 0.20f else 0.12f))) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        // O Folha reage: comemora o acerto e, no erro, fala para a pessoa seguir.
+                        // O Folha reage, só depois da resposta: comemora o acerto, consola no erro, solta
+                        // o ar quando a pessoa vira depois de errar (ufa) e pega fogo numa sequência longa.
+                        val history = sessionQuestions.take(index.coerceAtMost(sessionQuestions.lastIndex) + 1).mapNotNull { results[it.question.id] }
+                        val inARow = history.asReversed().takeWhile { it }.size
+                        val relief = correct == true && inARow == 1 && history.size >= 2 && !history[history.size - 2]
+                        val fire = correct == true && inARow >= 5
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            br.com.estudario.ui.assistant.Folha(
-                                64.dp,
-                                mood = if (correct == true) br.com.estudario.ui.assistant.FolhaMood.HAPPY else br.com.estudario.ui.assistant.FolhaMood.SAD,
-                            )
+                            androidx.compose.runtime.key(current.question.id) {
+                                br.com.estudario.ui.assistant.Folha(
+                                    64.dp,
+                                    mood = when {
+                                        fire -> br.com.estudario.ui.assistant.FolhaMood.ECSTATIC
+                                        relief -> br.com.estudario.ui.assistant.FolhaMood.RELIEVED
+                                        correct == true -> br.com.estudario.ui.assistant.FolhaMood.HAPPY
+                                        else -> br.com.estudario.ui.assistant.FolhaMood.SAD
+                                    },
+                                )
+                            }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(if (correct == true) "Mandou bem!" else "Não foi dessa vez", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = tone)
+                                    Text(when { fire -> "Em chamas!"; relief -> "Ufa, virou!"; correct == true -> "Mandou bem!"; else -> "Não foi dessa vez" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = tone)
                                 }
                                 Text(
-                                    br.com.estudario.ui.assistant.FolhaLines.forAnswer(correct == true, current.question.id),
+                                    when {
+                                        fire -> br.com.estudario.ui.assistant.FolhaLines.forFire(current.question.id)
+                                        relief -> br.com.estudario.ui.assistant.FolhaLines.forRelief(current.question.id)
+                                        else -> br.com.estudario.ui.assistant.FolhaLines.forAnswer(correct == true, current.question.id)
+                                    },
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                             }

@@ -77,6 +77,9 @@ fun BadgeCelebrationScreen(badges: List<Badge>, onClose: () -> Unit) {
     if (badges.isEmpty()) return
     var index by remember(badges) { mutableIntStateOf(0) }
     val badge = badges.getOrNull(index) ?: return
+    // Saindo: o Folha acena e some subindo antes da tela fechar.
+    var leaving by remember(badges) { androidx.compose.runtime.mutableStateOf(false) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(
@@ -85,10 +88,13 @@ fun BadgeCelebrationScreen(badges: List<Badge>, onClose: () -> Unit) {
                 .background(Brush.verticalGradient(listOf(AppMarkBackground, Color(0xFF0E2E63), AppMarkBackground))),
         ) {
             // key: cada emblema reinicia a animação do zero.
-            key(index) { Conteudo(badge, badges.size, index) }
+            key(index) { Conteudo(badge, badges.size, index, leaving) }
 
             Button(
-                onClick = { if (index < badges.lastIndex) index++ else onClose() },
+                onClick = {
+                    if (index < badges.lastIndex) index++
+                    else if (!leaving) { leaving = true; scope.launch { delay(br.com.estudario.ui.assistant.FOLHA_LEAVE_MS); onClose() } }
+                },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .systemBarsPadding()
@@ -108,7 +114,7 @@ fun BadgeCelebrationScreen(badges: List<Badge>, onClose: () -> Unit) {
 }
 
 @Composable
-private fun Conteudo(badge: Badge, total: Int, index: Int) {
+private fun Conteudo(badge: Badge, total: Int, index: Int, leaving: Boolean = false) {
     val palette = tierPalette(badge.tier)
     var stage by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) { stage = 1; delay(420); stage = 2 }
@@ -254,6 +260,15 @@ private fun Conteudo(badge: Badge, total: Int, index: Int) {
             Text(faixaLabel(badge.tier), color = palette.glow, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
             Text("• ${badge.category.label}", color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.labelMedium)
         }
+        // O que esse emblema libera no armário do Folha.
+        br.com.estudario.domain.FolhaWardrobe.items.filter { it.badgeId == badge.id }.forEach { gift ->
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Novo no armário do Folha: ${gift.name}",
+                color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.graphicsLayer { alpha = texto }.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.14f)).padding(horizontal = 14.dp, vertical = 7.dp),
+            )
+        }
         Spacer(Modifier.height(22.dp))
         // O Folha vibrando junto com a conquista.
         Row(
@@ -261,7 +276,7 @@ private fun Conteudo(badge: Badge, total: Int, index: Int) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            br.com.estudario.ui.assistant.Folha(84.dp, mood = folhaMood)
+            br.com.estudario.ui.assistant.Folha(84.dp, mood = folhaMood, leaving = leaving)
             Text(
                 br.com.estudario.ui.assistant.FolhaLines.forBadge(badge.id.hashCode().toLong()),
                 color = Color.White,

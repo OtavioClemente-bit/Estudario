@@ -27,6 +27,7 @@ sealed class Route(val path: String) {
     data object Profile : Route("perfil")
     data object Stats : Route("perfil/desempenho")
     data object Achievements : Route("perfil/conquistas")
+    data object Wardrobe : Route("perfil/folha")
     data object Sources : Route("perfil/fontes")
     data object Notifications : Route("perfil/notificacoes")
     data object PlanLimits : Route("perfil/plano")
@@ -75,6 +76,7 @@ sealed class Route(val path: String) {
                 "perfil", "mais" -> when (second) {
                     "desempenho" -> Stats
                     "conquistas" -> Achievements
+                    "folha" -> Wardrobe
                     "fontes" -> Sources
                     "notificacoes" -> Notifications
                     "plano" -> PlanLimits

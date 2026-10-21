@@ -482,6 +482,22 @@ private val WRONG_LINES = listOf(
     "Opa, essa enganou. Bora entender e virar o jogo?",
 )
 
+/** Acertou logo depois de errar: o Folha solta o ar ("ufa"). */
+private val RELIEF_LINES = listOf(
+    "Ufa! Errou a anterior, mas essa você virou. É assim que se aprende.",
+    "Ufa! Recuperou na hora. Essa sacudida faz bem.",
+    "Ufa, voltou pro trilho! Bora manter.",
+    "Viu? Um erro não define a bateria. Mandou bem agora.",
+)
+
+/** Muitos acertos seguidos: o Folha pega fogo junto. */
+private val FIRE_LINES = listOf(
+    "Tá pegando fogo! Ninguém te segura hoje.",
+    "Sequência absurda! A banca que se cuide.",
+    "Em chamas! Continua nesse ritmo que a vaga é sua.",
+    "Isso é constância de quem passa. Próxima!",
+)
+
 /** Emblemas da sequência de acertos na bateria: aparecem ao chegar em cada marca. */
 private val STREAK_BADGES = listOf(3 to "Aquecendo", 5 to "Em chamas", 10 to "Imparável", 15 to "Lenda da bateria", 20 to "Gabaritando")
 
@@ -493,11 +509,16 @@ private val STREAK_BADGES = listOf(3 to "Aquecendo", 5 to "Em chamas", 10 to "Im
 private fun AnswerReaction(right: Boolean, correctKey: String?, questionId: Long, results: List<Boolean>) {
     val streak = results.asReversed().takeWhile { it }.size
     val badge = if (right) STREAK_BADGES.lastOrNull { it.first == streak } else null
-    val line = (if (right) RIGHT_LINES else WRONG_LINES).let { it[((questionId % it.size + it.size) % it.size).toInt()] }
+    // Só depois de responder, ele reage ao contexto: virou depois de errar (ufa), sequência longa (em chamas).
+    val relief = right && streak == 1 && results.size >= 2 && !results[results.size - 2]
+    val fire = right && streak >= 5
+    val lines = when { fire -> FIRE_LINES; relief -> RELIEF_LINES; right -> RIGHT_LINES; else -> WRONG_LINES }
+    val line = lines[((questionId % lines.size + lines.size) % lines.size).toInt()]
+    val mood = when { fire -> "ecstatic"; badge != null -> "proud"; relief -> "relieved"; right -> "happy"; else -> "sad" }
     Div({ classes("answer-reaction", if (right) "ok" else "bad", "pop-in") }) {
-        Div({ classes(if (right) "folha-cheer" else "folha-shake") }) { Folha(if (badge != null) "proud" else if (right) "happy" else "sad", 72) }
+        Div({ classes(if (right) "folha-cheer" else "folha-shake") }) { androidx.compose.runtime.key(questionId) { Folha(mood, 72) } }
         Div({ classes("grow") }) {
-            B({ classes("reaction-title") }) { Text(if (right) "Mandou bem!" else "Não foi dessa vez") }
+            B({ classes("reaction-title") }) { Text(when { fire -> "Em chamas!"; relief -> "Ufa, virou!"; right -> "Mandou bem!"; else -> "Não foi dessa vez" }) }
             P({ classes("small") }) { Text(line) }
             if (!right) P({ classes("xs", "muted") }) { Text("Resposta certa: ${correctKey ?: "?"}. A questão foi para o caderno de erros.") }
             if (right && streak >= 2) Span({ classes("streak-chip") }) { Icon("local_fire_department", filled = true); Text("$streak seguidas") }

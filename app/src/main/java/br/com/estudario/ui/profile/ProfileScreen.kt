@@ -97,6 +97,7 @@ fun ProfileScreen(
     viewModel: AppViewModel,
     onBack: () -> Unit,
     onBadges: () -> Unit = {},
+    onWardrobe: () -> Unit = {},
     showInternalTopBar: Boolean = true,
 ) {
     val profile by viewModel.profile.collectAsState()
@@ -205,6 +206,7 @@ fun ProfileScreen(
         onChangePhoto = { avatarSheet = true },
         onRemovePhoto = viewModel::clearProfilePhoto,
         onBadges = onBadges,
+        onWardrobe = onWardrobe,
         onDailyGoalChange = viewModel::setDailyGoal,
         onBackup = { runGoogle(GoogleAction.BACKUP) },
         onRestore = { confirmDriveRestore = true },
@@ -234,6 +236,7 @@ private fun ProfileContent(
     onChangePhoto: () -> Unit,
     onRemovePhoto: () -> Unit,
     onBadges: () -> Unit,
+    onWardrobe: () -> Unit = {},
     onDailyGoalChange: (Int) -> Unit,
     onBackup: () -> Unit,
     onRestore: () -> Unit,
@@ -300,6 +303,11 @@ private fun ProfileContent(
             item {
                 val current = progress
                 if (current == null) SkeletonCard(lines = 2) else BadgesBand(current, onBadges)
+            }
+            item { Divider() }
+            item {
+                val current = progress
+                if (current != null) Band { WardrobeBand(current, onWardrobe) }
             }
             item { Divider() }
 

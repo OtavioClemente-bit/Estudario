@@ -86,6 +86,7 @@ private fun titleOf(route: Route): String = when (route) {
     Route.Profile -> "Perfil"
     Route.Stats -> "Desempenho"
     Route.Achievements -> "Conquistas"
+    Route.Wardrobe -> "Armário do Folha"
     Route.Sources -> "Histórico e fontes"
     Route.Notifications -> "Notificações"
     Route.PlanLimits -> "Planos e uso"
@@ -124,6 +125,8 @@ fun App() {
         LoadState.Ready -> Shell { Screen(Router.current) }
     }
     Store.conflict?.let { head -> ConflictDialog(head.deviceLabel) }
+    // O visual do Folha (armário, sequência e hora do dia) vale para todos os Folhas do site.
+    if (Store.load == LoadState.Ready) FolhaLookSync()
     if (Store.load == LoadState.Ready) GenerationBanner()
     if (Store.load == LoadState.Ready) ReprogramHost()
     CelebrationHost()
@@ -156,6 +159,7 @@ private fun Screen(route: Route) {
         Route.Profile -> ProfileScreen()
         Route.Stats -> StatsScreen()
         Route.Achievements -> AchievementsScreen()
+        Route.Wardrobe -> WardrobeScreen()
         Route.Sources -> SourcesScreen()
         Route.Notifications -> NotificationsScreen()
         Route.PlanLimits -> PlanLimitsScreen()

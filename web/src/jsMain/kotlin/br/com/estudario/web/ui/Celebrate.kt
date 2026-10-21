@@ -16,6 +16,7 @@ import br.com.estudario.web.data.Queries
 import br.com.estudario.web.data.Store
 import kotlinx.browser.localStorage
 import kotlinx.browser.window
+import org.jetbrains.compose.web.dom.A
 import org.jetbrains.compose.web.dom.B
 import org.jetbrains.compose.web.dom.Button
 import org.jetbrains.compose.web.dom.Div
@@ -143,7 +144,15 @@ private fun tierColors(tier: Int): Pair<String, String> = when (tier) {
 private fun tierName(tier: Int) = when (tier) { 1 -> "Bronze"; 2 -> "Prata"; 3 -> "Ouro"; 4 -> "Safira"; 5 -> "Rubi"; else -> "Esmeralda" }
 
 @Composable
-private fun CelebrationScreen(item: Celebration, onClose: () -> Unit) {
+private fun CelebrationScreen(item: Celebration, onCloseNow: () -> Unit) {
+    var leaving by androidx.compose.runtime.remember(item) { mutableStateOf(false) }
+    val onClose: () -> Unit = {
+        if (!leaving) {
+            leaving = true
+            val root = kotlinx.browser.document.querySelector(".celebrate")
+            runCatching { window.asDynamic().folhaLeave(root, { onCloseNow() }) }.onFailure { onCloseNow() }
+        }
+    }
     DisposableEffect(item) {
         val keys: (org.w3c.dom.events.Event) -> Unit = { if ((it as KeyboardEvent).key == "Escape" || it.key == "Enter") onClose() }
         window.addEventListener("keydown", keys)
@@ -166,7 +175,7 @@ private fun CelebrationScreen(item: Celebration, onClose: () -> Unit) {
                 is Celebration.LevelUp -> LevelContent(item)
             }
             Div({ classes("cel-actions") }) {
-                if (item is Celebration.NewBadge) Button({ classes("cel-ghost"); onClick { onClose(); Router.go(Route.Achievements) } }) { Text("Ver conquistas") }
+                if (item is Celebration.NewBadge) Button({ classes("cel-ghost"); onClick { onCloseNow(); Router.go(Route.Achievements) } }) { Text("Ver conquistas") }
                 Button({ classes("cel-cta"); onClick { onClose() } }) { Text(if (item is Celebration.StreakDay) "Bora continuar" else "Continuar") }
             }
         }
@@ -268,6 +277,9 @@ private fun BadgeContent(badge: Badge) {
     Span({ classes("cel-eyebrow", "lv-late"); attr("style", "--ld:.95s") }) { Text("NOVO EMBLEMA · ${tierName(badge.tier).uppercase()}") }
     H2({ classes("cel-title", "lv-late"); attr("style", "--ld:1.05s") }) { Text(badge.name) }
     P({ classes("cel-body", "lv-late"); attr("style", "--ld:1.2s") }) { Text(badge.requirement) }
+    wardrobeUnlockedBy(badge.id).forEach { gift ->
+        A(href = "#/${Route.Wardrobe.path}", { classes("cel-gift", "lv-late"); attr("style", "--ld:1.35s") }) { Icon("checkroom"); Text("Novo no armário do Folha: ${gift.name}") }
+    }
     Div({ classes("lv-folha", "bd-folha") }) {
         Div({ classes("lv-folha-body") }) { Folha(mood, 120) }
         Div({ classes("lv-bubble", "bd-bubble") }) { Text("Emblema novo! ${badge.name}. Você mereceu, continua assim!") }
@@ -308,6 +320,9 @@ private fun LevelContent(item: Celebration.LevelUp) {
     Span({ classes("cel-eyebrow", "lv-late"); attr("style", "--ld:1.7s") }) { Text("SUBIU DE NÍVEL") }
     H2({ classes("cel-title", "lv-late"); attr("style", "--ld:1.85s") }) { Text("Nível ${item.level} · ${item.title}") }
     if (newTitle) Span({ classes("lv-badge", "lv-late"); attr("style", "--ld:2.1s") }) { Icon("military_tech", filled = true); Text("Novo título!") }
+    br.com.estudario.domain.FolhaWardrobe.items.filter { it.level == item.level }.forEach { gift ->
+        A(href = "#/${Route.Wardrobe.path}", { classes("cel-gift", "lv-late"); attr("style", "--ld:2.2s") }) { Icon("checkroom"); Text("Novo no armário do Folha: ${gift.name}") }
+    }
     Div({ classes("lv-xp", "lv-late"); attr("style", "--ld:2s") }) {
         Span({ classes("lv-xp-fill") })
         B { Text("${item.totalXp} XP") }

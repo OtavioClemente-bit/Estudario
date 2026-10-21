@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,6 +78,59 @@ enum class FolhaMood {
     SLEEPY,
     /** Tonto (muitos toques seguidos): olhos em espiral, estrelinhas girando. */
     DIZZY,
+    /** "Ufa!" (acertou logo depois de errar): passa a mão na testa, solta o ar e relaxa num sorriso. */
+    RELIEVED,
+    /** Em chamas (muitos acertos seguidos): olhos de estrela, pulos altos, labaredas. */
+    ECSTATIC,
+}
+
+/**
+ * O visual do Folha no app inteiro: o que a pessoa escolheu no armário (FolhaWardrobe) e o contexto
+ * do dia. O app mantém em dia (FolhaLookSync); todos os Folhas leem daqui a cada quadro.
+ */
+object FolhaLook {
+    var cover by mutableStateOf("indigo")
+    var ribbon by mutableStateOf("menta")
+    var acc by mutableStateOf("nenhum")
+    /** Dias seguidos: medalha no capelo a partir de 7 (bronze), 30 (prata) e 100 (ouro). */
+    var streak by mutableIntStateOf(0)
+    /** A sequência pode cair hoje (fim do dia, meta não batida): parado, ele fica preocupadinho. */
+    var atRisk by mutableStateOf(false)
+    /** Só para testes: força a hora do dia (manhã tem café, noite tem touca). */
+    var hour by mutableStateOf<Int?>(null)
+}
+
+/** Vitrine do armário: veste itens só neste Folha; [plain] tira medalha, café e touca. */
+data class FolhaStyle(val cover: String? = null, val ribbon: String? = null, val acc: String? = null, val plain: Boolean = false)
+
+/** Capa do livro: degradê (claro, meio, escuro), sombra de baixo e o metal das cantoneiras. */
+private class CoverStyle(val c: List<Color>, val under: Color, val silver: Boolean = false, val stitch: Boolean = false, val stars: Boolean = false, val shine: Boolean = false)
+
+private val COVERS = mapOf(
+    "indigo" to CoverStyle(listOf(Color(0xFF5247E0), Color(0xFF3A2FC4), Color(0xFF2A209E)), Color(0xFF1A1370)),
+    "esmeralda" to CoverStyle(listOf(Color(0xFF36C897), Color(0xFF1F9E75), Color(0xFF147A5A)), Color(0xFF0B4F3A)),
+    "rubi" to CoverStyle(listOf(Color(0xFFE8566D), Color(0xFFC42F4B), Color(0xFF961D37)), Color(0xFF5E0F22)),
+    "ametista" to CoverStyle(listOf(Color(0xFFAA68EE), Color(0xFF8746D3), Color(0xFF662DAB)), Color(0xFF3E1670)),
+    "couro" to CoverStyle(listOf(Color(0xFFBC7D4E), Color(0xFF965A31), Color(0xFF6D3D1F)), Color(0xFF43240E), stitch = true),
+    "grafite" to CoverStyle(listOf(Color(0xFF61667C), Color(0xFF43475C), Color(0xFF2D3042)), Color(0xFF1A1C28), silver = true),
+    "noite" to CoverStyle(listOf(Color(0xFF36388A), Color(0xFF212059), Color(0xFF121138)), Color(0xFF07061E), silver = true, stars = true),
+    "ouro" to CoverStyle(listOf(Color(0xFFFFDD84), Color(0xFFEBB13A), Color(0xFFBD8214)), Color(0xFF7A4F05), silver = true, shine = true),
+)
+
+private class Look(val cover: CoverStyle, val ribbon: List<Color>, val acc: String, val streak: Int, val atRisk: Boolean, val morning: Boolean, val night: Boolean)
+
+private fun resolveLook(o: FolhaStyle?): Look {
+    val h = FolhaLook.hour ?: java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    val plain = o?.plain == true
+    return Look(
+        cover = COVERS[o?.cover ?: FolhaLook.cover] ?: COVERS.getValue("indigo"),
+        ribbon = ribbonColors(o?.ribbon ?: FolhaLook.ribbon),
+        acc = o?.acc ?: FolhaLook.acc,
+        streak = if (plain) 0 else FolhaLook.streak,
+        atRisk = !plain && FolhaLook.atRisk,
+        morning = !plain && h in 5..10,
+        night = !plain && (h >= 22 || h < 5),
+    )
 }
 
 private val Ink = Color(0xFF26215C)
@@ -95,6 +149,14 @@ private val PaperMid = Color(0xFFF7F4EE)
 private val PaperEdge = Color(0xFFE9E4DA)
 private val PaperEdgeDark = Color(0xFFCFC8BC)
 private val Gutter = Color(0xFF3A3170)
+
+private fun ribbonColors(id: String): List<Color> = when (id) {
+    "ceu" -> listOf(Color(0xFF3D8BEA), Color(0xFF6FB0FF), Color(0xFFD6EAFF))
+    "coral" -> listOf(Color(0xFFE2604A), Color(0xFFFF8C75), Color(0xFFFFD6CC))
+    "lilas" -> listOf(Color(0xFF9466DD), Color(0xFFB995F5), Color(0xFFECDFFF))
+    "dourada" -> listOf(Color(0xFFC98A12), Gold, Color(0xFFFFEBB5))
+    else -> listOf(MintDark, Mint, Color(0xFFC6F7E2))
+}
 
 /** Abaixo disso o desenho simplifica (some o detalhe miúdo, os traços engrossam). */
 private val SMALL = 72.dp
@@ -118,11 +180,18 @@ fun Folha(
     gulp: Float = 0f,
     say: String? = null,
     sayMillis: Long = 0L,
+    /** Vitrine do armário: veste itens só neste Folha. */
+    style: FolhaStyle? = null,
+    /** Chega pulando (cai de leve do alto e amassa ao pousar). */
+    enter: Boolean = true,
+    /** Saindo: acena e sobe sumindo (quem fecha a tela espera [FOLHA_LEAVE_MS]). */
+    leaving: Boolean = false,
 ) {
-    val sim = remember { FolhaSim() }
+    val sim = remember { FolhaSim().also { it.enterPending = enter } }
     var frame by remember { mutableLongStateOf(0L) }
     sim.small = size < SMALL
     sim.setMood(mood)
+    sim.setLeaving(leaving)
     LaunchedEffect(say) { sim.setSay(say, sayMillis) }
     LaunchedEffect(Unit) {
         var last = 0L
@@ -148,9 +217,18 @@ fun Folha(
             .then(clickable),
     ) {
         frame.let { }   // redesenha a cada quadro
-        drawFolha(sim.snapshot(gulp))
+        val f = sim.snapshot(gulp, resolveLook(style))
+        if (f.fade >= 0.999f && f.rise == 0f) drawFolha(f)
+        else translate(0f, -f.rise * this.size.height) {
+            drawContext.canvas.saveLayer(Rect(-this.size.width, -this.size.height, this.size.width * 2, this.size.height * 2), androidx.compose.ui.graphics.Paint().apply { alpha = f.fade })
+            drawFolha(f)
+            drawContext.canvas.restore()
+        }
     }
 }
+
+/** Quanto dura a saída do Folha (tchau + sumir subindo). */
+const val FOLHA_LEAVE_MS = 760L
 
 /**
  * O Folha que fala ao aparecer e depois fica ouvindo. A boca segue as letras de [text], no tempo de
@@ -168,7 +246,7 @@ fun FolhaTalking(size: Dp, text: String, modifier: Modifier = Modifier, onClick:
  * O Folha como imagem, para o ícone grande das notificações (fora do Compose). O ícone pequeno da
  * barra continua monocromático, como o Android exige; este aparece colorido ao lado do texto.
  */
-fun folhaBitmap(sizePx: Int, mood: FolhaMood = FolhaMood.HAPPY): android.graphics.Bitmap {
+fun folhaBitmap(sizePx: Int, mood: FolhaMood = FolhaMood.HAPPY, style: FolhaStyle = FolhaStyle(plain = true)): android.graphics.Bitmap {
     val image = androidx.compose.ui.graphics.ImageBitmap(sizePx, sizePx)
     val canvas = androidx.compose.ui.graphics.Canvas(image)
     androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(
@@ -182,7 +260,7 @@ fun folhaBitmap(sizePx: Int, mood: FolhaMood = FolhaMood.HAPPY): android.graphic
         val sim = FolhaSim().apply { small = sizePx < 160; setMood(m); settle(m) }
         val fit = 0.9f
         translate(size.width * (1 - fit) / 2f, size.height * (1 - fit) / 2f + size.width * 0.02f) {
-            scale(fit, fit, pivot = Offset.Zero) { drawFolha(sim.snapshot(0f)) }
+            scale(fit, fit, pivot = Offset.Zero) { drawFolha(sim.snapshot(0f, resolveLook(style))) }
         }
     }
     return image.asAndroidBitmap()
@@ -236,12 +314,14 @@ private fun turnState(t: Float): Turn {
 }
 
 /** Pose alvo do humor no instante [t]. */
-private fun pose(mood: FolhaMood, t: Float, lookX: Float, lookY: Float, fid: Fidget?, fu: Float): PoseValues {
+/** [tm]: segundos desde que o humor começou (cenas com começo, meio e fim); [worried]: sequência em risco. */
+private fun pose(mood: FolhaMood, t: Float, lookX: Float, lookY: Float, fid: Fidget?, fu: Float, tm: Float = 9f, worried: Boolean = false): PoseValues {
     val p = PoseValues()
     p.hop = sin(t * 2.1f) * 1.4f; p.tilt = sin(t * 0.9f) * 1.2f
     p.hL1 = 78f + sin(t * 2.1f) * 1.2f; p.hR1 = 78f - sin(t * 2.1f) * 1.2f
     p.lookX = lookX; p.lookY = lookY
     fun env(u: Float) = sin(PIf * clamp(u, 0f, 1f)).pow(0.7f)
+    if (mood == FolhaMood.IDLE && worried) { p.browIn = 0.6f; p.browY = 0.3f; p.mW = 3.8f; p.mCurve = 0.6f; p.cheek = 0.35f }
     if (mood == FolhaMood.IDLE && fid != null) {
         val e = env(fu)
         when (fid.kind) {
@@ -327,6 +407,23 @@ private fun pose(mood: FolhaMood, t: Float, lookX: Float, lookY: Float, fid: Fid
             p.up = 0.42f; p.droop = 1f; p.pupil = 0.9f; p.lookY = 0.9f
             p.browIn = 1f; p.browY = 0.6f; p.mW = 4.6f; p.mCurve = -3.4f; p.cheek = 0.3f
         }
+        FolhaMood.RELIEVED -> {
+            // "Ufa!": de olhos fechados, passa a mão na testa e solta o ar; depois relaxa num sorriso
+            val w = 1f - sm((tm - 2.1f) / 0.6f); val sw = 0.5f + 0.5f * sin(tm * 4.4f - 1.2f)
+            p.hop = lerp(-0.6f, 1.4f, w) + sin(t * 2f) * 0.4f; p.tilt = lerp(-1.5f, 2.5f, w)
+            p.hR0 = lerp(96f, lerp(80f, 60f, sw), w); p.hR1 = lerp(76f, 50f, w); p.shapeR = if (w > 0.4f) Hand.OPEN else Hand.MITT; p.rotR = -95f * w; p.bendR = lerp(2f, -7f, w)
+            p.hL0 = lerp(5f, 8f, w); p.hL1 = lerp(76f, 82f, w)
+            p.up = w; p.low = lerp(0.5f, 0f, w); p.browIn = 0.45f * w; p.browY = lerp(-1.2f, -0.4f, w)
+            p.mW = lerp(5.4f, 2.3f, w); p.mCurve = lerp(4.2f, 0f, w); p.mOpen = lerp(0.3f, 0.45f, w); p.cheek = lerp(0.65f, 0.55f, w)
+        }
+        FolhaMood.ECSTATIC -> {
+            // em chamas: olhos de estrela, pulos altos e socos no ar alternados
+            val a = sin(t * 6.2f)
+            p.hop = -abs(a) * 7f; p.tilt = sin(t * 3.1f) * 3f
+            p.hL0 = 0f; p.hL1 = 40f - maxOf(0f, a) * 7f; p.hR0 = 100f; p.hR1 = 40f - maxOf(0f, -a) * 7f
+            p.shapeL = Hand.FIST; p.shapeR = Hand.FIST; p.rotL = -24f; p.rotR = 24f; p.bendL = -6f; p.bendR = -6f
+            p.pupil = 1.3f; p.browY = -3f; p.mW = 6.8f; p.mCurve = 5.4f; p.mOpen = 1.15f; p.cheek = 0.85f
+        }
         else -> {}
     }
     return p
@@ -370,6 +467,13 @@ private class FolhaSim {
     private var fid: Fidget? = null; private var nextFid = 0L; private var lastFid: String? = null
     private var sayText: String? = null; private var sayStart = 0L; private var sayTimes = LongArray(0); private var sayEnd = 0L
     private var mouthOpen = 0f; private var mouthRound = 0f; private var speaking = false
+    private var moodAt = 0L
+    var worried = false
+    /** Entrada: na primeira pose, começa do alto e cai (a mola e o amasso de aterrissagem fazem o resto). */
+    var enterPending = false
+    private var leaveAt = -1L
+
+    fun setLeaving(on: Boolean) { if (on && leaveAt < 0) leaveAt = nowMs else if (!on) leaveAt = -1L }
 
     fun setMood(m: FolhaMood) { if (m != mood) { mood = m; idleSince = nowMs } }
 
@@ -391,7 +495,7 @@ private class FolhaSim {
 
     /** Para imagens paradas: pula as molas direto para a pose. */
     fun settle(m: FolhaMood) {
-        t = 0.35f; lookX = 0.3f; lookY = -0.2f
+        t = 0.35f; lookX = 0.3f; lookY = -0.2f; moodAt = -9000L
         val p = pose(m, t, lookX, lookY, null, 0f)
         p.values().copyInto(x); shapeL = p.shapeL; shapeR = p.shapeR; shown = m; inited = true
     }
@@ -400,17 +504,22 @@ private class FolhaSim {
         if (!inited) { nowMs = now; idleSince = now; nextBlink = now + 1800; nextFid = now + 6000 + Random.nextLong(5000) }
         nowMs = now; t += dt
         var m = mood
-        if (now < dizzyUntil) m = FolhaMood.DIZZY
+        if (leaveAt >= 0) m = FolhaMood.WAVE
+        else if (now < dizzyUntil) m = FolhaMood.DIZZY
         else if (mood == FolhaMood.IDLE && now - idleSince > 40_000) m = FolhaMood.SLEEPY
         if (shown == FolhaMood.SLEEPY && m != FolhaMood.SLEEPY) bounceAt = now        // acorda num susto
         if (m != shown && inited) { sqV += 9f; v[3] += 40f; v[5] += 40f }              // antecipação
+        if (m != shown || !inited) moodAt = now
         shown = m
         if (wink && now > winkUntil) wink = false
         updateBlink(now); updateLook(now, m)
         val f = fidget(now, m)
-        val p = pose(m, t, lookX, lookY, f, if (f != null) (now - f.start).toFloat() / f.dur else 0f)
+        val p = pose(m, t, lookX, lookY, f, if (f != null) (now - f.start).toFloat() / f.dur else 0f, (now - moodAt) / 1000f, worried)
         val target = p.values()
-        if (!inited) { target.copyInto(x); shapeL = p.shapeL; shapeR = p.shapeR; inited = true }
+        if (!inited) {
+            target.copyInto(x); shapeL = p.shapeL; shapeR = p.shapeR; inited = true
+            if (enterPending) { enterPending = false; x[0] = -16f; x[3] -= 10f; x[5] -= 10f }
+        }
         if (p.shapeL != shapeL) { shapeL = p.shapeL; popL = 1f }
         if (p.shapeR != shapeR) { shapeR = p.shapeR; popR = 1f }
         popL = maxOf(0f, popL - dt * 4f); popR = maxOf(0f, popR - dt * 4f)
@@ -495,9 +604,13 @@ private class FolhaSim {
         return exp(-s * 5.5f) * cos(s * 17f)
     }
 
-    fun snapshot(gulp: Float): FolhaFrame {
+    fun snapshot(gulp: Float, look: Look): FolhaFrame {
         val p = PoseValues().also { it.set(x); it.shapeL = shapeL; it.shapeR = shapeR }
+        worried = look.atRisk
+        var fade = 1f; var rise = 0f
+        if (leaveAt >= 0) { val u = clamp((nowMs - leaveAt - 480L) / 280f, 0f, 1f); fade = 1f - u; rise = u * u * 0.3f }
         return FolhaFrame(
+            look = look, tm = (nowMs - moodAt) / 1000f, fade = fade, rise = rise,
             t = t, mood = shown, small = small, p = p, vy = v[0], blink = blink,
             wink = if (wink || shown == FolhaMood.WINK) 1f else 0f, popL = popL, popR = popR,
             squash = maxOf(bounce(), gulp * 0.45f) + clamp(sq * 0.1f, -0.2f, 0.25f), gulp = gulp,
@@ -507,6 +620,7 @@ private class FolhaSim {
 }
 
 private class FolhaFrame(
+    val look: Look, val tm: Float, val fade: Float, val rise: Float,
     val t: Float, val mood: FolhaMood, val small: Boolean, val p: PoseValues, val vy: Float, val blink: Float, val wink: Float,
     val popL: Float, val popR: Float, val squash: Float, val gulp: Float, val speechOpen: Float?, val speechRound: Float,
 )
@@ -557,20 +671,39 @@ private fun DrawScope.drawFolha(f: FolhaFrame) {
         translate(0f, p.hop) {
             scale(squashX / sqrt(stretch), squashY * stretch, pivot = Offset(50f, 88f)) {
                 rotate(p.tilt, pivot = Offset(50f, 80f)) {
-                    // quem fica na frente do livro: as duas mãos folheando ou no susto; só a do lápis no foco
-                    val front = when (mood) { FolhaMood.THINKING, FolhaMood.SURPRISED -> "LR"; FolhaMood.FOCUS -> "R"; else -> "" }
+                    val look = f.look
+                    // na frente do livro: as duas mãos folheando ou no susto; a do lápis no foco; a da testa no "ufa"
+                    val front = when (mood) { FolhaMood.THINKING, FolhaMood.SURPRISED -> "LR"; FolhaMood.FOCUS, FolhaMood.RELIEVED -> "R"; else -> "" }
                     drawArms(f, "LR".filter { it !in front })
-                    drawBook(t, mood, small)
+                    drawBook(t, mood, small, look)
                     drawPageLines(t, mood, small)
                     if (!small) drawDogEar(t, mood)
                     if (mood == FolhaMood.THINKING) drawTurningPage(t)
                     drawFace(f)
-                    rotate(p.capRot, pivot = Offset(50f, 38f)) { drawCap(t, p.tilt, f.vy) }
+                    if (look.acc == "oculos") drawGlasses(p, small)
+                    if (look.acc == "gravata") drawBowTie(small)
+                    val nightcap = look.night && (mood == FolhaMood.IDLE || mood == FolhaMood.SLEEPY)
+                    rotate(p.capRot, pivot = Offset(50f, 38f)) {
+                        if (nightcap) drawNightcap(t, p.tilt, f.vy)
+                        else {
+                            drawCap(t, p.tilt, f.vy)
+                            if (look.acc == "lapis") drawPencilAt(25f, 44.5f, 41.5f, 36f, if (small) 1.5f else 1.15f)   // lápis atrás da "orelha"
+                            if (look.acc == "louros") drawLaurels(small)
+                            if (look.acc == "estrela") drawStarPin(t, small)
+                            if (look.streak >= 7 && !small) drawStreakMedal(t, look.streak, p.tilt)
+                        }
+                    }
                     if (front.isNotEmpty()) drawArms(f, front)
+                    if (mood == FolhaMood.RELIEVED && !small) drawRelief(f.tm)
+                    if (look.atRisk && mood == FolhaMood.IDLE && !small) drawSweat(t)
                 }
             }
         }
+        val look = f.look
+        if (!small && look.morning && mood in MUG_MOODS) drawMug(t)
+        if (!small && look.night && mood in MOON_MOODS) drawMoon(t)
         when (mood) {
+            FolhaMood.ECSTATIC -> { drawFlames(t, small); drawCelebration(t, small) }
             FolhaMood.HAPPY -> drawCelebration(t, small)
             FolhaMood.PROUD -> drawSparkles(t, small)
             FolhaMood.SLEEPY -> drawZzz(t, small)
@@ -581,13 +714,20 @@ private fun DrawScope.drawFolha(f: FolhaFrame) {
     }
 }
 
-private fun DrawScope.drawCorners() {
+private val COVER_STARS = listOf(
+    floatArrayOf(9.8f, 50f, 0.35f), floatArrayOf(10.6f, 63f, 0.25f), floatArrayOf(9.6f, 76f, 0.4f), floatArrayOf(90.2f, 55f, 0.3f), floatArrayOf(89.6f, 70f, 0.4f),
+    floatArrayOf(90.4f, 82f, 0.25f), floatArrayOf(24f, 88.6f, 0.3f), floatArrayOf(40f, 90.4f, 0.35f), floatArrayOf(62f, 90.2f, 0.3f), floatArrayOf(77f, 88.4f, 0.35f),
+)
+private val GOLD_STOPS = listOf(Color(0xFFFFE3A0), Gold, Color(0xFFC98A12))
+private val SILVER_STOPS = listOf(Color.White, Color(0xFFCDD0DC), Color(0xFF8E92A6))
+
+private fun DrawScope.drawCorners(silver: Boolean = false) {
     fun corner(x: Float, y: Float, sx: Float, sy: Float) {
         val p = Path().apply {
             moveTo(x, y + sy * 6.5f); lineTo(x, y + sy * 1.2f); quadraticTo(x, y, x + sx * 1.2f, y); lineTo(x + sx * 6.5f, y)
             lineTo(x + sx * 6.5f, y + sy * 1.9f); lineTo(x + sx * 1.9f, y + sy * 1.9f); lineTo(x + sx * 1.9f, y + sy * 6.5f); close()
         }
-        drawPath(p, Brush.verticalGradient(listOf(Color(0xFFFFE3A0), Gold, Color(0xFFC98A12)), startY = minOf(y, y + sy * 6.5f), endY = maxOf(y, y + sy * 6.5f)))
+        drawPath(p, Brush.verticalGradient(if (silver) SILVER_STOPS else GOLD_STOPS, startY = minOf(y, y + sy * 6.5f), endY = maxOf(y, y + sy * 6.5f)))
         drawPath(p, Color(0x59784600), style = Stroke(0.3f))
         drawCircle(Color.White.copy(alpha = 0.75f), 0.45f, Offset(x + sx * 0.95f, y + sy * 0.95f))
     }
@@ -614,25 +754,36 @@ private val GRAIN: List<FloatArray> = run {
     }
 }
 
-private fun DrawScope.drawBook(t: Float, mood: FolhaMood, small: Boolean) {
-    val cover = coverPath()
+private fun DrawScope.drawBook(t: Float, mood: FolhaMood, small: Boolean, look: Look) {
+    val cover = coverPath(); val c = look.cover
     // contorno macio: claro por fora (fundo escuro) e tinta por dentro (fundo claro)
     drawPath(cover, Color.White.copy(alpha = 0.28f), style = stroke(if (small) 3f else 2f))
-    drawPath(cover, Color(0xD90E0A45), style = stroke(if (small) 1.6f else 1f))
-    translate(0f, 1.7f) { drawPath(cover, Color(0xFF1A1370)) }
-    drawPath(cover, Brush.verticalGradient(listOf(Color(0xFF5247E0), Color(0xFF3A2FC4), Color(0xFF2A209E)), startY = 41f, endY = 93f))
+    drawPath(cover, c.under.copy(alpha = 0.85f), style = stroke(if (small) 1.6f else 1f))
+    translate(0f, 1.7f) { drawPath(cover, c.under) }
+    drawPath(cover, Brush.verticalGradient(c.c, startY = 41f, endY = 93f))
     drawPath(cover, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.14f), Color.Transparent), start = Offset(8f, 44f), end = Offset(40f, 70f)))
     if (!small) clipPath(cover) {
-        var x = -50f
-        while (x < 100f) { line(Color.White.copy(alpha = 0.045f), x, 40f, x + 54f, 95f, 0.3f, false); line(Color.Black.copy(alpha = 0.06f), x + 54f, 40f, x, 95f, 0.3f, false); x += 1.5f }
+        if (c.stitch) {   // couro: granulado e costura pontilhada rente à borda
+            for (g in GRAIN) drawCircle(Color(0xFF281204).copy(alpha = g[3] * 1.3f), g[2] * 1.3f, Offset(if (g[0] < 50f) 8.5f + (g[0] - 15f) * 0.1f else 91.5f - (85f - g[0]) * 0.1f, g[1] + 6f))
+            val st = Path().apply { moveTo(10.2f, 45.8f); lineTo(10.2f, 87.4f); cubicTo(22f, 85.3f, 38f, 86.2f, 50f, 91.4f); cubicTo(62f, 86.2f, 78f, 85.3f, 89.8f, 87.4f); lineTo(89.8f, 45.8f) }
+            drawPath(st, Color(0xBFFFE2B4), style = Stroke(0.35f, cap = StrokeCap.Round, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(1.1f, 0.9f))))
+        } else {
+            var x = -50f
+            while (x < 100f) { line(Color.White.copy(alpha = 0.045f), x, 40f, x + 54f, 95f, 0.3f, false); line(Color.Black.copy(alpha = 0.06f), x + 54f, 40f, x, 95f, 0.3f, false); x += 1.5f }
+        }
+        if (c.stars) for (st in COVER_STARS) drawCircle(Color(0xFFFFF8D6).copy(alpha = 0.55f + 0.45f * abs(sin(t * 1.3f + st[0]))), st[2], Offset(st[0], st[1]))
+        if (c.shine) {   // ouro: um brilho passando de tempos em tempos
+            val sx = -30f + ((t * 0.32f) % 1f) * 170f
+            drawPath(cover, Brush.linearGradient(listOf(Color.White.copy(alpha = 0f), Color.White.copy(alpha = 0.55f), Color.White.copy(alpha = 0f)), start = Offset(sx, 40f), end = Offset(sx + 18f, 95f)))
+        }
     }
     for (side in listOf(-1f, 1f)) {
         val x0 = 50f + side * 41.5f
         drawPath(Path().apply { moveTo(x0, 43.5f); lineTo(x0 + side * 1.6f, 44.4f); lineTo(x0 + side * 1.6f, 88.2f); lineTo(x0, 89f); close() },
-            Brush.verticalGradient(listOf(Color(0xFF2A209E), Color(0xFF1A1370)), startY = 44f, endY = 89f))
+            Brush.verticalGradient(listOf(c.c[2], c.under), startY = 44f, endY = 89f))
     }
-    if (!small) drawCorners()
-    drawRibbon(t, mood)
+    if (!small) drawCorners(c.silver)
+    drawRibbon(t, mood, look.ribbon)
     for (side in listOf(-1f, 1f)) {
         drawPath(pageBlock(side, 3.6f), Brush.verticalGradient(listOf(PaperEdge, PaperEdgeDark), startY = 80f, endY = 91f))
         if (!small) {
@@ -734,6 +885,13 @@ private fun DrawScope.drawFace(f: FolhaFrame) {
             for (i in 0..40) { val a = a0 + i * 0.42f; val rr = 0.25f + i * 0.12f; val px = x + cos(a) * rr; val py = y + sin(a) * rr * 1.15f; if (i == 0) sp.moveTo(px, py) else sp.lineTo(px, py) }
             drawPath(sp, Ink, style = stroke(if (small) 1.6f else 1.2f)); return
         }
+        if (mood == FolhaMood.ECSTATIC && blink < 0.5f) {   // olhos de estrela, pulsando
+            val st = star5(x, y, (if (small) 6.4f else 5.8f) * (1f + 0.1f * sin(t * 9f)))
+            drawPath(st, Brush.verticalGradient(listOf(Color(0xFFFFF1BF), Gold, Color(0xFFE39A1E)), startY = y - 6f, endY = y + 5f))
+            drawPath(st, Ink, style = stroke(if (small) 1.2f else 0.8f))
+            if (!small) drawCircle(Color.White.copy(alpha = 0.9f), 0.9f, Offset(x - 1.2f, y - 1.6f))
+            return
+        }
         val rx = 4.4f * p.eyeScale * (if (small) 1.18f else 1f); val ry = 5.8f * p.eyeScale * (if (small) 1.1f else 1f)
         val up = clamp(maxOf(p.up, blink, extraLid), 0f, 1f); val low = clamp(p.low * (1 - blink), 0f, 1f)
         if (small && low > 0.45f && blink < 0.5f) {   // pequeno e feliz: o arco clássico (^^) lê melhor
@@ -834,7 +992,8 @@ private fun DrawScope.drawCap(t: Float, tilt: Float, vy: Float) {
     drawCircle(Gold, 1.8f, Offset(bx, by)); drawCircle(Color(0xFFFFE3A0), 0.7f, Offset(bx - 0.5f, by - 0.5f))
 }
 
-private fun DrawScope.drawRibbon(t: Float, mood: FolhaMood) {
+private fun DrawScope.drawRibbon(t: Float, mood: FolhaMood, colors: List<Color>) {
+    val (dark, base, light) = colors
     val sad = mood == FolhaMood.SAD; val sway = if (sad) 0f else sin(t * 1.9f + 0.6f) * 1.3f
     val w = 3.4f; val x0 = 51.4f; val lieTop = 86f; val edge = 94.6f; val hang = if (sad) 3.2f else 5.4f
     val tipY = edge + hang; val tipX = x0 + 0.5f + sway
@@ -846,10 +1005,184 @@ private fun DrawScope.drawRibbon(t: Float, mood: FolhaMood) {
         close()
     }
     translate(0.7f, 0.5f) { drawPath(r, Color(0x590E0A45)) }
-    drawPath(r, Brush.horizontalGradient(listOf(MintDark, Mint, Color(0xFFC6F7E2), Mint), startX = x0, endX = x0 + w + 0.6f + sway))
+    drawPath(r, Brush.horizontalGradient(listOf(dark, base, light, base), startX = x0, endX = x0 + w + 0.6f + sway))
     drawRect(Brush.verticalGradient(listOf(Color(0x730E0A45), Color(0x000E0A45)), startY = 88f, endY = 91.5f), Offset(x0, 88f), Size(w + 0.3f, 3.5f))
     line(Color.White.copy(alpha = 0.55f), x0 + 0.5f, edge - 0.4f, x0 + w, edge - 0.4f, 0.5f, false)
-    drawRect(Brush.verticalGradient(listOf(Color(0x8C1F7A5A), Color(0x001F7A5A)), startY = edge, endY = edge + 1.8f), Offset(x0 + 0.3f, edge), Size(w, 1.8f))
+    drawRect(Brush.verticalGradient(listOf(dark.copy(alpha = 0.55f), dark.copy(alpha = 0f)), startY = edge, endY = edge + 1.8f), Offset(x0 + 0.3f, edge), Size(w, 1.8f))
+}
+
+// ---- acessórios do armário e cenário do dia
+
+private val MUG_MOODS = setOf(FolhaMood.IDLE, FolhaMood.TALKING, FolhaMood.THINKING, FolhaMood.FOCUS, FolhaMood.WAVE, FolhaMood.POINT, FolhaMood.PROUD, FolhaMood.WINK)
+private val MOON_MOODS = setOf(FolhaMood.IDLE, FolhaMood.SLEEPY, FolhaMood.FOCUS, FolhaMood.THINKING, FolhaMood.WINK)
+
+/** Lápis da ponta (x0, y0) até a borracha (x1, y1). */
+private fun DrawScope.drawPencilAt(x0: Float, y0: Float, x1: Float, y1: Float, r: Float) {
+    val len = hypot(x1 - x0, y1 - y0)
+    translate(x0, y0) {
+        rotate(atan2(y1 - y0, x1 - x0) * 180f / PIf, pivot = Offset.Zero) {
+            drawPath(Path().apply { moveTo(0f, 0f); lineTo(1.2f, -r * 0.45f); lineTo(1.2f, r * 0.45f); close() }, Ink)
+            drawPath(Path().apply { moveTo(1.1f, -r * 0.42f); lineTo(3.2f, -r); lineTo(3.2f, r); lineTo(1.1f, r * 0.42f); close() }, Color(0xFFF0D3A8))
+            drawRect(Gold, Offset(3.2f, -r), Size(len - 6.4f, r * 2))
+            drawRect(Color(0xFFE39A1E), Offset(3.2f, r * 0.15f), Size(len - 6.4f, r * 0.85f))
+            drawRect(Color(0xFFC8CAD6), Offset(len - 3.2f, -r), Size(1.5f, r * 2))
+            oval(Color(0xFFF59AB8), len - 2.4f, -r, 2.8f, r * 2)
+        }
+    }
+}
+
+private fun DrawScope.drawGlasses(p: PoseValues, small: Boolean) {
+    // óculos redondos de leitura: acompanham o rosto (menos que os olhos)
+    val dx = p.lookX * 0.7f; val dy = p.lookY * 0.5f; val w = if (small) 1.5f else 0.95f; val frame = Color(0xFFB47A1C)
+    for (cx in listOf(31f, 69f)) {
+        val x = cx + dx; val y = 61f + dy
+        oval(Color.White.copy(alpha = 0.10f), x - 7f, y - 6.8f, 14f, 13.6f)
+        drawOval(frame, Offset(x - 7f, y - 6.8f), Size(14f, 13.6f), style = Stroke(w))
+        if (!small) drawArc(Color.White.copy(alpha = 0.8f), 194f, 61f, false, Offset(x - 5.6f, y - 5.4f), Size(11.2f, 10.8f), style = stroke(0.55f))
+    }
+    drawPath(Path().apply { moveTo(38f + dx, 60f + dy); quadraticTo(50f + dx, 56.6f + dy, 62f + dx, 60f + dy) }, frame, style = stroke(w))
+    line(frame, 24f + dx, 59.5f + dy, 18.5f, 58f, w); line(frame, 76f + dx, 59.5f + dy, 81.5f, 58f, w)
+}
+
+private fun DrawScope.drawBowTie(small: Boolean) {
+    val x = 50f; val y = 83.4f; val red = Color(0xFFE0475E); val dk = Color(0xFFA8233A)
+    for (side in listOf(-1f, 1f)) {
+        val p = Path().apply { moveTo(x, y); quadraticTo(x + side * 3f, y - 3.6f, x + side * 6f, y - 2.6f); quadraticTo(x + side * 6.8f, y, x + side * 6f, y + 2.6f); quadraticTo(x + side * 3f, y + 3.6f, x, y); close() }
+        drawPath(p, Brush.horizontalGradient(if (side < 0) listOf(red, dk) else listOf(dk, red), startX = if (side < 0) x - 6f else x, endX = if (side < 0) x else x + 6f))
+        if (!small) drawPath(Path().apply { moveTo(x + side * 1.5f, y - 0.6f); quadraticTo(x + side * 3.6f, y - 1.2f, x + side * 5f, y - 0.4f) }, Color.White.copy(alpha = 0.35f), style = stroke(0.35f))
+    }
+    oval(dk, x - 1.6f, y - 1.9f, 3.2f, 3.8f)
+    drawCircle(Color.White.copy(alpha = 0.35f), 0.45f, Offset(x - 0.5f, y - 0.7f))
+}
+
+private fun DrawScope.drawLaurels(small: Boolean) {
+    // coroa de louros dourada: dois ramos abraçando a base do capelo
+    val n = if (small) 4 else 6
+    for (side in listOf(-1f, 1f)) {
+        val p0 = Offset(50f + side * 3f, 45f); val p1 = Offset(50f + side * 15f, 45.5f); val p2 = Offset(50f + side * 16.5f, 33f)
+        fun at(u: Float) = Offset((1 - u) * (1 - u) * p0.x + 2 * (1 - u) * u * p1.x + u * u * p2.x, (1 - u) * (1 - u) * p0.y + 2 * (1 - u) * u * p1.y + u * u * p2.y)
+        drawPath(Path().apply { moveTo(p0.x, p0.y); quadraticTo(p1.x, p1.y, p2.x, p2.y) }, Color(0xFFB07A12), style = stroke(if (small) 0.9f else 0.55f))
+        for (i in 1..n) {
+            val u = i / n.toFloat(); val a = at(u); val b = at(minOf(1f, u + 0.02f)); val tang = atan2(b.y - a.y, b.x - a.x)
+            for (k in if (i == n) listOf(0f) else listOf(-1f, 1f)) {
+                translate(a.x, a.y) {
+                    rotate((tang + k * 0.75f) * 180f / PIf, pivot = Offset.Zero) {
+                        drawOval(Brush.horizontalGradient(listOf(Color(0xFFC98A12), Gold, Color(0xFFFFE3A0)), startX = 0f, endX = 3.2f), Offset(-0.4f, -0.85f), Size(3.8f, 1.7f))
+                        if (!small) drawOval(Color(0x59784600), Offset(-0.4f, -0.85f), Size(3.8f, 1.7f), style = Stroke(0.22f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun star5(x: Float, y: Float, r: Float, sy: Float = 1f) = Path().apply {
+    for (i in 0 until 10) { val a = -PIf / 2 + i * PIf / 5; val rr = if (i % 2 == 1) r * 0.45f else r; val px = x + cos(a) * rr; val py = y + sin(a) * rr * sy; if (i == 0) moveTo(px, py) else lineTo(px, py) }
+    close()
+}
+
+private fun DrawScope.drawStarPin(t: Float, small: Boolean) {
+    val s = star5(37f, 28.4f, if (small) 4f else 3.2f, 0.62f)
+    drawPath(s, Brush.verticalGradient(listOf(Color(0xFFFFF1BF), Gold, Color(0xFFC98A12)), startY = 25f, endY = 31f))
+    drawPath(s, Color(0x73784600), style = Stroke(0.3f))
+    if (!small) { val k = maxOf(0f, sin(t * 1.7f)).pow(6); if (k > 0.02f) star4(38.6f, 26.8f, 2.2f * k, Color.White.copy(alpha = 0.95f * k)) }
+}
+
+private fun DrawScope.drawStreakMedal(t: Float, days: Int, tilt: Float) {
+    // medalha da sequência pendurada na aba do capelo: bronze (7+), prata (30+), ouro (100+)
+    val m = when { days >= 100 -> listOf(Color(0xFFFFF1BF), Gold, Color(0xFFB97E12)); days >= 30 -> SILVER_STOPS; else -> listOf(Color(0xFFF6C79A), Color(0xFFD08B4E), Color(0xFF94562A)) }
+    val sw = sin(t * 2.2f + 1f) * 1.2f - tilt * 0.4f; val x = 25.5f; val y = 31f; val mx = x + sw * 0.4f; val my = y + 8f
+    drawPath(Path().apply { moveTo(x - 1.2f, y); lineTo(x + 1.2f, y); lineTo(mx + 0.9f, my - 2f); lineTo(mx - 0.9f, my - 2f); close() }, Color(0xFFE0475E))
+    line(Color.White.copy(alpha = 0.6f), x, y + 0.2f, mx, my - 2.2f, 0.35f)
+    drawCircle(m[2], 2.9f, Offset(mx, my + 0.3f))
+    drawCircle(Brush.verticalGradient(m, startY = my - 2.6f, endY = my + 2.6f), 2.6f, Offset(mx, my))
+    drawPath(Path().apply { moveTo(mx, my - 1.6f); quadraticTo(mx + 1.5f, my, mx, my + 1.4f); quadraticTo(mx - 1.5f, my, mx, my - 1.6f) }, m[2].copy(alpha = 0.9f))
+}
+
+private fun DrawScope.drawNightcap(t: Float, tilt: Float, vy: Float) {
+    // touca de dormir listrada (à noite, parado ou cochilando), com pompom que balança
+    val sw = sin(t * 1.6f) * 1.6f - tilt * 0.6f + clamp(vy * 0.05f, -3f, 3f); val tx = 79f + sw; val ty = 35f + abs(sw) * 0.3f
+    val cone = Path().apply {
+        moveTo(36.5f, 41f); quadraticTo(38f, 23f, 55f, 21.5f); quadraticTo(70f + sw * 0.4f, 21f, tx, ty)
+        quadraticTo(68f + sw * 0.3f, 28f, 62.5f, 31f); quadraticTo(63f, 36f, 63.5f, 41f); close()
+    }
+    clipPath(cone) {
+        drawRect(Color(0xFF4B3FD8), Offset(20f, 10f), Size(70f, 40f))
+        for (i in -6 until 12) { val x = 20f + i * 6f; drawPath(Path().apply { moveTo(x, 50f); lineTo(x + 3f, 50f); lineTo(x + 23f, 10f); lineTo(x + 20f, 10f); close() }, Color(0xFFDCD7FA)) }
+        drawRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.18f), Color(0x400E0A45)), startY = 20f, endY = 42f), Offset(20f, 10f), Size(70f, 40f))
+    }
+    drawPath(cone, Color(0x590E0A45), style = stroke(0.4f))
+    val rim = Path().apply { moveTo(35f, 41.5f); quadraticTo(50f, 37f, 65f, 41.5f); quadraticTo(66.5f, 44f, 64.5f, 45.4f); quadraticTo(50f, 41.4f, 35.5f, 45.4f); quadraticTo(33.5f, 44f, 35f, 41.5f) }
+    drawPath(rim, Brush.verticalGradient(listOf(Color.White, Color(0xFFE4E0F2)), startY = 38f, endY = 46f))
+    drawPath(rim, Color(0x330E0A45), style = stroke(0.3f))
+    drawCircle(Brush.radialGradient(listOf(Color.White, Color(0xFFD9D4EE)), center = Offset(tx - 1f, ty), radius = 3.4f), 3f, Offset(tx, ty + 1f))
+}
+
+private fun DrawScope.drawRelief(tm: Float) {
+    // "ufa": nuvenzinha de ar saindo da boca e gota de suor voando da testa
+    val a = clamp((tm - 0.5f) / 1.4f, 0f, 1f)
+    if (a > 0f && a < 1f) for (i in 0 until 3) {
+        val u = clamp(a * 1.4f - i * 0.18f, 0f, 1f); if (u <= 0f || u >= 1f) continue
+        val r = 1.4f + u * 2.4f - i * 0.3f; val cx = 44f - u * 16f - i * 2.5f; val cy = 75f + u * 4f + i
+        drawCircle(Color(0xFFAAA5D7).copy(alpha = 0.35f * (1 - u)), r, Offset(cx, cy + 0.4f))
+        drawCircle(Color.White.copy(alpha = 0.85f * (1 - u)), r, Offset(cx, cy))
+    }
+    val d = clamp((tm - 0.9f) / 0.8f, 0f, 1f)
+    if (d > 0f && d < 1f) {
+        val x = 74f + d * 12f; val y = 50f - sin(PIf * d) * 7f + d * 6f
+        drawPath(Path().apply { moveTo(x, y - 2f); quadraticTo(x + 1.6f, y + 0.4f, x, y + 1.1f); quadraticTo(x - 1.6f, y + 0.4f, x, y - 2f) }, Color(0xFF7EC8FF).copy(alpha = 1f - d * 0.6f))
+    }
+}
+
+private fun DrawScope.drawSweat(t: Float) {
+    // sequência em risco: uma gotinha de suor de vez em quando
+    val ph = (t % 4.5f) / 4.5f; if (ph > 0.55f) return
+    val a = if (ph < 0.1f) ph / 0.1f else 1f - maxOf(0f, ph - 0.4f) / 0.15f; val y = 51f + ph * 6f
+    drawPath(Path().apply { moveTo(80f, y - 2.2f); quadraticTo(81.8f, y + 0.4f, 80f, y + 1.2f); quadraticTo(78.2f, y + 0.4f, 80f, y - 2.2f) }, Color(0xFF7EC8FF).copy(alpha = 0.9f * a))
+    drawCircle(Color.White.copy(alpha = 0.8f * a), 0.35f, Offset(79.6f, y - 0.1f))
+}
+
+private fun DrawScope.drawMug(t: Float) {
+    // de manhã: a caneca de café do lado do livro, fumegando
+    val x = 99f; val y = 85.5f; val w = 8.4f; val h = 9.2f
+    scale(1f, 0.22f, pivot = Offset(x + w / 2f, 95f)) { drawCircle(Ink.copy(alpha = 0.22f), 6f, Offset(x + w / 2f, 95f)) }
+    drawArc(Color(0xFFE9E5F5), -90f, 180f, false, Offset(x + w + 0.2f - 2.6f, y + 4.4f - 2.8f), Size(5.2f, 5.6f), style = stroke(1.5f))
+    val body = Path().apply {
+        moveTo(x, y); lineTo(x + w, y); lineTo(x + w - 0.3f, y + h - 1.6f); quadraticTo(x + w - 0.5f, y + h, x + w - 2f, y + h)
+        lineTo(x + 2f, y + h); quadraticTo(x + 0.5f, y + h, x + 0.3f, y + h - 1.6f); close()
+    }
+    drawPath(body, Brush.horizontalGradient(listOf(Color.White, Color(0xFFF2EFFA), Color(0xFFD9D4EE)), startX = x, endX = x + w))
+    clipPath(body) { drawRect(Color(0xFF3A2FC4), Offset(x, y + 3.6f), Size(w, 2.4f)) }
+    oval(Color(0xFF6B4226), x + 0.5f, y - 0.7f, w - 1f, 1.8f); oval(Color(0x59FFE6C8), x + 1.6f, y - 0.5f, 2.4f, 0.6f)
+    drawPath(body, Ink.copy(alpha = 0.25f), style = Stroke(0.3f))
+    for (i in 0 until 2) {
+        val ph = (t * 0.45f + i * 0.5f) % 1f; val a = sin(PIf * ph) * 0.55f; val sx = x + 2.6f + i * 3f
+        val st = Path().apply { moveTo(sx, y - 1.5f - ph * 3f); cubicTo(sx - 1.5f, y - 3f - ph * 4f, sx + 1.5f, y - 5f - ph * 4f, sx, y - 7f - ph * 5f) }
+        drawPath(st, Color.White.copy(alpha = a), style = stroke(0.8f)); drawPath(st, Color(0xFF786EAA).copy(alpha = a * 0.35f), style = stroke(0.3f))
+    }
+}
+
+private fun DrawScope.drawMoon(t: Float) {
+    // à noite: lua minguante e duas estrelinhas piscando
+    val moon = Path().apply { addOval(Rect(6f, 8f, 16f, 18f)) }
+    val bite = Path().apply { addOval(Rect(9f, 6.6f, 18.2f, 15.8f)) }
+    drawPath(Path.combine(androidx.compose.ui.graphics.PathOperation.Difference, moon, bite), Brush.verticalGradient(listOf(Color(0xFFFFF4C8), Color(0xFFFFD877)), startY = 8f, endY = 18f))
+    star4(21f, 7f, 1.3f + 0.5f * sin(t * 2.1f), Color(0xE6FFE696))
+    star4(4f, 22f, 1f + 0.4f * sin(t * 1.7f + 2f), Color(0xCCFFE696))
+}
+
+private fun DrawScope.drawFlames(t: Float, small: Boolean) {
+    // em chamas: labaredas tremulando dos dois lados
+    for (i in 0 until if (small) 2 else 4) {
+        val side = if (i % 2 == 1) 1f else -1f; val row = i / 2
+        val x = 50f + side * (44f + row * 6f); val base = 92f - row * 14f; val hgt = 9f + 2.5f * sin(t * 9f + i * 1.7f) + (if (small) 3f else 0f); val wd = 3.4f + (if (small) 1f else 0f)
+        val p = Path().apply {
+            moveTo(x - wd, base); cubicTo(x - wd * 1.1f, base - hgt * 0.5f, x - wd * 0.2f + sin(t * 7f + i) * 0.8f, base - hgt * 0.7f, x + sin(t * 6f + i) * 1.2f, base - hgt)
+            cubicTo(x + wd * 0.6f, base - hgt * 0.6f, x + wd * 1.1f, base - hgt * 0.45f, x + wd, base); quadraticTo(x, base + 1.8f, x - wd, base)
+        }
+        drawPath(p, Brush.verticalGradient(listOf(Color(0xFFFFE07A), Color(0xFFFF9F3A), Color(0xFFF2552C)), startY = base - hgt, endY = base))
+        oval(Color(0xD9FFF8C8), x - wd * 0.45f, base - hgt * 0.28f - hgt * 0.26f, wd * 0.9f, hgt * 0.52f)
+    }
 }
 
 private fun DrawScope.star4(x: Float, y: Float, r: Float, color: Color) {

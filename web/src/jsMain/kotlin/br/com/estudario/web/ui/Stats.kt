@@ -45,6 +45,10 @@ fun AchievementsScreen() {
                     Div({ classes("medal") }) { Icon(if (item.earned) "military_tech" else "lock", filled = item.earned) }
                     Span({ classes("name") }) { Text(item.badge.name) }
                     Span({ classes("xs", "muted") }) { Text(item.badge.requirement) }
+                    // O que esse emblema libera no armário do Folha.
+                    wardrobeUnlockedBy(item.badge.id).forEach { gift ->
+                        A(href = "#/${Route.Wardrobe.path}", { classes("wd-gift", if (item.earned) "on" else "off") }) { Icon("checkroom"); Text("${gift.slot.label}: ${gift.name}") }
+                    }
                     if (!item.earned) Div({ attr("style", "width:100%") }) {
                         ProgressBar(item.percent.toDouble())
                         Span({ classes("xs", "muted") }) { Text("${item.current} / ${item.target} ${item.badge.unit}") }

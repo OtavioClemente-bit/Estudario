@@ -85,6 +85,8 @@ fun EstudarioApp(viewModel: AppViewModel) {
     val themeMode by viewModel.themeMode.collectAsState()
     val dark = when (themeMode) { "DARK" -> true; "LIGHT" -> false; else -> isSystemInDarkTheme() }
     EstudarioTheme(dark) {
+        // O visual do Folha (armário, sequência, hora do dia) vale para todos os Folhas do app.
+        br.com.estudario.ui.profile.FolhaLookSync(viewModel)
         val onboardingConcluido by viewModel.hasCompletedOnboarding.collectAsState()
         val seenTours by viewModel.seenTours.collectAsState()
         val initialSetup by viewModel.initialSetup.collectAsState()
@@ -389,6 +391,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         currentRoute == "profile" -> "Perfil"
                         currentRoute == "my-syllabi" -> "Meus concursos"
                         currentRoute == "badges" -> "Emblemas"
+                        currentRoute == "wardrobe" -> "Armário do Folha"
                         currentRoute == "sources" -> "Histórico e fontes"
                         currentRoute == "focus-history" -> "Histórico de foco"
                         currentRoute == "theory/{id}?block={block}" -> "Leitura"
@@ -599,7 +602,8 @@ private fun MainNavigation(viewModel: AppViewModel) {
                 composable("sources") { SourcesScreen(viewModel, { navController.popBackStack() }, { navController.navigate("topic/$it") }, showInternalTopBar = false) }
                 composable("focus-history") { FocusHistoryScreen(viewModel) }
                 composable("search") { SearchScreen(viewModel, { navController.popBackStack() }, { navController.navigate("topic/$it") }, { navController.navigate("theory/$it") }, showInlineBack = false) }
-                composable("profile") { ProfileScreen(viewModel, onBack = { navController.popBackStack() }, onBadges = { navController.navigate("badges") }, showInternalTopBar = false) }
+                composable("profile") { ProfileScreen(viewModel, onBack = { navController.popBackStack() }, onBadges = { navController.navigate("badges") }, onWardrobe = { navController.navigate("wardrobe") }, showInternalTopBar = false) }
+                composable("wardrobe") { br.com.estudario.ui.profile.WardrobeScreen(viewModel, { navController.popBackStack() }, showInternalTopBar = false) }
                 composable("badges") { BadgesScreen(viewModel, { navController.popBackStack() }, showInternalTopBar = false) }
             }
         }

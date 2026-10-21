@@ -64,7 +64,7 @@ fun Folha(mood: String = "happy", size: Int = 96, extraStyle: String = "", live:
         )
         return
     }
-    val src = remember(mood, size) {
+    val src = remember(mood, size, FolhaLook.version) {
         // O mesmo desenho do Folha vivo (folha-live.js), parado; o SVG antigo fica de reserva.
         runCatching { window.asDynamic().folhaPng(kotlin.js.json("mood" to mood, "size" to size)) as? String }.getOrNull()
             ?: runCatching { window.asDynamic().folhaSvg(kotlin.js.json("mood" to mood, "size" to size)) as? String }.getOrNull()
@@ -207,6 +207,7 @@ fun ProfileScreen() {
                     P({ classes("xs", "muted") }) { Text("${progress.earnedBadges.size} de ${progress.badges.size} emblemas conquistados") }
                 }
             }
+            WardrobeCard(progress)
             Card {
                 ProfileLink("emoji_events", "Conquistas", "${progress.earnedBadges.size} emblemas", Route.Achievements)
                 ProfileLink("query_stats", "Desempenho", "Acerto, minutos e constância", Route.Stats)
