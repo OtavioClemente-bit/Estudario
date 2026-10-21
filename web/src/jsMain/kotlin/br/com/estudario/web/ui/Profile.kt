@@ -44,7 +44,8 @@ import org.jetbrains.compose.web.dom.Text
 
 /**
  * O Folha da arte oficial (design/mascote/folha-turnaround.webp). Do tamanho de personagem para cima ele é
- * animado com os pixels da própria arte (mascote.js: respira, dança, acena, fala, pula ao toque);
+ * o modelo 3D feito em cima da arte (mascote3d.js: respira, dança, acena, fala, pula ao toque; sem WebGL
+ * cai para o recorte animado de mascote.js);
  * miniatura dentro de botão fica a vista de frente parada, para uma lista cheia de botões não virar
  * dezenas de animações.
  */
@@ -52,7 +53,7 @@ import org.jetbrains.compose.web.dom.Text
 fun Folha(mood: String = "happy", size: Int = 96, extraStyle: String = "", live: Boolean = size >= LIVE_FOLHA_MIN_SIZE) {
     if (live) {
         TagElement<org.w3c.dom.HTMLElement>(
-            elementBuilder = ElementBuilder.createBuilder("estudario-mascote"),
+            elementBuilder = ElementBuilder.createBuilder("estudario-mascote3d"),
             applyAttrs = {
                 classes("folha", "folha-live")
                 attr("mood", mood)
