@@ -92,6 +92,8 @@ private fun accuracyTone(percent: Int?): Color = when {
 @Composable
 fun StatisticsScreen(viewModel: AppViewModel, onBack: () -> Unit, showInlineBack: Boolean = true) {
     val state by viewModel.studyPerformance.collectAsState()
+    // A sequência é a mesma do Perfil (dias que fecharam a meta), não "qualquer dia com atividade".
+    val streak by viewModel.streak.collectAsState()
     val competitions by viewModel.competitions.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
     val topics by viewModel.topics.collectAsState()
@@ -125,7 +127,7 @@ fun StatisticsScreen(viewModel: AppViewModel, onBack: () -> Unit, showInlineBack
         }
         item { PeriodSelector(state, viewModel::selectStudyPerformancePeriod) }
         item { HeroCard(result) }
-        item { KpiRow(result) }
+        item { KpiRow(result, streak?.current ?: result.streakThroughToday) }
         item { RhythmCard(result.dailyActivity, result.dailyActivityLabel) }
         if (editalTopics.isNotEmpty()) item { EditalCard(primary?.name.orEmpty(), editalTopics.size, studied, withMaterial) }
         if (result.subjects.isNotEmpty()) item { SubjectsCard(result) }
@@ -255,14 +257,14 @@ private fun TrendChip(delta: Int) {
 // ---------------------------------------------------------------------------------- números-chave
 
 @Composable
-private fun KpiRow(result: StudyPerformanceResult) {
+private fun KpiRow(result: StudyPerformanceResult, streak: Int) {
     val minutes = result.current.studyMinutes + result.current.planExecutionMinutes
     val days = result.period.days
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Kpi(Icons.Outlined.Schedule, formatHours(minutes), "estudadas", Color(0xFF5B5BD6), Modifier.weight(1f))
         Kpi(Icons.Outlined.Quiz, "${result.current.attempts}", "questões", Color(0xFF0E9AA7), Modifier.weight(1f))
         Kpi(Icons.Outlined.CalendarMonth, if (days != null) "${result.current.activeDays}/$days" else "${result.current.activeDays}", "dias ativos", Color(0xFF8E4EC6), Modifier.weight(1f))
-        Kpi(Icons.Outlined.LocalFireDepartment, "${result.streakThroughToday}", "sequência", Color(0xFFE8590C), Modifier.weight(1f))
+        Kpi(Icons.Outlined.LocalFireDepartment, "$streak", "sequência", Color(0xFFE8590C), Modifier.weight(1f))
     }
 }
 
