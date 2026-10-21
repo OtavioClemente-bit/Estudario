@@ -191,8 +191,6 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                 else Btn("Ver material", { Generation.clear(topicId); onClose(); Router.go(Route.Topic(topicId)) }, style = "primary", size = "lg", icon = "menu_book")
             }
             else -> Div({ classes("gen-body", "gen-working") }) {
-                // O Folha escrevendo no caderno enquanto o material é gerado.
-                Div({ classes("gen-folha") }) { Folha("thinking", 128) }
                 ProcessView(
                     title = if (showQuestions) "Preparando as suas questões" else "Preparando o seu material",
                     eyebrow = topic?.title?.take(60),
