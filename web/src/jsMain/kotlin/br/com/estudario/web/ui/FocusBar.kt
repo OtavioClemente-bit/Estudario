@@ -39,7 +39,8 @@ fun FocusBar() {
         }
     } else {
         Div({ classes(*listOfNotNull("focus-bar", if (!TopicFocus.running) "paused" else null).toTypedArray()) }) {
-            Icon("timer", filled = true)
+            // O Folha estuda junto: escrevendo concentrado; com o foco pausado, cochila.
+            Span({ classes("focus-folha") }) { Folha(if (TopicFocus.running) "focus" else "sleepy", 30, live = true) }
             Span({ classes("focus-clock") }) { Text(TopicFocus.clock()) }
             Span({ classes("focus-title", "clamp-2") }) {
                 Text(TopicFocus.title.ifBlank { "Sessão de foco" })

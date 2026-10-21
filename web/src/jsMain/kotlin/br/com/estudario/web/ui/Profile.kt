@@ -44,11 +44,11 @@ import org.jetbrains.compose.web.dom.Text
 
 /**
  * O Folha. Do tamanho de personagem para cima ele é o mesmo do app, vivo (folha-live.js: respira,
- * pisca, olha em volta, pula ao toque); miniatura dentro de botão fica como desenho parado, para
- * uma lista cheia de botões não virar dezenas de animações.
+ * pisca, olha em volta, pula ao toque); miniatura dentro de botão fica como desenho parado (o mesmo
+ * desenho, um quadro só: folhaPng), para uma lista cheia de botões não virar dezenas de animações.
  */
 @Composable
-fun Folha(mood: String = "happy", size: Int = 96, extraStyle: String = "", live: Boolean = size >= LIVE_FOLHA_MIN_SIZE) {
+fun Folha(mood: String = "happy", size: Int = 96, extraStyle: String = "", live: Boolean = size >= LIVE_FOLHA_MIN_SIZE, say: String? = null) {
     if (live) {
         TagElement<org.w3c.dom.HTMLElement>(
             elementBuilder = ElementBuilder.createBuilder("estudario-folha"),
@@ -56,6 +56,8 @@ fun Folha(mood: String = "happy", size: Int = 96, extraStyle: String = "", live:
                 classes("folha", "folha-live")
                 attr("mood", mood)
                 attr("size", size.toString())
+                // Falando: a boca acompanha as letras do texto (folha-live.js).
+                say?.let { attr("say", it) }
                 if (extraStyle.isNotBlank()) attr("style", extraStyle)
             },
             content = null,
@@ -63,8 +65,11 @@ fun Folha(mood: String = "happy", size: Int = 96, extraStyle: String = "", live:
         return
     }
     val src = remember(mood, size) {
-        val svg = runCatching { window.asDynamic().folhaSvg(kotlin.js.json("mood" to mood, "size" to size)) as? String }.getOrNull()
-        svg?.let { "data:image/svg+xml;charset=utf-8," + js("encodeURIComponent")(it) as String } ?: "icon.png"
+        // O mesmo desenho do Folha vivo (folha-live.js), parado; o SVG antigo fica de reserva.
+        runCatching { window.asDynamic().folhaPng(kotlin.js.json("mood" to mood, "size" to size)) as? String }.getOrNull()
+            ?: runCatching { window.asDynamic().folhaSvg(kotlin.js.json("mood" to mood, "size" to size)) as? String }.getOrNull()
+                ?.let { "data:image/svg+xml;charset=utf-8," + js("encodeURIComponent")(it) as String }
+            ?: "icon.png"
     }
     Img(src = src, alt = "", attrs = {
         classes("folha")

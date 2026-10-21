@@ -50,7 +50,7 @@ fun FolhaTalking(text: String, size: Int = 88, onFolhaClick: (() -> Unit)? = nul
         Div({
             classes("folha-talk-avatar")
             onFolhaClick?.let { click -> onClick { click() } }
-        }) { key(size) { Folha(if (talking) "talking" else restMood, size) } }
+        }) { key(size) { Folha(if (talking) "talking" else restMood, size, say = if (talking) text else null) } }
         Div({ classes("talk-bubble"); attr("aria-live", "polite") }) {
             Span({ classes("ghost"); attr("aria-hidden", "true") }) { Text(text) }
             Span({ classes("live") }) {

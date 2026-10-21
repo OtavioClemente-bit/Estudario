@@ -495,7 +495,7 @@ private fun AnswerReaction(right: Boolean, correctKey: String?, questionId: Long
     val badge = if (right) STREAK_BADGES.lastOrNull { it.first == streak } else null
     val line = (if (right) RIGHT_LINES else WRONG_LINES).let { it[((questionId % it.size + it.size) % it.size).toInt()] }
     Div({ classes("answer-reaction", if (right) "ok" else "bad", "pop-in") }) {
-        Div({ classes(if (right) "folha-cheer" else "folha-shake") }) { Folha(if (right) "happy" else "sad", 72) }
+        Div({ classes(if (right) "folha-cheer" else "folha-shake") }) { Folha(if (badge != null) "proud" else if (right) "happy" else "sad", 72) }
         Div({ classes("grow") }) {
             B({ classes("reaction-title") }) { Text(if (right) "Mandou bem!" else "Não foi dessa vez") }
             P({ classes("small") }) { Text(line) }

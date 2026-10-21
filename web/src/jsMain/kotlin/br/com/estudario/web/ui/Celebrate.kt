@@ -232,7 +232,7 @@ private fun StreakContent(item: Celebration.StreakDay) {
     }
     if (item.xpToday > 0) Span({ classes("cel-xp", "sk-late"); attr("style", "--sd:2.2s") }) { Icon("bolt", filled = true); Text("+${item.xpToday} XP hoje") }
     Div({ classes("sk-folha") }) {
-        Div({ classes("sk-folha-body") }) { Folha("wave", 104) }
+        Div({ classes("sk-folha-body") }) { Folha("proud", 104) }
         Div({ classes("lv-bubble", "sk-bubble") }) { Text(if (item.days <= 1) "Acendeu! Amanhã a gente mantém." else "${item.days} dias! Tá pegando fogo!") }
     }
 }
@@ -245,8 +245,8 @@ private fun StreakContent(item: Celebration.StreakDay) {
 @Composable
 private fun BadgeContent(badge: Badge) {
     val (light, dark) = tierColors(badge.tier)
-    var mood by androidx.compose.runtime.remember(badge.id) { mutableStateOf("happy") }
-    LaunchedEffect(badge.id) { kotlinx.coroutines.delay(1800); mood = "talking"; kotlinx.coroutines.delay(2400); mood = "wave" }
+    var mood by androidx.compose.runtime.remember(badge.id) { mutableStateOf("surprised") }
+    LaunchedEffect(badge.id) { kotlinx.coroutines.delay(900); mood = "proud"; kotlinx.coroutines.delay(1300); mood = "talking"; kotlinx.coroutines.delay(2400); mood = "wave" }
     Div({ classes("bd-stage"); attr("style", "--m1:$light;--m2:$dark") }) {
         Div({ classes("lv-rays", "bd-rays") })
         Div({ classes("lv-shock", "bd-shock") })
@@ -284,8 +284,8 @@ private fun BadgeContent(badge: Badge) {
 private fun LevelContent(item: Celebration.LevelUp) {
     val old = (item.level - 1).coerceAtLeast(1)
     val newTitle = br.com.estudario.domain.ProgressEngine.levelTitle(old) != item.title
-    var folhaMood by androidx.compose.runtime.remember { mutableStateOf("happy") }
-    LaunchedEffect(item) { kotlinx.coroutines.delay(2400); folhaMood = "talking"; kotlinx.coroutines.delay(2600); folhaMood = "wave" }
+    var folhaMood by androidx.compose.runtime.remember { mutableStateOf("surprised") }
+    LaunchedEffect(item) { folhaMood = "surprised"; kotlinx.coroutines.delay(1100); folhaMood = "happy"; kotlinx.coroutines.delay(1300); folhaMood = "talking"; kotlinx.coroutines.delay(2600); folhaMood = "wave" }
     Div({ classes("lv-stage") }) {
         Div({ classes("lv-rays") })
         Div({ classes("lv-shock") })
