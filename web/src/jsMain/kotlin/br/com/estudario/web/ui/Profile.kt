@@ -43,31 +43,16 @@ import org.jetbrains.compose.web.dom.Text
 // ------------------------------------------------------------------ Folha (o mascote)
 
 /**
- * O Folha. Do tamanho de personagem para cima ele é o mesmo do app, vivo (folha-live.js: respira,
- * pisca, olha em volta, pula ao toque); miniatura dentro de botão fica como desenho parado, para
- * uma lista cheia de botões não virar dezenas de animações.
+ * O Folha da arte oficial (design/mascote/folha-turnaround.webp). Do tamanho de personagem para cima ele é
+ * animado com os pixels da própria arte (mascote.js: respira, dança, acena, fala, pula ao toque);
+ * miniatura dentro de botão fica a vista de frente parada, para uma lista cheia de botões não virar
+ * dezenas de animações.
  */
 @Composable
 fun Folha(mood: String = "happy", size: Int = 96, extraStyle: String = "", live: Boolean = size >= LIVE_FOLHA_MIN_SIZE) {
-    if (live && size >= FOLHA_3D_MIN_SIZE) {
-        // Tamanho de personagem: o Folha 3D (folha3d.js). Sem WebGL ou com muitos na tela, o próprio
-        // elemento cai para o Folha 2D.
-        TagElement<org.w3c.dom.HTMLElement>(
-            elementBuilder = ElementBuilder.createBuilder("estudario-folha3d"),
-            applyAttrs = {
-                classes("folha", "folha-3d")
-                attr("mood", mood)
-                attr("size", size.toString())
-                attr("intro", "off")
-                if (extraStyle.isNotBlank()) attr("style", extraStyle)
-            },
-            content = null,
-        )
-        return
-    }
     if (live) {
         TagElement<org.w3c.dom.HTMLElement>(
-            elementBuilder = ElementBuilder.createBuilder("estudario-folha"),
+            elementBuilder = ElementBuilder.createBuilder("estudario-mascote"),
             applyAttrs = {
                 classes("folha", "folha-live")
                 attr("mood", mood)
@@ -78,19 +63,14 @@ fun Folha(mood: String = "happy", size: Int = 96, extraStyle: String = "", live:
         )
         return
     }
-    val src = remember(mood, size) {
-        val svg = runCatching { window.asDynamic().folhaSvg(kotlin.js.json("mood" to mood, "size" to size)) as? String }.getOrNull()
-        svg?.let { "data:image/svg+xml;charset=utf-8," + js("encodeURIComponent")(it) as String } ?: "icon.png"
-    }
-    Img(src = src, alt = "", attrs = {
+    Img(src = "mascote-front.png", alt = "", attrs = {
         classes("folha")
-        attr("style", "width:${size}px;height:${size}px;$extraStyle")
+        attr("style", "width:${size}px;height:${size}px;object-fit:contain;$extraStyle")
         attr("aria-hidden", "true")
     })
 }
 
 private const val LIVE_FOLHA_MIN_SIZE = 48
-private const val FOLHA_3D_MIN_SIZE = 96
 
 /**
  * Fala do Folha: o mascote com um balão, como nas telas do app. Falando, ele mexe a boca pelo

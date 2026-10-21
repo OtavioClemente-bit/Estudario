@@ -1,0 +1,123 @@
+<!doctype html><body style="margin:0"><canvas id=c></canvas><script>
+// Recorta a vista de frente em partes (com pivôs) e prepara as outras vistas. Só usa os pixels da imagem.
+const im = new Image();
+im.onload = () => {
+  const W = im.naturalWidth, H = im.naturalHeight;
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(im, 0, 0);
+  const all = g.getImageData(0, 0, W, H).data;
+  // Recorte da vista de frente.
+  const FX = 0, FY = 40, FW = 606, FH = 610;
+  const N = FW * FH, src = new Uint8ClampedArray(N * 4);
+  for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) { const i = (y * FW + x) * 4, j = ((y + FY) * W + x + FX) * 4; for (let k = 0; k < 4; k++) src[i + k] = all[j + k]; }
+  const P = (x, y) => [x - FX, y - FY];                    // coordenadas da folha -> do recorte
+  const inPoly = (poly, x, y) => { let inside = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside; } return inside; };
+  const rgb = (i) => [src[i * 4], src[i * 4 + 1], src[i * 4 + 2], src[i * 4 + 3]];
+  const lum = ([r, g, b]) => 0.3 * r + 0.59 * g + 0.11 * b;
+  const isGold = ([r, g, b]) => r > 100 && r - b > 55 && g > 45 && r >= g;
+  const isTeal = ([r, g, b]) => g - r > 22 && b - r > 12;
+  const isSleeve = ([r, g, b]) => b > 120 && b - r > 70 && lum([r, g, b]) > 55;
+  const isPage = (p) => lum(p) > 165;
+  // Partes: polígono (coordenadas da folha), regra de cor, pivô, se o buraco no livro deve ser preenchido.
+  const parts = {
+    shoeL0: { poly: [[110,518],[285,518],[285,545],[110,545]], ok: (p) => !isSleeve(p) && lum(p) > 120, pivot: [200, 612], fill: false, as: "shoeL" },
+    shoeR0: { poly: [[322,518],[500,518],[500,545],[322,545]], ok: (p) => !isSleeve(p) && lum(p) > 120, pivot: [412, 612], fill: false, as: "shoeR" },
+    tassel: { poly: [[420,118],[460,118],[460,150],[476,160],[476,234],[416,234],[416,160],[428,150]], ok: (p) => isGold(p), pivot: [445, 128], fill: true, dil: 3 },
+    cap: { poly: [[172,52],[456,52],[456,128],[432,150],[402,166],[372,178],[318,199],[264,180],[238,170],[205,152],[172,138]], ok: (p, x, y) => !(isPage(p) && y > 158), pivot: [318, 186], fill: true, dil: 2 },
+    ribbon: { poly: [[298,424],[342,424],[342,506],[298,506]], ok: (p) => isTeal(p), pivot: [320, 440], fill: true, dil: 2 },
+    mouth: { poly: [[280,314],[346,314],[346,362],[280,362]], ok: (p) => !isPage(p) || Math.max(p[0], p[1], p[2]) - Math.min(p[0], p[1], p[2]) > 45, pivot: [312, 320], fill: true, dil: 3 },
+    eyeL: { poly: [[184,260],[268,260],[268,312],[184,312]], ok: (p) => lum(p) < 150, pivot: [226, 300], fill: true, dil: 3 },
+    eyeR: { poly: [[356,260],[442,260],[442,312],[356,312]], ok: (p) => lum(p) < 150, pivot: [399, 300], fill: true, dil: 3 },
+    armL: { poly: [[0,180],[99,180],[99,298],[123,298],[123,360],[92,362],[0,330]], ok: (p, x) => x < 99 || isSleeve(p), pivot: [108, 330], fill: true, dil: 2 },
+    armR: { poly: [[523,236],[606,236],[606,372],[523,372]], ok: () => true, pivot: [522, 346], fill: false, extendX: [524, 506] },
+    legL: { poly: [[215,459],[305,459],[305,537],[215,537]], ok: () => true, pivot: [262, 452], fill: false, extendY: [460, 438] },
+    legR: { poly: [[325,459],[412,459],[412,537],[325,537]], ok: () => true, pivot: [366, 452], fill: false, extendY: [460, 438] },
+    shoeL: { poly: [[110,530],[285,530],[285,650],[110,650]], ok: () => true, pivot: [200, 612], fill: false },
+    shoeR: { poly: [[322,530],[500,530],[500,650],[322,650]], ok: () => true, pivot: [412, 612], fill: false },
+  };
+  const owner = new Int8Array(N).fill(-1), names = Object.keys(parts);
+  const canon = (k) => parts[names[k]].as ? names.indexOf(parts[names[k]].as) : k;
+  for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
+    const i = y * FW + x, p = rgb(i); if (p[3] === 0) continue;
+    const sx = x + FX, sy = y + FY;
+    for (let k = 0; k < names.length; k++) { const pt = parts[names[k]]; if (inPoly(pt.poly, sx, sy) && pt.ok(p, sx, sy)) { owner[i] = canon(k); break; } }
+  }
+  // Uma camada por parte (recortada no próprio retângulo), mais o livro com os buracos preenchidos.
+  const FILES = {}, LAYOUT = { view: [FX, FY, FW, FH], parts: {} };
+  const layer = (data, x0, y0, w, h) => { const cc = document.createElement("canvas"); cc.width = w; cc.height = h; const id = new ImageData(w, h); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const s = ((y + y0) * FW + x + x0) * 4, d = (y * w + x) * 4; for (let k = 0; k < 4; k++) id.data[d + k] = data[s + k]; } cc.getContext("2d").putImageData(id, 0, 0); return cc.toDataURL("image/png"); };
+  names.forEach((name, k) => {
+    if (parts[name].as) return;
+    const pt = parts[name], data = new Uint8ClampedArray(N * 4);
+    let minx = FW, miny = FH, maxx = 0, maxy = 0;
+    for (let i = 0; i < N; i++) if (owner[i] === k) { for (let q = 0; q < 4; q++) data[i * 4 + q] = src[i * 4 + q]; const x = i % FW, y = (i / FW) | 0; minx = Math.min(minx, x); maxx = Math.max(maxx, x); miny = Math.min(miny, y); maxy = Math.max(maxy, y); }
+    // Prolonga a raiz da perna/braço por trás da capa, para não abrir fresta quando gira.
+    if (pt.extendY) { const [from, to] = pt.extendY.map((v) => v - FY); for (let y = to; y < from; y++) for (let x = 0; x < FW; x++) { const s = (from * FW + x) * 4, d = (y * FW + x) * 4; if (data[s + 3]) for (let q = 0; q < 4; q++) data[d + q] = data[s + q]; } miny = Math.min(miny, to); }
+    if (pt.extendX) { const [from, to] = pt.extendX.map((v) => v - FX); for (let x = to; x < from; x++) for (let y = 0; y < FH; y++) { const s = (y * FW + from) * 4, d = (y * FW + x) * 4; if (data[s + 3] > 200 && isSleeve([data[s], data[s + 1], data[s + 2]])) for (let q = 0; q < 4; q++) data[d + q] = data[s + q]; } minx = Math.min(minx, to); }
+    const pad = 2; minx = Math.max(0, minx - pad); miny = Math.max(0, miny - pad); maxx = Math.min(FW - 1, maxx + pad); maxy = Math.min(FH - 1, maxy + pad);
+    FILES[name] = layer(data, minx, miny, maxx - minx + 1, maxy - miny + 1);
+    const [px, py] = P(...pt.pivot);
+    LAYOUT.parts[name] = { x: minx, y: miny, w: maxx - minx + 1, h: maxy - miny + 1, pivot: [px, py] };
+  });
+  // Livro: tudo o que não é parte; buracos das partes "fill" preenchidos com os vizinhos (RGBA pré-multiplicado).
+  const body = new Uint8ClampedArray(src), hole = new Uint8Array(N);
+  for (let i = 0; i < N; i++) if (owner[i] >= 0) { body[i * 4 + 3] = 0; if (parts[names[owner[i]]].fill) hole[i] = 1; }
+  // Dilata o buraco (por parte) para levar junto a franja antisserrilhada.
+  const hole2 = new Uint8Array(hole);
+  for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
+    const i = y * FW + x; if (!hole[i]) continue; const r = parts[names[owner[i]]].dil || 1;
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= FW || ny >= FH) continue; const j = ny * FW + nx; if (owner[j] < 0 && src[j * 4 + 3] > 0) hole2[j] = 1; }
+  }
+  const BOOK = [[100,172],[118,162],[318,166],[505,161],[523,172],[523,468],[100,468]];
+  for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
+    const i = y * FW + x; if (!hole2[i]) continue;
+    if (!inPoly(BOOK, x + FX, y + FY)) { body[i * 4 + 3] = 0; continue; }
+    let acc = [0, 0, 0, 0], wsum = 0;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      let nx = x, ny = y, d = 0;
+      while (true) { nx += dx; ny += dy; d++; if (nx < 0 || ny < 0 || nx >= FW || ny >= FH || d > 200) { d = -1; break; } const j = ny * FW + nx; if (!hole2[j]) break; }
+      if (d < 0) continue;
+      const j = (ny * FW + nx) * 4, a = (owner[ny * FW + nx] >= 0 ? 0 : src[j + 3]) / 255, w = 1 / (d * d);
+      acc[0] += src[j] * a * w; acc[1] += src[j + 1] * a * w; acc[2] += src[j + 2] * a * w; acc[3] += a * w; wsum += w;
+    }
+    if (wsum > 0 && acc[3] > 0) { const a = acc[3] / wsum; body[i * 4] = acc[0] / acc[3]; body[i * 4 + 1] = acc[1] / acc[3]; body[i * 4 + 2] = acc[2] / acc[3]; body[i * 4 + 3] = a > 0.5 ? 255 * Math.min(1, a * 1.1) : a * 255; }
+    else body[i * 4 + 3] = 0;
+  }
+  for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
+    const i = (y * FW + x) * 4, sx = x + FX, sy = y + FY;
+    if (!inPoly(BOOK, sx, sy)) body[i + 3] = 0;
+    // fundo cinza preso entre a aba do capelo e o alto das folhas
+    else if (sx > 380 && sx < 455 && sy < 176) { const p = [body[i], body[i + 1], body[i + 2]]; if (Math.max(...p) - Math.min(...p) < 18 && lum(p) < 215) body[i + 3] = 0; }
+  }
+  FILES.body = layer(body, 0, 0, FW, FH);
+  LAYOUT.parts.body = { x: 0, y: 0, w: FW, h: FH, pivot: P(313, 600) };
+  // Máscara de conferência: cada parte numa cor.
+  const dbg = new Uint8ClampedArray(N * 4), pal = [[255,200,0],[60,60,220],[0,200,200],[200,0,0],[120,0,120],[120,0,120],[0,160,0],[0,220,90],[230,120,0],[230,60,120],[90,90,90],[150,150,150]];
+  for (let i = 0; i < N; i++) { if (src[i * 4 + 3] === 0) continue; const o = owner[i]; const cc = o >= 0 ? pal[o % pal.length] : [255, 255, 255]; dbg[i * 4] = cc[0]; dbg[i * 4 + 1] = cc[1]; dbg[i * 4 + 2] = cc[2]; dbg[i * 4 + 3] = 255; }
+  FILES.mask = layer(dbg, 0, 0, FW, FH);
+  // As outras vistas, inteiras, recortadas na caixa do personagem.
+  const views = { v34: [606, 0, 516, 690], side: [0, 690, 500, 712], back: [515, 690, 607, 712] };
+  // A costas começa onde termina o lado (o punho esquerdo dela passa da metade da folha).
+  const FRONT_FULL = true;
+  LAYOUT.views = {};
+  for (const [name, [vx, vy, vw, vh]] of Object.entries(views)) {
+    let minx = vw, miny = vh, maxx = 0, maxy = 0;
+    for (let y = 0; y < vh; y++) for (let x = 0; x < vw; x++) if (all[((y + vy) * W + x + vx) * 4 + 3] > 8) { minx = Math.min(minx, x); maxx = Math.max(maxx, x); miny = Math.min(miny, y); maxy = Math.max(maxy, y); }
+    const cc = document.createElement("canvas"); cc.width = maxx - minx + 1; cc.height = maxy - miny + 1;
+    cc.getContext("2d").drawImage(c, vx + minx, vy + miny, cc.width, cc.height, 0, 0, cc.width, cc.height);
+    FILES[name] = cc.toDataURL("image/png");
+    LAYOUT.views[name] = { w: cc.width, h: cc.height };
+  }
+  { // caixa do personagem na vista de frente (para alinhar as outras)
+    let minx = FW, miny = FH, maxx = 0, maxy = 0;
+    for (let i = 0; i < N; i++) if (src[i * 4 + 3] > 8) { const x = i % FW, y = (i / FW) | 0; minx = Math.min(minx, x); maxx = Math.max(maxx, x); miny = Math.min(miny, y); maxy = Math.max(maxy, y); }
+    LAYOUT.front = { x: minx, y: miny, w: maxx - minx + 1, h: maxy - miny + 1 };
+  }
+  { // vista de frente inteira (para o Folha pequeno, parado)
+    const fr = LAYOUT.front, cc = document.createElement("canvas"); cc.width = fr.w; cc.height = fr.h;
+    cc.getContext("2d").drawImage(c, FX + fr.x, FY + fr.y, fr.w, fr.h, 0, 0, fr.w, fr.h); FILES.front = cc.toDataURL("image/png");
+  }
+  FILES.layout = "data:application/json;base64," + btoa(JSON.stringify(LAYOUT));
+  window.FILES = FILES; window.INFO = JSON.stringify(LAYOUT.front); window.DONE = 1;
+};
+im.src = "recorte.png";
+</script></body>
