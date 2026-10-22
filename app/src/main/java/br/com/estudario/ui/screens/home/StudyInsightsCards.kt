@@ -48,10 +48,15 @@ fun StudyInsightsSection(
     streak: StreakSummary?, onTrainSubject: (Long) -> Unit,
 ) {
     val answers = remember(attempts.size, topics.size) { studyAnswers(attempts, questionTopic, topics, subjects) }
+    val context = LocalContext.current
+    val done = remember(answers, MissionStore.version.intValue) { StudyInsights.missionResult(MissionStore.get(context), answers, System.currentTimeMillis()) }
+    val train = { id: Long, name: String, fallback: Int -> MissionStore.start(context, id, name, StudyInsights.subjectAccuracy(answers, id, System.currentTimeMillis()) ?: fallback); onTrainSubject(id) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (streak != null) WeekReport(answers, streak)
+        if (done != null) MissionDone(done, onAgain = { train(done.mission.subjectId, done.mission.subject, done.after) }, onClose = { MissionStore.clear(context) })
         val spot = remember(answers) { val now = System.currentTimeMillis(); StudyInsights.weakSpot(answers, now) ?: StudyInsights.weakSpot(answers, now, 14) }
-        if (spot != null) WeakSpot(spot, onTrainSubject)
+        // a missão acabou de ser cumprida nesta matéria: o card de cima já fala dela
+        if (spot != null && done?.mission?.subjectId != spot.subjectId) WeakSpot(spot) { train(spot.subjectId, spot.subject, spot.accuracy) }
     }
 }
 
@@ -68,14 +73,14 @@ private fun InsightCard(accent: Color, content: @Composable ColumnScope.() -> Un
  * está no card do "Agora", logo acima.
  */
 @Composable
-private fun AccuracyRing(accuracy: Int) {
-    val track = Color(0x29F0506B)
+private fun AccuracyRing(accuracy: Int, shown: Float = accuracy.toFloat(), from: Color = Color(0xFFF0506B), to: Color = Color(0xFFFFB421)) {
+    val track = from.copy(alpha = 0.16f)
     Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
         androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
             val w = 6.dp.toPx(); val inset = w / 2 + 2.dp.toPx()
             val arcSize = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2); val tl = androidx.compose.ui.geometry.Offset(inset, inset)
             drawArc(track, 0f, 360f, false, tl, arcSize, style = androidx.compose.ui.graphics.drawscope.Stroke(w))
-            drawArc(Brush.sweepGradient(listOf(Color(0xFFF0506B), Color(0xFFFFB421), Color(0xFFF0506B))), -90f, 360f * accuracy / 100f, false, tl, arcSize,
+            drawArc(Brush.sweepGradient(listOf(from, to, from)), -90f, 360f * shown / 100f, false, tl, arcSize,
                 style = androidx.compose.ui.graphics.drawscope.Stroke(w, cap = androidx.compose.ui.graphics.StrokeCap.Round))
             // a meta: 70% da volta
             val a = Math.toRadians((-90.0 + 252.0)); val r = arcSize.width / 2; val cx = size.width / 2; val cy = size.height / 2
@@ -90,7 +95,7 @@ private fun AccuracyRing(accuracy: Int) {
 }
 
 @Composable
-private fun WeakSpot(spot: StudyInsights.WeakSpot, onTrainSubject: (Long) -> Unit) {
+private fun WeakSpot(spot: StudyInsights.WeakSpot, onTrain: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     InsightCard(Color(0xFFF0506B)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -104,8 +109,56 @@ private fun WeakSpot(spot: StudyInsights.WeakSpot, onTrainSubject: (Long) -> Uni
                 )
             }
         }
-        Button(onClick = { onTrainSubject(spot.subjectId) }, modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = onTrain, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Outlined.GpsFixed, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Treinar 10 questões de ${spot.subject}", fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+/**
+ * A missão do ponto fraco, guardada ao tocar em "Treinar": a matéria, o acerto daquele momento e a hora.
+ * Quando a pessoa responde as questões dela, o Início mostra o antes e o depois e o Folha comemora.
+ */
+object MissionStore {
+    val version = mutableIntStateOf(0)
+    fun get(context: Context): StudyInsights.Mission? = StudyInsights.Mission.decode(weekPrefs(context).getString("missao", null))
+    fun start(context: Context, subjectId: Long, subject: String, before: Int) {
+        weekPrefs(context).edit().putString("missao", StudyInsights.Mission(subjectId, subject, before, System.currentTimeMillis()).encode()).apply(); version.intValue++
+    }
+    fun clear(context: Context) { weekPrefs(context).edit().remove("missao").apply(); version.intValue++ }
+}
+
+/**
+ * Missão cumprida: o anel sai do acerto de antes e corre até o de agora, com a diferença em pontos e,
+ * se a matéria ainda pede reforço, o botão para mais uma rodada.
+ */
+@Composable
+private fun MissionDone(r: StudyInsights.MissionResult, onAgain: () -> Unit, onClose: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val anim = remember(r.mission.startedAt) { androidx.compose.animation.core.Animatable(r.mission.before.toFloat()) }
+    LaunchedEffect(r.mission.startedAt, r.after) { kotlinx.coroutines.delay(450); anim.animateTo(r.after.toFloat(), androidx.compose.animation.core.tween(1600, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
+    val green = Color(0xFF1FA65C)
+    InsightCard(green) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            AccuracyRing(r.after, anim.value, green, Color(0xFF7EE0B8))
+            Column(Modifier.weight(1f)) {
+                Text("MISSÃO CUMPRIDA", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, letterSpacing = 1.sp)
+                Text(r.mission.subject, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("${r.mission.before}% → ${r.after}%", fontWeight = FontWeight.Black)
+                    if (r.delta != 0) {
+                        val c = if (r.delta > 0) green else Color(0xFFF0506B)
+                        Text(if (r.delta > 0) "+${r.delta} pts" else "${r.delta} pts", Modifier.clip(RoundedCornerShape(50)).background(c.copy(alpha = 0.16f)).padding(horizontal = 8.dp, vertical = 2.dp), color = c, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+                Text("${r.answered} questões respondidas nessa matéria desde a missão.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (r.after < 70) Button(onClick = onAgain, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Outlined.GpsFixed, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Mais 10 questões", fontWeight = FontWeight.Bold)
+            }
+            OutlinedButton(onClick = onClose, modifier = Modifier.weight(1f)) { Text("Fechar") }
         }
     }
 }

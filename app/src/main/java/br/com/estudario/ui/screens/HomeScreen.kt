@@ -277,8 +277,16 @@ fun HomeScreen(
                         ),
                     )
                 }
+                // missão do ponto fraco cumprida: ele comemora o antes e o depois aqui no balão
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val missionLine = remember(attempts.size, br.com.estudario.ui.screens.home.MissionStore.version.intValue) {
+                    val qt = questions.associate { it.question.id to it.question.topicId }
+                    br.com.estudario.domain.StudyInsights.missionResult(
+                        br.com.estudario.ui.screens.home.MissionStore.get(context), br.com.estudario.ui.screens.home.studyAnswers(attempts, qt, topics, subjects), System.currentTimeMillis(),
+                    )?.let { r -> br.com.estudario.domain.FolhaMemory.Line(br.com.estudario.domain.FolhaFalas.mission(r.mission.subject, r.mission.before, r.after, r.mission.startedAt / 1000), if (r.delta >= 0) "proud" else "happy") }
+                }
                 CurrentStudySection(
-                    memory = memory,
+                    memory = missionLine ?: memory,
                     state = currentStudy,
                     onPrimaryAction = {
                         when (currentStudy) {

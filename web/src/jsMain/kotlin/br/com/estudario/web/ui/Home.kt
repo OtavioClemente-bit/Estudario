@@ -151,11 +151,13 @@ private fun NowPanel(data: Snapshot, hasPlan: Boolean, tasks: List<PlanTask>, ho
                 val needsMaterial = task.topicId != null && !hasMaterial(data, task.topicId) && !Store.demo
                 // quando ele tem algo pessoal para dizer (saudade, prova chegando, o que você estudou ontem), fala isso
                 val memory = if (needsMaterial) null else FolhaFriend.homeLine(data, Progress.of(data), daysToExam, hour, seed)
+                // missão do ponto fraco cumprida: ele comemora o antes e o depois aqui no balão
+                val mission = androidx.compose.runtime.remember(data.attempts.size, Mission.version) { Mission.result(studyAnswers(data)) }
                 FolhaTalking(
-                    memory?.text ?: FolhaLines.forHome(continuing, needsMaterial, hour, seed),
+                    mission?.let { Mission.line(it) } ?: memory?.text ?: FolhaLines.forHome(continuing, needsMaterial, hour, seed, daysToExam),
                     96,
                     onFolhaClick = { if (needsMaterial) onGenerate(task.topicId!!) else openTask(task) },
-                    restMood = memory?.mood?.takeIf { it == "sad" || it == "happy" || it == "proud" } ?: "idle",
+                    restMood = if (mission != null) (if (mission.delta >= 0) "proud" else "happy") else memory?.mood?.takeIf { it == "sad" || it == "happy" || it == "proud" } ?: "idle",
                 )
                 Span({ classes("eyebrow") }) { Text(if (continuing) "CONTINUANDO" else "AGORA") }
                 Div({ classes("now-task") }) {

@@ -949,17 +949,12 @@ private val BOND_REACTIONS = listOf(Triple(2, "dance", 1700L), Triple(3, "hug", 
 private fun reactionsNow(): List<Pair<String, Long>> = REACTIONS + BOND_REACTIONS.filter { FolhaLook.bond >= it.first }.map { it.second to it.third }
 /** O que ele imagina no balão de pensamento. */
 private val THOUGHTS = listOf("bulb", "heart", "star", "book", "coffee", "note", "question", "trophy", "pizza")
-/** Frases: tocar nele, fazer carinho e voltar para o app. Curtas, no jeito dele (as mesmas do site). */
-private val TAP_LINES = listOf(
-    "Ei! Isso faz cócegas!", "Hehe, de novo!", "Tô aqui, firme e forte!", "Bora mais um tópico?", "Você tá indo bem, viu?",
-    "Psiu… revisar amanhã fixa o dobro.", "Já bebeu água hoje?", "Cada questão é um passo pra posse!", "Eu acredito em você. Muito!",
-    "Ai, minhas páginas!", "Folha, ao seu dispor!", "Um tópico de cada vez, combinado?", "Errar aqui é acertar na prova.",
-    "Tô torcendo por você!", "Quer ver um giro? Toca de novo!", "Uma pausa curtinha também é estudo.", "Hoje a gente vence o edital um pouquinho.",
-)
-private val MORNING_LINES = listOf("Bom dia! Já tomou café?", "Cedinho assim? Orgulho!", "Manhã é a melhor hora pra memória.")
-private val NIGHT_LINES = listOf("Tá tarde, hein? Mais um e cama!", "Estudo da noite também conta.", "Não esquece de dormir, tá? A memória agradece.")
-private val PET_LINES = listOf("Ahh, que carinho bom!", "Hehe, faz de novo!", "Você é demais!", "Fiquei vermelhinho…", "Agora eu estudo até de cabeça pra baixo!")
-internal val BACK_LINES = listOf("Voltou! Senti sua falta.", "Ei, que bom te ver!", "Bora continuar de onde paramos?", "Eu guardei a página pra você!")
+// as falas de toque, carinho e volta: o mesmo banco do site (FolhaFalas)
+private val TAP_LINES = br.com.estudario.domain.FolhaFalas.tap
+private val MORNING_LINES = br.com.estudario.domain.FolhaFalas.tapMorning
+private val NIGHT_LINES = br.com.estudario.domain.FolhaFalas.tapNight
+private val PET_LINES = br.com.estudario.domain.FolhaFalas.pet
+internal val BACK_LINES = br.com.estudario.domain.FolhaFalas.back
 private fun tapLine(): String {
     val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
     val list = if (Random.nextInt(4) == 0) (if (h in 5..10) MORNING_LINES else if (h >= 22 || h < 5) NIGHT_LINES else TAP_LINES)

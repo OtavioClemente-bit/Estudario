@@ -69,95 +69,21 @@ fun FolhaTalking(original: String, size: Int = 88, onFolhaClick: (() -> Unit)? =
     }
 }
 
-/** O que o Folha fala: FolhaLines.kt do app, com a mesma escolha por semente. */
+/** O que o Folha fala: o mesmo banco do app (FolhaFalas, no módulo compartilhado), com a mesma escolha por semente. */
 object FolhaLines {
-    private fun <T> List<T>.pick(seed: Long): T = this[((seed % size) + size).toInt() % size]
-
-    private val homeStart = listOf(
-        "Bora? Seu próximo estudo está aqui.",
-        "Quem estuda hoje não corre atrás amanhã.",
-        "Um tópico de cada vez. É assim que o edital acaba.",
-        "A vaga não tem nome ainda. Vamos colocar o seu?",
-        "Constância vence talento que não aparece.",
-        "Hoje é um bom dia para ficar mais perto da posse.",
-        "Pouco todo dia rende mais que muito de vez em quando.",
-        "Abre o tópico comigo? Eu seguro a página.",
-        "O concorrente também está estudando. Bora na frente?",
-        "Cada tópico fechado é um ponto a mais na prova.",
-        "Disciplina é lembrar do que você quer, mesmo cansado.",
-        "Sua aprovação está sendo construída agora.",
-        "Edital grande se vence assim: começando.",
-        "Café, foco e eu. Partiu?",
-        "Dez minutos já contam. Começa e vê o tempo passar.",
-        "A prova não pergunta se você estava com vontade.",
-        "Seu eu do futuro vai agradecer por esse estudo.",
-        "Bora transformar esse tópico em acerto na prova?",
-    )
-    private val homeContinue = listOf(
-        "Bora terminar o que começamos?",
-        "Você parou no meio. Eu guardei a página.",
-        "Falta pouco para fechar esse tópico.",
-        "Começou, agora termina. É assim que se passa.",
-        "Voltou! Vamos de onde você parou.",
-        "Esse tópico está quase seu. Só mais um pouco.",
-    )
-    private val homeGenerate = listOf(
-        "Vamos preparar o material deste tópico?",
-        "Eu escrevo a teoria, você só estuda. Topa?",
-        "Esse tópico ainda está em branco. Bora preencher?",
-        "Um clique e eu monto teoria, flashcards e questões.",
-        "Deixa comigo: preparo tudo do jeito da sua banca.",
-    )
-    private val morning = listOf("Bom dia! Cabeça descansada aprende mais rápido.", "Começar cedo é sair na frente. Bora?")
-    private val night = listOf("Estudo da noite também conta. Bora fechar o dia bem?", "Um último tópico antes de dormir? A memória agradece.")
-
-    fun forHome(continuing: Boolean, needsMaterial: Boolean, hour: Int, seed: Long): String = when {
-        needsMaterial -> homeGenerate.pick(seed)
-        continuing -> homeContinue.pick(seed)
-        hour in 5..9 && seed % 4 == 0L -> morning.pick(seed / 4)
-        (hour >= 21 || hour < 2) && seed % 4 == 0L -> night.pick(seed / 4)
-        else -> homeStart.pick(seed)
-    }
-
+    private val F = br.com.estudario.domain.FolhaFalas
+    fun forHome(continuing: Boolean, needsMaterial: Boolean, hour: Int, seed: Long, daysToExam: Long? = null): String =
+        F.home(continuing, needsMaterial, hour, seed, ((Date().getDay() + 6) % 7) + 1, daysToExam)
     /** Dia sem tarefa pendente: a missão acabou ou é folga. */
-    fun forDayDone(seed: Long): String = listOf(
-        "Missão cumprida! Descansa, que amanhã a gente continua.",
-        "Dia fechado. É assim, um dia de cada vez, que se chega na posse.",
-        "Tudo feito por hoje. Tô orgulhoso de você!",
-        "Plano do dia concluído. A sequência está garantida.",
-    ).pick(seed)
-
+    fun forDayDone(seed: Long): String = F.dayDone(seed)
     /** O Folha no perfil: comenta o caminho da pessoa, nunca do mesmo jeito. */
-    fun forProfile(level: Int, streak: Int, xpToday: Int, seed: Long): String {
-        val options = buildList {
-            if (streak >= 2) {
-                add("$streak dias seguidos! Constância vence talento.")
-                add("$streak dias sem falhar. Essa sequência é sua, não deixa ela cair!")
-            } else add("Bora começar uma sequência hoje? O primeiro dia é o mais importante.")
-            if (xpToday > 0) add("+$xpToday XP hoje. Cada ponto é um passo mais perto da posse.")
-            else add("Ainda sem XP hoje. Um tópico já muda isso.")
-            add("Nível $level! Quem chegou até aqui não para no meio do caminho.")
-            add("Cada emblema aqui foi conquistado de verdade. Bora pelo próximo?")
-            add("Seu histórico conta a história da sua aprovação. E ela está ficando boa.")
-            add("Eu guardo tudo o que você estudou. Você só precisa continuar.")
-        }
-        return options.pick(seed)
-    }
-
-    fun forResult(percent: Int, seed: Long): String = when {
-        percent >= 90 -> listOf("Que bateria! Com esse desempenho, a aprovação é questão de tempo.", "Impressionante. Você está voando nesse conteúdo!").pick(seed)
-        percent >= 70 -> listOf("Muito bom! Acima de 70% é ritmo de aprovado.", "Mandou bem! Os erros já foram pro caderno pra gente revisar.").pick(seed)
-        percent >= 50 -> listOf("Bom caminho! Revisando os erros, a próxima sai bem melhor.", "Metade já está dominada. Bora atacar o resto juntos?").pick(seed)
-        else -> listOf("Dia difícil acontece. O importante é que você treinou, e cada erro virou aprendizado.", "Não desanima! Os erros estão guardados e vão voltar na hora certa pra você fixar.").pick(seed)
-    }
-
+    fun forProfile(level: Int, streak: Int, xpToday: Int, seed: Long): String = F.profile(level, streak, xpToday, seed)
+    fun forResult(percent: Int, seed: Long): String = F.result(percent, seed)
     /** Desempenho: o Folha lê o acerto do período com a pessoa. */
-    fun forStats(accuracy: Int?, seed: Long): String = when {
-        accuracy == null -> "Resolve umas questões comigo? Aí eu te mostro onde você está forte e onde reforçar."
-        accuracy >= 70 -> listOf("Acerto de aprovado! Agora é manter o ritmo.", "Acima de 70%. A banca que se prepare!").pick(seed)
-        accuracy >= 50 -> listOf("No caminho certo. Revisando os pontos fracos, isso sobe rápido.", "Metade do caminho andado. Bora reforçar as matérias em vermelho?").pick(seed)
-        else -> listOf("Base em construção. Cada erro agora é um acerto no dia da prova.", "Calma: errar treinando é o melhor jeito de não errar na prova.").pick(seed)
-    }
+    fun forStats(accuracy: Int?, seed: Long): String = F.stats(accuracy, seed)
+    fun forAnswer(correct: Boolean, seed: Long): String = F.answer(correct, seed)
+    fun forRelief(seed: Long): String = F.relief(seed)
+    fun forFire(seed: Long): String = F.fire(seed)
 }
 
 /** Semente que muda a cada vez que a tela abre, como no app (segundos desde 1970). */

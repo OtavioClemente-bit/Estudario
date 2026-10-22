@@ -37,7 +37,12 @@ fun studyAnswers(data: Snapshot): List<StudyInsights.Answer> {
  */
 @Composable
 fun WeakSpotCard(data: Snapshot) {
-    val spot = remember(data.attempts.size) { studyAnswers(data).let { a -> val now = kotlin.js.Date.now().toLong(); StudyInsights.weakSpot(a, now) ?: StudyInsights.weakSpot(a, now, 14) } } ?: return
+    val answers = remember(data.attempts.size) { studyAnswers(data) }
+    val done = remember(data.attempts.size, Mission.version) { Mission.result(answers) }
+    if (done != null) MissionDoneCard(done, answers)
+    val spot = remember(data.attempts.size) { val now = kotlin.js.Date.now().toLong(); StudyInsights.weakSpot(answers, now) ?: StudyInsights.weakSpot(answers, now, 14) } ?: return
+    // a missão acabou de ser cumprida nesta matéria: o card de cima já fala dela
+    if (done != null && done.mission.subjectId == spot.subjectId) return
     Div({ classes("card", "pad-lg", "insight-card", "weak", "rise") }) {
         Div({ classes("insight-top") }) {
             Div({ classes("insight-ring"); attr("style", "--p:${spot.accuracy}"); attr("title", "Acerto de ${spot.accuracy}% (meta: 70%)") }) {
@@ -52,7 +57,60 @@ fun WeakSpotCard(data: Snapshot) {
                 }
             }
         }
-        Btn("Treinar 10 questões de ${spot.subject}", { Router.go(Route.Quiz("materia-${spot.subjectId}-10")) }, block = true, icon = "gps_fixed")
+        Btn("Treinar 10 questões de ${spot.subject}", { Mission.start(spot.subjectId, spot.subject, answers, spot.accuracy) }, block = true, icon = "gps_fixed")
+    }
+}
+
+/**
+ * A missão do ponto fraco, guardada ao tocar em "Treinar": a matéria, o acerto daquele momento e a hora.
+ * Quando a pessoa responde as questões dela, o Início mostra o antes e o depois e o Folha comemora.
+ */
+object Mission {
+    private const val KEY = "estudario.missao"
+    var version by mutableStateOf(0)
+    fun stored(): StudyInsights.Mission? = StudyInsights.Mission.decode(runCatching { localStorage.getItem(KEY) }.getOrNull())
+    fun result(answers: List<StudyInsights.Answer>): StudyInsights.MissionResult? = StudyInsights.missionResult(stored(), answers, kotlin.js.Date.now().toLong())
+    fun start(subjectId: Long, subject: String, answers: List<StudyInsights.Answer>, fallback: Int) {
+        val now = kotlin.js.Date.now().toLong()
+        val before = StudyInsights.subjectAccuracy(answers, subjectId, now) ?: fallback
+        runCatching { localStorage.setItem(KEY, StudyInsights.Mission(subjectId, subject, before, now).encode()) }
+        version++
+        Router.go(Route.Quiz("materia-${subjectId}-10"))
+    }
+    fun clear() { runCatching { localStorage.removeItem(KEY) }; version++ }
+    /** A fala do Folha sobre a missão cumprida (o cartão do "Agora" usa no lugar da frase do dia). */
+    fun line(r: StudyInsights.MissionResult): String = br.com.estudario.domain.FolhaFalas.mission(r.mission.subject, r.mission.before, r.after, r.mission.startedAt / 1000)
+}
+
+/**
+ * Missão cumprida: o anel sai do acerto de antes e corre até o de agora, com a diferença em pontos, a
+ * fala do Folha e, se a matéria ainda pede reforço, o botão para mais uma rodada.
+ */
+@Composable
+private fun MissionDoneCard(r: StudyInsights.MissionResult, answers: List<StudyInsights.Answer>) {
+    var shown by remember(r.mission.startedAt) { mutableStateOf(r.mission.before) }
+    androidx.compose.runtime.LaunchedEffect(r.mission.startedAt, r.after) { kotlinx.coroutines.delay(450); shown = r.after }
+    val up = r.delta > 0
+    Div({ classes("card", "pad-lg", "insight-card", "mission-done", "rise") }) {
+        Div({ classes("insight-top") }) {
+            Div({ classes("insight-ring", "anim"); attr("style", "--p:$shown") }) {
+                B { Text("${r.after}%") }
+                Span { Text("acerto") }
+            }
+            Div({ classes("grow") }) {
+                Span({ classes("eyebrow") }) { Text("MISSÃO CUMPRIDA") }
+                B({ classes("insight-title") }) { Text(r.mission.subject) }
+                Div({ classes("mission-delta", if (up) "up" else if (r.delta < 0) "down" else "same") }) {
+                    Text("${r.mission.before}% → ${r.after}%")
+                    if (r.delta != 0) Span { Text(if (up) "+${r.delta} pts" else "${r.delta} pts") }
+                }
+                P({ classes("small", "muted"); attr("style", "margin:4px 0 0") }) { Text("${r.answered} questões respondidas nessa matéria desde a missão.") }
+            }
+        }
+        Div({ classes("mission-actions") }) {
+            if (r.after < 70) Btn("Mais 10 questões", { Mission.start(r.mission.subjectId, r.mission.subject, answers, r.after) }, icon = "gps_fixed")
+            Btn("Fechar", { Mission.clear() }, style = "ghost")
+        }
     }
 }
 

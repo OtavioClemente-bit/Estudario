@@ -68,7 +68,7 @@
   const INKS = { marinho: INK, azul: "#1F4FD8", vermelha: "#C42F4B", verde: "#0F8A5F", grafite: "#3A3A44", roxa: "#6D3CE0", cafe: "#6B3E1E", ameixa: "#7A1F6A", floresta: "#14523A", dourada: "#A8700A", nanquim: "#0B0B10" };
   const CHEEKS = { rosa: CHEEK, pessego: "#FFB98A", lilas: "#C9A6F4", coral: "#FF8C75", nenhuma: null };
   const SLOTS = ["cover", "pages", "ink", "cheeks", "ribbon", "gloves", "hat", "eyes", "neck", "hand", "back", "aura", "pet"];
-  const LOOK = { cover: "indigo", pages: "lisa", ink: "marinho", cheeks: "rosa", ribbon: "menta", hat: "capelo", eyes: "nenhum", neck: "nenhum", hand: "nenhum", back: "nada", aura: "nenhum", gloves: "branca", pet: "nenhum", streak: 0, atRisk: false, hour: null, bond: 0, name: "", bondLines: [] };
+  const LOOK = { cover: "indigo", pages: "lisa", ink: "marinho", cheeks: "rosa", ribbon: "menta", hat: "capelo", eyes: "nenhum", neck: "nenhum", hand: "nenhum", back: "nada", aura: "nenhum", gloves: "branca", pet: "nenhum", streak: 0, atRisk: false, hour: null, bond: 0, name: "", bondLines: [], tapLines: null, tapMorning: null, tapNight: null, petLines: null, backLines: null };
   // Escolhas antigas (um "acessório" só) viram a peça equivalente.
   const LEGACY_ACC = { oculos: ["eyes", "leitura"], gravata: ["neck", "borboleta"], estrela: ["neck", "broche"], louros: ["hat", "louros"], lapis: ["hand", "lapis"] };
   function resolveLook(el, over) {
@@ -1928,11 +1928,18 @@
   const NIGHT_LINES = ["Tá tarde, hein? Mais um e cama!", "Estudo da noite também conta.", "Não esquece de dormir, tá? A memória agradece."];
   const PET_LINES = ["Ahh, que carinho bom!", "Hehe, faz de novo!", "Você é demais!", "Fiquei vermelhinho…", "Agora eu estudo até de cabeça pra baixo!"];
   const BACK_LINES = ["Voltou! Senti sua falta.", "Ei, que bom te ver!", "Bora continuar de onde paramos?", "Eu guardei a página pra você!"];
+  // O site manda o banco de falas do app (FolhaFalas) por folhaSetLook; estas listas ficam para o site público.
+  const fromLook = (list) => (list === TAP_LINES ? LOOK.tapLines : list === MORNING_LINES ? LOOK.tapMorning : list === NIGHT_LINES ? LOOK.tapNight : list === PET_LINES ? LOOK.petLines : list === BACK_LINES ? LOOK.backLines : null) || list;
+  let lastLine = "";
   function pickLine(list) {
     const h = new Date().getHours();
     if (list === TAP_LINES && Math.random() < 0.25) list = h >= 5 && h < 11 ? MORNING_LINES : h >= 22 || h < 5 ? NIGHT_LINES : list;
     else if (list === TAP_LINES && LOOK.bondLines && LOOK.bondLines.length && Math.random() < 0.35) list = LOOK.bondLines;
-    return list[Math.floor(Math.random() * list.length)];
+    list = fromLook(list);
+    // nunca a mesma fala duas vezes seguidas
+    let line = list[Math.floor(Math.random() * list.length)];
+    if (line === lastLine && list.length > 1) line = list[(list.indexOf(line) + 1) % list.length];
+    lastLine = line; return line;
   }
 
   const MOODS = { idle: "idle", thinking: "thinking", talking: "talking", happy: "happy", sad: "sad", wave: "wave", point: "point", wink: "idle",

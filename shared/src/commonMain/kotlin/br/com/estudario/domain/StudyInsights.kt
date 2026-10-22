@@ -33,6 +33,40 @@ object StudyInsights {
             .sortedWith(compareBy<WeakSpot> { it.accuracy }.thenByDescending { it.wrong })
             .firstOrNull()
 
+    /**
+     * A missão do ponto fraco, depois de feita: ao tocar em "Treinar", o app guarda a matéria, o acerto
+     * daquele momento e a hora; quando a pessoa responde pelo menos [MISSION_MIN] questões dela depois
+     * disso, a missão conta como cumprida e o card mostra o antes e o depois.
+     */
+    data class Mission(val subjectId: Long, val subject: String, val before: Int, val startedAt: Long) {
+        fun encode(): String = "$subjectId|$before|$startedAt|$subject"
+        companion object {
+            fun decode(raw: String?): Mission? {
+                val p = raw?.split("|", limit = 4) ?: return null
+                if (p.size < 4) return null
+                return Mission(p[0].toLongOrNull() ?: return null, p[3], p[1].toIntOrNull() ?: return null, p[2].toLongOrNull() ?: return null)
+            }
+        }
+    }
+    data class MissionResult(val mission: Mission, val after: Int, val answered: Int) {
+        val delta: Int get() = after - mission.before
+    }
+    const val MISSION_MIN = 5
+
+    /** O acerto da matéria nos últimos [days] dias (nulo se ainda não tem questão nela). */
+    fun subjectAccuracy(answers: List<Answer>, subjectId: Long, now: Long, days: Int = 14): Int? {
+        val list = answers.filter { it.subjectId == subjectId && it.at >= now - days * DAY_MS }
+        return if (list.isEmpty()) null else list.count { it.correct } * 100 / list.size
+    }
+
+    /** A missão guardada já foi cumprida? Devolve o antes e o depois, ou nulo se ainda falta. */
+    fun missionResult(mission: Mission?, answers: List<Answer>, now: Long): MissionResult? {
+        mission ?: return null
+        val answered = answers.count { it.subjectId == mission.subjectId && it.at >= mission.startedAt }
+        if (answered < MISSION_MIN) return null
+        return MissionResult(mission, subjectAccuracy(answers, mission.subjectId, now) ?: mission.before, answered)
+    }
+
     /** A semana (últimos 7 dias, hoje incluído) comparada com os 7 dias anteriores. */
     data class Week(
         val from: LocalDate, val to: LocalDate,

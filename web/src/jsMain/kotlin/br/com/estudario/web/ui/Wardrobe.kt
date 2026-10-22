@@ -97,6 +97,12 @@ object FolhaLook {
             "bond" to br.com.estudario.domain.FolhaBond.level(streak.activeDays).index,
             "name" to (FolhaFriend.firstName() ?: ""),
             "bondLines" to br.com.estudario.domain.FolhaMemory.bondTapLines(br.com.estudario.domain.FolhaBond.level(streak.activeDays).index, FolhaFriend.firstName()).toTypedArray(),
+            // as falas de toque, carinho e volta: o mesmo banco do app
+            "tapLines" to br.com.estudario.domain.FolhaFalas.tap.toTypedArray(),
+            "tapMorning" to br.com.estudario.domain.FolhaFalas.tapMorning.toTypedArray(),
+            "tapNight" to br.com.estudario.domain.FolhaFalas.tapNight.toTypedArray(),
+            "petLines" to br.com.estudario.domain.FolhaFalas.pet.toTypedArray(),
+            "backLines" to br.com.estudario.domain.FolhaFalas.back.toTypedArray(),
         )
         FolhaSlot.entries.forEach { look[it.key] = chosen(it, view.progress).id }
         runCatching { window.asDynamic().folhaSetLook(look) }
