@@ -669,6 +669,21 @@ private fun TheoryReader(theory: Theory) {
                 id("tb-${theory.id}-$i")
                 classes(*listOfNotNull("tblock", trap?.let { if (it) "callout-trap" else "callout-tip" }, if (i in markedBlocks) "marked" else null, if (i == flashBlock) "flash-mark" else null).toTypedArray())
             }) {
+                // Tabela se grifa inteira, num toque (selecionar célula por célula fica torto).
+                if (block.lines().count { it.trimStart().startsWith("|") } >= 2) {
+                    val whole = theoryMarks.firstOrNull { it.blockIndex == i && it.quote == blocks[i] }
+                    Button({
+                        classes(*listOfNotNull("table-grifo", if (whole != null) "on" else null).toTypedArray())
+                        attr("title", if (whole != null) "Tirar o grifo da tabela" else "Grifar a tabela inteira e guardar no Caderno")
+                        onClick {
+                            when {
+                                Store.demo -> Toast.show("Entre com sua conta para grifar e guardar no Caderno.")
+                                whole != null -> { Store.update { Actions.deleteTheoryMark(it, whole.id) }; Toast.show("Grifo da tabela tirado") }
+                                else -> { Store.update { Actions.addTheoryMark(it, theory.id, i, blocks[i]) }; Toast.show("Tabela grifada e salva no Caderno de estudo") }
+                            }
+                        }
+                    }) { Icon(if (whole != null) "ink_eraser" else "format_ink_highlighter"); Text(if (whole != null) "Tirar grifo" else "Grifar tabela") }
+                }
                 if (trap != null) {
                     Div({ classes("callout-head") }) { Icon(if (trap) "warning" else "lightbulb", filled = true); Text(if (trap) "Atenção" else "Dica") }
                     Markdown(block.lines().joinToString("\n") { it.trimStart().removePrefix(">").removePrefix(" ") })
